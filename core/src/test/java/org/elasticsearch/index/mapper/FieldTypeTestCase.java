@@ -22,13 +22,13 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.similarity.BM25SimilarityProvider;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
 import java.util.List;
 
 /** Base test case for subclasses of MappedFieldType */
-public abstract class FieldTypeTestCase extends ElasticsearchTestCase {
+public abstract class FieldTypeTestCase extends ESTestCase {
 
     /** Create a default constructed fieldtype */
     protected abstract MappedFieldType createDefaultFieldType();

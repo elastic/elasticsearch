@@ -18,13 +18,12 @@
  */
 package org.elasticsearch.common;
 
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
-import java.io.IOException;
 import java.util.HashSet;
 
-public class UUIDTests extends ElasticsearchTestCase {
+public class UUIDTests extends ESTestCase {
 
     static UUIDGenerator timeUUIDGen = new TimeBasedUUIDGenerator();
     static UUIDGenerator randomUUIDGen = new RandomBasedUUIDGenerator();

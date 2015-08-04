@@ -41,9 +41,8 @@ import org.apache.lucene.search.spell.DirectSpellChecker;
 import org.apache.lucene.search.spell.SuggestMode;
 import org.apache.lucene.store.RAMDirectory;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.Version;
 import org.elasticsearch.search.suggest.phrase.NoisyChannelSpellChecker.Result;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import java.io.*;
@@ -53,7 +52,7 @@ import java.util.Map;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
-public class NoisyChannelSpellCheckerTests extends ElasticsearchTestCase{
+public class NoisyChannelSpellCheckerTests extends ESTestCase {
     private final BytesRef space = new BytesRef(" ");
     private final BytesRef preTag = new BytesRef("<em>");
     private final BytesRef postTag = new BytesRef("</em>");

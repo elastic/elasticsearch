@@ -19,12 +19,12 @@
 package org.elasticsearch.test.test;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 
 import java.util.List;
 
-public class VersionUtilsTests extends ElasticsearchTestCase {
+public class VersionUtilsTests extends ESTestCase {
 
     public void testAllVersionsSorted() {
         List<Version> allVersions = VersionUtils.allVersions();

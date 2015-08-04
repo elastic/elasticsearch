@@ -20,13 +20,13 @@
 package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
+import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.junit.Test;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
-public class BulkProcessorClusterSettingsIT extends ElasticsearchIntegrationTest {
+public class BulkProcessorClusterSettingsIT extends ESIntegTestCase {
 
     @Test
     public void testBulkProcessorAutoCreateRestrictions() throws Exception {

@@ -24,9 +24,9 @@ import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.index.*;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 
-public class ReplaceMissingTests extends ElasticsearchTestCase {
+public class ReplaceMissingTests extends ESTestCase {
     
     public void test() throws Exception {
         Directory dir = newDirectory();

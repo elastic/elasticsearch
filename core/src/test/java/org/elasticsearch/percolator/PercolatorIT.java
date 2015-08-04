@@ -50,7 +50,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -95,7 +95,7 @@ import static org.hamcrest.Matchers.nullValue;
 /**
  *
  */
-public class PercolatorIT extends ElasticsearchIntegrationTest {
+public class PercolatorIT extends ESIntegTestCase {
 
     @Test
     public void testSimple1() throws Exception {

@@ -29,7 +29,7 @@ import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms.Bucket;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsBuilder;
 import org.elasticsearch.search.aggregations.metrics.max.Max;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
 import java.util.Collection;
@@ -49,8 +49,8 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 /**
  * Tests the Sampler aggregation
  */
-@ElasticsearchIntegrationTest.SuiteScopeTest
-public class SamplerIT extends ElasticsearchIntegrationTest {
+@ESIntegTestCase.SuiteScopeTestCase
+public class SamplerIT extends ESIntegTestCase {
 
     public static final int NUM_SHARDS = 2;
 

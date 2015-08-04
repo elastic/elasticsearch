@@ -34,8 +34,8 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MergeMappingException;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
@@ -50,7 +50,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.*;
 
 @ClusterScope(randomDynamicTemplates = false)
-public class UpdateMappingIntegrationIT extends ElasticsearchIntegrationTest {
+public class UpdateMappingIntegrationIT extends ESIntegTestCase {
 
     @Test
     public void dynamicUpdates() throws Exception {

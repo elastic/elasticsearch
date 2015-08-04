@@ -28,7 +28,7 @@ import org.apache.lucene.store.RAMDirectory;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -40,7 +40,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  * A set of tests for {@link org.elasticsearch.index.deletionpolicy.SnapshotDeletionPolicy}.
  */
-public class SnapshotDeletionPolicyTests extends ElasticsearchTestCase {
+public class SnapshotDeletionPolicyTests extends ESTestCase {
 
     protected final ShardId shardId = new ShardId(new Index("index"), 1);
 

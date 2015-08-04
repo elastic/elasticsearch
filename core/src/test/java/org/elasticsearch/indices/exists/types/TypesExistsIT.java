@@ -18,13 +18,12 @@
  */
 package org.elasticsearch.indices.exists.types;
 
-import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.exists.types.TypesExistsResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -36,7 +35,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
 import static org.hamcrest.Matchers.equalTo;
 
-public class TypesExistsIT extends ElasticsearchIntegrationTest {
+public class TypesExistsIT extends ESIntegTestCase {
 
     @Test
     public void testSimple() throws Exception {

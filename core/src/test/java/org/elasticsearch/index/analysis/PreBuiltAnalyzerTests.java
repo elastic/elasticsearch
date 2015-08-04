@@ -28,7 +28,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.indices.analysis.PreBuiltAnalyzers;
-import org.elasticsearch.test.ElasticsearchSingleNodeTest;
+import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -42,7 +42,7 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-public class PreBuiltAnalyzerTests extends ElasticsearchSingleNodeTest {
+public class PreBuiltAnalyzerTests extends ESSingleNodeTestCase {
 
     @Test
     public void testThatDefaultAndStandardAnalyzerAreTheSameInstance() {

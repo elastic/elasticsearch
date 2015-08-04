@@ -43,7 +43,7 @@ import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHitField;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.hamcrest.Matchers;
 import org.junit.Test;
@@ -92,7 +92,7 @@ import static org.hamcrest.Matchers.nullValue;
 /**
  *
  */
-public class SimpleSortIT extends ElasticsearchIntegrationTest {
+public class SimpleSortIT extends ESIntegTestCase {
 
     @TestLogging("action.search.type:TRACE")
     @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elasticsearch/elasticsearch/issues/9421")

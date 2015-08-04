@@ -20,12 +20,12 @@
 package org.elasticsearch.common.collect;
 
 import com.google.common.collect.ImmutableSet;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashSet;
 import java.util.Set;
 
-public class CopyOnWriteHashSetTests extends ElasticsearchTestCase {
+public class CopyOnWriteHashSetTests extends ESTestCase {
 
     private static class O {
 

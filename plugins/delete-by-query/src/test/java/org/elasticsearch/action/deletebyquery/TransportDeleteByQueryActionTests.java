@@ -38,7 +38,7 @@ import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.InternalSearchHit;
-import org.elasticsearch.test.ElasticsearchSingleNodeTest;
+import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.junit.Test;
 
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
@@ -46,7 +46,7 @@ import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
 
-public class TransportDeleteByQueryActionTests extends ElasticsearchSingleNodeTest {
+public class TransportDeleteByQueryActionTests extends ESSingleNodeTestCase {
 
     @Test
     public void testExecuteScanFailsOnMissingIndex() {

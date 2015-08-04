@@ -27,7 +27,7 @@ import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.recovery.RecoveryState.*;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -40,7 +40,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.Matchers.*;
 
-public class RecoveryStateTest extends ElasticsearchTestCase {
+public class RecoveryStateTest extends ESTestCase {
 
     abstract class Streamer<T extends Streamable> extends Thread {
 

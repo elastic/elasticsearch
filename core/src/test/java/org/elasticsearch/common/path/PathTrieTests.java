@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.path;
 
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import java.util.Map;
@@ -31,7 +31,7 @@ import static org.hamcrest.Matchers.nullValue;
 /**
  *
  */
-public class PathTrieTests extends ElasticsearchTestCase {
+public class PathTrieTests extends ESTestCase {
 
     @Test
     public void testPath() {

@@ -29,7 +29,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import java.util.Map;
@@ -43,7 +43,7 @@ import static org.hamcrest.Matchers.nullValue;
 /**
  *
  */
-public class ThreadPoolSerializationTests extends ElasticsearchTestCase {
+public class ThreadPoolSerializationTests extends ESTestCase {
 
     BytesStreamOutput output = new BytesStreamOutput();
 

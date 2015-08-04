@@ -21,11 +21,11 @@ package org.elasticsearch.index.shard;
 
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 /** Unit test(s) for IndexShardModule */
-public class IndexShardModuleTests extends ElasticsearchTestCase {
+public class IndexShardModuleTests extends ESTestCase {
 
     @Test
     public void testDetermineShadowEngineShouldBeUsed() {

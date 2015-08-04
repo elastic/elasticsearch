@@ -32,7 +32,7 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -46,7 +46,7 @@ import static org.hamcrest.Matchers.nullValue;
 /**
  *
  */
-public class DocumentActionsIT extends ElasticsearchIntegrationTest {
+public class DocumentActionsIT extends ESIntegTestCase {
 
     protected void createIndex() {
         createIndex(getConcreteIndexName());

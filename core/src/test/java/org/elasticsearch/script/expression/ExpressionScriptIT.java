@@ -45,7 +45,7 @@ import org.elasticsearch.search.aggregations.metrics.stats.Stats;
 import org.elasticsearch.search.aggregations.pipeline.SimpleValue;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 
 import java.util.HashMap;
@@ -60,7 +60,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class ExpressionScriptIT extends ElasticsearchIntegrationTest {
+public class ExpressionScriptIT extends ESIntegTestCase {
 
     private SearchRequestBuilder buildRequest(String script, Object... params) {
         ensureGreen("test");

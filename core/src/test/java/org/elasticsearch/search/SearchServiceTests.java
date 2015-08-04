@@ -20,7 +20,7 @@ package org.elasticsearch.search;
 
 
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.test.ElasticsearchSingleNodeTest;
+import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.util.concurrent.ExecutionException;
 
@@ -28,7 +28,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class SearchServiceTests extends ElasticsearchSingleNodeTest {
+public class SearchServiceTests extends ESSingleNodeTestCase {
 
     @Override
     protected boolean resetNodeAfterTest() {

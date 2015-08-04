@@ -42,8 +42,8 @@ import org.elasticsearch.index.store.IndexStoreModule;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Assert;
 
 import java.io.Closeable;
@@ -79,7 +79,7 @@ public class MockFSDirectoryService extends FsDirectoryService {
     @Inject
     public MockFSDirectoryService(@IndexSettings Settings indexSettings, IndexStore indexStore, final IndicesService service, final ShardPath path) {
         super(indexSettings, indexStore, path);
-        final long seed = indexSettings.getAsLong(ElasticsearchIntegrationTest.SETTING_INDEX_SEED, 0l);
+        final long seed = indexSettings.getAsLong(ESIntegTestCase.SETTING_INDEX_SEED, 0l);
         this.random = new Random(seed);
         checkIndexOnClose = indexSettings.getAsBoolean(CHECK_INDEX_ON_CLOSE, true);
         randomIOExceptionRate = indexSettings.getAsDouble(RANDOM_IO_EXCEPTION_RATE, 0.0d);
@@ -145,7 +145,7 @@ public class MockFSDirectoryService extends FsDirectoryService {
                     return;
                 }
                 if (IndexWriter.isLocked(dir)) {
-                    ElasticsearchTestCase.checkIndexFailed = true;
+                    ESTestCase.checkIndexFailed = true;
                     throw new IllegalStateException("IndexWriter is still open on shard " + shardId);
                 }
                 try (CheckIndex checkIndex = new CheckIndex(dir)) {
@@ -155,7 +155,7 @@ public class MockFSDirectoryService extends FsDirectoryService {
                     out.flush();
                     CheckIndex.Status status = checkIndex.checkIndex();
                     if (!status.clean) {
-                        ElasticsearchTestCase.checkIndexFailed = true;
+                        ESTestCase.checkIndexFailed = true;
                         logger.warn("check index [failure] index files={}\n{}",
                                 Arrays.toString(dir.listAll()),
                                 new String(os.bytes().toBytes(), Charsets.UTF_8));

@@ -30,7 +30,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.ISODateTimeFormat;
@@ -50,7 +50,7 @@ import static org.hamcrest.Matchers.notNullValue;
 
 /**
  */
-public class ExplainActionIT extends ElasticsearchIntegrationTest {
+public class ExplainActionIT extends ESIntegTestCase {
 
     @Test
     public void testSimple() throws Exception {

@@ -21,12 +21,12 @@ package org.elasticsearch.recovery;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.indices.recovery.RecoverySettings;
-import org.elasticsearch.test.ElasticsearchSingleNodeTest;
+import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.junit.Test;
 
 import java.util.concurrent.TimeUnit;
 
-public class RecoverySettingsTest extends ElasticsearchSingleNodeTest {
+public class RecoverySettingsTest extends ESSingleNodeTestCase {
 
     @Override
     protected boolean resetNodeAfterTest() {

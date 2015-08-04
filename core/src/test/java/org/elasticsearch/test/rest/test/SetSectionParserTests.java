@@ -28,7 +28,7 @@ import org.junit.Test;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class SetSectionParserTests extends AbstractParserTests {
+public class SetSectionParserTests extends AbstractParserTestCase {
 
     @Test
     public void testParseSetSectionSingleValue() throws Exception {

@@ -40,7 +40,7 @@ import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 /**
  * see issue #9023
  */
-public class BalanceUnbalancedClusterTest extends CatAllocationTestBase {
+public class BalanceUnbalancedClusterTest extends CatAllocationTestCase {
 
     @Override
     protected Path getCatPath() throws IOException {

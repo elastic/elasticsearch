@@ -35,7 +35,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeBuilder;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.TestCluster;
 import org.junit.After;
@@ -57,7 +57,7 @@ import static org.hamcrest.Matchers.notNullValue;
  * does it by default.
  */
 @LuceneTestCase.SuppressFileSystems("ExtrasFS") // doesn't work with potential multi data path from test cluster yet
-public class TribeIT extends ElasticsearchIntegrationTest {
+public class TribeIT extends ESIntegTestCase {
 
     public static final String SECOND_CLUSTER_NODE_PREFIX = "node_tribe2";
 
@@ -68,7 +68,7 @@ public class TribeIT extends ElasticsearchIntegrationTest {
 
     @BeforeClass
     public static void setupSecondCluster() throws Exception {
-        ElasticsearchIntegrationTest.beforeClass();
+        ESIntegTestCase.beforeClass();
         // create another cluster
         cluster2 = new InternalTestCluster(randomLong(), createTempDir(), 2, 2, Strings.randomBase64UUID(getRandom()), 0, false, SECOND_CLUSTER_NODE_PREFIX);
         cluster2.beforeTest(getRandom(), 0.1);

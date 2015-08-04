@@ -22,7 +22,7 @@ package org.elasticsearch.common.cli;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Ignore;
@@ -38,11 +38,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 
-/**
- *
- */
-@Ignore
-public abstract class CliToolTestCase extends ElasticsearchTestCase {
+public abstract class CliToolTestCase extends ESTestCase {
 
     @Before
     public void setPathHome() {

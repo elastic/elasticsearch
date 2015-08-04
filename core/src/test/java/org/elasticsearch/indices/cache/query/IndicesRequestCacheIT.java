@@ -25,7 +25,7 @@ import org.elasticsearch.indices.cache.request.IndicesRequestCache;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Bucket;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.List;
 
@@ -34,7 +34,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.greaterThan;
 
-public class IndicesRequestCacheIT extends ElasticsearchIntegrationTest {
+public class IndicesRequestCacheIT extends ESIntegTestCase {
 
     // One of the primary purposes of the query cache is to cache aggs results
     public void testCacheAggs() throws Exception {

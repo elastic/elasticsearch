@@ -29,7 +29,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ElasticsearchBackwardsCompatIntegrationTest;
+import org.elasticsearch.test.ESBackcompatTestCase;
 import org.junit.Test;
 
 import java.util.HashMap;
@@ -38,7 +38,7 @@ import java.util.Map;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
 import static org.hamcrest.Matchers.equalTo;
 
-public class ClusterStateBackwardsCompatIT extends ElasticsearchBackwardsCompatIntegrationTest {
+public class ClusterStateBackwardsCompatIT extends ESBackcompatTestCase {
 
     @Test
     public void testClusterState() throws Exception {

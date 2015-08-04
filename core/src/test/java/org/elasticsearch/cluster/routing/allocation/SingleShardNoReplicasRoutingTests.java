@@ -32,7 +32,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.test.ElasticsearchAllocationTestCase;
+import org.elasticsearch.test.ESAllocationTestCase;
 import org.junit.Test;
 
 import java.util.List;
@@ -48,7 +48,7 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-public class SingleShardNoReplicasRoutingTests extends ElasticsearchAllocationTestCase {
+public class SingleShardNoReplicasRoutingTests extends ESAllocationTestCase {
 
     private final ESLogger logger = Loggers.getLogger(SingleShardNoReplicasRoutingTests.class);
 

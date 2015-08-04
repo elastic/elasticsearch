@@ -21,7 +21,7 @@ package org.elasticsearch.index.shard;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -31,7 +31,7 @@ import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 
 /**
  */
-public class ShardPathTests extends ElasticsearchTestCase {
+public class ShardPathTests extends ESTestCase {
 
     public void testLoadShardPath() throws IOException {
         try (final NodeEnvironment env = newNodeEnvironment(settingsBuilder().build())) {

@@ -24,7 +24,7 @@ import com.carrotsearch.hppc.IntIntHashMap;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.search.aggregations.bucket.missing.Missing;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
 import java.util.HashMap;
@@ -38,7 +38,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 /**
  *
  */
-public class MetaDataIT extends ElasticsearchIntegrationTest {
+public class MetaDataIT extends ESIntegTestCase {
 
     /**
      * Making sure that if there are multiple aggregations, working on the same field, yet require different

@@ -31,9 +31,9 @@ import org.elasticsearch.index.query.functionscore.DecayFunctionParser;
 import org.elasticsearch.index.query.functionscore.FunctionScoreModule;
 import org.elasticsearch.plugins.AbstractPlugin;
 import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
+import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.junit.Test;
 
@@ -50,7 +50,7 @@ import static org.hamcrest.Matchers.equalTo;
  *
  */
 @ClusterScope(scope = Scope.SUITE, numDataNodes = 1)
-public class FunctionScorePluginIT extends ElasticsearchIntegrationTest {
+public class FunctionScorePluginIT extends ESIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {

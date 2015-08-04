@@ -34,13 +34,13 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
-import org.elasticsearch.test.ElasticsearchSingleNodeTest;
+import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.util.Map;
 
 import static org.hamcrest.Matchers.*;
 
-public class RoutingTypeMapperTests extends ElasticsearchSingleNodeTest {
+public class RoutingTypeMapperTests extends ESSingleNodeTestCase {
 
     public void testRoutingMapper() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")

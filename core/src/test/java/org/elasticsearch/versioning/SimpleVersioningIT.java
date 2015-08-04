@@ -40,7 +40,7 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.DocumentAlreadyExistsException;
 import org.elasticsearch.index.engine.FlushNotAllowedEngineException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -52,7 +52,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 /**
  *
  */
-public class SimpleVersioningIT extends ElasticsearchIntegrationTest {
+public class SimpleVersioningIT extends ESIntegTestCase {
 
     @Test
     public void testExternalVersioningInitialDelete() throws Exception {

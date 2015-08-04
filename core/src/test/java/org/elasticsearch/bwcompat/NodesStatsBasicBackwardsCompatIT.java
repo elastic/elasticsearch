@@ -25,15 +25,15 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequestBuilde
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ElasticsearchBackwardsCompatIntegrationTest;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESBackcompatTestCase;
 import org.junit.Test;
 
 import java.lang.reflect.Method;
 
 
-@ElasticsearchIntegrationTest.ClusterScope(scope= ElasticsearchIntegrationTest.Scope.SUITE,  numClientNodes = 0)
-public class NodesStatsBasicBackwardsCompatIT extends ElasticsearchBackwardsCompatIntegrationTest {
+@ESIntegTestCase.ClusterScope(scope= ESIntegTestCase.Scope.SUITE,  numClientNodes = 0)
+public class NodesStatsBasicBackwardsCompatIT extends ESBackcompatTestCase {
 
     @Test
     public void testNodeStatsSetIndices() throws Exception {

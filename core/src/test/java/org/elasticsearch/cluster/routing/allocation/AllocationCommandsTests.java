@@ -40,7 +40,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.test.ElasticsearchAllocationTestCase;
+import org.elasticsearch.test.ESAllocationTestCase;
 import org.junit.Test;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.*;
@@ -49,7 +49,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
-public class AllocationCommandsTests extends ElasticsearchAllocationTestCase {
+public class AllocationCommandsTests extends ESAllocationTestCase {
 
     private final ESLogger logger = Loggers.getLogger(AllocationCommandsTests.class);
 

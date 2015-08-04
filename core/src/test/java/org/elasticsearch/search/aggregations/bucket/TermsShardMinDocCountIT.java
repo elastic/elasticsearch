@@ -28,7 +28,7 @@ import org.elasticsearch.search.aggregations.bucket.significant.SignificantTerms
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTermsBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsBuilder;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -43,7 +43,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  *
  */
-public class TermsShardMinDocCountIT extends ElasticsearchIntegrationTest {
+public class TermsShardMinDocCountIT extends ESIntegTestCase {
     private static final String index = "someindex";
     private static final String type = "testtype";
     public String randomExecutionHint() {

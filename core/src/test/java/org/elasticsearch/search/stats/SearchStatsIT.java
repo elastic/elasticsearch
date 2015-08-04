@@ -33,7 +33,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.search.stats.SearchStats.Stats;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
 import java.util.HashSet;
@@ -55,8 +55,8 @@ import static org.hamcrest.Matchers.nullValue;
 
 /**
  */
-@ElasticsearchIntegrationTest.ClusterScope(minNumDataNodes = 2)
-public class SearchStatsIT extends ElasticsearchIntegrationTest {
+@ESIntegTestCase.ClusterScope(minNumDataNodes = 2)
+public class SearchStatsIT extends ESIntegTestCase {
 
     @Override
     protected int numberOfReplicas() {

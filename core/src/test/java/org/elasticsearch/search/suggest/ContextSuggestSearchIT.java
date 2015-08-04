@@ -37,7 +37,7 @@ import org.elasticsearch.search.suggest.completion.CompletionSuggestionBuilder;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestionFuzzyBuilder;
 import org.elasticsearch.search.suggest.context.ContextBuilder;
 import org.elasticsearch.search.suggest.context.ContextMapping;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
 import org.hamcrest.Matchers;
 import org.junit.Test;
@@ -51,7 +51,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchGeoAssertions.assertD
 import static org.hamcrest.Matchers.containsString;
 
 @SuppressCodecs("*") // requires custom completion format
-public class ContextSuggestSearchIT extends ElasticsearchIntegrationTest {
+public class ContextSuggestSearchIT extends ESIntegTestCase {
 
     private static final String INDEX = "test";
     private static final String TYPE = "testType";

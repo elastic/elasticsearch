@@ -24,7 +24,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.NoOpClient;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -33,7 +33,7 @@ import java.io.ByteArrayOutputStream;
 import java.util.HashMap;
 import java.util.Map;
 
-public class IndexRequestBuilderTest extends ElasticsearchTestCase {
+public class IndexRequestBuilderTest extends ESTestCase {
 
     private static final String EXPECTED_SOURCE = "{\"SomeKey\":\"SomeValue\"}";
     private NoOpClient testClient;

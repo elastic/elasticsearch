@@ -34,7 +34,7 @@ import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.IndexPrimaryShardNotAllocatedException;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
@@ -44,8 +44,8 @@ import static org.hamcrest.Matchers.nullValue;
 /**
  *
  */
-@ElasticsearchIntegrationTest.ClusterScope(minNumDataNodes = 2)
-public class SimpleIndexStateIT extends ElasticsearchIntegrationTest {
+@ESIntegTestCase.ClusterScope(minNumDataNodes = 2)
+public class SimpleIndexStateIT extends ESIntegTestCase {
 
     private final ESLogger logger = Loggers.getLogger(SimpleIndexStateIT.class);
 

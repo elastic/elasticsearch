@@ -26,7 +26,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
@@ -42,8 +42,8 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTi
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-@ElasticsearchIntegrationTest.ClusterScope(minNumDataNodes = 2)
-public class SearchWhileRelocatingIT extends ElasticsearchIntegrationTest {
+@ESIntegTestCase.ClusterScope(minNumDataNodes = 2)
+public class SearchWhileRelocatingIT extends ESIntegTestCase {
 
     @Test
     @Nightly

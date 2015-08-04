@@ -45,7 +45,6 @@ import org.elasticsearch.cluster.metadata.MetaData.Custom;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
-import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -84,8 +83,8 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static com.google.common.collect.Lists.newArrayList;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
+import static org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import static org.elasticsearch.test.ESIntegTestCase.Scope;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
@@ -94,7 +93,7 @@ import static org.hamcrest.Matchers.*;
 /**
  */
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
-public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIT {
+public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCase {
 
     @Test
     public void restorePersistentSettingsTest() throws Exception {
@@ -692,7 +691,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIT {
     }
 
     @Test
-    @Ignore
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/12621")
     public void chaosSnapshotTest() throws Exception {
         final List<String> indices = new CopyOnWriteArrayList<>();
         Settings settings = settingsBuilder().put("action.write_consistency", "one").build();

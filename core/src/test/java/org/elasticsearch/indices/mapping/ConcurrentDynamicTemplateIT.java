@@ -20,18 +20,15 @@
 package org.elasticsearch.indices.mapping;
 
 
-import com.google.common.collect.Sets;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 
@@ -40,8 +37,8 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.emptyIterable;
 
-@ElasticsearchIntegrationTest.ClusterScope(randomDynamicTemplates = false) // this test takes a long time to delete the idx if all fields are eager loading
-public class ConcurrentDynamicTemplateIT extends ElasticsearchIntegrationTest {
+@ESIntegTestCase.ClusterScope(randomDynamicTemplates = false) // this test takes a long time to delete the idx if all fields are eager loading
+public class ConcurrentDynamicTemplateIT extends ESIntegTestCase {
 
     private final String mappingType = "test-mapping";
 

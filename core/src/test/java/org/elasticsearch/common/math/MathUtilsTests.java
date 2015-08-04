@@ -19,10 +19,10 @@
 
 package org.elasticsearch.common.math;
 
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
-public class MathUtilsTests extends ElasticsearchTestCase {
+public class MathUtilsTests extends ESTestCase {
 
     @Test
     public void mod() {

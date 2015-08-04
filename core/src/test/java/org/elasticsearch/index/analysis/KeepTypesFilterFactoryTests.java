@@ -22,7 +22,7 @@ package org.elasticsearch.index.analysis;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.standard.StandardTokenizer;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ElasticsearchTokenStreamTestCase;
+import org.elasticsearch.test.ESTokenStreamTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -30,7 +30,7 @@ import java.io.StringReader;
 
 import static org.hamcrest.Matchers.instanceOf;
 
-public class KeepTypesFilterFactoryTests extends ElasticsearchTokenStreamTestCase {
+public class KeepTypesFilterFactoryTests extends ESTokenStreamTestCase {
 
     @Test
     public void testKeepTypes() throws IOException {

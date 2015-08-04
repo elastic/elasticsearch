@@ -26,7 +26,7 @@ import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.store.StoreFileMetaData;
-import org.elasticsearch.test.ElasticsearchSingleNodeTest;
+import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.io.IOException;
 import java.util.Set;
@@ -34,7 +34,7 @@ import java.util.regex.Pattern;
 
 /**
  */
-public class RecoveryStatusTests extends ElasticsearchSingleNodeTest {
+public class RecoveryStatusTests extends ESSingleNodeTestCase {
     
     public void testRenameTempFiles() throws IOException {
         IndexService service = createIndex("foo");

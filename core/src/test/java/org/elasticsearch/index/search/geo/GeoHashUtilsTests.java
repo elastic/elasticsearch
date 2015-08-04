@@ -21,7 +21,7 @@ package org.elasticsearch.index.search.geo;
 
 import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -31,7 +31,7 @@ import java.util.List;
 /**
  *
  */
-public class GeoHashUtilsTests extends ElasticsearchTestCase {
+public class GeoHashUtilsTests extends ESTestCase {
 
     /**
      * Pass condition: lat=42.6, lng=-5.6 should be encoded as "ezs42e44yx96",

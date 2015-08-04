@@ -20,10 +20,10 @@
 package org.elasticsearch.common.util;
 
 import com.carrotsearch.hppc.LongObjectHashMap;
-import org.elasticsearch.test.ElasticsearchSingleNodeTest;
+import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.junit.Test;
 
-public class LongObjectHashMapTests extends ElasticsearchSingleNodeTest {
+public class LongObjectHashMapTests extends ESSingleNodeTestCase {
 
     @Test
     public void duel() {

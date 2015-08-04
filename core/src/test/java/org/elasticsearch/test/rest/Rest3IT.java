@@ -27,7 +27,7 @@ import org.elasticsearch.test.rest.parser.RestTestParseException;
 import java.io.IOException;
 
 /** Rest API tests subset 3 */
-public class Rest3IT extends ElasticsearchRestTestCase {
+public class Rest3IT extends ESRestTestCase {
     public Rest3IT(@Name("yaml") RestTestCandidate testCandidate) {
         super(testCandidate);
     }

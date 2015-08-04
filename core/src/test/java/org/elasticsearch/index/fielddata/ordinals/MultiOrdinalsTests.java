@@ -24,7 +24,7 @@ import org.apache.lucene.util.packed.PackedInts;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.search.MultiValueMode;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -34,7 +34,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
-public class MultiOrdinalsTests extends ElasticsearchTestCase {
+public class MultiOrdinalsTests extends ESTestCase {
 
     protected final Ordinals creationMultiOrdinals(OrdinalsBuilder builder) {
         return this.creationMultiOrdinals(builder, Settings.builder());

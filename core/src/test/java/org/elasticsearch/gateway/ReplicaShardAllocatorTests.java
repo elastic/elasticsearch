@@ -38,7 +38,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData;
-import org.elasticsearch.test.ElasticsearchAllocationTestCase;
+import org.elasticsearch.test.ESAllocationTestCase;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -52,7 +52,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
-public class ReplicaShardAllocatorTests extends ElasticsearchAllocationTestCase {
+public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
 
     private final ShardId shardId = new ShardId("test", 0);
     private final DiscoveryNode node1 = newNode("node1");

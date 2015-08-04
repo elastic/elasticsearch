@@ -21,7 +21,7 @@ package org.elasticsearch.test.test;
 import com.carrotsearch.randomizedtesting.annotations.Repeat;
 
 import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.TestCluster;
 import org.junit.Test;
 
@@ -33,8 +33,8 @@ import static org.hamcrest.Matchers.equalTo;
  * This test ensures that the cluster initializion for suite scope is not influencing
  * the tests random sequence due to initializtion using the same random instance.
  */
-@ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.SUITE)
-public class SuiteScopeClusterIT extends ElasticsearchIntegrationTest {
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE)
+public class SuiteScopeClusterIT extends ESIntegTestCase {
     private static int ITER = 0;
     private static long[] SEQUENCE = new long[100];
     private static Long CLUSTER_SEED = null;

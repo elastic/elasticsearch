@@ -40,7 +40,7 @@ import org.elasticsearch.search.aggregations.bucket.range.RangeBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregatorFactory;
 import org.elasticsearch.search.aggregations.metrics.sum.Sum;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -69,7 +69,7 @@ import static org.hamcrest.core.IsNull.notNullValue;
  * Additional tests that aim at testing more complex aggregation trees on larger random datasets, so that things like
  * the growth of dynamic arrays is tested.
  */
-public class EquivalenceIT extends ElasticsearchIntegrationTest {
+public class EquivalenceIT extends ESIntegTestCase {
 
     // Make sure that unordered, reversed, disjoint and/or overlapping ranges are supported
     // Duel with filters

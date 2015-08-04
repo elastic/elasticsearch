@@ -20,7 +20,7 @@ package org.elasticsearch.snapshots;
 
 import com.google.common.collect.ImmutableList;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import java.util.List;
@@ -30,7 +30,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 
 /**
  */
-public class SnapshotUtilsTests extends ElasticsearchTestCase {
+public class SnapshotUtilsTests extends ESTestCase {
     @Test
     public void testIndexNameFiltering() {
         assertIndexNameFiltering(new String[]{"foo", "bar", "baz"}, new String[]{}, new String[]{"foo", "bar", "baz"});

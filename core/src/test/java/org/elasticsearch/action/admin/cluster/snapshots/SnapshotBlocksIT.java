@@ -20,7 +20,6 @@ package org.elasticsearch.action.admin.cluster.snapshots;
 
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
-import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
@@ -28,8 +27,8 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -45,8 +44,8 @@ import static org.hamcrest.Matchers.hasSize;
  *
  * The @ClusterScope TEST is needed because this class updates the cluster setting "cluster.blocks.read_only".
  */
-@ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST)
-public class SnapshotBlocksIT extends ElasticsearchIntegrationTest {
+@ClusterScope(scope = ESIntegTestCase.Scope.TEST)
+public class SnapshotBlocksIT extends ESIntegTestCase {
 
     protected static final String INDEX_NAME = "test-blocks-1";
     protected static final String OTHER_INDEX_NAME = "test-blocks-2";

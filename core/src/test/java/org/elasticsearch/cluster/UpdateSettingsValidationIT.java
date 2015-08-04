@@ -21,20 +21,20 @@ package org.elasticsearch.cluster;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.junit.Test;
 
 import java.util.List;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.*;
+import static org.elasticsearch.test.ESIntegTestCase.*;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
 @ClusterScope(scope= Scope.TEST, numDataNodes =0)
-public class UpdateSettingsValidationIT extends ElasticsearchIntegrationTest {
+public class UpdateSettingsValidationIT extends ESIntegTestCase {
 
     @Test
     public void testUpdateSettingsValidation() throws Exception {

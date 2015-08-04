@@ -36,7 +36,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.engine.MockEngineSupport;
 import org.elasticsearch.test.engine.ThrowingLeafReaderWrapper;
 import org.junit.Test;
@@ -53,7 +53,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  * Tests for the circuit breaker while random exceptions are happening
  */
-public class RandomExceptionCircuitBreakerIT extends ElasticsearchIntegrationTest {
+public class RandomExceptionCircuitBreakerIT extends ESIntegTestCase {
 
     @Test
     public void testBreakerWithRandomExceptions() throws IOException, InterruptedException, ExecutionException {

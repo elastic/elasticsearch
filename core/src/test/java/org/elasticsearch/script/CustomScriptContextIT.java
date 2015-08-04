@@ -27,13 +27,13 @@ import org.elasticsearch.plugins.AbstractPlugin;
 import org.elasticsearch.script.expression.ExpressionScriptEngineService;
 import org.elasticsearch.script.groovy.GroovyScriptEngineService;
 import org.elasticsearch.script.mustache.MustacheScriptEngineService;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.notNullValue;
 
-public class CustomScriptContextIT extends ElasticsearchIntegrationTest {
+public class CustomScriptContextIT extends ESIntegTestCase {
 
     private static final ImmutableSet<String> LANG_SET = ImmutableSet.of(GroovyScriptEngineService.NAME, MustacheScriptEngineService.NAME, ExpressionScriptEngineService.NAME);
 

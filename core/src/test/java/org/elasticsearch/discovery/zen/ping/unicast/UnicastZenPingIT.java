@@ -32,7 +32,7 @@ import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.discovery.zen.ping.PingContextProvider;
 import org.elasticsearch.discovery.zen.ping.ZenPing;
 import org.elasticsearch.node.service.NodeService;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.netty.NettyTransport;
@@ -40,7 +40,7 @@ import org.junit.Test;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class UnicastZenPingIT extends ElasticsearchTestCase {
+public class UnicastZenPingIT extends ESTestCase {
 
     @Test
     public void testSimplePings() throws InterruptedException {

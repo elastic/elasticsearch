@@ -25,7 +25,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.AssertingLocalTransport;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -48,9 +48,9 @@ import static org.hamcrest.core.IsNull.notNullValue;
  * serialisation of negative offsets in these tests would break in pre 1.4 versions.  These tests are separated from the other DateHistogramTests so the
  * AssertingLocalTransport for these tests can be set to only use versions 1.4 onwards while keeping the other tests using all versions
  */
-@ElasticsearchIntegrationTest.SuiteScopeTest
-@ElasticsearchIntegrationTest.ClusterScope(scope=ElasticsearchIntegrationTest.Scope.SUITE)
-public class DateHistogramOffsetIT extends ElasticsearchIntegrationTest {
+@ESIntegTestCase.SuiteScopeTestCase
+@ESIntegTestCase.ClusterScope(scope= ESIntegTestCase.Scope.SUITE)
+public class DateHistogramOffsetIT extends ESIntegTestCase {
 
     private static final String DATE_FORMAT = "yyyy-MM-dd:hh-mm-ss";
 

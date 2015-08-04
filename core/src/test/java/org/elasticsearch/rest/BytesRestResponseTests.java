@@ -25,7 +25,7 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.TestQueryParsingException;
 import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.junit.Test;
@@ -41,7 +41,7 @@ import static org.hamcrest.Matchers.notNullValue;
 /**
  *
  */
-public class BytesRestResponseTests extends ElasticsearchTestCase {
+public class BytesRestResponseTests extends ESTestCase {
 
     @Test
     public void testWithHeaders() throws Exception {

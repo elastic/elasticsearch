@@ -26,7 +26,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.LocalTransportAddress;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 import org.junit.Test;
@@ -41,7 +41,7 @@ import static org.hamcrest.CoreMatchers.*;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class TransportClientNodesServiceTests extends ElasticsearchTestCase {
+public class TransportClientNodesServiceTests extends ESTestCase {
 
     private static class TestIteration implements Closeable {
         private final ThreadPool threadPool;

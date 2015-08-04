@@ -45,7 +45,7 @@ import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.index.mapper.core.LongFieldMapper;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.test.ElasticsearchSingleNodeTest;
+import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.TestSearchContext;
 import org.elasticsearch.test.VersionUtils;
 import org.joda.time.DateTime;
@@ -60,7 +60,7 @@ import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.index.mapper.string.SimpleStringMappingTests.docValuesType;
 import static org.hamcrest.Matchers.*;
 
-public class SimpleDateMappingTests extends ElasticsearchSingleNodeTest {
+public class SimpleDateMappingTests extends ESSingleNodeTestCase {
 
     public void testAutomaticDateParser() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")

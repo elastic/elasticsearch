@@ -26,7 +26,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeBuilder;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -38,11 +39,11 @@ import static org.hamcrest.CoreMatchers.either;
 import static org.hamcrest.CoreMatchers.equalTo;
 
 /**
- * This test doesn't extend {@link org.elasticsearch.test.ElasticsearchIntegrationTest} as the internal cluster ignores system properties
+ * This test doesn't extend {@link ESIntegTestCase} as the internal cluster ignores system properties
  * all the time, while we need to make the tribe node accept them in this case, so that we can verify that they are not read again as part
  * of the tribe client nodes initialization. Note that the started nodes will obey to the 'node.mode' settings as the internal cluster does.
  */
-public class TribeUnitTests extends ElasticsearchTestCase {
+public class TribeUnitTests extends ESTestCase {
 
     private static Node tribe1;
     private static Node tribe2;

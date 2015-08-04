@@ -22,7 +22,7 @@ import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 
 import java.io.IOException;
 import java.util.Map;
@@ -30,7 +30,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
 
-public class DynamicMappingIntegrationIT extends ElasticsearchIntegrationTest {
+public class DynamicMappingIntegrationIT extends ESIntegTestCase {
 
     public void testConflictingDynamicMappings() {
         // we don't use indexRandom because the order of requests is important here

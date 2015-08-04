@@ -22,14 +22,14 @@ package org.elasticsearch.search.aggregations.metrics.cardinality;
 import com.carrotsearch.hppc.BitMixer;
 import com.carrotsearch.hppc.IntHashSet;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import static org.elasticsearch.search.aggregations.metrics.cardinality.HyperLogLogPlusPlus.MAX_PRECISION;
 import static org.elasticsearch.search.aggregations.metrics.cardinality.HyperLogLogPlusPlus.MIN_PRECISION;
 import static org.hamcrest.Matchers.closeTo;
 
-public class HyperLogLogPlusPlusTests extends ElasticsearchTestCase {
+public class HyperLogLogPlusPlusTests extends ESTestCase {
 
     @Test
     public void encodeDecode() {

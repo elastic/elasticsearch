@@ -22,7 +22,7 @@ package org.elasticsearch.indices.exists.indices;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
 import java.util.Arrays;
@@ -30,7 +30,7 @@ import java.util.Arrays;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
 import static org.hamcrest.Matchers.equalTo;
 
-public class IndicesExistsIT extends ElasticsearchIntegrationTest {
+public class IndicesExistsIT extends ESIntegTestCase {
 
     @Test
     // Indices exists never throws IndexMissingException, the indices options control its behaviour (return true or false)

@@ -22,7 +22,7 @@ package org.apache.lucene.store;
 import java.io.IOException;
 import java.nio.file.Path;
 
-public class SmbSimpleFSDirectoryTest extends ElasticSearchBaseDirectoryTestCase {
+public class SmbSimpleFSDirectoryTest extends ESBaseDirectoryTestCase {
 
     @Override
     protected Directory getDirectory(Path file) throws IOException {

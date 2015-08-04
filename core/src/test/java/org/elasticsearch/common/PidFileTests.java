@@ -20,7 +20,7 @@
 package org.elasticsearch.common;
 
 import com.google.common.base.Charsets;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import java.io.BufferedWriter;
@@ -32,7 +32,7 @@ import java.nio.file.StandardOpenOption;
 /**
  * UnitTest for {@link org.elasticsearch.common.PidFile}
  */
-public class PidFileTests extends ElasticsearchTestCase {
+public class PidFileTests extends ESTestCase {
 
     @Test(expected = IllegalArgumentException.class)
     public void testParentIsFile() throws IOException {

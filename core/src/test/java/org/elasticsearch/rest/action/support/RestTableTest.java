@@ -20,7 +20,7 @@
 package org.elasticsearch.rest.action.support;
 
 import org.elasticsearch.common.Table;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.junit.Before;
 import org.junit.Test;
@@ -31,7 +31,7 @@ import java.util.List;
 import static org.elasticsearch.rest.action.support.RestTable.buildDisplayHeaders;
 import static org.hamcrest.Matchers.*;
 
-public class RestTableTest extends ElasticsearchTestCase {
+public class RestTableTest extends ESTestCase {
 
     private Table table = new Table();
     private FakeRestRequest restRequest = new FakeRestRequest();

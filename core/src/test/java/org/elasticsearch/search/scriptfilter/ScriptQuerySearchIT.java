@@ -27,10 +27,9 @@ import org.elasticsearch.index.cache.query.index.IndexQueryCache;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -44,8 +43,8 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  *
  */
-@ElasticsearchIntegrationTest.ClusterScope(scope=ElasticsearchIntegrationTest.Scope.SUITE)
-public class ScriptQuerySearchIT extends ElasticsearchIntegrationTest {
+@ESIntegTestCase.ClusterScope(scope= ESIntegTestCase.Scope.SUITE)
+public class ScriptQuerySearchIT extends ESIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {

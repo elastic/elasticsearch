@@ -42,7 +42,7 @@ import org.elasticsearch.indices.cache.request.IndicesRequestCache;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.warmer.IndexWarmerMissingException;
 import org.elasticsearch.search.warmer.IndexWarmersMetaData;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
@@ -51,7 +51,7 @@ import java.util.Locale;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.*;
 
-public class SimpleIndicesWarmerIT extends ElasticsearchIntegrationTest {
+public class SimpleIndicesWarmerIT extends ESIntegTestCase {
 
     @Test
     public void simpleWarmerTests() {

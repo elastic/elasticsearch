@@ -19,14 +19,14 @@
 
 package org.elasticsearch.action.admin.indices.delete;
 
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.junit.Test;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
 
-@ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST)
-public class DeleteIndexBlocksIT extends ElasticsearchIntegrationTest{
+@ClusterScope(scope = ESIntegTestCase.Scope.TEST)
+public class DeleteIndexBlocksIT extends ESIntegTestCase {
 
     @Test
     public void testDeleteIndexWithBlocks() {

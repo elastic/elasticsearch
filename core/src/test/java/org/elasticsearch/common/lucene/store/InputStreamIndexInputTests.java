@@ -23,7 +23,7 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.RAMDirectory;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -35,7 +35,7 @@ import static org.hamcrest.Matchers.lessThan;
 /**
  *
  */
-public class InputStreamIndexInputTests extends ElasticsearchTestCase {
+public class InputStreamIndexInputTests extends ESTestCase {
 
     @Test
     public void testSingleReadSingleByteLimit() throws IOException {

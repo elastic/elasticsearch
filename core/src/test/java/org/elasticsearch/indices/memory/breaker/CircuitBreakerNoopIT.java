@@ -24,7 +24,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
 import java.util.List;
@@ -37,8 +37,8 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.cardinal
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
 /** Tests for the noop breakers, which are non-dynamic settings */
-@ElasticsearchIntegrationTest.ClusterScope(scope=ElasticsearchIntegrationTest.Scope.SUITE, numDataNodes=0)
-public class CircuitBreakerNoopIT extends ElasticsearchIntegrationTest {
+@ESIntegTestCase.ClusterScope(scope= ESIntegTestCase.Scope.SUITE, numDataNodes=0)
+public class CircuitBreakerNoopIT extends ESIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {

@@ -31,7 +31,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.MoreLikeThisQueryBuilder;
 import org.elasticsearch.index.query.MoreLikeThisQueryBuilder.Item;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -52,7 +52,7 @@ import static org.hamcrest.Matchers.notNullValue;
 /**
  *
  */
-public class MoreLikeThisIT extends ElasticsearchIntegrationTest {
+public class MoreLikeThisIT extends ESIntegTestCase {
 
     @Test
     public void testSimpleMoreLikeThis() throws Exception {

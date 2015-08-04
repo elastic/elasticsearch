@@ -34,8 +34,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.repositories.uri.URLRepository;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.rest.client.RestException;
 import org.elasticsearch.test.rest.parser.RestTestParseException;
 import org.elasticsearch.test.rest.parser.RestTestSuiteParser;
@@ -77,12 +77,12 @@ import java.util.Set;
 /**
  * Runs the clients test suite against an elasticsearch cluster.
  */
-@ElasticsearchRestTestCase.Rest
+@ESRestTestCase.Rest
 @SuppressFsync // we aren't trying to test this here, and it can make the test slow
 @SuppressCodecs("*") // requires custom completion postings format
 @ClusterScope(randomDynamicTemplates = false)
 @TimeoutSuite(millis = 40 * TimeUnits.MINUTE) // timeout the suite after 40min and fail the test.
-public abstract class ElasticsearchRestTestCase extends ElasticsearchIntegrationTest {
+public abstract class ESRestTestCase extends ESIntegTestCase {
 
     /**
      * Property that allows to control whether the REST tests are run (default) or not
@@ -95,7 +95,7 @@ public abstract class ElasticsearchRestTestCase extends ElasticsearchIntegration
     @Inherited
     @Retention(RetentionPolicy.RUNTIME)
     @Target(ElementType.TYPE)
-    @TestGroup(enabled = true, sysProperty = ElasticsearchRestTestCase.TESTS_REST)
+    @TestGroup(enabled = true, sysProperty = ESRestTestCase.TESTS_REST)
     public @interface Rest {
     }
 
@@ -130,7 +130,7 @@ public abstract class ElasticsearchRestTestCase extends ElasticsearchIntegration
 
     private final RestTestCandidate testCandidate;
 
-    public ElasticsearchRestTestCase(RestTestCandidate testCandidate) {
+    public ESRestTestCase(RestTestCandidate testCandidate) {
         this.testCandidate = testCandidate;
         String[] blacklist = resolvePathsProperty(REST_TESTS_BLACKLIST, null);
         if (blacklist != null) {

@@ -23,7 +23,7 @@ import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
@@ -32,8 +32,8 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
  * a full cluster restart (ie no wire format compatibility).
  */
 @LuceneTestCase.SuppressCodecs("*")
-@ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST, numDataNodes = 0, minNumDataNodes = 0, maxNumDataNodes = 0)
-public class StaticIndexBackwardCompatibilityIT extends ElasticsearchIntegrationTest {
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, minNumDataNodes = 0, maxNumDataNodes = 0)
+public class StaticIndexBackwardCompatibilityIT extends ESIntegTestCase {
 
     public void loadIndex(String index, Object... settings) throws Exception {
         logger.info("Checking static index " + index);

@@ -24,7 +24,7 @@ import org.apache.log4j.Logger;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 import org.junit.Test;
@@ -39,7 +39,7 @@ import static org.hamcrest.Matchers.notNullValue;
 /**
  *
  */
-public class LoggingConfigurationTests extends ElasticsearchTestCase {
+public class LoggingConfigurationTests extends ESTestCase {
 
     @Before
     public void before() throws Exception {

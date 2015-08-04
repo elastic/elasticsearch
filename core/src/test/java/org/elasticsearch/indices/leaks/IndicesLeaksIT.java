@@ -25,21 +25,21 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.junit.Test;
 
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
+import static org.elasticsearch.test.ESIntegTestCase.Scope;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
  */
 @ClusterScope(scope= Scope.TEST, numDataNodes =1)
-public class IndicesLeaksIT extends ElasticsearchIntegrationTest {
+public class IndicesLeaksIT extends ESIntegTestCase {
 
 
     @SuppressWarnings({"ConstantConditions", "unchecked"})

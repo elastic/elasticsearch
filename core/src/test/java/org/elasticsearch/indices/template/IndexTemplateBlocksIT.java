@@ -22,8 +22,8 @@ package org.elasticsearch.indices.template;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -31,8 +31,8 @@ import java.io.IOException;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
 import static org.hamcrest.Matchers.hasSize;
 
-@ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST)
-public class IndexTemplateBlocksIT extends ElasticsearchIntegrationTest {
+@ClusterScope(scope = ESIntegTestCase.Scope.TEST)
+public class IndexTemplateBlocksIT extends ESIntegTestCase {
 
     @Test
     public void testIndexTemplatesWithBlocks() throws IOException {

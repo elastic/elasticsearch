@@ -89,7 +89,7 @@ import static org.elasticsearch.index.query.QueryBuilders.typeQuery;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-public class ChildrenQueryTests extends AbstractChildTests {
+public class ChildrenQueryTests extends AbstractChildTestCase {
 
     @BeforeClass
     public static void before() throws IOException {

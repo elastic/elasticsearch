@@ -19,14 +19,14 @@
 
 package org.elasticsearch.common.rounding;
 
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-public class RoundingTests extends ElasticsearchTestCase {
+public class RoundingTests extends ESTestCase {
 
     /**
      * simple test case to illustrate how Rounding.Interval works on readable input

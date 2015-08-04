@@ -25,7 +25,7 @@ import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -37,8 +37,8 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
 
-@ElasticsearchIntegrationTest.ClusterScope(minNumDataNodes = 2)
-public class UpdateNumberOfReplicasIT extends ElasticsearchIntegrationTest {
+@ESIntegTestCase.ClusterScope(minNumDataNodes = 2)
+public class UpdateNumberOfReplicasIT extends ESIntegTestCase {
 
     @Override
     protected int maximumNumberOfReplicas() {

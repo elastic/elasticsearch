@@ -21,7 +21,7 @@ package org.elasticsearch.script.mustache;
 import com.github.mustachejava.DefaultMustacheFactory;
 import com.github.mustachejava.Mustache;
 import com.github.mustachejava.MustacheFactory;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import java.io.StringReader;
@@ -31,7 +31,7 @@ import java.util.HashMap;
 /**
  * Figure out how Mustache works for the simplest use case. Leaving in here for now for reference.
  * */
-public class MustacheTest extends ElasticsearchTestCase {
+public class MustacheTest extends ESTestCase {
 
     @Test
     public void test() {

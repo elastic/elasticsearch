@@ -19,12 +19,11 @@
 
 package org.elasticsearch.action.admin.indices.create;
 
-import org.elasticsearch.action.index.IndexRequestBuilderTest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.rest.NoOpClient;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -34,7 +33,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-public class CreateIndexRequestBuilderTest extends ElasticsearchTestCase {
+public class CreateIndexRequestBuilderTest extends ESTestCase {
 
     private static final String KEY = "my.settings.key";
     private static final String VALUE = "my.settings.value";

@@ -28,7 +28,7 @@ import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.missing.Missing;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
@@ -46,7 +46,7 @@ import static org.hamcrest.core.IsNull.notNullValue;
 /**
  *
  */
-public class CombiIT extends ElasticsearchIntegrationTest {
+public class CombiIT extends ESIntegTestCase {
 
     /**
      * Making sure that if there are multiple aggregations, working on the same field, yet require different

@@ -33,7 +33,7 @@ import org.elasticsearch.index.mapper.Mapper.BuilderContext;
 import org.elasticsearch.index.mapper.MapperBuilders;
 import org.elasticsearch.index.mapper.core.*;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.test.ElasticsearchSingleNodeTest;
+import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -42,7 +42,7 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.instanceOf;
 
-public class IndexFieldDataServiceTests extends ElasticsearchSingleNodeTest {
+public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
 
     private static Settings DOC_VALUES_SETTINGS = Settings.builder().put(FieldDataType.FORMAT_KEY, FieldDataType.DOC_VALUES_FORMAT_VALUE).build();
 

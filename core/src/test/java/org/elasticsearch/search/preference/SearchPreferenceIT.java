@@ -23,7 +23,7 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -34,8 +34,8 @@ import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.*;
 
-@ElasticsearchIntegrationTest.ClusterScope(minNumDataNodes = 2)
-public class SearchPreferenceIT extends ElasticsearchIntegrationTest {
+@ESIntegTestCase.ClusterScope(minNumDataNodes = 2)
+public class SearchPreferenceIT extends ESIntegTestCase {
 
     @Test // see #2896
     public void testStopOneNodePreferenceWithRedState() throws InterruptedException, IOException {

@@ -98,7 +98,7 @@ import static com.google.common.collect.Lists.newArrayList;
         "LuceneVarGapFixedInterval", "LuceneVarGapDocFreqInterval", "Lucene50"
 })
 @LuceneTestCase.SuppressReproduceLine
-public abstract class ElasticsearchTestCase extends LuceneTestCase {
+public abstract class ESTestCase extends LuceneTestCase {
 
     static {
         BootstrapForTesting.ensureInitialized();
@@ -114,13 +114,13 @@ public abstract class ElasticsearchTestCase extends LuceneTestCase {
     public RuleChain failureAndSuccessEvents = RuleChain.outerRule(new TestRuleAdapter() {
         @Override
         protected void afterIfSuccessful() throws Throwable {
-            ElasticsearchTestCase.this.afterIfSuccessful();
+            ESTestCase.this.afterIfSuccessful();
         }
 
         @Override
         protected void afterAlways(List<Throwable> errors) throws Throwable {
             if (errors != null && errors.isEmpty() == false) {
-                ElasticsearchTestCase.this.afterIfFailed(errors);
+                ESTestCase.this.afterIfFailed(errors);
             }
             super.afterAlways(errors);
         }

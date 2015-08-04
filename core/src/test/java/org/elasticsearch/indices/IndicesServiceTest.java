@@ -29,7 +29,7 @@ import org.elasticsearch.gateway.GatewayMetaState;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
-import org.elasticsearch.test.ElasticsearchSingleNodeTest;
+import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
@@ -37,7 +37,7 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 
-public class IndicesServiceTest extends ElasticsearchSingleNodeTest {
+public class IndicesServiceTest extends ESSingleNodeTestCase {
 
     public IndicesService getIndicesService() {
         return getInstanceFromNode(IndicesService.class);

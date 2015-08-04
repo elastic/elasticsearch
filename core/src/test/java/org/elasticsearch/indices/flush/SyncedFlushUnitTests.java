@@ -28,7 +28,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.flush.IndicesSyncedFlushResult.ShardCounts;
 import org.elasticsearch.indices.flush.SyncedFlushService.SyncedFlushResponse;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -40,7 +40,7 @@ import static org.elasticsearch.test.XContentTestUtils.convertToMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
-public class SyncedFlushUnitTests extends ElasticsearchTestCase {
+public class SyncedFlushUnitTests extends ESTestCase {
 
 
     private static class TestPlan {

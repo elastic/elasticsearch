@@ -25,7 +25,7 @@ import com.carrotsearch.randomizedtesting.TraceFormatting;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.junit.internal.AssumptionViolatedException;
 import org.junit.runner.Description;
@@ -38,11 +38,11 @@ import java.util.TimeZone;
 import static com.carrotsearch.randomizedtesting.SysGlobals.SYSPROP_ITERATIONS;
 import static com.carrotsearch.randomizedtesting.SysGlobals.SYSPROP_PREFIX;
 import static com.carrotsearch.randomizedtesting.SysGlobals.SYSPROP_TESTMETHOD;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.TESTS_CLUSTER;
-import static org.elasticsearch.test.rest.ElasticsearchRestTestCase.REST_TESTS_BLACKLIST;
-import static org.elasticsearch.test.rest.ElasticsearchRestTestCase.REST_TESTS_SPEC;
-import static org.elasticsearch.test.rest.ElasticsearchRestTestCase.REST_TESTS_SUITE;
-import static org.elasticsearch.test.rest.ElasticsearchRestTestCase.Rest;
+import static org.elasticsearch.test.ESIntegTestCase.TESTS_CLUSTER;
+import static org.elasticsearch.test.rest.ESRestTestCase.REST_TESTS_BLACKLIST;
+import static org.elasticsearch.test.rest.ESRestTestCase.REST_TESTS_SPEC;
+import static org.elasticsearch.test.rest.ESRestTestCase.REST_TESTS_SUITE;
+import static org.elasticsearch.test.rest.ESRestTestCase.Rest;
 
 /**
  * A {@link RunListener} that emits to {@link System#err} a string with command
@@ -50,7 +50,7 @@ import static org.elasticsearch.test.rest.ElasticsearchRestTestCase.Rest;
  */
 public class ReproduceInfoPrinter extends RunListener {
 
-    protected final ESLogger logger = Loggers.getLogger(ElasticsearchTestCase.class);
+    protected final ESLogger logger = Loggers.getLogger(ESTestCase.class);
 
     @Override
     public void testStarted(Description description) throws Exception {

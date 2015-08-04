@@ -27,7 +27,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ByteArray;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 import org.jboss.netty.buffer.ChannelBuffer;
 import org.junit.After;
@@ -42,7 +42,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
 
-public class PagedBytesReferenceTest extends ElasticsearchTestCase {
+public class PagedBytesReferenceTest extends ESTestCase {
 
     private static final int PAGE_SIZE = BigArrays.BYTE_PAGE_SIZE;
 

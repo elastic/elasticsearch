@@ -28,9 +28,9 @@ import org.elasticsearch.script.NativeScriptEngineService;
 import org.elasticsearch.script.NativeScriptFactory;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
+import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.junit.Test;
 
 import java.util.Map;
@@ -42,7 +42,7 @@ import static org.hamcrest.Matchers.is;
  *
  */
 @ClusterScope(scope= Scope.SUITE, numDataNodes =1)
-public class UpdateByNativeScriptIT extends ElasticsearchIntegrationTest {
+public class UpdateByNativeScriptIT extends ESIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {

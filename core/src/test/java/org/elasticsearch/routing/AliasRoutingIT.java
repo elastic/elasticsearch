@@ -25,7 +25,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
 import static org.elasticsearch.cluster.metadata.AliasAction.newAddAliasAction;
@@ -35,7 +35,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  *
  */
-public class AliasRoutingIT extends ElasticsearchIntegrationTest {
+public class AliasRoutingIT extends ESIntegTestCase {
 
     @Override
     protected int minimumNumberOfShards() {

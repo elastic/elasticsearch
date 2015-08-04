@@ -29,8 +29,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.AlreadyExpiredException;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
@@ -46,8 +46,8 @@ import static org.hamcrest.Matchers.*;
 
 /**
  */
-@ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST)
-public class TTLPercolatorIT extends ElasticsearchIntegrationTest {
+@ClusterScope(scope = ESIntegTestCase.Scope.TEST)
+public class TTLPercolatorIT extends ESIntegTestCase {
 
     private static final long PURGE_INTERVAL = 200;
 

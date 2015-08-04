@@ -22,7 +22,7 @@ package org.elasticsearch.search.functionscore;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.lucene.search.function.FieldValueFactorFunction;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -35,7 +35,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 /**
  * Tests for the {@code field_value_factor} function in a function_score query.
  */
-public class FunctionScoreFieldValueIT extends ElasticsearchIntegrationTest {
+public class FunctionScoreFieldValueIT extends ESIntegTestCase {
 
     @Test
     public void testFieldValueFactor() throws IOException {

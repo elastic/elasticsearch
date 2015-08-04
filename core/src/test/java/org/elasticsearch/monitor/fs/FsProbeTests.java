@@ -21,14 +21,14 @@ package org.elasticsearch.monitor.fs;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.*;
 
-public class FsProbeTests extends ElasticsearchTestCase {
+public class FsProbeTests extends ESTestCase {
 
     @Test
     public void testFsInfo() throws IOException {

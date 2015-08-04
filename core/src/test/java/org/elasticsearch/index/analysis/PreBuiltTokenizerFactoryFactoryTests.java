@@ -22,7 +22,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.analysis.PreBuiltTokenizers;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import static org.hamcrest.CoreMatchers.*;
@@ -30,7 +30,7 @@ import static org.hamcrest.CoreMatchers.*;
 /**
  *
  */
-public class PreBuiltTokenizerFactoryFactoryTests extends ElasticsearchTestCase {
+public class PreBuiltTokenizerFactoryFactoryTests extends ESTestCase {
 
     @Test
     public void testThatDifferentVersionsCanBeLoaded() {

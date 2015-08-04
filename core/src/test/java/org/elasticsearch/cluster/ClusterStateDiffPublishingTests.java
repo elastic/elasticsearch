@@ -37,7 +37,7 @@ import org.elasticsearch.discovery.zen.DiscoveryNodesProvider;
 import org.elasticsearch.discovery.zen.publish.PublishClusterStateAction;
 import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.node.settings.NodeSettingsService;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -59,7 +59,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static com.google.common.collect.Maps.newHashMap;
 import static org.hamcrest.Matchers.*;
 
-public class ClusterStateDiffPublishingTests extends ElasticsearchTestCase {
+public class ClusterStateDiffPublishingTests extends ESTestCase {
 
     protected ThreadPool threadPool;
     protected Map<String, MockNode> nodes = newHashMap();

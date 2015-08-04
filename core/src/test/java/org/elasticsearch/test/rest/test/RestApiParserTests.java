@@ -27,7 +27,7 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class RestApiParserTests extends AbstractParserTests {
+public class RestApiParserTests extends AbstractParserTestCase {
 
     @Test
     public void testParseRestSpecIndexApi() throws Exception {

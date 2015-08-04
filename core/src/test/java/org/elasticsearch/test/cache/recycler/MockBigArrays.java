@@ -39,7 +39,7 @@ import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -68,7 +68,7 @@ public class MockBigArrays extends BigArrays {
             // not empty, we might be executing on a shared cluster that keeps on obtaining
             // and releasing arrays, lets make sure that after a reasonable timeout, all master
             // copy (snapshot) have been released
-            boolean success = ElasticsearchTestCase.awaitBusy(new Predicate<Object>() {
+            boolean success = ESTestCase.awaitBusy(new Predicate<Object>() {
                 @Override
                 public boolean apply(Object input) {
                     return Sets.intersection(masterCopy.keySet(), ACQUIRED_ARRAYS.keySet()).isEmpty();

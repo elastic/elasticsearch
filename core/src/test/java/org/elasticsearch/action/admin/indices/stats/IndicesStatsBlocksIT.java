@@ -21,16 +21,16 @@ package org.elasticsearch.action.admin.indices.stats;
 
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.junit.Test;
 
 import java.util.Arrays;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
 
-@ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST)
-public class IndicesStatsBlocksIT extends ElasticsearchIntegrationTest {
+@ClusterScope(scope = ESIntegTestCase.Scope.TEST)
+public class IndicesStatsBlocksIT extends ESIntegTestCase {
 
     @Test
     public void testIndicesStatsWithBlocks() {

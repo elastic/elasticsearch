@@ -25,13 +25,13 @@ import com.carrotsearch.hppc.cursors.ObjectLongCursor;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.TestUtil;
-import org.elasticsearch.test.ElasticsearchSingleNodeTest;
+import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.junit.Test;
 
 import java.util.*;
 import java.util.Map.Entry;
 
-public class BytesRefHashTests extends ElasticsearchSingleNodeTest {
+public class BytesRefHashTests extends ESSingleNodeTestCase {
 
     BytesRefHash hash;
 

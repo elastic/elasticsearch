@@ -29,7 +29,7 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
 import java.util.Arrays;
@@ -41,7 +41,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
-public class DuelScrollIT extends ElasticsearchIntegrationTest {
+public class DuelScrollIT extends ESIntegTestCase {
 
     @Test
     public void testDuel_queryThenFetch() throws Exception {

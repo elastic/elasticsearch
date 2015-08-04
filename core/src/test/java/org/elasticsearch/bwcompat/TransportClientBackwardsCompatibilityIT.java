@@ -28,7 +28,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.CompositeTestCluster;
-import org.elasticsearch.test.ElasticsearchBackwardsCompatIntegrationTest;
+import org.elasticsearch.test.ESBackcompatTestCase;
 import org.junit.Test;
 
 import java.util.concurrent.ExecutionException;
@@ -37,7 +37,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
 import static org.hamcrest.CoreMatchers.equalTo;
 
-public class TransportClientBackwardsCompatibilityIT extends ElasticsearchBackwardsCompatIntegrationTest {
+public class TransportClientBackwardsCompatibilityIT extends ESBackcompatTestCase {
 
     @Test
     public void testSniffMode() throws ExecutionException, InterruptedException {

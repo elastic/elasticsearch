@@ -30,7 +30,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.cache.recycler.MockBigArrays;
 import org.elasticsearch.test.junit.rule.RepeatOnExceptionRule;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -49,7 +49,7 @@ import java.net.Socket;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.is;
 
-public class NettyTransportMultiPortTests extends ElasticsearchTestCase {
+public class NettyTransportMultiPortTests extends ESTestCase {
 
     private static final int MAX_RETRIES = 10;
 

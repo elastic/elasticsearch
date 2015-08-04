@@ -44,7 +44,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.query.IndicesQueriesModule;
 import org.elasticsearch.script.ScriptModule;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolModule;
 import org.junit.After;
@@ -56,8 +56,8 @@ import java.io.IOException;
 /**
  * Test parsing and executing a template request.
  */
-// NOTE: this can't be migrated to ElasticsearchSingleNodeTest because of the custom path.conf
-public class TemplateQueryParserTest extends ElasticsearchTestCase {
+// NOTE: this can't be migrated to ESSingleNodeTestCase because of the custom path.conf
+public class TemplateQueryParserTest extends ESTestCase {
 
     private Injector injector;
     private QueryParseContext context;

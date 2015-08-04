@@ -23,17 +23,17 @@ import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllo
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocatorModule;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 
 import java.io.IOException;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.*;
+import static org.elasticsearch.test.ESIntegTestCase.*;
 import static org.hamcrest.Matchers.instanceOf;
 
 @ClusterScope(scope= Scope.TEST, numDataNodes =0)
-public class ShardsAllocatorModuleIT extends ElasticsearchIntegrationTest {
+public class ShardsAllocatorModuleIT extends ESIntegTestCase {
 
     public void testLoadDefaultShardsAllocator() throws IOException {
         assertAllocatorInstance(Settings.Builder.EMPTY_SETTINGS, BalancedShardsAllocator.class);

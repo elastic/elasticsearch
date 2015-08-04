@@ -19,15 +19,13 @@
 package org.elasticsearch.index.engine;
 
 import com.google.common.base.Predicate;
-import org.apache.lucene.index.LogByteSizeMergePolicy;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.shard.MergePolicyConfig;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
@@ -35,13 +33,13 @@ import java.io.IOException;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
+import static org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import static org.elasticsearch.test.ESIntegTestCase.Scope;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 
 @ClusterScope(numDataNodes = 1, scope = Scope.SUITE)
-public class InternalEngineMergeIT extends ElasticsearchIntegrationTest {
+public class InternalEngineMergeIT extends ESIntegTestCase {
 
     @Test
     public void testMergesHappening() throws InterruptedException, IOException, ExecutionException {

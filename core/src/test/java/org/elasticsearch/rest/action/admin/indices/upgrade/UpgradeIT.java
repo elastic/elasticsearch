@@ -36,8 +36,8 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.Segment;
-import org.elasticsearch.test.ElasticsearchBackwardsCompatIntegrationTest;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESBackcompatTestCase;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.BeforeClass;
 
 import java.util.ArrayList;
@@ -47,8 +47,8 @@ import java.util.List;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 
-@ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST)   // test scope since we set cluster wide settings
-public class UpgradeIT extends ElasticsearchBackwardsCompatIntegrationTest {
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)   // test scope since we set cluster wide settings
+public class UpgradeIT extends ESBackcompatTestCase {
 
     @BeforeClass
     public static void checkUpgradeVersion() {

@@ -30,7 +30,7 @@ import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms.Order;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilders;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.InternalBucketMetricValue;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -50,7 +50,7 @@ import static org.hamcrest.Matchers.notNullValue;
 /**
  *
  */
-public class PercolatorFacetsAndAggregationsIT extends ElasticsearchIntegrationTest {
+public class PercolatorFacetsAndAggregationsIT extends ESIntegTestCase {
 
     @Test
     // Just test the integration with facets and aggregations, not the facet and aggregation functionality!

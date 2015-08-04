@@ -39,13 +39,13 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.test.ElasticsearchSingleNodeTest;
+import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.junit.Test;
 
 import static org.hamcrest.Matchers.instanceOf;
 
 @SuppressCodecs("*") // we test against default codec so never get a random one here!
-public class CodecTests extends ElasticsearchSingleNodeTest {
+public class CodecTests extends ESSingleNodeTestCase {
 
     @Test
     public void testResolveDefaultCodecs() throws Exception {

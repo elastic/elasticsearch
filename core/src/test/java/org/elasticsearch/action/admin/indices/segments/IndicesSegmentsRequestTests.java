@@ -22,13 +22,13 @@ package org.elasticsearch.action.admin.indices.segments;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.Segment;
-import org.elasticsearch.test.ElasticsearchSingleNodeTest;
+import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.junit.Before;
 import org.junit.Test;
 
 import java.util.List;
 
-public class IndicesSegmentsRequestTests extends ElasticsearchSingleNodeTest {
+public class IndicesSegmentsRequestTests extends ESSingleNodeTestCase {
     
     @Before
     public void setupIndex() {

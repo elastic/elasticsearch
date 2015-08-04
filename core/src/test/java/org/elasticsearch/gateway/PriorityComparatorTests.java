@@ -21,13 +21,13 @@ package org.elasticsearch.gateway;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 
-public class PriorityComparatorTests extends ElasticsearchTestCase {
+public class PriorityComparatorTests extends ESTestCase {
 
     public void testPriorityComparatorSort() {
         RoutingNodes.UnassignedShards shards = new RoutingNodes.UnassignedShards((RoutingNodes) null);

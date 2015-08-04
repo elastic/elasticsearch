@@ -28,7 +28,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
@@ -44,7 +44,7 @@ import static org.hamcrest.core.IsEqual.equalTo;
 
 /**
  */
-public class XContentMapValuesTests extends ElasticsearchTestCase {
+public class XContentMapValuesTests extends ESTestCase {
 
     @Test
     public void testFilter() throws Exception {

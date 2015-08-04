@@ -1,3 +1,5 @@
+package org.apache.lucene.store;
+
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -17,26 +19,25 @@
  * under the License.
  */
 
-package org.elasticsearch.test.rest.test;
+import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.util.TimeUnits;
+import org.elasticsearch.bootstrap.BootstrapForTesting;
+import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
 
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.ElasticsearchTestCase;
-import org.junit.After;
-import org.junit.Ignore;
+import com.carrotsearch.randomizedtesting.annotations.Listeners;
+import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 
-import static org.hamcrest.Matchers.nullValue;
-
-@Ignore
-public abstract class AbstractParserTests extends ElasticsearchTestCase {
-
-    protected XContentParser parser;
-
-    @Override
-    @After
-    public void tearDown() throws Exception {
-        super.tearDown();
-        //this is the way to make sure that we consumed the whole yaml
-        assertThat(parser.currentToken(), nullValue());
-        parser.close();
+/**
+ * Extends Lucene's BaseDirectoryTestCase with ES test behavior.
+ */
+@Listeners({
+  ReproduceInfoPrinter.class
+})
+@TimeoutSuite(millis = TimeUnits.HOUR)
+@LuceneTestCase.SuppressReproduceLine
+@LuceneTestCase.SuppressSysoutChecks(bugUrl = "we log a lot on purpose")
+public abstract class ESBaseDirectoryTestCase extends BaseDirectoryTestCase {
+    static {
+        BootstrapForTesting.ensureInitialized();
     }
 }

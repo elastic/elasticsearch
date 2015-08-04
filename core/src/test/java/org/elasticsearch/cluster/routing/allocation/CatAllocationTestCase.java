@@ -27,7 +27,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.test.ElasticsearchAllocationTestCase;
+import org.elasticsearch.test.ESAllocationTestCase;
 import org.junit.Ignore;
 import org.junit.Test;
 
@@ -50,8 +50,7 @@ import static org.elasticsearch.common.settings.Settings.settingsBuilder;
  * the test builds up a clusterstate from the cat input and optionally runs a full balance on it.
  * This can be used to debug cluster allocation decisions.
  */
-@Ignore
-public abstract class CatAllocationTestBase extends ElasticsearchAllocationTestCase {
+public abstract class CatAllocationTestCase extends ESAllocationTestCase {
 
     protected abstract Path getCatPath() throws IOException;
 

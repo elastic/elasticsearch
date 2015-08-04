@@ -22,15 +22,15 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.rest.client.http.HttpResponse;
 import org.junit.Test;
 
 import static org.elasticsearch.http.netty.NettyHttpServerTransport.SETTING_CORS_ALLOW_ORIGIN;
 import static org.elasticsearch.http.netty.NettyHttpServerTransport.SETTING_CORS_ALLOW_CREDENTIALS;
 import static org.elasticsearch.http.netty.NettyHttpServerTransport.SETTING_CORS_ENABLED;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
+import static org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import static org.elasticsearch.test.ESIntegTestCase.Scope;
 import static org.hamcrest.Matchers.*;
 import static org.hamcrest.Matchers.is;
 
@@ -38,7 +38,7 @@ import static org.hamcrest.Matchers.is;
  *
  */
 @ClusterScope(scope = Scope.SUITE, numDataNodes = 1)
-public class CorsRegexIT extends ElasticsearchIntegrationTest {
+public class CorsRegexIT extends ESIntegTestCase {
 
     protected static final ESLogger logger = Loggers.getLogger(CorsRegexIT.class);
 

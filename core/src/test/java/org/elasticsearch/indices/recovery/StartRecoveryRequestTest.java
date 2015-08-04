@@ -19,7 +19,6 @@
 
 package org.elasticsearch.indices.recovery;
 
-import org.apache.lucene.index.IndexFileNames;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
@@ -27,15 +26,11 @@ import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
-import org.elasticsearch.index.store.StoreFileMetaData;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
 
 import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.Matchers.equalTo;
@@ -43,7 +38,7 @@ import static org.hamcrest.Matchers.nullValue;
 
 /**
  */
-public class StartRecoveryRequestTest extends ElasticsearchTestCase {
+public class StartRecoveryRequestTest extends ESTestCase {
 
     @Test
     public void testSerialization() throws Exception {

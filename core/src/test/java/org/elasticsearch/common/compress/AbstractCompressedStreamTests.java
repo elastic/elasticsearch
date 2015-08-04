@@ -25,8 +25,7 @@ import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -38,7 +37,7 @@ import java.util.concurrent.CountDownLatch;
 /**
  * Test streaming compression (e.g. used for recovery)
  */
-public abstract class AbstractCompressedStreamTests extends ElasticsearchTestCase {
+public abstract class AbstractCompressedStreamTests extends ESTestCase {
 
     private final Compressor compressor;
 

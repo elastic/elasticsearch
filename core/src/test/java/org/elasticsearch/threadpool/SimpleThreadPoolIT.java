@@ -32,9 +32,9 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.node.NodeBuilder;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-import org.elasticsearch.test.ElasticsearchSingleNodeTest;
+import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.hamcrest.RegexMatcher;
 import org.elasticsearch.threadpool.ThreadPool.Names;
@@ -52,14 +52,14 @@ import java.util.regex.Pattern;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
+import static org.elasticsearch.test.ESIntegTestCase.Scope;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.*;
 
 /**
  */
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0, numClientNodes = 0)
-public class SimpleThreadPoolIT extends ElasticsearchIntegrationTest {
+public class SimpleThreadPoolIT extends ESIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
@@ -111,15 +111,15 @@ public class SimpleThreadPoolIT extends ElasticsearchIntegrationTest {
         logger.info("post node *new* threads are {}", threadNames);
         for (String threadName : threadNames) {
             // ignore some shared threads we know that are created within the same VM, like the shared discovery one
-            // or the ones that are occasionally come up from ElasticsearchSingleNodeTest
+            // or the ones that are occasionally come up from ESSingleNodeTestCase
             if (threadName.contains("[" + MulticastChannel.SHARED_CHANNEL_NAME + "]")
-                    || threadName.contains("[" + ElasticsearchSingleNodeTest.nodeName() + "]")
+                    || threadName.contains("[" + ESSingleNodeTestCase.nodeName() + "]")
                     || threadName.contains("Keep-Alive-Timer")) {
                 continue;
             }
             String nodePrefix = "(" + Pattern.quote(InternalTestCluster.TRANSPORT_CLIENT_PREFIX) + ")?(" +
-                    Pattern.quote(ElasticsearchIntegrationTest.SUITE_CLUSTER_NODE_PREFIX) + "|" +
-                    Pattern.quote(ElasticsearchIntegrationTest.TEST_CLUSTER_NODE_PREFIX) + "|" +
+                    Pattern.quote(ESIntegTestCase.SUITE_CLUSTER_NODE_PREFIX) + "|" +
+                    Pattern.quote(ESIntegTestCase.TEST_CLUSTER_NODE_PREFIX) + "|" +
                     Pattern.quote(TribeIT.SECOND_CLUSTER_NODE_PREFIX) + ")";
             assertThat(threadName, RegexMatcher.matches("\\[" + nodePrefix + "\\d+\\]"));
         }

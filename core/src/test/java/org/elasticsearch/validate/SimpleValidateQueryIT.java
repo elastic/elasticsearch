@@ -30,9 +30,9 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
+import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.hamcrest.Matcher;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -53,7 +53,7 @@ import static org.hamcrest.Matchers.nullValue;
  *
  */
 @ClusterScope(randomDynamicTemplates = false, scope = Scope.SUITE)
-public class SimpleValidateQueryIT extends ElasticsearchIntegrationTest {
+public class SimpleValidateQueryIT extends ESIntegTestCase {
 
     @Test
     public void simpleValidateQuery() throws Exception {

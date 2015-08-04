@@ -29,7 +29,7 @@ import org.junit.Test;
 
 import static org.hamcrest.Matchers.*;
 
-public class SkipSectionParserTests extends AbstractParserTests {
+public class SkipSectionParserTests extends AbstractParserTestCase {
 
     @Test
     public void testParseSkipSectionVersionNoFeature() throws Exception {

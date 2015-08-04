@@ -27,7 +27,7 @@ import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.node.settings.NodeSettingsService;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import java.util.HashMap;
@@ -38,7 +38,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 /**
  * Unit tests for the DiskThresholdDecider
  */
-public class DiskThresholdDeciderUnitTests extends ElasticsearchTestCase {
+public class DiskThresholdDeciderUnitTests extends ESTestCase {
 
     @Test
     public void testDynamicSettings() {

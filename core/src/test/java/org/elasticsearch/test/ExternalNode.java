@@ -155,7 +155,7 @@ final class ExternalNode implements Closeable {
     }
 
     static boolean waitForNode(final Client client, final String name) throws InterruptedException {
-        return ElasticsearchTestCase.awaitBusy(new Predicate<Object>() {
+        return ESTestCase.awaitBusy(new Predicate<Object>() {
             @Override
             public boolean apply(java.lang.Object input) {
                 final NodesInfoResponse nodeInfos = client.admin().cluster().prepareNodesInfo().get();

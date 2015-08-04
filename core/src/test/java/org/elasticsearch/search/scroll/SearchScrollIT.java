@@ -34,7 +34,7 @@ import org.elasticsearch.rest.action.search.RestSearchScrollAction;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.junit.Test;
 
@@ -51,7 +51,7 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-public class SearchScrollIT extends ElasticsearchIntegrationTest {
+public class SearchScrollIT extends ESIntegTestCase {
 
     @Test
     public void testSimpleScrollQueryThenFetch() throws Exception {

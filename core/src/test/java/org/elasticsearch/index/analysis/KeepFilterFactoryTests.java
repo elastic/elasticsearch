@@ -23,7 +23,7 @@ import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.FailedToResolveConfigException;
-import org.elasticsearch.test.ElasticsearchTokenStreamTestCase;
+import org.elasticsearch.test.ESTokenStreamTestCase;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -32,7 +32,7 @@ import java.io.StringReader;
 
 import static org.hamcrest.Matchers.instanceOf;
 
-public class KeepFilterFactoryTests extends ElasticsearchTokenStreamTestCase {
+public class KeepFilterFactoryTests extends ESTokenStreamTestCase {
 
     private static final String RESOURCE = "org/elasticsearch/index/analysis/keep_analysis.json";
 

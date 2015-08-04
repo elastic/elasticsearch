@@ -40,8 +40,7 @@ import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.common.inject.internal.Join;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.*;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 
 import java.io.IOException;
 import java.util.*;
@@ -50,7 +49,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
-public abstract class AbstractTermVectorsTests extends ElasticsearchIntegrationTest {
+public abstract class AbstractTermVectorsTests extends ESIntegTestCase {
 
     protected static class TestFieldSetting {
         final public String name;

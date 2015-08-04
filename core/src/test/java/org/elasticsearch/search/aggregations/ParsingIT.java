@@ -22,14 +22,14 @@ package org.elasticsearch.search.aggregations;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
 import java.security.SecureRandom;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-public class ParsingIT extends ElasticsearchIntegrationTest {
+public class ParsingIT extends ESIntegTestCase {
 
     @Test(expected=SearchPhaseExecutionException.class)
     public void testTwoTypes() throws Exception {

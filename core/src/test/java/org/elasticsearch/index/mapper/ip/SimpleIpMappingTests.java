@@ -24,7 +24,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.test.ElasticsearchSingleNodeTest;
+import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.junit.Test;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
@@ -37,7 +37,7 @@ import static org.hamcrest.Matchers.nullValue;
 /**
  *
  */
-public class SimpleIpMappingTests extends ElasticsearchSingleNodeTest {
+public class SimpleIpMappingTests extends ESSingleNodeTestCase {
 
     @Test
     public void testSimpleMapping() throws Exception {

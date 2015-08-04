@@ -25,7 +25,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.After;
 import org.junit.Before;
@@ -42,7 +42,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  * Tests for custom data path locations and templates
  */
-public class IndicesCustomDataPathIT extends ElasticsearchIntegrationTest {
+public class IndicesCustomDataPathIT extends ESIntegTestCase {
 
     private String path;
 

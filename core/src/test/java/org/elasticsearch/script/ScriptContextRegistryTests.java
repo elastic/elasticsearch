@@ -20,13 +20,13 @@
 package org.elasticsearch.script;
 
 import com.google.common.collect.Lists;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
 import java.io.IOException;
 
-public class ScriptContextRegistryTests extends ElasticsearchTestCase {
+public class ScriptContextRegistryTests extends ESTestCase {
 
     @Test
     public void testValidateCustomScriptContextsOperation() throws IOException {

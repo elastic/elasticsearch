@@ -41,7 +41,7 @@ import org.elasticsearch.indices.recovery.RecoveryTarget;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.snapshots.SnapshotState;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.*;
@@ -65,8 +65,8 @@ import static org.hamcrest.Matchers.*;
 /**
  * Tests for indices that use shadow replicas and a shared filesystem
  */
-@ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST, numDataNodes = 0)
-public class IndexWithShadowReplicasIT extends ElasticsearchIntegrationTest {
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
+public class IndexWithShadowReplicasIT extends ESIntegTestCase {
 
     private Settings nodeSettings() {
         return Settings.builder()

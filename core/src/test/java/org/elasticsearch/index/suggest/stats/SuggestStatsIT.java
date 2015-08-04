@@ -31,7 +31,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
 import java.util.HashSet;
@@ -45,8 +45,8 @@ import static org.hamcrest.Matchers.*;
 
 /**
  */
-@ElasticsearchIntegrationTest.ClusterScope(minNumDataNodes = 2)
-public class SuggestStatsIT extends ElasticsearchIntegrationTest {
+@ESIntegTestCase.ClusterScope(minNumDataNodes = 2)
+public class SuggestStatsIT extends ESIntegTestCase {
 
     @Override
     protected int numberOfReplicas() {

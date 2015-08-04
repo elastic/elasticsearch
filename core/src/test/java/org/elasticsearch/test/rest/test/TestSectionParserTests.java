@@ -29,7 +29,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.*;
 
-public class TestSectionParserTests extends AbstractParserTests {
+public class TestSectionParserTests extends AbstractParserTestCase {
 
     @Test
     public void testParseTestSectionWithDoSection() throws Exception {

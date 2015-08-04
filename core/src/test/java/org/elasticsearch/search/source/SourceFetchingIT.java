@@ -20,14 +20,14 @@
 package org.elasticsearch.search.source;
 
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.core.IsEqual.equalTo;
 
-public class SourceFetchingIT extends ElasticsearchIntegrationTest {
+public class SourceFetchingIT extends ESIntegTestCase {
 
     @Test
     public void testSourceDefaultBehavior() {

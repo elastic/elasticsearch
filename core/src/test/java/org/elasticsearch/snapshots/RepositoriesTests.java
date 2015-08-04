@@ -33,7 +33,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.RepositoryVerificationException;
 import org.elasticsearch.snapshots.mockstore.MockRepositoryModule;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
 import java.nio.file.Path;
@@ -47,8 +47,8 @@ import static org.hamcrest.Matchers.notNullValue;
 
 /**
  */
-@ElasticsearchIntegrationTest.ClusterScope(minNumDataNodes = 2)
-public class RepositoriesTests extends AbstractSnapshotIT {
+@ESIntegTestCase.ClusterScope(minNumDataNodes = 2)
+public class RepositoriesTests extends AbstractSnapshotIntegTestCase {
 
     @Test
     public void testRepositoryCreation() throws Exception {

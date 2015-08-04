@@ -26,7 +26,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -36,7 +36,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
-public class CopyToMapperIntegrationIT extends ElasticsearchIntegrationTest {
+public class CopyToMapperIntegrationIT extends ESIntegTestCase {
 
 
     @Test

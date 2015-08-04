@@ -23,8 +23,8 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -40,7 +40,7 @@ import static org.hamcrest.Matchers.notNullValue;
  *
  */
 @ClusterScope(randomDynamicTemplates = false)
-public class SimpleGetMappingsIT extends ElasticsearchIntegrationTest {
+public class SimpleGetMappingsIT extends ESIntegTestCase {
 
     @Test
     public void getMappingsWhereThereAreNone() {

@@ -24,7 +24,7 @@ import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.SettingsSource;
 
@@ -42,7 +42,7 @@ import static org.hamcrest.Matchers.hasEntry;
  * configuration given the same seed / input.
  */
 @LuceneTestCase.SuppressFileSystems("ExtrasFS") // doesn't work with potential multi data path from test cluster yet
-public class InternalTestClusterTests extends ElasticsearchTestCase {
+public class InternalTestClusterTests extends ESTestCase {
 
     public void testInitializiationIsConsistent() {
         long clusterSeed = randomLong();

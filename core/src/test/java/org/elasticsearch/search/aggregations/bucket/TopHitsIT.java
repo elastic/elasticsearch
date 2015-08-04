@@ -42,7 +42,7 @@ import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.search.highlight.HighlightField;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -78,8 +78,8 @@ import static org.hamcrest.Matchers.sameInstance;
 /**
  *
  */
-@ElasticsearchIntegrationTest.SuiteScopeTest()
-public class TopHitsIT extends ElasticsearchIntegrationTest {
+@ESIntegTestCase.SuiteScopeTestCase()
+public class TopHitsIT extends ESIntegTestCase {
 
     private static final String TERMS_AGGS_FIELD = "terms";
     private static final String SORT_FIELD = "sort";

@@ -17,26 +17,25 @@
  * under the License.
  */
 
-package org.elasticsearch.index.store;
+package org.elasticsearch.test.rest.test;
 
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.test.ESTestCase;
+import org.junit.After;
+import org.junit.Ignore;
 
-import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
-abstract public class AbstractAzureFsTest extends ESIntegTestCase {
+public abstract class AbstractParserTestCase extends ESTestCase {
 
-    @Test
-    public void testAzureFs() {
-        // Create an index and index some documents
-        createIndex("test");
-        long nbDocs = randomIntBetween(10, 1000);
-        for (long i = 0; i < nbDocs; i++) {
-            index("test", "doc", "" + i, "foo", "bar");
-        }
-        refresh();
-        SearchResponse response = client().prepareSearch("test").get();
-        assertThat(response.getHits().totalHits(), is(nbDocs));
+    protected XContentParser parser;
+
+    @Override
+    @After
+    public void tearDown() throws Exception {
+        super.tearDown();
+        //this is the way to make sure that we consumed the whole yaml
+        assertThat(parser.currentToken(), nullValue());
+        parser.close();
     }
 }

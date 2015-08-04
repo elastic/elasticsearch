@@ -36,7 +36,7 @@ import org.elasticsearch.index.analysis.pl.PolishStemTokenFilterFactory;
 import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.indices.analysis.IndicesAnalysisModule;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.MatcherAssert;
 import org.junit.Test;
 
@@ -46,7 +46,7 @@ import static org.hamcrest.Matchers.instanceOf;
 
 /**
  */
-public class PolishAnalysisTests extends ElasticsearchTestCase {
+public class PolishAnalysisTests extends ESTestCase {
 
     @Test
     public void testDefaultsPolishAnalysis() {

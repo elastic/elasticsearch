@@ -24,7 +24,7 @@ import org.elasticsearch.common.cli.Terminal;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -38,7 +38,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.*;
 
-public class InternalSettingsPreparerTests extends ElasticsearchTestCase {
+public class InternalSettingsPreparerTests extends ESTestCase {
 
     @Before
     public void setupSystemProperties() {

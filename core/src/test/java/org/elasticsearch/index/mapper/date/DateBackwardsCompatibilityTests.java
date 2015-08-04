@@ -30,7 +30,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.test.ElasticsearchSingleNodeTest;
+import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.junit.Before;
 
 import java.util.List;
@@ -46,7 +46,7 @@ import static org.hamcrest.Matchers.is;
  * Test class to check for all the conditions defined in
  * https://github.com/elastic/elasticsearch/issues/10971
  */
-public class DateBackwardsCompatibilityTests extends ElasticsearchSingleNodeTest {
+public class DateBackwardsCompatibilityTests extends ESSingleNodeTestCase {
 
     private String index = "testindex";
     private String type = "testtype";

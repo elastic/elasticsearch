@@ -24,7 +24,7 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.indices.InvalidIndexNameException;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -43,7 +43,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 /**
  *
  */
-public class IndexActionIT extends ElasticsearchIntegrationTest {
+public class IndexActionIT extends ESIntegTestCase {
 
     /**
      * This test tries to simulate load while creating an index and indexing documents

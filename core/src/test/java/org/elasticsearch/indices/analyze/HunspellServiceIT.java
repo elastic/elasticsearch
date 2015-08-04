@@ -23,9 +23,9 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.analysis.HunspellService;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
+import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
@@ -38,7 +38,7 @@ import static org.hamcrest.Matchers.notNullValue;
  *
  */
 @ClusterScope(scope= Scope.TEST, numDataNodes=0)
-public class HunspellServiceIT extends ElasticsearchIntegrationTest {
+public class HunspellServiceIT extends ESIntegTestCase {
 
     @Test
     public void testLocaleDirectoryWithNodeLevelConfig() throws Exception {

@@ -26,12 +26,12 @@ import java.util.regex.Pattern;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.core.StopAnalyzer;
-import org.elasticsearch.test.ElasticsearchTokenStreamTestCase;
+import org.elasticsearch.test.ESTokenStreamTestCase;
 
 /**
  * Verifies the behavior of PatternAnalyzer.
  */
-public class PatternAnalyzerTest extends ElasticsearchTokenStreamTestCase {
+public class PatternAnalyzerTest extends ESTokenStreamTestCase {
 
   /**
    * Test PatternAnalyzer when it is configured with a non-word pattern.

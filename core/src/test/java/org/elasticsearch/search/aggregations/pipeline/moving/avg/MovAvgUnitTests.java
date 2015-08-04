@@ -22,7 +22,7 @@ package org.elasticsearch.search.aggregations.pipeline.moving.avg;
 import com.google.common.collect.EvictingQueue;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.search.aggregations.pipeline.movavg.models.*;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import java.text.ParseException;
@@ -30,7 +30,7 @@ import java.util.*;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class MovAvgUnitTests extends ElasticsearchTestCase {
+public class MovAvgUnitTests extends ESTestCase {
 
     @Test
     public void testSimpleMovAvgModel() {

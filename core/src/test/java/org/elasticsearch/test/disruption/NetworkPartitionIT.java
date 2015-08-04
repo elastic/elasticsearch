@@ -22,7 +22,7 @@ package org.elasticsearch.test.disruption;
 
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportModule;
@@ -30,7 +30,7 @@ import org.junit.Test;
 
 import java.io.IOException;
 
-public class NetworkPartitionIT extends ElasticsearchIntegrationTest {
+public class NetworkPartitionIT extends ESIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {

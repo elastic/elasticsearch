@@ -20,7 +20,7 @@
 package org.elasticsearch.index.mapper.path;
 
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.test.ElasticsearchSingleNodeTest;
+import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -32,7 +32,7 @@ import static org.hamcrest.Matchers.nullValue;
 /**
  *
  */
-public class PathMapperTests extends ElasticsearchSingleNodeTest {
+public class PathMapperTests extends ESSingleNodeTestCase {
 
     @Test
     public void testPathMapping() throws IOException {

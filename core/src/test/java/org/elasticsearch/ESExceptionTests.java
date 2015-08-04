@@ -40,7 +40,7 @@ import org.elasticsearch.index.query.TestQueryParsingException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestSearchContext;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
@@ -55,7 +55,7 @@ import java.nio.file.NoSuchFileException;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class ElasticsearchExceptionTests extends ElasticsearchTestCase {
+public class ESExceptionTests extends ESTestCase {
 
     @Test
     public void testStatus() {

@@ -22,7 +22,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import java.util.Map;
@@ -31,7 +31,7 @@ import static org.hamcrest.Matchers.*;
 
 /**
  */
-public class MultiPercolatorRequestTests extends ElasticsearchTestCase {
+public class MultiPercolatorRequestTests extends ESTestCase {
 
     @Test
     public void testParseBulkRequests() throws Exception {

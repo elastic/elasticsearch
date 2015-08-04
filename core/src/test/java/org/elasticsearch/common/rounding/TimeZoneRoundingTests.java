@@ -20,7 +20,7 @@
 package org.elasticsearch.common.rounding;
 
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.ISODateTimeFormat;
@@ -34,7 +34,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
  */
-public class TimeZoneRoundingTests extends ElasticsearchTestCase {
+public class TimeZoneRoundingTests extends ESTestCase {
 
     final static DateTimeZone JERUSALEM_TIMEZONE = DateTimeZone.forID("Asia/Jerusalem");
 

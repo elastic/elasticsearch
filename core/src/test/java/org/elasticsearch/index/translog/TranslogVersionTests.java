@@ -21,7 +21,7 @@ package org.elasticsearch.index.translog;
 
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -35,7 +35,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  * Tests for reading old and new translog files
  */
-public class TranslogVersionTests extends ElasticsearchTestCase {
+public class TranslogVersionTests extends ESTestCase {
 
     @Test
     public void testV0LegacyTranslogVersion() throws Exception {

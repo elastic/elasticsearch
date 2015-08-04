@@ -22,12 +22,12 @@ package org.elasticsearch.cluster;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class ClusterHealthIT extends ElasticsearchIntegrationTest {
+public class ClusterHealthIT extends ESIntegTestCase {
 
 
     @Test

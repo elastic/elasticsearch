@@ -21,7 +21,7 @@ package org.elasticsearch.common.xcontent.support.filtering;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.*;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import java.io.ByteArrayInputStream;
@@ -31,7 +31,7 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
-public abstract class AbstractFilteringJsonGeneratorTests extends ElasticsearchTestCase {
+public abstract class AbstractFilteringJsonGeneratorTests extends ESTestCase {
 
     protected abstract XContentType getXContentType();
 

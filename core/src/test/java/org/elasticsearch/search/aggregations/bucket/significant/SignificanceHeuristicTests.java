@@ -42,7 +42,7 @@ import org.elasticsearch.search.aggregations.bucket.significant.heuristics.Signi
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicStreams;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestSearchContext;
 import org.junit.Test;
 
@@ -65,7 +65,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 /**
  *
  */
-public class SignificanceHeuristicTests extends ElasticsearchTestCase {
+public class SignificanceHeuristicTests extends ESTestCase {
     static class SignificantTermsTestSearchContext extends TestSearchContext {
         @Override
         public int numberOfShards() {

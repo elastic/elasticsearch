@@ -29,7 +29,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -43,7 +43,7 @@ import static org.hamcrest.Matchers.is;
 
 /**
  */
-public class IndicesStoreTests extends ElasticsearchTestCase {
+public class IndicesStoreTests extends ESTestCase {
 
     private final static ShardRoutingState[] NOT_STARTED_STATES;
 

@@ -20,17 +20,15 @@
 package org.elasticsearch.action.admin.indices.shards;
 
 import com.google.common.collect.ImmutableList;
-import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenIntMap;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.common.xcontent.*;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.NodeDisconnectedException;
 import org.junit.Test;
 
@@ -39,7 +37,7 @@ import java.util.*;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class IndicesShardStoreResponseTest extends ElasticsearchTestCase {
+public class IndicesShardStoreResponseTest extends ESTestCase {
 
     @Test
     public void testBasicSerialization() throws Exception {

@@ -23,7 +23,7 @@ import com.fasterxml.jackson.dataformat.cbor.CBORConstants;
 import com.fasterxml.jackson.dataformat.smile.SmileConstants;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import java.io.ByteArrayInputStream;
@@ -34,7 +34,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  *
  */
-public class XContentFactoryTests extends ElasticsearchTestCase {
+public class XContentFactoryTests extends ESTestCase {
 
 
     @Test

@@ -21,7 +21,7 @@ package org.elasticsearch.search.msearch;
 
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
@@ -29,7 +29,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
-public class SimpleMultiSearchIT extends ElasticsearchIntegrationTest {
+public class SimpleMultiSearchIT extends ESIntegTestCase {
 
     @Test
     public void simpleMultiSearch() {

@@ -56,7 +56,7 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.test.DummyShardLock;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.MatcherAssert;
 import org.junit.After;
@@ -76,7 +76,7 @@ import static org.hamcrest.Matchers.*;
 /**
  * TODO: document me!
  */
-public class ShadowEngineTests extends ElasticsearchTestCase {
+public class ShadowEngineTests extends ESTestCase {
 
     protected final ShardId shardId = new ShardId(new Index("index"), 1);
 

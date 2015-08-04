@@ -24,14 +24,14 @@ import com.google.common.collect.Lists;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 
-public class FieldTypeLookupTests extends ElasticsearchTestCase {
+public class FieldTypeLookupTests extends ESTestCase {
 
     public void testEmpty() {
         FieldTypeLookup lookup = new FieldTypeLookup();

@@ -32,7 +32,7 @@ import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.test.BackgroundIndexer;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
 import java.util.Arrays;
@@ -48,7 +48,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
 import static org.hamcrest.Matchers.equalTo;
 
-public class RecoveryWhileUnderLoadIT extends ElasticsearchIntegrationTest {
+public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
 
     private final ESLogger logger = Loggers.getLogger(RecoveryWhileUnderLoadIT.class);
 

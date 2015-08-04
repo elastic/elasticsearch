@@ -8,6 +8,7 @@ use FindBin qw($RealBin);
 use lib "$RealBin/lib";
 use File::Spec();
 use File::Temp();
+use File::Find();
 use Digest::SHA qw(sha1);
 use File::Basename qw(basename);
 use Archive::Extract();

@@ -6,7 +6,6 @@
 package org.elasticsearch.shield.tribe;
 
 import com.google.common.collect.ImmutableMap;
-import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.client.support.Headers;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -18,7 +17,7 @@ import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.shield.crypto.InternalCryptoService;
 import org.elasticsearch.shield.transport.netty.ShieldNettyHttpServerTransport;
 import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.test.ShieldIntegrationTest;
+import org.elasticsearch.test.ShieldIntegTestCase;
 import org.elasticsearch.test.ShieldSettingsSource;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.tribe.TribeService;
@@ -37,8 +36,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.*;
 
-@Slow
-public class TribeTests extends ShieldIntegrationTest {
+public class TribeTests extends ShieldIntegTestCase {
 
     //use known suite prefix since their threads are already ignored via ElasticsearchThreadFilter
     public static final String SECOND_CLUSTER_NODE_PREFIX =  SUITE_CLUSTER_NODE_PREFIX;

@@ -7,7 +7,7 @@ package org.elasticsearch.shield.transport;
 
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.authc.AuthenticationService;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportRequest;
 import org.junit.Before;
 import org.junit.Test;
@@ -18,7 +18,7 @@ import static org.mockito.Mockito.verify;
 /**
  *
  */
-public class ClientTransportFilterTests extends ElasticsearchTestCase {
+public class ClientTransportFilterTests extends ESTestCase {
 
     private AuthenticationService authcService;
     private ClientTransportFilter filter;

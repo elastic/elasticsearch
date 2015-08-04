@@ -12,7 +12,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.shield.authc.support.SecuredString;
-import org.elasticsearch.test.ShieldIntegrationTest;
+import org.elasticsearch.test.ShieldIntegTestCase;
 import org.elasticsearch.test.ShieldSettingsSource;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -24,7 +24,7 @@ import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.basic
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
-public class ShieldCachePermissionTests extends ShieldIntegrationTest {
+public class ShieldCachePermissionTests extends ShieldIntegTestCase {
 
     static final String READ_ONE_IDX_USER = "read_user";
 

@@ -12,7 +12,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.condition.compare.CompareCondition.Op;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.support.clock.ClockMock;
@@ -30,7 +30,7 @@ import static org.hamcrest.Matchers.notNullValue;
 
 /**
  */
-public class CompareConditionTests extends ElasticsearchTestCase {
+public class CompareConditionTests extends ESTestCase {
 
     @Test
     public void testOpEval_EQ() throws Exception {

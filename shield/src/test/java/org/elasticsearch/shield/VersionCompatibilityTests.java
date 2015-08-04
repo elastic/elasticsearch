@@ -6,7 +6,7 @@
 package org.elasticsearch.shield;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import static org.hamcrest.CoreMatchers.is;
@@ -23,7 +23,7 @@ import static org.hamcrest.CoreMatchers.is;
  * In many cases we will just have to bump the version of the assert then, unless we want to break backwards compatibility, but the idea is that this class
  * helps keeping track of this and eventually making changes when needed.
  */
-public class VersionCompatibilityTests extends ElasticsearchTestCase {
+public class VersionCompatibilityTests extends ESTestCase {
 
     @Test
     public void testCompatibility() {

@@ -9,7 +9,7 @@ import com.google.common.base.Charsets;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.junit.After;
@@ -31,7 +31,7 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-public class InternalCryptoServiceTests extends ElasticsearchTestCase {
+public class InternalCryptoServiceTests extends ESTestCase {
 
     private ResourceWatcherService watcherService;
     private Settings settings;

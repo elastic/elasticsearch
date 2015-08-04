@@ -12,7 +12,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.support.http.auth.HttpAuthFactory;
 import org.elasticsearch.watcher.support.http.auth.HttpAuthRegistry;
 import org.elasticsearch.watcher.support.http.auth.basic.BasicAuth;
@@ -31,7 +31,7 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-public class HttpRequestTemplateTests extends ElasticsearchTestCase {
+public class HttpRequestTemplateTests extends ESTestCase {
 
     @Test
     public void testBody_WithXContent() throws Exception {

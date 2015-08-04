@@ -8,7 +8,7 @@ package org.elasticsearch.shield.authz;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.shield.authc.support.Hasher;
 import org.elasticsearch.shield.authc.support.SecuredString;
-import org.elasticsearch.test.ShieldIntegrationTest;
+import org.elasticsearch.test.ShieldIntegTestCase;
 import org.junit.Test;
 
 import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.BASIC_AUTH_HEADER;
@@ -16,7 +16,7 @@ import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.basic
 import static org.elasticsearch.test.ShieldTestsUtils.assertAuthorizationException;
 import static org.hamcrest.CoreMatchers.containsString;
 
-public class AnalyzeTests extends ShieldIntegrationTest {
+public class AnalyzeTests extends ShieldIntegTestCase {
 
     protected static final String USERS_PASSWD_HASHED = new String(Hasher.BCRYPT.hash(new SecuredString("test123".toCharArray())));
 

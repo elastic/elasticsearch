@@ -9,14 +9,14 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import java.util.Collection;
 
 import static org.hamcrest.Matchers.is;
 
-public class MarvelPluginClientTests extends ElasticsearchTestCase {
+public class MarvelPluginClientTests extends ESTestCase {
 
     @Test
     public void testModulesWithClientSettings() {

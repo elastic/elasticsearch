@@ -8,7 +8,7 @@ package org.elasticsearch.shield.ssl;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.shield.ssl.AbstractSSLService.SSLSettings;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import javax.net.ssl.KeyManagerFactory;
@@ -17,7 +17,7 @@ import javax.net.ssl.TrustManagerFactory;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.*;
 
-public class SSLSettingsTests extends ElasticsearchTestCase {
+public class SSLSettingsTests extends ESTestCase {
 
     @Test
     public void testThatSSLSettingsWithEmptySettingsHaveCorrectDefaults() {

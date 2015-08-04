@@ -11,7 +11,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.shield.ShieldSettingsFilter;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.authc.esusers.ESUsersRealm;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportMessage;
 import org.junit.Before;
 import org.junit.Test;
@@ -24,7 +24,7 @@ import static org.mockito.Mockito.mock;
 /**
  *
  */
-public class RealmsTests extends ElasticsearchTestCase {
+public class RealmsTests extends ESTestCase {
 
     private Map<String, Realm.Factory> factories;
     private ShieldSettingsFilter settingsFilter;

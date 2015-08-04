@@ -13,8 +13,8 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.util.Callback;
 import org.elasticsearch.license.plugin.LicensePlugin;
 import org.elasticsearch.shield.action.ShieldActionModule;
-import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-import org.elasticsearch.test.ShieldIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.test.ShieldIntegTestCase;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -36,7 +36,7 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 
 @ClusterScope(numClientNodes = 0, numDataNodes = 1)
-public class KnownActionsTests extends ShieldIntegrationTest {
+public class KnownActionsTests extends ShieldIntegTestCase {
 
     private static ImmutableSet<String> knownActions;
     private static ImmutableSet<String> knownHandlers;

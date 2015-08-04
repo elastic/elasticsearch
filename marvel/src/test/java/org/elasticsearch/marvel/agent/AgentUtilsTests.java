@@ -7,7 +7,7 @@ package org.elasticsearch.marvel.agent;
 
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.marvel.agent.support.AgentUtils;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
 import org.junit.Test;
@@ -24,7 +24,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 
 
-public class AgentUtilsTests extends ElasticsearchTestCase {
+public class AgentUtilsTests extends ESTestCase {
 
     @Test
     public void testVersionIsExtractableFromIndexTemplate() throws IOException {

@@ -12,7 +12,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.annotations.Network;
 import org.junit.Before;
 import org.junit.Test;
@@ -26,7 +26,7 @@ import java.util.List;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.*;
 
-public class ClientSSLServiceTests extends ElasticsearchTestCase {
+public class ClientSSLServiceTests extends ESTestCase {
 
     Environment env;
     Path testclientStore;

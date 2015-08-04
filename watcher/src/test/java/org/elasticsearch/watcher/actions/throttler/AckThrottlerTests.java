@@ -7,7 +7,7 @@ package org.elasticsearch.watcher.actions.throttler;
 
 import org.elasticsearch.watcher.support.clock.SystemClock;
 import org.joda.time.DateTime;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.actions.ActionStatus;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.watch.Watch;
@@ -25,7 +25,7 @@ import static org.mockito.Mockito.when;
 /**
  *
  */
-public class AckThrottlerTests extends ElasticsearchTestCase {
+public class AckThrottlerTests extends ESTestCase {
 
     @Test
     public void testWhenAcked() throws Exception {

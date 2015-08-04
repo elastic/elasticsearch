@@ -21,7 +21,7 @@ import org.elasticsearch.shield.authc.RealmConfig;
 import org.elasticsearch.shield.authc.activedirectory.ActiveDirectorySessionFactoryTests;
 import org.elasticsearch.shield.authc.ldap.support.LdapSearchScope;
 import org.elasticsearch.shield.authc.ldap.support.LdapSession;
-import org.elasticsearch.shield.authc.ldap.support.LdapTest;
+import org.elasticsearch.shield.authc.ldap.support.LdapTestCase;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.SecuredStringTests;
 import org.elasticsearch.shield.ssl.ClientSSLService;
@@ -45,7 +45,7 @@ import static org.hamcrest.Matchers.*;
 @ThreadLeakFilters(filters = {
         LdapUserSearchSessionFactoryTests.BackgroundConnectThreadLeakFilter.class
 })
-public class LdapUserSearchSessionFactoryTests extends LdapTest {
+public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
 
     private ClientSSLService clientSSLService;
     private Settings globalSettings;
@@ -260,7 +260,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTest {
         String groupSearchBase = "DC=ad,DC=test,DC=elasticsearch,DC=com";
         String userSearchBase = "CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com";
         Settings settings = settingsBuilder()
-                .put(LdapTest.buildLdapSettings(ActiveDirectorySessionFactoryTests.AD_LDAP_URL, Strings.EMPTY_ARRAY, groupSearchBase, LdapSearchScope.SUB_TREE))
+                .put(LdapTestCase.buildLdapSettings(ActiveDirectorySessionFactoryTests.AD_LDAP_URL, Strings.EMPTY_ARRAY, groupSearchBase, LdapSearchScope.SUB_TREE))
                 .put("user_search.base_dn", userSearchBase)
                 .put("bind_dn", "ironman@ad.test.elasticsearch.com")
                 .put("bind_password", ActiveDirectorySessionFactoryTests.PASSWORD)
@@ -288,7 +288,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTest {
         String groupSearchBase = "ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
         String userSearchBase = "ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
         RealmConfig config = new RealmConfig("oldap-test", settingsBuilder()
-                .put(LdapTest.buildLdapSettings(OpenLdapTests.OPEN_LDAP_URL, Strings.EMPTY_ARRAY, groupSearchBase, LdapSearchScope.ONE_LEVEL))
+                .put(LdapTestCase.buildLdapSettings(OpenLdapTests.OPEN_LDAP_URL, Strings.EMPTY_ARRAY, groupSearchBase, LdapSearchScope.ONE_LEVEL))
                 .put("user_search.base_dn", userSearchBase)
                 .put("bind_dn", "uid=blackwidow,ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com")
                 .put("bind_password", OpenLdapTests.PASSWORD)
@@ -396,7 +396,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTest {
         String groupSearchBase = "DC=ad,DC=test,DC=elasticsearch,DC=com";
         String userSearchBase = "CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com";
         Settings ldapSettings = settingsBuilder()
-                .put(LdapTest.buildLdapSettings("ldaps://elastic.co:636", Strings.EMPTY_ARRAY, groupSearchBase, LdapSearchScope.SUB_TREE))
+                .put(LdapTestCase.buildLdapSettings("ldaps://elastic.co:636", Strings.EMPTY_ARRAY, groupSearchBase, LdapSearchScope.SUB_TREE))
                 .put("user_search.base_dn", userSearchBase)
                 .put("bind_dn", "ironman@ad.test.elasticsearch.com")
                 .put("bind_password", ActiveDirectorySessionFactoryTests.PASSWORD)

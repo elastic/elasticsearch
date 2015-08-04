@@ -14,7 +14,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.annotations.Network;
 import org.elasticsearch.watcher.support.http.auth.HttpAuthFactory;
 import org.elasticsearch.watcher.support.http.auth.HttpAuthRegistry;
@@ -41,7 +41,7 @@ import static org.hamcrest.core.Is.is;
 
 /**
  */
-public class HttpClientTests extends ElasticsearchTestCase {
+public class HttpClientTests extends ESTestCase {
 
     private MockWebServer webServer;
     private HttpClient httpClient;

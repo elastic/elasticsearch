@@ -55,7 +55,16 @@ import static org.elasticsearch.watcher.condition.ConditionBuilders.neverConditi
 import static org.elasticsearch.watcher.input.InputBuilders.simpleInput;
 import static org.elasticsearch.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.watcher.trigger.schedule.Schedules.cron;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.startsWith;
 
 public class ManualExecutionTests extends AbstractWatcherIntegrationTests {
 
@@ -315,7 +324,7 @@ public class ManualExecutionTests extends AbstractWatcherIntegrationTests {
         assertThat(record.result().executionDurationMs(), greaterThanOrEqualTo(100L));
     }
 
-    @Test @Slow
+    @Test
     public void testForceDeletionOfLongRunningWatch() throws Exception {
         WatchSourceBuilder watchBuilder = watchBuilder()
                 .trigger(schedule(cron("0 0 0 1 * ? 2099")))

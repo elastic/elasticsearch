@@ -249,7 +249,6 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTests {
     }
 
     @Test
-    @LuceneTestCase.Slow
     public void testModifyWatchWithSameUnit() throws Exception {
         if (timeWarped()) {
             logger.info("Skipping testModifyWatches_ because timewarp is enabled");

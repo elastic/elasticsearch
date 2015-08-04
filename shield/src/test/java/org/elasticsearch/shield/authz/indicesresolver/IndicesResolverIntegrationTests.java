@@ -14,7 +14,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.test.ShieldIntegrationTest;
+import org.elasticsearch.test.ShieldIntegTestCase;
 import org.elasticsearch.test.ShieldSettingsSource;
 import org.junit.Test;
 
@@ -24,7 +24,7 @@ import java.util.List;
 import static org.elasticsearch.test.ShieldTestsUtils.assertAuthorizationException;
 import static org.hamcrest.CoreMatchers.*;
 
-public class IndicesResolverIntegrationTests extends ShieldIntegrationTest {
+public class IndicesResolverIntegrationTests extends ShieldIntegTestCase {
 
     @Override
     protected String configRoles() {

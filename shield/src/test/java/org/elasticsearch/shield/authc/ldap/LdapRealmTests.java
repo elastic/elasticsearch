@@ -10,7 +10,7 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.authc.RealmConfig;
 import org.elasticsearch.shield.authc.ldap.support.LdapSearchScope;
-import org.elasticsearch.shield.authc.ldap.support.LdapTest;
+import org.elasticsearch.shield.authc.ldap.support.LdapTestCase;
 import org.elasticsearch.shield.authc.ldap.support.SessionFactory;
 import org.elasticsearch.shield.authc.support.DnRoleMapper;
 import org.elasticsearch.shield.authc.support.SecuredString;
@@ -30,7 +30,7 @@ import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.*;
 
-public class LdapRealmTests extends LdapTest {
+public class LdapRealmTests extends LdapTestCase {
 
     public static final String VALID_USER_TEMPLATE = "cn={0},ou=people,o=sevenSeas";
     public static final String VALID_USERNAME = "Thomas Masterman Hardy";

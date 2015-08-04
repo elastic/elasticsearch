@@ -10,7 +10,7 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.execution.ExecutionState;
 import org.elasticsearch.watcher.execution.Wid;
 import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
@@ -27,7 +27,7 @@ import static org.mockito.Mockito.*;
 
 /**
  */
-public class HistoryStoreTests extends ElasticsearchTestCase {
+public class HistoryStoreTests extends ESTestCase {
 
     private HistoryStore historyStore;
     private ClientProxy clientProxy;

@@ -20,8 +20,8 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.watcher.actions.ActionStatus;
 import org.elasticsearch.watcher.actions.ActionWrapper;
 import org.elasticsearch.watcher.actions.ExecutableActions;
@@ -58,7 +58,7 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope.SUITE;
+import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.elasticsearch.watcher.test.WatcherTestUtils.areJsonEquivalent;
 import static org.elasticsearch.watcher.test.WatcherTestUtils.getRandomSupportedSearchType;
 import static org.hamcrest.Matchers.*;
@@ -67,7 +67,7 @@ import static org.joda.time.DateTimeZone.UTC;
 /**
  */
 @ClusterScope(scope = SUITE, numClientNodes = 0, transportClientRatio = 0, randomDynamicTemplates = false, numDataNodes = 1)
-public class SearchInputTests extends ElasticsearchIntegrationTest {
+public class SearchInputTests extends ESIntegTestCase {
 
     private final static String TEMPLATE_QUERY = "{\"query\":{\"filtered\":{\"query\":{\"match\":{\"event_type\":{\"query\":\"a\"," +
             "\"type\":\"boolean\"}}},\"filter\":{\"range\":{\"_timestamp\":" +

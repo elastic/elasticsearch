@@ -11,13 +11,13 @@ import com.unboundid.util.ssl.TrustAllSSLSocketVerifier;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.authc.RealmConfig;
 import org.elasticsearch.shield.authc.support.SecuredString;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.*;
 
-public class SessionFactoryTests extends ElasticsearchTestCase {
+public class SessionFactoryTests extends ESTestCase {
 
     @Test
     public void connectionFactoryReturnsCorrectLDAPConnectionOptionsWithDefaultSettings() {

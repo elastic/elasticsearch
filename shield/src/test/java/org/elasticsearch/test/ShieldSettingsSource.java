@@ -85,7 +85,7 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
      * @param parentFolder the parent folder that will contain all of the configuration files that need to be created
      * @param scope the scope of the test that is requiring an instance of ShieldSettingsSource
      */
-    public ShieldSettingsSource(int numOfNodes, boolean sslTransportEnabled, Path parentFolder, ElasticsearchIntegrationTest.Scope scope) {
+    public ShieldSettingsSource(int numOfNodes, boolean sslTransportEnabled, Path parentFolder, ESIntegTestCase.Scope scope) {
         this(numOfNodes, sslTransportEnabled, generateKey(), parentFolder, scope);
     }
 
@@ -98,7 +98,7 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
      * @param parentFolder the parent folder that will contain all of the configuration files that need to be created
      * @param scope the scope of the test that is requiring an instance of ShieldSettingsSource
      */
-    public ShieldSettingsSource(int numOfNodes, boolean sslTransportEnabled, byte[] systemKey, Path parentFolder, ElasticsearchIntegrationTest.Scope scope) {
+    public ShieldSettingsSource(int numOfNodes, boolean sslTransportEnabled, byte[] systemKey, Path parentFolder, ESIntegTestCase.Scope scope) {
         super(numOfNodes, DEFAULT_SETTINGS);
         this.systemKey = systemKey;
         this.parentFolder = parentFolder;

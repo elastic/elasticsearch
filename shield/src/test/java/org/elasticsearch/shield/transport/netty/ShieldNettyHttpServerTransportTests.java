@@ -16,7 +16,7 @@ import org.elasticsearch.shield.ShieldSettingsFilter;
 import org.elasticsearch.shield.ssl.ServerSSLService;
 import org.elasticsearch.shield.transport.SSLClientAuth;
 import org.elasticsearch.shield.transport.filter.IPFilter;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.jboss.netty.channel.ChannelPipelineFactory;
 import org.jboss.netty.handler.ssl.SslHandler;
 import org.junit.Before;
@@ -30,7 +30,7 @@ import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 
-public class ShieldNettyHttpServerTransportTests extends ElasticsearchTestCase {
+public class ShieldNettyHttpServerTransportTests extends ESTestCase {
 
     private ServerSSLService serverSSLService;
 

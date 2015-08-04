@@ -19,7 +19,7 @@ import org.elasticsearch.shield.audit.AuditTrail;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.shield.crypto.CryptoService;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.transport.TransportMessage;
 import org.junit.Before;
@@ -39,7 +39,7 @@ import static org.mockito.Mockito.*;
 /**
  *
  */
-public class InternalAuthenticationServiceTests extends ElasticsearchTestCase {
+public class InternalAuthenticationServiceTests extends ESTestCase {
 
     @Rule
     public ExpectedException thrown = ExpectedException.none();

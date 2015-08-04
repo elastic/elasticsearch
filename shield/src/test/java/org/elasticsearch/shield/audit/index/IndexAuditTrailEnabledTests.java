@@ -10,9 +10,9 @@ import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResp
 import org.elasticsearch.action.exists.ExistsResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.audit.logfile.LoggingAuditTrail;
-import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
-import org.elasticsearch.test.ShieldIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.test.ESIntegTestCase.Scope;
+import org.elasticsearch.test.ShieldIntegTestCase;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.junit.Test;
@@ -20,7 +20,7 @@ import org.junit.Test;
 import static org.hamcrest.Matchers.*;
 
 @ClusterScope(scope = Scope.TEST, randomDynamicTemplates = false)
-public class IndexAuditTrailEnabledTests extends ShieldIntegrationTest {
+public class IndexAuditTrailEnabledTests extends ShieldIntegTestCase {
 
     IndexNameResolver.Rollover rollover = randomFrom(IndexNameResolver.Rollover.values());
 

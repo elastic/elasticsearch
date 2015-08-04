@@ -12,7 +12,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.actions.Action;
 import org.elasticsearch.watcher.actions.Action.Result.Status;
@@ -57,7 +57,7 @@ import static org.mockito.Mockito.*;
 
 /**
  */
-public class WebhookActionTests extends ElasticsearchTestCase {
+public class WebhookActionTests extends ESTestCase {
 
     static final String TEST_HOST = "test.com";
     static final int TEST_PORT = 8089;

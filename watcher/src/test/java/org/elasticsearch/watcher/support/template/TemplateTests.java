@@ -15,7 +15,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptService.ScriptType;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
 import org.elasticsearch.watcher.support.template.xmustache.XMustacheTemplateEngine;
 import org.junit.Before;
@@ -32,7 +32,7 @@ import static org.mockito.Mockito.when;
 /**
  *
  */
-public class TemplateTests extends ElasticsearchTestCase {
+public class TemplateTests extends ESTestCase {
 
     private ScriptServiceProxy proxy;
     private TemplateEngine engine;

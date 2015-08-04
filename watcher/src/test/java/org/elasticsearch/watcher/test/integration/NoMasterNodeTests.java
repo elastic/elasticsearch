@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.watcher.test.integration;
 
-import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.Client;
@@ -18,7 +17,7 @@ import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.discovery.zen.ping.ZenPing;
 import org.elasticsearch.discovery.zen.ping.ZenPingService;
 import org.elasticsearch.discovery.zen.ping.unicast.UnicastZenPing;
-import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.discovery.ClusterDiscoveryConfiguration;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.watcher.WatcherService;
@@ -37,7 +36,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope.TEST;
+import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
 import static org.elasticsearch.watcher.actions.ActionBuilders.loggingAction;
 import static org.elasticsearch.watcher.client.WatchSourceBuilders.watchBuilder;
 import static org.elasticsearch.watcher.condition.ConditionBuilders.alwaysCondition;
@@ -50,9 +49,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.core.Is.is;
 
-/**
- */
-@Slow
 @TestLogging("discovery:TRACE,watcher:TRACE")
 @ClusterScope(scope = TEST, numClientNodes = 0, transportClientRatio = 0, randomDynamicTemplates = false, numDataNodes = 0)
 public class NoMasterNodeTests extends AbstractWatcherIntegrationTests {

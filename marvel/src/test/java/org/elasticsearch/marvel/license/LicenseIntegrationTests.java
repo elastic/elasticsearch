@@ -19,19 +19,19 @@ import org.elasticsearch.license.plugin.core.LicensesService;
 import org.elasticsearch.marvel.MarvelPlugin;
 import org.elasticsearch.marvel.mode.Mode;
 import org.elasticsearch.plugins.AbstractPlugin;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope.SUITE;
+import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.hamcrest.Matchers.equalTo;
 
 @ClusterScope(scope = SUITE, transportClientRatio = 0, numClientNodes = 0)
-public class LicenseIntegrationTests extends ElasticsearchIntegrationTest {
+public class LicenseIntegrationTests extends ESIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {

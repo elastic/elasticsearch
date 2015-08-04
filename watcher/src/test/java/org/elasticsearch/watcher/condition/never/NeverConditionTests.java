@@ -10,7 +10,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.condition.ConditionFactory;
 import org.elasticsearch.watcher.condition.ExecutableCondition;
 import org.elasticsearch.watcher.condition.always.AlwaysCondition;
@@ -20,7 +20,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
 /**
  */
-public class NeverConditionTests extends ElasticsearchTestCase {
+public class NeverConditionTests extends ESTestCase {
 
     @Test
     public void testExecute() throws Exception {

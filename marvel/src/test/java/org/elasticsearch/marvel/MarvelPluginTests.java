@@ -11,16 +11,16 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.plugin.LicensePlugin;
 import org.elasticsearch.marvel.agent.AgentService;
 import org.elasticsearch.plugins.PluginInfo;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.tribe.TribeService;
 import org.junit.Test;
 
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope.TEST;
+import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
 import static org.hamcrest.Matchers.equalTo;
 
 @ClusterScope(scope = TEST, transportClientRatio = 0, numClientNodes = 0, numDataNodes = 0)
-public class MarvelPluginTests extends ElasticsearchIntegrationTest {
+public class MarvelPluginTests extends ESIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {

@@ -13,7 +13,7 @@ import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.suggest.SuggestAction;
 import org.elasticsearch.shield.support.AutomatonPredicate;
 import org.elasticsearch.shield.support.Automatons;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
@@ -23,7 +23,7 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-public class PrivilegeTests extends ElasticsearchTestCase {
+public class PrivilegeTests extends ESTestCase {
 
     @Rule
     public ExpectedException thrown = ExpectedException.none();

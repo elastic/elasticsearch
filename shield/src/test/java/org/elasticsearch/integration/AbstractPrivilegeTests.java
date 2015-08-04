@@ -13,7 +13,7 @@ import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.shield.authc.support.Hasher;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
-import org.elasticsearch.test.ShieldIntegrationTest;
+import org.elasticsearch.test.ShieldIntegTestCase;
 import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
 import org.elasticsearch.test.rest.client.http.HttpResponse;
 import org.junit.After;
@@ -27,7 +27,7 @@ import static org.hamcrest.Matchers.*;
 /**
  * a helper class that contains a couple of HTTP helper methods
  */
-public abstract class AbstractPrivilegeTests extends ShieldIntegrationTest {
+public abstract class AbstractPrivilegeTests extends ShieldIntegTestCase {
 
     protected static final String USERS_PASSWD_HASHED = new String(Hasher.BCRYPT.hash(new SecuredString("passwd".toCharArray())));
 

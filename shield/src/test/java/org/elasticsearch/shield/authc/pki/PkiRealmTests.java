@@ -13,7 +13,7 @@ import org.elasticsearch.shield.authc.support.DnRoleMapper;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.shield.support.NoOpLogger;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.transport.TransportMessage;
 import org.junit.Before;
@@ -31,7 +31,7 @@ import java.util.regex.Pattern;
 import static org.hamcrest.Matchers.*;
 import static org.mockito.Mockito.*;
 
-public class PkiRealmTests extends ElasticsearchTestCase {
+public class PkiRealmTests extends ESTestCase {
 
     private Settings globalSettings;
 

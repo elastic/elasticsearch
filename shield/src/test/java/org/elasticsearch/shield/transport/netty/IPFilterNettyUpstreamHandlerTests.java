@@ -15,7 +15,7 @@ import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.shield.audit.AuditTrail;
 import org.elasticsearch.shield.transport.filter.IPFilter;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.Transport;
 import org.jboss.netty.channel.*;
 import org.junit.Before;
@@ -32,7 +32,7 @@ import static org.mockito.Mockito.when;
 /**
  *
  */
-public class IPFilterNettyUpstreamHandlerTests extends ElasticsearchTestCase {
+public class IPFilterNettyUpstreamHandlerTests extends ESTestCase {
 
     private IPFilterNettyUpstreamHandler nettyUpstreamHandler;
 

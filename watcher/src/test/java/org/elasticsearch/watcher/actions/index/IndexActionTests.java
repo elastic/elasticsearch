@@ -19,7 +19,7 @@ import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.watcher.actions.Action;
 import org.elasticsearch.watcher.actions.Action.Result.Status;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
@@ -45,7 +45,7 @@ import static org.joda.time.DateTimeZone.UTC;
 
 /**
  */
-public class IndexActionTests extends ElasticsearchIntegrationTest {
+public class IndexActionTests extends ESIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {

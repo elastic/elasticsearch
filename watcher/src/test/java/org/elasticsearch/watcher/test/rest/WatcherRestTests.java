@@ -17,9 +17,9 @@ import org.elasticsearch.shield.ShieldPlugin;
 import org.elasticsearch.shield.authc.esusers.ESUsersRealm;
 import org.elasticsearch.shield.authc.support.Hasher;
 import org.elasticsearch.shield.authc.support.SecuredString;
-import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.junit.annotations.TestLogging;
-import org.elasticsearch.test.rest.ElasticsearchRestTestCase;
+import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.RestTestCandidate;
 import org.elasticsearch.test.rest.parser.RestTestParseException;
 import org.elasticsearch.watcher.WatcherPlugin;
@@ -30,13 +30,13 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope.SUITE;
+import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 
 
-@ElasticsearchRestTestCase.Rest
+@ESRestTestCase.Rest
 @ClusterScope(scope = SUITE, numClientNodes = 1, transportClientRatio = 0, numDataNodes = 1, randomDynamicTemplates = false)
 @TestLogging("_root:DEBUG")
-public class WatcherRestTests extends ElasticsearchRestTestCase {
+public class WatcherRestTests extends ESRestTestCase {
 
     final boolean shieldEnabled = enableShield();
 
@@ -46,7 +46,7 @@ public class WatcherRestTests extends ElasticsearchRestTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws IOException, RestTestParseException {
-        return ElasticsearchRestTestCase.createParameters(0, 1);
+        return ESRestTestCase.createParameters(0, 1);
     }
 
     protected boolean enableShield() {

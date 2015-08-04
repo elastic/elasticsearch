@@ -28,9 +28,9 @@ import org.elasticsearch.shield.authc.AuthenticationService;
 import org.elasticsearch.shield.authc.AuthenticationToken;
 import org.elasticsearch.shield.transport.filter.IPFilter;
 import org.elasticsearch.shield.transport.filter.ShieldIpFilterRule;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.test.ShieldIntegrationTest;
+import org.elasticsearch.test.ShieldIntegTestCase;
 import org.elasticsearch.test.ShieldSettingsSource;
 import org.elasticsearch.transport.TransportInfo;
 import org.elasticsearch.transport.TransportMessage;
@@ -49,7 +49,7 @@ import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.shield.audit.index.IndexNameResolver.Rollover.*;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope.SUITE;
+import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.elasticsearch.test.InternalTestCluster.clusterName;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
@@ -61,8 +61,8 @@ import static org.mockito.Mockito.*;
 /**
  *
  */
-@ElasticsearchIntegrationTest.ClusterScope(scope = SUITE, numDataNodes = 1)
-public class IndexAuditTrailTests extends ShieldIntegrationTest {
+@ESIntegTestCase.ClusterScope(scope = SUITE, numDataNodes = 1)
+public class IndexAuditTrailTests extends ShieldIntegTestCase {
 
     public static final String SECOND_CLUSTER_NODE_PREFIX = "remote_" + SUITE_CLUSTER_NODE_PREFIX;
 

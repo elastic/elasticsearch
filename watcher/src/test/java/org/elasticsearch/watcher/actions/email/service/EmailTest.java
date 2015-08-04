@@ -12,7 +12,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.joda.time.DateTimeZone;
 import org.junit.Test;
 
@@ -23,7 +23,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
-public class EmailTest extends ElasticsearchTestCase {
+public class EmailTest extends ESTestCase {
 
     @Test
     public void testEmail_Parser_SelfGenerated() throws Exception {

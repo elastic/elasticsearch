@@ -11,7 +11,7 @@ import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.test.ShieldIntegrationTest;
+import org.elasticsearch.test.ShieldIntegTestCase;
 import org.elasticsearch.test.ShieldSettingsSource;
 import org.junit.After;
 import org.junit.Before;
@@ -29,7 +29,7 @@ import static org.hamcrest.Matchers.is;
 /**
  * This test checks to ensure that the IndexAuditTrail starts properly when indexing to a remote cluster
  */
-public class RemoteIndexAuditTrailStartingTests extends ShieldIntegrationTest {
+public class RemoteIndexAuditTrailStartingTests extends ShieldIntegTestCase {
 
     public static final String SECOND_CLUSTER_NODE_PREFIX = "remote_" + SUITE_CLUSTER_NODE_PREFIX;
 

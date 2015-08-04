@@ -14,7 +14,7 @@ import org.elasticsearch.shield.authc.support.Hasher;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.SecuredStringTests;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
-import org.elasticsearch.test.ShieldIntegrationTest;
+import org.elasticsearch.test.ShieldIntegTestCase;
 import org.junit.Test;
 
 import java.util.List;
@@ -31,7 +31,7 @@ import static org.hamcrest.Matchers.hasSize;
  * actions that are normally categorized as index actions as cluster actions - for example,
  * index template actions.
  */
-public class PermissionPrecedenceTests extends ShieldIntegrationTest {
+public class PermissionPrecedenceTests extends ShieldIntegTestCase {
 
     protected static final String USERS_PASSWD_HASHED = new String(Hasher.BCRYPT.hash(new SecuredString("test123".toCharArray())));
 

@@ -13,7 +13,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
 import org.elasticsearch.marvel.agent.settings.MarvelSettingsService;
-import org.elasticsearch.test.ElasticsearchSingleNodeTest;
+import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.junit.Test;
 
 import java.util.Collection;
@@ -22,7 +22,7 @@ import java.util.Iterator;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.*;
 
-public class IndexStatsCollectorTests extends ElasticsearchSingleNodeTest {
+public class IndexStatsCollectorTests extends ESSingleNodeTestCase {
 
     @Test
     public void testIndexStatsCollectorNoIndices() throws Exception {

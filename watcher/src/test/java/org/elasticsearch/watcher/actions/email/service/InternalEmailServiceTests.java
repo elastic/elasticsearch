@@ -9,7 +9,7 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.settings.NodeSettingsService;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.shield.WatcherSettingsFilter;
 import org.elasticsearch.watcher.support.secret.Secret;
 import org.elasticsearch.watcher.support.secret.SecretService;
@@ -23,7 +23,7 @@ import static org.mockito.Mockito.*;
 /**
  *
  */
-public class InternalEmailServiceTests extends ElasticsearchTestCase {
+public class InternalEmailServiceTests extends ESTestCase {
 
     private InternalEmailService service;
     private Accounts accounts;

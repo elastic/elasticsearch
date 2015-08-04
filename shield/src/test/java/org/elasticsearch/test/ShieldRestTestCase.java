@@ -13,7 +13,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
-import org.elasticsearch.test.rest.ElasticsearchRestTestCase;
+import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.RestTestCandidate;
 import org.elasticsearch.test.rest.client.RestException;
 import org.junit.AfterClass;
@@ -27,16 +27,15 @@ import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.basic
 
 /**
  * Allows to run Elasticsearch REST tests against a cluster with shield installed.
- * Subclasses {@link org.elasticsearch.test.ShieldIntegrationTest} that contains all the needed code to override the global
+ * Subclasses {@link ShieldIntegTestCase} that contains all the needed code to override the global
  * cluster settings and make sure shield is properly installed and configured.
- * Delegates all of the tests to {@link org.elasticsearch.test.rest.ElasticsearchRestTestCase}.
+ * Delegates all of the tests to {@link org.elasticsearch.test.rest.ESRestTestCase}.
  */
-@ElasticsearchRestTestCase.Rest
-@ElasticsearchIntegrationTest.ClusterScope(randomDynamicTemplates = false)
+@ESRestTestCase.Rest
+@ESIntegTestCase.ClusterScope(randomDynamicTemplates = false)
 @LuceneTestCase.SuppressFsync // we aren't trying to test this here, and it can make the test slow
 @LuceneTestCase.SuppressCodecs("*") // requires custom completion postings format
-@Slow
-public abstract class ShieldRestTestCase extends ShieldIntegrationTest {
+public abstract class ShieldRestTestCase extends ShieldIntegTestCase {
 
     private final DelegatedRestTestCase delegate;
 
@@ -55,12 +54,12 @@ public abstract class ShieldRestTestCase extends ShieldIntegrationTest {
 
     @BeforeClass
     public static void initExecutionContext() throws IOException, RestException {
-        ElasticsearchRestTestCase.initExecutionContext();
+        ESRestTestCase.initExecutionContext();
     }
 
     @AfterClass
     public static void close() {
-        ElasticsearchRestTestCase.close();
+        ESRestTestCase.close();
     }
 
     @Test
@@ -73,7 +72,7 @@ public abstract class ShieldRestTestCase extends ShieldIntegrationTest {
         delegate.reset();
     }
 
-    class DelegatedRestTestCase extends ElasticsearchRestTestCase {
+    class DelegatedRestTestCase extends ESRestTestCase {
 
         DelegatedRestTestCase(RestTestCandidate candidate) {
             super(candidate);

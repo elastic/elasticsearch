@@ -10,7 +10,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -23,7 +23,7 @@ import java.util.Map;
 /**
  *
  */
-public class XMustacheScriptEngineTests extends ElasticsearchTestCase {
+public class XMustacheScriptEngineTests extends ESTestCase {
 
     private XMustacheScriptEngineService engine;
 

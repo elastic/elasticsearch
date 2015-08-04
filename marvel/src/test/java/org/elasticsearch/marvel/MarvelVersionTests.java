@@ -5,12 +5,12 @@
  */
 package org.elasticsearch.marvel;
 
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class MarvelVersionTests extends ElasticsearchTestCase {
+public class MarvelVersionTests extends ESTestCase {
 
     @Test
     public void testVersionFromString() {

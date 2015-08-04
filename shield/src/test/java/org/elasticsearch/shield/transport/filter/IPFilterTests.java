@@ -14,7 +14,7 @@ import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.shield.audit.AuditTrail;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.annotations.Network;
 import org.elasticsearch.transport.Transport;
 import org.junit.Before;
@@ -31,7 +31,7 @@ import static org.mockito.Mockito.*;
 /**
  *
  */
-public class IPFilterTests extends ElasticsearchTestCase {
+public class IPFilterTests extends ESTestCase {
 
     private IPFilter ipFilter;
     private AuditTrail auditTrail;

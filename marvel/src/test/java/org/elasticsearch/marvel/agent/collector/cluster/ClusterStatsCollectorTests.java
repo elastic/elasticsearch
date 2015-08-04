@@ -10,14 +10,14 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
 import org.elasticsearch.marvel.agent.settings.MarvelSettingsService;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
 import java.util.Collection;
 
 import static org.hamcrest.Matchers.*;
 
-public class ClusterStatsCollectorTests extends ElasticsearchIntegrationTest {
+public class ClusterStatsCollectorTests extends ESIntegTestCase {
 
     @Test
     public void testClusterStatsCollector() throws Exception {

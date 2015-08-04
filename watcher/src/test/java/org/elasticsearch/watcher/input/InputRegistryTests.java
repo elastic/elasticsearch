@@ -9,7 +9,7 @@ import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -17,7 +17,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 /**
  *
  */
-public class InputRegistryTests extends ElasticsearchTestCase {
+public class InputRegistryTests extends ESTestCase {
 
     @Test(expected = ElasticsearchParseException.class)
     public void testParse_EmptyInput() throws Exception {

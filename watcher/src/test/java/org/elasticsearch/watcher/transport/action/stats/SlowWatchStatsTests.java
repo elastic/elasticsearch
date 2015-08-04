@@ -5,12 +5,9 @@
  */
 package org.elasticsearch.watcher.transport.action.stats;
 
-import org.apache.lucene.util.LuceneTestCase;
-import org.joda.time.DateTime;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.watcher.WatcherState;
 import org.elasticsearch.watcher.actions.ActionBuilders;
 import org.elasticsearch.watcher.condition.ConditionBuilders;
@@ -19,20 +16,23 @@ import org.elasticsearch.watcher.execution.QueuedWatch;
 import org.elasticsearch.watcher.input.InputBuilders;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
 import org.elasticsearch.watcher.transport.actions.stats.WatcherStatsResponse;
+import org.joda.time.DateTime;
 import org.junit.Test;
 
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope.TEST;
+import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
 import static org.elasticsearch.watcher.client.WatchSourceBuilders.watchBuilder;
 import static org.elasticsearch.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.watcher.trigger.schedule.Schedules.interval;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
-/**
- */
-@LuceneTestCase.Slow
-@ElasticsearchIntegrationTest.ClusterScope(scope = TEST, numClientNodes = 0, transportClientRatio = 0, randomDynamicTemplates = false, numDataNodes = 2)
+@ESIntegTestCase.ClusterScope(scope = TEST, numClientNodes = 0, transportClientRatio = 0, randomDynamicTemplates = false, numDataNodes = 2)
 public class SlowWatchStatsTests extends AbstractWatcherIntegrationTests {
 
     @Override

@@ -109,6 +109,8 @@
         <integ.scratch>${project.build.directory}/integ-tests</integ.scratch>
         <integ.deps>${project.build.directory}/integ-deps</integ.deps>
         <integ.temp>${integ.scratch}/temp</integ.temp>
+        <integ.http.port>9400</integ.http.port>
+        <integ.transport.port>9500</integ.transport.port>
         <no.commit.pattern>\bno(n|)commit\b</no.commit.pattern>
     </properties>
 

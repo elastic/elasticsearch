@@ -97,8 +97,32 @@
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-antrun-plugin</artifactId>
-                    <!-- <version>1.8</version> -->
-                    <!-- <configuration><skip>true</skip></configuration> -->
+                    <!-- checks integration test scratch area (where we extract the distribution) -->
+                    <executions>
+                        <execution>
+                            <id>check-license</id>
+                            <phase>verify</phase>
+                            <goals>
+                                <goal>run</goal>
+                            </goals>
+                            <configuration>
+                                <skip>${skip.integ.tests}</skip>
+                                <target>
+                                    <condition property="licenses.exists">
+                                        <available file="${basedir}/../licenses" type="dir"/>
+                                    </condition>
+                                    <echo taskName="license check">Running license check</echo>
+                                    <exec failonerror="${licenses.exists}" executable="perl"
+                                          dir="${elasticsearch.tools.directory}/license-check">
+                                        <arg value="check_license_and_sha.pl"/>
+                                        <arg value="--check"/>
+                                        <arg value="${basedir}/../licenses"/>
+                                        <arg value="${integ.scratch}"/>
+                                    </exec>
+                                </target>
+                            </configuration>
+                        </execution>
+                    </executions>
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>

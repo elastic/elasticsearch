@@ -326,7 +326,7 @@ public class RestIndicesAction extends AbstractCatAction {
             table.addCell(indexStats == null ? null : indexStats.getPrimaries().getDocs().getDeleted());
 
             table.addCell(indexMetaData.creationDate());
-            table.addCell(new DateTime(indexMetaData.creationDate(), DateTimeZone.getDefault()));
+            table.addCell(new DateTime(indexMetaData.creationDate(), DateTimeZone.UTC));
 
             table.addCell(indexStats == null ? null : indexStats.getTotal().getStore().size());
             table.addCell(indexStats == null ? null : indexStats.getPrimaries().getStore().size());

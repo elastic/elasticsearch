@@ -46,8 +46,8 @@
                /^(
                   index1                                                    \s+
                   (\d+)                                                     \s+
-                  (\d\d\d\d\-\d\d\-\d\dT\d\d:\d\d:\d\d.\d\d\d[+-]\d\d:\d\d) \s+
+                  (\d\d\d\d\-\d\d\-\d\dT\d\d:\d\d:\d\d.\d\d\dZ) \s+
                   (\d+)                                                     \s+
-                  (\d\d\d\d\-\d\d\-\d\dT\d\d:\d\d:\d\d.\d\d\d[+-]\d\d:\d\d) \s*
+                  (\d\d\d\d\-\d\d\-\d\dT\d\d:\d\d:\d\d.\d\d\dZ) \s*
                 )
                 $/

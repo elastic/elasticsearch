@@ -81,15 +81,15 @@ You can also filter tests by certain annotations ie:
 Those annotation names can be combined into a filter expression like:
 
 ------------------------------------------------
-mvn test -Dtests.filter="@nightly and not @slow" 
+mvn test -Dtests.filter="@nightly and not @backwards" 
 ------------------------------------------------
 
-to run all nightly test but not the ones that are slow. `tests.filter` supports
+to run all nightly test but not the ones that are backwards tests. `tests.filter` supports
 the boolean operators `and, or, not` and grouping ie:
 
 
 ---------------------------------------------------------------
-mvn test -Dtests.filter="@nightly and not(@slow or @backwards)" 
+mvn test -Dtests.filter="@nightly and not(@badapple or @backwards)" 
 ---------------------------------------------------------------
 
 === Seed and repetitions.
@@ -145,7 +145,6 @@ Default value provided below in [brackets].
 mvn test -Dtests.nightly=[false]   - nightly test group (@Nightly)
 mvn test -Dtests.weekly=[false]    - weekly tests (@Weekly)
 mvn test -Dtests.awaitsfix=[false] - known issue (@AwaitsFix)
-mvn test -Dtests.slow=[true]       - slow tests (@Slow)
 ------------------------------------------------------------------
 
 === Load balancing and caches.
@@ -246,6 +245,21 @@ $ curl -O https://download.elasticsearch.org/elasticsearch/elasticsearch/elastic
 $ tar -xzf elasticsearch-1.2.1.tar.gz 
 ---------------------------------------------------------------------------
 
+== Running integration tests
+
+To run the integration tests:
+
+---------------------------------------------------------------------------
+mvn verify
+---------------------------------------------------------------------------
+
+Note that this will also run the unit tests first. If you want to just
+run the integration tests only (because you are debugging them):
+
+---------------------------------------------------------------------------
+mvn verify -Dskip.unit.tests
+---------------------------------------------------------------------------
+
 == Testing the REST layer
 
 The available integration tests make use of the java API to communicate with
@@ -262,7 +276,7 @@ REST tests use the following command:
 mvn verify -Dtests.filter="@Rest"
 ---------------------------------------------------------------------------
 
-`ElasticsearchRestTests` is the executable test class that runs all the
+`RestNIT` are the executable test classes that runs all the
 yaml suites available within the `rest-api-spec` folder.
 
 The REST tests support all the options provided by the randomized runner, plus the following:
@@ -319,3 +333,12 @@ ES_CLEAN_BEFORE_TEST=true bats 30_deb_package.bats
 The current mode of execution is to copy all the packages that should be tested
 into one directory, then copy the bats files into the same directory and run
 those.
+
+== Coverage analysis
+
+To run tests instrumented with jacoco and produce a coverage report in
+`target/site/jacoco/`:
+
+---------------------------------------------------------------------------
+mvn -Dtests.coverage test jacoco:report
+---------------------------------------------------------------------------

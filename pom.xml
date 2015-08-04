@@ -47,6 +47,7 @@
         <jackson.version>2.5.3</jackson.version>
         <slf4j.version>1.6.2</slf4j.version>
         <log4j.version>1.2.17</log4j.version>
+        <jacoco.version>0.7.2.201409121644</jacoco.version>
 
         <!-- Build resources properties -->
         <elasticsearch.tools.directory>${project.build.directory}/dev-tools</elasticsearch.tools.directory>
@@ -449,14 +450,6 @@
                 <artifactId>jna</artifactId>
                 <version>4.1.0</version>
                 <optional>true</optional>
-            </dependency>
-
-            <!-- For coverage analysis -->
-            <dependency>
-                <groupId>org.jacoco</groupId>
-                <artifactId>org.jacoco.agent</artifactId>
-                <classifier>runtime</classifier>
-                <version>0.6.4.201312101107</version>
             </dependency>
 
         </dependencies>
@@ -1073,7 +1066,7 @@ org.eclipse.jdt.ui.text.custom_code_templates=<?xml version\="1.0" encoding\="UT
                 <plugin>
                     <groupId>org.jacoco</groupId>
                     <artifactId>jacoco-maven-plugin</artifactId>
-                    <version>0.7.2.201409121644</version>
+                    <version>${jacoco.version}</version>
                     <executions>
                         <execution>
                             <id>default-prepare-agent</id>
@@ -1400,15 +1393,6 @@ org.eclipse.jdt.ui.text.custom_code_templates=<?xml version\="1.0" encoding\="UT
                     <value>true</value>
                 </property>
             </activation>
-            <dependencies>
-                <dependency>
-                    <!--  must be on the classpath  -->
-                    <groupId>org.jacoco</groupId>
-                    <artifactId>org.jacoco.agent</artifactId>
-                    <classifier>runtime</classifier>
-                    <scope>test</scope>
-                </dependency>
-            </dependencies>
             <properties>
                 <tests.security.manager>false</tests.security.manager> <!-- security policy doesn't have appropriate permissions for instrumentation -->
             </properties>

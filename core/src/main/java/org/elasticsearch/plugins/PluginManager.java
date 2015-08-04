@@ -425,7 +425,10 @@ public class PluginManager {
                 // Elasticsearch new download service uses groupId org.elasticsearch.plugins from 2.0.0
                 if (user == null) {
                     // TODO Update to https
-                    addUrl(urls, String.format(Locale.ROOT, "http://download.elastic.co/org.elasticsearch.plugins/%1$s/%1$s-%2$s.zip", repo, version));
+                    if (Version.CURRENT.snapshot()) {
+                        addUrl(urls, String.format(Locale.ROOT, "http://download.elastic.co/elasticsearch/snapshot/org/elasticsearch/plugin/%s/%s-SNAPSHOT/%s-%s-SNAPSHOT.zip", repo, version, repo, version));
+                    }
+                    addUrl(urls, String.format(Locale.ROOT, "http://download.elastic.co/elasticsearch/release/org/elasticsearch/plugin/%s/%s/%s-%s.zip", repo, version, repo, version));
                 } else {
                     // Elasticsearch old download service
                     // TODO Update to https

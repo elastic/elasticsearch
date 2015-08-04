@@ -15,9 +15,9 @@ package org.elasticsearch.examples.nativescript.script;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.examples.nativescript.plugin.NativeScriptExamplesPlugin;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
+import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.test.ESIntegTestCase.Scope;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
@@ -25,7 +25,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
 /**
  */
 @ClusterScope(scope = Scope.SUITE, numDataNodes = 1)
-public abstract class AbstractSearchScriptTests extends ElasticsearchIntegrationTest {
+public abstract class AbstractSearchScriptTests extends ESIntegTestCase {
 
     @Override
     public Settings indexSettings() {

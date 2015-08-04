@@ -40,7 +40,7 @@ public class SiteContentsIT extends ESIntegTestCase {
     // define a fake rest spec or anything?
     public void test() throws Exception {
         TestCluster cluster = cluster();
-        assumeTrue("this test will not work from an IDE unless you pass test.cluster pointing to a running instance", cluster instanceof ExternalTestCluster);
+        assumeTrue("this test will not work from an IDE unless you pass tests.cluster pointing to a running instance", cluster instanceof ExternalTestCluster);
         ExternalTestCluster externalCluster = (ExternalTestCluster) cluster;
         try (CloseableHttpClient httpClient = HttpClients.createMinimal(new PoolingHttpClientConnectionManager(15, TimeUnit.SECONDS))) {
             for (InetSocketAddress address :  externalCluster.httpAddresses()) {

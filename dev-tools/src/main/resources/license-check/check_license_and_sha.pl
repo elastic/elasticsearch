@@ -2,7 +2,6 @@
 
 use strict;
 use warnings;
-use v5.10;
 
 use FindBin qw($RealBin);
 use lib "$RealBin/lib";
@@ -49,15 +48,15 @@ sub check_shas_and_licenses {
     for my $jar ( sort keys %new ) {
         my $old_sha = delete $old{$jar};
         unless ($old_sha) {
-            say STDERR "$jar: SHA is missing";
+            print STDERR "$jar: SHA is missing\n";
             $error++;
             $sha_error++;
             next;
         }
 
         unless ( $old_sha eq $new{$jar} ) {
-            say STDERR
-                "$jar: SHA has changed, expected $old_sha but found $new{$jar}";
+            print STDERR
+                "$jar: SHA has changed, expected $old_sha but found $new{$jar}\n";
             $error++;
             $sha_error++;
             next;
@@ -85,37 +84,41 @@ sub check_shas_and_licenses {
             }
         }
         unless ($license_found) {
-            say STDERR "$jar: LICENSE is missing";
+            print STDERR "$jar: LICENSE is missing\n";
             $error++;
             $sha_error++;
         }
         unless ($notice_found) {
-            say STDERR "$jar: NOTICE is missing";
+            print STDERR "$jar: NOTICE is missing\n";
             $error++;
         }
     }
 
     if ( keys %old ) {
-        say STDERR "Extra SHA files present for: " . join ", ", sort keys %old;
+        print STDERR "Extra SHA files present for: " . join ", ",
+            sort keys %old;
+        print "\n";
         $error++;
     }
 
     my @unused_licenses = grep { !$licenses{$_} } keys %licenses;
     if (@unused_licenses) {
         $error++;
-        say STDERR "Extra LICENCE file present: " . join ", ",
+        print STDERR "Extra LICENCE file present: " . join ", ",
             sort @unused_licenses;
+        print "\n";
     }
 
     my @unused_notices = grep { !$notices{$_} } keys %notices;
     if (@unused_notices) {
         $error++;
-        say STDERR "Extra NOTICE file present: " . join ", ",
+        print STDERR "Extra NOTICE file present: " . join ", ",
             sort @unused_notices;
+        print "\n";
     }
 
     if ($sha_error) {
-        say STDERR <<"SHAS"
+        print STDERR <<"SHAS"
 
 You can update the SHA files by running:
 
@@ -123,7 +126,7 @@ $0 --update $License_Dir $Source
 
 SHAS
     }
-    say "All SHAs and licenses OK" unless $error;
+    print("All SHAs and licenses OK\n") unless $error;
     return $error;
 }
 
@@ -136,13 +139,13 @@ sub write_shas {
     for my $jar ( sort keys %new ) {
         if ( $old{$jar} ) {
             next if $old{$jar} eq $new{$jar};
-            say "Updating $jar";
+            print "Updating $jar\n";
         }
         else {
-            say "Adding $jar";
+            print "Adding $jar\n";
         }
         open my $fh, '>', $License_Dir . $jar or die $!;
-        say $fh $new{$jar} or die $!;
+        print $fh $new{$jar} . "\n" or die $!;
         close $fh or die $!;
     }
     continue {
@@ -150,10 +153,10 @@ sub write_shas {
     }
 
     for my $jar ( sort keys %old ) {
-        say "Deleting $jar";
+        print "Deleting $jar\n";
         unlink $License_Dir . $jar or die $!;
     }
-    say "SHAs updated";
+    print "SHAs updated\n";
     return 0;
 }
 

@@ -59,6 +59,7 @@ import org.elasticsearch.search.fetch.script.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import org.elasticsearch.search.highlight.SearchContextHighlight;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.query.InternalProfiler;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rescore.RescoreSearchContext;
 import org.elasticsearch.search.scan.ScanContext;
@@ -315,7 +316,11 @@ public abstract class SearchContext implements Releasable, HasContextAndHeaders 
 
     public abstract FetchSearchResult fetchResult();
 
-    public abstract void enableProfiling();
+    public abstract void profile(boolean profile);
+
+    public abstract boolean profile();
+
+    public abstract InternalProfiler queryProfiler();
 
     /**
      * Schedule the release of a resource. The time when {@link Releasable#close()} will be called on this object

@@ -21,10 +21,12 @@ package org.elasticsearch.common.lucene.search;
 
 import com.google.common.base.Stopwatch;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.Weight;
+import org.apache.lucene.search.*;
+import org.apache.lucene.util.Bits;
+import org.elasticsearch.search.profile.TimingWrapper;
+import org.elasticsearch.search.query.InternalProfiler;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -51,97 +53,13 @@ public class ProfileQuery extends Query {
 
     Query subQuery;
 
-    private long rewriteTime = 0;
-    private long executionTime = 0;
-    private long totalTime = 0;
-
-    private Map<Query, Long> timings;
-
-    private Stopwatch stopwatch;
-
-    public enum Timing {
-        REWRITE, EXECUTION, ALL
-    }
-
     public ProfileQuery(Query subQuery) {
-        this();
         setSubQuery(subQuery);
-        timings = new HashMap<>();
-    }
-
-    public ProfileQuery() {
-        this.stopwatch = Stopwatch.createUnstarted();
-    }
-
-    public Query subQuery() {
-        return subQuery;
     }
 
     public void setSubQuery(Query subQuery) {
         this.subQuery = subQuery;
     }
-
-
-    public long time(Timing timing) {
-        switch (timing) {
-            case REWRITE:
-                return rewriteTime;
-            case EXECUTION:
-                return executionTime;
-            case ALL:
-                return rewriteTime + executionTime;
-            default:
-                return rewriteTime + executionTime;
-        }
-    }
-
-    public void setTime(Timing timing, long time) {
-        switch (timing) {
-            case REWRITE:
-                rewriteTime = time;
-                break;
-            case EXECUTION:
-                executionTime = time;
-                break;
-            case ALL:
-                throw new IllegalArgumentException("Must setTime for either REWRITE or EXECUTION timing.");
-            default:
-                throw new IllegalArgumentException("Must setTime for either REWRITE or EXECUTION timing.");
-        }
-    }
-
-    public void startTime() {
-        stopwatch.start();
-    }
-
-    public void stopAndRecordTime(Timing timing, Query query) {
-        stopwatch.stop();
-        long time = stopwatch.elapsed(TimeUnit.MICROSECONDS);
-        stopwatch.reset();
-
-        timings.put(query, time);
-
-        switch (timing) {
-            case REWRITE:
-                rewriteTime += time;
-                break;
-            case EXECUTION:
-                executionTime += time;
-                break;
-            case ALL:
-                throw new IllegalArgumentException("Must setTime for either REWRITE or EXECUTION timing.");
-            default:
-                throw new IllegalArgumentException("Must setTime for either REWRITE or EXECUTION timing.");
-        }
-    }
-
-    /*
-    @Override
-    public void extractTerms(Set<Term> terms) {
-        super(terms);
-        //subQuery.extractTerms(terms);
-    }
-    */
 
     /** Create a shallow copy of us -- used in rewriting if necessary
      * @return a copy of us (but reuse, don't copy, our subqueries) */
@@ -149,8 +67,6 @@ public class ProfileQuery extends Query {
     public Query clone() {
         ProfileQuery p = (ProfileQuery)super.clone();
         p.subQuery = this.subQuery;
-        p.setTime(Timing.REWRITE, time(Timing.REWRITE));
-        p.setTime(Timing.EXECUTION, time(Timing.EXECUTION));
         return p;
     }
 
@@ -204,5 +120,159 @@ public class ProfileQuery extends Query {
         result = prime * result + this.subQuery.hashCode();
         result = prime * result + Float.floatToIntBits(getBoost());
         return result;
+    }
+
+    public static class ProfileWeight extends Weight {
+
+        final Weight subQueryWeight;
+        private final InternalProfiler profiler;
+
+        public ProfileWeight(Query query, Weight subQueryWeight, InternalProfiler profiler) throws IOException {
+            super(query);
+            this.subQueryWeight = subQueryWeight;
+            this.profiler = profiler;
+        }
+
+        @Override
+        public Scorer scorer(LeafReaderContext context, Bits acceptDocs) throws IOException {
+            profiler.startTime(getQuery(), TimingWrapper.TimingType.BUILD_SCORER);
+            Scorer subQueryScorer = subQueryWeight.scorer(context, acceptDocs);
+            profiler.stopAndRecordTime(getQuery(), TimingWrapper.TimingType.BUILD_SCORER);
+            if (subQueryScorer == null) {
+                return null;
+            }
+
+            return new ProfileScorer(this, subQueryScorer, profiler, getQuery());
+        }
+
+        @Override
+        public BulkScorer bulkScorer(LeafReaderContext context, Bits acceptDocs) throws IOException {
+            profiler.startTime(getQuery(), TimingWrapper.TimingType.BUILD_SCORER);
+            BulkScorer bScorer = subQueryWeight.bulkScorer(context, acceptDocs);
+            profiler.stopAndRecordTime(getQuery(), TimingWrapper.TimingType.BUILD_SCORER);
+
+            if (bScorer == null) {
+                return null;
+            }
+
+            return new ProfileBulkScorer(bScorer, profiler, getQuery());
+        }
+
+        @Override
+        public Explanation explain(LeafReaderContext context, int doc) throws IOException {
+            return subQueryWeight.explain(context, doc);
+        }
+
+        @Override
+        public float getValueForNormalization() throws IOException {
+            return subQueryWeight.getValueForNormalization();
+        }
+
+        @Override
+        public void normalize(float norm, float topLevelBoost) {
+            profiler.startTime(getQuery(), TimingWrapper.TimingType.NORMALIZE);
+            subQueryWeight.normalize(norm, topLevelBoost);
+            profiler.stopAndRecordTime(getQuery(), TimingWrapper.TimingType.NORMALIZE);
+        }
+
+        @Override
+        public void extractTerms(Set<Term> set) {
+            subQueryWeight.extractTerms(set);
+        }
+    }
+
+
+
+
+    public static class ProfileScorer extends Scorer {
+
+        private final Scorer scorer;
+        private ProfileWeight profileWeight;
+        private final InternalProfiler profiler;
+        private final Query query;
+
+        private ProfileScorer(ProfileWeight w, Scorer scorer, InternalProfiler profiler, Query query) throws IOException {
+            super(w);
+            this.scorer = scorer;
+            this.profileWeight = w;
+            this.profiler = profiler;
+            this.query = query;
+        }
+
+        @Override
+        public int docID() {
+            return scorer.docID();
+        }
+
+        @Override
+        public int advance(int target) throws IOException {
+            return scorer.advance(target);
+        }
+
+        @Override
+        public int nextDoc() throws IOException {
+            return scorer.nextDoc();
+        }
+
+        @Override
+        public float score() throws IOException {
+            profiler.startTime(query, TimingWrapper.TimingType.SCORE);
+            float score = scorer.score();
+            profiler.stopAndRecordTime(query, TimingWrapper.TimingType.SCORE);
+
+            return score;
+        }
+
+        @Override
+        public int freq() throws IOException {
+            return scorer.freq();
+        }
+
+        @Override
+        public long cost() {
+            return scorer.cost();
+        }
+
+        @Override
+        public Weight getWeight() {
+            return profileWeight;
+        }
+    }
+
+    static class ProfileBulkScorer extends BulkScorer {
+
+        private final InternalProfiler profiler;
+        private final Query query;
+        private final BulkScorer bulkScorer;
+
+        public ProfileBulkScorer(BulkScorer bulkScorer, InternalProfiler profiler, Query query) {
+            super();
+            this.bulkScorer = bulkScorer;
+            this.profiler = profiler;
+            this.query = query;
+        }
+
+        @Override
+        public void score(LeafCollector collector) throws IOException {
+            profiler.startTime(query, TimingWrapper.TimingType.SCORE);
+            bulkScorer.score(collector);
+            profiler.stopAndRecordTime(query, TimingWrapper.TimingType.SCORE);
+        }
+
+        @Override
+        public int score(LeafCollector collector, int min, int max) throws IOException {
+            profiler.startTime(query, TimingWrapper.TimingType.SCORE);
+            int score = bulkScorer.score(collector, min, max);
+            profiler.stopAndRecordTime(query, TimingWrapper.TimingType.SCORE);
+            return score;
+        }
+
+        @Override
+        public long cost() {
+            profiler.startTime(query, TimingWrapper.TimingType.COST);
+            long cost = bulkScorer.cost();
+            profiler.stopAndRecordTime(query, TimingWrapper.TimingType.COST);
+            return cost;
+        }
     }
 }

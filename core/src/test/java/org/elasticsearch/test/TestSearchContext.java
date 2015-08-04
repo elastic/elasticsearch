@@ -59,6 +59,7 @@ import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.query.InternalProfiler;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rescore.RescoreSearchContext;
 import org.elasticsearch.search.scan.ScanContext;
@@ -666,7 +667,17 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public void enableProfiling() {
+    public void profile(boolean profile) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public boolean profile() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public InternalProfiler queryProfiler() {
         throw new UnsupportedOperationException();
     }
 }

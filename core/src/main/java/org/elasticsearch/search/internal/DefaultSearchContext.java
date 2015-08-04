@@ -62,6 +62,7 @@ import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import org.elasticsearch.search.highlight.SearchContextHighlight;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.query.QueryPhaseExecutionException;
+import org.elasticsearch.search.query.InternalProfiler;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rescore.RescoreSearchContext;
 import org.elasticsearch.search.scan.ScanContext;
@@ -126,6 +127,7 @@ public class DefaultSearchContext extends SearchContext {
     private final long originNanoTime = System.nanoTime();
     private volatile long lastAccessTime = -1;
     private InnerHitsContext innerHitsContext;
+    private InternalProfiler internalProfiler;
 
     private final Map<String, FetchSubPhaseContext> subPhaseContexts = new HashMap<>();
     private final Map<Class<?>, Collector> queryCollectors = new HashMap<>();
@@ -805,7 +807,22 @@ public class DefaultSearchContext extends SearchContext {
     }
 
     @Override
-    public void enableProfiling() {
-        this.searcher = new ProfileIndexSearcher(this, engineSearcher);
+    public boolean profile() {
+        return searcher.profile();
     }
+
+    @Override
+    public void profile(boolean profile) {
+        searcher.profile(profile);
+
+        if (profile) {
+            internalProfiler = new InternalProfiler();
+        }
+    }
+
+    @Override
+    public InternalProfiler queryProfiler() {
+        return internalProfiler;
+    }
+
 }

@@ -345,7 +345,12 @@ public class SubSearchContext extends FilteredSearchContext {
     }
 
     @Override
-    public void enableProfiling() {
+    public void profile(boolean profile) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public boolean profile() {
         throw new UnsupportedOperationException();
     }
 }

@@ -25,8 +25,13 @@ import org.apache.lucene.search.*;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.search.dfs.AggregatedDfs;
+import org.elasticsearch.search.internal.SearchContext.Lifetime;
+import org.elasticsearch.common.lucene.search.ProfileQuery;
+import org.elasticsearch.search.profile.TimingWrapper;
+import org.elasticsearch.search.query.InternalProfiler;
 
 import java.io.IOException;
+import java.util.*;
 
 /**
  * Context-aware extension of {@link IndexSearcher}.
@@ -39,6 +44,8 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     private final IndexSearcher in;
 
     private AggregatedDfs aggregatedDfs;
+
+    private boolean profile = false;
 
     public ContextIndexSearcher(SearchContext searchContext, Engine.Searcher searcher) {
         super(searcher.reader());
@@ -58,6 +65,16 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     @Override
     public Query rewrite(Query original) throws IOException {
+        if (profile) {
+            searchContext.queryProfiler().startTime(original, TimingWrapper.TimingType.REWRITE);
+            Query rewritten = in.rewrite(original);      // nocommit Had to use super!  kosher?
+            searchContext.queryProfiler().stopAndRecordTime(original, TimingWrapper.TimingType.REWRITE);
+
+            searchContext.queryProfiler().reconcileRewrite(original, rewritten);
+
+            return rewritten;
+        }
+
         return in.rewrite(original);
     }
 
@@ -67,9 +84,46 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         // it is hacky, because if we perform a dfs search, we don't use the wrapped IndexSearcher...
         if (aggregatedDfs != null && needsScores) {
             // if scores are needed and we have dfs data then use it
-            return super.createNormalizedWeight(query, needsScores);
+            if (dfSource != null && needsScores) {
+                return doCreateNormalizedWeight(query, needsScores, true);
+            }
+            return  doCreateNormalizedWeight(query, needsScores, false);   // nocommit Had to use super!  kosher?
+        } catch (Throwable t) {
+            searchContext.clearReleasables(Lifetime.COLLECTION);
+            throw ExceptionsHelper.convertToElastic(t);
         }
         return in.createNormalizedWeight(query, needsScores);
+    }
+
+    private Weight doCreateNormalizedWeight(Query query, boolean needsScores, boolean useDFS) throws IOException {
+
+        if (profile) {
+            //searchContext.queryProfiler().pushQuery(query);
+            Weight weight = super.createNormalizedWeight(query, needsScores);    // nocommit Had to use super!  kosher?
+            //searchContext.queryProfiler().pollLast();
+            return weight;
+            //return new ProfileQuery.ProfileWeight(query, weight, searchContext.queryProfiler());
+        }
+
+
+        return useDFS ? dfSource.createNormalizedWeight(query, needsScores) : in.createNormalizedWeight(query, needsScores);
+    }
+
+    @Override
+    public Weight createWeight(Query query, boolean needsScores) throws IOException {
+        if (profile) {
+            searchContext.queryProfiler().pushQuery(query);
+
+            searchContext.queryProfiler().startTime(query, TimingWrapper.TimingType.WEIGHT);
+            Weight weight = super.createWeight(query, needsScores);
+            searchContext.queryProfiler().stopAndRecordTime(query, TimingWrapper.TimingType.WEIGHT);
+
+            searchContext.queryProfiler().pollLast();
+
+            return new ProfileQuery.ProfileWeight(query, weight, searchContext.queryProfiler());
+        }
+
+        return super.createWeight(query, needsScores);
     }
 
     @Override
@@ -103,5 +157,13 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             return super.collectionStatistics(field);
         }
         return collectionStatistics;
+    }
+
+    public boolean profile() {
+        return profile;
+    }
+
+    public void profile(boolean profile) {
+        this.profile = profile;
     }
 }

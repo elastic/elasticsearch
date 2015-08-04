@@ -28,9 +28,13 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.profile.InternalProfileResults;
+import org.elasticsearch.search.profile.InternalProfileShardResults;
 import org.elasticsearch.search.suggest.Suggest;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.search.internal.InternalSearchHits.readSearchHits;
 
@@ -40,7 +44,7 @@ import static org.elasticsearch.search.internal.InternalSearchHits.readSearchHit
 public class InternalSearchResponse implements Streamable, ToXContent {
 
     public static InternalSearchResponse empty() {
-        return new InternalSearchResponse(InternalSearchHits.empty(), null, null, false, null);
+        return new InternalSearchResponse(InternalSearchHits.empty(), null, null, null, false, null);
     }
 
     private InternalSearchHits hits;
@@ -49,6 +53,8 @@ public class InternalSearchResponse implements Streamable, ToXContent {
 
     private Suggest suggest;
 
+    private InternalProfileShardResults profileResults;
+
     private boolean timedOut;
 
     private Boolean terminatedEarly = null;
@@ -56,10 +62,12 @@ public class InternalSearchResponse implements Streamable, ToXContent {
     private InternalSearchResponse() {
     }
 
-    public InternalSearchResponse(InternalSearchHits hits, InternalAggregations aggregations, Suggest suggest, boolean timedOut, Boolean terminatedEarly) {
+    public InternalSearchResponse(InternalSearchHits hits, InternalAggregations aggregations, Suggest suggest,
+                                  InternalProfileShardResults profileResults, boolean timedOut, Boolean terminatedEarly) {
         this.hits = hits;
         this.aggregations = aggregations;
         this.suggest = suggest;
+        this.profileResults = profileResults;
         this.timedOut = timedOut;
         this.terminatedEarly = terminatedEarly;
     }
@@ -92,6 +100,9 @@ public class InternalSearchResponse implements Streamable, ToXContent {
         }
         if (suggest != null) {
             suggest.toXContent(builder, params);
+        }
+        if (profileResults != null) {
+            profileResults.toXContent(builder, params);
         }
         return builder;
     }

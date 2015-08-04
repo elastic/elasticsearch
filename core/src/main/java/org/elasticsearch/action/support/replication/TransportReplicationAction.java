@@ -287,32 +287,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
 
         @Override
         public void onFailure(Throwable t) {
-            if (t instanceof RetryOnPrimaryException) {
-                if (observer.isTimedOut()) {
-                    // we running as a last attempt after a timeout has happened. don't retry
-                    finishAsFailed(t);
-                    return;
-                }
-                observer.waitForNextChange(new ClusterStateObserver.Listener() {
-                    @Override
-                    public void onNewClusterState(ClusterState state) {
-                        retryLocally();
-                    }
-
-                    @Override
-                    public void onClusterServiceClose() {
-                        finishAsFailed(new NodeClosedException(clusterService.localNode()));
-                    }
-
-                    @Override
-                    public void onTimeout(TimeValue timeout) {
-                        // Try one more time...
-                        retryLocally();
-                    }
-                });
-            } else {
-                finishAsFailed(t);
-            }
+            finishAsFailed(t);
         }
 
         @Override
@@ -429,33 +404,6 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
             } else {
                 assert false : "finishAndMoveToReplication called but operation is already finished";
             }
-        }
-
-        private void retryLocally() {
-            // TODO: maybe we should have dedicated method for local executions? (we can overload this one, which doesn't have DiscoverNode parameter)
-            transportService.sendRequest(clusterService.localNode(), transportPrimaryAction, request, transportOptions, new BaseTransportResponseHandler<Response>() {
-                @Override
-                public Response newInstance() {
-                    return newResponseInstance();
-                }
-
-                @Override
-                public void handleResponse(Response response) {
-                    listener.onResponse(response);
-                }
-
-                @Override
-                public void handleException(TransportException exp) {
-                    // to prevent TransportException wrapping another TransportException:
-                    Throwable failure = exp.getCause() != null ? exp.getCause() : exp;
-                    listener.onFailure(failure);
-                }
-
-                @Override
-                public String executor() {
-                    return ThreadPool.Names.SAME;
-                }
-            });
         }
 
     }

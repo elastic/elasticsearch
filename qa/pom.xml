@@ -148,4 +148,13 @@
         <module>smoke-test-plugins</module>
         <module>smoke-test-shaded</module>
     </modules>
+
+    <profiles>
+        <profile>
+            <id>vagrant</id>
+            <modules>
+                <module>vagrant</module>
+            </modules>
+        </profile>
+    </profiles>
 </project>

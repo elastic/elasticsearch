@@ -1,0 +1,74 @@
+<?xml version="1.0"?>
+<project name="elasticsearch-integration-tests">
+  <target name="vagrant-test-all-boxes">
+    <foreach list="${boxesToTest}" trim="true" param="box"
+      target="vagrant-test" inheritall="true" inheritrefs="true"/>
+  </target>
+
+  <target name="vagrant-test" depends="vagrant-up">
+    <trycatch>
+      <try>
+        <exec executable="vagrant" failonerror="true">
+          <arg value="ssh"/>
+          <arg value="${box}"/>
+          <arg value="--command"/>
+          <arg value="
+            set -o pipefail;
+            cd $TESTROOT;
+            ${testCommand} | sed -ue 's/^/${box}: /'
+          "/>
+        </exec>
+      </try>
+      <finally>
+        <exec executable="vagrant" failonerror="true">
+          <arg value="halt"/>
+          <arg value="${box}"/>
+        </exec>
+      </finally>
+    </trycatch>
+  </target>
+
+  <target name="vagrant-up">
+    <exec executable="vagrant" failonerror="true">
+      <arg value="up"/>
+      <arg value="${box}"/>
+      <!-- Its important that we try to reprovision the box even if it already
+        exists. That way updates to the vagrant configuration take automatically.
+        That isn't to say that the updates will always be compatible. Its ok to
+        just destroy the boxes if they get busted. -->
+      <arg value="--provision"/>
+    </exec>
+  </target>
+
+  <target name="check-vagrant-version">
+    <check-version executable="vagrant" ok="^1\.[789]\..+$"
+        message="Only known to work with Vagrant 1.7+"/>
+  </target>
+
+  <macrodef name="check-version">
+    <attribute name="executable" description="The executable to check."/>
+    <attribute name="rewrite" default="(?:\S*\s)*(.+)"
+        description="Regex extracting the version from the output of the executable. Defaults to everything after the last space."/>
+    <attribute name="ok" description="The regex to check the version against."/>
+    <attribute name="message" description="The message to report on failure."/>
+    <sequential>
+      <exec executable="@{executable}" failonerror="true"
+          outputproperty="versionOutput">
+        <arg value="--version" />
+      </exec>
+      <propertyregex property="version" input="${versionOutput}"
+          regexp="@{rewrite}" select="\1" />
+      <echo message="The @{executable} version is ${version}"/>
+      <fail message="@{message}">
+        <condition>
+          <not>
+            <!-- Very simple version checking.... -->
+            <matches string="${version}" pattern="@{ok}"/>
+          </not>
+        </condition>
+      </fail>
+    </sequential>
+  </macrodef>
+
+
+</project>

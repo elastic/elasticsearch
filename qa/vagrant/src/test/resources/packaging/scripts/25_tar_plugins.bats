@@ -50,6 +50,7 @@ setup() {
 # Install plugins with a tar archive
 ##################################
 @test "[TAR] install shield plugin" {
+    skip "awaits public release of shield for 2.0"
 
     # Install the archive
     install_archive
@@ -90,6 +91,7 @@ setup() {
 }
 
 @test "[TAR] install shield plugin with a custom path.plugins" {
+    skip "awaits public release of shield for 2.0"
 
     # Install the archive
     install_archive
@@ -143,6 +145,7 @@ setup() {
 }
 
 @test "[TAR] install shield plugin with a custom CONFIG_DIR" {
+    skip "awaits public release of shield for 2.0"
 
     # Install the archive
     install_archive
@@ -199,6 +202,7 @@ setup() {
 }
 
 @test "[TAR] install shield plugin with a custom ES_JAVA_OPTS" {
+    skip "awaits public release of shield for 2.0"
 
     # Install the archive
     install_archive
@@ -259,6 +263,8 @@ setup() {
 }
 
 @test "[TAR] install shield plugin to elasticsearch directory with a space" {
+    skip "awaits public release of shield for 2.0"
+
     export ES_DIR="/tmp/elastic search"
 
     # Install the archive
@@ -307,6 +313,7 @@ setup() {
 }
 
 @test "[TAR] install shield plugin from a directory with a space" {
+    skip "awaits public release of shield for 2.0"
 
     export SHIELD_ZIP_WITH_SPACE="/tmp/plugins with space/shield.zip"
 

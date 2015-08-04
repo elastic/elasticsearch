@@ -39,7 +39,7 @@ import static org.hamcrest.Matchers.notNullValue;
 /**
  *
  */
-public class SumTests extends AbstractNumericTests {
+public class SumIT extends AbstractNumericTestCase {
 
     @Override
     @Test

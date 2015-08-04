@@ -28,7 +28,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 
-public abstract class AbstractTermsTests extends ESIntegTestCase {
+public abstract class AbstractTermsTestCase extends ESIntegTestCase {
 
     public String randomExecutionHint() {
         return randomBoolean() ? null : randomFrom(ExecutionMode.values()).toString();

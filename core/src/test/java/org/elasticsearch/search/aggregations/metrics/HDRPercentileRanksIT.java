@@ -50,7 +50,7 @@ import static org.hamcrest.Matchers.sameInstance;
 /**
  *
  */
-public class HDRPercentileRanksTests extends AbstractNumericTests {
+public class HDRPercentileRanksIT extends AbstractNumericTestCase {
 
     private static double[] randomPercents(long minValue, long maxValue) {
 
@@ -70,7 +70,7 @@ public class HDRPercentileRanksTests extends AbstractNumericTests {
             }
         }
         Arrays.sort(percents);
-        Loggers.getLogger(HDRPercentileRanksTests.class).info("Using percentiles={}", Arrays.toString(percents));
+        Loggers.getLogger(HDRPercentileRanksIT.class).info("Using percentiles={}", Arrays.toString(percents));
         return percents;
     }
 

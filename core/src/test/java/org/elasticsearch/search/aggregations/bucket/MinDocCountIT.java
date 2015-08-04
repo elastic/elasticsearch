@@ -54,7 +54,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllS
 
 
 @ESIntegTestCase.SuiteScopeTestCase
-public class MinDocCountTests extends AbstractTermsTests {
+public class MinDocCountIT extends AbstractTermsTestCase {
 
     private static final QueryBuilder QUERY = QueryBuilders.termQuery("match", true);
 

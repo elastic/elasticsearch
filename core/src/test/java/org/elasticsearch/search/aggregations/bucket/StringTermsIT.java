@@ -72,7 +72,7 @@ import static org.hamcrest.core.IsNull.nullValue;
  *
  */
 @ESIntegTestCase.SuiteScopeTestCase
-public class StringTermsTests extends AbstractTermsTests {
+public class StringTermsIT extends AbstractTermsTestCase {
 
     private static final String SINGLE_VALUED_FIELD_NAME = "s_value";
     private static final String MULTI_VALUED_FIELD_NAME = "s_values";

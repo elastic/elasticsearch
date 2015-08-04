@@ -42,7 +42,7 @@ import static org.hamcrest.Matchers.sameInstance;
 /**
  *
  */
-public class StatsTests extends AbstractNumericTests {
+public class StatsIT extends AbstractNumericTestCase {
 
     @Override
     @Test

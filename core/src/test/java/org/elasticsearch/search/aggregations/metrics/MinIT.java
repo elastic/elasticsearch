@@ -39,7 +39,7 @@ import static org.hamcrest.Matchers.notNullValue;
 /**
  *
  */
-public class MinTests extends AbstractNumericTests {
+public class MinIT extends AbstractNumericTestCase {
 
     @Override
     @Test

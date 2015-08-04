@@ -18,15 +18,14 @@ using the internal binary transport (port 9300 by default).
 Shield is also tested using the REST tests provided by Elasticsearch core,
 just by running those same tests against a cluster with Shield installed.
 
-The REST tests are not run automatically when executing the maven test
-command just yet (they are run with the regular suite when -Dtests.slow=true
-is supplied).  Some tests are blacklisted as they are known to fail against 
+The REST tests are run automatically during the integration test phase
+(`mvn verify`). Some tests are blacklisted as they are known to fail against 
 shield due to different behaviours introduced by the security plugin.
 
 ---------------------------------------------------------------------------
-mvn test -Dtests.filter="@Rest"
+mvn verify
 ---------------------------------------------------------------------------
 
-`ShieldRestTests` is the executable test class that runs all the
+`ShieldRestIT` is the executable test class that runs all the
 yaml suites available within the `rest-api-spec` folder.
 

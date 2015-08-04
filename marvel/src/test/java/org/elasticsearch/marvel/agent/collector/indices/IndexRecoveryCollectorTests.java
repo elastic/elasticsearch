@@ -9,10 +9,8 @@ import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.admin.indices.recovery.ShardRecoveryResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
 import org.elasticsearch.marvel.agent.settings.MarvelSettingsService;
@@ -23,6 +21,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
@@ -34,21 +33,23 @@ import static org.hamcrest.Matchers.*;
 @ESIntegTestCase.ClusterScope(numDataNodes = 0)
 public class IndexRecoveryCollectorTests extends ESIntegTestCase {
 
+    private boolean activeOnly = false;
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-
-        return super.nodeSettings(nodeOrdinal);
+        return settingsBuilder()
+                .put(super.nodeSettings(nodeOrdinal))
+                .put(MarvelSettingsService.INDEX_RECOVERY_ACTIVE_ONLY, activeOnly)
+                .build();
     }
 
     @Test
-    @AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/366")
     public void testIndexRecoveryCollector() throws Exception {
         final String indexName = "test";
 
         logger.info("--> start first node");
         final String node1 = internalCluster().startNode();
-        ensureYellow();
+        waitForNoBlocksOnNode(node1);
 
         logger.info("--> collect index recovery data");
         Collection<MarvelDoc> results = newIndexRecoveryCollector().doCollect();
@@ -58,8 +59,7 @@ public class IndexRecoveryCollectorTests extends ESIntegTestCase {
         assertThat(results, is(empty()));
 
         logger.info("--> create index on node: {}", node1);
-        assertAcked(prepareCreate(indexName, 1, settingsBuilder().put(SETTING_NUMBER_OF_SHARDS, 3).put(SETTING_NUMBER_OF_REPLICAS, 0)));
-        ensureGreen(indexName);
+        assertAcked(prepareCreate(indexName, 1, settingsBuilder().put(SETTING_NUMBER_OF_SHARDS, 3).put(SETTING_NUMBER_OF_REPLICAS, 1)));
 
         logger.info("--> indexing sample data");
         final int numDocs = between(50, 150);
@@ -69,39 +69,17 @@ public class IndexRecoveryCollectorTests extends ESIntegTestCase {
         flushAndRefresh(indexName);
         assertHitCount(client().prepareCount(indexName).get(), numDocs);
 
-        ByteSizeValue storeSize = client().admin().indices().prepareStats(indexName).get().getTotal().getStore().getSize();
+        logger.info("--> start second node");
+        final String node2 = internalCluster().startNode();
+        waitForNoBlocksOnNode(node2);
+        waitForRelocation();
 
-        logger.info("--> start another node with very low recovery settings");
-        internalCluster().startNode(settingsBuilder()
-                        .put(RecoverySettings.INDICES_RECOVERY_CONCURRENT_STREAMS, 1)
-                        .put(RecoverySettings.INDICES_RECOVERY_CONCURRENT_SMALL_FILE_STREAMS, 1)
-                        .put(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC, storeSize.bytes() / 10, ByteSizeUnit.BYTES)
-                        .put(RecoverySettings.INDICES_RECOVERY_FILE_CHUNK_SIZE, storeSize.bytes() / 10, ByteSizeUnit.BYTES)
-        );
+        for (MarvelSettingsService marvelSettingsService : internalCluster().getInstances(MarvelSettingsService.class)) {
+            assertThat(marvelSettingsService.recoveryActiveOnly(), equalTo(activeOnly));
+        }
 
-        logger.info("--> wait for at least 1 shard relocation");
-        results = assertBusy(new Callable<Collection<MarvelDoc>>() {
-            @Override
-            public Collection<MarvelDoc> call() throws Exception {
-                RecoveryResponse response = client().admin().indices().prepareRecoveries().setActiveOnly(true).get();
-                assertTrue(response.hasRecoveries());
-
-                List<ShardRecoveryResponse> shardResponses = response.shardResponses().get(indexName);
-                assertFalse(shardResponses.isEmpty());
-
-                boolean foundRelocation = false;
-                for (ShardRecoveryResponse shardResponse : shardResponses) {
-                    if (RecoveryState.Type.RELOCATION.equals(shardResponse.recoveryState().getType())) {
-                        foundRelocation = true;
-                        break;
-                    }
-                }
-                assertTrue("found at least one relocation", foundRelocation);
-
-                logger.info("--> collect index recovery data");
-                return newIndexRecoveryCollector().doCollect();
-            }
-        });
+        logger.info("--> collect index recovery data");
+        results = newIndexRecoveryCollector().doCollect();
 
         logger.info("--> we should have at least 1 shard in relocation state");
         assertNotNull(results);
@@ -131,7 +109,7 @@ public class IndexRecoveryCollectorTests extends ESIntegTestCase {
             assertThat(shardRecoveries.size(), greaterThan(0));
 
             for (ShardRecoveryResponse shardRecovery : shardRecoveries) {
-                assertThat(shardRecovery.recoveryState().getType(), equalTo(RecoveryState.Type.RELOCATION));
+                assertThat(shardRecovery.recoveryState().getType(), anyOf(equalTo(RecoveryState.Type.RELOCATION), equalTo(RecoveryState.Type.STORE), equalTo(RecoveryState.Type.REPLICA)));
             }
         }
     }
@@ -142,5 +120,17 @@ public class IndexRecoveryCollectorTests extends ESIntegTestCase {
                 internalCluster().getInstance(ClusterName.class),
                 internalCluster().getInstance(MarvelSettingsService.class),
                 client());
+    }
+
+    public void waitForNoBlocksOnNode(final String nodeId) throws Exception {
+        assertBusy(new Callable<Void>() {
+            @Override
+            public Void call() throws Exception {
+                ClusterBlocks clusterBlocks = client(nodeId).admin().cluster().prepareState().setLocal(true).execute().actionGet().getState().blocks();
+                assertTrue(clusterBlocks.global().isEmpty());
+                assertTrue(clusterBlocks.indices().values().isEmpty());
+                return null;
+            }
+        }, 30L, TimeUnit.SECONDS);
     }
 }

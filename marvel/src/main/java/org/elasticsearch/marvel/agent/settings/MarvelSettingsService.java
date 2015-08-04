@@ -26,19 +26,24 @@ public class MarvelSettingsService extends AbstractComponent implements NodeSett
 
     private final List<MarvelSetting> settings;
 
-    final TimeValueSetting indexStatsTimeout = MarvelSetting.timeSetting(PREFIX + "index.stats.timeout", TimeValue.timeValueMinutes(10),
+    public static final String INDEX_STATS_TIMEOUT = PREFIX + "index.stats.timeout";
+    final TimeValueSetting indexStatsTimeout = MarvelSetting.timeSetting(INDEX_STATS_TIMEOUT, TimeValue.timeValueMinutes(10),
             "Timeout value when collecting indices statistics (default to 10m)");
 
-    final StringArraySetting indices = MarvelSetting.arraySetting(PREFIX + "indices", Strings.EMPTY_ARRAY,
+    public static final String INDICES = PREFIX + "indices";
+    final StringArraySetting indices = MarvelSetting.arraySetting(INDICES, Strings.EMPTY_ARRAY,
             "List of indices names whose stats will be exported (default to all indices)");
 
-    final TimeValueSetting clusterStateTimeout = MarvelSetting.timeSetting(PREFIX + "cluster.state.timeout", TimeValue.timeValueMinutes(10),
+    public static final String CLUSTER_STATE_TIMEOUT = PREFIX + "cluster.state.timeout";
+    final TimeValueSetting clusterStateTimeout = MarvelSetting.timeSetting(CLUSTER_STATE_TIMEOUT, TimeValue.timeValueMinutes(10),
             "Timeout value when collecting the cluster state (default to 10m)");
 
-    final TimeValueSetting recoveryTimeout = MarvelSetting.timeSetting(PREFIX + "index.recovery.timeout", TimeValue.timeValueMinutes(10),
+    public static final String INDEX_RECOVERY_TIMEOUT = PREFIX + "index.recovery.timeout";
+    final TimeValueSetting recoveryTimeout = MarvelSetting.timeSetting(INDEX_RECOVERY_TIMEOUT, TimeValue.timeValueMinutes(10),
             "Timeout value when collecting the recovery information (default to 10m)");
 
-    final MarvelSetting.BooleanSetting recoveryActiveOnly = MarvelSetting.booleanSetting(PREFIX + "index.recovery.active_only", Boolean.FALSE,
+    public static final String INDEX_RECOVERY_ACTIVE_ONLY = PREFIX + "index.recovery.active_only";
+    final MarvelSetting.BooleanSetting recoveryActiveOnly = MarvelSetting.booleanSetting(INDEX_RECOVERY_ACTIVE_ONLY, Boolean.FALSE,
             "Flag to indicate if only active recoveries should be collected (default to false: all recoveries are collected)");
 
     MarvelSettingsService(Settings clusterSettings) {

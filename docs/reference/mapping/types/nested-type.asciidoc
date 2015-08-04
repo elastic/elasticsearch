@@ -76,7 +76,7 @@ uses type `nested`:
 {
     "type1" : {
         "properties" : {
-            "users" : {
+            "user" : {
                 "type" : "nested",
                 "properties": {
                     "first" : {"type": "string" },
@@ -99,7 +99,7 @@ You may want to index inner objects both as `nested` fields *and*  as flattened
 {
     "type1" : {
         "properties" : {
-            "users" : {
+            "user" : {
                 "type" : "nested",
                 "include_in_parent": true,
                 "properties": {

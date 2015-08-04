@@ -40,7 +40,7 @@ public class ReplicatedRefreshRequest extends ReplicationRequest<ReplicatedRefre
         index(shardId.index().name());
     }
 
-    ShardId shardId;
+    private ShardId shardId;
 
     ReplicatedRefreshRequest() {
     }

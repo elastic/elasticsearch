@@ -37,12 +37,14 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
@@ -54,7 +56,7 @@ import static com.google.common.collect.Lists.newArrayList;
 public class TransportRefreshAction extends HandledTransportAction<RefreshRequest, RefreshResponse> {
 
     private final TransportReplicatedRefreshAction replicatedRefreshAction;
-    ClusterService clusterService;
+    private final ClusterService clusterService;
 
     @Inject
     public TransportRefreshAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
@@ -67,15 +69,14 @@ public class TransportRefreshAction extends HandledTransportAction<RefreshReques
 
     @Override
     protected void doExecute(final RefreshRequest request, final ActionListener<RefreshResponse> listener) {
-        logger.trace("execute refresh");
         GroupShardsIterator groupShardsIterator = clusterService.operationRouting().searchShards(clusterService.state(), indexNameExpressionResolver.concreteIndices(clusterService.state(), request), null, null);
-        final AtomicReferenceArray<ReplicatedRefreshResponse> shardsResponses = new AtomicReferenceArray(groupShardsIterator.size());
-        final AtomicInteger numPrimariesToProcess = new AtomicInteger(groupShardsIterator.size());
-        if (numPrimariesToProcess.get() != 0) {
+        final CopyOnWriteArrayList<ReplicatedRefreshResponse> shardsResponses = new CopyOnWriteArrayList();
+        final CountDown responsesCountDown = new CountDown(groupShardsIterator.size());
+        if (responsesCountDown.isCountedDown() == false) {
             for (final ShardsIterator shardsIterator : groupShardsIterator) {
                 final ShardRouting shardRouting = shardsIterator.nextOrNull();
                 if (shardRouting == null) {
-                    if (numPrimariesToProcess.decrementAndGet() == 0) {
+                    if (responsesCountDown.countDown()) {
                         finishAndNotifyListener(listener, shardsResponses);
                     }
                 } else {
@@ -83,9 +84,8 @@ public class TransportRefreshAction extends HandledTransportAction<RefreshReques
                     replicatedRefreshAction.execute(new ReplicatedRefreshRequest(shardId), new ActionListener<ReplicatedRefreshResponse>() {
                         @Override
                         public void onResponse(ReplicatedRefreshResponse replicatedRefreshResponse) {
-                            int responseNumber = numPrimariesToProcess.decrementAndGet();
-                            shardsResponses.getAndSet(responseNumber, replicatedRefreshResponse);
-                            if (responseNumber == 0) {
+                            shardsResponses.add(replicatedRefreshResponse);
+                            if (responsesCountDown.countDown()) {
                                 logger.trace("refresh: got response from {}", replicatedRefreshResponse.getShardId());
                                 finishAndNotifyListener(listener, shardsResponses);
                             }
@@ -100,9 +100,8 @@ public class TransportRefreshAction extends HandledTransportAction<RefreshReques
                             ActionWriteResponse.ShardInfo.Failure[] failures = new ActionWriteResponse.ShardInfo.Failure[totalNumCopies];
                             Arrays.fill(failures, failure);
                             replicatedRefreshResponse.setShardInfo(new ActionWriteResponse.ShardInfo(totalNumCopies, 0, failures));
-                            int responseNumber = numPrimariesToProcess.decrementAndGet();
-                            shardsResponses.getAndSet(responseNumber, replicatedRefreshResponse);
-                            if (responseNumber == 0) {
+                            shardsResponses.add(replicatedRefreshResponse);
+                            if (responsesCountDown.countDown()) {
                                 finishAndNotifyListener(listener, shardsResponses);
                             }
                         }
@@ -114,13 +113,13 @@ public class TransportRefreshAction extends HandledTransportAction<RefreshReques
         }
     }
 
-    private void finishAndNotifyListener(ActionListener listener, AtomicReferenceArray<ReplicatedRefreshResponse> shardsResponses) {
+    private void finishAndNotifyListener(ActionListener listener, CopyOnWriteArrayList<ReplicatedRefreshResponse> shardsResponses) {
         logger.trace("refresh: got all shard responses");
         int successfulShards = 0;
         int failedShards = 0;
         int totalNumCopies = 0;
         List<ShardOperationFailedException> shardFailures = null;
-        for (int i = 0; i < shardsResponses.length(); i++) {
+        for (int i = 0; i < shardsResponses.size(); i++) {
             ReplicatedRefreshResponse shardResponse = shardsResponses.get(i);
             if (shardResponse == null) {
                 // non active shard, ignore

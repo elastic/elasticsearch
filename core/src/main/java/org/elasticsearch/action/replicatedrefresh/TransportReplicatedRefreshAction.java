@@ -78,7 +78,7 @@ public class TransportReplicatedRefreshAction extends TransportReplicationAction
 
     @Override
     protected ShardIterator shards(ClusterState clusterState, InternalRequest request) {
-        return clusterService.operationRouting().shards(clusterService.state(), request.concreteIndex(), request.request().shardId.id()).shardsIt();
+        return clusterService.operationRouting().shards(clusterService.state(), request.concreteIndex(), request.request().getShardId().id()).shardsIt();
     }
 
     @Override

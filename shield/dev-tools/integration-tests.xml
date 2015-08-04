@@ -13,7 +13,7 @@
                   args="@{args} -Des.path.repo=@{home}/repo" />
 
       <waitfor maxwait="3" maxwaitunit="minute" checkevery="500">
-        <socket server="127.0.0.1" port="9200"/>
+        <socket server="127.0.0.1" port="${integ.http.port}"/>
       </waitfor>
 
       <local name="integ.pid"/>
@@ -32,6 +32,6 @@
 
     <local name="temp.file"/>
     <tempfile property="temp.file" destdir="${java.io.tmpdir}"/>
-    <get src="http://127.0.0.1:9200" dest="${temp.file}" username="test_user" password="changeme" verbose="true" retries="10"/>
+    <get src="http://127.0.0.1:${integ.http.port}" dest="${temp.file}" username="test_user" password="changeme" verbose="true" retries="10"/>
   </target>
 </project>

@@ -204,7 +204,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
     private final org.apache.lucene.util.Version minimumCompatibleLuceneVersion;
     private final HashFunction routingHashFunction;
     private final boolean useTypeForRouting;
-    private final boolean indexSlowLoggingSource;
+    private final boolean logSourceInIndexSlowLog;
 
     private IndexMetaData(String index, long version, State state, Settings settings, ImmutableOpenMap<String, MappingMetaData> mappings, ImmutableOpenMap<String, AliasMetaData> aliases, ImmutableOpenMap<String, Custom> customs) {
         Preconditions.checkArgument(settings.getAsInt(SETTING_NUMBER_OF_SHARDS, null) != null, "must specify numberOfShards for index [" + index + "]");
@@ -259,7 +259,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
             }
         }
         useTypeForRouting = settings.getAsBoolean(SETTING_LEGACY_ROUTING_USE_TYPE, false);
-        indexSlowLoggingSource = settings.getAsBoolean(SETTING_SLOW_LOGGING_SOURCE, true);
+        logSourceInIndexSlowLog = settings.getAsBoolean(SETTING_SLOW_LOGGING_SOURCE, true);
     }
 
     public String index() {
@@ -392,12 +392,12 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
         return totalNumberOfShards();
     }
 
-    public boolean slowLoggingSource() {
-        return indexSlowLoggingSource;
+    public boolean logSourceInIndexSlowLog() {
+        return logSourceInIndexSlowLog;
     }
 
-    public boolean getSlowLoggingSource() {
-        return slowLoggingSource();
+    public boolean getLogSourceInIndexSlowLog() {
+        return logSourceInIndexSlowLog;
     }
 
     public Settings settings() {

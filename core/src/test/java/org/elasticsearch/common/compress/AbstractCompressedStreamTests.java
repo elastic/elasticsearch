@@ -48,7 +48,7 @@ public abstract class AbstractCompressedStreamTests extends ESTestCase {
     public void testRandom() throws IOException {
         Random r = getRandom();
         for (int i = 0; i < 10; i++) {
-            byte bytes[] = new byte[TestUtil.nextInt(r, 1, 400000)];
+            byte bytes[] = new byte[TestUtil.nextInt(r, 1, 100000)];
             r.nextBytes(bytes);
             doTest(bytes);
         }
@@ -56,7 +56,7 @@ public abstract class AbstractCompressedStreamTests extends ESTestCase {
 
     public void testRandomThreads() throws Exception {
         final Random r = getRandom();
-        int threadCount = TestUtil.nextInt(r, 2, 10);
+        int threadCount = TestUtil.nextInt(r, 2, 6);
         Thread[] threads = new Thread[threadCount];
         final CountDownLatch startingGun = new CountDownLatch(1);
         for (int tid=0; tid < threadCount; tid++) {
@@ -102,7 +102,7 @@ public abstract class AbstractCompressedStreamTests extends ESTestCase {
 
     public void testLineDocsThreads() throws Exception {
         final Random r = getRandom();
-        int threadCount = TestUtil.nextInt(r, 2, 10);
+        int threadCount = TestUtil.nextInt(r, 2, 6);
         Thread[] threads = new Thread[threadCount];
         final CountDownLatch startingGun = new CountDownLatch(1);
         for (int tid=0; tid < threadCount; tid++) {
@@ -162,7 +162,7 @@ public abstract class AbstractCompressedStreamTests extends ESTestCase {
 
     public void testRepetitionsLThreads() throws Exception {
         final Random r = getRandom();
-        int threadCount = TestUtil.nextInt(r, 2, 10);
+        int threadCount = TestUtil.nextInt(r, 2, 6);
         Thread[] threads = new Thread[threadCount];
         final CountDownLatch startingGun = new CountDownLatch(1);
         for (int tid=0; tid < threadCount; tid++) {
@@ -226,7 +226,7 @@ public abstract class AbstractCompressedStreamTests extends ESTestCase {
 
     public void testRepetitionsIThreads() throws Exception {
         final Random r = getRandom();
-        int threadCount = TestUtil.nextInt(r, 2, 10);
+        int threadCount = TestUtil.nextInt(r, 2, 6);
         Thread[] threads = new Thread[threadCount];
         final CountDownLatch startingGun = new CountDownLatch(1);
         for (int tid=0; tid < threadCount; tid++) {
@@ -350,7 +350,7 @@ public abstract class AbstractCompressedStreamTests extends ESTestCase {
 
     public void testRepetitionsSThreads() throws Exception {
         final Random r = getRandom();
-        int threadCount = TestUtil.nextInt(r, 2, 10);
+        int threadCount = TestUtil.nextInt(r, 2, 6);
         Thread[] threads = new Thread[threadCount];
         final CountDownLatch startingGun = new CountDownLatch(1);
         for (int tid=0; tid < threadCount; tid++) {

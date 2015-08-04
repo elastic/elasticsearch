@@ -38,8 +38,7 @@ import java.util.concurrent.ThreadLocalRandom;
  * <p/>
  * See: https://github.com/elasticsearch/elasticsearch/issues/1686.
  */
-@Ignore("Stress Test")
-public class ConcurrentSearchSerializationTests {
+public class ConcurrentSearchSerializationBenchmark {
 
     public static void main(String[] args) throws Exception {
 

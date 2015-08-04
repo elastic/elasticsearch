@@ -25,7 +25,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MergeMappingException;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
 import java.util.HashMap;
@@ -36,7 +36,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public class UpdateMappingOnClusterIT extends ElasticsearchIntegrationTest {
+public class UpdateMappingOnClusterIT extends ESIntegTestCase {
 
     private static final String INDEX = "index";
     private static final String TYPE = "type";

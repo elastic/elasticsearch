@@ -23,21 +23,20 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.test.ElasticsearchSingleNodeTest;
+import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.util.List;
 import java.util.Map;
 
 /**
  */
-public class SyncedFlushSingleNodeTest extends ElasticsearchSingleNodeTest {
+public class SyncedFlushSingleNodeTest extends ESSingleNodeTestCase {
 
     public void testModificationPreventsFlushing() throws InterruptedException {
         createIndex("test");

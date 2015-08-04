@@ -24,14 +24,14 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.test.ElasticsearchSingleNodeTest;
+import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.junit.Test;
 
 import static org.hamcrest.Matchers.*;
 
 /**
  */
-public class NullValueTests extends ElasticsearchSingleNodeTest {
+public class NullValueTests extends ESSingleNodeTestCase {
 
     @Test
     public void testNullNull_Value() throws Exception {

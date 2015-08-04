@@ -41,7 +41,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
@@ -70,7 +70,7 @@ import static org.hamcrest.Matchers.*;
  *
  */
 @LuceneTestCase.SuppressFileSystems("ExtrasFS")
-public class TranslogTests extends ElasticsearchTestCase {
+public class TranslogTests extends ESTestCase {
 
     private static final Pattern PARSE_LEGACY_ID_PATTERN = Pattern.compile("^" + Translog.TRANSLOG_FILE_PREFIX + "(\\d+)((\\.recovering))?$");
 

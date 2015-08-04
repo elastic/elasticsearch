@@ -36,7 +36,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.junit.Test;
 
@@ -53,7 +53,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.Matchers.is;
 
-public class HeadersAndContextCopyClientTests extends ElasticsearchTestCase {
+public class HeadersAndContextCopyClientTests extends ESTestCase {
 
     @Test
     public void testRegisterRelevantHeaders() throws InterruptedException {

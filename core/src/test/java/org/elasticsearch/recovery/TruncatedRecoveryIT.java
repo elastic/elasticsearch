@@ -34,7 +34,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.recovery.RecoveryFileChunkRequest;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.*;
 import org.junit.Test;
@@ -51,9 +51,9 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
-@ElasticsearchIntegrationTest.ClusterScope(numDataNodes = 2, numClientNodes = 0, scope = ElasticsearchIntegrationTest.Scope.TEST)
+@ESIntegTestCase.ClusterScope(numDataNodes = 2, numClientNodes = 0, scope = ESIntegTestCase.Scope.TEST)
 @SuppressCodecs("*") // test relies on exact file extensions
-public class TruncatedRecoveryIT extends ElasticsearchIntegrationTest {
+public class TruncatedRecoveryIT extends ESIntegTestCase {
 
     protected Settings nodeSettings(int nodeOrdinal) {
         Settings.Builder builder = Settings.builder()

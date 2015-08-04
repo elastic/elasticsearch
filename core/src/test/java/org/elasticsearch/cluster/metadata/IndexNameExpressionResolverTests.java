@@ -29,7 +29,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.IndexClosedException;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import java.util.Arrays;
@@ -41,7 +41,7 @@ import static org.hamcrest.Matchers.*;
 
 /**
  */
-public class IndexNameExpressionResolverTests extends ElasticsearchTestCase {
+public class IndexNameExpressionResolverTests extends ESTestCase {
 
     private final IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver(Settings.EMPTY);
 

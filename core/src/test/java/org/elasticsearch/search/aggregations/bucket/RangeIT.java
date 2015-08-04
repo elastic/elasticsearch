@@ -28,7 +28,7 @@ import org.elasticsearch.search.aggregations.bucket.range.Range.Bucket;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.metrics.avg.Avg;
 import org.elasticsearch.search.aggregations.metrics.sum.Sum;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
@@ -51,8 +51,8 @@ import static org.hamcrest.core.IsNull.nullValue;
 /**
  *
  */
-@ElasticsearchIntegrationTest.SuiteScopeTest
-public class RangeIT extends ElasticsearchIntegrationTest {
+@ESIntegTestCase.SuiteScopeTestCase
+public class RangeIT extends ESIntegTestCase {
 
     private static final String SINGLE_VALUED_FIELD_NAME = "l_value";
     private static final String MULTI_VALUED_FIELD_NAME = "l_values";

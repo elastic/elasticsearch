@@ -62,7 +62,7 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.warmer.IndexWarmerMissingException;
 import org.elasticsearch.snapshots.SnapshotException;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestSearchContext;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
@@ -81,7 +81,7 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.util.HashSet;
 import java.util.Set;
 
-public class ExceptionSerializationTests extends ElasticsearchTestCase {
+public class ExceptionSerializationTests extends ESTestCase {
 
     public void testExceptionRegistration()
             throws ClassNotFoundException, IOException, URISyntaxException {

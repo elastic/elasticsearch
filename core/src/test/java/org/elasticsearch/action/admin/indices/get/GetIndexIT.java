@@ -20,7 +20,6 @@
 package org.elasticsearch.action.admin.indices.get;
 
 import com.google.common.collect.ImmutableList;
-import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest.Feature;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
@@ -29,7 +28,7 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.search.warmer.IndexWarmersMetaData.Entry;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -41,8 +40,8 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
 import static org.hamcrest.Matchers.*;
 
-@ElasticsearchIntegrationTest.SuiteScopeTest
-public class GetIndexIT extends ElasticsearchIntegrationTest {
+@ESIntegTestCase.SuiteScopeTestCase
+public class GetIndexIT extends ESIntegTestCase {
 
     private static final String[] allFeatures = { "_alias", "_aliases", "_mapping", "_mappings", "_settings", "_warmer", "_warmers" };
 

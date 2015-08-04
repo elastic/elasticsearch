@@ -28,8 +28,8 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.junit.Test;
 
 import java.util.Locale;
@@ -40,8 +40,8 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
-@ClusterScope(scope = ElasticsearchIntegrationTest.Scope.SUITE, numDataNodes = 2)
-public class RejectionActionIT extends ElasticsearchIntegrationTest {
+@ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 2)
+public class RejectionActionIT extends ESIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {

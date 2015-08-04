@@ -24,7 +24,7 @@ import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.action.fieldstats.FieldStatsResponse;
 import org.elasticsearch.action.fieldstats.IndexConstraint;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -38,7 +38,7 @@ import static org.hamcrest.Matchers.*;
 
 /**
  */
-public class FieldStatsIntegrationIT extends ElasticsearchIntegrationTest {
+public class FieldStatsIntegrationIT extends ESIntegTestCase {
 
     public void testRandom() throws Exception {
         assertAcked(prepareCreate("test").addMapping(

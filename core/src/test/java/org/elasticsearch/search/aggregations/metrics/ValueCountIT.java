@@ -23,7 +23,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.metrics.valuecount.ValueCount;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
 import java.util.HashMap;
@@ -39,8 +39,8 @@ import static org.hamcrest.Matchers.notNullValue;
 /**
  *
  */
-@ElasticsearchIntegrationTest.SuiteScopeTest
-public class ValueCountIT extends ElasticsearchIntegrationTest {
+@ESIntegTestCase.SuiteScopeTestCase
+public class ValueCountIT extends ESIntegTestCase {
 
     @Override
     public void setupSuiteScopeCluster() throws Exception {

@@ -30,7 +30,7 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.query.MoreLikeThisQueryBuilder;
 import org.elasticsearch.index.query.MoreLikeThisQueryBuilder.Item;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -40,7 +40,7 @@ import java.util.Random;
 import static org.elasticsearch.common.io.Streams.copyToStringFromClasspath;
 import static org.hamcrest.Matchers.is;
 
-public class ItemSerializationTests extends ElasticsearchTestCase {
+public class ItemSerializationTests extends ESTestCase {
 
     private Item generateRandomItem(int arraySize, int stringSize) {
         String index = randomAsciiOfLength(stringSize);

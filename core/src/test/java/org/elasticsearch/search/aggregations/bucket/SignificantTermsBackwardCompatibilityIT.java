@@ -26,7 +26,7 @@ import org.elasticsearch.search.aggregations.bucket.significant.SignificantTerms
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsBuilder;
-import org.elasticsearch.test.ElasticsearchBackwardsCompatIntegrationTest;
+import org.elasticsearch.test.ESBackcompatTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -41,7 +41,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
-public class SignificantTermsBackwardCompatibilityIT extends ElasticsearchBackwardsCompatIntegrationTest {
+public class SignificantTermsBackwardCompatibilityIT extends ESBackcompatTestCase {
 
     static final String INDEX_NAME = "testidx";
     static final String DOC_TYPE = "doc";

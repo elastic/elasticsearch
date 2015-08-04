@@ -48,9 +48,9 @@ import org.elasticsearch.index.shard.MergePolicyConfig;
 import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.indices.cache.request.IndicesRequestCache;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
+import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -72,7 +72,7 @@ import static org.hamcrest.Matchers.nullValue;
 
 @ClusterScope(scope = Scope.SUITE, numDataNodes = 2, numClientNodes = 0, randomDynamicTemplates = false)
 @SuppressCodecs("*") // requires custom completion format
-public class IndexStatsIT extends ElasticsearchIntegrationTest {
+public class IndexStatsIT extends ESIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
@@ -354,7 +354,7 @@ public class IndexStatsIT extends ElasticsearchIntegrationTest {
         }
 
         // Optimize & flush and wait; else we sometimes get a "Delete Index failed - not acked"
-        // when ElasticsearchIntegrationTest.after tries to remove indices created by the test:
+        // when ESIntegTestCase.after tries to remove indices created by the test:
         logger.info("test: now optimize");
         client().admin().indices().prepareOptimize("test").get();
         flush();

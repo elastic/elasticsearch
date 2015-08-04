@@ -104,7 +104,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
-public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIT {
+public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCase {
 
     @Test
     public void basicWorkFlowTest() throws Exception {

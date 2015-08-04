@@ -21,13 +21,13 @@ package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.standard.StandardTokenizer;
-import org.elasticsearch.test.ElasticsearchTokenStreamTestCase;
+import org.elasticsearch.test.ESTokenStreamTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
 import java.io.StringReader;
 
-public class CJKFilterFactoryTests extends ElasticsearchTokenStreamTestCase {
+public class CJKFilterFactoryTests extends ESTokenStreamTestCase {
 
     private static final String RESOURCE = "org/elasticsearch/index/analysis/cjk_analysis.json";
 

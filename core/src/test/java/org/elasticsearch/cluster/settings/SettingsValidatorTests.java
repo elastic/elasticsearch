@@ -19,12 +19,12 @@
 
 package org.elasticsearch.cluster.settings;
 
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import static org.hamcrest.Matchers.*;
 
-public class SettingsValidatorTests extends ElasticsearchTestCase {
+public class SettingsValidatorTests extends ESTestCase {
 
     @Test
     public void testValidators() throws Exception {

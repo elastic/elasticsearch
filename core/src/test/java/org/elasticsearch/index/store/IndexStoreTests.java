@@ -24,14 +24,14 @@ import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.nio.file.Path;
 
 /**
  */
-public class IndexStoreTests extends ElasticsearchTestCase {
+public class IndexStoreTests extends ESTestCase {
 
     public void testStoreDirectory() throws IOException {
         final Path tempDir = createTempDir();

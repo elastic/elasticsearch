@@ -23,8 +23,8 @@ import org.apache.http.impl.client.HttpClients;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.http.HttpServerTransport;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
 import org.elasticsearch.test.rest.client.http.HttpResponse;
 import org.junit.Test;
@@ -34,11 +34,11 @@ import java.nio.file.Path;
 import static org.apache.lucene.util.Constants.WINDOWS;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.rest.RestStatus.OK;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope.SUITE;
+import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasStatus;
 
 @ClusterScope(scope = SUITE, numDataNodes = 1)
-public class SitePluginRelativePathConfigIT extends ElasticsearchIntegrationTest {
+public class SitePluginRelativePathConfigIT extends ESIntegTestCase {
 
     private final Path root = PathUtils.get(".").toAbsolutePath().getRoot();
 

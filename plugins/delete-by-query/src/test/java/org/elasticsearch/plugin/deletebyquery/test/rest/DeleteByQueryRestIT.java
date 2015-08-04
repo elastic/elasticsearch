@@ -21,13 +21,13 @@ package org.elasticsearch.plugin.deletebyquery.test.rest;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-import org.elasticsearch.test.rest.ElasticsearchRestTestCase;
+import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.RestTestCandidate;
 import org.elasticsearch.test.rest.parser.RestTestParseException;
 
 import java.io.IOException;
 
-public class DeleteByQueryRestIT extends ElasticsearchRestTestCase {
+public class DeleteByQueryRestIT extends ESRestTestCase {
 
     public DeleteByQueryRestIT(@Name("yaml") RestTestCandidate testCandidate) {
         super(testCandidate);
@@ -35,7 +35,7 @@ public class DeleteByQueryRestIT extends ElasticsearchRestTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws IOException, RestTestParseException {
-        return ElasticsearchRestTestCase.createParameters(0, 1);
+        return ESRestTestCase.createParameters(0, 1);
     }
 }
 

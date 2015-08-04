@@ -21,7 +21,7 @@ package org.elasticsearch.indices.settings;
 
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
 import java.util.Arrays;
@@ -32,7 +32,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBloc
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
-public class GetSettingsBlocksIT extends ElasticsearchIntegrationTest {
+public class GetSettingsBlocksIT extends ESIntegTestCase {
 
     @Test
     public void testGetSettingsWithBlocks() throws Exception {

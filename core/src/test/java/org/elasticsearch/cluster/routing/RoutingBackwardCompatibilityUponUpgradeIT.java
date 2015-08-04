@@ -28,16 +28,16 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 
 import java.nio.file.Path;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 
-@ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST, numDataNodes = 0, minNumDataNodes = 0, maxNumDataNodes = 0)
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, minNumDataNodes = 0, maxNumDataNodes = 0)
 @LuceneTestCase.SuppressFileSystems("*") // extra files break the single data cluster expectation when unzipping the static index
-public class RoutingBackwardCompatibilityUponUpgradeIT extends ElasticsearchIntegrationTest {
+public class RoutingBackwardCompatibilityUponUpgradeIT extends ESIntegTestCase {
 
     public void testDefaultRouting() throws Exception {
         test("default_routing_1_x", DjbHashFunction.class, false);

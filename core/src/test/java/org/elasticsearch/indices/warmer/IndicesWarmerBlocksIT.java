@@ -25,8 +25,8 @@ import com.google.common.collect.ImmutableList;
 import org.elasticsearch.action.admin.indices.warmer.get.GetWarmersResponse;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.warmer.IndexWarmersMetaData;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.junit.Test;
 
 import java.util.Arrays;
@@ -37,8 +37,8 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
 import static org.hamcrest.Matchers.equalTo;
 
-@ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST)
-public class IndicesWarmerBlocksIT extends ElasticsearchIntegrationTest {
+@ClusterScope(scope = ESIntegTestCase.Scope.TEST)
+public class IndicesWarmerBlocksIT extends ESIntegTestCase {
 
     @Test
     public void testPutWarmerWithBlocks() {

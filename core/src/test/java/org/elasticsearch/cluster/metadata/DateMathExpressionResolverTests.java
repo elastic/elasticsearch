@@ -26,7 +26,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.Context;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.DateMathExpressionResolver;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.DateTimeFormat;
@@ -40,7 +40,7 @@ import java.util.List;
 import static org.hamcrest.Matchers.equalTo;
 import static org.joda.time.DateTimeZone.UTC;
 
-public class DateMathExpressionResolverTests extends ElasticsearchTestCase {
+public class DateMathExpressionResolverTests extends ESTestCase {
 
     private final DateMathExpressionResolver expressionResolver = new DateMathExpressionResolver(Settings.EMPTY);
     private final Context context = new Context(

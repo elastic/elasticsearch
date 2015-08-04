@@ -28,17 +28,16 @@ import com.spatial4j.core.shape.impl.PointImpl;
 import com.vividsolutions.jts.geom.Coordinate;
 import com.vividsolutions.jts.geom.LineString;
 import com.vividsolutions.jts.geom.Polygon;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.geo.builders.PolygonBuilder;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchGeoAssertions.*;
 /**
  * Tests for {@link ShapeBuilder}
  */
-public class ShapeBuilderTests extends ElasticsearchTestCase {
+public class ShapeBuilderTests extends ESTestCase {
 
     public void testNewPoint() {
         Point point = ShapeBuilder.newPoint(-100, 45).build();

@@ -25,11 +25,11 @@ import org.apache.lucene.index.*;
 import org.apache.lucene.store.BaseDirectoryWrapper;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
-public class ShardUtilsTests extends ElasticsearchTestCase {
+public class ShardUtilsTests extends ESTestCase {
 
     public void testExtractShardId() throws IOException {
         BaseDirectoryWrapper dir = newDirectory();

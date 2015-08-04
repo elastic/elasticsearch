@@ -23,14 +23,14 @@ import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.unit.DistanceUnit.Distance;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
 
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 
-public class GeoEncodingTests extends ElasticsearchTestCase {
+public class GeoEncodingTests extends ESTestCase {
 
     public void test() {
         for (int i = 0; i < 10000; ++i) {

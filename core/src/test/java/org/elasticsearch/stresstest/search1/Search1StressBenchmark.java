@@ -41,11 +41,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 
-/**
- *
- */
-@Ignore("Stress Test")
-public class Search1StressTest {
+public class Search1StressBenchmark {
 
     private final ESLogger logger = Loggers.getLogger(getClass());
 
@@ -73,67 +69,67 @@ public class Search1StressTest {
 
     private Node client;
 
-    public Search1StressTest setNumberOfNodes(int numberOfNodes) {
+    public Search1StressBenchmark setNumberOfNodes(int numberOfNodes) {
         this.numberOfNodes = numberOfNodes;
         return this;
     }
 
-    public Search1StressTest setPreIndexDocs(SizeValue preIndexDocs) {
+    public Search1StressBenchmark setPreIndexDocs(SizeValue preIndexDocs) {
         this.preIndexDocs = preIndexDocs;
         return this;
     }
 
-    public Search1StressTest setIndexers(int indexers) {
+    public Search1StressBenchmark setIndexers(int indexers) {
         this.indexers = indexers;
         return this;
     }
 
-    public Search1StressTest setIndexerThrottle(TimeValue indexerThrottle) {
+    public Search1StressBenchmark setIndexerThrottle(TimeValue indexerThrottle) {
         this.indexerThrottle = indexerThrottle;
         return this;
     }
 
-    public Search1StressTest setSearchers(int searchers) {
+    public Search1StressBenchmark setSearchers(int searchers) {
         this.searchers = searchers;
         return this;
     }
 
-    public Search1StressTest setSearcherThrottle(TimeValue searcherThrottle) {
+    public Search1StressBenchmark setSearcherThrottle(TimeValue searcherThrottle) {
         this.searcherThrottle = searcherThrottle;
         return this;
     }
 
-    public Search1StressTest setNumberOfIndices(int numberOfIndices) {
+    public Search1StressBenchmark setNumberOfIndices(int numberOfIndices) {
         this.numberOfIndices = numberOfIndices;
         return this;
     }
 
-    public Search1StressTest setNumberOfTypes(int numberOfTypes) {
+    public Search1StressBenchmark setNumberOfTypes(int numberOfTypes) {
         this.numberOfTypes = numberOfTypes;
         return this;
     }
 
-    public Search1StressTest setNumberOfValues(int numberOfValues) {
+    public Search1StressBenchmark setNumberOfValues(int numberOfValues) {
         this.numberOfValues = numberOfValues;
         return this;
     }
 
-    public Search1StressTest setNumberOfHits(int numberOfHits) {
+    public Search1StressBenchmark setNumberOfHits(int numberOfHits) {
         this.numberOfHits = numberOfHits;
         return this;
     }
 
-    public Search1StressTest setFlusherThrottle(TimeValue flusherThrottle) {
+    public Search1StressBenchmark setFlusherThrottle(TimeValue flusherThrottle) {
         this.flusherThrottle = flusherThrottle;
         return this;
     }
 
-    public Search1StressTest setSettings(Settings settings) {
+    public Search1StressBenchmark setSettings(Settings settings) {
         this.settings = settings;
         return this;
     }
 
-    public Search1StressTest setPeriod(TimeValue period) {
+    public Search1StressBenchmark setPeriod(TimeValue period) {
         this.period = period;
         return this;
     }
@@ -359,7 +355,7 @@ public class Search1StressTest {
     }
 
     public static void main(String[] args) throws Exception {
-        Search1StressTest test = new Search1StressTest()
+        Search1StressBenchmark test = new Search1StressBenchmark()
                 .setPeriod(TimeValue.timeValueMinutes(10))
                 .setNumberOfNodes(2)
                 .setPreIndexDocs(SizeValue.parseSizeValue("100"))

@@ -72,7 +72,7 @@ import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 
 /**
  */
-public class ParentConstantScoreQueryTests extends AbstractChildTests {
+public class ParentConstantScoreQueryTests extends AbstractChildTestCase {
 
     @BeforeClass
     public static void before() throws IOException {

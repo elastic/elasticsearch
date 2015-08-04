@@ -27,7 +27,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -42,7 +42,7 @@ import static org.hamcrest.Matchers.*;
 
 /**
  */
-public class MultiPercolatorIT extends ElasticsearchIntegrationTest {
+public class MultiPercolatorIT extends ESIntegTestCase {
 
     @Test
     public void testBasics() throws Exception {

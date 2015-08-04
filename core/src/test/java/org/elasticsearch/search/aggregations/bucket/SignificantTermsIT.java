@@ -35,7 +35,7 @@ import org.elasticsearch.search.aggregations.bucket.significant.heuristics.Mutua
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.PercentageScore;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsBuilder;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
 import java.util.Arrays;
@@ -54,8 +54,8 @@ import static org.hamcrest.Matchers.is;
 /**
  *
  */
-@ElasticsearchIntegrationTest.SuiteScopeTest
-public class SignificantTermsIT extends ElasticsearchIntegrationTest {
+@ESIntegTestCase.SuiteScopeTestCase
+public class SignificantTermsIT extends ESIntegTestCase {
 
     public String randomExecutionHint() {
         return randomBoolean() ? null : randomFrom(ExecutionMode.values()).toString();

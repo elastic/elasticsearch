@@ -20,7 +20,7 @@
 package org.elasticsearch.index.fielddata;
 
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -29,7 +29,7 @@ import static org.hamcrest.Matchers.greaterThan;
 
 /**
  */
-public class FieldDataLoadingIT extends ElasticsearchIntegrationTest {
+public class FieldDataLoadingIT extends ESIntegTestCase {
 
     @Test
     public void testEagerFieldDataLoading() throws Exception {

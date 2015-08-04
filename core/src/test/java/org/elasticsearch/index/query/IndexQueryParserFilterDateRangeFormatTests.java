@@ -30,7 +30,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.test.ElasticsearchSingleNodeTest;
+import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.TestSearchContext;
 import org.joda.time.DateTime;
 import org.junit.Before;
@@ -46,7 +46,7 @@ import static org.hamcrest.Matchers.is;
 /**
  *
  */
-public class IndexQueryParserFilterDateRangeFormatTests extends ElasticsearchSingleNodeTest {
+public class IndexQueryParserFilterDateRangeFormatTests extends ESSingleNodeTestCase {
 
     private Injector injector;
     private IndexQueryParserService queryParser;

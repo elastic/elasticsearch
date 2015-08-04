@@ -24,7 +24,7 @@ import org.elasticsearch.index.query.functionscore.random.RandomScoreFunctionBui
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.CoreMatchers;
 import org.junit.Ignore;
 
@@ -51,7 +51,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.nullValue;
 
-public class RandomScoreFunctionIT extends ElasticsearchIntegrationTest {
+public class RandomScoreFunctionIT extends ESIntegTestCase {
 
     public void testConsistentHitsWithSameSeed() throws Exception {
         createIndex("test");
@@ -265,7 +265,6 @@ public class RandomScoreFunctionIT extends ElasticsearchIntegrationTest {
             .execute().actionGet());
     }
 
-    @Ignore
     public void checkDistribution() throws Exception {
         int count = 10000;
 

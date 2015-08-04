@@ -28,11 +28,11 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
-import org.elasticsearch.test.ElasticsearchSingleNodeTest;
+import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import static org.hamcrest.Matchers.*;
 
-public class SizeMappingTests extends ElasticsearchSingleNodeTest {
+public class SizeMappingTests extends ESSingleNodeTestCase {
     
     public void testSizeEnabled() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")

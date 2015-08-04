@@ -23,14 +23,14 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.metrics.sum.Sum;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 
 /**
  * {@link SearchType#COUNT} is deprecated but let's make sure it still works as expected.
  */
-public class CountSearchIT extends ElasticsearchIntegrationTest {
+public class CountSearchIT extends ESIntegTestCase {
 
     public void testDuelCountQueryThenFetch() throws Exception {
         createIndex("idx");

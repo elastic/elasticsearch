@@ -20,7 +20,7 @@
 package org.elasticsearch.watcher;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Test;
 
@@ -30,7 +30,7 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-public class ResourceWatcherServiceTests extends ElasticsearchTestCase {
+public class ResourceWatcherServiceTests extends ESTestCase {
 
     @Test
     public void testSettings() throws Exception {

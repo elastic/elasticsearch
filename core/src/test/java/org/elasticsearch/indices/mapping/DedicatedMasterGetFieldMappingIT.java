@@ -23,8 +23,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.junit.Before;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
+import static org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import static org.elasticsearch.test.ESIntegTestCase.Scope;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class DedicatedMasterGetFieldMappingIT extends SimpleGetFieldMappingsIT {

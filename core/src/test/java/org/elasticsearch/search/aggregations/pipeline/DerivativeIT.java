@@ -34,7 +34,7 @@ import org.elasticsearch.search.aggregations.metrics.sum.Sum;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.derivative.Derivative;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
@@ -56,8 +56,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.core.IsNull.notNullValue;
 import static org.hamcrest.core.IsNull.nullValue;
 
-@ElasticsearchIntegrationTest.SuiteScopeTest
-public class DerivativeIT extends ElasticsearchIntegrationTest {
+@ESIntegTestCase.SuiteScopeTestCase
+public class DerivativeIT extends ESIntegTestCase {
 
     private static final String SINGLE_VALUED_FIELD_NAME = "l_value";
 

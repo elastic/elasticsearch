@@ -49,7 +49,7 @@ import static org.hamcrest.CoreMatchers.is;
 
 /**
  */
-public abstract class ElasticsearchAllocationTestCase extends ElasticsearchTestCase {
+public abstract class ESAllocationTestCase extends ESTestCase {
 
     public static AllocationService createAllocationService() {
         return createAllocationService(Settings.Builder.EMPTY_SETTINGS);

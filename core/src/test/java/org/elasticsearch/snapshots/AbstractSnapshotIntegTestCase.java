@@ -19,20 +19,22 @@
 package org.elasticsearch.snapshots;
 
 import com.google.common.base.Predicate;
-
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
-import org.elasticsearch.cluster.*;
-import org.elasticsearch.cluster.metadata.SnapshotId;
+import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.SnapshotsInProgress;
+import org.elasticsearch.cluster.metadata.SnapshotId;
 import org.elasticsearch.cluster.service.PendingClusterTask;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.junit.Ignore;
+import org.elasticsearch.test.ESIntegTestCase;
 
 import java.io.IOException;
 import java.nio.file.FileVisitResult;
@@ -48,10 +50,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
-/**
- */
-@Ignore
-public abstract class AbstractSnapshotIT extends ElasticsearchIntegrationTest {
+public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
 
     public static long getFailureCount(String repository) {
         long failureCount = 0;

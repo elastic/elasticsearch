@@ -26,7 +26,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.MergeResult;
-import org.elasticsearch.test.ElasticsearchSingleNodeTest;
+import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -38,7 +38,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  * Test for {@link TokenCountFieldMapper}.
  */
-public class TokenCountFieldMapperTests extends ElasticsearchSingleNodeTest {
+public class TokenCountFieldMapperTests extends ESSingleNodeTestCase {
     @Test
     public void testMerge() throws IOException {
         String stage1Mapping = XContentFactory.jsonBuilder().startObject()

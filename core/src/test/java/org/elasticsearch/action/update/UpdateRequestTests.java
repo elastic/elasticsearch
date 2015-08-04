@@ -28,7 +28,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService.ScriptType;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import java.util.Map;
@@ -38,7 +38,7 @@ import static org.hamcrest.Matchers.*;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
-public class UpdateRequestTests extends ElasticsearchTestCase {
+public class UpdateRequestTests extends ESTestCase {
 
     @Test
     public void testUpdateRequest() throws Exception {

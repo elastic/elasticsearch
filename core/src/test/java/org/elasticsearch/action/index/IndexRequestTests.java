@@ -18,13 +18,13 @@
  */
 package org.elasticsearch.action.index;
 
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
   */
-public class IndexRequestTests extends ElasticsearchTestCase {
+public class IndexRequestTests extends ESTestCase {
 
     @Test
     public void testIndexRequestOpTypeFromString() throws Exception {

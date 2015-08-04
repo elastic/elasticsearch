@@ -25,7 +25,7 @@ import org.apache.lucene.analysis.en.PorterStemFilter;
 import org.apache.lucene.analysis.snowball.SnowballFilter;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ElasticsearchTokenStreamTestCase;
+import org.elasticsearch.test.ESTokenStreamTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.junit.Test;
 
@@ -39,7 +39,7 @@ import static org.hamcrest.Matchers.instanceOf;
 /**
  *
  */
-public class StemmerTokenFilterFactoryTests extends ElasticsearchTokenStreamTestCase {
+public class StemmerTokenFilterFactoryTests extends ESTokenStreamTestCase {
 
     @Test
     public void testEnglishBackwardsCompatibility() throws IOException {

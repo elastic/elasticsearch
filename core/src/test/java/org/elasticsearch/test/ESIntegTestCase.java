@@ -146,7 +146,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.*;
 
 /**
- * {@link ElasticsearchIntegrationTest} is an abstract base class to run integration
+ * {@link ESIntegTestCase} is an abstract base class to run integration
  * tests against a JVM private Elasticsearch Cluster. The test class supports 2 different
  * cluster scopes.
  * <ul>
@@ -161,7 +161,7 @@ import static org.hamcrest.Matchers.*;
  * should be used, here is an example:
  * <pre>
  *
- * @ClusterScope(scope=Scope.TEST) public class SomeIntegrationTest extends ElasticsearchIntegrationTest {
+ * @ClusterScope(scope=Scope.TEST) public class SomeIntegrationTest extends ESIntegTestCase {
  * @Test public void testMethod() {}
  * }
  * </pre>
@@ -174,12 +174,12 @@ import static org.hamcrest.Matchers.*;
  * <p/>
  *  <pre>
  * @ClusterScope(scope=Scope.SUITE, numDataNodes=3)
- * public class SomeIntegrationTest extends ElasticsearchIntegrationTest {
+ * public class SomeIntegrationTest extends ESIntegTestCase {
  * @Test public void testMethod() {}
  * }
  * </pre>
  * <p/>
- * Note, the {@link ElasticsearchIntegrationTest} uses randomized settings on a cluster and index level. For instance
+ * Note, the {@link ESIntegTestCase} uses randomized settings on a cluster and index level. For instance
  * each test might use different directory implementation for each test or will return a random client to one of the
  * nodes in the cluster for each call to {@link #client()}. Test failures might only be reproducible if the correct
  * system properties are passed to the test execution environment.
@@ -194,9 +194,8 @@ import static org.hamcrest.Matchers.*;
  * </ul>
  * </p>
  */
-@Ignore
 @LuceneTestCase.SuppressFileSystems("ExtrasFS") // doesn't work with potential multi data path from test cluster yet
-public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase {
+public abstract class ESIntegTestCase extends ESTestCase {
 
     /**
      * Property that controls whether ThirdParty Integration tests are run (not the default).
@@ -214,7 +213,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
     @Inherited
     @Retention(RetentionPolicy.RUNTIME)
     @Target(ElementType.TYPE)
-    @TestGroup(enabled = false, sysProperty = ElasticsearchIntegrationTest.SYSPROP_THIRDPARTY)
+    @TestGroup(enabled = false, sysProperty = ESIntegTestCase.SYSPROP_THIRDPARTY)
     public @interface ThirdParty {
     }
 
@@ -279,7 +278,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
 
     private static final Map<Class<?>, TestCluster> clusters = new IdentityHashMap<>();
 
-    private static ElasticsearchIntegrationTest INSTANCE = null; // see @SuiteScope
+    private static ESIntegTestCase INSTANCE = null; // see @SuiteScope
     private static Long SUITE_SEED = null;
 
     @BeforeClass
@@ -309,7 +308,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
             printTestMessage("before");
         } catch (OutOfMemoryError e) {
             if (e.getMessage().contains("unable to create new native thread")) {
-                ElasticsearchTestCase.printStackDump(logger);
+                ESTestCase.printStackDump(logger);
             }
             throw e;
         }
@@ -1446,7 +1445,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
 
     /**
      * The scope of a test cluster used together with
-     * {@link org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope} annotations on {@link org.elasticsearch.test.ElasticsearchIntegrationTest} subclasses.
+     * {@link ESIntegTestCase.ClusterScope} annotations on {@link ESIntegTestCase} subclasses.
      */
     public enum Scope {
         /**
@@ -1460,15 +1459,15 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
     }
 
     /**
-     * Defines a cluster scope for a {@link org.elasticsearch.test.ElasticsearchIntegrationTest} subclass.
-     * By default if no {@link ClusterScope} annotation is present {@link org.elasticsearch.test.ElasticsearchIntegrationTest.Scope#SUITE} is used
+     * Defines a cluster scope for a {@link ESIntegTestCase} subclass.
+     * By default if no {@link ClusterScope} annotation is present {@link ESIntegTestCase.Scope#SUITE} is used
      * together with randomly chosen settings like number of nodes etc.
      */
     @Retention(RetentionPolicy.RUNTIME)
     @Target({ElementType.TYPE})
     public @interface ClusterScope {
         /**
-         * Returns the scope. {@link org.elasticsearch.test.ElasticsearchIntegrationTest.Scope#SUITE} is default.
+         * Returns the scope. {@link ESIntegTestCase.Scope#SUITE} is default.
          */
         Scope scope() default Scope.SUITE;
 
@@ -1563,7 +1562,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
     }
 
     private static ClusterScope getAnnotation(Class<?> clazz) {
-        if (clazz == Object.class || clazz == ElasticsearchIntegrationTest.class) {
+        if (clazz == Object.class || clazz == ESIntegTestCase.class) {
             return null;
         }
         ClusterScope annotation = clazz.getAnnotation(ClusterScope.class);
@@ -1911,7 +1910,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         assert INSTANCE == null;
         if (isSuiteScopedTest(targetClass)) {
             // note we need to do this this way to make sure this is reproducible
-            INSTANCE = (ElasticsearchIntegrationTest) targetClass.newInstance();
+            INSTANCE = (ESIntegTestCase) targetClass.newInstance();
             boolean success = false;
             try {
                 INSTANCE.beforeInternal();
@@ -1989,27 +1988,26 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
     }
 
     /**
-     * This method is executed iff the test is annotated with {@link SuiteScopeTest}
+     * This method is executed iff the test is annotated with {@link SuiteScopeTestCase}
      * before the first test of this class is executed.
      *
-     * @see SuiteScopeTest
+     * @see SuiteScopeTestCase
      */
     protected void setupSuiteScopeCluster() throws Exception {
     }
 
     private static boolean isSuiteScopedTest(Class<?> clazz) {
-        return clazz.getAnnotation(SuiteScopeTest.class) != null;
+        return clazz.getAnnotation(SuiteScopeTestCase.class) != null;
     }
 
     /**
-     * If a test is annotated with {@link org.elasticsearch.test.ElasticsearchIntegrationTest.SuiteScopeTest}
+     * If a test is annotated with {@link SuiteScopeTestCase}
      * the checks and modifications that are applied to the used test cluster are only done after all tests
      * of this class are executed. This also has the side-effect of a suite level setup method {@link #setupSuiteScopeCluster()}
      * that is executed in a separate test instance. Variables that need to be accessible across test instances must be static.
      */
     @Retention(RetentionPolicy.RUNTIME)
     @Inherited
-    @Ignore
-    public @interface SuiteScopeTest {
+    public @interface SuiteScopeTestCase {
     }
 }

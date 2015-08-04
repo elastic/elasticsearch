@@ -33,8 +33,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.MergePolicyConfig;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.junit.Test;
+import org.elasticsearch.test.ESIntegTestCase;
 
 import java.io.IOException;
 
@@ -43,7 +42,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
-public class ParentFieldLoadingIT extends ElasticsearchIntegrationTest {
+public class ParentFieldLoadingIT extends ESIntegTestCase {
 
     private final Settings indexSettings = Settings.builder()
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)

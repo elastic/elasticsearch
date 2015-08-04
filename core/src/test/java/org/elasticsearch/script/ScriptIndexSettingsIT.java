@@ -27,11 +27,11 @@ import org.elasticsearch.action.indexedscripts.get.GetIndexedScriptResponse;
 import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
-@ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST)
-public class ScriptIndexSettingsIT extends ElasticsearchIntegrationTest{
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
+public class ScriptIndexSettingsIT extends ESIntegTestCase {
 
 
     @Test

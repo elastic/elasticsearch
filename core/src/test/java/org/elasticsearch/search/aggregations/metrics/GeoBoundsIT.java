@@ -36,7 +36,7 @@ import org.elasticsearch.search.aggregations.metrics.geobounds.GeoBounds;
 import org.elasticsearch.search.aggregations.metrics.geobounds.GeoBoundsAggregator;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -59,8 +59,8 @@ import static org.hamcrest.Matchers.sameInstance;
 /**
  *
  */
-@ElasticsearchIntegrationTest.SuiteScopeTest
-public class GeoBoundsIT extends ElasticsearchIntegrationTest {
+@ESIntegTestCase.SuiteScopeTestCase
+public class GeoBoundsIT extends ESIntegTestCase {
 
     private static final String SINGLE_VALUED_FIELD_NAME = "geo_value";
     private static final String MULTI_VALUED_FIELD_NAME = "geo_values";

@@ -27,7 +27,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 
 import java.io.BufferedReader;
@@ -35,7 +35,7 @@ import java.io.InputStreamReader;
 import java.nio.file.Path;
 import java.util.Arrays;
 
-public class RoutingBackwardCompatibilityTests extends ElasticsearchTestCase {
+public class RoutingBackwardCompatibilityTests extends ESTestCase {
 
     public void testBackwardCompatibility() throws Exception {
         Path baseDir = createTempDir();

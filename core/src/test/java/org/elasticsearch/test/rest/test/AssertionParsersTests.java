@@ -28,7 +28,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.*;
 
-public class AssertionParsersTests extends AbstractParserTests {
+public class AssertionParsersTests extends AbstractParserTestCase {
 
     @Test
     public void testParseIsTrue() throws Exception {

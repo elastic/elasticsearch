@@ -25,7 +25,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.script.groovy.GroovyScriptEngineService;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
 import java.util.List;
@@ -45,7 +45,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  * Various tests for Groovy scripting
  */
-public class GroovyScriptIT extends ElasticsearchIntegrationTest {
+public class GroovyScriptIT extends ESIntegTestCase {
 
     @Test
     public void testGroovyBigDecimalTransformation() {

@@ -23,7 +23,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.mustache.MustacheScriptEngineService;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -36,8 +36,8 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 //Use Suite scope so that paths get set correctly
-@ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.SUITE)
-public class OnDiskScriptIT extends ElasticsearchIntegrationTest {
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE)
+public class OnDiskScriptIT extends ESIntegTestCase {
 
     @Override
     public Settings nodeSettings(int nodeOrdinal) {

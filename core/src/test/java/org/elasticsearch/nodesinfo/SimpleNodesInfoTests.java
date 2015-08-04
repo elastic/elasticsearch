@@ -19,26 +19,17 @@
 
 package org.elasticsearch.nodesinfo;
 
-import com.google.common.collect.Lists;
-
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.nodesinfo.plugin.dummy1.TestPlugin;
-import org.elasticsearch.nodesinfo.plugin.dummy2.TestNoVersionPlugin;
 import org.elasticsearch.plugins.PluginTestCase;
-import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.junit.Test;
 
-import java.net.URISyntaxException;
-import java.util.Collections;
 import java.util.List;
 
-import static org.elasticsearch.client.Requests.clusterHealthRequest;
 import static org.elasticsearch.client.Requests.nodesInfoRequest;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
+import static org.elasticsearch.test.ESIntegTestCase.Scope;
 import static org.hamcrest.Matchers.*;
 
 /**

@@ -27,7 +27,7 @@ import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.node.settings.NodeSettingsService;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.cache.recycler.MockBigArrays;
 import org.elasticsearch.test.cache.recycler.MockPageCacheRecycler;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -47,7 +47,7 @@ import static org.hamcrest.Matchers.is;
  * This test checks, if a HTTP look-alike request (starting with a HTTP method and a space)
  * actually returns text response instead of just dropping the connection
  */
-public class NettySizeHeaderFrameDecoderTests extends ElasticsearchTestCase {
+public class NettySizeHeaderFrameDecoderTests extends ESTestCase {
 
     private final Settings settings = settingsBuilder().put("name", "foo").put("transport.host", "127.0.0.1").build();
 

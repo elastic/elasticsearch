@@ -22,14 +22,14 @@ package org.elasticsearch.exists;
 import org.elasticsearch.action.exists.ExistsResponse;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertExists;
 
-public class SimpleExistsIT extends ElasticsearchIntegrationTest {
+public class SimpleExistsIT extends ESIntegTestCase {
 
 
     @Test

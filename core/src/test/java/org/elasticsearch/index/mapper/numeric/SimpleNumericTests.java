@@ -38,7 +38,7 @@ import org.elasticsearch.index.mapper.core.LongFieldMapper;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.index.mapper.string.SimpleStringMappingTests;
-import org.elasticsearch.test.ElasticsearchSingleNodeTest;
+import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -51,7 +51,7 @@ import static org.hamcrest.Matchers.nullValue;
 
 /**
  */
-public class SimpleNumericTests extends ElasticsearchSingleNodeTest {
+public class SimpleNumericTests extends ESSingleNodeTestCase {
 
     @Test
     public void testNumericDetectionEnabled() throws Exception {

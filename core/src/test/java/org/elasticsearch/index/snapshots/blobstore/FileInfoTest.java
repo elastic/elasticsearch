@@ -24,7 +24,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.index.store.StoreFileMetaData;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo.Fields;
 import org.junit.Test;
 
@@ -36,7 +36,7 @@ import static org.hamcrest.Matchers.is;
 
 /**
  */
-public class FileInfoTest extends ElasticsearchTestCase {
+public class FileInfoTest extends ESTestCase {
 
     @Test
     public void testToFromXContent() throws IOException {

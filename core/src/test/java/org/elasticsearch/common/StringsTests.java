@@ -19,10 +19,10 @@
 
 package org.elasticsearch.common;
 
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
-public class StringsTests extends ElasticsearchTestCase {
+public class StringsTests extends ESTestCase {
 
     @Test
     public void testToCamelCase() {

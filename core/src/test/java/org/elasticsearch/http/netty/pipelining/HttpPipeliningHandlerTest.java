@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.http.netty.pipelining;
 
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.jboss.netty.bootstrap.ClientBootstrap;
 import org.jboss.netty.bootstrap.ServerBootstrap;
 import org.jboss.netty.channel.*;
@@ -36,7 +36,6 @@ import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
@@ -52,7 +51,7 @@ import static org.jboss.netty.util.CharsetUtil.UTF_8;
 /**
  *
  */
-public class HttpPipeliningHandlerTest extends ElasticsearchTestCase {
+public class HttpPipeliningHandlerTest extends ESTestCase {
 
     private static final long RESPONSE_TIMEOUT = 10000L;
     private static final long CONNECTION_TIMEOUT = 10000L;

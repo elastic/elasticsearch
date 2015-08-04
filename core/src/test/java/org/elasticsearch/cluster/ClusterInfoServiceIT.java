@@ -36,7 +36,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.plugins.AbstractPlugin;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.*;
@@ -61,8 +61,8 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 /**
  * Integration tests for the ClusterInfoService collecting information
  */
-@ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST, numDataNodes = 0)
-public class ClusterInfoServiceIT extends ElasticsearchIntegrationTest {
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
+public class ClusterInfoServiceIT extends ESIntegTestCase {
 
     public static class Plugin extends AbstractPlugin {
 

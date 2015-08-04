@@ -22,12 +22,12 @@ package org.elasticsearch.index.mapper.boost;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.test.ElasticsearchSingleNodeTest;
+import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.junit.Test;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class CustomBoostMappingTests extends ElasticsearchSingleNodeTest {
+public class CustomBoostMappingTests extends ESSingleNodeTestCase {
 
     @Test
     public void testCustomBoostValues() throws Exception {

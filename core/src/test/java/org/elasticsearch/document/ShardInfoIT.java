@@ -31,7 +31,7 @@ import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -39,7 +39,7 @@ import static org.hamcrest.Matchers.*;
 
 /**
  */
-public class ShardInfoIT extends ElasticsearchIntegrationTest {
+public class ShardInfoIT extends ESIntegTestCase {
 
     private int numCopies;
     private int numNodes;

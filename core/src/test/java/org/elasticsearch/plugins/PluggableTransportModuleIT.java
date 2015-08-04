@@ -22,7 +22,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.AssertingLocalTransport;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
@@ -32,15 +32,15 @@ import java.io.IOException;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
+import static org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import static org.elasticsearch.test.ESIntegTestCase.Scope;
 import static org.hamcrest.Matchers.*;
 
 /**
  *
  */
 @ClusterScope(scope = Scope.SUITE, numDataNodes = 2)
-public class PluggableTransportModuleIT extends ElasticsearchIntegrationTest {
+public class PluggableTransportModuleIT extends ESIntegTestCase {
 
     public static final AtomicInteger SENT_REQUEST_COUNTER = new AtomicInteger(0);
 

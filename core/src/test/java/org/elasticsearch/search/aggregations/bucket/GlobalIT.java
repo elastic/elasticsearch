@@ -27,7 +27,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.metrics.stats.Stats;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -42,8 +42,8 @@ import static org.hamcrest.core.IsNull.notNullValue;
 /**
  *
  */
-@ElasticsearchIntegrationTest.SuiteScopeTest
-public class GlobalIT extends ElasticsearchIntegrationTest {
+@ESIntegTestCase.SuiteScopeTestCase
+public class GlobalIT extends ESIntegTestCase {
 
     static int numDocs;
 

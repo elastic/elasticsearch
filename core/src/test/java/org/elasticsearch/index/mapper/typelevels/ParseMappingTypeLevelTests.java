@@ -22,13 +22,13 @@ package org.elasticsearch.index.mapper.typelevels;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
-import org.elasticsearch.test.ElasticsearchSingleNodeTest;
+import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.junit.Test;
 
 import static org.hamcrest.Matchers.equalTo;
 
 // TODO: move this test...it doesn't need to be by itself
-public class ParseMappingTypeLevelTests extends ElasticsearchSingleNodeTest {
+public class ParseMappingTypeLevelTests extends ESSingleNodeTestCase {
 
     @Test
     public void testTypeLevel() throws Exception {

@@ -46,7 +46,6 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
@@ -59,7 +58,7 @@ import org.elasticsearch.index.mapper.internal.FieldNamesFieldMapper;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.test.ElasticsearchBackwardsCompatIntegrationTest;
+import org.elasticsearch.test.ESBackcompatTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -76,7 +75,7 @@ import static org.hamcrest.Matchers.*;
 
 /**
  */
-public class BasicBackwardsCompatibilityIT extends ElasticsearchBackwardsCompatIntegrationTest {
+public class BasicBackwardsCompatibilityIT extends ESBackcompatTestCase {
 
     /**
      * Basic test using Index & Realtime Get with external versioning. This test ensures routing works correctly across versions.

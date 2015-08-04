@@ -27,18 +27,18 @@ import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocation
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.junit.Test;
 
 import java.util.List;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.*;
+import static org.elasticsearch.test.ESIntegTestCase.*;
 import static org.hamcrest.Matchers.equalTo;
 
 @ClusterScope(scope= Scope.TEST, numDataNodes =0)
-public class FilteringAllocationIT extends ElasticsearchIntegrationTest {
+public class FilteringAllocationIT extends ESIntegTestCase {
 
     private final ESLogger logger = Loggers.getLogger(FilteringAllocationIT.class);
 

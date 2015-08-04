@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.test.rest.test;
 
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.Stash;
 import org.elasticsearch.test.rest.json.JsonPath;
 import org.junit.Test;
@@ -29,7 +29,7 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.*;
 
-public class JsonPathTests extends ElasticsearchTestCase {
+public class JsonPathTests extends ESTestCase {
 
     @Test
     public void testEvaluateObjectPathEscape() throws Exception {

@@ -23,7 +23,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import java.util.Arrays;
@@ -31,7 +31,7 @@ import java.util.Arrays;
 import static com.google.common.collect.Sets.newHashSet;
 import static org.hamcrest.Matchers.equalTo;
 
-public class WildcardExpressionResolverTests extends ElasticsearchTestCase {
+public class WildcardExpressionResolverTests extends ESTestCase {
 
     @Test
     public void testConvertWildcardsJustIndicesTests() {

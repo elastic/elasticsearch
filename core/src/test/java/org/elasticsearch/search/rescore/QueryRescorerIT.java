@@ -39,7 +39,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.rescore.RescoreBuilder.QueryRescorer;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
 import java.util.Arrays;
@@ -65,7 +65,7 @@ import static org.hamcrest.Matchers.notNullValue;
 /**
  *
  */
-public class QueryRescorerIT extends ElasticsearchIntegrationTest {
+public class QueryRescorerIT extends ESIntegTestCase {
 
     @Test
     public void testEnforceWindowSize() {

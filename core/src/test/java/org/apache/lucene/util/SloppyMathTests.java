@@ -21,12 +21,12 @@ package org.apache.lucene.util;
 
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.unit.DistanceUnit;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import static org.hamcrest.number.IsCloseTo.closeTo;
 
-public class SloppyMathTests extends ElasticsearchTestCase {    
+public class SloppyMathTests extends ESTestCase {
 
     @Test
     public void testAccuracy() {

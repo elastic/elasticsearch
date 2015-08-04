@@ -27,7 +27,7 @@ import org.apache.log4j.spi.LoggingEvent;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Test;
 
@@ -38,7 +38,7 @@ import java.util.List;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class Log4jESLoggerTests extends ElasticsearchTestCase {
+public class Log4jESLoggerTests extends ESTestCase {
 
     private ESLogger esTestLogger;
     private TestAppender testAppender;

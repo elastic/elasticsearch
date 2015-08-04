@@ -31,7 +31,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.MoreLikeThisQuery;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -39,7 +39,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  *
  */
-public class MoreLikeThisQueryTests extends ElasticsearchTestCase {
+public class MoreLikeThisQueryTests extends ESTestCase {
 
     @Test
     public void testSimple() throws Exception {

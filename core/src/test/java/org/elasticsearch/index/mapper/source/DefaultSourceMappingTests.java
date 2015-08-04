@@ -30,7 +30,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.*;
-import org.elasticsearch.test.ElasticsearchSingleNodeTest;
+import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -40,7 +40,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.*;
 
-public class DefaultSourceMappingTests extends ElasticsearchSingleNodeTest {
+public class DefaultSourceMappingTests extends ESSingleNodeTestCase {
 
     public void testNoFormat() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")

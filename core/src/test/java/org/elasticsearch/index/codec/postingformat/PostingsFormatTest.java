@@ -34,7 +34,7 @@ import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
 })
 @TimeoutSuite(millis = TimeUnits.HOUR)
 @LuceneTestCase.SuppressSysoutChecks(bugUrl = "we log a lot on purpose")
-public class ElasticsearchPostingsFormatTest extends BasePostingsFormatTestCase {
+public class PostingsFormatTest extends BasePostingsFormatTestCase {
 
     @Override
     protected Codec getCodec() {

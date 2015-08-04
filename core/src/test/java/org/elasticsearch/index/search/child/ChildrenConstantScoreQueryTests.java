@@ -72,7 +72,7 @@ import static org.elasticsearch.index.query.QueryBuilders.notQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.hamcrest.Matchers.equalTo;
 
-public class ChildrenConstantScoreQueryTests extends AbstractChildTests {
+public class ChildrenConstantScoreQueryTests extends AbstractChildTestCase {
 
     @BeforeClass
     public static void before() throws IOException {

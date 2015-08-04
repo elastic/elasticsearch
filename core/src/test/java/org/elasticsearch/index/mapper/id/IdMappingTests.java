@@ -32,13 +32,13 @@ import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.IdFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
-import org.elasticsearch.test.ElasticsearchSingleNodeTest;
+import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class IdMappingTests extends ElasticsearchSingleNodeTest {
+public class IdMappingTests extends ESSingleNodeTestCase {
     
     public void testId() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")

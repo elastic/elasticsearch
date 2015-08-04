@@ -19,7 +19,7 @@
 package org.elasticsearch.common.util.concurrent;
 
 import org.apache.lucene.store.AlreadyClosedException;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
@@ -33,7 +33,7 @@ import static org.hamcrest.Matchers.is;
 
 /**
  */
-public class RefCountedTest extends ElasticsearchTestCase {
+public class RefCountedTest extends ESTestCase {
 
     @Test
     public void testRefCount() throws IOException {

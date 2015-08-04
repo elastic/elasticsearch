@@ -19,7 +19,7 @@
 
 package org.elasticsearch.transport;
 
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
 import static org.hamcrest.CoreMatchers.either;
@@ -41,7 +41,7 @@ import static org.hamcrest.CoreMatchers.startsWith;
  * When an api exposes multiple transport handlers, some of which are invoked internally during the execution of the api,
  * we use the `[n]` suffix to identify node actions and the `[s]` suffix to identify shard actions.
  */
-public class ActionNamesIT extends ElasticsearchIntegrationTest {
+public class ActionNamesIT extends ESIntegTestCase {
 
     @Test
     @SuppressWarnings("unchecked")

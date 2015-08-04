@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.index.search.child;
 
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -27,7 +27,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  * Tests {@link ScoreType} to ensure backward compatibility of any changes.
  */
-public class ScoreTypeTests extends ElasticsearchTestCase {
+public class ScoreTypeTests extends ESTestCase {
     @Test
     public void minFromString() {
         assertThat("fromString(min) != MIN", ScoreType.MIN, equalTo(ScoreType.fromString("min")));

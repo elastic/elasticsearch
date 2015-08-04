@@ -29,7 +29,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
@@ -45,7 +45,7 @@ import static org.hamcrest.Matchers.sameInstance;
 
 /**
  */
-public class AsyncShardFetchTests extends ElasticsearchTestCase {
+public class AsyncShardFetchTests extends ESTestCase {
 
     private final DiscoveryNode node1 = new DiscoveryNode("node1", DummyTransportAddress.INSTANCE, Version.CURRENT);
     private final Response response1 = new Response(node1);

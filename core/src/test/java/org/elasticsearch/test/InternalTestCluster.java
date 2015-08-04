@@ -94,7 +94,6 @@ import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.node.service.NodeService;
-import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchServiceModule;
@@ -127,7 +126,7 @@ import static junit.framework.Assert.fail;
 import static org.apache.lucene.util.LuceneTestCase.*;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.node.NodeBuilder.nodeBuilder;
-import static org.elasticsearch.test.ElasticsearchTestCase.assertBusy;
+import static org.elasticsearch.test.ESTestCase.assertBusy;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
 import static org.hamcrest.Matchers.*;
 import static org.junit.Assert.assertFalse;
@@ -141,7 +140,7 @@ import static org.junit.Assert.assertThat;
  * The Cluster is bound to a test lifecycle where tests must call {@link #beforeTest(java.util.Random, double)} and
  * {@link #afterTest()} to initialize and reset the cluster in order to be more reproducible. The term "more" relates
  * to the async nature of Elasticsearch in combination with randomized testing. Once Threads and asynchronous calls
- * are involved reproducibility is very limited. This class should only be used through {@link ElasticsearchIntegrationTest}.
+ * are involved reproducibility is very limited. This class should only be used through {@link ESIntegTestCase}.
  * </p>
  */
 public final class InternalTestCluster extends TestCluster {
@@ -155,7 +154,7 @@ public final class InternalTestCluster extends TestCluster {
      * system without asserting modules that to make sure they don't hide any bugs in
      * production.
      *
-     * @see ElasticsearchIntegrationTest
+     * @see ESIntegTestCase
      */
     public static final String TESTS_ENABLE_MOCK_MODULES = "tests.enable_mock_modules";
 

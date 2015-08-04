@@ -22,9 +22,9 @@ package org.elasticsearch.discovery;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
+import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.discovery.ClusterDiscoveryConfiguration;
 import org.junit.Before;
 import org.junit.Test;
@@ -35,7 +35,7 @@ import java.util.concurrent.ExecutionException;
 import static org.hamcrest.Matchers.equalTo;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
-public class ZenUnicastDiscoveryIT extends ElasticsearchIntegrationTest {
+public class ZenUnicastDiscoveryIT extends ESIntegTestCase {
 
     private ClusterDiscoveryConfiguration discoveryConfig;
 

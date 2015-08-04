@@ -19,14 +19,14 @@
 package org.elasticsearch.common;
 
 import org.apache.commons.lang3.ArrayUtils;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import java.util.EnumSet;
 
 import static org.hamcrest.CoreMatchers.*;
 
-public class ParseFieldTests extends ElasticsearchTestCase {
+public class ParseFieldTests extends ESTestCase {
 
     @Test
     public void testParse() {

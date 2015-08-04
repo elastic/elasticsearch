@@ -41,7 +41,7 @@ import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.junit.Test;
@@ -68,7 +68,7 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-public class SearchFieldsIT extends ElasticsearchIntegrationTest {
+public class SearchFieldsIT extends ESIntegTestCase {
 
     @Test
     public void testStoredFields() throws Exception {

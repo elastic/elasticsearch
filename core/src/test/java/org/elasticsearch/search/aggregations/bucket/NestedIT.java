@@ -34,7 +34,7 @@ import org.elasticsearch.search.aggregations.bucket.terms.Terms.Bucket;
 import org.elasticsearch.search.aggregations.metrics.max.Max;
 import org.elasticsearch.search.aggregations.metrics.stats.Stats;
 import org.elasticsearch.search.aggregations.metrics.sum.Sum;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
@@ -66,8 +66,8 @@ import static org.hamcrest.core.IsNull.notNullValue;
 /**
  *
  */
-@ElasticsearchIntegrationTest.SuiteScopeTest
-public class NestedIT extends ElasticsearchIntegrationTest {
+@ESIntegTestCase.SuiteScopeTestCase
+public class NestedIT extends ESIntegTestCase {
 
     static int numParents;
     static int[] numChildren;

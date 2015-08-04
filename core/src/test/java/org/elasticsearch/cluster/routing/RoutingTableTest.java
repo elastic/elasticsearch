@@ -29,7 +29,7 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.test.ElasticsearchAllocationTestCase;
+import org.elasticsearch.test.ESAllocationTestCase;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -38,7 +38,7 @@ import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
-public class RoutingTableTest extends ElasticsearchAllocationTestCase {
+public class RoutingTableTest extends ESAllocationTestCase {
 
     private static final String TEST_INDEX_1 = "test1";
     private static final String TEST_INDEX_2 = "test2";

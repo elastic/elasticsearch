@@ -33,7 +33,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -62,7 +62,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
-public class GeoDistanceIT extends ElasticsearchIntegrationTest {
+public class GeoDistanceIT extends ESIntegTestCase {
 
     @Test
     public void simpleDistanceTests() throws Exception {

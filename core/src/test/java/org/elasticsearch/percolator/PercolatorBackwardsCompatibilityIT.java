@@ -24,7 +24,7 @@ import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.action.percolate.PercolateSourceBuilder;
 import org.elasticsearch.index.percolator.PercolatorException;
 import org.elasticsearch.index.query.QueryParsingException;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -35,7 +35,7 @@ import static org.hamcrest.Matchers.instanceOf;
 
 /**
  */
-public class PercolatorBackwardsCompatibilityIT extends ElasticsearchIntegrationTest {
+public class PercolatorBackwardsCompatibilityIT extends ESIntegTestCase {
 
     @Test
     public void testPercolatorUpgrading() throws Exception {

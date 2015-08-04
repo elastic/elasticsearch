@@ -19,13 +19,13 @@
 
 package org.elasticsearch.common.property;
 
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-public class PropertyPlaceholderTest extends ElasticsearchTestCase {
+public class PropertyPlaceholderTest extends ESTestCase {
 
     @Test
     public void testSimple() {

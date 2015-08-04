@@ -34,7 +34,7 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.fetch.innerhits.InnerHitsBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -48,7 +48,7 @@ import static org.hamcrest.Matchers.*;
 
 /**
  */
-public class InnerHitsIT extends ElasticsearchIntegrationTest {
+public class InnerHitsIT extends ESIntegTestCase {
 
     @Test
     public void testSimpleNested() throws Exception {

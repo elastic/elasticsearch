@@ -22,7 +22,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -37,7 +37,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  * Mustache based templating test
  */
-public class MustacheScriptEngineTest extends ElasticsearchTestCase {
+public class MustacheScriptEngineTest extends ESTestCase {
     private MustacheScriptEngineService qe;
     private JsonEscapingMustacheFactory escaper;
 

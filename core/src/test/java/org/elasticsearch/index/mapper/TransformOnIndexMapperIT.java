@@ -31,7 +31,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.script.groovy.GroovyScriptEngineService;
 import org.elasticsearch.search.suggest.SuggestBuilders;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -53,7 +53,7 @@ import static org.hamcrest.Matchers.not;
  * Tests for transforming the source document before indexing.
  */
 @SuppressCodecs("*") // requires custom completion format
-public class TransformOnIndexMapperIT extends ElasticsearchIntegrationTest {
+public class TransformOnIndexMapperIT extends ESIntegTestCase {
     @Test
     public void searchOnTransformed() throws Exception {
         setup(true);

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.unit;
 
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import static org.elasticsearch.common.unit.ByteSizeUnit.*;
@@ -28,7 +28,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  *
  */
-public class ByteSizeUnitTests extends ElasticsearchTestCase {
+public class ByteSizeUnitTests extends ESTestCase {
 
     @Test
     public void testBytes() {

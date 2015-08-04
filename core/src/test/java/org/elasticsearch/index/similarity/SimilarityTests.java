@@ -23,7 +23,7 @@ import org.apache.lucene.search.similarities.*;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.test.ElasticsearchSingleNodeTest;
+import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -31,7 +31,7 @@ import java.io.IOException;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 
-public class SimilarityTests extends ElasticsearchSingleNodeTest {
+public class SimilarityTests extends ESSingleNodeTestCase {
 
     @Test
     public void testResolveDefaultSimilarities() {

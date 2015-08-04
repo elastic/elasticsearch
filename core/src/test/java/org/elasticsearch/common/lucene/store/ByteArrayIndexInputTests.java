@@ -21,14 +21,14 @@ package org.elasticsearch.common.lucene.store;
 
 import com.google.common.base.Charsets;
 import org.apache.lucene.store.IndexInput;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.containsString;
 
-public class ByteArrayIndexInputTests extends ElasticsearchTestCase {
+public class ByteArrayIndexInputTests extends ESTestCase {
 
     @Test
     public void testRandomReads() throws IOException {

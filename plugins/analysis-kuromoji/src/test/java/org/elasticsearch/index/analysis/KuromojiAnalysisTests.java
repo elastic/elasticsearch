@@ -38,7 +38,7 @@ import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.indices.analysis.IndicesAnalysisModule;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 import org.elasticsearch.plugin.analysis.kuromoji.AnalysisKuromojiPlugin;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -49,7 +49,7 @@ import static org.hamcrest.Matchers.*;
 
 /**
  */
-public class KuromojiAnalysisTests extends ElasticsearchTestCase {
+public class KuromojiAnalysisTests extends ESTestCase {
 
     @Test
     public void testDefaultsKuromojiAnalysis() throws IOException {

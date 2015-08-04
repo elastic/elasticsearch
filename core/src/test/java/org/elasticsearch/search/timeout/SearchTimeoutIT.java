@@ -22,7 +22,7 @@ package org.elasticsearch.search.timeout;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
 import static org.elasticsearch.index.query.QueryBuilders.filteredQuery;
@@ -32,8 +32,8 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
-@ElasticsearchIntegrationTest.ClusterScope(scope=ElasticsearchIntegrationTest.Scope.SUITE)
-public class SearchTimeoutIT extends ElasticsearchIntegrationTest {
+@ESIntegTestCase.ClusterScope(scope= ESIntegTestCase.Scope.SUITE)
+public class SearchTimeoutIT extends ESIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {

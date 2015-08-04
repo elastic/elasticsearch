@@ -22,7 +22,7 @@ package org.elasticsearch.routing;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
 import java.util.Map;
@@ -37,7 +37,7 @@ import static org.hamcrest.Matchers.nullValue;
 /**
  *
  */
-public class AliasResolveRoutingIT extends ElasticsearchIntegrationTest {
+public class AliasResolveRoutingIT extends ESIntegTestCase {
 
     @Test
     public void testResolveIndexRouting() throws Exception {

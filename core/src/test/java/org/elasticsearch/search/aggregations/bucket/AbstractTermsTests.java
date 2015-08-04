@@ -23,14 +23,12 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregatorFactory.ExecutionMode;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.junit.Ignore;
+import org.elasticsearch.test.ESIntegTestCase;
 
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 
-@Ignore
-public abstract class AbstractTermsTests extends ElasticsearchIntegrationTest {
+public abstract class AbstractTermsTests extends ESIntegTestCase {
 
     public String randomExecutionHint() {
         return randomBoolean() ? null : randomFrom(ExecutionMode.values()).toString();

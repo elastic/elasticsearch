@@ -35,9 +35,9 @@ import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.InternalSearchHitField;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
+import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -55,7 +55,7 @@ import static org.hamcrest.Matchers.equalTo;
  *
  */
 @ClusterScope(scope = Scope.SUITE, numDataNodes = 1)
-public class FetchSubPhasePluginIT extends ElasticsearchIntegrationTest {
+public class FetchSubPhasePluginIT extends ESIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {

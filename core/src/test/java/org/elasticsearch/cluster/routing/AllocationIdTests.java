@@ -19,14 +19,14 @@
 
 package org.elasticsearch.cluster.routing;
 
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import static org.hamcrest.Matchers.*;
 
 /**
  */
-public class AllocationIdTests extends ElasticsearchTestCase {
+public class AllocationIdTests extends ESTestCase {
 
     @Test
     public void testShardToStarted() {

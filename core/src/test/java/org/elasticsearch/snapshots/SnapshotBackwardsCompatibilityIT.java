@@ -29,11 +29,10 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.test.ElasticsearchBackwardsCompatIntegrationTest;
+import org.elasticsearch.test.ESBackcompatTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -50,7 +49,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
 
-public class SnapshotBackwardsCompatibilityIT extends ElasticsearchBackwardsCompatIntegrationTest {
+public class SnapshotBackwardsCompatibilityIT extends ESBackcompatTestCase {
 
     @Test
     public void testSnapshotAndRestore() throws ExecutionException, InterruptedException, IOException {

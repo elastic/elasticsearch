@@ -22,7 +22,7 @@ package org.elasticsearch.update;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -33,7 +33,7 @@ import static org.hamcrest.Matchers.notNullValue;
 /**
  * Tests for noop updates.
  */
-public class UpdateNoopIT extends ElasticsearchIntegrationTest {
+public class UpdateNoopIT extends ESIntegTestCase {
     @Test
     public void singleField() throws Exception {
         updateAndCheckSource(1, fields("bar", "baz"));

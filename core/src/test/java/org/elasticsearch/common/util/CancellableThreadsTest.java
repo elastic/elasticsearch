@@ -19,13 +19,13 @@
 package org.elasticsearch.common.util;
 
 import org.elasticsearch.common.util.CancellableThreads.Interruptable;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
 import java.util.concurrent.CountDownLatch;
 
-public class CancellableThreadsTest extends ElasticsearchTestCase {
+public class CancellableThreadsTest extends ESTestCase {
 
     public static class CustomException extends RuntimeException {
 

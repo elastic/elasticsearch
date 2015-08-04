@@ -20,7 +20,7 @@
 package org.elasticsearch.common.unit;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.MatcherAssert;
 import org.junit.Test;
 
@@ -30,7 +30,7 @@ import static org.hamcrest.Matchers.is;
 /**
  *
  */
-public class ByteSizeValueTests extends ElasticsearchTestCase {
+public class ByteSizeValueTests extends ESTestCase {
 
     @Test
     public void testActualPeta() {

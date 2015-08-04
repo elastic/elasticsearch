@@ -18,23 +18,14 @@
  */
 package org.elasticsearch.index.shard;
 
-import org.apache.lucene.index.LogByteSizeMergePolicy;
-import org.apache.lucene.index.LogDocMergePolicy;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.TieredMergePolicy;
-import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.RAMDirectory;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.settings.IndexSettingsService;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.MergePolicyConfig;
-import org.elasticsearch.index.store.DirectoryService;
-import org.elasticsearch.index.store.Store;
-import org.elasticsearch.test.DummyShardLock;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -42,7 +33,7 @@ import java.io.IOException;
 import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 import static org.hamcrest.Matchers.equalTo;
 
-public class MergePolicySettingsTest extends ElasticsearchTestCase {
+public class MergePolicySettingsTest extends ESTestCase {
 
     protected final ShardId shardId = new ShardId(new Index("index"), 1);
 

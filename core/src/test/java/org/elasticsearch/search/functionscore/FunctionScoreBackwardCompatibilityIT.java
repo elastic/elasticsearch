@@ -20,11 +20,10 @@ package org.elasticsearch.search.functionscore;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.test.ElasticsearchBackwardsCompatIntegrationTest;
+import org.elasticsearch.test.ESBackcompatTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -42,7 +41,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 
 /**
  */
-public class FunctionScoreBackwardCompatibilityIT extends ElasticsearchBackwardsCompatIntegrationTest {
+public class FunctionScoreBackwardCompatibilityIT extends ESBackcompatTestCase {
 
     /**
      * Simple upgrade test for function score

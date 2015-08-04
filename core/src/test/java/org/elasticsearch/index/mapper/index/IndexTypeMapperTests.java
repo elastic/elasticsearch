@@ -27,11 +27,11 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.internal.IndexFieldMapper;
-import org.elasticsearch.test.ElasticsearchSingleNodeTest;
+import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import static org.hamcrest.Matchers.*;
 
-public class IndexTypeMapperTests extends ElasticsearchSingleNodeTest {
+public class IndexTypeMapperTests extends ESSingleNodeTestCase {
     private Settings bwcSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
     
     public void testSimpleIndexMapperEnabledBackcompat() throws Exception {

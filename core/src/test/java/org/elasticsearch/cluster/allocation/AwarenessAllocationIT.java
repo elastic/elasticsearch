@@ -31,8 +31,8 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.junit.Test;
 
 import java.util.List;
@@ -44,8 +44,8 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
-@ClusterScope(scope= ElasticsearchIntegrationTest.Scope.TEST, numDataNodes =0, minNumDataNodes = 2)
-public class AwarenessAllocationIT extends ElasticsearchIntegrationTest {
+@ClusterScope(scope= ESIntegTestCase.Scope.TEST, numDataNodes =0, minNumDataNodes = 2)
+public class AwarenessAllocationIT extends ESIntegTestCase {
 
     private final ESLogger logger = Loggers.getLogger(AwarenessAllocationIT.class);
 

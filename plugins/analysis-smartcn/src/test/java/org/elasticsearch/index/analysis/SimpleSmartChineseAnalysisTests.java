@@ -32,7 +32,7 @@ import org.elasticsearch.index.IndexNameModule;
 import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.indices.analysis.IndicesAnalysisModule;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.MatcherAssert;
 import org.junit.Test;
 
@@ -42,7 +42,7 @@ import static org.hamcrest.Matchers.instanceOf;
 
 /**
  */
-public class SimpleSmartChineseAnalysisTests extends ElasticsearchTestCase {
+public class SimpleSmartChineseAnalysisTests extends ESTestCase {
 
     @Test
     public void testDefaultsIcuAnalysis() {

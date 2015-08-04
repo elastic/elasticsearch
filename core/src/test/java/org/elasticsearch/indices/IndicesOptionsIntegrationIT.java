@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.indices;
 
-import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequestBuilder;
@@ -55,7 +54,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.suggest.SuggestBuilders;
 import org.elasticsearch.search.warmer.IndexWarmersMetaData;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
 import static org.elasticsearch.action.percolate.PercolateSourceBuilder.docBuilder;
@@ -64,7 +63,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.*;
 
-public class IndicesOptionsIntegrationIT extends ElasticsearchIntegrationTest {
+public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
 
     @Test
     public void testSpecifiedIndexUnavailable_multipleIndices() throws Exception {

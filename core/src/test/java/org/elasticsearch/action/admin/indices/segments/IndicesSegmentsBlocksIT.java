@@ -19,8 +19,8 @@
 
 package org.elasticsearch.action.admin.indices.segments;
 
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.junit.Test;
 
 import java.util.Arrays;
@@ -29,8 +29,8 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 
-@ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST)
-public class IndicesSegmentsBlocksIT extends ElasticsearchIntegrationTest {
+@ClusterScope(scope = ESIntegTestCase.Scope.TEST)
+public class IndicesSegmentsBlocksIT extends ESIntegTestCase {
 
     @Test
     public void testIndicesSegmentsWithBlocks() {

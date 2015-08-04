@@ -22,7 +22,7 @@ package org.elasticsearch.common.unit;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.joda.time.PeriodType;
 import org.junit.Test;
 
@@ -32,7 +32,7 @@ import java.util.concurrent.TimeUnit;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
 
-public class TimeValueTests extends ElasticsearchTestCase {
+public class TimeValueTests extends ESTestCase {
 
     public void testSimple() {
         assertThat(TimeUnit.MILLISECONDS.toMillis(10), equalTo(new TimeValue(10, TimeUnit.MILLISECONDS).millis()));

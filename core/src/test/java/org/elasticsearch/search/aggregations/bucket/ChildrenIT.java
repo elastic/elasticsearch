@@ -29,7 +29,7 @@ import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.metrics.sum.Sum;
 import org.elasticsearch.search.aggregations.metrics.tophits.TopHits;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -48,8 +48,8 @@ import static org.hamcrest.Matchers.*;
 
 /**
  */
-@ElasticsearchIntegrationTest.SuiteScopeTest
-public class ChildrenIT extends ElasticsearchIntegrationTest {
+@ESIntegTestCase.SuiteScopeTestCase
+public class ChildrenIT extends ESIntegTestCase {
 
     private final static Map<String, Control> categoryToControl = new HashMap<>();
 

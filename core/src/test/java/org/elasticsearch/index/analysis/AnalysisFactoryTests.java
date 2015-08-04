@@ -21,7 +21,7 @@ package org.elasticsearch.index.analysis;
 
 import org.elasticsearch.index.analysis.compound.DictionaryCompoundWordTokenFilterFactory;
 import org.elasticsearch.index.analysis.compound.HyphenationCompoundWordTokenFilterFactory;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -33,7 +33,7 @@ import java.util.TreeSet;
  * <p>
  * If we don't want to expose one for a specific reason, just map it to Void
  */
-public class AnalysisFactoryTests extends ElasticsearchTestCase {
+public class AnalysisFactoryTests extends ESTestCase {
     
     static final Map<String,Class<?>> KNOWN_TOKENIZERS = new HashMap<String,Class<?>>() {{
         // deprecated ones, we dont care about these

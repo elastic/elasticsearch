@@ -35,7 +35,7 @@ import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.shard.MergePolicyConfig;
 import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.store.Store;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
 import java.util.Arrays;
@@ -45,7 +45,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
-public class UpdateSettingsIT extends ElasticsearchIntegrationTest {
+public class UpdateSettingsIT extends ESIntegTestCase {
 
     @Test
     public void testOpenCloseUpdateSettings() throws Exception {
@@ -261,7 +261,7 @@ public class UpdateSettingsIT extends ElasticsearchIntegrationTest {
         assertEquals(sumThrottleTime, newSumThrottleTime);
 
         // Optimize & flush and wait; else we sometimes get a "Delete Index failed - not acked"
-        // when ElasticsearchIntegrationTest.after tries to remove indices created by the test:
+        // when ESIntegTestCase.after tries to remove indices created by the test:
 
         // Wait for merges to finish
         client().admin().indices().prepareOptimize("test").get();

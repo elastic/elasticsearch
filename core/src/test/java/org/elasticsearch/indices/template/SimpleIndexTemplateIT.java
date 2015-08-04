@@ -38,7 +38,7 @@ import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.indices.IndexTemplateAlreadyExistsException;
 import org.elasticsearch.indices.InvalidAliasNameException;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
 import java.util.Arrays;
@@ -52,7 +52,7 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-public class SimpleIndexTemplateIT extends ElasticsearchIntegrationTest {
+public class SimpleIndexTemplateIT extends ESIntegTestCase {
 
     @Test
     public void simpleIndexTemplateTests() throws Exception {

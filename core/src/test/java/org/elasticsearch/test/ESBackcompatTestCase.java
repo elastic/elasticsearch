@@ -86,10 +86,9 @@ import static org.hamcrest.Matchers.is;
  *
  */
 // the transportClientRatio is tricky here since we don't fully control the cluster nodes
-@ElasticsearchBackwardsCompatIntegrationTest.Backwards
-@ElasticsearchIntegrationTest.ClusterScope(minNumDataNodes = 0, maxNumDataNodes = 2, scope = ElasticsearchIntegrationTest.Scope.SUITE, numClientNodes = 0, transportClientRatio = 0.0)
-@Ignore
-public abstract class ElasticsearchBackwardsCompatIntegrationTest extends ElasticsearchIntegrationTest {
+@ESBackcompatTestCase.Backwards
+@ESIntegTestCase.ClusterScope(minNumDataNodes = 0, maxNumDataNodes = 2, scope = ESIntegTestCase.Scope.SUITE, numClientNodes = 0, transportClientRatio = 0.0)
+public abstract class ESBackcompatTestCase extends ESIntegTestCase {
 
     /**
      * Key used to set the path for the elasticsearch executable used to run backwards compatibility tests from
@@ -150,7 +149,7 @@ public abstract class ElasticsearchBackwardsCompatIntegrationTest extends Elasti
     }
 
     private Version compatibilityVersion(Class<?> clazz) {
-        if (clazz == Object.class || clazz == ElasticsearchIntegrationTest.class) {
+        if (clazz == Object.class || clazz == ESIntegTestCase.class) {
             return globalCompatibilityVersion();
         }
         CompatibilityVersion annotation = clazz.getAnnotation(CompatibilityVersion.class);
@@ -270,7 +269,7 @@ public abstract class ElasticsearchBackwardsCompatIntegrationTest extends Elasti
     @Inherited
     @Retention(RetentionPolicy.RUNTIME)
     @Target(ElementType.TYPE)
-    @TestGroup(enabled = false, sysProperty = ElasticsearchBackwardsCompatIntegrationTest.TESTS_BACKWARDS_COMPATIBILITY)
+    @TestGroup(enabled = false, sysProperty = ESBackcompatTestCase.TESTS_BACKWARDS_COMPATIBILITY)
     public @interface Backwards {
     }
 
@@ -280,7 +279,6 @@ public abstract class ElasticsearchBackwardsCompatIntegrationTest extends Elasti
      */
     @Retention(RetentionPolicy.RUNTIME)
     @Target({ElementType.TYPE})
-    @Ignore
     public @interface CompatibilityVersion {
         int version();
     }

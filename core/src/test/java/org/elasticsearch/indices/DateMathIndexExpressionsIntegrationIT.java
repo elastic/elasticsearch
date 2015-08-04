@@ -23,7 +23,7 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -33,7 +33,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class DateMathIndexExpressionsIntegrationIT extends ElasticsearchIntegrationTest {
+public class DateMathIndexExpressionsIntegrationIT extends ESIntegTestCase {
 
     public void testIndexNameDateMathExpressions() {
         DateTime now = new DateTime(DateTimeZone.UTC);

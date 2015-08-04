@@ -28,7 +28,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.script.Template;
 import org.elasticsearch.script.mustache.MustacheScriptEngineService;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
 import java.util.HashMap;
@@ -38,8 +38,8 @@ import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
-@ElasticsearchIntegrationTest.SuiteScopeTest
-public class RenderSearchTemplateIT extends ElasticsearchIntegrationTest {
+@ESIntegTestCase.SuiteScopeTestCase
+public class RenderSearchTemplateIT extends ESIntegTestCase {
 
     private static final String TEMPLATE_CONTENTS = "{\"size\":\"{{size}}\",\"query\":{\"match\":{\"foo\":\"{{value}}\"}},\"aggs\":{\"objects\":{\"terms\":{\"field\":\"{{value}}\",\"size\":\"{{size}}\"}}}}";
     

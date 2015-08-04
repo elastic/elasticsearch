@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.gateway;
 
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.admin.indices.recovery.ShardRecoveryResponse;
 import org.elasticsearch.action.count.CountResponse;
@@ -29,8 +28,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.indices.recovery.RecoveryState;
-import org.elasticsearch.test.ElasticsearchBackwardsCompatIntegrationTest;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESBackcompatTestCase;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
 import java.util.HashMap;
@@ -40,8 +39,8 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
-@ElasticsearchIntegrationTest.ClusterScope(numDataNodes = 0, scope = ElasticsearchIntegrationTest.Scope.TEST, numClientNodes = 0, transportClientRatio = 0.0)
-public class RecoveryBackwardsCompatibilityIT extends ElasticsearchBackwardsCompatIntegrationTest {
+@ESIntegTestCase.ClusterScope(numDataNodes = 0, scope = ESIntegTestCase.Scope.TEST, numClientNodes = 0, transportClientRatio = 0.0)
+public class RecoveryBackwardsCompatibilityIT extends ESBackcompatTestCase {
 
 
     @Override

@@ -22,13 +22,13 @@ package org.elasticsearch.common.hashing;
 import com.google.common.hash.HashCode;
 import com.google.common.hash.Hashing;
 import org.elasticsearch.common.hash.MurmurHash3;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.LongBuffer;
 
-public class MurmurHash3Tests extends ElasticsearchTestCase {
+public class MurmurHash3Tests extends ESTestCase {
 
     public void testHash128() {
         final int iters = scaledRandomIntBetween(100, 5000);

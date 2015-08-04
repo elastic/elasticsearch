@@ -19,7 +19,7 @@
 package org.elasticsearch.cluster.routing.allocation.decider;
 
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.Set;
 
@@ -32,8 +32,8 @@ import static org.hamcrest.Matchers.equalTo;
  * {@link EnableAllocationTests} this test is meant to check if the actual update of the settings
  * works as expected.
  */
-@ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST, numDataNodes = 0)
-public class EnableAllocationDeciderIT extends ElasticsearchIntegrationTest {
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
+public class EnableAllocationDeciderIT extends ESIntegTestCase {
 
     public void testEnableRebalance() throws InterruptedException {
         final String firstNode = internalCluster().startNode();

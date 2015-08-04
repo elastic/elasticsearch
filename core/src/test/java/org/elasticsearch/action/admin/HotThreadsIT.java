@@ -23,7 +23,7 @@ import org.elasticsearch.action.admin.cluster.node.hotthreads.NodeHotThreads;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsRequestBuilder;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsResponse;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
 import java.util.Map;
@@ -41,7 +41,7 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.Matchers.lessThan;
 
-public class HotThreadsIT extends ElasticsearchIntegrationTest {
+public class HotThreadsIT extends ESIntegTestCase {
 
     @Test
     public void testHotThreadsDontFail() throws ExecutionException, InterruptedException {

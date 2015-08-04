@@ -29,7 +29,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
-import org.elasticsearch.test.ElasticsearchAllocationTestCase;
+import org.elasticsearch.test.ESAllocationTestCase;
 import org.junit.Test;
 
 import java.util.*;
@@ -49,7 +49,7 @@ import static org.hamcrest.Matchers.equalTo;
  * - node is master eligible
  * for data only nodes: shard initializing on shard
  */
-public class GatewayMetaStateTests extends ElasticsearchAllocationTestCase {
+public class GatewayMetaStateTests extends ESAllocationTestCase {
 
     ClusterChangedEvent generateEvent(boolean initializing, boolean versionChanged, boolean masterEligible) {
         //ridiculous settings to make sure we don't run into uninitialized because fo default

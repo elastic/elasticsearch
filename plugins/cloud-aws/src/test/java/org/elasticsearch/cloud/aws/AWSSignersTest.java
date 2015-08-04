@@ -20,12 +20,12 @@
 package org.elasticsearch.cloud.aws;
 
 import com.amazonaws.ClientConfiguration;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import static org.hamcrest.CoreMatchers.is;
 
-public class AWSSignersTest extends ElasticsearchTestCase {
+public class AWSSignersTest extends ESTestCase {
 
     @Test
     public void testSigners() {

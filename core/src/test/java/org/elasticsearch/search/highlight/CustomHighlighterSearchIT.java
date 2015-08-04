@@ -22,9 +22,9 @@ import com.google.common.collect.Maps;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
+import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -39,7 +39,7 @@ import static org.hamcrest.Matchers.equalTo;
  *
  */
 @ClusterScope(scope = Scope.SUITE, numDataNodes = 1)
-public class CustomHighlighterSearchIT extends ElasticsearchIntegrationTest {
+public class CustomHighlighterSearchIT extends ESIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {

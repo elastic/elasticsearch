@@ -24,12 +24,12 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.search.internal.InternalSearchHits;
 import org.elasticsearch.search.internal.InternalSearchResponse;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 
-public class CountResponseTests extends ElasticsearchTestCase {
+public class CountResponseTests extends ESTestCase {
 
     @Test
     public void testFromSearchResponse() {

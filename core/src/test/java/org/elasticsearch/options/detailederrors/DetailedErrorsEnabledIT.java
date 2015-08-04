@@ -23,9 +23,9 @@ import org.apache.http.impl.client.HttpClients;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
+import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.rest.client.http.HttpDeleteWithEntity;
 import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
 import org.elasticsearch.test.rest.client.http.HttpResponse;
@@ -37,7 +37,7 @@ import static org.hamcrest.Matchers.containsString;
  * Tests that by default the error_trace parameter can be used to show stacktraces
  */
 @ClusterScope(scope = Scope.TEST, numDataNodes = 1)
-public class DetailedErrorsEnabledIT extends ElasticsearchIntegrationTest {
+public class DetailedErrorsEnabledIT extends ESIntegTestCase {
 
     // Build our cluster settings
     @Override

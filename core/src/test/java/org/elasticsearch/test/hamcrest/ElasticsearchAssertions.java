@@ -79,7 +79,7 @@ import java.nio.file.Path;
 import java.util.*;
 
 import static com.google.common.base.Predicates.isNull;
-import static org.elasticsearch.test.ElasticsearchTestCase.*;
+import static org.elasticsearch.test.ESTestCase.*;
 import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;

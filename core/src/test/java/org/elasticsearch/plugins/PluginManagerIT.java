@@ -27,8 +27,8 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.junit.annotations.Network;
 import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
 import org.elasticsearch.test.rest.client.http.HttpResponse;
@@ -55,7 +55,7 @@ import static org.elasticsearch.common.cli.CliToolTestCase.args;
 import static org.elasticsearch.common.io.FileSystemUtilsTests.assertFileContent;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.plugins.PluginInfoTests.writeProperties;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
+import static org.elasticsearch.test.ESIntegTestCase.Scope;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertDirectoryExists;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFileExists;
 import static org.hamcrest.Matchers.*;
@@ -64,7 +64,7 @@ import static org.hamcrest.Matchers.*;
 @LuceneTestCase.SuppressFileSystems("*") // TODO: clean up this test to allow extra files
 // TODO: jimfs is really broken here (throws wrong exception from detection method).
 // if its in your classpath, then do not use plugins!!!!!!
-public class PluginManagerIT extends ElasticsearchIntegrationTest {
+public class PluginManagerIT extends ESIntegTestCase {
 
     private Tuple<Settings, Environment> initialSettings;
     private CaptureOutputTerminal terminal = new CaptureOutputTerminal();

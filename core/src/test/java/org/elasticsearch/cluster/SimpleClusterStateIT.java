@@ -31,7 +31,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.hamcrest.CollectionAssertions;
 import org.junit.Before;
 import org.junit.Test;
@@ -44,7 +44,7 @@ import static org.hamcrest.Matchers.*;
  * Checking simple filtering capabilites of the cluster state
  *
  */
-public class SimpleClusterStateIT extends ElasticsearchIntegrationTest {
+public class SimpleClusterStateIT extends ESIntegTestCase {
 
     @Before
     public void indexData() throws Exception {

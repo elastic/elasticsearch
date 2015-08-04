@@ -30,7 +30,7 @@ import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.warmer.IndexWarmersMetaData.Entry;
-import org.elasticsearch.test.ElasticsearchBackwardsCompatIntegrationTest;
+import org.elasticsearch.test.ESBackcompatTestCase;
 import org.junit.Test;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -38,7 +38,7 @@ import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class GetIndexBackwardsCompatibilityIT extends ElasticsearchBackwardsCompatIntegrationTest {
+public class GetIndexBackwardsCompatibilityIT extends ESBackcompatTestCase {
 
     @Test
     public void testGetAliases() throws Exception {

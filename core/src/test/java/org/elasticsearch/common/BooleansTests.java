@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common;
 
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
@@ -28,7 +28,7 @@ import java.util.Locale;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
-public class BooleansTests extends ElasticsearchTestCase {
+public class BooleansTests extends ESTestCase {
 
     @Test
     public void testIsBoolean() {

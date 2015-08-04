@@ -25,7 +25,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
 import java.util.Random;
@@ -47,7 +47,7 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-public class ConcurrentPercolatorIT extends ElasticsearchIntegrationTest {
+public class ConcurrentPercolatorIT extends ESIntegTestCase {
 
     @Test
     public void testSimpleConcurrentPercolator() throws Exception {

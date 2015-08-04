@@ -23,7 +23,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
 import static org.elasticsearch.index.query.QueryBuilders.*;
@@ -34,7 +34,7 @@ import static org.hamcrest.Matchers.hasItemInArray;
 /**
  *
  */
-public class MatchedQueriesIT extends ElasticsearchIntegrationTest {
+public class MatchedQueriesIT extends ESIntegTestCase {
 
     @Test
     public void simpleMatchedQueryFromFilteredQuery() throws Exception {

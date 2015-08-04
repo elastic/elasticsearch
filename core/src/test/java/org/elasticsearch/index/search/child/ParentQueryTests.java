@@ -76,7 +76,7 @@ import static org.elasticsearch.index.query.QueryBuilders.hasParentQuery;
 import static org.elasticsearch.index.query.QueryBuilders.notQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 
-public class ParentQueryTests extends AbstractChildTests {
+public class ParentQueryTests extends AbstractChildTestCase {
 
     @BeforeClass
     public static void before() throws IOException {

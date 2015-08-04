@@ -21,7 +21,7 @@ package org.elasticsearch.search.aggregations.bucket;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -32,7 +32,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSear
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 
-public class DedicatedAggregationIT extends ElasticsearchIntegrationTest {
+public class DedicatedAggregationIT extends ESIntegTestCase {
 
     // https://github.com/elasticsearch/elasticsearch/issues/7240
     @Test

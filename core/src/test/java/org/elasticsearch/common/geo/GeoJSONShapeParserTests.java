@@ -32,7 +32,7 @@ import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchGeoAssertions;
 
 import java.io.IOException;
@@ -46,7 +46,7 @@ import static org.elasticsearch.common.geo.builders.ShapeBuilder.SPATIAL_CONTEXT
 /**
  * Tests for {@link GeoJSONShapeParser}
  */
-public class GeoJSONShapeParserTests extends ElasticsearchTestCase {
+public class GeoJSONShapeParserTests extends ESTestCase {
 
     private final static GeometryFactory GEOMETRY_FACTORY = SPATIAL_CONTEXT.getGeometryFactory();
 

@@ -33,7 +33,7 @@ import org.apache.lucene.util.CharsRef;
 import org.apache.lucene.util.IntsRef;
 import org.elasticsearch.search.suggest.completion.CompletionTokenStream;
 import org.elasticsearch.search.suggest.completion.CompletionTokenStream.ByteTermAttribute;
-import org.elasticsearch.test.ElasticsearchTokenStreamTestCase;
+import org.elasticsearch.test.ESTokenStreamTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -42,7 +42,7 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class CompletionTokenStreamTest extends ElasticsearchTokenStreamTestCase {
+public class CompletionTokenStreamTest extends ESTokenStreamTestCase {
 
     final XAnalyzingSuggester suggester = new XAnalyzingSuggester(new SimpleAnalyzer());
 

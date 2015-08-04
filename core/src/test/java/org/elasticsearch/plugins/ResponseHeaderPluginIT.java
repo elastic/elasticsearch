@@ -20,14 +20,14 @@ package org.elasticsearch.plugins;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.responseheader.TestResponseHeaderPlugin;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.rest.client.http.HttpResponse;
 import org.junit.Test;
 
 import static org.elasticsearch.rest.RestStatus.OK;
 import static org.elasticsearch.rest.RestStatus.UNAUTHORIZED;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
+import static org.elasticsearch.test.ESIntegTestCase.Scope;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasStatus;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -35,7 +35,7 @@ import static org.hamcrest.Matchers.equalTo;
  * Test a rest action that sets special response headers
  */
 @ClusterScope(scope = Scope.SUITE, numDataNodes = 1)
-public class ResponseHeaderPluginIT extends ElasticsearchIntegrationTest {
+public class ResponseHeaderPluginIT extends ESIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {

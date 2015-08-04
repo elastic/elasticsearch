@@ -23,9 +23,7 @@ import com.google.common.base.Function;
 import com.google.common.collect.Lists;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsInfo;
-import org.elasticsearch.plugins.PluginInfo;
-import org.elasticsearch.test.ElasticsearchTestCase;
-import org.junit.Test;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -36,7 +34,7 @@ import java.util.Properties;
 
 import static org.hamcrest.Matchers.contains;
 
-public class PluginInfoTests extends ElasticsearchTestCase {
+public class PluginInfoTests extends ESTestCase {
 
     static void writeProperties(Path pluginDir, String... stringProps) throws IOException {
         assert stringProps.length % 2 == 0;

@@ -21,13 +21,13 @@ package org.elasticsearch.search.stats;
 
 import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.search.stats.SearchStats.Stats;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import java.util.HashMap;
 import java.util.Map;
 
-public class SearchStatsUnitTests extends ElasticsearchTestCase {
+public class SearchStatsUnitTests extends ESTestCase {
 
     @Test
     // https://github.com/elasticsearch/elasticsearch/issues/7644

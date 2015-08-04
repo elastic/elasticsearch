@@ -32,7 +32,7 @@ import org.elasticsearch.search.aggregations.metrics.max.Max;
 import org.elasticsearch.search.aggregations.metrics.stats.Stats;
 import org.elasticsearch.search.aggregations.metrics.stats.extended.ExtendedStats;
 import org.elasticsearch.search.aggregations.metrics.sum.Sum;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
@@ -63,7 +63,7 @@ import static org.hamcrest.core.IsNull.notNullValue;
 /**
  *
  */
-@ElasticsearchIntegrationTest.SuiteScopeTest
+@ESIntegTestCase.SuiteScopeTestCase
 public class LongTermsTests extends AbstractTermsTests {
 
     private static final int NUM_DOCS = 5; // TODO randomize the size?

@@ -24,8 +24,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.FailedToResolveConfigException;
 import org.elasticsearch.plugin.cloud.azure.CloudAzurePlugin;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.ElasticsearchIntegrationTest.ThirdParty;
+import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESIntegTestCase.ThirdParty;
 
 /**
  * Base class for Azure tests that require credentials.
@@ -34,7 +34,7 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest.ThirdParty;
  * in order to run these tests.
  */
 @ThirdParty
-public abstract class AbstractAzureTest extends ElasticsearchIntegrationTest {
+public abstract class AbstractAzureTest extends ESIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {

@@ -21,7 +21,7 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.junit.Test;
@@ -29,7 +29,7 @@ import org.junit.Test;
 import static com.google.common.collect.Sets.newHashSet;
 import static org.elasticsearch.test.VersionUtils.randomVersion;
 
-public class HumanReadableIndexSettingsTests extends ElasticsearchTestCase {
+public class HumanReadableIndexSettingsTests extends ESTestCase {
 
     @Test
     public void testHumanReadableSettings() {

@@ -32,7 +32,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
 import java.util.Arrays;
@@ -47,7 +47,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.*;
 
-public class BulkProcessorIT extends ElasticsearchIntegrationTest {
+public class BulkProcessorIT extends ESIntegTestCase {
 
     @Test
     public void testThatBulkProcessorCountIsCorrect() throws InterruptedException {

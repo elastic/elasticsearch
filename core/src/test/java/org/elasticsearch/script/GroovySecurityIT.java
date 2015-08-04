@@ -23,7 +23,7 @@ import org.apache.lucene.util.Constants;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
 import java.nio.file.Path;
@@ -35,8 +35,8 @@ import static org.hamcrest.CoreMatchers.equalTo;
 /**
  * Tests for the Groovy security permissions
  */
-@ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST, numDataNodes = 0)
-public class GroovySecurityIT extends ElasticsearchIntegrationTest {
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
+public class GroovySecurityIT extends ESIntegTestCase {
     
     @Override
     public void setUp() throws Exception {

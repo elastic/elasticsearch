@@ -36,7 +36,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class DoSectionParserTests extends AbstractParserTests {
+public class DoSectionParserTests extends AbstractParserTestCase {
 
     @Test
     public void testParseDoSectionNoBody() throws Exception {

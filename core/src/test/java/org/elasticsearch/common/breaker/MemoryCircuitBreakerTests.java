@@ -25,7 +25,7 @@ import org.elasticsearch.indices.breaker.BreakerSettings;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.node.settings.NodeSettingsService;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -38,7 +38,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 /**
  * Tests for the Memory Aggregating Circuit Breaker
  */
-public class MemoryCircuitBreakerTests extends ElasticsearchTestCase {
+public class MemoryCircuitBreakerTests extends ESTestCase {
 
     @Test
     public void testThreadedUpdatesToBreaker() throws Exception {

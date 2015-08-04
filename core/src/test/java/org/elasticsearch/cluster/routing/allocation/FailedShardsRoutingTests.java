@@ -19,7 +19,6 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import com.google.common.collect.ImmutableList;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
@@ -32,7 +31,7 @@ import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationComman
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.test.ElasticsearchAllocationTestCase;
+import org.elasticsearch.test.ESAllocationTestCase;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -44,7 +43,7 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-public class FailedShardsRoutingTests extends ElasticsearchAllocationTestCase {
+public class FailedShardsRoutingTests extends ESAllocationTestCase {
 
     private final ESLogger logger = Loggers.getLogger(FailedShardsRoutingTests.class);
 

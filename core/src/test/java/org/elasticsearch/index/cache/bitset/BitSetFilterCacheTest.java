@@ -38,14 +38,14 @@ import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.apache.lucene.store.RAMDirectory;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
-public class BitSetFilterCacheTest extends ElasticsearchTestCase {
+public class BitSetFilterCacheTest extends ESTestCase {
 
     @Test
     public void testInvalidateEntries() throws Exception {

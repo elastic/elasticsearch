@@ -19,7 +19,7 @@
 
 package org.elasticsearch.cluster.routing;
 
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 
 /**
  * A helper that allows to create shard routing instances within tests, while not requiring to expose
@@ -68,7 +68,7 @@ public class TestShardRouting {
         switch (state) {
             case UNASSIGNED:
             case INITIALIZING:
-                return new UnassignedInfo(ElasticsearchTestCase.randomFrom(UnassignedInfo.Reason.values()), "auto generated for test");
+                return new UnassignedInfo(ESTestCase.randomFrom(UnassignedInfo.Reason.values()), "auto generated for test");
             case STARTED:
             case RELOCATING:
                 return null;

@@ -23,8 +23,8 @@ import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRe
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryResponse;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.junit.Test;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -37,8 +37,8 @@ import static org.hamcrest.Matchers.hasSize;
  *
  * The @ClusterScope TEST is needed because this class updates the cluster setting "cluster.blocks.read_only".
  */
-@ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST)
-public class RepositoryBlocksIT extends ElasticsearchIntegrationTest {
+@ClusterScope(scope = ESIntegTestCase.Scope.TEST)
+public class RepositoryBlocksIT extends ESIntegTestCase {
 
     @Test
     public void testPutRepositoryWithBlocks() {

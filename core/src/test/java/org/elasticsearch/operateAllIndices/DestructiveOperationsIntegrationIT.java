@@ -21,7 +21,7 @@ package org.elasticsearch.operateAllIndices;
 
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -29,8 +29,8 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
-@ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST)
-public class DestructiveOperationsIntegrationIT extends ElasticsearchIntegrationTest {
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
+public class DestructiveOperationsIntegrationIT extends ESIntegTestCase {
 
     @Test
     // One test for test performance, since cluster scope is test

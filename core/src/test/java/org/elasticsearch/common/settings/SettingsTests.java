@@ -22,7 +22,7 @@ package org.elasticsearch.common.settings;
 import org.elasticsearch.common.settings.bar.BarTestClass;
 import org.elasticsearch.common.settings.foo.FooTestClass;
 import org.elasticsearch.common.settings.loader.YamlSettingsLoader;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
@@ -36,7 +36,7 @@ import static org.hamcrest.Matchers.*;
 
 /**
  */
-public class SettingsTests extends ElasticsearchTestCase {
+public class SettingsTests extends ESTestCase {
 
     @Test
     public void testCamelCaseSupport() {

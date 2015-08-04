@@ -38,9 +38,9 @@ import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
+import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.junit.Test;
 
 import java.util.HashMap;
@@ -57,7 +57,7 @@ import static org.hamcrest.Matchers.lessThan;
 /**
  */
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
-public class NoMasterNodeIT extends ElasticsearchIntegrationTest {
+public class NoMasterNodeIT extends ESIntegTestCase {
 
     @Test
     public void testNoMasterActions() throws Exception {

@@ -23,7 +23,7 @@ import com.google.common.base.Charsets;
 import com.google.common.collect.Lists;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -35,7 +35,7 @@ import static org.hamcrest.Matchers.nullValue;
 /**
  *
  */
-public class CommitPointsTests extends ElasticsearchTestCase {
+public class CommitPointsTests extends ESTestCase {
 
     private final ESLogger logger = Loggers.getLogger(CommitPointsTests.class);
 

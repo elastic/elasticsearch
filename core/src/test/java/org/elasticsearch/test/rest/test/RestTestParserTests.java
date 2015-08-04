@@ -21,8 +21,7 @@ package org.elasticsearch.test.rest.test;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
-import org.elasticsearch.test.ElasticsearchTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.parser.RestTestParseException;
 import org.elasticsearch.test.rest.parser.RestTestSuiteParseContext;
 import org.elasticsearch.test.rest.parser.RestTestSuiteParser;
@@ -37,7 +36,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.*;
 
-public class RestTestParserTests extends ElasticsearchTestCase {
+public class RestTestParserTests extends ESTestCase {
 
     private XContentParser parser;
 

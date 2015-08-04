@@ -22,13 +22,13 @@ package org.elasticsearch.index.mapper.compound;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.test.ElasticsearchSingleNodeTest;
+import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.junit.Test;
 
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 
-public class CompoundTypesTests extends ElasticsearchSingleNodeTest {
+public class CompoundTypesTests extends ESSingleNodeTestCase {
 
     @Test
     public void testStringType() throws Exception {

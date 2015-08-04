@@ -24,7 +24,7 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -34,7 +34,7 @@ import static org.hamcrest.Matchers.nullValue;
 
 /**
  */
-public class MultiSearchRequestTests extends ElasticsearchTestCase {
+public class MultiSearchRequestTests extends ESTestCase {
 
     @Test
     public void simpleAdd() throws Exception {

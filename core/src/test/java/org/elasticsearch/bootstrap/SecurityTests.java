@@ -23,7 +23,7 @@ import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.FilePermission;
 import java.io.IOException;
@@ -33,7 +33,7 @@ import java.security.PermissionCollection;
 import java.security.Permissions;
 import java.util.Set;
 
-public class SecurityTests extends ElasticsearchTestCase {
+public class SecurityTests extends ESTestCase {
     
     /** test generated permissions */
     public void testGeneratedPermissions() throws Exception {

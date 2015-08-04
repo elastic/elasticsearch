@@ -25,7 +25,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefArray;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.Counter;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import java.util.*;
@@ -33,7 +33,7 @@ import java.util.*;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-public class CollectionUtilsTests extends ElasticsearchTestCase {
+public class CollectionUtilsTests extends ESTestCase {
 
     @Test
     public void rotateEmpty() {

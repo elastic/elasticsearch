@@ -39,7 +39,7 @@ import org.elasticsearch.repositories.RepositoryVerificationException;
 import org.elasticsearch.repositories.azure.AzureRepository.Repository;
 import org.elasticsearch.snapshots.SnapshotMissingException;
 import org.elasticsearch.snapshots.SnapshotState;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.store.MockFSDirectoryService;
 import org.junit.After;
 import org.junit.Before;
@@ -57,8 +57,8 @@ import static org.hamcrest.Matchers.greaterThan;
  * and -Dtests.config=/path/to/elasticsearch.yml
  * @see org.elasticsearch.cloud.azure.AbstractAzureTest
  */
-@ElasticsearchIntegrationTest.ClusterScope(
-        scope = ElasticsearchIntegrationTest.Scope.SUITE,
+@ESIntegTestCase.ClusterScope(
+        scope = ESIntegTestCase.Scope.SUITE,
         numDataNodes = 1,
         transportClientRatio = 0.0)
 public class AzureSnapshotRestoreITest extends AbstractAzureTest {

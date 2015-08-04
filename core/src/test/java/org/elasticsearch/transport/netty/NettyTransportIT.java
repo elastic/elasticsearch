@@ -32,7 +32,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 import org.jboss.netty.channel.Channel;
@@ -44,8 +44,8 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
+import static org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import static org.elasticsearch.test.ESIntegTestCase.Scope;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
@@ -53,7 +53,7 @@ import static org.hamcrest.Matchers.is;
  *
  */
 @ClusterScope(scope = Scope.TEST, numDataNodes = 1)
-public class NettyTransportIT extends ElasticsearchIntegrationTest {
+public class NettyTransportIT extends ESIntegTestCase {
 
     // static so we can use it in anonymous classes
     private static String channelProfileName = null;

@@ -35,7 +35,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.test.ElasticsearchAllocationTestCase;
+import org.elasticsearch.test.ESAllocationTestCase;
 import org.junit.Test;
 
 import java.util.EnumSet;
@@ -45,7 +45,7 @@ import static org.hamcrest.Matchers.*;
 
 /**
  */
-public class UnassignedInfoTests extends ElasticsearchAllocationTestCase {
+public class UnassignedInfoTests extends ESAllocationTestCase {
 
     @Test
     public void testReasonOrdinalOrder() {

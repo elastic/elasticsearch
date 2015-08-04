@@ -25,7 +25,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.SimpleQueryStringBuilder;
 import org.elasticsearch.index.query.SimpleQueryStringFlag;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -43,7 +43,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  * Tests for the {@code simple_query_string} query
  */
-public class SimpleQueryStringIT extends ElasticsearchIntegrationTest {
+public class SimpleQueryStringIT extends ESIntegTestCase {
 
     @Test
     public void testSimpleQueryString() throws ExecutionException, InterruptedException {

@@ -24,9 +24,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.netty.NettyHttpServerTransport;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
+import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.rest.client.http.HttpDeleteWithEntity;
 import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
 import org.elasticsearch.test.rest.client.http.HttpResponse;
@@ -38,7 +38,7 @@ import static org.hamcrest.Matchers.is;
  * Tests that when disabling detailed errors, a request with the error_trace parameter returns a HTTP 400
  */
 @ClusterScope(scope = Scope.TEST, numDataNodes = 1)
-public class DetailedErrorsDisabledIT extends ElasticsearchIntegrationTest {
+public class DetailedErrorsDisabledIT extends ESIntegTestCase {
 
     // Build our cluster settings
     @Override

@@ -27,7 +27,7 @@ import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -41,7 +41,7 @@ import static org.hamcrest.Matchers.*;
 
 /**
  */
-public class MultiFieldsIntegrationIT extends ElasticsearchIntegrationTest {
+public class MultiFieldsIntegrationIT extends ESIntegTestCase {
 
     @Test
     public void testMultiFields() throws Exception {

@@ -23,12 +23,12 @@ package org.elasticsearch.action.bulk;
 import com.google.common.base.Charsets;
 
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
 import static org.elasticsearch.common.io.Streams.copyToStringFromClasspath;
 
-public class BulkIntegrationIT extends ElasticsearchIntegrationTest {
+public class BulkIntegrationIT extends ESIntegTestCase {
 
     @Test
     public void testBulkIndexCreatesMapping() throws Exception {

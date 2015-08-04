@@ -19,13 +19,13 @@
 
 package org.elasticsearch.common;
 
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import java.util.List;
 import java.util.Map;
 
-public class TableTests extends ElasticsearchTestCase {
+public class TableTests extends ESTestCase {
 
     @Test(expected = IllegalStateException.class)
     public void testFailOnStartRowWithoutHeader() {

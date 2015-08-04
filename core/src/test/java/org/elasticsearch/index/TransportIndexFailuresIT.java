@@ -33,7 +33,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.zen.fd.FaultDetection;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportModule;
 import org.elasticsearch.transport.TransportService;
@@ -47,8 +47,8 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  * Test failure when index replication actions fail mid-flight
  */
-@ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST, numDataNodes = 0, transportClientRatio = 0)
-public class TransportIndexFailuresIT extends ElasticsearchIntegrationTest {
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, transportClientRatio = 0)
+public class TransportIndexFailuresIT extends ESIntegTestCase {
 
     private static final Settings nodeSettings = Settings.settingsBuilder()
             .put("discovery.type", "zen") // <-- To override the local setting if set externally

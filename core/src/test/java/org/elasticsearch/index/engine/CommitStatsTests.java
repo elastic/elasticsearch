@@ -23,7 +23,7 @@ package org.elasticsearch.index.engine;
 import org.apache.lucene.index.SegmentInfos;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -32,7 +32,7 @@ import java.io.IOException;
 import static org.elasticsearch.test.VersionUtils.randomVersion;
 
 
-public class CommitStatsTests extends ElasticsearchTestCase {
+public class CommitStatsTests extends ESTestCase {
     public void testStreamingWithNullId() throws IOException {
         SegmentInfos segmentInfos = new SegmentInfos();
         CommitStats commitStats = new CommitStats(segmentInfos);

@@ -21,7 +21,7 @@ package org.elasticsearch.test.test;
 
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.junit.listeners.LoggingListener;
 import org.junit.Test;
@@ -33,7 +33,7 @@ import java.lang.reflect.Method;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.nullValue;
 
-public class LoggingListenerTests extends ElasticsearchTestCase {
+public class LoggingListenerTests extends ESTestCase {
 
     @Test
     public void testCustomLevelPerMethod() throws Exception {

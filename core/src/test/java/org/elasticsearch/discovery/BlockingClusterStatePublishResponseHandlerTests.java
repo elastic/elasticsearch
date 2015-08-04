@@ -24,7 +24,7 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
 import java.util.HashSet;
@@ -33,7 +33,7 @@ import java.util.concurrent.CyclicBarrier;
 
 import static org.hamcrest.Matchers.*;
 
-public class BlockingClusterStatePublishResponseHandlerTests extends ElasticsearchTestCase {
+public class BlockingClusterStatePublishResponseHandlerTests extends ESTestCase {
 
     static private class PublishResponder extends AbstractRunnable {
 

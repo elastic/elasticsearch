@@ -23,7 +23,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -36,7 +36,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  *
  */
-public class GeoBoundingBoxIT extends ElasticsearchIntegrationTest {
+public class GeoBoundingBoxIT extends ESIntegTestCase {
 
     @Test
     public void simpleBoundingBoxTest() throws Exception {

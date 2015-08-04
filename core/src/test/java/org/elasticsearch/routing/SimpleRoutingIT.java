@@ -36,12 +36,11 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 
-import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.hamcrest.Matchers.*;
 
-public class SimpleRoutingIT extends ElasticsearchIntegrationTest {
+public class SimpleRoutingIT extends ESIntegTestCase {
 
     @Override
     protected int minimumNumberOfShards() {

@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.common.blobstore;
 
-import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.LuceneTestCase;
@@ -26,7 +25,7 @@ import org.elasticsearch.common.blobstore.fs.FsBlobStore;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -41,7 +40,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.notNullValue;
 
 @LuceneTestCase.SuppressFileSystems("ExtrasFS")
-public class BlobStoreTest extends ElasticsearchTestCase {
+public class BlobStoreTest extends ESTestCase {
 
     @Test
     public void testWriteRead() throws IOException {

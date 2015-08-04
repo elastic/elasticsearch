@@ -20,7 +20,7 @@
 package org.elasticsearch.transport.netty;
 
 import org.elasticsearch.common.util.concurrent.KeyedLock;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
@@ -33,7 +33,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
-public class KeyedLockTests extends ElasticsearchTestCase {
+public class KeyedLockTests extends ESTestCase {
 
     @Test
     public void checkIfMapEmptyAfterLotsOfAcquireAndReleases() throws InterruptedException {

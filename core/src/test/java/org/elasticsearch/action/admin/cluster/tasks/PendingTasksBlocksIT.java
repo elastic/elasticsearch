@@ -19,16 +19,16 @@
 
 package org.elasticsearch.action.admin.cluster.tasks;
 
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.junit.Test;
 
 import java.util.Arrays;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
 
-@ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST)
-public class PendingTasksBlocksIT extends ElasticsearchIntegrationTest {
+@ClusterScope(scope = ESIntegTestCase.Scope.TEST)
+public class PendingTasksBlocksIT extends ESIntegTestCase {
 
     @Test
     public void testPendingTasksWithBlocks() {

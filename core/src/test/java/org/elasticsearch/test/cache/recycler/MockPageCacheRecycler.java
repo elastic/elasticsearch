@@ -26,7 +26,7 @@ import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.recycler.Recycler.V;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -46,7 +46,7 @@ public class MockPageCacheRecycler extends PageCacheRecycler {
             // not empty, we might be executing on a shared cluster that keeps on obtaining
             // and releasing pages, lets make sure that after a reasonable timeout, all master
             // copy (snapshot) have been released
-            boolean success = ElasticsearchTestCase.awaitBusy(new Predicate<Object>() {
+            boolean success = ESTestCase.awaitBusy(new Predicate<Object>() {
                 @Override
                 public boolean apply(Object input) {
                     return Sets.intersection(masterCopy.keySet(), ACQUIRED_PAGES.keySet()).isEmpty();

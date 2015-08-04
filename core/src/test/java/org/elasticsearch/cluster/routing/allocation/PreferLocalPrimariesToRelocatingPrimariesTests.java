@@ -26,7 +26,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.RoutingTable;
-import org.elasticsearch.test.ElasticsearchAllocationTestCase;
+import org.elasticsearch.test.ESAllocationTestCase;
 import org.junit.Test;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.*;
@@ -35,7 +35,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
-public class PreferLocalPrimariesToRelocatingPrimariesTests extends ElasticsearchAllocationTestCase {
+public class PreferLocalPrimariesToRelocatingPrimariesTests extends ESAllocationTestCase {
     @Test
     public void testPreferLocalPrimaryAllocationOverFiltered() {
         int concurrentRecoveries = randomIntBetween(1, 10);

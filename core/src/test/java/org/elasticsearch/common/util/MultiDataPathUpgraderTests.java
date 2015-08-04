@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.common.util;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import com.google.common.base.Charsets;
 import com.google.common.collect.Sets;
 import org.apache.lucene.util.CollectionUtil;
@@ -34,7 +33,7 @@ import org.elasticsearch.gateway.MetaDataStateFormat;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.shard.ShardStateMetaData;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.BufferedWriter;
 import java.io.IOException;
@@ -46,7 +45,7 @@ import java.util.*;
 /**
  */
 @LuceneTestCase.SuppressFileSystems("ExtrasFS")
-public class MultiDataPathUpgraderTests extends ElasticsearchTestCase {
+public class MultiDataPathUpgraderTests extends ESTestCase {
 
     public void testUpgradeRandomPaths() throws IOException {
         try (NodeEnvironment nodeEnvironment = newNodeEnvironment()) {

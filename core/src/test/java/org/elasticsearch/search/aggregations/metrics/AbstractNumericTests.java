@@ -19,7 +19,7 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -29,8 +29,8 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 /**
  *
  */
-@ElasticsearchIntegrationTest.SuiteScopeTest
-public abstract class AbstractNumericTests extends ElasticsearchIntegrationTest {
+@ESIntegTestCase.SuiteScopeTestCase
+public abstract class AbstractNumericTests extends ESIntegTestCase {
 
     protected static long minValue, maxValue, minValues, maxValues;
 

@@ -20,13 +20,12 @@
 package org.elasticsearch.monitor.os;
 
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import static org.hamcrest.Matchers.*;
 
-public class OsProbeTests extends ElasticsearchTestCase {
+public class OsProbeTests extends ESTestCase {
 
     OsProbe probe = OsProbe.getInstance();
 

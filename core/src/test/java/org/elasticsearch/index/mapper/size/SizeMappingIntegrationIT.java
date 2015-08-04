@@ -21,7 +21,7 @@ package org.elasticsearch.index.mapper.size;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -32,7 +32,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.*;
 
-public class SizeMappingIntegrationIT extends ElasticsearchIntegrationTest {
+public class SizeMappingIntegrationIT extends ESIntegTestCase {
 
     @Test // issue 5053
     public void testThatUpdatingMappingShouldNotRemoveSizeMappingConfiguration() throws Exception {

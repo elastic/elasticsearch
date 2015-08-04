@@ -25,7 +25,7 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
 import java.util.Locale;
@@ -40,7 +40,7 @@ import static org.hamcrest.Matchers.notNullValue;
 
 /**
  */
-public class SimpleTimestampIT  extends ElasticsearchIntegrationTest {
+public class SimpleTimestampIT  extends ESIntegTestCase {
 
     @Test
     public void testSimpleTimestamp() throws Exception {

@@ -21,12 +21,12 @@ package org.elasticsearch.bwcompat;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ElasticsearchBackwardsCompatIntegrationTest;
+import org.elasticsearch.test.ESBackcompatTestCase;
 import org.junit.Test;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class UnicastBackwardsCompatibilityIT extends ElasticsearchBackwardsCompatIntegrationTest {
+public class UnicastBackwardsCompatibilityIT extends ESBackcompatTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {

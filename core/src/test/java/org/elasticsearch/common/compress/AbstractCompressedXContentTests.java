@@ -23,7 +23,7 @@ import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Assert;
 
 import java.io.IOException;
@@ -35,7 +35,7 @@ import static org.hamcrest.Matchers.not;
 /**
  *
  */
-public abstract class AbstractCompressedXContentTests extends ElasticsearchTestCase {
+public abstract class AbstractCompressedXContentTests extends ESTestCase {
 
     private final Compressor compressor;
 

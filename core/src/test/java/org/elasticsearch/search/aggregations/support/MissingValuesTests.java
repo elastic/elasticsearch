@@ -31,13 +31,13 @@ import org.elasticsearch.index.fielddata.AbstractRandomAccessOrds;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 
-public class MissingValuesTests extends ElasticsearchTestCase {
+public class MissingValuesTests extends ESTestCase {
 
     public void testMissingBytes() {
         final int numDocs = TestUtil.nextInt(random(), 1, 100);

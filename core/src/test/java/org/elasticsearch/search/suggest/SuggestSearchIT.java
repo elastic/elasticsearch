@@ -34,7 +34,7 @@ import org.elasticsearch.search.suggest.SuggestBuilder.SuggestionBuilder;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder.DirectCandidateGenerator;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.junit.Test;
 
@@ -57,7 +57,7 @@ import static org.hamcrest.Matchers.*;
  * possible these tests should declare for the first request, make the request, modify the configuration for the next request, make that
  * request, modify again, request again, etc.  This makes it very obvious what changes between requests.
  */
-public class SuggestSearchIT extends ElasticsearchIntegrationTest {
+public class SuggestSearchIT extends ESIntegTestCase {
 
     @Test // see #3196
     public void testSuggestAcrossMultipleIndices() throws IOException {

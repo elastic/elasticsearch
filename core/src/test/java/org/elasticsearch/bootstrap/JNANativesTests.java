@@ -20,12 +20,12 @@
 package org.elasticsearch.bootstrap;
 
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class JNANativesTests extends ElasticsearchTestCase {
+public class JNANativesTests extends ESTestCase {
 
     @Test
     public void testMlockall() {

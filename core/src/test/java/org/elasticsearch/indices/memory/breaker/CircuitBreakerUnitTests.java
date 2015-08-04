@@ -25,7 +25,7 @@ import org.elasticsearch.indices.breaker.BreakerSettings;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.node.settings.NodeSettingsService;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import static org.hamcrest.Matchers.*;
@@ -33,7 +33,7 @@ import static org.hamcrest.Matchers.*;
 /**
  * Unit tests for the circuit breaker
  */
-public class CircuitBreakerUnitTests extends ElasticsearchTestCase {
+public class CircuitBreakerUnitTests extends ESTestCase {
 
     public static long pctBytes(String percentString) {
         return Settings.EMPTY.getAsMemory("", percentString).bytes();

@@ -26,7 +26,7 @@ import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 
 /** 
  * Simple tests for LegacyVerification (old segments)
@@ -34,7 +34,7 @@ import org.elasticsearch.test.ElasticsearchTestCase;
  *             segments is not longer needed. 
  */
 @Deprecated
-public class LegacyVerificationTests extends ElasticsearchTestCase {
+public class LegacyVerificationTests extends ESTestCase {
     
     public void testAdler32() throws Exception {
         Adler32 expected = new Adler32();

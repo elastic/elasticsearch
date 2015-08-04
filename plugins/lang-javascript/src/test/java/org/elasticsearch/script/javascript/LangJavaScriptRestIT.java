@@ -21,13 +21,13 @@ package org.elasticsearch.script.javascript;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-import org.elasticsearch.test.rest.ElasticsearchRestTestCase;
+import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.RestTestCandidate;
 import org.elasticsearch.test.rest.parser.RestTestParseException;
 
 import java.io.IOException;
 
-public class LangJavaScriptRestIT extends ElasticsearchRestTestCase {
+public class LangJavaScriptRestIT extends ESRestTestCase {
 
     public LangJavaScriptRestIT(@Name("yaml") RestTestCandidate testCandidate) {
         super(testCandidate);
@@ -35,7 +35,7 @@ public class LangJavaScriptRestIT extends ElasticsearchRestTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws IOException, RestTestParseException {
-        return ElasticsearchRestTestCase.createParameters(0, 1);
+        return ESRestTestCase.createParameters(0, 1);
     }
 }
 

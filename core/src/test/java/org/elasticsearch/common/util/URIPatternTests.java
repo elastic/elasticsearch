@@ -18,12 +18,12 @@
  */
 package org.elasticsearch.common.util;
 
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import java.net.URI;
 
-public class URIPatternTests extends ElasticsearchTestCase {
+public class URIPatternTests extends ESTestCase {
 
     @Test
     public void testURIPattern() throws Exception {

@@ -22,7 +22,7 @@ package org.elasticsearch.threadpool;
 import com.google.common.util.concurrent.MoreExecutors;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.junit.Test;
 
@@ -37,7 +37,7 @@ import static org.hamcrest.Matchers.*;
 
 /**
  */
-public class UpdateThreadPoolSettingsTests extends ElasticsearchTestCase {
+public class UpdateThreadPoolSettingsTests extends ESTestCase {
 
     private ThreadPool.Info info(ThreadPool threadPool, String name) {
         for (ThreadPool.Info info : threadPool.info()) {

@@ -32,7 +32,7 @@ import org.elasticsearch.search.aggregations.bucket.missing.Missing;
 import org.elasticsearch.search.aggregations.bucket.nested.Nested;
 import org.elasticsearch.search.aggregations.bucket.range.Range;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -57,8 +57,8 @@ import static org.hamcrest.Matchers.equalTo;
  * compute empty buckets, its {@code reduce()} method must be called. So by adding the date histogram under other buckets,
  * we can make sure that the reduce is properly propagated by checking that empty buckets were created.
  */
-@ElasticsearchIntegrationTest.SuiteScopeTest
-public class ShardReduceIT extends ElasticsearchIntegrationTest {
+@ESIntegTestCase.SuiteScopeTestCase
+public class ShardReduceIT extends ESIntegTestCase {
 
     private IndexRequestBuilder indexDoc(String date, int value) throws Exception {
         return client().prepareIndex("idx", "type").setSource(jsonBuilder()

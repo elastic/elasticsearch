@@ -19,12 +19,12 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class UidTests extends ElasticsearchTestCase {
+public class UidTests extends ESTestCase {
     
     @Test
     public void testCreateAndSplitId() {

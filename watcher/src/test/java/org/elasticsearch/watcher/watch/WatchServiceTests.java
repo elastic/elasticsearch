@@ -205,7 +205,7 @@ public class WatchServiceTests extends ESTestCase {
 
     @Test
     public void testAckWatch_NotAck() throws Exception {
-        DateTime now = SystemClock.INSTANCE.now();
+        DateTime now = SystemClock.INSTANCE.nowUTC();
         TimeValue timeout = TimeValue.timeValueSeconds(5);
         WatchLockService.Lock lock = mock(WatchLockService.Lock.class);
         when(watchLockService.tryAcquire("_id", timeout)).thenReturn(lock);

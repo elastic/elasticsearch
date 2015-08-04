@@ -44,7 +44,7 @@ public class WatcherUtilsTests extends ESTestCase {
 
     @Test
     public void testFlattenModel() throws Exception {
-        DateTime now = SystemClock.INSTANCE.now();
+        DateTime now = SystemClock.INSTANCE.nowUTC();
         Map<String, Object> map = ImmutableMap.<String, Object>builder()
                 .put("a", ImmutableMap.builder().put("a1", new int[] { 0, 1, 2 }).build())
                 .put("b", new String[] { "b0", "b1", "b2" })

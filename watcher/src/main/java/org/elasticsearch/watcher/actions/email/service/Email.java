@@ -10,7 +10,6 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -197,7 +196,7 @@ public class Email implements ToXContent {
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.PRIORITY)) {
                     email.priority(Email.Priority.resolve(parser.text()));
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.SENT_DATE)) {
-                    email.sentDate(new DateTime(parser.text()));
+                    email.sentDate(new DateTime(parser.text(), DateTimeZone.UTC));
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.SUBJECT)) {
                     email.subject(parser.text());
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.BODY)) {

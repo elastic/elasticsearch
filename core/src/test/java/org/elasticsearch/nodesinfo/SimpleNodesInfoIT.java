@@ -36,7 +36,7 @@ import static org.hamcrest.Matchers.*;
  *
  */
 @ClusterScope(scope= Scope.TEST, numDataNodes =0)
-public class SimpleNodesInfoTests extends PluginTestCase {
+public class SimpleNodesInfoIT extends PluginTestCase {
 
     static final class Fields {
         static final String SITE_PLUGIN = "dummy";

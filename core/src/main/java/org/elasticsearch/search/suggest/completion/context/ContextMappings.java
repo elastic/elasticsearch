@@ -52,8 +52,8 @@ public class ContextMappings implements ToXContent {
     private final Map<String, ContextMapping> contextNameMap;
 
     private ContextMappings(List<ContextMapping> contextMappings) {
-        if (contextMappings.size() > 10) {
-            // we can support more, but max of 10 unique context types per suggest field
+        if (contextMappings.size() > 255) {
+            // we can support more, but max of 255 (1 byte) unique context types per suggest field
             // seems reasonable?
             throw new UnsupportedOperationException("Maximum of 10 context types are supported was: " + contextMappings.size());
         }

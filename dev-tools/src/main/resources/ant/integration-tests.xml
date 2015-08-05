@@ -12,9 +12,12 @@
   <!-- if this exists, ES is running (maybe) -->
   <available property="integ.pidfile.exists" file="${integ.pidfile}"/>
 
+  <!-- name of our cluster, maybe needs changing -->
+  <property name="integ.cluster.name" value="prepare_release"/>
+
   <!-- arguments passed to elasticsearch when running -->
   <property name="integ.args"
-            value="-Des.node.name=smoke_tester -Des.cluster.name=prepare_release
+            value="-Des.node.name=smoke_tester -Des.cluster.name=${integ.cluster.name}
                    -Des.discovery.zen.ping.multicast.enabled=false -Des.script.inline=on
                    -Des.http.port=${integ.http.port} -Des.transport.tcp.port=${integ.transport.port}
                    -Des.script.indexed=on -Des.pidfile=${integ.pidfile} -Des.repositories.url.allowed_urls=http://snapshot.test*"/>
@@ -120,11 +123,23 @@
     <sequential>
       <echo>Starting up external cluster...</echo>
       <run-script script="@{home}/bin/elasticsearch" spawn="true"
-                  args="@{args} -Des.path.repo=@{home}/repo" />
+                  args="@{args} -Des.path.repo=@{home}/repo"/>
 
-      <waitfor maxwait="3" maxwaitunit="minute" checkevery="500">
+      <local name="failed.to.start"/>
+      <waitfor maxwait="30" maxwaitunit="second"
+               checkevery="500" checkeveryunit="millisecond"
+               timeoutproperty="failed.to.start">
         <http url="http://127.0.0.1:${integ.http.port}"/>
       </waitfor>
+
+      <!-- best effort, print console log. useful if it fails especially -->
+      <local name="log.contents"/>
+      <loadfile srcFile="@{home}/logs/${integ.cluster.name}.log"
+                property="log.contents"
+                failonerror="false"/>
+      <echo message="${log.contents}"/>
+
+      <fail message="ES instance did not start" if="failed.to.start"/>
 
       <local name="integ.pid"/>
       <extract-pid property="integ.pid"/>

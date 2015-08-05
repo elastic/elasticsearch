@@ -22,7 +22,6 @@ package org.elasticsearch.common.io;
 import com.google.common.base.Charsets;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.util.Callback;
 
 import java.io.*;
@@ -182,34 +181,6 @@ public abstract class Streams {
         StringWriter out = new StringWriter();
         copy(in, out);
         return out.toString();
-    }
-
-    public static String copyToStringFromClasspath(ClassLoader classLoader, String path) throws IOException {
-        InputStream is = classLoader.getResourceAsStream(path);
-        if (is == null) {
-            throw new FileNotFoundException("Resource [" + path + "] not found in classpath with class loader [" + classLoader + "]");
-        }
-        return copyToString(new InputStreamReader(is, Charsets.UTF_8));
-    }
-
-    public static String copyToStringFromClasspath(String path) throws IOException {
-        InputStream is = Streams.class.getResourceAsStream(path);
-        if (is == null) {
-            throw new FileNotFoundException("Resource [" + path + "] not found in classpath");
-        }
-        return copyToString(new InputStreamReader(is, Charsets.UTF_8));
-    }
-
-    public static byte[] copyToBytesFromClasspath(String path) throws IOException {
-        try (InputStream is = Streams.class.getResourceAsStream(path)) {
-            if (is == null) {
-                throw new FileNotFoundException("Resource [" + path + "] not found in classpath");
-            }
-            try (BytesStreamOutput out = new BytesStreamOutput()) {
-                copy(is, out);
-                return out.bytes().toBytes();
-            }
-        }
     }
 
     public static int readFully(Reader reader, char[] dest) throws IOException {

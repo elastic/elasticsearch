@@ -352,32 +352,37 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
          */
         protected void finalize(List<SnapshotFiles> snapshots, int fileListGeneration, Map<String, BlobMetaData> blobs) {
             BlobStoreIndexShardSnapshots newSnapshots = new BlobStoreIndexShardSnapshots(snapshots);
+            List<String> blobsToDelete = newArrayList();
             // delete old index files first
             for (String blobName : blobs.keySet()) {
                 // delete old file lists
                 if (indexShardSnapshotsFormat.isTempBlobName(blobName) || blobName.startsWith(SNAPSHOT_INDEX_PREFIX)) {
-                    try {
-                        blobContainer.deleteBlob(blobName);
-                    } catch (IOException e) {
-                        // We cannot delete index file - this is fatal, we cannot continue, otherwise we might end up
-                        // with references to non-existing files
-                        throw new IndexShardSnapshotFailedException(shardId, "error deleting index file [{}] during cleanup", e);
-                    }
+                    blobsToDelete.add(blobName);
                 }
             }
 
+            try {
+                blobContainer.deleteBlobs(blobsToDelete);
+            } catch (IOException e) {
+                // We cannot delete index file - this is fatal, we cannot continue, otherwise we might end up
+                // with references to non-existing files
+                throw new IndexShardSnapshotFailedException(shardId, "error deleting index files during cleanup, reason: " + e.getMessage(), e);
+            }
+
+            blobsToDelete = newArrayList();
             // now go over all the blobs, and if they don't exists in a snapshot, delete them
             for (String blobName : blobs.keySet()) {
-                // delete old file lists
+                // delete unused files
                 if (blobName.startsWith(DATA_BLOB_PREFIX)) {
                     if (newSnapshots.findNameFile(FileInfo.canonicalName(blobName)) == null) {
-                        try {
-                            blobContainer.deleteBlob(blobName);
-                        } catch (IOException e) {
-                            logger.debug("[{}] [{}] error deleting blob [{}] during cleanup", e, snapshotId, shardId, blobName);
-                        }
+                        blobsToDelete.add(blobName);
                     }
                 }
+            }
+            try {
+                blobContainer.deleteBlobs(blobsToDelete);
+            } catch (IOException e) {
+                logger.debug("[{}] [{}] error deleting some of the blobs [{}] during cleanup", e, snapshotId, shardId, blobsToDelete);
             }
 
             // If we deleted all snapshots - we don't need to create the index file

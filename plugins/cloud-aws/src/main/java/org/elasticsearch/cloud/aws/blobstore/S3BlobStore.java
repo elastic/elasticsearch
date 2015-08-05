@@ -77,11 +77,24 @@ public class S3BlobStore extends AbstractComponent implements BlobStore {
         // Also, if invalid security credentials are used to execute this method, the
         // client is not able to distinguish between bucket permission errors and
         // invalid credential errors, and this method could return an incorrect result.
-        if (!client.doesBucketExist(bucket)) {
-            if (region != null) {
-                client.createBucket(bucket, region);
-            } else {
-                client.createBucket(bucket);
+        int retry = 0;
+        while (retry <= maxRetries) {
+            try {
+                if (!client.doesBucketExist(bucket)) {
+                    if (region != null) {
+                        client.createBucket(bucket, region);
+                    } else {
+                        client.createBucket(bucket);
+                    }
+                }
+                break;
+            } catch (AmazonClientException e) {
+                if (shouldRetry(e) && retry < maxRetries) {
+                    retry++;
+                } else {
+                    logger.debug("S3 client create bucket failed");
+                    throw e;
+                }
             }
         }
     }

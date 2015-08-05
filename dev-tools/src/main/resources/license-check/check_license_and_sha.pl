@@ -2,41 +2,33 @@
 
 use strict;
 use warnings;
-use v5.10;
 
 use FindBin qw($RealBin);
 use lib "$RealBin/lib";
-use Archive::Ar();
-use Cwd();
 use File::Spec();
-use Digest::SHA qw(sha1);
 use File::Temp();
+use File::Find();
+use Digest::SHA qw(sha1);
 use File::Basename qw(basename);
 use Archive::Extract();
 $Archive::Extract::PREFER_BIN = 1;
-
-our %Extract_Package = (
-    zip => \&extract_zip,
-    gz  => \&extract_tar_gz,
-    rpm => \&extract_rpm,
-    deb => \&extract_deb
-);
 
 my $mode = shift(@ARGV) || "";
 die usage() unless $mode =~ /^--(check|update)$/;
 
 my $License_Dir = shift(@ARGV) || die usage();
-my $Package     = shift(@ARGV) || die usage();
+my $Source      = shift(@ARGV) || die usage();
 $License_Dir = File::Spec->rel2abs($License_Dir) . '/';
-$Package     = File::Spec->rel2abs($Package);
+$Source      = File::Spec->rel2abs($Source);
 
 die "License dir is not a directory: $License_Dir\n" . usage()
     unless -d $License_Dir;
 
-die "Package is not a file: $Package\n" . usage()
-    unless -f $Package;
+my %shas
+    = -f $Source ? jars_from_zip($Source)
+    : -d $Source ? jars_from_dir($Source)
+    :   die "Source is neither a directory nor a zip file: $Source" . usage();
 
-my %shas = get_shas_from_package($Package);
 $mode eq '--check'
     ? exit check_shas_and_licenses(%shas)
     : exit write_shas(%shas);
@@ -56,15 +48,15 @@ sub check_shas_and_licenses {
     for my $jar ( sort keys %new ) {
         my $old_sha = delete $old{$jar};
         unless ($old_sha) {
-            say STDERR "$jar: SHA is missing";
+            print STDERR "$jar: SHA is missing\n";
             $error++;
             $sha_error++;
             next;
         }
 
         unless ( $old_sha eq $new{$jar} ) {
-            say STDERR
-                "$jar: SHA has changed, expected $old_sha but found $new{$jar}";
+            print STDERR
+                "$jar: SHA has changed, expected $old_sha but found $new{$jar}\n";
             $error++;
             $sha_error++;
             next;
@@ -92,43 +84,49 @@ sub check_shas_and_licenses {
             }
         }
         unless ($license_found) {
-            say STDERR "$jar: LICENSE is missing";
+            print STDERR "$jar: LICENSE is missing\n";
             $error++;
             $sha_error++;
         }
         unless ($notice_found) {
-            say STDERR "$jar: NOTICE is missing";
+            print STDERR "$jar: NOTICE is missing\n";
             $error++;
         }
     }
 
     if ( keys %old ) {
-        say STDERR "Extra SHA files present for: " . join ", ", sort keys %old;
+        print STDERR "Extra SHA files present for: " . join ", ",
+            sort keys %old;
+        print "\n";
         $error++;
     }
 
     my @unused_licenses = grep { !$licenses{$_} } keys %licenses;
     if (@unused_licenses) {
-        say STDERR "Extra LICENCE file present: " . join ", ",
+        $error++;
+        print STDERR "Extra LICENCE file present: " . join ", ",
             sort @unused_licenses;
+        print "\n";
     }
 
     my @unused_notices = grep { !$notices{$_} } keys %notices;
     if (@unused_notices) {
-        say STDERR "Extra NOTICE file present: " . join ", ",
+        $error++;
+        print STDERR "Extra NOTICE file present: " . join ", ",
             sort @unused_notices;
+        print "\n";
     }
 
     if ($sha_error) {
-        say STDERR <<"SHAS"
+        print STDERR <<"SHAS"
 
 You can update the SHA files by running:
 
-$0 --update $License_Dir $Package
+$0 --update $License_Dir $Source
 
 SHAS
     }
-    say "All SHAs and licenses OK" unless $error;
+    print("All SHAs and licenses OK\n") unless $error;
     return $error;
 }
 
@@ -141,13 +139,13 @@ sub write_shas {
     for my $jar ( sort keys %new ) {
         if ( $old{$jar} ) {
             next if $old{$jar} eq $new{$jar};
-            say "Updating $jar";
+            print "Updating $jar\n";
         }
         else {
-            say "Adding $jar";
+            print "Adding $jar\n";
         }
         open my $fh, '>', $License_Dir . $jar or die $!;
-        say $fh $new{$jar} or die $!;
+        print $fh $new{$jar} . "\n" or die $!;
         close $fh or die $!;
     }
     continue {
@@ -155,10 +153,10 @@ sub write_shas {
     }
 
     for my $jar ( sort keys %old ) {
-        say "Deleting $jar";
+        print "Deleting $jar\n";
         unlink $License_Dir . $jar or die $!;
     }
-    say "SHAs updated";
+    print "SHAs updated\n";
     return 0;
 }
 
@@ -194,82 +192,37 @@ sub get_sha_files {
 }
 
 #===================================
-sub get_shas_from_package {
+sub jars_from_zip {
 #===================================
-    my $package = shift;
-    my ($type) = ( $package =~ /\.(\w+)$/ );
-    die "Unrecognised package type: $package"
-        unless $type && $Extract_Package{$type};
-
+    my ($source) = @_;
     my $temp_dir = File::Temp->newdir;
-    my $files
-        = eval { $Extract_Package{$type}->( $package, $temp_dir->dirname ) }
-        or die "Couldn't extract $package: $@";
-
-    my @jars = map {"$temp_dir/$_"}
-        grep { /\.jar$/ && !/elasticsearch[^\/]*$/ } @$files;
+    my $dir_name = $temp_dir->dirname;
+    my $archive = Archive::Extract->new( archive => $source, type => 'zip' );
+    $archive->extract( to => $dir_name ) || die $archive->error;
+    my @jars = map { File::Spec->rel2abs( $_, $dir_name ) }
+        grep { /\.jar$/ && !/elasticsearch[^\/]*$/ } @{ $archive->files };
+    die "No JARS found in: $source\n"
+        unless @jars;
     return calculate_shas(@jars);
 }
 
 #===================================
-sub extract_zip {
+sub jars_from_dir {
 #===================================
-    my ( $package, $dir ) = @_;
-    my $archive = Archive::Extract->new( archive => $package, type => 'zip' );
-    $archive->extract( to => $dir ) || die $archive->error;
-    return $archive->files;
-}
-
-#===================================
-sub extract_tar_gz {
-#===================================
-    my ( $package, $dir ) = @_;
-    my $archive = Archive::Extract->new( archive => $package, type => 'tgz' );
-    $archive->extract( to => $dir ) || die $archive->error;
-    return $archive->files;
-}
-
-#===================================
-sub extract_rpm {
-#===================================
-    my ( $package, $dir ) = @_;
-    my $cwd = Cwd::cwd();
-    my @files;
-    eval {
-        chdir $dir;
-        say "Trying with rpm2cpio";
-        my $out = eval {`rpm2cpio '$package'  | cpio -idmv --quiet`};
-        unless ($out) {
-            say "Trying with rpm2cpio.pl";
-            $out = eval {`rpm2cpio.pl '$package'  | cpio -idmv --quiet`};
-        }
-        @files = split "\n", $out if $out;
-    };
-    chdir $cwd;
-    die $@ if $@;
-    die "Couldn't extract $package\n" unless @files;
-    return \@files;
-}
-
-#===================================
-sub extract_deb {
-#===================================
-    my ( $package, $dir ) = @_;
-    my $archive = Archive::Ar->new;
-    $archive->read($package) || die $archive->error;
-    my $cwd = Cwd::cwd();
-    eval {
-        chdir $dir;
-        $archive->extract('data.tar.gz') || die $archive->error;
-    };
-    chdir $cwd;
-    die $@ if $@;
-    $archive = Archive::Extract->new(
-        archive => $dir . '/data.tar.gz',
-        type    => 'tgz'
+    my $source = shift;
+    my @jars;
+    File::Find::find(
+        {   wanted => sub {
+                push @jars, File::Spec->rel2abs( $_, $source )
+                    if /\.jar$/ && !/elasticsearch[^\/]*$/;
+            },
+            no_chdir => 1
+        },
+        $source
     );
-    $archive->extract( to => $dir ) || die $archive->error;
-    return $archive->files;
+    die "No JARS found in: $source\n"
+        unless @jars;
+    return calculate_shas(@jars);
 }
 
 #===================================
@@ -291,11 +244,13 @@ sub usage {
 
 USAGE:
 
-    # check the sha1 and LICENSE files for each jar in the zip|gz|deb|rpm
+    # check the sha1 and LICENSE files for each jar in the zip or directory
     $0 --check  path/to/licenses/ path/to/package.zip
+    $0 --check  path/to/licenses/ path/to/dir/
 
-    # updates the sha1s for each jar in the zip|gz|deb|rpm
+    # updates the sha1s for each jar in the zip or directory
     $0 --update path/to/licenses/ path/to/package.zip
+    $0 --update path/to/licenses/ path/to/dir/
 
 USAGE
 

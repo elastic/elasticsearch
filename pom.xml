@@ -109,6 +109,8 @@
         <integ.scratch>${project.build.directory}/integ-tests</integ.scratch>
         <integ.deps>${project.build.directory}/integ-deps</integ.deps>
         <integ.temp>${integ.scratch}/temp</integ.temp>
+        <integ.http.port>9400</integ.http.port>
+        <integ.transport.port>9500</integ.transport.port>
         <no.commit.pattern>\bno(n|)commit\b</no.commit.pattern>
     </properties>
 
@@ -905,7 +907,7 @@
                     <!-- some infos https://github.com/tcurdt/jdeb/blob/master/docs/maven.md -->
                     <groupId>org.vafer</groupId>
                     <artifactId>jdeb</artifactId>
-                    <version>1.3</version>
+                    <version>1.4</version>
                     <extensions>true</extensions>
                 </plugin>
                 <plugin>

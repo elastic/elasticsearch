@@ -207,6 +207,7 @@ public class VersionTests extends ESTestCase {
                 if (maxBranchVersion == null) {
                     maxBranchVersions.put(branchName, v);
                 } else if (v.after(maxBranchVersion)) {
+
                     assertFalse("Version " + maxBranchVersion + " cannot be a snapshot because version " + v + " exists", maxBranchVersion.snapshot());
                     maxBranchVersions.put(branchName, v);
                 }

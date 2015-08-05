@@ -9,13 +9,19 @@
         <version>2.0.0-beta1-SNAPSHOT</version>
     </parent>
 
-    <artifactId>elasticsearch-zip</artifactId>
+    <groupId>org.elasticsearch.distribution.zip</groupId>
+    <artifactId>elasticsearch</artifactId>
     <name>Elasticsearch ZIP Distribution</name>
+    <!--
+        We should use pom packaging here because we don't want to publish any jar.
+        But if you do this, then maven lifecycle does not execute any test (nor compile any test)
+     -->
+    <!--packaging>pom</packaging-->
 
     <dependencies>
         <dependency>
-            <groupId>org.elasticsearch.distribution</groupId>
-            <artifactId>elasticsearch-fully-loaded</artifactId>
+            <groupId>org.elasticsearch.distribution.fully-loaded</groupId>
+            <artifactId>elasticsearch</artifactId>
             <version>${elasticsearch.version}</version>
             <type>pom</type>
         </dependency>
@@ -49,30 +55,7 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-antrun-plugin</artifactId>
-                <version>1.8</version>
                 <executions>
-                    <execution>
-                        <id>check-license</id>
-                        <phase>verify</phase>
-                        <goals>
-                            <goal>run</goal>
-                        </goals>
-                        <configuration>
-                            <target>
-                                <condition property="licenses.exists">
-                                    <available file="${basedir}/../licenses" type="dir"/>
-                                </condition>
-                                <echo taskName="license check">Running license check</echo>
-                                <!-- on windows checksums are calculated wrong -->
-                                <exec failonerror="${licenses.exists}" executable="perl" dir="${elasticsearch.tools.directory}/license-check" osfamily="unix" >
-                                    <arg value="check_license_and_sha.pl"/>
-                                    <arg value="--check"/>
-                                    <arg value="${basedir}/../licenses"/>
-                                    <arg value="${basedir}/target/releases/${project.build.finalName}.zip"/>
-                                </exec>
-                            </target>
-                        </configuration>
-                    </execution>
                     <!-- execution and integration tests -->
                     <!-- start up elasticsearch in foreground -->
                     <execution>
@@ -83,7 +66,11 @@
                         </goals>
                         <configuration>
                             <target if="${run}">
-                                <ant antfile="${elasticsearch.integ.antfile}" target="start-foreground"/>
+                                <!-- use conventional port numbers -->
+                                <ant antfile="${elasticsearch.integ.antfile}" target="start-foreground">
+                                    <property name="integ.http.port" value="9200"/>
+                                    <property name="integ.transport.port" value="9300"/>
+                                </ant>
                             </target>
                         </configuration>
                     </execution>

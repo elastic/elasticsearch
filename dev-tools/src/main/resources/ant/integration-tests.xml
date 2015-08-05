@@ -12,10 +12,14 @@
   <!-- if this exists, ES is running (maybe) -->
   <available property="integ.pidfile.exists" file="${integ.pidfile}"/>
 
+  <!-- name of our cluster, maybe needs changing -->
+  <property name="integ.cluster.name" value="prepare_release"/>
+
   <!-- arguments passed to elasticsearch when running -->
   <property name="integ.args"
-            value="-Des.node.name=smoke_tester -Des.cluster.name=prepare_release
+            value="-Des.node.name=smoke_tester -Des.cluster.name=${integ.cluster.name}
                    -Des.discovery.zen.ping.multicast.enabled=false -Des.script.inline=on
+                   -Des.http.port=${integ.http.port} -Des.transport.tcp.port=${integ.transport.port}
                    -Des.script.indexed=on -Des.pidfile=${integ.pidfile} -Des.repositories.url.allowed_urls=http://snapshot.test*"/>
 
   <!-- runs an OS script -->
@@ -119,11 +123,23 @@
     <sequential>
       <echo>Starting up external cluster...</echo>
       <run-script script="@{home}/bin/elasticsearch" spawn="true"
-                  args="@{args} -Des.path.repo=@{home}/repo" />
+                  args="@{args} -Des.path.repo=@{home}/repo"/>
 
-      <waitfor maxwait="3" maxwaitunit="minute" checkevery="500">
-        <http url="http://127.0.0.1:9200"/>
+      <local name="failed.to.start"/>
+      <waitfor maxwait="30" maxwaitunit="second"
+               checkevery="500" checkeveryunit="millisecond"
+               timeoutproperty="failed.to.start">
+        <http url="http://127.0.0.1:${integ.http.port}"/>
       </waitfor>
+
+      <!-- best effort, print console log. useful if it fails especially -->
+      <local name="log.contents"/>
+      <loadfile srcFile="@{home}/logs/${integ.cluster.name}.log"
+                property="log.contents"
+                failonerror="false"/>
+      <echo message="${log.contents}"/>
+
+      <fail message="ES instance did not start" if="failed.to.start"/>
 
       <local name="integ.pid"/>
       <extract-pid property="integ.pid"/>
@@ -143,9 +159,9 @@
   <!-- TODO: doesn't belong here, but we will figure it out -->
   <target name="start-foreground" depends="stop-external-cluster">
       <delete dir="${integ.scratch}"/>
-      <unzip src="${project.build.directory}/releases/elasticsearch-${project.version}.zip" dest="${integ.scratch}"/>
+      <unzip src="${project.build.directory}/releases/${project.artifactId}-${project.version}.zip" dest="${integ.scratch}"/>
       <local name="home"/>
-      <property name="home" location="${integ.scratch}/elasticsearch-${elasticsearch.version}"/>
+      <property name="home" location="${integ.scratch}/${project.artifactId}-${elasticsearch.version}"/>
       <run-script script="${home}/bin/elasticsearch" spawn="false"
                   args="${integ.args} -Des.path.repo=${home}/repo">
         <nested>
@@ -185,7 +201,7 @@
   <target name="setup-workspace-zip" depends="stop-external-cluster" unless="${shouldskip}">
     <sequential>
       <delete dir="${integ.scratch}"/>
-      <unzip src="${project.build.directory}/releases/elasticsearch-${project.version}.zip" 
+      <unzip src="${project.build.directory}/releases/${project.artifactId}-${project.version}.zip" 
              dest="${integ.scratch}"/>
     </sequential>
   </target>
@@ -200,7 +216,7 @@
   <target name="setup-workspace-tar" depends="stop-external-cluster" unless="${shouldskip}">
     <sequential>
       <delete dir="${integ.scratch}"/>
-      <untar src="${project.build.directory}/releases/elasticsearch-${project.version}.tar.gz" 
+      <untar src="${project.build.directory}/releases/${project.artifactId}-${project.version}.tar.gz" 
              dest="${integ.scratch}"
              compression="gzip"/>
     </sequential>
@@ -217,7 +233,7 @@
       <delete dir="${integ.scratch}"/>
       <mkdir dir="${integ.scratch}/deb-extracted"/>
       <local name="debfile"/>
-      <property name="debfile" location="${project.build.directory}/releases/elasticsearch-${project.version}.deb"/>
+      <property name="debfile" location="${project.build.directory}/releases/${project.artifactId}-${project.version}.deb"/>
       <!-- print some basic package info -->
       <exec executable="dpkg-deb" failonerror="true" taskname="deb-info">
          <arg value="-I"/>
@@ -244,7 +260,7 @@
       <local name="rpm.file"/>
       <local name="rpm.database"/>
       <local name="rpm.extracted"/>
-      <property name="rpm.file" location="${project.build.directory}/releases/elasticsearch-${project.version}.rpm"/>
+      <property name="rpm.file" location="${project.build.directory}/releases/${project.artifactId}-${project.version}.rpm"/>
       <property name="rpm.database" location="${integ.scratch}/rpm-database"/>
       <property name="rpm.extracted" location="${integ.scratch}/rpm-extracted"/>
       <mkdir dir="${rpm.database}"/>

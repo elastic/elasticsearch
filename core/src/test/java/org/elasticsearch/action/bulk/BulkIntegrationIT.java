@@ -26,7 +26,7 @@ import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
-import static org.elasticsearch.common.io.Streams.copyToStringFromClasspath;
+import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
 
 public class BulkIntegrationIT extends ESIntegTestCase {
 

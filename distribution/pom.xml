@@ -71,7 +71,6 @@
     </dependencies>
 
     <build>
-        <finalName>elasticsearch-${project.version}</finalName>
         <plugins>
             <!-- We copy libs for deb and rpm -->
             <plugin>
@@ -97,8 +96,32 @@
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-antrun-plugin</artifactId>
-                    <!-- <version>1.8</version> -->
-                    <!-- <configuration><skip>true</skip></configuration> -->
+                    <!-- checks integration test scratch area (where we extract the distribution) -->
+                    <executions>
+                        <execution>
+                            <id>check-license</id>
+                            <phase>verify</phase>
+                            <goals>
+                                <goal>run</goal>
+                            </goals>
+                            <configuration>
+                                <skip>${skip.integ.tests}</skip>
+                                <target>
+                                    <condition property="licenses.exists">
+                                        <available file="${basedir}/../licenses" type="dir"/>
+                                    </condition>
+                                    <echo taskName="license check">Running license check</echo>
+                                    <exec failonerror="${licenses.exists}" executable="perl"
+                                          dir="${elasticsearch.tools.directory}/license-check">
+                                        <arg value="check_license_and_sha.pl"/>
+                                        <arg value="--check"/>
+                                        <arg value="${basedir}/../licenses"/>
+                                        <arg value="${integ.scratch}"/>
+                                    </exec>
+                                </target>
+                            </configuration>
+                        </execution>
+                    </executions>
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
@@ -133,6 +156,14 @@
                     </executions>
                 </plugin>
                 <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-jar-plugin</artifactId>
+                    <configuration>
+                        <!-- distribution modules don't provide any jar. No need to upload empty jars to maven central -->
+                        <skipIfEmpty>true</skipIfEmpty>
+                    </configuration>
+                </plugin>
+                <plugin>
                     <groupId>com.carrotsearch.randomizedtesting</groupId>
                     <artifactId>junit4-maven-plugin</artifactId>
                     <executions>
@@ -143,7 +174,7 @@
                                 <parallelism>1</parallelism>
                                 <systemProperties>
                                     <!-- use external cluster -->
-                                    <tests.cluster>127.0.0.1:9300</tests.cluster>
+                                    <tests.cluster>127.0.0.1:${integ.transport.port}</tests.cluster>
                                 </systemProperties>
                             </configuration>
                         </execution>

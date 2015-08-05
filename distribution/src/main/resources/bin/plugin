@@ -69,15 +69,15 @@ fi
 while [ $# -gt 0 ]; do
   case $1 in
     -D*=*)
-      properties="$properties $1"
+      properties="$properties \"$1\""
       ;;
     -D*)
       var=$1
       shift
-      properties="$properties $var=$1"
+      properties="$properties \"$var\"=\"$1\""
       ;;
     *)
-      args="$args $1"
+      args="$args \"$1\""
   esac
   shift
 done
@@ -88,7 +88,7 @@ if [ -e "$CONF_DIR" ]; then
     *-Des.default.path.conf=*|*-Des.path.conf=*)
     ;;
     *)
-      properties="$properties -Des.default.path.conf=$CONF_DIR"
+      properties="$properties -Des.default.path.conf=\"$CONF_DIR\""
     ;;
   esac
 fi
@@ -98,11 +98,11 @@ if [ -e "$CONF_FILE" ]; then
     *-Des.default.config=*|*-Des.config=*)
     ;;
     *)
-      properties="$properties -Des.default.config=$CONF_FILE"
+      properties="$properties -Des.default.config=\"$CONF_FILE\""
     ;;
   esac
 fi
 
 export HOSTNAME=`hostname -s`
 
-exec "$JAVA" $JAVA_OPTS $ES_JAVA_OPTS -Xmx64m -Xms16m -Delasticsearch -Des.path.home="$ES_HOME" $properties -cp "$ES_HOME/lib/*" org.elasticsearch.plugins.PluginManagerCliParser $args
+eval "$JAVA" $JAVA_OPTS $ES_JAVA_OPTS -Xmx64m -Xms16m -Delasticsearch -Des.path.home="\"$ES_HOME\"" $properties -cp "\"$ES_HOME/lib/*\"" org.elasticsearch.plugins.PluginManagerCliParser $args

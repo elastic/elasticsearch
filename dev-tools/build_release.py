@@ -251,27 +251,20 @@ def build_release(release_version, run_tests=False, dry_run=True, cpus=1, bwc_ve
       print('Running Backwards compatibility tests against version [%s]' % (bwc_version))
       run_mvn('clean', 'test -Dtests.filter=@backwards -Dtests.bwc.version=%s -Dtests.bwc=true -Dtests.jvms=1' % bwc_version)
   run_mvn('clean test-compile -Dforbidden.test.signatures="org.apache.lucene.util.LuceneTestCase\$AwaitsFix @ Please fix all bugs before release"')
-  gpg_args = '-Dgpg.key="%s" -Dgpg.passphrase="%s" -Ddeb.sign=true -Drpm.sign=true' % (env.get('GPG_KEY_ID'), env.get('GPG_PASSPHRASE'))
+  # dont sign the RPM, so older distros will be able to use the uploaded RPM package
+  gpg_args = '-Dgpg.key="%s" -Dgpg.passphrase="%s" -Ddeb.sign=true -Drpm.sign=false' % (env.get('GPG_KEY_ID'), env.get('GPG_PASSPHRASE'))
   if env.get('GPG_KEYRING'):
     gpg_args += ' -Dgpg.keyring="%s"' % env.get('GPG_KEYRING')
   run_mvn('clean %s -DskipTests %s' % (target, gpg_args))
   success = False
   try:
-    # create unsigned RPM first for downloads.elasticsearch.org
-    run_mvn('-DskipTests rpm:rpm')
-    # move unsigned RPM to target/releases
-    # this is an oddness of RPM that is attaches -1 so we have to rename it
-    rpm = os.path.join('target/rpm/elasticsearch/RPMS/noarch/', 'elasticsearch-%s-1.noarch.rpm' % release_version)
+    # create additional signed RPM for the repositories
+    run_mvn('-f distribution/rpm/pom.xml package -DskipTests -Dsign.rpm=true -Drpm.outputDirectory=target/releases/signed/ %s' % (gpg_args))
+    rpm = os.path.join('target/releases/signed', 'elasticsearch-%s.rpm' % release_version)
     if os.path.isfile(rpm):
-      log('RPM [%s] contains: ' % rpm)
+      log('Signed RPM [%s] contains: ' % rpm)
       run('rpm -pqli %s' % rpm)
-      renamed_rpm = os.path.join('target/releases/', 'elasticsearch-%s.noarch.rpm' % release_version)
-      shutil.move(rpm, renamed_rpm)
-    else:
-      raise RuntimeError('Could not find required RPM at %s' % rpm)
-    # now create signed RPM for repositories
-    run_mvn('-DskipTests rpm:rpm %s' % (gpg_args))
-    success = True
+      success = True
   finally:
     if not success:
       print("""
@@ -358,63 +351,44 @@ def find_release_version(src_branch):
         return match.group(1)
     raise RuntimeError('Could not find release version in branch %s' % src_branch)
 
-def artifact_names(release, path = ''):
-  artifacts = [os.path.join(path, 'elasticsearch-%s.%s' % (release, t)) for t in ['deb', 'tar.gz', 'zip']]
-  artifacts.append(os.path.join(path, 'elasticsearch-%s.noarch.rpm' % (release)))
+def artifact_names(release):
+  artifacts = []
+  artifacts.append(os.path.join('distribution/zip/target/releases', 'elasticsearch-%s.zip' % (release)))
+  artifacts.append(os.path.join('distribution/tar/target/releases', 'elasticsearch-%s.tar.gz' % (release)))
+  artifacts.append(os.path.join('distribution/deb/target/releases', 'elasticsearch-%s.deb' % (release)))
+  artifacts.append(os.path.join('distribution/rpm/target/releases', 'elasticsearch-%s.rpm' % (release)))
   return artifacts
 
 def get_artifacts(release):
-  common_artifacts = artifact_names(release, 'target/releases/')
+  common_artifacts = artifact_names(release)
   for f in common_artifacts:
     if not os.path.isfile(f):
       raise RuntimeError('Could not find required artifact at %s' % f)
   return common_artifacts
 
-# Checks the jar files in each package
-# Barfs if any of the package jar files differ
-def check_artifacts_for_same_jars(artifacts):
-  jars = []
-  for file in artifacts:
-    if file.endswith('.zip'):
-      jars.append(subprocess.check_output("unzip -l %s  | grep '\.jar$' | awk -F '/' '{ print $NF }' | sort" % file, shell=True))
-    if file.endswith('.tar.gz'):
-      jars.append(subprocess.check_output("tar tzvf %s  | grep '\.jar$' | awk -F '/' '{ print $NF }' | sort" % file, shell=True))
-    if file.endswith('.rpm'):
-      jars.append(subprocess.check_output("rpm -pqli %s | grep '\.jar$' | awk -F '/' '{ print $NF }' | sort" % file, shell=True))
-    if file.endswith('.deb'):
-      jars.append(subprocess.check_output("dpkg -c %s   | grep '\.jar$' | awk -F '/' '{ print $NF }' | sort" % file, shell=True))
-  if len(set(jars)) != 1:
-    raise RuntimeError('JAR contents of packages are not the same, please check the package contents. Use [unzip -l], [tar tzvf], [dpkg -c], [rpm -pqli] to inspect')
-
-# Generates sha1 checsums for all files
-# and returns the checksum files as well
-# as the given files in a list
-def generate_checksums(files):
-  res = []
-  for release_file in files:
-    directory = os.path.dirname(release_file)
-    file = os.path.basename(release_file)
-    checksum_file = '%s.sha1.txt' % file
-
-    if os.system('cd %s; shasum %s > %s' % (directory, file, checksum_file)):
-      raise RuntimeError('Failed to generate checksum for file %s' % release_file)
-    res = res + [os.path.join(directory, checksum_file), release_file]
-  return res
-
-def download_and_verify(release, files, plugins=None, base_url='https://download.elastic.co/elasticsearch/elasticsearch'):
+# Sample URL:
+# http://download.elasticsearch.org/elasticsearch/release/org/elasticsearch/distribution/elasticsearch-rpm/2.0.0-beta1-SNAPSHOT/elasticsearch-rpm-2.0.0-beta1-SNAPSHOT.rpm
+def download_and_verify(release, files, plugins=None, base_url='https://download.elastic.co/elasticsearch/release/org/elasticsearch/distribution'):
   print('Downloading and verifying release %s from %s' % (release, base_url))
   tmp_dir = tempfile.mkdtemp()
   try:
     downloaded_files = []
     for file in files:
       name = os.path.basename(file)
-      url = '%s/%s' % (base_url, name)
+      if name.endswith('tar.gz'):
+        url = '%s/tar/elasticsearch/%s/%s' % (base_url, release, name)
+      elif name.endswith('zip'):
+        url = '%s/zip/elasticsearch/%s/%s' % (base_url, release, name)
+      elif name.endswith('rpm'):
+        url = '%s/rpm/elasticsearch/%s/%s' % (base_url, release, name)
+      elif name.endswith('deb'):
+        url = '%s/deb/elasticsearch/%s/%s' % (base_url, release, name)
       abs_file_path = os.path.join(tmp_dir, name)
       print('  Downloading %s' % (url))
       downloaded_files.append(abs_file_path)
       urllib.request.urlretrieve(url, abs_file_path)
-      url = ''.join([url, '.sha1.txt'])
-      checksum_file = os.path.join(tmp_dir, ''.join([abs_file_path, '.sha1.txt']))
+      url = ''.join([url, '.sha1'])
+      checksum_file = os.path.join(tmp_dir, ''.join([abs_file_path, '.sha1']))
       urllib.request.urlretrieve(url, checksum_file)
       print('  Verifying checksum %s' % (checksum_file))
       run('cd %s && sha1sum -c %s' % (tmp_dir, os.path.basename(checksum_file)))
@@ -444,10 +418,7 @@ def smoke_test_release(release, files, expected_hash, plugins):
       run('%s; %s install %s' % (java_exe(), es_plugin_path, plugin))
       plugin_names[name] = True
 
-    if release.startswith("0.90."):
-      background = '' # 0.90.x starts in background automatically
-    else:
-      background = '-d'
+    background = '-d'
     print('  Starting elasticsearch deamon from [%s]' % os.path.join(tmp_dir, 'elasticsearch-%s' % release))
     run('%s; %s -Des.node.name=smoke_tester -Des.cluster.name=prepare_release -Des.discovery.zen.ping.multicast.enabled=false -Des.script.inline=on -Des.script.indexed=on %s'
          % (java_exe(), es_run_path, background))
@@ -505,21 +476,11 @@ def merge_tag_push(remote, src_branch, release_version, dry_run):
   else:
     print('  dryrun [True] -- skipping push to remote %s' % remote)
 
-def publish_artifacts(artifacts, base='elasticsearch/elasticsearch', dry_run=True):
-  location = os.path.dirname(os.path.realpath(__file__))
-  for artifact in artifacts:
-    if dry_run:
-      print('Skip Uploading %s to Amazon S3' % artifact)
-    else:
-      print('Uploading %s to Amazon S3' % artifact)
-      # requires boto to be installed but it is not available on python3k yet so we use a dedicated tool
-      run('python %s/upload-s3.py --file %s ' % (location, os.path.abspath(artifact)))
-
 def publish_repositories(version, dry_run=True):
   if dry_run:
     print('Skipping package repository update')
   else:
-    print('Triggering repository update - calling dev-tools/build_repositories.sh %s' % version)
+    print('Triggering repository update for version %s - calling dev-tools/build_repositories.sh %s' % (version, src_branch))
     # src_branch is a version like 1.5/1.6/2.0/etc.. so we can use this
     run('dev-tools/build_repositories.sh %s' % src_branch)
 
@@ -756,22 +717,17 @@ if __name__ == '__main__':
       print('Building Release candidate')
       input('Press Enter to continue...')
       if not dry_run:
-        print('  Running maven builds now and publish to Sonatype - run-tests [%s]' % run_tests)
+        print('  Running maven builds now and publish to Sonatype and S3 - run-tests [%s]' % run_tests)
       else:
         print('  Running maven builds now run-tests [%s]' % run_tests)
       build_release(release_version, run_tests=run_tests, dry_run=dry_run, cpus=cpus, bwc_version=find_bwc_version(release_version, bwc_path))
       artifacts = get_artifacts(release_version)
-      print('Checking if all artifacts contain the same jars')
-      check_artifacts_for_same_jars(artifacts)
-      artifacts_and_checksum = generate_checksums(artifacts)
       smoke_test_release(release_version, artifacts, get_head_hash(), PLUGINS)
       print(''.join(['-' for _ in range(80)]))
       print('Finish Release -- dry_run: %s' % dry_run)
       input('Press Enter to continue...')
       print('  merge release branch, tag and push to %s %s -- dry_run: %s' % (remote, src_branch, dry_run))
       merge_tag_push(remote, src_branch, release_version, dry_run)
-      print('  publish artifacts to S3 -- dry_run: %s' % dry_run)
-      publish_artifacts(artifacts_and_checksum, dry_run=dry_run)
       print('  Updating package repositories -- dry_run: %s' % dry_run)
       publish_repositories(src_branch, dry_run=dry_run)
       cherry_pick_command = '.'

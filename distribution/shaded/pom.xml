@@ -9,7 +9,8 @@
         <version>2.0.0-beta1-SNAPSHOT</version>
     </parent>
 
-    <artifactId>elasticsearch-shaded</artifactId>
+    <groupId>org.elasticsearch.distribution.shaded</groupId>
+    <artifactId>elasticsearch</artifactId>
     <name>Elasticsearch Shaded Distribution</name>
 
     <dependencies>
@@ -21,13 +22,13 @@
     </dependencies>
 
     <build>
-        <finalName>${project.artifactId}-${project.version}</finalName>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-jar-plugin</artifactId>
                 <!-- see docs, incremental builds dont play well with shading otherwise -->
                 <configuration>
+                    <skipIfEmpty>false</skipIfEmpty>
                     <forceCreation>true</forceCreation>
                 </configuration>
             </plugin>

@@ -34,15 +34,18 @@ import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationComman
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.DisableAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider.Allocation;
+import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.test.InternalTestCluster;
 import org.junit.Test;
 
 import java.nio.file.Path;
@@ -158,6 +161,40 @@ public class ClusterRerouteIT extends ESIntegTestCase {
                 .put(CLUSTER_ROUTING_ALLOCATION_ENABLE, Allocation.NONE.name())
                 .build();
         rerouteWithAllocateLocalGateway(commonSettings);
+    }
+
+    @Test
+    public void testDelayWithALargeAmountOfShards() throws Exception {
+        Settings commonSettings = settingsBuilder()
+                .put("gateway.type", "local")
+                .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_CONCURRENT_RECOVERIES, 1)
+                .build();
+        logger.info("--> starting 4 nodes");
+        String node_1 = internalCluster().startNode(commonSettings);
+        internalCluster().startNode(commonSettings);
+        internalCluster().startNode(commonSettings);
+        internalCluster().startNode(commonSettings);
+
+        assertThat(cluster().size(), equalTo(4));
+        ClusterHealthResponse healthResponse = client().admin().cluster().prepareHealth().setWaitForNodes("4").execute().actionGet();
+        assertThat(healthResponse.isTimedOut(), equalTo(false));
+
+        logger.info("--> create indices");
+        for (int i = 0; i < 25; i++) {
+            client().admin().indices().prepareCreate("test" + i)
+                    .setSettings(settingsBuilder()
+                            .put("index.number_of_shards", 5).put("index.number_of_replicas", 1)
+                            .put("index.unassigned.node_left.delayed_timeout", randomIntBetween(250, 1000) + "ms"))
+                    .execute().actionGet();
+        }
+
+        ensureGreen(TimeValue.timeValueMinutes(1));
+
+        logger.info("--> stopping node1");
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(node_1));
+
+        // This might run slowly on older hardware
+        ensureGreen(TimeValue.timeValueMinutes(2));
     }
 
     private void rerouteWithAllocateLocalGateway(Settings commonSettings) throws Exception {

@@ -39,6 +39,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MockDirectoryWrapper;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.TestUtil;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.bwcompat.OldIndexBackwardsCompatibilityIT;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -256,7 +257,11 @@ public class InternalEngineTests extends ESTestCase {
                 // we don't need to notify anybody in this test
             }
         }, new TranslogHandler(shardId.index().getName()), IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), new IndexSearcherWrappingService(new HashSet<>(Arrays.asList(wrappers))), translogConfig);
-
+        try {
+            config.setCreate(Lucene.indexExists(store.directory()) == false);
+        } catch (IOException e) {
+            throw new ElasticsearchException("can't find index?", e);
+        }
         return config;
     }
 
@@ -775,6 +780,7 @@ public class InternalEngineTests extends ESTestCase {
             // this so we have to disable the check explicitly
             directory.setPreventDoubleWrite(false);
         }
+        config.setCreate(false);
         engine = new InternalEngine(config, false);
         assertNull("Sync ID must be gone since we have a document to replay", engine.getLastCommittedSegmentInfos().getUserData().get(Engine.SYNC_COMMIT_ID));
     }
@@ -1869,6 +1875,7 @@ public class InternalEngineTests extends ESTestCase {
         parser.mappingUpdate = dynamicUpdate();
 
         engine.close();
+        engine.config().setCreate(false);
         engine = new InternalEngine(engine.config(), false); // we need to reuse the engine config unless the parser.mappingModified won't work
 
         try (Engine.Searcher searcher = engine.acquireSearcher("test")) {

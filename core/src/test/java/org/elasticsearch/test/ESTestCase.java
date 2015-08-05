@@ -537,7 +537,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         @Override
         public void uncaughtException(Thread t, Throwable e) {
             if (e instanceof EsRejectedExecutionException) {
-                if (e.getMessage() != null && e.getMessage().contains(EsAbortPolicy.SHUTTING_DOWN_KEY)) {
+                if (e.getMessage() != null && ((EsRejectedExecutionException) e).isExecutorShutdown()) {
                     return; // ignore the EsRejectedExecutionException when a node shuts down
                 }
             } else if (e instanceof OutOfMemoryError) {

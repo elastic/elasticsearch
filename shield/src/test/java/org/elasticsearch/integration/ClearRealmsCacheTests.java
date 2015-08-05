@@ -5,8 +5,14 @@
  */
 package org.elasticsearch.integration;
 
+import com.google.common.base.Joiner;
+import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.impl.client.HttpClients;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.http.HttpServerTransport;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.action.authc.cache.ClearRealmCacheRequest;
 import org.elasticsearch.shield.action.authc.cache.ClearRealmCacheResponse;
@@ -19,6 +25,8 @@ import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.shield.client.ShieldClient;
 import org.elasticsearch.test.ShieldIntegTestCase;
 import org.elasticsearch.test.ShieldSettingsSource;
+import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
+import org.elasticsearch.test.rest.client.http.HttpResponse;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -51,13 +59,13 @@ public class ClearRealmsCacheTests extends ShieldIntegTestCase {
         EVICT_ALL() {
 
             @Override
-            public ClearRealmCacheRequest createRequest() {
-                return new ClearRealmCacheRequest();
+            public void assertEviction(User prevUser, User newUser) {
+                assertThat(prevUser, not(sameInstance(newUser)));
             }
 
             @Override
-            public void assertEviction(User prevUser, User newUser) {
-                assertThat(prevUser, not(sameInstance(newUser)));
+            public void executeRequest() throws Exception {
+                executeTransportRequest(new ClearRealmCacheRequest());
             }
         },
 
@@ -69,8 +77,38 @@ public class ClearRealmsCacheTests extends ShieldIntegTestCase {
             }
 
             @Override
-            public ClearRealmCacheRequest createRequest() {
-                return new ClearRealmCacheRequest().usernames(evicted_usernames);
+            public void assertEviction(User prevUser, User newUser) {
+                if (Arrays.binarySearch(evicted_usernames, prevUser.principal()) >= 0) {
+                    assertThat(prevUser, not(sameInstance(newUser)));
+                } else {
+                    assertThat(prevUser, sameInstance(newUser));
+                }
+            }
+
+            @Override
+            public void executeRequest() throws Exception {
+                executeTransportRequest(new ClearRealmCacheRequest().usernames(evicted_usernames));
+            }
+        },
+
+        EVICT_ALL_HTTP() {
+
+            @Override
+            public void assertEviction(User prevUser, User newUser) {
+                assertThat(prevUser, not(sameInstance(newUser)));
+            }
+
+            @Override
+            public void executeRequest() throws Exception {
+                executeHttpRequest("/_shield/realm/" + (randomBoolean() ? "*" : "_all") + "/_cache/clear", Collections.<String, String>emptyMap());
+            }
+        },
+
+        EVICT_SOME_HTTP() {
+
+            private final String[] evicted_usernames = randomSelection(usernames);
+            {
+                Arrays.sort(evicted_usernames);
             }
 
             @Override
@@ -81,13 +119,76 @@ public class ClearRealmsCacheTests extends ShieldIntegTestCase {
                     assertThat(prevUser, sameInstance(newUser));
                 }
             }
+
+            @Override
+            public void executeRequest() throws Exception {
+                String path = "/_shield/realm/" + (randomBoolean() ? "*" : "_all") + "/_cache/clear";
+                Map<String, String> params = Collections.singletonMap("usernames", Joiner.on(',').join(evicted_usernames));
+                executeHttpRequest(path, params);
+            }
         };
 
-        public abstract ClearRealmCacheRequest createRequest();
-
         public abstract void assertEviction(User prevUser, User newUser);
+
+        public abstract void executeRequest() throws Exception;
+
+        static void executeTransportRequest(ClearRealmCacheRequest request) throws Exception {
+            ShieldClient client = new ShieldClient(client());
+
+            final CountDownLatch latch = new CountDownLatch(1);
+            final AtomicReference<Throwable> error = new AtomicReference<>();
+            client.authc().clearRealmCache(request, new ActionListener<ClearRealmCacheResponse>() {
+                @Override
+                public void onResponse(ClearRealmCacheResponse response) {
+                    assertThat(response.getNodes().length, equalTo(internalTestCluster().getNodeNames().length));
+                    latch.countDown();
+                }
+
+                @Override
+                public void onFailure(Throwable e) {
+                    error.set(e);
+                    latch.countDown();
+                }
+            });
+
+            if (!latch.await(5, TimeUnit.SECONDS)) {
+                fail("waiting for clear realms cache request too long");
+            }
+
+            if (error.get() != null) {
+                fail("failed to clear realm caches" + error.get().getMessage());
+            }
+        }
+
+        static void executeHttpRequest(String path, Map<String, String> params) throws Exception {
+            try (CloseableHttpClient client = HttpClients.createDefault()) {
+                HttpRequestBuilder requestBuilder = new HttpRequestBuilder(client)
+                        .httpTransport(internalTestCluster().getDataNodeInstance(HttpServerTransport.class))
+                        .method("POST")
+                        .path(path);
+                for (Map.Entry<String, String> entry : params.entrySet()) {
+                    requestBuilder.addParam(entry.getKey(), entry.getValue());
+                }
+                requestBuilder.addHeader(UsernamePasswordToken.BASIC_AUTH_HEADER, UsernamePasswordToken.basicAuthHeaderValue(ShieldSettingsSource.DEFAULT_USER_NAME, new SecuredString(ShieldSettingsSource.DEFAULT_PASSWORD.toCharArray())));
+                HttpResponse response = requestBuilder.execute();
+                assertThat(response.hasBody(), is(true));
+                String body = response.getBody();
+                assertThat(body.contains("cluster_name"), is(true));
+            }
+        }
     }
 
+    @Override
+    public Settings nodeSettings(int nodeOrdinal) {
+        return Settings.builder()
+                .put(super.nodeSettings(nodeOrdinal))
+                .put(Node.HTTP_ENABLED, true)
+                .build();
+    }
+    @Override
+    public boolean sslTransportEnabled() {
+        return false;
+    }
 
     @Override
     protected String configRoles() {
@@ -119,6 +220,16 @@ public class ClearRealmsCacheTests extends ShieldIntegTestCase {
     @Test
     public void testEvictSome() throws Exception {
         testScenario(Scenario.EVICT_SOME);
+    }
+
+    @Test
+    public void testEvictAllHttp() throws Exception {
+        testScenario(Scenario.EVICT_ALL_HTTP);
+    }
+
+    @Test
+    public void testEvictSomeHttp() throws Exception {
+        testScenario(Scenario.EVICT_SOME_HTTP);
     }
 
     private void testScenario(Scenario scenario) throws Exception {
@@ -158,33 +269,7 @@ public class ClearRealmsCacheTests extends ShieldIntegTestCase {
         }
 
         // now, lets run the scenario
-
-        ShieldClient client = new ShieldClient(client());
-
-        final CountDownLatch latch = new CountDownLatch(1);
-        final AtomicReference<Throwable> error = new AtomicReference<>();
-        client.authc().clearRealmCache(scenario.createRequest(), new ActionListener<ClearRealmCacheResponse>() {
-            @Override
-            public void onResponse(ClearRealmCacheResponse response) {
-                assertThat(response.getNodes().length, equalTo(internalTestCluster().getNodeNames().length));
-                latch.countDown();
-            }
-
-            @Override
-            public void onFailure(Throwable e) {
-                error.set(e);
-                latch.countDown();
-            }
-        });
-
-        if (!latch.await(5, TimeUnit.SECONDS)) {
-            fail("waiting for clear realms cache request too long");
-        }
-
-        if (error.get() != null) {
-            logger.error("failed to clear realm caches", error.get());
-            fail("failed to clear realm caches");
-        }
+        scenario.executeRequest();
 
         // now, user_a should have been evicted, but user_b should still be cached
         for (String username : usernames) {

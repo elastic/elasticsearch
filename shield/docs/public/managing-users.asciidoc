@@ -230,13 +230,16 @@ describes the different hash algorithm that can be set:
 [float]
 [[cache-eviction-api]]
 ==== Cache Eviction API
-Shield exposes an API to force cached user eviction. The following example, evicts all users from the `ldap1`
+Shield exposes an API to force cached user eviction. The following example, evicts all users from the `esusers`
 realm:
 
 [source, java]
 ------------------------------------------------------------
 $ curl -XPOST 'http://localhost:9200/_shield/realm/esusers/_cache/clear'
 ------------------------------------------------------------
+
+NOTE: if no realm is defined, the default realm name, `default_esusers` can be used to clear the cache
+of the default esusers realm.
 
 It is also possible to evict specific users:
 

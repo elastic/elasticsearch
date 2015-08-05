@@ -49,6 +49,7 @@ public class ClearRealmCacheResponse extends BaseNodesResponse<ClearRealmCacheRe
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
         builder.field("cluster_name", getClusterName().value());
         builder.startObject("nodes");
         for (ClearRealmCacheResponse.Node node: getNodes()) {
@@ -56,6 +57,7 @@ public class ClearRealmCacheResponse extends BaseNodesResponse<ClearRealmCacheRe
             builder.field("name", node.getNode().name());
             builder.endObject();
         }
+        builder.endObject();
         return builder.endObject();
     }
 

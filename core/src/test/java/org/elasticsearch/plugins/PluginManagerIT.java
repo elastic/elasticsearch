@@ -18,9 +18,12 @@
  */
 package org.elasticsearch.plugins;
 
+import com.google.common.base.Charsets;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.Base64;
+import org.elasticsearch.common.cli.CliTool;
 import org.elasticsearch.common.cli.CliTool.ExitStatus;
 import org.elasticsearch.common.cli.CliToolTestCase.CaptureOutputTerminal;
 import org.elasticsearch.common.collect.Tuple;
@@ -32,11 +35,23 @@ import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.junit.annotations.Network;
 import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
 import org.elasticsearch.test.rest.client.http.HttpResponse;
+import org.jboss.netty.bootstrap.ServerBootstrap;
+import org.jboss.netty.channel.*;
+import org.jboss.netty.channel.socket.nio.NioServerSocketChannelFactory;
+import org.jboss.netty.handler.codec.http.*;
+import org.jboss.netty.handler.ssl.SslContext;
+import org.jboss.netty.handler.ssl.SslHandler;
+import org.jboss.netty.handler.ssl.util.InsecureTrustManagerFactory;
+import org.jboss.netty.handler.ssl.util.SelfSignedCertificate;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import javax.net.ssl.HttpsURLConnection;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLSocketFactory;
 import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
@@ -46,6 +61,8 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.PosixFileAttributeView;
 import java.nio.file.attribute.PosixFileAttributes;
 import java.nio.file.attribute.PosixFilePermission;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
@@ -59,6 +76,7 @@ import static org.elasticsearch.test.ESIntegTestCase.Scope;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertDirectoryExists;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFileExists;
 import static org.hamcrest.Matchers.*;
+import static org.jboss.netty.handler.codec.http.HttpVersion.HTTP_1_1;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0, transportClientRatio = 0.0)
 @LuceneTestCase.SuppressFileSystems("*") // TODO: clean up this test to allow extra files
@@ -476,6 +494,77 @@ public class PluginManagerIT extends ESIntegTestCase {
             // We expect that error
         }
     }
+
+    @Test
+    public void testThatBasicAuthIsRejectedOnHttp() throws Exception {
+        assertStatus(String.format(Locale.ROOT, "install foo --url http://user:pass@localhost:12345/foo.zip --verbose"), CliTool.ExitStatus.IO_ERROR);
+        assertThat(terminal.getTerminalOutput(), hasItem(containsString("Basic auth is only supported for HTTPS!")));
+    }
+
+    @Test
+    public void testThatBasicAuthIsSupportedWithHttps() throws Exception {
+        assumeTrue("test requires security manager to be disabled", System.getSecurityManager() == null);
+
+        SSLSocketFactory defaultSocketFactory = HttpsURLConnection.getDefaultSSLSocketFactory();
+        ServerBootstrap serverBootstrap = new ServerBootstrap(new NioServerSocketChannelFactory());
+        SelfSignedCertificate ssc = new SelfSignedCertificate("localhost");
+
+        try {
+
+            //  Create a trust manager that does not validate certificate chains:
+            SSLContext sc = SSLContext.getInstance("SSL");
+            sc.init(null,  InsecureTrustManagerFactory.INSTANCE.getTrustManagers(), null);
+            HttpsURLConnection.setDefaultSSLSocketFactory(sc.getSocketFactory());
+
+            final List<HttpRequest> requests = new ArrayList<>();
+            final SslContext sslContext = SslContext.newServerContext(ssc.certificate(), ssc.privateKey());
+
+            serverBootstrap.setPipelineFactory(new ChannelPipelineFactory() {
+                @Override
+                public ChannelPipeline getPipeline() throws Exception {
+                    return Channels.pipeline(
+                            new SslHandler(sslContext.newEngine()),
+                            new HttpRequestDecoder(),
+                            new HttpResponseEncoder(),
+                            new LoggingServerHandler(requests)
+                    );
+                }
+            });
+
+            Channel channel = serverBootstrap.bind(new InetSocketAddress("localhost", 0));
+            int port = ((InetSocketAddress) channel.getLocalAddress()).getPort();
+            // IO_ERROR because there is no real file delivered...
+            assertStatus(String.format(Locale.ROOT, "install foo --url https://user:pass@localhost:%s/foo.zip --verbose --timeout 1s", port), ExitStatus.IO_ERROR);
+
+            assertThat(requests, hasSize(1));
+            String msg = String.format(Locale.ROOT, "Request header did not contain Authorization header, terminal output was: %s", terminal.getTerminalOutput());
+            assertThat(msg, requests.get(0).headers().contains("Authorization"), is(true));
+            assertThat(msg, requests.get(0).headers().get("Authorization"), is("Basic " + Base64.encodeBytes("user:pass".getBytes(Charsets.UTF_8))));
+        } finally {
+            HttpsURLConnection.setDefaultSSLSocketFactory(defaultSocketFactory);
+            serverBootstrap.releaseExternalResources();
+            ssc.delete();
+        }
+    }
+
+    private static class LoggingServerHandler extends SimpleChannelUpstreamHandler {
+
+        private List<HttpRequest> requests;
+
+        public LoggingServerHandler(List<HttpRequest> requests) {
+            this.requests = requests;
+        }
+
+        @Override
+        public void messageReceived(final ChannelHandlerContext ctx, final MessageEvent e) throws InterruptedException {
+            final HttpRequest request = (HttpRequest) e.getMessage();
+            requests.add(request);
+            final org.jboss.netty.handler.codec.http.HttpResponse response = new DefaultHttpResponse(HTTP_1_1, HttpResponseStatus.BAD_REQUEST);
+            ctx.getChannel().write(response);
+        }
+    }
+
+
 
     private Tuple<Settings, Environment> buildInitialSettings() throws IOException {
         Settings settings = settingsBuilder()

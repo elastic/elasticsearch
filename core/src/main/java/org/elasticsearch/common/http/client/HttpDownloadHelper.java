@@ -19,12 +19,13 @@
 
 package org.elasticsearch.common.http.client;
 
+import com.google.common.base.Charsets;
+import com.google.common.base.Strings;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.Base64;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.cli.Terminal;
 import org.elasticsearch.common.unit.TimeValue;
 
 import java.io.*;
@@ -264,6 +265,17 @@ public class HttpDownloadHelper {
             // NB: things like user authentication could go in here too.
             if (hasTimestamp) {
                 connection.setIfModifiedSince(timestamp);
+            }
+
+            // in case the plugin manager is its own project, this can become an authenticator
+            boolean isSecureProcotol = "https".equalsIgnoreCase(aSource.getProtocol());
+            boolean isAuthInfoSet = !Strings.isNullOrEmpty(aSource.getUserInfo());
+            if (isAuthInfoSet) {
+                if (!isSecureProcotol) {
+                    throw new IOException("Basic auth is only supported for HTTPS!");
+                }
+                String basicAuth = Base64.encodeBytes(aSource.getUserInfo().getBytes(Charsets.UTF_8));
+                connection.setRequestProperty("Authorization", "Basic " + basicAuth);
             }
 
             if (connection instanceof HttpURLConnection) {

@@ -22,7 +22,6 @@ package org.elasticsearch.plugins;
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterators;
-
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
@@ -132,6 +131,12 @@ public class PluginManager {
         // first, try directly from the URL provided
         if (url != null) {
             URL pluginUrl = new URL(url);
+            boolean isSecureProcotol = "https".equalsIgnoreCase(pluginUrl.getProtocol());
+            boolean isAuthInfoSet = !Strings.isNullOrEmpty(pluginUrl.getUserInfo());
+            if (isAuthInfoSet && !isSecureProcotol) {
+                throw new IOException("Basic auth is only supported for HTTPS!");
+            }
+
             terminal.println("Trying %s ...", pluginUrl.toExternalForm());
             try {
                 downloadHelper.download(pluginUrl, pluginFile, progress, this.timeout);

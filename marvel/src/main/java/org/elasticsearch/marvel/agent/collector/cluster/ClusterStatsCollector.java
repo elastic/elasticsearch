@@ -47,7 +47,7 @@ public class ClusterStatsCollector extends AbstractCollector<ClusterStatsCollect
     protected Collection<MarvelDoc> doCollect() throws Exception {
         ImmutableList.Builder<MarvelDoc> results = ImmutableList.builder();
 
-        ClusterStatsResponse clusterStatsResponse = client.admin().cluster().prepareClusterStats().get();
+        ClusterStatsResponse clusterStatsResponse = client.admin().cluster().prepareClusterStats().get(marvelSettings.clusterStatsTimeout());
         results.add(buildMarvelDoc(clusterName.value(), TYPE, System.currentTimeMillis(), clusterStatsResponse));
         return results.build();
     }

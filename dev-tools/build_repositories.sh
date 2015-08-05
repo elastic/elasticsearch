@@ -158,8 +158,8 @@ mkdir -p $centosdir
 echo "RPM: Syncing repository for version $version into $centosdir"
 $s3cmd sync s3://$S3_BUCKET_SYNC_FROM/elasticsearch/$version/centos/ $centosdir
 
-rpm=target/rpm/elasticsearch/RPMS/noarch/elasticsearch*.rpm
-echo "RPM: Copying $rpm into $centosdor"
+rpm=distribution/rpm/target/releases/signed/elasticsearch*.rpm
+echo "RPM: Copying signed $rpm into $centosdir"
 cp $rpm $centosdir
 
 echo "RPM: Running createrepo in $centosdir"
@@ -176,7 +176,7 @@ $s3cmd sync -P $centosdir/ s3://$S3_BUCKET_SYNC_TO/elasticsearch/$version/centos
 ## DEB
 ###################
 
-deb=target/releases/elasticsearch*.deb
+deb=distribution/deb/target/releases/elasticsearch*.deb
 
 echo "DEB: Creating repository directory structure"
 

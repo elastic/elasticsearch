@@ -23,6 +23,11 @@
         </dependency>
     </dependencies>
 
+    <properties>
+        <skip.integ.tests>true</skip.integ.tests>
+        <rpm.outputDirectory>${project.build.directory}/releases/</rpm.outputDirectory>
+    </properties>
+
     <build>
 
         <filters>
@@ -301,7 +306,7 @@
                                     <version>${project.version}</version>
                                     <type>${project.packaging}</type>
                                     <overWrite>true</overWrite>
-                                    <outputDirectory>${project.build.directory}/releases/</outputDirectory>
+                                    <outputDirectory>${rpm.outputDirectory}</outputDirectory>
                                 </artifactItem>
                             </artifactItems>
                         </configuration>

@@ -427,7 +427,9 @@ public class RecoveryTarget extends AbstractComponent {
                     try {
                         store.cleanup("recovery CleanFilesRequestHandler", request.legacySnapshotFiles());
                     } catch (Exception ex) {
-                        throw new RecoveryFailedException(recoveryStatus.state(), "failed to clean after recovery", ex);
+                        RecoveryFailedException rfe = new RecoveryFailedException(recoveryStatus.state(), "failed to clean after recovery", ex);
+                        recoveryStatus.fail(rfe, true);
+                        throw rfe;
                     }
                 } else {
                     try {
@@ -449,9 +451,13 @@ public class RecoveryTarget extends AbstractComponent {
                             logger.debug("Failed to clean lucene index", e);
                             ex.addSuppressed(e);
                         }
-                        throw new RecoveryFailedException(recoveryStatus.state(), "failed to clean after recovery", ex);
+                        RecoveryFailedException rfe = new RecoveryFailedException(recoveryStatus.state(), "failed to clean after recovery", ex);
+                        recoveryStatus.fail(rfe, true);
+                        throw rfe;
                     } catch (Exception ex) {
-                        throw new RecoveryFailedException(recoveryStatus.state(), "failed to clean after recovery", ex);
+                        RecoveryFailedException rfe = new RecoveryFailedException(recoveryStatus.state(), "failed to clean after recovery", ex);
+                        recoveryStatus.fail(rfe, true);
+                        throw rfe;
                     }
                 }
                 channel.sendResponse(TransportResponse.Empty.INSTANCE);

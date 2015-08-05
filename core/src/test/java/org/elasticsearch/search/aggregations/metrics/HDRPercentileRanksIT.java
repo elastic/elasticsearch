@@ -256,7 +256,6 @@ public class HDRPercentileRanksIT extends AbstractNumericTestCase {
 
     @Override
     @Test
-    @AwaitsFix(bugUrl="Fails with seed: B75FCDC119D90BBE, Colin to fix")
     public void testSingleValuedField_WithValueScript_WithParams() throws Exception {
         int sigDigits = randomSignificantDigits();
         Map<String, Object> params = new HashMap<>();

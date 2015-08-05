@@ -8,10 +8,21 @@ use lib "$RealBin/lib";
 use File::Spec();
 use File::Temp();
 use File::Find();
-use Digest::SHA qw(sha1);
 use File::Basename qw(basename);
 use Archive::Extract();
 $Archive::Extract::PREFER_BIN = 1;
+
+our $SHA_CLASS = 'Digest::SHA';
+if ( eval { require Digest::SHA } ) {
+    $SHA_CLASS = 'Digest::SHA';
+}
+else {
+
+    print STDERR "Digest::SHA not available. "
+        . "Falling back to Digest::SHA::PurePerl\n";
+    require Digest::SHA::PurePerl;
+    $SHA_CLASS = 'Digest::SHA::PurePerl';
+}
 
 my $mode = shift(@ARGV) || "";
 die usage() unless $mode =~ /^--(check|update)$/;
@@ -230,7 +241,7 @@ sub calculate_shas {
 #===================================
     my %shas;
     while ( my $file = shift() ) {
-        my $digest = eval { Digest::SHA->new(1)->addfile($file) }
+        my $digest = eval { $SHA_CLASS->new(1)->addfile($file) }
             or die "Error calculating SHA1 for <$file>: $!\n";
         $shas{ basename($file) . ".sha1" } = $digest->hexdigest;
     }

@@ -74,6 +74,7 @@ public class SecurityTests extends ESTestCase {
         Settings.Builder settingsBuilder = Settings.builder();
         settingsBuilder.put("path.home", esHome.resolve("home").toString());
         settingsBuilder.put("path.conf", esHome.resolve("conf").toString());
+        settingsBuilder.put("path.scripts", esHome.resolve("scripts").toString());
         settingsBuilder.put("path.plugins", esHome.resolve("plugins").toString());
         settingsBuilder.putArray("path.data", esHome.resolve("data1").toString(), esHome.resolve("data2").toString());
         settingsBuilder.put("path.logs", esHome.resolve("logs").toString());
@@ -109,6 +110,8 @@ public class SecurityTests extends ESTestCase {
         assertExactPermissions(new FilePermission(environment.libFile().toString(), "read,readlink"), permissions);
         // config file: ro
         assertExactPermissions(new FilePermission(environment.configFile().toString(), "read,readlink"), permissions);
+        // scripts file: ro
+        assertExactPermissions(new FilePermission(environment.scriptsFile().toString(), "read,readlink"), permissions);
         // plugins: ro
         assertExactPermissions(new FilePermission(environment.pluginsFile().toString(), "read,readlink"), permissions);
 

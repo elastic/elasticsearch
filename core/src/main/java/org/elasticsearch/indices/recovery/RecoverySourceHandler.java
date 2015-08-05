@@ -435,6 +435,7 @@ public class RecoverySourceHandler {
                                 exception.addSuppressed(remoteException);
                                 logger.warn("{} Remote file corruption during finalization on node {}, recovering {}. local checksum OK",
                                         corruptIndexException, shard.shardId(), request.targetNode());
+                                throw exception;
                             } else {
                                 throw remoteException;
                             }

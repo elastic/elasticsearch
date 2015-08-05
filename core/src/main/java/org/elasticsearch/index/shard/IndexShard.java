@@ -660,11 +660,8 @@ public class IndexShard extends AbstractIndexShardComponent {
     public CompletionStats completionStats(String... fields) {
         CompletionStats completionStats = new CompletionStats();
         try (final Engine.Searcher currentSearcher = acquireSearcher("completion_stats")) {
-            PostingsFormat postingsFormat = PostingsFormat.forName(Completion090PostingsFormat.CODEC_NAME);
-            if (postingsFormat instanceof Completion090PostingsFormat) {
-                Completion090PostingsFormat completionPostingsFormat = (Completion090PostingsFormat) postingsFormat;
-                completionStats.add(completionPostingsFormat.completionStats(currentSearcher.reader(), fields));
-            }
+            Completion090PostingsFormat postingsFormat = ((Completion090PostingsFormat) PostingsFormat.forName(Completion090PostingsFormat.CODEC_NAME));
+            completionStats.add(postingsFormat.completionStats(currentSearcher.reader(), fields));
             completionStats.add(CompletionFieldStats.completionStats(currentSearcher.reader(), fields));
         }
         return completionStats;

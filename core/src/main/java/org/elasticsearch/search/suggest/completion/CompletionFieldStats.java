@@ -43,18 +43,14 @@ public class CompletionFieldStats {
                 for (String fieldName : atomicReader.fields()) {
                     Terms terms = atomicReader.fields().terms(fieldName);
                     if (terms instanceof CompletionTerms) {
-                        CompletionTerms completionTerms = (CompletionTerms) terms;
-                        sizeInBytes += completionTerms.ramBytesUsed();
-                        if (fields == null || fields.length == 0) {
-                            continue;
-                        }
-                        if (Regex.simpleMatch(fields, fieldName)) {
-                            long fstSize = completionTerms.ramBytesUsed();
+                        long fstSize = ((CompletionTerms) terms).ramBytesUsed();
+                        if (fields != null && fields.length > 0 && Regex.simpleMatch(fields, fieldName)) {
                             completionFields.addTo(fieldName, fstSize);
                         }
+                        sizeInBytes += fstSize;
                     }
                 }
-            } catch (IOException e) {
+            } catch (IOException ignored) {
             }
         }
         return new CompletionStats(sizeInBytes, completionFields);

@@ -38,7 +38,6 @@ import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.percolator.PercolatorService;
@@ -684,7 +683,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         assertSuggestions(suggestResponse, false, "foo", "ööööö");
     }
 
-    @Test //ECC7B003D683431
+    @Test
     public void testThatStatsAreWorking() throws Exception {
         String otherField = "testOtherField";
 
@@ -711,6 +710,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         // load the fst index into ram
         client().prepareSuggest(INDEX).addSuggestion(SuggestBuilders.completionSuggestion("foo").field(FIELD).prefix("f")).get();
         client().prepareSuggest(INDEX).addSuggestion(SuggestBuilders.completionSuggestion("foo").field(otherField).prefix("f")).get();
+        refresh();
 
         // Get all stats
         IndicesStatsResponse indicesStatsResponse = client().admin().indices().prepareStats(INDEX).setIndices(INDEX).setCompletion(true).get();
@@ -1006,9 +1006,9 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         ensureYellow();
         String string = "foo bar";
         client().prepareIndex(INDEX, TYPE, "1").setSource(jsonBuilder()
-                .startObject()
-                .field(FIELD, string)
-                .endObject()
+                        .startObject()
+                        .field(FIELD, string)
+                        .endObject()
         ).setRefresh(true).get();
 
         try {
@@ -1040,7 +1040,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         ensureGreen();
 
         client().prepareIndex(INDEX, TYPE, "1").setSource(FIELD, "strings make me happy", FIELD + "_1", "nulls make me sad")
-        .setRefresh(true).get();
+                .setRefresh(true).get();
 
         try {
             client().prepareIndex(INDEX, TYPE, "2").setSource(FIELD, null, FIELD + "_1", "nulls make me sad")

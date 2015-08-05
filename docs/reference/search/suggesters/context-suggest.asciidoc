@@ -46,8 +46,8 @@ PUT place/shops/_mapping
 <2> Defines a `geo` context named 'location', which will index values from field 'loc'.
     See <<suggester-context-geo>>
 
-NOTE: Adding context mappings increases the index size for completion field. You can monitor
-the completion field size using <<indices-stats>>.
+NOTE: Adding context mappings increases the index size for completion field. The completion index
+is entirely heap resident, you can monitor the completion field index size using <<indices-stats>>.
 
 [[suggester-context-category]]
 [float]

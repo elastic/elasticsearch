@@ -279,8 +279,11 @@ public class NoisyChannelSpellCheckerTests extends ElasticsearchTestCase{
         assertThat(corrections.length, equalTo(1));
         assertThat(corrections[0].join(new BytesRef(" ")).utf8ToString(), equalTo("xorr the god jewel"));
 
+        corrections = suggester.getCorrections(wrapper, new BytesRef("Quazar II"), generator, 1, 1, ir, "body", wordScorer, 1, 2).corrections;
+        assertThat(corrections.length, equalTo(1));
+        assertThat(corrections[0].join(new BytesRef(" ")).utf8ToString(), equalTo("quasar ii"));
     }
-    
+
     @Test
     public void testMarvelHerosTrigram() throws IOException {
         

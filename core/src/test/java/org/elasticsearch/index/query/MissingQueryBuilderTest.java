@@ -45,7 +45,7 @@ public class MissingQueryBuilderTest extends BaseQueryTestCase<MissingQueryBuild
     }
 
     @Override
-    protected void doAssertLuceneQuery(MissingQueryBuilder queryBuilder, Query query, QueryParseContext context) throws IOException {
+    protected void doAssertLuceneQuery(MissingQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         //too many mapping dependent cases to test, we don't want to end up duplication the toQuery method
     }
 
@@ -64,9 +64,9 @@ public class MissingQueryBuilderTest extends BaseQueryTestCase<MissingQueryBuild
         assertNull(missingQueryBuilder.validate());
     }
 
-    @Test(expected = QueryParsingException.class)
+    @Test(expected = QueryShardException.class)
     public void testBothNullValueAndExistenceFalse() throws IOException {
-        QueryParseContext context = createContext();
+        QueryShardContext context = createShardContext();
         context.setAllowUnmappedFields(true);
         MissingQueryBuilder.newFilter(context, "field", false, false);
     }

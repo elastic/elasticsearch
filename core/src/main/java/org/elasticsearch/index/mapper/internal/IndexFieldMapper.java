@@ -38,7 +38,7 @@ import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -157,7 +157,7 @@ public class IndexFieldMapper extends MetadataFieldMapper {
          * indices
          */
         @Override
-        public Query termQuery(Object value, @Nullable QueryParseContext context) {
+        public Query termQuery(Object value, @Nullable QueryShardContext context) {
             if (context == null) {
                 return super.termQuery(value, context);
             }
@@ -171,7 +171,7 @@ public class IndexFieldMapper extends MetadataFieldMapper {
         
 
         @Override
-        public Query termsQuery(List values, QueryParseContext context) {
+        public Query termsQuery(List values, QueryShardContext context) {
             if (context == null) {
                 return super.termsQuery(values, context);
             }

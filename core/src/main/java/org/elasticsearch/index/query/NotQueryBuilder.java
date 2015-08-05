@@ -60,8 +60,8 @@ public class NotQueryBuilder extends AbstractQueryBuilder<NotQueryBuilder> {
     }
 
     @Override
-    protected Query doToQuery(QueryParseContext parseContext) throws IOException {
-        Query luceneQuery = filter.toQuery(parseContext);
+    protected Query doToQuery(QueryShardContext context) throws IOException {
+        Query luceneQuery = filter.toQuery(context);
         if (luceneQuery == null) {
             return null;
         }

@@ -110,28 +110,28 @@ public class MissingQueryBuilder extends AbstractQueryBuilder<MissingQueryBuilde
     }
 
     @Override
-    protected Query doToQuery(QueryParseContext parseContext) throws IOException {
-        return newFilter(parseContext, fieldPattern, existence, nullValue);
+    protected Query doToQuery(QueryShardContext context) throws IOException {
+        return newFilter(context, fieldPattern, existence, nullValue);
     }
 
-    public static Query newFilter(QueryParseContext parseContext, String fieldPattern, boolean existence, boolean nullValue) {
+    public static Query newFilter(QueryShardContext context, String fieldPattern, boolean existence, boolean nullValue) {
         if (!existence && !nullValue) {
-            throw new QueryParsingException(parseContext, "missing must have either existence, or null_value, or both set to true");
+            throw new QueryShardException(context, "missing must have either existence, or null_value, or both set to true");
         }
 
-        final FieldNamesFieldMapper.FieldNamesFieldType fieldNamesFieldType = (FieldNamesFieldMapper.FieldNamesFieldType) parseContext.mapperService().fullName(FieldNamesFieldMapper.NAME);
+        final FieldNamesFieldMapper.FieldNamesFieldType fieldNamesFieldType = (FieldNamesFieldMapper.FieldNamesFieldType) context.mapperService().fullName(FieldNamesFieldMapper.NAME);
         if (fieldNamesFieldType == null) {
             // can only happen when no types exist, so no docs exist either
             return Queries.newMatchNoDocsQuery();
         }
 
-        ObjectMapper objectMapper = parseContext.getObjectMapper(fieldPattern);
+        ObjectMapper objectMapper = context.getObjectMapper(fieldPattern);
         if (objectMapper != null) {
             // automatic make the object mapper pattern
             fieldPattern = fieldPattern + ".*";
         }
 
-        Collection<String> fields = parseContext.simpleMatchToIndexNames(fieldPattern);
+        Collection<String> fields = context.simpleMatchToIndexNames(fieldPattern);
         if (fields.isEmpty()) {
             if (existence) {
                 // if we ask for existence of fields, and we found none, then we should match on all
@@ -146,7 +146,7 @@ public class MissingQueryBuilder extends AbstractQueryBuilder<MissingQueryBuilde
         if (existence) {
             BooleanQuery boolFilter = new BooleanQuery();
             for (String field : fields) {
-                MappedFieldType fieldType = parseContext.fieldMapper(field);
+                MappedFieldType fieldType = context.fieldMapper(field);
                 Query filter = null;
                 if (fieldNamesFieldType.isEnabled()) {
                     final String f;
@@ -155,7 +155,7 @@ public class MissingQueryBuilder extends AbstractQueryBuilder<MissingQueryBuilde
                     } else {
                         f = field;
                     }
-                    filter = fieldNamesFieldType.termQuery(f, parseContext);
+                    filter = fieldNamesFieldType.termQuery(f, context);
                 }
                 // if _field_names are not indexed, we need to go the slow way
                 if (filter == null && fieldType != null) {
@@ -173,7 +173,7 @@ public class MissingQueryBuilder extends AbstractQueryBuilder<MissingQueryBuilde
 
         if (nullValue) {
             for (String field : fields) {
-                MappedFieldType fieldType = parseContext.fieldMapper(field);
+                MappedFieldType fieldType = context.fieldMapper(field);
                 if (fieldType != null) {
                     nullFilter = fieldType.nullValueQuery();
                 }

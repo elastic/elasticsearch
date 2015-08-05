@@ -48,7 +48,7 @@ public class ScriptQueryBuilderTest extends BaseQueryTestCase<ScriptQueryBuilder
     }
 
     @Override
-    protected void doAssertLuceneQuery(ScriptQueryBuilder queryBuilder, Query query, QueryParseContext context) throws IOException {
+    protected void doAssertLuceneQuery(ScriptQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         assertThat(query, instanceOf(ScriptQueryBuilder.ScriptQuery.class));
     }
 

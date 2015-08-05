@@ -236,7 +236,7 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
                 containsString("(field:huge field:brown) +field:pidgin"), true);
         assertExplanation(QueryBuilders.commonTermsQuery("field", "the brown").analyzer("stop"),
                 containsString("field:brown"), true);
-        
+
         // match queries with cutoff frequency
         assertExplanation(QueryBuilders.matchQuery("field", "huge brown pidgin").cutoffFrequency(1),
                 containsString("(field:huge field:brown) +field:pidgin"), true);
@@ -276,11 +276,7 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
         assertThat(client().admin().indices().prepareValidateQuery("test").setSource(new BytesArray("{\"query\": {\"term\" : { \"user\" : \"kimchy\" }}, \"foo\": \"bar\"}")).get().isValid(), equalTo(false));
     }
 
-    private void assertExplanation(QueryBuilder queryBuilder, Matcher<String> matcher) {
-        assertExplanation(queryBuilder, matcher, false);
-    }
-
-    private void assertExplanation(QueryBuilder queryBuilder, Matcher<String> matcher, boolean withRewrite) {
+    private static void assertExplanation(QueryBuilder queryBuilder, Matcher<String> matcher, boolean withRewrite) {
         ValidateQueryResponse response = client().admin().indices().prepareValidateQuery("test")
                 .setTypes("type1")
                 .setQuery(queryBuilder)

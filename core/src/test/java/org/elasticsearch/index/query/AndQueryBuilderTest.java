@@ -52,7 +52,7 @@ public class AndQueryBuilderTest extends BaseQueryTestCase<AndQueryBuilder> {
     }
 
     @Override
-    protected void doAssertLuceneQuery(AndQueryBuilder queryBuilder, Query query, QueryParseContext context) throws IOException {
+    protected void doAssertLuceneQuery(AndQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         if (queryBuilder.filters().isEmpty()) {
             assertThat(query, nullValue());
         } else {
@@ -82,19 +82,19 @@ public class AndQueryBuilderTest extends BaseQueryTestCase<AndQueryBuilder> {
      * test corner case where no inner queries exist
      */
     @Test
-    public void testNoInnerQueries() throws QueryParsingException, IOException {
+    public void testNoInnerQueries() throws QueryShardException, IOException {
         AndQueryBuilder andQuery = new AndQueryBuilder();
-        assertNull(andQuery.toQuery(createContext()));
+        assertNull(andQuery.toQuery(createShardContext()));
     }
 
     @Test(expected=QueryParsingException.class)
     public void testMissingFiltersSection() throws IOException {
-        QueryParseContext context = createContext();
+        QueryParseContext context = createParseContext();
         String queryString = "{ \"and\" : {}";
         XContentParser parser = XContentFactory.xContent(queryString).createParser(queryString);
         context.reset(parser);
         assertQueryHeader(parser, AndQueryBuilder.PROTOTYPE.getName());
-        context.indexQueryParserService().queryParser(AndQueryBuilder.PROTOTYPE.getName()).fromXContent(context);
+        context.queryParser(AndQueryBuilder.PROTOTYPE.getName()).fromXContent(context);
     }
 
     @Test

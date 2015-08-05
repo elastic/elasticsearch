@@ -35,6 +35,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.index.query.TestQueryParsingException;
 import org.elasticsearch.rest.RestStatus;
@@ -307,7 +308,7 @@ public class ESExceptionTests extends ESTestCase {
                 new OutOfMemoryError("no memory left"),
                 new AlreadyClosedException("closed!!", new NullPointerException()),
                 new LockObtainFailedException("can't lock directory", new NullPointerException()),
-                new Throwable("this exception is unknown", new QueryParsingException(new Index("foo"), 1, 2, "foobar", null) ), // somethin unknown
+                new Throwable("this exception is unknown", new QueryShardException(new Index("foo"), 1, 2, "foobar", null) ), // somethin unknown
         };
         for (Throwable t : causes) {
             BytesStreamOutput out = new BytesStreamOutput();

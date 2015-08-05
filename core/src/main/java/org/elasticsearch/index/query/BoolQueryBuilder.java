@@ -254,12 +254,12 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
     }
 
     @Override
-    protected Query doToQuery(QueryParseContext parseContext) throws IOException {
+    protected Query doToQuery(QueryShardContext context) throws IOException {
         BooleanQuery booleanQuery = new BooleanQuery(disableCoord);
-        addBooleanClauses(parseContext, booleanQuery, mustClauses, BooleanClause.Occur.MUST);
-        addBooleanClauses(parseContext, booleanQuery, mustNotClauses, BooleanClause.Occur.MUST_NOT);
-        addBooleanClauses(parseContext, booleanQuery, shouldClauses, BooleanClause.Occur.SHOULD);
-        addBooleanClauses(parseContext, booleanQuery, filterClauses, BooleanClause.Occur.FILTER);
+        addBooleanClauses(context, booleanQuery, mustClauses, BooleanClause.Occur.MUST);
+        addBooleanClauses(context, booleanQuery, mustNotClauses, BooleanClause.Occur.MUST_NOT);
+        addBooleanClauses(context, booleanQuery, shouldClauses, BooleanClause.Occur.SHOULD);
+        addBooleanClauses(context, booleanQuery, filterClauses, BooleanClause.Occur.FILTER);
 
         if (booleanQuery.clauses().isEmpty()) {
             return new MatchAllDocsQuery();
@@ -279,9 +279,9 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
         return validationException;
     }
 
-    private static void addBooleanClauses(QueryParseContext parseContext, BooleanQuery booleanQuery, List<QueryBuilder> clauses, Occur occurs) throws IOException {
+    private static void addBooleanClauses(QueryShardContext context, BooleanQuery booleanQuery, List<QueryBuilder> clauses, Occur occurs) throws IOException {
         for (QueryBuilder query : clauses) {
-            Query luceneQuery = query.toQuery(parseContext);
+            Query luceneQuery = query.toQuery(context);
             if (luceneQuery != null) {
                 booleanQuery.add(new BooleanClause(luceneQuery, occurs));
             }

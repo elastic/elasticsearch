@@ -34,7 +34,7 @@ public class MatchAllQueryBuilderTest extends BaseQueryTestCase<MatchAllQueryBui
     }
 
     @Override
-    protected void doAssertLuceneQuery(MatchAllQueryBuilder queryBuilder, Query query, QueryParseContext context) throws IOException {
+    protected void doAssertLuceneQuery(MatchAllQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         assertThat(query, instanceOf(MatchAllDocsQuery.class));
     }
 }

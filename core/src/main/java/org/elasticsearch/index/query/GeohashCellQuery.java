@@ -69,7 +69,7 @@ public class GeohashCellQuery {
      * @param geohashes   optional array of additional geohashes
      * @return a new GeoBoundinboxfilter
      */
-    public static Query create(QueryParseContext context, GeoPointFieldMapper.GeoPointFieldType fieldType, String geohash, @Nullable List<CharSequence> geohashes) {
+    public static Query create(QueryShardContext context, GeoPointFieldMapper.GeoPointFieldType fieldType, String geohash, @Nullable List<CharSequence> geohashes) {
         MappedFieldType geoHashMapper = fieldType.geohashFieldType();
         if (geoHashMapper == null) {
             throw new IllegalArgumentException("geohash filter needs geohash_prefix to be enabled");
@@ -186,7 +186,8 @@ public class GeohashCellQuery {
         }
 
         @Override
-        public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+        public Query parse(QueryShardContext context) throws IOException, QueryParsingException {
+            QueryParseContext parseContext = context.parseContext();
             XContentParser parser = parseContext.parser();
 
             String fieldName = null;
@@ -248,7 +249,7 @@ public class GeohashCellQuery {
                 throw new QueryParsingException(parseContext, "failed to parse [{}] query. missing geohash value", NAME);
             }
 
-            MappedFieldType fieldType = parseContext.fieldMapper(fieldName);
+            MappedFieldType fieldType = context.fieldMapper(fieldName);
             if (fieldType == null) {
                 throw new QueryParsingException(parseContext, "failed to parse [{}] query. missing [{}] field [{}]", NAME, GeoPointFieldMapper.CONTENT_TYPE, fieldName);
             }
@@ -269,12 +270,12 @@ public class GeohashCellQuery {
 
             Query filter;
             if (neighbors) {
-                filter = create(parseContext, geoFieldType, geohash, GeoHashUtils.addNeighbors(geohash, new ArrayList<CharSequence>(8)));
+                filter = create(context, geoFieldType, geohash, GeoHashUtils.addNeighbors(geohash, new ArrayList<CharSequence>(8)));
             } else {
-                filter = create(parseContext, geoFieldType, geohash, null);
+                filter = create(context, geoFieldType, geohash, null);
             }
             if (queryName != null) {
-                parseContext.addNamedQuery(queryName, filter);
+                context.addNamedQuery(queryName, filter);
             }
             if (filter != null) {
                 filter.setBoost(boost);

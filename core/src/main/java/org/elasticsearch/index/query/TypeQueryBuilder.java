@@ -48,10 +48,10 @@ public class TypeQueryBuilder extends AbstractQueryBuilder<TypeQueryBuilder> {
     TypeQueryBuilder(BytesRef type) {
         this.type = type;
     }
-    
+
     public BytesRef type() {
         return this.type;
-    } 
+    }
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
@@ -67,10 +67,10 @@ public class TypeQueryBuilder extends AbstractQueryBuilder<TypeQueryBuilder> {
     }
 
     @Override
-    protected Query doToQuery(QueryParseContext parseContext) throws IOException {
+    protected Query doToQuery(QueryShardContext context) throws IOException {
         Query filter;
         //LUCENE 4 UPGRADE document mapper should use bytesref as well?
-        DocumentMapper documentMapper = parseContext.mapperService().documentMapper(type.utf8ToString());
+        DocumentMapper documentMapper = context.mapperService().documentMapper(type.utf8ToString());
         if (documentMapper == null) {
             filter = new TermQuery(new Term(TypeFieldMapper.NAME, type));
         } else {

@@ -62,7 +62,7 @@ public class EmptyQueryBuilder extends ToXContentToBytes implements QueryBuilder
     }
 
     @Override
-    public Query toQuery(QueryParseContext parseContext) throws IOException {
+    public Query toQuery(QueryShardContext context) throws IOException {
         // empty
         return null;
     }

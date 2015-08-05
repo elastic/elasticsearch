@@ -21,11 +21,11 @@
 
 package org.elasticsearch.index.query.functionscore.script;
 
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.function.ScoreFunction;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreFunction;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionParser;
@@ -58,7 +58,8 @@ public class ScriptScoreFunctionParser implements ScoreFunctionParser {
     }
 
     @Override
-    public ScoreFunction parse(QueryParseContext parseContext, XContentParser parser) throws IOException, QueryParsingException {
+    public ScoreFunction parse(QueryShardContext context, XContentParser parser) throws IOException, QueryParsingException {
+        QueryParseContext parseContext = context.parseContext();
         ScriptParameterParser scriptParameterParser = new ScriptParameterParser();
         Script script = null;
         Map<String, Object> vars = null;
@@ -100,7 +101,7 @@ public class ScriptScoreFunctionParser implements ScoreFunctionParser {
 
         SearchScript searchScript;
         try {
-            searchScript = parseContext.scriptService().search(parseContext.lookup(), script, ScriptContext.Standard.SEARCH);
+            searchScript = context.scriptService().search(context.lookup(), script, ScriptContext.Standard.SEARCH);
             return new ScriptScoreFunction(script, searchScript);
         } catch (Exception e) {
             throw new QueryParsingException(parseContext, NAMES[0] + " the script could not be loaded", e);

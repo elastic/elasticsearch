@@ -25,7 +25,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 
 /**
- * QueryBuilder implementation that  holds a lucene query, which can be returned by {@link QueryBuilder#toQuery(QueryParseContext)}.
+ * QueryBuilder implementation that  holds a lucene query, which can be returned by {@link QueryBuilder#toQuery(QueryShardContext)}.
  * Doesn't support conversion to {@link org.elasticsearch.common.xcontent.XContent} via {@link #doXContent(XContentBuilder, Params)}.
  */
 //norelease to be removed once all queries support separate fromXContent and toQuery methods. Make AbstractQueryBuilder#toQuery final as well then.
@@ -47,7 +47,7 @@ public class QueryWrappingQueryBuilder extends AbstractQueryBuilder<QueryWrappin
     }
 
     @Override
-    protected Query doToQuery(QueryParseContext parseContext) throws IOException {
+    protected Query doToQuery(QueryShardContext context) throws IOException {
         return query;
     }
 

@@ -43,10 +43,10 @@ public class IdsQueryBuilderTest extends BaseQueryTestCase<IdsQueryBuilder> {
     public void testIdsNotProvided() throws IOException {
         String noIdsFieldQuery = "{\"ids\" : { \"type\" : \"my_type\"  }";
         XContentParser parser = XContentFactory.xContent(noIdsFieldQuery).createParser(noIdsFieldQuery);
-        QueryParseContext context = createContext();
+        QueryParseContext context = createParseContext();
         context.reset(parser);
         assertQueryHeader(parser, "ids");
-        context.indexQueryParserService().queryParser("ids").fromXContent(context);
+        context.queryParser("ids").fromXContent(context);
     }
 
     @Override
@@ -86,7 +86,7 @@ public class IdsQueryBuilderTest extends BaseQueryTestCase<IdsQueryBuilder> {
     }
 
     @Override
-    protected void doAssertLuceneQuery(IdsQueryBuilder queryBuilder, Query query, QueryParseContext context) throws IOException {
+    protected void doAssertLuceneQuery(IdsQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         if (queryBuilder.ids().size() == 0) {
             assertThat(query, instanceOf(BooleanQuery.class));
             assertThat(((BooleanQuery)query).clauses().size(), equalTo(0));

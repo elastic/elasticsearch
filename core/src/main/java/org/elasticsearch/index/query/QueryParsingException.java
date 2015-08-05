@@ -31,7 +31,8 @@ import org.elasticsearch.rest.RestStatus;
 import java.io.IOException;
 
 /**
- *
+ * Exception that can be used when parsing queries with a given {@link QueryParseContext}.
+ * Can contain information about location of the error.
  */
 public class QueryParsingException extends ElasticsearchException {
 
@@ -71,9 +72,15 @@ public class QueryParsingException extends ElasticsearchException {
         this.columnNumber = col;
     }
 
+    public QueryParsingException(StreamInput in) throws IOException{
+        super(in);
+        lineNumber = in.readInt();
+        columnNumber = in.readInt();
+    }
+
     /**
      * Line number of the location of the error
-     * 
+     *
      * @return the line number or -1 if unknown
      */
     public int getLineNumber() {
@@ -82,7 +89,7 @@ public class QueryParsingException extends ElasticsearchException {
 
     /**
      * Column number of the location of the error
-     * 
+     *
      * @return the column number or -1 if unknown
      */
     public int getColumnNumber() {
@@ -109,11 +116,4 @@ public class QueryParsingException extends ElasticsearchException {
         out.writeInt(lineNumber);
         out.writeInt(columnNumber);
     }
-
-    public QueryParsingException(StreamInput in) throws IOException{
-        super(in);
-        lineNumber = in.readInt();
-        columnNumber = in.readInt();
-    }
-
 }

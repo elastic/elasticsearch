@@ -84,7 +84,7 @@ public class AndQueryBuilder extends AbstractQueryBuilder<AndQueryBuilder> {
     }
 
     @Override
-    protected Query doToQuery(QueryParseContext parseContext) throws IOException {
+    protected Query doToQuery(QueryShardContext context) throws IOException {
         if (filters.isEmpty()) {
             // no filters provided, this should be ignored upstream
             return null;
@@ -92,7 +92,7 @@ public class AndQueryBuilder extends AbstractQueryBuilder<AndQueryBuilder> {
 
         BooleanQuery query = new BooleanQuery();
         for (QueryBuilder f : filters) {
-            Query innerQuery = f.toQuery(parseContext);
+            Query innerQuery = f.toQuery(context);
             // ignore queries that are null
             if (innerQuery != null) {
                 query.add(innerQuery, Occur.MUST);

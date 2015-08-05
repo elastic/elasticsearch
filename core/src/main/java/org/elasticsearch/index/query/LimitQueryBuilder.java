@@ -55,7 +55,7 @@ public class LimitQueryBuilder extends AbstractQueryBuilder<LimitQueryBuilder> {
     }
 
     @Override
-    protected Query doToQuery(QueryParseContext parseContext) throws IOException {
+    protected Query doToQuery(QueryShardContext context) throws IOException {
         // this filter is deprecated and parses to a filter that matches everything
         return Queries.newMatchAllQuery();
     }

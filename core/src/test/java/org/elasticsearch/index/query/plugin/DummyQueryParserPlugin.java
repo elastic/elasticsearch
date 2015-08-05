@@ -78,10 +78,10 @@ public class DummyQueryParserPlugin extends AbstractPlugin {
         }
 
         @Override
-        public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
-            XContentParser.Token token = parseContext.parser().nextToken();
+        public Query parse(QueryShardContext context) throws IOException, QueryShardException {
+            XContentParser.Token token = context.parseContext().parser().nextToken();
             assert token == XContentParser.Token.END_OBJECT;
-            return new DummyQuery(parseContext.isFilter());
+            return new DummyQuery(context.parseContext().isFilter());
         }
 
         @Override

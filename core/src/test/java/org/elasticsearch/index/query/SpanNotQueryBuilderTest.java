@@ -55,7 +55,7 @@ public class SpanNotQueryBuilderTest extends BaseQueryTestCase<SpanNotQueryBuild
     }
 
     @Override
-    protected void doAssertLuceneQuery(SpanNotQueryBuilder queryBuilder, Query query, QueryParseContext context) throws IOException {
+    protected void doAssertLuceneQuery(SpanNotQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         assertThat(query, instanceOf(SpanNotQuery.class));
         SpanNotQuery spanNotQuery = (SpanNotQuery) query;
         assertThat(spanNotQuery.getExclude(), equalTo(queryBuilder.exclude().toQuery(context)));
@@ -134,7 +134,7 @@ public class SpanNotQueryBuilderTest extends BaseQueryTestCase<SpanNotQueryBuild
         builder.endObject();
         builder.endObject();
 
-        QueryParseContext context = createContext();
+        QueryParseContext context = createParseContext();
         XContentParser parser = XContentFactory.xContent(builder.string()).createParser(builder.string());
         context.reset(parser);
         assertQueryHeader(parser, SpanNotQueryBuilder.NAME);
@@ -160,7 +160,7 @@ public class SpanNotQueryBuilderTest extends BaseQueryTestCase<SpanNotQueryBuild
             builder.endObject();
             builder.endObject();
 
-            QueryParseContext context = createContext();
+            QueryParseContext context = createParseContext();
             XContentParser parser = XContentFactory.xContent(builder.string()).createParser(builder.string());
             context.reset(parser);
             assertQueryHeader(parser, SpanNotQueryBuilder.NAME);
@@ -181,7 +181,7 @@ public class SpanNotQueryBuilderTest extends BaseQueryTestCase<SpanNotQueryBuild
             builder.endObject();
             builder.endObject();
 
-            QueryParseContext context = createContext();
+            QueryParseContext context = createParseContext();
             XContentParser parser = XContentFactory.xContent(builder.string()).createParser(builder.string());
             context.reset(parser);
             assertQueryHeader(parser, SpanNotQueryBuilder.NAME);
@@ -205,7 +205,7 @@ public class SpanNotQueryBuilderTest extends BaseQueryTestCase<SpanNotQueryBuild
             builder.endObject();
             builder.endObject();
 
-            QueryParseContext context = createContext();
+            QueryParseContext context = createParseContext();
             XContentParser parser = XContentFactory.xContent(builder.string()).createParser(builder.string());
             context.reset(parser);
             assertQueryHeader(parser, SpanNotQueryBuilder.NAME);

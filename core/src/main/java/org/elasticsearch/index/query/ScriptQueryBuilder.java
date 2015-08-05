@@ -25,7 +25,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.RandomAccessWeight;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -43,7 +42,7 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
     static final ScriptQueryBuilder PROTOTYPE = new ScriptQueryBuilder(null);
 
     private final Script script;
-    
+
     public ScriptQueryBuilder(Script script) {
         this.script = script;
     }
@@ -66,8 +65,8 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
     }
 
     @Override
-    protected Query doToQuery(QueryParseContext parseContext) throws IOException {
-        return new ScriptQuery(script, parseContext.scriptService(), parseContext.lookup());
+    protected Query doToQuery(QueryShardContext context) throws IOException {
+        return new ScriptQuery(script, context.scriptService(), context.lookup());
     }
 
     @Override
@@ -151,7 +150,7 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
             };
         }
     }
-    
+
     @Override
     protected ScriptQueryBuilder doReadFrom(StreamInput in) throws IOException {
         return new ScriptQueryBuilder(Script.readScript(in));

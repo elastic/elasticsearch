@@ -37,7 +37,7 @@ public class TypeQueryBuilderTest extends BaseQueryTestCase<TypeQueryBuilder> {
     }
 
     @Override
-    protected void doAssertLuceneQuery(TypeQueryBuilder queryBuilder, Query query, QueryParseContext context) throws IOException {
+    protected void doAssertLuceneQuery(TypeQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         assertThat(query, either(instanceOf(TermQuery.class)).or(instanceOf(ConstantScoreQuery.class)));
         if (query instanceof ConstantScoreQuery) {
             query = ((ConstantScoreQuery) query).getQuery();

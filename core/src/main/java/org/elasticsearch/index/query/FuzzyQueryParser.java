@@ -52,7 +52,8 @@ public class FuzzyQueryParser extends BaseQueryParserTemp {
     }
 
     @Override
-    public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public Query parse(QueryShardContext context) throws IOException, QueryParsingException {
+        QueryParseContext parseContext = context.parseContext();
         XContentParser parser = parseContext.parser();
 
         XContentParser.Token token = parser.nextToken();
@@ -112,9 +113,9 @@ public class FuzzyQueryParser extends BaseQueryParserTemp {
         if (value == null) {
             throw new QueryParsingException(parseContext, "No value specified for fuzzy query");
         }
-        
+
         Query query = null;
-        MappedFieldType fieldType = parseContext.fieldMapper(fieldName);
+        MappedFieldType fieldType = context.fieldMapper(fieldName);
         if (fieldType != null) {
             query = fieldType.fuzzyQuery(value, fuzziness, prefixLength, maxExpansions, transpositions);
         }
@@ -128,7 +129,7 @@ public class FuzzyQueryParser extends BaseQueryParserTemp {
         query.setBoost(boost);
 
         if (queryName != null) {
-            parseContext.addNamedQuery(queryName, query);
+            context.addNamedQuery(queryName, query);
         }
         return query;
     }

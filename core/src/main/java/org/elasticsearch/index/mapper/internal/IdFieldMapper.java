@@ -49,7 +49,7 @@ import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.Uid;
-import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -167,7 +167,7 @@ public class IdFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public Query termQuery(Object value, @Nullable QueryParseContext context) {
+        public Query termQuery(Object value, @Nullable QueryShardContext context) {
             if (indexOptions() != IndexOptions.NONE || context == null) {
                 return super.termQuery(value, context);
             }
@@ -176,7 +176,7 @@ public class IdFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public Query termsQuery(List values, @Nullable QueryParseContext context) {
+        public Query termsQuery(List values, @Nullable QueryShardContext context) {
             if (indexOptions() != IndexOptions.NONE || context == null) {
                 return super.termsQuery(values, context);
             }
@@ -184,7 +184,7 @@ public class IdFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public Query prefixQuery(String value, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryParseContext context) {
+        public Query prefixQuery(String value, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryShardContext context) {
             if (indexOptions() != IndexOptions.NONE || context == null) {
                 return super.prefixQuery(value, method, context);
             }
@@ -201,7 +201,7 @@ public class IdFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public Query regexpQuery(String value, int flags, int maxDeterminizedStates, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryParseContext context) {
+        public Query regexpQuery(String value, int flags, int maxDeterminizedStates, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryShardContext context) {
             if (indexOptions() != IndexOptions.NONE || context == null) {
                 return super.regexpQuery(value, flags, maxDeterminizedStates, method, context);
             }

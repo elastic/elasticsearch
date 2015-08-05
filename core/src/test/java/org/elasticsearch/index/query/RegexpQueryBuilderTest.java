@@ -43,7 +43,7 @@ public class RegexpQueryBuilderTest extends BaseQueryTestCase<RegexpQueryBuilder
             List<RegexpFlag> flags = new ArrayList<>();
             int iter = randomInt(5);
             for (int i = 0; i < iter; i++) {
-                flags.add(randomFrom(RegexpFlag.values()));    
+                flags.add(randomFrom(RegexpFlag.values()));
             }
             query.flags(flags.toArray(new RegexpFlag[flags.size()]));
         }
@@ -57,7 +57,7 @@ public class RegexpQueryBuilderTest extends BaseQueryTestCase<RegexpQueryBuilder
     }
 
     @Override
-    protected void doAssertLuceneQuery(RegexpQueryBuilder queryBuilder, Query query, QueryParseContext context) throws IOException {
+    protected void doAssertLuceneQuery(RegexpQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         assertThat(query, instanceOf(RegexpQuery.class));
     }
 

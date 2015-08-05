@@ -72,7 +72,7 @@ public abstract class BaseTermQueryTestCase<QB extends BaseTermQueryBuilder<QB>>
     protected abstract QB createQueryBuilder(String fieldName, Object value);
 
     @Test
-    public void testValidate() throws QueryParsingException {
+    public void testValidate() throws QueryShardException {
         QB queryBuilder = createQueryBuilder(randomAsciiOfLengthBetween(1, 30), randomAsciiOfLengthBetween(1, 30));
         assertNull(queryBuilder.validate());
 

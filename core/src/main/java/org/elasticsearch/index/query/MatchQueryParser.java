@@ -48,7 +48,8 @@ public class MatchQueryParser extends BaseQueryParserTemp {
     }
 
     @Override
-    public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public Query parse(QueryShardContext context) throws IOException, QueryParsingException {
+        QueryParseContext parseContext = context.parseContext();
         XContentParser parser = parseContext.parser();
 
         MatchQuery.Type type = MatchQuery.Type.BOOLEAN;
@@ -68,7 +69,7 @@ public class MatchQueryParser extends BaseQueryParserTemp {
 
         Object value = null;
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
-        MatchQuery matchQuery = new MatchQuery(parseContext);
+        MatchQuery matchQuery = new MatchQuery(context);
         String minimumShouldMatch = null;
         String queryName = null;
 
@@ -94,7 +95,7 @@ public class MatchQueryParser extends BaseQueryParserTemp {
                         }
                     } else if ("analyzer".equals(currentFieldName)) {
                         String analyzer = parser.text();
-                        if (parseContext.analysisService().analyzer(analyzer) == null) {
+                        if (context.analysisService().analyzer(analyzer) == null) {
                             throw new QueryParsingException(parseContext, "[match] analyzer [" + parser.text() + "] not found");
                         }
                         matchQuery.setAnalyzer(analyzer);
@@ -163,7 +164,7 @@ public class MatchQueryParser extends BaseQueryParserTemp {
         }
         query.setBoost(boost);
         if (queryName != null) {
-            parseContext.addNamedQuery(queryName, query);
+            context.addNamedQuery(queryName, query);
         }
         return query;
     }

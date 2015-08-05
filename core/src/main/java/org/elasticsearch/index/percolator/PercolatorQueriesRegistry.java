@@ -41,7 +41,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.index.percolator.stats.ShardPercolateService;
 import org.elasticsearch.index.query.IndexQueryParserService;
-import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
@@ -184,12 +184,13 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent imple
         }
     }
 
+    //norelease this method parses from xcontent to lucene query, need to re-investigate how to split context here
     private Query parseQuery(String type, XContentParser parser) {
         String[] previousTypes = null;
         if (type != null) {
-            QueryParseContext.setTypesWithPrevious(new String[]{type});
+            QueryShardContext.setTypesWithPrevious(new String[]{type});
         }
-        QueryParseContext context = queryParserService.getParseContext();
+        QueryShardContext context = queryParserService.getShardContext();
         try {
             context.reset(parser);
             // This means that fields in the query need to exist in the mapping prior to registering this query
@@ -208,10 +209,10 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent imple
             context.setMapUnmappedFieldAsString(mapUnmappedFieldsAsString ? true : false);
             return queryParserService.parseInnerQuery(context);
         } catch (IOException e) {
-            throw new QueryParsingException(context, "Failed to parse", e);
+            throw new QueryParsingException(context.parseContext(), "Failed to parse", e);
         } finally {
             if (type != null) {
-                QueryParseContext.setTypes(previousTypes);
+                QueryShardContext.setTypes(previousTypes);
             }
             context.reset(null);
         }

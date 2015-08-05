@@ -68,20 +68,20 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder> exte
     }
 
     @Override
-    public final Query toQuery(QueryParseContext parseContext) throws IOException {
-        Query query = doToQuery(parseContext);
+    public final Query toQuery(QueryShardContext context) throws IOException {
+        Query query = doToQuery(context);
         if (query != null) {
             query.setBoost(boost);
             if (queryName != null) {
-                parseContext.addNamedQuery(queryName, query);
+                context.addNamedQuery(queryName, query);
             }
         }
         return query;
     }
 
     //norelease to be made abstract once all query builders override doToQuery providing their own specific implementation.
-    protected Query doToQuery(QueryParseContext parseContext) throws IOException {
-        return parseContext.indexQueryParserService().queryParser(getName()).parse(parseContext);
+    protected Query doToQuery(QueryShardContext context) throws IOException {
+        return context.indexQueryParserService().queryParser(getName()).parse(context);
     }
 
     @Override
@@ -219,17 +219,17 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder> exte
     /**
      * Helper method to convert collection of {@link QueryBuilder} instances to lucene
      * {@link Query} instances. {@link QueryBuilder} that return <tt>null</tt> calling
-     * their {@link QueryBuilder#toQuery(QueryParseContext)} method are not added to the
+     * their {@link QueryBuilder#toQuery(QueryShardContext)} method are not added to the
      * resulting collection.
      *
      * @throws IOException
-     * @throws QueryParsingException
+     * @throws QueryShardException
      */
-    protected static Collection<Query> toQueries(Collection<QueryBuilder> queryBuilders, QueryParseContext parseContext) throws QueryParsingException,
+    protected static Collection<Query> toQueries(Collection<QueryBuilder> queryBuilders, QueryShardContext context) throws QueryShardException,
             IOException {
         List<Query> queries = new ArrayList<>(queryBuilders.size());
         for (QueryBuilder queryBuilder : queryBuilders) {
-            Query query = queryBuilder.toQuery(parseContext);
+            Query query = queryBuilder.toQuery(context);
             if (query != null) {
                 queries.add(query);
             }

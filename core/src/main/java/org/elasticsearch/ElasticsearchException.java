@@ -572,6 +572,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
                 org.elasticsearch.index.engine.RecoveryEngineException.class,
                 org.elasticsearch.common.blobstore.BlobStoreException.class,
                 org.elasticsearch.index.snapshots.IndexShardRestoreException.class,
+                org.elasticsearch.index.query.QueryShardException.class,
                 org.elasticsearch.index.query.QueryParsingException.class,
                 org.elasticsearch.action.support.replication.TransportReplicationAction.RetryOnPrimaryException.class,
                 org.elasticsearch.index.engine.DeleteByQueryFailedEngineException.class,

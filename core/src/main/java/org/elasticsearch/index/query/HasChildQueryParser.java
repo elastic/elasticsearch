@@ -22,9 +22,6 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.MultiDocValues;
 import org.apache.lucene.search.*;
-import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.QueryWrapperFilter;
 import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.elasticsearch.common.ParseField;
 import org.apache.lucene.search.join.JoinUtil;
@@ -70,7 +67,8 @@ public class HasChildQueryParser extends BaseQueryParserTemp {
     }
 
     @Override
-    public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public Query parse(QueryShardContext context) throws IOException, QueryParsingException {
+        QueryParseContext parseContext = context.parseContext();
         XContentParser parser = parseContext.parser();
 
         boolean queryFound = false;
@@ -140,7 +138,7 @@ public class HasChildQueryParser extends BaseQueryParserTemp {
         }
         innerQuery.setBoost(boost);
 
-        DocumentMapper childDocMapper = parseContext.mapperService().documentMapper(childType);
+        DocumentMapper childDocMapper = context.mapperService().documentMapper(childType);
         if (childDocMapper == null) {
             throw new QueryParsingException(parseContext, "[has_child] No mapping for for type [" + childType + "]");
         }
@@ -150,14 +148,14 @@ public class HasChildQueryParser extends BaseQueryParserTemp {
         }
 
         if (innerHits != null) {
-            ParsedQuery parsedQuery = new ParsedQuery(innerQuery, parseContext.copyNamedQueries());
-            InnerHitsContext.ParentChildInnerHits parentChildInnerHits = new InnerHitsContext.ParentChildInnerHits(innerHits.v2(), parsedQuery, null, parseContext.mapperService(), childDocMapper);
+            ParsedQuery parsedQuery = new ParsedQuery(innerQuery, context.copyNamedQueries());
+            InnerHitsContext.ParentChildInnerHits parentChildInnerHits = new InnerHitsContext.ParentChildInnerHits(innerHits.v2(), parsedQuery, null, context.mapperService(), childDocMapper);
             String name = innerHits.v1() != null ? innerHits.v1() : childType;
-            parseContext.addInnerHits(name, parentChildInnerHits);
+            context.addInnerHits(name, parentChildInnerHits);
         }
 
         String parentType = parentFieldMapper.type();
-        DocumentMapper parentDocMapper = parseContext.mapperService().documentMapper(parentType);
+        DocumentMapper parentDocMapper = context.mapperService().documentMapper(parentType);
         if (parentDocMapper == null) {
             throw new QueryParsingException(parseContext, "[has_child]  Type [" + childType + "] points to a non existent parent type ["
                     + parentType + "]");
@@ -169,15 +167,15 @@ public class HasChildQueryParser extends BaseQueryParserTemp {
 
         BitDocIdSetFilter nonNestedDocsFilter = null;
         if (parentDocMapper.hasNestedObjects()) {
-            nonNestedDocsFilter = parseContext.bitsetFilter(Queries.newNonNestedFilter());
+            nonNestedDocsFilter = context.bitsetFilter(Queries.newNonNestedFilter());
         }
 
         // wrap the query with type query
         innerQuery = Queries.filtered(innerQuery, childDocMapper.typeFilter());
 
         final Query query;
-        final ParentChildIndexFieldData parentChildIndexFieldData = parseContext.getForField(parentFieldMapper.fieldType());
-        if (parseContext.indexVersionCreated().onOrAfter(Version.V_2_0_0_beta1)) {
+        final ParentChildIndexFieldData parentChildIndexFieldData = context.getForField(parentFieldMapper.fieldType());
+        if (context.indexVersionCreated().onOrAfter(Version.V_2_0_0_beta1)) {
             query = joinUtilHelper(parentType, parentChildIndexFieldData, parentDocMapper.typeFilter(), scoreType, innerQuery, minChildren, maxChildren);
         } else {
             // TODO: use the query API
@@ -191,7 +189,7 @@ public class HasChildQueryParser extends BaseQueryParserTemp {
             }
         }
         if (queryName != null) {
-            parseContext.addNamedQuery(queryName, query);
+            context.addNamedQuery(queryName, query);
         }
         query.setBoost(boost);
         return query;
@@ -288,7 +286,7 @@ public class HasChildQueryParser extends BaseQueryParserTemp {
             return "LateParsingQuery {parentType=" + parentType + "}";
         }
     }
-    
+
     @Override
     public HasChildQueryBuilder getBuilderPrototype() {
         return HasChildQueryBuilder.PROTOTYPE;

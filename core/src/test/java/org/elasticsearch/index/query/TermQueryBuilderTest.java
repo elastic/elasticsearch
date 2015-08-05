@@ -41,7 +41,7 @@ public class TermQueryBuilderTest extends BaseTermQueryTestCase<TermQueryBuilder
     }
 
     @Override
-    protected void doAssertLuceneQuery(TermQueryBuilder queryBuilder, Query query, QueryParseContext context) throws IOException {
+    protected void doAssertLuceneQuery(TermQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         assertThat(query, instanceOf(TermQuery.class));
         TermQuery termQuery = (TermQuery) query;
         assertThat(termQuery.getTerm().field(), equalTo(queryBuilder.fieldName()));

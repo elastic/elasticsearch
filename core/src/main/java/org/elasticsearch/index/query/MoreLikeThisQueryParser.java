@@ -21,6 +21,7 @@ package org.elasticsearch.index.query;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
+
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.queries.TermsQuery;
 import org.apache.lucene.search.BooleanClause;
@@ -91,11 +92,12 @@ public class MoreLikeThisQueryParser extends BaseQueryParserTemp {
     }
 
     @Override
-    public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public Query parse(QueryShardContext context) throws IOException, QueryParsingException {
+        QueryParseContext parseContext = context.parseContext();
         XContentParser parser = parseContext.parser();
 
         MoreLikeThisQuery mltQuery = new MoreLikeThisQuery();
-        mltQuery.setSimilarity(parseContext.searchSimilarity());
+        mltQuery.setSimilarity(context.searchSimilarity());
         Analyzer analyzer = null;
         List<String> moreLikeFields = null;
         boolean failOnUnsupportedField = true;
@@ -142,7 +144,7 @@ public class MoreLikeThisQueryParser extends BaseQueryParserTemp {
                 } else if (parseContext.parseFieldMatcher().match(currentFieldName, Fields.MINIMUM_SHOULD_MATCH)) {
                     mltQuery.setMinimumShouldMatch(parser.text());
                 } else if ("analyzer".equals(currentFieldName)) {
-                    analyzer = parseContext.analysisService().analyzer(parser.text());
+                    analyzer = context.analysisService().analyzer(parser.text());
                 } else if ("boost".equals(currentFieldName)) {
                     mltQuery.setBoost(parser.floatValue());
                 } else if (parseContext.parseFieldMatcher().match(currentFieldName, Fields.FAIL_ON_UNSUPPORTED_FIELD)) {
@@ -165,7 +167,7 @@ public class MoreLikeThisQueryParser extends BaseQueryParserTemp {
                     moreLikeFields = Lists.newLinkedList();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         String field = parser.text();
-                        MappedFieldType fieldType = parseContext.fieldMapper(field);
+                        MappedFieldType fieldType = context.fieldMapper(field);
                         moreLikeFields.add(fieldType == null ? field : fieldType.names().indexName());
                     }
                 } else if (parseContext.parseFieldMatcher().match(currentFieldName, Fields.DOCUMENT_IDS)) {
@@ -214,14 +216,14 @@ public class MoreLikeThisQueryParser extends BaseQueryParserTemp {
 
         // set analyzer
         if (analyzer == null) {
-            analyzer = parseContext.mapperService().searchAnalyzer();
+            analyzer = context.mapperService().searchAnalyzer();
         }
         mltQuery.setAnalyzer(analyzer);
 
         // set like text fields
         boolean useDefaultField = (moreLikeFields == null);
         if (useDefaultField) {
-            moreLikeFields = Lists.newArrayList(parseContext.defaultField());
+            moreLikeFields = Lists.newArrayList(context.defaultField());
         }
         // possibly remove unsupported fields
         removeUnsupportedFields(moreLikeFields, analyzer, failOnUnsupportedField);
@@ -232,7 +234,7 @@ public class MoreLikeThisQueryParser extends BaseQueryParserTemp {
 
         // support for named query
         if (queryName != null) {
-            parseContext.addNamedQuery(queryName, mltQuery);
+            context.addNamedQuery(queryName, mltQuery);
         }
 
         // handle like texts
@@ -256,12 +258,12 @@ public class MoreLikeThisQueryParser extends BaseQueryParserTemp {
                     item.index(parseContext.index().name());
                 }
                 if (item.type() == null) {
-                    if (parseContext.queryTypes().size() > 1) {
+                    if (context.queryTypes().size() > 1) {
                         throw new QueryParsingException(parseContext,
                                     "ambiguous type for item with id: " + item.id()
                                 + " and index: " + item.index());
                     } else {
-                        item.type(parseContext.queryTypes().iterator().next());
+                        item.type(context.queryTypes().iterator().next());
                     }
                 }
                 // default fields if not present but don't override for artificial docs

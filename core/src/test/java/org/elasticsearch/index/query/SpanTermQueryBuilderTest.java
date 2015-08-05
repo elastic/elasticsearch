@@ -38,7 +38,7 @@ public class SpanTermQueryBuilderTest extends BaseTermQueryTestCase<SpanTermQuer
     }
 
     @Override
-    protected void doAssertLuceneQuery(SpanTermQueryBuilder queryBuilder, Query query, QueryParseContext context) throws IOException {
+    protected void doAssertLuceneQuery(SpanTermQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         assertThat(query, instanceOf(SpanTermQuery.class));
         SpanTermQuery spanTermQuery = (SpanTermQuery) query;
         assertThat(spanTermQuery.getTerm().field(), equalTo(queryBuilder.fieldName()));

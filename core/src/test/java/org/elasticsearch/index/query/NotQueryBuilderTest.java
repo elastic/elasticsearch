@@ -44,7 +44,7 @@ public class NotQueryBuilderTest extends BaseQueryTestCase<NotQueryBuilder> {
     }
 
     @Override
-    protected void doAssertLuceneQuery(NotQueryBuilder queryBuilder, Query query, QueryParseContext context) throws IOException {
+    protected void doAssertLuceneQuery(NotQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         Query filter = queryBuilder.filter().toQuery(context);
         if (filter == null) {
             assertThat(query, nullValue());
@@ -64,12 +64,12 @@ public class NotQueryBuilderTest extends BaseQueryTestCase<NotQueryBuilder> {
      */
     @Test(expected=QueryParsingException.class)
     public void testMissingFilterSection() throws IOException {
-        QueryParseContext context = createContext();
+        QueryParseContext context = createParseContext();
         String queryString = "{ \"not\" : {}";
         XContentParser parser = XContentFactory.xContent(queryString).createParser(queryString);
         context.reset(parser);
         assertQueryHeader(parser, NotQueryBuilder.PROTOTYPE.getName());
-        context.indexQueryParserService().queryParser(NotQueryBuilder.PROTOTYPE.getName()).fromXContent(context);
+        context.queryParser(NotQueryBuilder.PROTOTYPE.getName()).fromXContent(context);
     }
 
     @Test

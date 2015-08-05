@@ -42,7 +42,6 @@ import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.query.support.NestedInnerQueryParseSupport;
@@ -156,7 +155,7 @@ public class GeoDistanceSortParser implements SortParser {
             ObjectMapper objectMapper = context.mapperService().resolveClosestNestedObjectMapper(fieldName);
             if (objectMapper != null && objectMapper.nested().isNested()) {
                 if (nestedHelper == null) {
-                    nestedHelper = new NestedInnerQueryParseSupport(context.queryParserService().getParseContext());
+                    nestedHelper = new NestedInnerQueryParseSupport(context.queryParserService().getShardContext());
                 }
                 nestedHelper.setPath(objectMapper.fullPath());
             }
@@ -164,7 +163,7 @@ public class GeoDistanceSortParser implements SortParser {
 
         final Nested nested;
         if (nestedHelper != null && nestedHelper.getPath() != null) {
-            
+
             BitDocIdSetFilter rootDocumentsFilter = context.bitsetFilterCache().getBitDocIdSetFilter(Queries.newNonNestedFilter());
             Filter innerDocumentsFilter;
             if (nestedHelper.filterFound()) {

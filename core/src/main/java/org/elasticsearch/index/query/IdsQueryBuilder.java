@@ -124,16 +124,16 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
     }
 
     @Override
-    protected Query doToQuery(QueryParseContext parseContext) throws IOException {
+    protected Query doToQuery(QueryShardContext context) throws IOException {
         Query query;
         if (this.ids.isEmpty()) {
              query = Queries.newMatchNoDocsQuery();
         } else {
             Collection<String> typesForQuery;
             if (types == null || types.length == 0) {
-                typesForQuery = parseContext.queryTypes();
+                typesForQuery = context.queryTypes();
             } else if (types.length == 1 && MetaData.ALL.equals(types[0])) {
-                typesForQuery = parseContext.mapperService().types();
+                typesForQuery = context.mapperService().types();
             } else {
                 typesForQuery = Sets.newHashSet(types);
             }

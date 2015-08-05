@@ -48,7 +48,7 @@ public class WildcardQueryBuilderTest extends BaseQueryTestCase<WildcardQueryBui
     }
 
     @Override
-    protected void doAssertLuceneQuery(WildcardQueryBuilder queryBuilder, Query query, QueryParseContext context) throws IOException {
+    protected void doAssertLuceneQuery(WildcardQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         assertThat(query, instanceOf(WildcardQuery.class));
     }
 
@@ -69,7 +69,7 @@ public class WildcardQueryBuilderTest extends BaseQueryTestCase<WildcardQueryBui
 
     @Test
     public void testEmptyValue() throws IOException {
-        QueryParseContext context = createContext();
+        QueryShardContext context = createShardContext();
         context.setAllowUnmappedFields(true);
 
         WildcardQueryBuilder wildcardQueryBuilder = new WildcardQueryBuilder(getRandomType(), "");

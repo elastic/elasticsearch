@@ -87,9 +87,6 @@ public class CommonTermsQueryParser extends BaseQueryParser {
                         text = parser.objectText();
                     } else if ("analyzer".equals(currentFieldName)) {
                         analyzer = parser.text();
-                        if (parseContext.analysisService().analyzer(analyzer) == null) {
-                            throw new QueryParsingException(parseContext, "[common] analyzer [" + parser.text() + "] not found");
-                        }
                     } else if ("disable_coord".equals(currentFieldName) || "disableCoord".equals(currentFieldName)) {
                         disableCoord = parser.booleanValue();
                     } else if ("boost".equals(currentFieldName)) {

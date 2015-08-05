@@ -67,7 +67,7 @@ public class BoolQueryBuilderTest extends BaseQueryTestCase<BoolQueryBuilder> {
     }
 
     @Override
-    protected void doAssertLuceneQuery(BoolQueryBuilder queryBuilder, Query query, QueryParseContext context) throws IOException {
+    protected void doAssertLuceneQuery(BoolQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         if (!queryBuilder.hasClauses()) {
             assertThat(query, instanceOf(MatchAllDocsQuery.class));
         } else {
@@ -103,10 +103,10 @@ public class BoolQueryBuilderTest extends BaseQueryTestCase<BoolQueryBuilder> {
         }
     }
 
-    private static List<BooleanClause> getBooleanClauses(List<QueryBuilder> queryBuilders, BooleanClause.Occur occur, QueryParseContext parseContext) throws IOException {
+    private static List<BooleanClause> getBooleanClauses(List<QueryBuilder> queryBuilders, BooleanClause.Occur occur, QueryShardContext context) throws IOException {
         List<BooleanClause> clauses = new ArrayList<>();
         for (QueryBuilder query : queryBuilders) {
-            Query innerQuery = query.toQuery(parseContext);
+            Query innerQuery = query.toQuery(context);
             if (innerQuery != null) {
                 clauses.add(new BooleanClause(innerQuery, occur));
             }

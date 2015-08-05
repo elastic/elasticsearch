@@ -19,7 +19,6 @@
 
 package org.elasticsearch.indices;
 
-import com.google.common.collect.Lists;
 import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -31,9 +30,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 
@@ -43,8 +40,6 @@ public final class IndicesWarmer extends AbstractComponent {
 
     public static final String INDEX_WARMER_ENABLED = "index.warmer.enabled";
 
-    private final ThreadPool threadPool;
-
     private final ClusterService clusterService;
 
     private final IndicesService indicesService;
@@ -52,9 +47,8 @@ public final class IndicesWarmer extends AbstractComponent {
     private final CopyOnWriteArrayList<Listener> listeners = new CopyOnWriteArrayList<>();
 
     @Inject
-    public IndicesWarmer(Settings settings, ThreadPool threadPool, ClusterService clusterService, IndicesService indicesService) {
+    public IndicesWarmer(Settings settings, ClusterService clusterService, IndicesService indicesService) {
         super(settings);
-        this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.indicesService = indicesService;
     }
@@ -100,27 +94,11 @@ public final class IndicesWarmer extends AbstractComponent {
         }
         indexShard.warmerService().onPreWarm();
         long time = System.nanoTime();
-        final List<TerminationHandle> terminationHandles = Lists.newArrayList();
-        // get a handle on pending tasks
         for (final Listener listener : listeners) {
             if (topReader) {
-                terminationHandles.add(listener.warmTopReader(indexShard, indexMetaData, context, threadPool));
+                listener.warmTopReader(indexShard, indexMetaData, context);
             } else {
-                terminationHandles.add(listener.warmNewReaders(indexShard, indexMetaData, context, threadPool));
-            }
-        }
-        // wait for termination
-        for (TerminationHandle terminationHandle : terminationHandles) {
-            try {
-                terminationHandle.awaitTermination();
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                if (topReader) {
-                    logger.warn("top warming has been interrupted", e);
-                } else {
-                    logger.warn("warming has been interrupted", e);
-                }
-                break;
+                listener.warmNewReaders(indexShard, indexMetaData, context);
             }
         }
         long took = System.nanoTime() - time;
@@ -134,27 +112,13 @@ public final class IndicesWarmer extends AbstractComponent {
         }
     }
 
-    /** A handle on the execution of  warm-up action. */
-    public interface TerminationHandle {
-
-        public static TerminationHandle NO_WAIT = new TerminationHandle() {
-            @Override
-            public void awaitTermination() {}
-        };
-
-        /** Wait until execution of the warm-up action completes. */
-        void awaitTermination() throws InterruptedException;
-    }
     public static abstract class Listener {
 
-        public String executor() {
-            return ThreadPool.Names.WARMER;
-        }
+        /** Warm new leaf readers in the current thread. */
+        public abstract void warmNewReaders(IndexShard indexShard, IndexMetaData indexMetaData, WarmerContext context);
 
-        /** Queue tasks to warm-up the given segments and return handles that allow to wait for termination of the execution of those tasks. */
-        public abstract TerminationHandle warmNewReaders(IndexShard indexShard, IndexMetaData indexMetaData, WarmerContext context, ThreadPool threadPool);
-
-        public abstract TerminationHandle warmTopReader(IndexShard indexShard, IndexMetaData indexMetaData, WarmerContext context, ThreadPool threadPool);
+        /** Warm the top reader in the current thread. */
+        public abstract void warmTopReader(IndexShard indexShard, IndexMetaData indexMetaData, WarmerContext context);
     }
 
     public static final class WarmerContext {

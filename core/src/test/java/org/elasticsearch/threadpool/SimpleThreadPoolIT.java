@@ -63,7 +63,7 @@ public class SimpleThreadPoolIT extends ESIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.settingsBuilder().put(super.nodeSettings(nodeOrdinal)).put("threadpool.search.type", "cached").build();
+        return Settings.settingsBuilder().put(super.nodeSettings(nodeOrdinal)).put("threadpool.read.type", "cached").build();
     }
 
     @Test
@@ -131,7 +131,7 @@ public class SimpleThreadPoolIT extends ESIntegTestCase {
         ThreadPool threadPool = internalCluster().getDataNodeInstance(ThreadPool.class);
         // Check that settings are changed
         assertThat(((ThreadPoolExecutor) threadPool.executor(Names.SEARCH)).getKeepAliveTime(TimeUnit.MINUTES), equalTo(5L));
-        client().admin().cluster().prepareUpdateSettings().setTransientSettings(settingsBuilder().put("threadpool.search.keep_alive", "10m").build()).execute().actionGet();
+        client().admin().cluster().prepareUpdateSettings().setTransientSettings(settingsBuilder().put("threadpool.read.keep_alive", "10m").build()).execute().actionGet();
         assertThat(((ThreadPoolExecutor) threadPool.executor(Names.SEARCH)).getKeepAliveTime(TimeUnit.MINUTES), equalTo(10L));
 
         // Make sure that threads continue executing when executor is replaced
@@ -149,7 +149,7 @@ public class SimpleThreadPoolIT extends ESIntegTestCase {
                 }
             }
         });
-        client().admin().cluster().prepareUpdateSettings().setTransientSettings(settingsBuilder().put("threadpool.search.type", "fixed").build()).execute().actionGet();
+        client().admin().cluster().prepareUpdateSettings().setTransientSettings(settingsBuilder().put("threadpool.read.type", "fixed").build()).execute().actionGet();
         assertThat(threadPool.executor(Names.SEARCH), not(sameInstance(oldExecutor)));
         assertThat(((ThreadPoolExecutor) oldExecutor).isShutdown(), equalTo(true));
         assertThat(((ThreadPoolExecutor) oldExecutor).isTerminating(), equalTo(true));
@@ -169,7 +169,7 @@ public class SimpleThreadPoolIT extends ESIntegTestCase {
                 }
             }
         });
-        client().admin().cluster().prepareUpdateSettings().setTransientSettings(settingsBuilder().put("threadpool.search.type", "fixed").build()).execute().actionGet();
+        client().admin().cluster().prepareUpdateSettings().setTransientSettings(settingsBuilder().put("threadpool.read.type", "fixed").build()).execute().actionGet();
         barrier.await();
         Thread.sleep(200);
 

@@ -50,34 +50,24 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 public class RestThreadPoolAction extends AbstractCatAction {
 
     private final static String[] SUPPORTED_NAMES = new String[]{
-            ThreadPool.Names.BULK,
-            ThreadPool.Names.FLUSH,
+            ThreadPool.Names.FETCH_SHARD,
             ThreadPool.Names.GENERIC,
             ThreadPool.Names.GET,
-            ThreadPool.Names.INDEX,
             ThreadPool.Names.MANAGEMENT,
             ThreadPool.Names.OPTIMIZE,
-            ThreadPool.Names.PERCOLATE,
-            ThreadPool.Names.REFRESH,
-            ThreadPool.Names.SEARCH,
+            ThreadPool.Names.READ,
             ThreadPool.Names.SNAPSHOT,
-            ThreadPool.Names.SUGGEST,
-            ThreadPool.Names.WARMER
+            ThreadPool.Names.WRITE
     };
 
     private final static String[] SUPPORTED_ALIASES = new String[]{
-            "b",
-            "f",
+            "fs",
             "ge",
             "g",
-            "i",
             "ma",
             "o",
-            "p",
             "r",
-            "s",
             "sn",
-            "su",
             "w"
     };
 
@@ -86,9 +76,8 @@ public class RestThreadPoolAction extends AbstractCatAction {
     }
 
     private final static String[] DEFAULT_THREAD_POOLS = new String[]{
-            ThreadPool.Names.BULK,
-            ThreadPool.Names.INDEX,
-            ThreadPool.Names.SEARCH,
+            ThreadPool.Names.WRITE,
+            ThreadPool.Names.READ
     };
 
     private final static Map<String, String> ALIAS_TO_THREAD_POOL;

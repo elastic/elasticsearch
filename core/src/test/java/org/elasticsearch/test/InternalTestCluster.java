@@ -407,10 +407,8 @@ public final class InternalTestCluster extends TestCluster {
         }
         if (random.nextBoolean()) {
             // change threadpool types to make sure we don't have components that rely on the type of thread pools
-            for (String name : Arrays.asList(ThreadPool.Names.BULK, ThreadPool.Names.FLUSH, ThreadPool.Names.GET,
-                    ThreadPool.Names.INDEX, ThreadPool.Names.MANAGEMENT, ThreadPool.Names.OPTIMIZE,
-                    ThreadPool.Names.PERCOLATE, ThreadPool.Names.REFRESH, ThreadPool.Names.SEARCH, ThreadPool.Names.SNAPSHOT,
-                    ThreadPool.Names.SUGGEST, ThreadPool.Names.WARMER)) {
+            for (String name : Arrays.asList(ThreadPool.Names.WRITE, ThreadPool.Names.READ, ThreadPool.Names.MANAGEMENT,
+                    ThreadPool.Names.OPTIMIZE, ThreadPool.Names.SNAPSHOT, ThreadPool.Names.LISTENER, ThreadPool.Names.FETCH_SHARD)) {
                 if (random.nextBoolean()) {
                     final String type = RandomPicks.randomFrom(random, Arrays.asList("fixed", "cached", "scaling"));
                     builder.put(ThreadPool.THREADPOOL_GROUP + name + ".type", type);

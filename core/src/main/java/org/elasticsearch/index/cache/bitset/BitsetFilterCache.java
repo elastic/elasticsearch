@@ -49,8 +49,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardUtils;
 import org.elasticsearch.indices.IndicesWarmer;
-import org.elasticsearch.indices.IndicesWarmer.TerminationHandle;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.indices.IndicesWarmer.WarmerContext;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -58,9 +57,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Callable;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executor;
 
 /**
  * This is a cache for {@link BitDocIdSet} based filters and is unbounded by size or time.
@@ -241,9 +238,9 @@ public class BitsetFilterCache extends AbstractIndexComponent implements LeafRea
     final class BitDocIdSetFilterWarmer extends IndicesWarmer.Listener {
 
         @Override
-        public IndicesWarmer.TerminationHandle warmNewReaders(final IndexShard indexShard, IndexMetaData indexMetaData, IndicesWarmer.WarmerContext context, ThreadPool threadPool) {
+        public void warmNewReaders(final IndexShard indexShard, IndexMetaData indexMetaData, IndicesWarmer.WarmerContext context) {
             if (!loadRandomAccessFiltersEagerly) {
-                return TerminationHandle.NO_WAIT;
+                return;
             }
 
             boolean hasNested = false;
@@ -267,43 +264,25 @@ public class BitsetFilterCache extends AbstractIndexComponent implements LeafRea
                 warmUp.add(Queries.newNonNestedFilter());
             }
 
-            final Executor executor = threadPool.executor(executor());
-            final CountDownLatch latch = new CountDownLatch(context.searcher().reader().leaves().size() * warmUp.size());
             for (final LeafReaderContext ctx : context.searcher().reader().leaves()) {
                 for (final Filter filterToWarm : warmUp) {
-                    executor.execute(new Runnable() {
-
-                        @Override
-                        public void run() {
-                            try {
-                                final long start = System.nanoTime();
-                                getAndLoadIfNotPresent(filterToWarm, ctx);
-                                if (indexShard.warmerService().logger().isTraceEnabled()) {
-                                    indexShard.warmerService().logger().trace("warmed bitset for [{}], took [{}]", filterToWarm, TimeValue.timeValueNanos(System.nanoTime() - start));
-                                }
-                            } catch (Throwable t) {
-                                indexShard.warmerService().logger().warn("failed to load bitset for [{}]", t, filterToWarm);
-                            } finally {
-                                latch.countDown();
-                            }
+                    try {
+                        final long start = System.nanoTime();
+                        getAndLoadIfNotPresent(filterToWarm, ctx);
+                        if (indexShard.warmerService().logger().isTraceEnabled()) {
+                            indexShard.warmerService().logger().trace("warmed bitset for [{}], took [{}]", filterToWarm, TimeValue.timeValueNanos(System.nanoTime() - start));
                         }
-
-                    });
+                    } catch (Throwable t) {
+                        indexShard.warmerService().logger().warn("failed to load bitset for [{}]", t, filterToWarm);
+                    }
                 }
             }
-            return new TerminationHandle() {
-                @Override
-                public void awaitTermination() throws InterruptedException {
-                    latch.await();
-                }
-            };
         }
 
         @Override
-        public TerminationHandle warmTopReader(IndexShard indexShard, IndexMetaData indexMetaData, IndicesWarmer.WarmerContext context, ThreadPool threadPool) {
-            return TerminationHandle.NO_WAIT;
+        public void warmTopReader(IndexShard indexShard, IndexMetaData indexMetaData, WarmerContext context) {
+            // no-op
         }
-
     }
 
     Cache<Object, Cache<Filter, Value>> getLoadedFilters() {

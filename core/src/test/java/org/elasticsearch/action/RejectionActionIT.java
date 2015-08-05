@@ -47,12 +47,10 @@ public class RejectionActionIT extends ESIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put("threadpool.search.size", 1)
-                .put("threadpool.search.queue_size", 1)
-                .put("threadpool.index.size", 1)
-                .put("threadpool.index.queue_size", 1)
-                .put("threadpool.get.size", 1)
-                .put("threadpool.get.queue_size", 1)
+                .put("threadpool.read.size", 1)
+                .put("threadpool.read.queue_size", 1)
+                .put("threadpool.write.size", 1)
+                .put("threadpool.write.queue_size", 1)
                 .build();
     }
 

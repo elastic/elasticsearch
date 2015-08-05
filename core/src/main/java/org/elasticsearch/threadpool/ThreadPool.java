@@ -21,8 +21,10 @@ package org.elasticsearch.threadpool;
 
 import com.google.common.base.Objects;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableMap.Builder;
 import com.google.common.collect.Maps;
 import com.google.common.util.concurrent.MoreExecutors;
+
 import org.apache.lucene.util.Counter;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -60,23 +62,48 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueMinutes;
 public class ThreadPool extends AbstractComponent {
 
     public static class Names {
+        // Actual threadpools
         public static final String SAME = "same";
         public static final String GENERIC = "generic";
         public static final String LISTENER = "listener";
-        public static final String GET = "get";
-        public static final String INDEX = "index";
-        public static final String BULK = "bulk";
-        public static final String SEARCH = "search";
-        public static final String SUGGEST = "suggest";
-        public static final String PERCOLATE = "percolate";
         public static final String MANAGEMENT = "management";
-        public static final String FLUSH = "flush";
-        public static final String REFRESH = "refresh";
-        public static final String WARMER = "warmer";
+        public static final String READ = "read";
+        public static final String WRITE = "write";
         public static final String SNAPSHOT = "snapshot";
         public static final String OPTIMIZE = "optimize";
-        public static final String FETCH_SHARD_STARTED = "fetch_shard_started";
-        public static final String FETCH_SHARD_STORE = "fetch_shard_store";
+        public static final String FETCH_SHARD = "fetch_shard";
+        // this would ideally be an alias to "read" but some search
+        // requests block on get requests to retrieve eg. indexed scripts
+        // or geo shapes, so we need to keep get in its own thread pool
+        // to avoid dead locks
+        public static final String GET = "get";
+
+        // Aliases
+        public static final String SEARCH = READ;
+        public static final String SUGGEST = READ;
+        public static final String PERCOLATE = READ;
+        public static final String INDEX = WRITE;
+        public static final String BULK = WRITE;
+        public static final String FLUSH = WRITE;
+        public static final String REFRESH = WRITE;
+        public static final String FETCH_SHARD_STARTED = FETCH_SHARD;
+        public static final String FETCH_SHARD_STORE = FETCH_SHARD;
+
+        private static Map<String, String> DEPRECATED_THREADPOOLS;
+        static {
+            Builder<String, String> builder = ImmutableMap.builder();
+            builder.put("search", SEARCH);
+            builder.put("suggest", SUGGEST);
+            builder.put("percolate", PERCOLATE);
+            builder.put("warmer", REFRESH);
+            builder.put("index", INDEX);
+            builder.put("bulk", BULK);
+            builder.put("flush", FLUSH);
+            builder.put("refresh", REFRESH);
+            builder.put("fetch_shard_started", FETCH_SHARD_STARTED);
+            builder.put("fetch_shard_store", FETCH_SHARD_STORE);
+            DEPRECATED_THREADPOOLS = builder.build();
+        }
     }
 
     public static final String THREADPOOL_GROUP = "threadpool.";
@@ -110,23 +137,16 @@ public class ThreadPool extends AbstractComponent {
         int halfProcMaxAt10 = Math.min(((availableProcessors + 1) / 2), 10);
         defaultExecutorTypeSettings = ImmutableMap.<String, Settings>builder()
                 .put(Names.GENERIC, settingsBuilder().put("type", "cached").put("keep_alive", "30s").build())
-                .put(Names.INDEX, settingsBuilder().put("type", "fixed").put("size", availableProcessors).put("queue_size", 200).build())
-                .put(Names.BULK, settingsBuilder().put("type", "fixed").put("size", availableProcessors).put("queue_size", 50).build())
+                .put(Names.WRITE, settingsBuilder().put("type", "fixed").put("size", availableProcessors).put("queue_size", 200).build())
+                .put(Names.READ, settingsBuilder().put("type", "fixed").put("size", ((availableProcessors * 3) / 2) + 1).put("queue_size", 1000).build())
                 .put(Names.GET, settingsBuilder().put("type", "fixed").put("size", availableProcessors).put("queue_size", 1000).build())
-                .put(Names.SEARCH, settingsBuilder().put("type", "fixed").put("size", ((availableProcessors * 3) / 2) + 1).put("queue_size", 1000).build())
-                .put(Names.SUGGEST, settingsBuilder().put("type", "fixed").put("size", availableProcessors).put("queue_size", 1000).build())
-                .put(Names.PERCOLATE, settingsBuilder().put("type", "fixed").put("size", availableProcessors).put("queue_size", 1000).build())
                 .put(Names.MANAGEMENT, settingsBuilder().put("type", "scaling").put("keep_alive", "5m").put("size", 5).build())
                 // no queue as this means clients will need to handle rejections on listener queue even if the operation succeeded
                 // the assumption here is that the listeners should be very lightweight on the listeners side
                 .put(Names.LISTENER, settingsBuilder().put("type", "fixed").put("size", halfProcMaxAt10).build())
-                .put(Names.FLUSH, settingsBuilder().put("type", "scaling").put("keep_alive", "5m").put("size", halfProcMaxAt5).build())
-                .put(Names.REFRESH, settingsBuilder().put("type", "scaling").put("keep_alive", "5m").put("size", halfProcMaxAt10).build())
-                .put(Names.WARMER, settingsBuilder().put("type", "scaling").put("keep_alive", "5m").put("size", halfProcMaxAt5).build())
                 .put(Names.SNAPSHOT, settingsBuilder().put("type", "scaling").put("keep_alive", "5m").put("size", halfProcMaxAt5).build())
-                .put(Names.OPTIMIZE, settingsBuilder().put("type", "fixed").put("size", 1).build())
-                .put(Names.FETCH_SHARD_STARTED, settingsBuilder().put("type", "scaling").put("keep_alive", "5m").put("size", availableProcessors * 2).build())
-                .put(Names.FETCH_SHARD_STORE, settingsBuilder().put("type", "scaling").put("keep_alive", "5m").put("size", availableProcessors * 2).build())
+                .put(Names.OPTIMIZE, settingsBuilder().put("type", "scaling").put("keep_alive", "5m").put("size", 1).build())
+                .put(Names.FETCH_SHARD, settingsBuilder().put("type", "scaling").put("keep_alive", "5m").put("size", availableProcessors * 2).build())
                 .build();
 
         Map<String, ExecutorHolder> executors = Maps.newHashMap();
@@ -136,7 +156,13 @@ public class ThreadPool extends AbstractComponent {
 
         // Building custom thread pools
         for (Map.Entry<String, Settings> entry : groupSettings.entrySet()) {
-            if (executors.containsKey(entry.getKey())) {
+            final String threadPoolName = entry.getKey();
+            if (executors.containsKey(threadPoolName)) {
+                continue;
+            }
+            if (Names.DEPRECATED_THREADPOOLS.containsKey(threadPoolName)) {
+                final String replacement = Names.DEPRECATED_THREADPOOLS.get(threadPoolName);
+                deprecationLogger.deprecated("threadpool [{}] has been merged together with other threadpools into the [{}] threadpool", threadPoolName, replacement);
                 continue;
             }
             executors.put(entry.getKey(), build(entry.getKey(), entry.getValue(), Settings.EMPTY));
@@ -446,11 +472,17 @@ public class ThreadPool extends AbstractComponent {
 
         // Building custom thread pools
         for (Map.Entry<String, Settings> entry : groupSettings.entrySet()) {
-            if (defaultExecutorTypeSettings.containsKey(entry.getKey())) {
+            final String threadPoolName = entry.getKey();
+            if (defaultExecutorTypeSettings.containsKey(threadPoolName)) {
+                continue;
+            }
+            if (Names.DEPRECATED_THREADPOOLS.containsKey(threadPoolName)) {
+                final String replacement = Names.DEPRECATED_THREADPOOLS.get(threadPoolName);
+                deprecationLogger.deprecated("threadpool [{}] has been merged together with other threadpools into the [{}] threadpool", threadPoolName, replacement);
                 continue;
             }
 
-            ExecutorHolder oldExecutorHolder = executors.get(entry.getKey());
+            ExecutorHolder oldExecutorHolder = executors.get(threadPoolName);
             ExecutorHolder newExecutorHolder = rebuild(entry.getKey(), oldExecutorHolder, entry.getValue(), Settings.EMPTY);
             // Can't introduce new thread pools at runtime, because The oldExecutorHolder variable will be null in the
             // case the settings contains a thread pool not defined in the initial settings in the constructor. The if

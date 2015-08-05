@@ -72,7 +72,6 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.IndicesWarmer;
-import org.elasticsearch.indices.IndicesWarmer.TerminationHandle;
 import org.elasticsearch.indices.IndicesWarmer.WarmerContext;
 import org.elasticsearch.indices.cache.request.IndicesRequestCache;
 import org.elasticsearch.node.settings.NodeSettingsService;
@@ -920,7 +919,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
     static class NormsWarmer extends IndicesWarmer.Listener {
 
         @Override
-        public TerminationHandle warmNewReaders(final IndexShard indexShard, IndexMetaData indexMetaData, final WarmerContext context, ThreadPool threadPool) {
+        public void warmNewReaders(final IndexShard indexShard, IndexMetaData indexMetaData, final WarmerContext context) {
             final Loading defaultLoading = Loading.parse(indexMetaData.settings().get(NORMS_LOADING_KEY), Loading.LAZY);
             final MapperService mapperService = indexShard.mapperService();
             final ObjectSet<String> warmUp = new ObjectHashSet<>();
@@ -937,51 +936,35 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                 }
             }
 
-            final CountDownLatch latch = new CountDownLatch(1);
-            // Norms loading may be I/O intensive but is not CPU intensive, so we execute it in a single task
-            threadPool.executor(executor()).execute(new Runnable() {
-                @Override
-                public void run() {
-                    try {
-                        for (ObjectCursor<String> stringObjectCursor : warmUp) {
-                            final String indexName = stringObjectCursor.value;
-                            final long start = System.nanoTime();
-                            for (final LeafReaderContext ctx : context.searcher().reader().leaves()) {
-                                final NumericDocValues values = ctx.reader().getNormValues(indexName);
-                                if (values != null) {
-                                    values.get(0);
-                                }
-                            }
-                            if (indexShard.warmerService().logger().isTraceEnabled()) {
-                                indexShard.warmerService().logger().trace("warmed norms for [{}], took [{}]", indexName, TimeValue.timeValueNanos(System.nanoTime() - start));
-                            }
+            try {
+                for (ObjectCursor<String> stringObjectCursor : warmUp) {
+                    final String indexName = stringObjectCursor.value;
+                    final long start = System.nanoTime();
+                    for (final LeafReaderContext ctx : context.searcher().reader().leaves()) {
+                        final NumericDocValues values = ctx.reader().getNormValues(indexName);
+                        if (values != null) {
+                            values.get(0);
                         }
-                    } catch (Throwable t) {
-                        indexShard.warmerService().logger().warn("failed to warm-up norms", t);
-                    } finally {
-                        latch.countDown();
+                    }
+                    if (indexShard.warmerService().logger().isTraceEnabled()) {
+                        indexShard.warmerService().logger().trace("warmed norms for [{}], took [{}]", indexName, TimeValue.timeValueNanos(System.nanoTime() - start));
                     }
                 }
-            });
-
-            return new TerminationHandle() {
-                @Override
-                public void awaitTermination() throws InterruptedException {
-                    latch.await();
-                }
-            };
+            } catch (Throwable t) {
+                indexShard.warmerService().logger().warn("failed to warm-up norms", t);
+            }
         }
 
         @Override
-        public TerminationHandle warmTopReader(IndexShard indexShard, IndexMetaData indexMetaData, WarmerContext context, ThreadPool threadPool) {
-            return TerminationHandle.NO_WAIT;
+        public void warmTopReader(IndexShard indexShard, IndexMetaData indexMetaData, WarmerContext context) {
+            // no-op
         }
     }
 
     static class FieldDataWarmer extends IndicesWarmer.Listener {
 
         @Override
-        public TerminationHandle warmNewReaders(final IndexShard indexShard, IndexMetaData indexMetaData, final WarmerContext context, ThreadPool threadPool) {
+        public void warmNewReaders(final IndexShard indexShard, IndexMetaData indexMetaData, final WarmerContext context) {
             final MapperService mapperService = indexShard.mapperService();
             final Map<String, MappedFieldType> warmUp = new HashMap<>();
             for (DocumentMapper docMapper : mapperService.docMappers(false)) {
@@ -1002,40 +985,23 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                 }
             }
             final IndexFieldDataService indexFieldDataService = indexShard.indexFieldDataService();
-            final Executor executor = threadPool.executor(executor());
-            final CountDownLatch latch = new CountDownLatch(context.searcher().reader().leaves().size() * warmUp.size());
             for (final LeafReaderContext ctx : context.searcher().reader().leaves()) {
                 for (final MappedFieldType fieldType : warmUp.values()) {
-                    executor.execute(new Runnable() {
-
-                        @Override
-                        public void run() {
-                            try {
-                                final long start = System.nanoTime();
-                                indexFieldDataService.getForField(fieldType).load(ctx);
-                                if (indexShard.warmerService().logger().isTraceEnabled()) {
-                                    indexShard.warmerService().logger().trace("warmed fielddata for [{}], took [{}]", fieldType.names().fullName(), TimeValue.timeValueNanos(System.nanoTime() - start));
-                                }
-                            } catch (Throwable t) {
-                                indexShard.warmerService().logger().warn("failed to warm-up fielddata for [{}]", t, fieldType.names().fullName());
-                            } finally {
-                                latch.countDown();
-                            }
+                    try {
+                        final long start = System.nanoTime();
+                        indexFieldDataService.getForField(fieldType).load(ctx);
+                        if (indexShard.warmerService().logger().isTraceEnabled()) {
+                            indexShard.warmerService().logger().trace("warmed fielddata for [{}], took [{}]", fieldType.names().fullName(), TimeValue.timeValueNanos(System.nanoTime() - start));
                         }
-
-                    });
+                    } catch (Throwable t) {
+                        indexShard.warmerService().logger().warn("failed to warm-up fielddata for [{}]", t, fieldType.names().fullName());
+                    }
                 }
             }
-            return new TerminationHandle() {
-                @Override
-                public void awaitTermination() throws InterruptedException {
-                    latch.await();
-                }
-            };
         }
 
         @Override
-        public TerminationHandle warmTopReader(final IndexShard indexShard, IndexMetaData indexMetaData, final WarmerContext context, ThreadPool threadPool) {
+        public void warmTopReader(final IndexShard indexShard, IndexMetaData indexMetaData, final WarmerContext context) {
             final MapperService mapperService = indexShard.mapperService();
             final Map<String, MappedFieldType> warmUpGlobalOrdinals = new HashMap<>();
             for (DocumentMapper docMapper : mapperService.docMappers(false)) {
@@ -1055,104 +1021,70 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                 }
             }
             final IndexFieldDataService indexFieldDataService = indexShard.indexFieldDataService();
-            final Executor executor = threadPool.executor(executor());
-            final CountDownLatch latch = new CountDownLatch(warmUpGlobalOrdinals.size());
             for (final MappedFieldType fieldType : warmUpGlobalOrdinals.values()) {
-                executor.execute(new Runnable() {
-                    @Override
-                    public void run() {
-                        try {
-                            final long start = System.nanoTime();
-                            IndexFieldData.Global ifd = indexFieldDataService.getForField(fieldType);
-                            ifd.loadGlobal(context.reader());
-                            if (indexShard.warmerService().logger().isTraceEnabled()) {
-                                indexShard.warmerService().logger().trace("warmed global ordinals for [{}], took [{}]", fieldType.names().fullName(), TimeValue.timeValueNanos(System.nanoTime() - start));
-                            }
-                        } catch (Throwable t) {
-                            indexShard.warmerService().logger().warn("failed to warm-up global ordinals for [{}]", t, fieldType.names().fullName());
-                        } finally {
-                            latch.countDown();
-                        }
+                try {
+                    final long start = System.nanoTime();
+                    IndexFieldData.Global<?> ifd = indexFieldDataService.getForField(fieldType);
+                    ifd.loadGlobal(context.reader());
+                    if (indexShard.warmerService().logger().isTraceEnabled()) {
+                        indexShard.warmerService().logger().trace("warmed global ordinals for [{}], took [{}]", fieldType.names().fullName(), TimeValue.timeValueNanos(System.nanoTime() - start));
                     }
-                });
-            }
-            return new TerminationHandle() {
-                @Override
-                public void awaitTermination() throws InterruptedException {
-                    latch.await();
+                } catch (Throwable t) {
+                    indexShard.warmerService().logger().warn("failed to warm-up global ordinals for [{}]", t, fieldType.names().fullName());
                 }
-            };
+            }
         }
     }
 
     class SearchWarmer extends IndicesWarmer.Listener {
 
         @Override
-        public TerminationHandle warmNewReaders(IndexShard indexShard, IndexMetaData indexMetaData, WarmerContext context, ThreadPool threadPool) {
-            return internalWarm(indexShard, indexMetaData, context, threadPool, false);
+        public void warmNewReaders(IndexShard indexShard, IndexMetaData indexMetaData, WarmerContext context) {
+            internalWarm(indexShard, indexMetaData, context, threadPool, false);
         }
 
         @Override
-        public TerminationHandle warmTopReader(IndexShard indexShard, IndexMetaData indexMetaData, WarmerContext context, ThreadPool threadPool) {
-            return internalWarm(indexShard, indexMetaData, context, threadPool, true);
+        public void warmTopReader(IndexShard indexShard, IndexMetaData indexMetaData, WarmerContext context) {
+            internalWarm(indexShard, indexMetaData, context, threadPool, true);
         }
 
-        public TerminationHandle internalWarm(final IndexShard indexShard, final IndexMetaData indexMetaData, final IndicesWarmer.WarmerContext warmerContext, ThreadPool threadPool, final boolean top) {
+        public void internalWarm(final IndexShard indexShard, final IndexMetaData indexMetaData, final IndicesWarmer.WarmerContext warmerContext, ThreadPool threadPool, final boolean top) {
             IndexWarmersMetaData custom = indexMetaData.custom(IndexWarmersMetaData.TYPE);
             if (custom == null) {
-                return TerminationHandle.NO_WAIT;
+                return ;
             }
-            final Executor executor = threadPool.executor(executor());
-            final CountDownLatch latch = new CountDownLatch(custom.entries().size());
             for (final IndexWarmersMetaData.Entry entry : custom.entries()) {
-                executor.execute(new Runnable() {
-
-                    @Override
-                    public void run() {
-                        SearchContext context = null;
-                        try {
-                            long now = System.nanoTime();
-                            ShardSearchRequest request = new ShardSearchLocalRequest(indexShard.shardId(), indexMetaData.numberOfShards(),
-                                    SearchType.QUERY_THEN_FETCH, entry.source(), entry.types(), entry.requestCache());
-                            context = createContext(request, warmerContext.searcher());
-                            // if we use sort, we need to do query to sort on it and load relevant field data
-                            // if not, we might as well set size=0 (and cache if needed)
-                            if (context.sort() == null) {
-                                context.size(0);
-                            }
-                            boolean canCache = indicesQueryCache.canCache(request, context);
-                            // early terminate when we can cache, since we can only do proper caching on top level searcher
-                            // also, if we can't cache, and its top, we don't need to execute it, since we already did when its not top
-                            if (canCache != top) {
-                                return;
-                            }
-                            loadOrExecuteQueryPhase(request, context, queryPhase);
-                            long took = System.nanoTime() - now;
-                            if (indexShard.warmerService().logger().isTraceEnabled()) {
-                                indexShard.warmerService().logger().trace("warmed [{}], took [{}]", entry.name(), TimeValue.timeValueNanos(took));
-                            }
-                        } catch (Throwable t) {
-                            indexShard.warmerService().logger().warn("warmer [{}] failed", t, entry.name());
-                        } finally {
-                            try {
-                                if (context != null) {
-                                    freeContext(context.id());
-                                    cleanContext(context);
-                                }
-                            } finally {
-                                latch.countDown();
-                            }
-                        }
+                SearchContext context = null;
+                try {
+                    long now = System.nanoTime();
+                    ShardSearchRequest request = new ShardSearchLocalRequest(indexShard.shardId(), indexMetaData.numberOfShards(),
+                            SearchType.QUERY_THEN_FETCH, entry.source(), entry.types(), entry.requestCache());
+                    context = createContext(request, warmerContext.searcher());
+                    // if we use sort, we need to do query to sort on it and load relevant field data
+                    // if not, we might as well set size=0 (and cache if needed)
+                    if (context.sort() == null) {
+                        context.size(0);
                     }
-
-                });
-            }
-            return new TerminationHandle() {
-                @Override
-                public void awaitTermination() throws InterruptedException {
-                    latch.await();
+                    boolean canCache = indicesQueryCache.canCache(request, context);
+                    // early terminate when we can cache, since we can only do proper caching on top level searcher
+                    // also, if we can't cache, and its top, we don't need to execute it, since we already did when its not top
+                    if (canCache != top) {
+                        return;
+                    }
+                    loadOrExecuteQueryPhase(request, context, queryPhase);
+                    long took = System.nanoTime() - now;
+                    if (indexShard.warmerService().logger().isTraceEnabled()) {
+                        indexShard.warmerService().logger().trace("warmed [{}], took [{}]", entry.name(), TimeValue.timeValueNanos(took));
+                    }
+                } catch (Throwable t) {
+                    indexShard.warmerService().logger().warn("warmer [{}] failed", t, entry.name());
+                } finally {
+                    if (context != null) {
+                        freeContext(context.id());
+                        cleanContext(context);
+                    }
                 }
-            };
+            }
         }
     }
 

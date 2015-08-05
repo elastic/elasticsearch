@@ -180,7 +180,7 @@ public class TermsQueryParser extends BaseQueryParserTemp {
         }
 
         Query query;
-        if (parseContext.isFilter()) {
+        if (context.isFilter()) {
             if (fieldType != null) {
                 query = fieldType.termsQuery(terms, context);
             } else {

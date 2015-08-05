@@ -70,7 +70,7 @@ public class FuzzyQueryParser extends BaseQueryParserTemp {
         boolean transpositions = FuzzyQuery.defaultTranspositions;
         String queryName = null;
         MultiTermQuery.RewriteMethod rewriteMethod = null;
-        if (parseContext.isFilter()) {
+        if (context.isFilter()) {
             rewriteMethod = MultiTermQuery.CONSTANT_SCORE_REWRITE;
         }
         token = parser.nextToken();

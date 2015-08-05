@@ -103,7 +103,7 @@ public class QueryShardContext {
     //norelease this should be possible to remove once query context are completely separated
     private QueryParseContext parseContext;
 
-    private boolean isFilter;
+    boolean isFilter;
 
     public QueryShardContext(Index index, IndexQueryParserService indexQueryParser) {
         this.index = index;

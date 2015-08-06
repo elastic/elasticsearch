@@ -34,11 +34,11 @@ import org.junit.Test;
 public class SimpleNettyTransportTests extends AbstractSimpleTransportTests {
 
     @Override
-    protected MockTransportService build(Settings settings, Version version) {
+    protected MockTransportService build(Settings settings, Version version, NamedWriteableRegistry namedWriteableRegistry) {
         int startPort = 11000 + randomIntBetween(0, 255);
         int endPort = startPort + 10;
         settings = Settings.builder().put(settings).put("transport.tcp.port", startPort + "-" + endPort).build();
-        MockTransportService transportService = new MockTransportService(settings, new NettyTransport(settings, threadPool, new NetworkService(settings), BigArrays.NON_RECYCLING_INSTANCE, version, new NamedWriteableRegistry()), threadPool);
+        MockTransportService transportService = new MockTransportService(settings, new NettyTransport(settings, threadPool, new NetworkService(settings), BigArrays.NON_RECYCLING_INSTANCE, version, namedWriteableRegistry), threadPool);
         transportService.start();
         return transportService;
     }

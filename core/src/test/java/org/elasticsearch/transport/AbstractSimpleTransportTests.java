@@ -22,6 +22,7 @@ package org.elasticsearch.transport;
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -59,7 +60,7 @@ public abstract class AbstractSimpleTransportTests extends ESTestCase {
     protected DiscoveryNode nodeB;
     protected MockTransportService serviceB;
 
-    protected abstract MockTransportService build(Settings settings, Version version);
+    protected abstract MockTransportService build(Settings settings, Version version, NamedWriteableRegistry namedWriteableRegistry);
 
     @Override
     @Before
@@ -68,12 +69,12 @@ public abstract class AbstractSimpleTransportTests extends ESTestCase {
         threadPool = new ThreadPool(getClass().getName());
         serviceA = build(
                 Settings.builder().put("name", "TS_A", TransportService.SETTING_TRACE_LOG_INCLUDE, "", TransportService.SETTING_TRACE_LOG_EXCLUDE, "NOTHING").build(),
-                version0
+                version0, new NamedWriteableRegistry()
         );
         nodeA = new DiscoveryNode("TS_A", "TS_A", serviceA.boundAddress().publishAddress(), ImmutableMap.<String, String>of(), version0);
         serviceB = build(
                 Settings.builder().put("name", "TS_B", TransportService.SETTING_TRACE_LOG_INCLUDE, "", TransportService.SETTING_TRACE_LOG_EXCLUDE, "NOTHING").build(),
-                version1
+                version1, new NamedWriteableRegistry()
         );
         nodeB = new DiscoveryNode("TS_B", "TS_B", serviceB.boundAddress().publishAddress(), ImmutableMap.<String, String>of(), version1);
 

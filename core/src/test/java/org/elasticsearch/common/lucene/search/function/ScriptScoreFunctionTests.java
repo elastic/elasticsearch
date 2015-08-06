@@ -73,5 +73,10 @@ public class ScriptScoreFunctionTests extends ESTestCase {
                 }
             };
         }
+
+        @Override
+        public boolean needsScores() {
+            return false;
+        }
     }
 }

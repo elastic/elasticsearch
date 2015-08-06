@@ -150,6 +150,12 @@ public class JavaScriptScriptEngineService extends AbstractComponent implements 
 
                 return new JavaScriptSearchScript((Script) compiledScript.compiled(), scope, leafLookup);
               }
+
+              @Override
+              public boolean needsScores() {
+                  // TODO: can we reliably know if a javascript script makes use of _score
+                  return true;
+              }
             };
         } finally {
             Context.exit();

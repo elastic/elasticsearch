@@ -216,8 +216,7 @@ public abstract class ValuesSource {
 
             @Override
             public boolean needsScores() {
-                // TODO: add a way to know whether scripts are using scores
-                return true;
+                return script.needsScores();
             }
         }
 
@@ -295,8 +294,7 @@ public abstract class ValuesSource {
 
             @Override
             public boolean needsScores() {
-                // TODO: add a way to know whether scripts are using scores
-                return true;
+                return script.needsScores();
             }
 
             @Override
@@ -431,8 +429,7 @@ public abstract class ValuesSource {
 
             @Override
             public boolean needsScores() {
-                // TODO: add a way to know whether scripts are using scores
-                return true;
+                return script.needsScores();
             }
         }
 
@@ -451,8 +448,7 @@ public abstract class ValuesSource {
 
         @Override
         public boolean needsScores() {
-            // TODO: add a way to know whether scripts are using scores
-            return true;
+            return script.needsScores();
         }
 
         @Override

@@ -168,6 +168,12 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
                 }
                 return new GroovyScript(compiledScript, scriptObject, leafLookup, logger);
             }
+
+            @Override
+            public boolean needsScores() {
+                // TODO: can we reliably know if a groovy script makes use of _score
+                return true;
+            }
         };
     }
 

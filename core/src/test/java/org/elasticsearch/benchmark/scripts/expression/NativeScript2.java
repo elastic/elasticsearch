@@ -34,6 +34,11 @@ public class NativeScript2 extends AbstractSearchScript {
         public ExecutableScript newScript(@Nullable Map<String, Object> params) {
             return new NativeScript2();
         }
+
+        @Override
+        public boolean needsScores() {
+            return false;
+        }
     }
 
     public static final String NATIVE_SCRIPT_2 = "native_2";

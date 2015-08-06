@@ -7,16 +7,15 @@ package org.elasticsearch.watcher;
 
 import com.google.common.collect.ImmutableList;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.AbstractPlugin;
-import org.elasticsearch.script.ScriptModes;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.watcher.actions.email.service.InternalEmailService;
 import org.elasticsearch.watcher.history.HistoryModule;
 import org.elasticsearch.watcher.license.LicenseService;
-import org.elasticsearch.watcher.support.Script;
 import org.elasticsearch.watcher.support.http.HttpClient;
 import org.elasticsearch.watcher.support.init.InitializingService;
 import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
@@ -30,6 +29,10 @@ public class WatcherPlugin extends AbstractPlugin {
 
     public static final String NAME = "watcher";
     public static final String ENABLED_SETTING = NAME + ".enabled";
+
+    static {
+        MetaData.registerPrototype(WatcherMetaData.TYPE, WatcherMetaData.PROTO);
+    }
 
     private final Settings settings;
     private final boolean transportClient;

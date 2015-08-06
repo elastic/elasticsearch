@@ -36,7 +36,7 @@ public class EmailTest extends ESTestCase {
         Email.AddressList possibleList = new Email.AddressList(addresses);
         Email.AddressList replyTo = randomFrom(possibleList, null);
         Email.Priority priority = randomFrom(Email.Priority.values());
-        DateTime sentDate = new DateTime(randomInt(), DateTimeZone.getDefault());
+        DateTime sentDate = new DateTime(randomInt(), DateTimeZone.UTC);
         Email.AddressList to = randomFrom(possibleList, null);
         Email.AddressList cc = randomFrom(possibleList, null);
         Email.AddressList bcc = randomFrom(possibleList, null);

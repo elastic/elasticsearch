@@ -51,7 +51,7 @@ public class SchedulerScheduleTriggerEngine extends ScheduleTriggerEngine {
             }
         }
         this.schedules = new Schedules(schedules);
-        logger.debug("schedule engine started at [{}]", clock.now());
+        logger.debug("schedule engine started at [{}]", clock.nowUTC());
     }
 
     @Override

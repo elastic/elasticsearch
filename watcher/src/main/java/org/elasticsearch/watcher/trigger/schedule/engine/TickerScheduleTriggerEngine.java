@@ -142,7 +142,7 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
             while (clock.millis() % 1000 > 15) {
             }
             while (active) {
-                logger.trace("checking jobs [{}]", clock.now());
+                logger.trace("checking jobs [{}]", clock.nowUTC());
                 checkJobs();
                 try {
                     sleep(tickInterval.millis());

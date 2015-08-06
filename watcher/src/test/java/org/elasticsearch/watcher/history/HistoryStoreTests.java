@@ -7,7 +7,6 @@ package org.elasticsearch.watcher.history;
 
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
@@ -31,13 +30,11 @@ public class HistoryStoreTests extends ESTestCase {
 
     private HistoryStore historyStore;
     private ClientProxy clientProxy;
-    private IndexNameExpressionResolver indexNameExpressionResolver;
 
     @Before
     public void init() {
         clientProxy = mock(ClientProxy.class);
-        indexNameExpressionResolver = mock(IndexNameExpressionResolver.class);
-        historyStore = new HistoryStore(Settings.EMPTY, clientProxy, indexNameExpressionResolver);
+        historyStore = new HistoryStore(Settings.EMPTY, clientProxy);
         historyStore.start();
     }
 

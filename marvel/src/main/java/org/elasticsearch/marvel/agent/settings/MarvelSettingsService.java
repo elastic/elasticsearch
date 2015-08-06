@@ -38,6 +38,10 @@ public class MarvelSettingsService extends AbstractComponent implements NodeSett
     final TimeValueSetting clusterStateTimeout = MarvelSetting.timeSetting(CLUSTER_STATE_TIMEOUT, TimeValue.timeValueMinutes(10),
             "Timeout value when collecting the cluster state (default to 10m)");
 
+    public static final String CLUSTER_STATS_TIMEOUT = PREFIX + "cluster.stats.timeout";
+    final TimeValueSetting clusterStatsTimeout = MarvelSetting.timeSetting(CLUSTER_STATS_TIMEOUT, TimeValue.timeValueMinutes(10),
+            "Timeout value when collecting the cluster statistics (default to 10m)");
+
     public static final String INDEX_RECOVERY_TIMEOUT = PREFIX + "index.recovery.timeout";
     final TimeValueSetting recoveryTimeout = MarvelSetting.timeSetting(INDEX_RECOVERY_TIMEOUT, TimeValue.timeValueMinutes(10),
             "Timeout value when collecting the recovery information (default to 10m)");
@@ -54,6 +58,7 @@ public class MarvelSettingsService extends AbstractComponent implements NodeSett
         builder.add(indexStatsTimeout);
         builder.add(indices);
         builder.add(clusterStateTimeout);
+        builder.add(clusterStatsTimeout);
         builder.add(recoveryTimeout);
         builder.add(recoveryActiveOnly);
         this.settings = builder.build();
@@ -104,6 +109,10 @@ public class MarvelSettingsService extends AbstractComponent implements NodeSett
 
     public TimeValue clusterStateTimeout() {
         return clusterStateTimeout.getValue();
+    }
+
+    public TimeValue clusterStatsTimeout() {
+        return clusterStatsTimeout.getValue();
     }
 
     public TimeValue recoveryTimeout() {

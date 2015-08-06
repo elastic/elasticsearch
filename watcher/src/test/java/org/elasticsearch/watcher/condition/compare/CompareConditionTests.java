@@ -150,7 +150,7 @@ public class CompareConditionTests extends ESTestCase {
         boolean met = randomBoolean();
         Op op = met ? randomFrom(Op.GT, Op.GTE, Op.NOT_EQ) : randomFrom(Op.LT, Op.LTE, Op.EQ);
         String value = "<{now-1d}>";
-        DateTime payloadValue = clock.now();
+        DateTime payloadValue = clock.nowUTC();
 
         ExecutableCompareCondition condition = new ExecutableCompareCondition(new CompareCondition("ctx.payload.value", op, value), logger, clock);
         WatchExecutionContext ctx = mockExecutionContext("_name", new Payload.Simple("value", payloadValue));

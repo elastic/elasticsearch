@@ -5,9 +5,8 @@
  */
 package org.elasticsearch.watcher.trigger.schedule.engine;
 
-import org.elasticsearch.watcher.support.clock.SystemClock;
-import org.joda.time.DateTime;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.watcher.support.clock.SystemClock;
 import org.elasticsearch.watcher.trigger.Trigger;
 import org.elasticsearch.watcher.trigger.TriggerEngine;
 import org.elasticsearch.watcher.trigger.TriggerEvent;
@@ -15,9 +14,9 @@ import org.elasticsearch.watcher.trigger.schedule.Schedule;
 import org.elasticsearch.watcher.trigger.schedule.ScheduleTrigger;
 import org.elasticsearch.watcher.trigger.schedule.support.DayOfWeek;
 import org.elasticsearch.watcher.trigger.schedule.support.WeekTimes;
+import org.joda.time.DateTime;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -27,9 +26,9 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-import static org.joda.time.DateTimeZone.UTC;
 import static org.elasticsearch.watcher.trigger.schedule.Schedules.*;
 import static org.hamcrest.Matchers.is;
+import static org.joda.time.DateTimeZone.UTC;
 
 public abstract class BaseTriggerEngineTestCase extends ESTestCase {
 
@@ -63,11 +62,11 @@ public abstract class BaseTriggerEngineTestCase extends ESTestCase {
                 for (TriggerEvent event : events) {
                     int index = Integer.parseInt(event.jobName());
                     if (!bits.get(index)) {
-                        logger.info("job [{}] first fire: {}", index, SystemClock.INSTANCE.now());
+                        logger.info("job [{}] first fire", index);
                         bits.set(index);
                     } else {
                         latch.countDown();
-                        logger.info("job [{}] second fire: {}", index, SystemClock.INSTANCE.now());
+                        logger.info("job [{}] second fire", index);
                     }
                 }
             }
@@ -91,7 +90,7 @@ public abstract class BaseTriggerEngineTestCase extends ESTestCase {
             public void triggered(Iterable<TriggerEvent> events) {
                 for (TriggerEvent event : events) {
                     assertThat(event.jobName(), is(name));
-                    logger.info("triggered job on [{}]", SystemClock.INSTANCE.now());
+                    logger.info("triggered job on [{}]", SystemClock.INSTANCE.nowUTC());
                 }
                 latch.countDown();
             }
@@ -125,7 +124,7 @@ public abstract class BaseTriggerEngineTestCase extends ESTestCase {
             public void triggered(Iterable<TriggerEvent> events) {
                 for (TriggerEvent event : events) {
                     assertThat(event.jobName(), is(name));
-                    logger.info("triggered job on [{}]", SystemClock.INSTANCE.now());
+                    logger.info("triggered job on [{}]", SystemClock.INSTANCE.nowUTC());
                     latch.countDown();
                 }
             }
@@ -161,7 +160,7 @@ public abstract class BaseTriggerEngineTestCase extends ESTestCase {
             public void triggered(Iterable<TriggerEvent> events) {
                 for (TriggerEvent event : events) {
                     assertThat(event.jobName(), is(name));
-                    logger.info("triggered job on [{}]", SystemClock.INSTANCE.now());
+                    logger.info("triggered job");
                 }
                 latch.countDown();
             }
@@ -195,7 +194,7 @@ public abstract class BaseTriggerEngineTestCase extends ESTestCase {
 
             @Override
             public void triggered(Iterable<TriggerEvent> events) {
-                logger.info("triggered job on [{}]", SystemClock.INSTANCE.now());
+                logger.info("triggered job");
             }
         });
 

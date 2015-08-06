@@ -111,7 +111,8 @@
                                         <available file="${basedir}/../licenses" type="dir"/>
                                     </condition>
                                     <echo taskName="license check">Running license check</echo>
-                                    <exec failonerror="${licenses.exists}" executable="perl"
+                                    <!-- don't run on windows, because everyone hates it -->
+                                    <exec failonerror="${licenses.exists}" executable="perl" osfamily="unix"
                                           dir="${elasticsearch.tools.directory}/license-check">
                                         <arg value="check_license_and_sha.pl"/>
                                         <arg value="--check"/>

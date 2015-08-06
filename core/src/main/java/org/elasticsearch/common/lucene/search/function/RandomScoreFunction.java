@@ -81,4 +81,8 @@ public class RandomScoreFunction extends ScoreFunction {
         };
     }
 
+    @Override
+    public boolean needsScores() {
+        return false;
+    }
 }

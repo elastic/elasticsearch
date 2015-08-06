@@ -44,7 +44,7 @@ public class FunctionScoreQuery extends Query {
     public FunctionScoreQuery(Query subQuery, ScoreFunction function, Float minScore) {
         this.subQuery = subQuery;
         this.function = function;
-        this.combineFunction = function == null? combineFunction.MULT : function.getDefaultScoreCombiner();
+        this.combineFunction = function == null? CombineFunction.MULT : function.getDefaultScoreCombiner();
         this.minScore = minScore;
     }
 
@@ -87,19 +87,27 @@ public class FunctionScoreQuery extends Query {
 
     @Override
     public Weight createWeight(IndexSearcher searcher, boolean needsScores) throws IOException {
-        // TODO: needsScores
-        // if we don't need scores, just return the underlying weight?
-        Weight subQueryWeight = subQuery.createWeight(searcher, needsScores);
-        return new CustomBoostFactorWeight(this, subQueryWeight);
+        if (needsScores == false) {
+            return subQuery.createWeight(searcher, needsScores);
+        }
+
+        boolean subQueryNeedsScores =
+                combineFunction != CombineFunction.REPLACE // if we don't replace we need the original score
+                || function == null // when the function is null, we just multiply the score, so we need it
+                || function.needsScores(); // some scripts can replace with a script that returns eg. 1/_score
+        Weight subQueryWeight = subQuery.createWeight(searcher, subQueryNeedsScores);
+        return new CustomBoostFactorWeight(this, subQueryWeight, subQueryNeedsScores);
     }
 
     class CustomBoostFactorWeight extends Weight {
 
         final Weight subQueryWeight;
+        final boolean needsScores;
 
-        public CustomBoostFactorWeight(Query parent, Weight subQueryWeight) throws IOException {
+        public CustomBoostFactorWeight(Query parent, Weight subQueryWeight, boolean needsScores) throws IOException {
             super(parent);
             this.subQueryWeight = subQueryWeight;
+            this.needsScores = needsScores;
         }
 
         @Override
@@ -129,7 +137,7 @@ public class FunctionScoreQuery extends Query {
             if (function != null) {
                 leafFunction = function.getLeafScoreFunction(context);
             }
-            return new FunctionFactorScorer(this, subQueryScorer, leafFunction, maxBoost, combineFunction, minScore);
+            return new FunctionFactorScorer(this, subQueryScorer, leafFunction, maxBoost, combineFunction, minScore, needsScores);
         }
 
         @Override
@@ -150,16 +158,21 @@ public class FunctionScoreQuery extends Query {
     static class FunctionFactorScorer extends CustomBoostFactorScorer {
 
         private final LeafScoreFunction function;
+        private final boolean needsScores;
 
-        private FunctionFactorScorer(CustomBoostFactorWeight w, Scorer scorer, LeafScoreFunction function, float maxBoost, CombineFunction scoreCombiner, Float minScore)
+        private FunctionFactorScorer(CustomBoostFactorWeight w, Scorer scorer, LeafScoreFunction function, float maxBoost, CombineFunction scoreCombiner, Float minScore, boolean needsScores)
                 throws IOException {
             super(w, scorer, maxBoost, scoreCombiner, minScore);
             this.function = function;
+            this.needsScores = needsScores;
         }
 
         @Override
         public float innerScore() throws IOException {
-            float score = scorer.score();
+            // Even if the weight is created with needsScores=false, it might
+            // be costly to call score(), so we explicitly check if scores
+            // are needed
+            float score = needsScores ? scorer.score() : 0f;
             if (function == null) {
                 return subQueryBoost * score;
             } else {

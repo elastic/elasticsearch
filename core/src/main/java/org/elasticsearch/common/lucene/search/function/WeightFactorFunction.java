@@ -71,6 +71,11 @@ public class WeightFactorFunction extends ScoreFunction {
         };
     }
 
+    @Override
+    public boolean needsScores() {
+        return false;
+    }
+
     public Explanation explainWeight() {
         return Explanation.match(getWeight(), "weight");
     }
@@ -98,6 +103,11 @@ public class WeightFactorFunction extends ScoreFunction {
                     return Explanation.match(1.0f, "constant score 1.0 - no function provided");
                 }
             };
+        }
+
+        @Override
+        public boolean needsScores() {
+            return false;
         }
     }
 }

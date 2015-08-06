@@ -127,6 +127,13 @@ public class ScriptScoreFunction extends ScoreFunction {
     }
 
     @Override
+    public boolean needsScores() {
+        // Scripts might use _score so we return true here
+        // TODO: Make scripts able to tell us whether they use scores
+        return true;
+    }
+
+    @Override
     public String toString() {
         return "script" + sScript.toString();
     }

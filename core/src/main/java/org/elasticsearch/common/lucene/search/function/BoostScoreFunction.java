@@ -58,6 +58,11 @@ public class BoostScoreFunction extends ScoreFunction {
     }
 
     @Override
+    public boolean needsScores() {
+        return false;
+    }
+
+    @Override
     public String toString() {
         return "boost[" + boost + "]";
     }

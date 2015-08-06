@@ -152,16 +152,18 @@ public class SimpleQueryStringBuilderTest extends BaseQueryTestCase<SimpleQueryS
     // Check operator handling, and default field handling.
     @Test
     public void testDefaultOperatorHandling() throws IOException {
-        SimpleQueryStringBuilder qb = new SimpleQueryStringBuilder("The quick brown fox.");
-        BooleanQuery boolQuery = (BooleanQuery) qb.toQuery(createShardContext());
+        SimpleQueryStringBuilder qb = new SimpleQueryStringBuilder("The quick brown fox.").field(STRING_FIELD_NAME);
+        QueryShardContext shardContext = createShardContext();
+        shardContext.setAllowUnmappedFields(true); // to avoid occasional cases in setup where we didn't add types but strict field resolution
+        BooleanQuery boolQuery = (BooleanQuery) qb.toQuery(shardContext);
         assertThat(shouldClauses(boolQuery), is(4));
 
         qb.defaultOperator(Operator.AND);
-        boolQuery = (BooleanQuery) qb.toQuery(createShardContext());
+        boolQuery = (BooleanQuery) qb.toQuery(shardContext);
         assertThat(shouldClauses(boolQuery), is(0));
 
         qb.defaultOperator(Operator.OR);
-        boolQuery = (BooleanQuery) qb.toQuery(createShardContext());
+        boolQuery = (BooleanQuery) qb.toQuery(shardContext);
         assertThat(shouldClauses(boolQuery), is(4));
     }
 

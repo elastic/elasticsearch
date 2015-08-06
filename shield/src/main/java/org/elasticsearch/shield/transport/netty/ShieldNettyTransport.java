@@ -8,6 +8,7 @@ package org.elasticsearch.shield.transport.netty;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.internal.Nullable;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -51,8 +52,8 @@ public class ShieldNettyTransport extends NettyTransport {
     @Inject
     public ShieldNettyTransport(Settings settings, ThreadPool threadPool, NetworkService networkService, BigArrays bigArrays, Version version,
                                 @Nullable IPFilter authenticator, @Nullable ServerSSLService serverSSLService, ClientSSLService clientSSLService,
-                                ShieldSettingsFilter settingsFilter) {
-        super(settings, threadPool, networkService, bigArrays, version);
+                                ShieldSettingsFilter settingsFilter, NamedWriteableRegistry namedWriteableRegistry) {
+        super(settings, threadPool, networkService, bigArrays, version, namedWriteableRegistry);
         this.authenticator = authenticator;
         this.ssl = settings.getAsBoolean(TRANSPORT_SSL_SETTING, TRANSPORT_SSL_DEFAULT);
         this.serverSslService = serverSSLService;

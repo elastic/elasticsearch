@@ -144,6 +144,10 @@
                                 </source>
                             </sources>
                         </mapping>
+                        <mapping>
+                            <directory>${packaging.elasticsearch.conf.dir}/scripts</directory>
+                            <configuration>noreplace</configuration>
+                        </mapping>
                         <!-- Add environment vars file -->
                         <mapping>
                             <directory>/etc/sysconfig/</directory>

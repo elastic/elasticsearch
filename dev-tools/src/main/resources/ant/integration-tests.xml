@@ -15,13 +15,6 @@
   <!-- name of our cluster, maybe needs changing -->
   <property name="integ.cluster.name" value="prepare_release"/>
 
-  <!-- arguments passed to elasticsearch when running -->
-  <property name="integ.args"
-            value="-Des.node.name=smoke_tester -Des.cluster.name=${integ.cluster.name}
-                   -Des.discovery.zen.ping.multicast.enabled=false -Des.script.inline=on
-                   -Des.http.port=${integ.http.port} -Des.transport.tcp.port=${integ.transport.port}
-                   -Des.script.indexed=on -Des.pidfile=${integ.pidfile} -Des.repositories.url.allowed_urls=http://snapshot.test*"/>
-
   <!-- runs an OS script -->
   <macrodef name="run-script">
       <attribute name="script"/>
@@ -37,14 +30,19 @@
       <!-- create a temp CWD, to enforce that commands don't rely on CWD -->
       <mkdir dir="${integ.temp}"/>
 
-      <exec executable="cmd" osfamily="winnt" dir="${integ.temp}" failonerror="${failonerror}" spawn="@{spawn}">
+      <!-- print commands we run -->
+      <local name="script.base"/>
+      <basename file="@{script}" property="script.base"/>
+      <echo>execute: ${script.base} @{args}</echo>
+
+      <exec executable="cmd" osfamily="winnt" dir="${integ.temp}" failonerror="${failonerror}" spawn="@{spawn}" taskname="${script.base}">
         <arg value="/c"/>
         <arg value="@{script}.bat"/>
         <arg line="@{args}"/>
         <nested/>
       </exec>
 
-      <exec executable="sh" osfamily="unix" dir="${integ.temp}" failonerror="${failonerror}" spawn="@{spawn}">
+      <exec executable="sh" osfamily="unix" dir="${integ.temp}" failonerror="${failonerror}" spawn="@{spawn}" taskname="${script.base}">
         <arg value="@{script}"/>
         <arg line="@{args}"/>
         <nested/>
@@ -119,31 +117,60 @@
   <!-- start elasticsearch and wait until its ready -->
   <macrodef name="startup-elasticsearch">
       <attribute name="home" default="${integ.scratch}/elasticsearch-${elasticsearch.version}"/>
+      <attribute name="spawn" default="true"/>
       <attribute name="args" default="${integ.args}"/>
+      <attribute name="es.cluster.name" default="${integ.cluster.name}"/>
+      <attribute name="es.http.port" default="${integ.http.port}"/>
+      <attribute name="es.transport.tcp.port" default="${integ.transport.port}"/>
+      <attribute name="es.pidfile" default="${integ.pidfile}"/>
+      <attribute name="additional.args" default=""/>
+      <element name="nested.args" optional="true"/>
     <sequential>
+
+      <!-- build args to pass to es -->
+      <local name="integ.args"/>
+      <property name="integ.args" value="
+-Des.cluster.name=@{es.cluster.name}
+-Des.http.port=@{es.http.port}
+-Des.transport.tcp.port=@{es.transport.tcp.port}
+-Des.pidfile=@{es.pidfile}
+-Des.path.repo=@{home}/repo
+-Des.discovery.zen.ping.multicast.enabled=false
+-Des.script.inline=on
+-Des.script.indexed=on
+-Des.repositories.url.allowed_urls=http://snapshot.test*
+@{additional.args}"
+      />
+
+      <!-- run bin/elasticsearch with args -->
       <echo>Starting up external cluster...</echo>
-      <run-script script="@{home}/bin/elasticsearch" spawn="true"
-                  args="@{args} -Des.path.repo=@{home}/repo"/>
+      <run-script script="@{home}/bin/elasticsearch" 
+                  spawn="@{spawn}"
+                  args="${integ.args}">
+        <nested>
+          <nested.args/>
+        </nested>
+      </run-script>
 
       <local name="failed.to.start"/>
       <waitfor maxwait="30" maxwaitunit="second"
                checkevery="500" checkeveryunit="millisecond"
                timeoutproperty="failed.to.start">
-        <http url="http://127.0.0.1:${integ.http.port}"/>
+        <http url="http://127.0.0.1:@{es.http.port}"/>
       </waitfor>
 
       <!-- best effort, print console log. useful if it fails especially -->
       <local name="log.contents"/>
-      <loadfile srcFile="@{home}/logs/${integ.cluster.name}.log"
+      <loadfile srcFile="@{home}/logs/@{es.cluster.name}.log"
                 property="log.contents"
                 failonerror="false"/>
-      <echo message="${log.contents}"/>
+      <echo message="${log.contents}" taskname="elasticsearch"/>
 
       <fail message="ES instance did not start" if="failed.to.start"/>
 
       <local name="integ.pid"/>
       <extract-pid property="integ.pid"/>
-      <echo>External cluster started PID ${integ.pid}</echo>
+      <echo>External cluster started PID @{es.pidfile}</echo>
     </sequential>
   </macrodef>
 
@@ -162,12 +189,11 @@
       <unzip src="${project.build.directory}/releases/${project.artifactId}-${project.version}.zip" dest="${integ.scratch}"/>
       <local name="home"/>
       <property name="home" location="${integ.scratch}/${project.artifactId}-${elasticsearch.version}"/>
-      <run-script script="${home}/bin/elasticsearch" spawn="false"
-                  args="${integ.args} -Des.path.repo=${home}/repo">
-        <nested>
+      <startup-elasticsearch spawn="false" home="${home}">
+        <nested.args>
           <env key="JAVA_OPTS" value="-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=8000"/>
-        </nested>
-      </run-script>
+        </nested.args>
+      </startup-elasticsearch>
   </target>
 
   <!-- unzip core release artifact, install plugin, then start ES -->

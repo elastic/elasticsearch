@@ -122,6 +122,7 @@ final class Security {
         addPath(policy, environment.libFile(), "read,readlink");
         addPath(policy, environment.pluginsFile(), "read,readlink");
         addPath(policy, environment.configFile(), "read,readlink");
+        addPath(policy, environment.scriptsFile(), "read,readlink");
         // read-write dirs
         addPath(policy, environment.tmpFile(), "read,readlink,write,delete");
         addPath(policy, environment.logsFile(), "read,readlink,write,delete");

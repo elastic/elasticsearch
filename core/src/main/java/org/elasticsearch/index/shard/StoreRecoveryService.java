@@ -246,7 +246,7 @@ public class StoreRecoveryService extends AbstractIndexShardComponent implements
                 recoveryState.getTranslog().totalOperations(0);
                 recoveryState.getTranslog().totalOperationsOnStart(0);
             }
-            typesToUpdate = indexShard.performTranslogRecovery();
+            typesToUpdate = indexShard.performTranslogRecovery(indexShouldExists);
 
             indexShard.finalizeRecovery();
             String indexName = indexShard.shardId().index().name();
@@ -318,7 +318,7 @@ public class StoreRecoveryService extends AbstractIndexShardComponent implements
                 snapshotShardId = new ShardId(restoreSource.index(), shardId.id());
             }
             indexShardRepository.restore(restoreSource.snapshotId(), restoreSource.version(), shardId, snapshotShardId, recoveryState);
-            indexShard.skipTranslogRecovery(true);
+            indexShard.skipTranslogRecovery();
             indexShard.finalizeRecovery();
             indexShard.postRecovery("restore done");
             restoreService.indexShardRestoreCompleted(restoreSource.snapshotId(), shardId);

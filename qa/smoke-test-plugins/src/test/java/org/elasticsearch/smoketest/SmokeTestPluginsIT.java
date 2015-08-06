@@ -17,29 +17,25 @@
  * under the License.
  */
 
-package org.elasticsearch.cluster;
+package org.elasticsearch.smoketest;
 
-import com.google.common.collect.ImmutableMap;
-import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Settings;
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.test.rest.RestTestCandidate;
+import org.elasticsearch.test.rest.parser.RestTestParseException;
 
-/**
- * ClusterInfoService that provides empty maps for disk usage and shard sizes
- */
-public class EmptyClusterInfoService extends AbstractComponent implements ClusterInfoService {
-    public final static EmptyClusterInfoService INSTANCE = new EmptyClusterInfoService();
+import java.io.IOException;
 
-    private EmptyClusterInfoService() {
-        super(Settings.EMPTY);
+public class SmokeTestPluginsIT extends ESRestTestCase {
+
+    public SmokeTestPluginsIT(@Name("yaml") RestTestCandidate testCandidate) {
+        super(testCandidate);
     }
 
-    @Override
-    public ClusterInfo getClusterInfo() {
-        return ClusterInfo.EMPTY;
-    }
-
-    @Override
-    public void addListener(Listener listener) {
-        // no-op, no new info is ever gathered, so adding listeners is useless
+    @ParametersFactory
+    public static Iterable<Object[]> parameters() throws IOException, RestTestParseException {
+        return ESRestTestCase.createParameters(0, 1);
     }
 }
+

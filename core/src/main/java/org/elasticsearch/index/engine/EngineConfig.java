@@ -135,7 +135,7 @@ public final class EngineConfig {
 
     private static final String DEFAULT_CODEC_NAME = "default";
     private TranslogConfig translogConfig;
-
+    private boolean create = false;
 
     /**
      * Creates a new {@link org.elasticsearch.index.engine.EngineConfig}
@@ -432,5 +432,21 @@ public final class EngineConfig {
      */
     public TranslogConfig getTranslogConfig() {
         return translogConfig;
+    }
+
+    /**
+     * Iff set to <code>true</code> the engine will create a new lucene index when opening the engine.
+     * Otherwise the lucene index writer is opened in append mode. The default is <code>false</code>
+     */
+    public void setCreate(boolean create) {
+        this.create = create;
+    }
+
+    /**
+     * Iff <code>true</code> the engine should create a new lucene index when opening the engine.
+     * Otherwise the lucene index writer should be opened in append mode. The default is <code>false</code>
+     */
+    public boolean isCreate() {
+        return create;
     }
 }

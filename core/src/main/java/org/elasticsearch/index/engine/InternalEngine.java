@@ -118,14 +118,11 @@ public class InternalEngine extends Engine {
             for (int i = 0; i < dirtyLocks.length; i++) {
                 dirtyLocks[i] = new Object();
             }
-
             throttle = new IndexThrottle();
             this.searcherFactory = new SearchFactory(logger, isClosed, engineConfig);
             final Translog.TranslogGeneration translogGeneration;
             try {
-                // TODO: would be better if ES could tell us "from above" whether this shard was already here, instead of using Lucene's API
-                // (which relies on IO ops, directory listing, and has had scary bugs in the past):
-                boolean create = !Lucene.indexExists(store.directory());
+                final boolean create = engineConfig.isCreate();
                 writer = createWriter(create);
                 indexWriter = writer;
                 translog = openTranslog(engineConfig, writer, create || skipInitialTranslogRecovery || engineConfig.forceNewTranslog());

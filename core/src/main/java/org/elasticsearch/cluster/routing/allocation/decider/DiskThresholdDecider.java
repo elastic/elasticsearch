@@ -25,6 +25,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.DiskUsage;
+import org.elasticsearch.cluster.EmptyClusterInfoService;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -226,7 +227,7 @@ public class DiskThresholdDecider extends AllocationDecider {
         // It's okay the Client is null here, because the empty cluster info
         // service will never actually call the listener where the client is
         // needed. Also this constructor is only used for tests
-        this(settings, new NodeSettingsService(settings), ClusterInfoService.EMPTY, null);
+        this(settings, new NodeSettingsService(settings), EmptyClusterInfoService.INSTANCE, null);
     }
 
     @Inject
@@ -312,7 +313,7 @@ public class DiskThresholdDecider extends AllocationDecider {
      * If subtractShardsMovingAway is set then the size of shards moving away is subtracted from the total size
      * of all shards
      */
-    public long sizeOfRelocatingShards(RoutingNode node, ClusterInfo clusterInfo, boolean subtractShardsMovingAway) {
+    public static long sizeOfRelocatingShards(RoutingNode node, ClusterInfo clusterInfo, boolean subtractShardsMovingAway) {
         long totalSize = 0;
         for (ShardRouting routing : node.shardsWithState(ShardRoutingState.RELOCATING, ShardRoutingState.INITIALIZING)) {
             if (routing.initializing() && routing.relocatingNodeId() != null) {
@@ -324,7 +325,7 @@ public class DiskThresholdDecider extends AllocationDecider {
         return totalSize;
     }
 
-    private long getShardSize(ShardRouting routing, ClusterInfo clusterInfo) {
+    static long getShardSize(ShardRouting routing, ClusterInfo clusterInfo) {
         Long shardSize = clusterInfo.getShardSize(routing);
         return shardSize == null ? 0 : shardSize;
     }
@@ -419,8 +420,7 @@ public class DiskThresholdDecider extends AllocationDecider {
         }
 
         // Secondly, check that allocating the shard to this node doesn't put it above the high watermark
-        Long shardSize = allocation.clusterInfo().getShardSize(shardRouting);
-        shardSize = shardSize == null ? 0 : shardSize;
+        final long shardSize = getShardSize(shardRouting, allocation.clusterInfo());
         double freeSpaceAfterShard = freeDiskPercentageAfterShardAssigned(usage, shardSize);
         long freeBytesAfterShard = freeBytes - shardSize;
         if (freeBytesAfterShard < freeBytesThresholdHigh.bytes()) {

@@ -1463,5 +1463,6 @@ org.eclipse.jdt.ui.text.custom_code_templates=<?xml version\="1.0" encoding\="UT
         <module>core</module>
         <module>distribution</module>
         <module>plugins</module>
+        <module>qa</module>
     </modules>
 </project>

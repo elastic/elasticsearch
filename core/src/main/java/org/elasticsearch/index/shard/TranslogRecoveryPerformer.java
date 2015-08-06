@@ -209,7 +209,7 @@ public class TranslogRecoveryPerformer {
             query = queryParserService.parseQuery(source).query();
         } catch (QueryParsingException ex) {
             // for BWC we try to parse directly the query since pre 1.0.0.Beta2 we didn't require a top level query field
-            if ( queryParserService.getIndexCreatedVersion().onOrBefore(Version.V_1_0_0_Beta2)) {
+            if (queryParserService.getIndexCreatedVersion().onOrBefore(Version.V_1_0_0_Beta2)) {
                 try {
                     XContentParser parser = XContentHelper.createParser(source);
                     ParsedQuery parse = queryParserService.parse(parser);

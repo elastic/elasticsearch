@@ -151,7 +151,9 @@ public final class DirectCandidateGenerator extends CandidateGenerator {
                     
                     if (posIncAttr.getPositionIncrement() > 0 && result.get().bytesEquals(candidate.term))  {
                         BytesRef term = result.toBytesRef();
-                        long freq = frequency(term);
+                        // We should not use frequency(term) here because it will analyze the term again
+                        // If preFilter and postFilter are the same analyzer it would fail. 
+                        long freq = internalFrequency(term);
                         candidates.add(new Candidate(result.toBytesRef(), freq, candidate.stringDistance, score(candidate.frequency, candidate.stringDistance, dictSize), false));
                     } else {
                         candidates.add(new Candidate(result.toBytesRef(), candidate.frequency, nonErrorLikelihood, score(candidate.frequency, candidate.stringDistance, dictSize), false));

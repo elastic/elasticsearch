@@ -33,13 +33,18 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
     private volatile ShutdownListener listener;
 
     private final Object monitor = new Object();
+    /**
+     * Name used in error reporting.
+     */
+    private final String name;
 
-    EsThreadPoolExecutor(int corePoolSize, int maximumPoolSize, long keepAliveTime, TimeUnit unit, BlockingQueue<Runnable> workQueue, ThreadFactory threadFactory) {
-        this(corePoolSize, maximumPoolSize, keepAliveTime, unit, workQueue, threadFactory, new EsAbortPolicy());
+    EsThreadPoolExecutor(String name, int corePoolSize, int maximumPoolSize, long keepAliveTime, TimeUnit unit, BlockingQueue<Runnable> workQueue, ThreadFactory threadFactory) {
+        this(name, corePoolSize, maximumPoolSize, keepAliveTime, unit, workQueue, threadFactory, new EsAbortPolicy());
     }
 
-    EsThreadPoolExecutor(int corePoolSize, int maximumPoolSize, long keepAliveTime, TimeUnit unit, BlockingQueue<Runnable> workQueue, ThreadFactory threadFactory, XRejectedExecutionHandler handler) {
+    EsThreadPoolExecutor(String name, int corePoolSize, int maximumPoolSize, long keepAliveTime, TimeUnit unit, BlockingQueue<Runnable> workQueue, ThreadFactory threadFactory, XRejectedExecutionHandler handler) {
         super(corePoolSize, maximumPoolSize, keepAliveTime, unit, workQueue, threadFactory, handler);
+        this.name = name;
     }
 
     public void shutdown(ShutdownListener listener) {
@@ -92,5 +97,23 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
                 throw ex;
             }
         }
+    }
+
+    @Override
+    public String toString() {
+        StringBuilder b = new StringBuilder();
+        b.append(getClass().getSimpleName()).append('[');
+        b.append(name).append(", ");
+        if (getQueue() instanceof SizeBlockingQueue) {
+            @SuppressWarnings("rawtypes")
+            SizeBlockingQueue queue = (SizeBlockingQueue) getQueue();
+            b.append("queue capacity = ").append(queue.capacity()).append(", ");
+        }
+        /*
+         * ThreadPoolExecutor has some nice information in its toString but we
+         * can't get at it easily without just getting the toString.
+         */
+        b.append(super.toString()).append(']');
+        return b.toString();
     }
 }

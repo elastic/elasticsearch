@@ -22,6 +22,7 @@ import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.EmptyClusterInfoService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -66,7 +67,7 @@ public abstract class ESAllocationTestCase extends ESTestCase {
     public static AllocationService createAllocationService(Settings settings, NodeSettingsService nodeSettingsService, Random random) {
         return new AllocationService(settings,
                 randomAllocationDeciders(settings, nodeSettingsService, random),
-                new ShardsAllocators(settings, NoopGatewayAllocator.INSTANCE), ClusterInfoService.EMPTY);
+                new ShardsAllocators(settings, NoopGatewayAllocator.INSTANCE), EmptyClusterInfoService.INSTANCE);
     }
 
 

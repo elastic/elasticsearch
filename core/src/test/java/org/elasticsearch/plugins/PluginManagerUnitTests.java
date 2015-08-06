@@ -29,8 +29,11 @@ import org.junit.Test;
 import java.io.IOException;
 import java.net.URL;
 import java.nio.file.Path;
+import java.util.Iterator;
+import java.util.Locale;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
@@ -62,22 +65,40 @@ public class PluginManagerUnitTests extends ESTestCase {
     public void testSimplifiedNaming() throws IOException {
         String pluginName = randomAsciiOfLength(10);
         PluginManager.PluginHandle handle = PluginManager.PluginHandle.parse(pluginName);
-        assertThat(handle.urls(), hasSize(1));
-        URL expected = new URL("http", "download.elastic.co", "/org.elasticsearch.plugins/" + pluginName + "/" +
+
+        assertThat(handle.urls(), hasSize(Version.CURRENT.snapshot() ? 2 : 1));
+
+        Iterator<URL> iterator = handle.urls().iterator();
+
+        if (Version.CURRENT.snapshot()) {
+            String expectedSnapshotUrl = String.format(Locale.ROOT, "http://download.elastic.co/elasticsearch/snapshot/org/elasticsearch/plugin/%s/%s-SNAPSHOT/%s-%s-SNAPSHOT.zip",
+                    pluginName, Version.CURRENT.number(), pluginName, Version.CURRENT.number());
+            assertThat(iterator.next(), is(new URL(expectedSnapshotUrl)));
+        }
+
+        URL expected = new URL("http", "download.elastic.co", "/elasticsearch/release/org/elasticsearch/plugin/" + pluginName + "/" + Version.CURRENT.number() + "/" +
             pluginName + "-" + Version.CURRENT.number() + ".zip");
-        assertThat(handle.urls().get(0), is(expected));
+        assertThat(iterator.next(), is(expected));
     }
 
     @Test
     public void testTrimmingElasticsearchFromOfficialPluginName() throws IOException {
-        String randomName = randomAsciiOfLength(10);
-        String pluginName = randomFrom("elasticsearch-", "es-") + randomName;
-        PluginManager.PluginHandle handle = PluginManager.PluginHandle.parse(pluginName);
-        assertThat(handle.name, is(randomName));
-        assertThat(handle.urls(), hasSize(1));
-        URL expected = new URL("http", "download.elastic.co", "/org.elasticsearch.plugins/" + pluginName + "/" +
-                pluginName + "-" + Version.CURRENT.number() + ".zip");
-        assertThat(handle.urls().get(0), is(expected));
+        String randomPluginName = randomFrom(PluginManager.OFFICIAL_PLUGINS.asList());
+        PluginManager.PluginHandle handle = PluginManager.PluginHandle.parse(randomPluginName);
+        assertThat(handle.name, is(randomPluginName.replaceAll("^elasticsearch-", "")));
+
+        assertThat(handle.urls(), hasSize(Version.CURRENT.snapshot() ? 2 : 1));
+        Iterator<URL> iterator = handle.urls().iterator();
+
+        if (Version.CURRENT.snapshot()) {
+            String expectedSnapshotUrl = String.format(Locale.ROOT, "http://download.elastic.co/elasticsearch/snapshot/org/elasticsearch/plugin/%s/%s-SNAPSHOT/%s-%s-SNAPSHOT.zip",
+                    randomPluginName, Version.CURRENT.number(), randomPluginName, Version.CURRENT.number());
+            assertThat(iterator.next(), is(new URL(expectedSnapshotUrl)));
+        }
+
+        String releaseUrl = String.format(Locale.ROOT, "http://download.elastic.co/elasticsearch/release/org/elasticsearch/plugin/%s/%s/%s-%s.zip",
+                randomPluginName, Version.CURRENT.number(), randomPluginName, Version.CURRENT.number());
+        assertThat(iterator.next(), is(new URL(releaseUrl)));
     }
 
     @Test

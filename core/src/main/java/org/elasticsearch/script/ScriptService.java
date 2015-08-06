@@ -171,7 +171,7 @@ public class ScriptService extends AbstractComponent implements Closeable {
         this.scriptModes = new ScriptModes(this.scriptEnginesByLang, scriptContextRegistry, settings);
 
         // add file watcher for static scripts
-        scriptsDirectory = env.configFile().resolve("scripts");
+        scriptsDirectory = env.scriptsFile();
         if (logger.isTraceEnabled()) {
             logger.trace("Using scripts directory [{}] ", scriptsDirectory);
         }

@@ -25,8 +25,6 @@ package org.elasticsearch.cluster;
  */
 public interface ClusterInfoService {
 
-    public static ClusterInfoService EMPTY = EmptyClusterInfoService.getInstance();
-
     /** The latest cluster information */
     public ClusterInfo getClusterInfo();
 

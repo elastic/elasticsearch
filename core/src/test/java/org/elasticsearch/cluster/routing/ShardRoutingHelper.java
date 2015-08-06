@@ -17,29 +17,22 @@
  * under the License.
  */
 
-package org.elasticsearch.cluster;
-
-import com.google.common.collect.ImmutableMap;
-import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Settings;
+package org.elasticsearch.cluster.routing;
 
 /**
- * ClusterInfoService that provides empty maps for disk usage and shard sizes
+ * A helper class that allows access to package private APIs for testing.
  */
-public class EmptyClusterInfoService extends AbstractComponent implements ClusterInfoService {
-    public final static EmptyClusterInfoService INSTANCE = new EmptyClusterInfoService();
+public class ShardRoutingHelper {
 
-    private EmptyClusterInfoService() {
-        super(Settings.EMPTY);
+    public static void relocate(ShardRouting routing, String nodeId) {
+        routing.relocate(nodeId);
     }
 
-    @Override
-    public ClusterInfo getClusterInfo() {
-        return ClusterInfo.EMPTY;
+    public static void moveToStarted(ShardRouting routing) {
+        routing.moveToStarted();
     }
 
-    @Override
-    public void addListener(Listener listener) {
-        // no-op, no new info is ever gathered, so adding listeners is useless
+    public static void initialize(ShardRouting routing, String nodeId) {
+        routing.initialize(nodeId);
     }
 }

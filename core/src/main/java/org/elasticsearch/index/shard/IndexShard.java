@@ -828,14 +828,13 @@ public class IndexShard extends AbstractIndexShardComponent {
     /**
      * After the store has been recovered, we need to start the engine in order to apply operations
      */
-    public Map<String, Mapping> performTranslogRecovery() {
-        final Map<String, Mapping> recoveredTypes = internalPerformTranslogRecovery(false);
+    public Map<String, Mapping> performTranslogRecovery(boolean indexExists) {
+        final Map<String, Mapping> recoveredTypes = internalPerformTranslogRecovery(false, indexExists);
         assert recoveryState.getStage() == RecoveryState.Stage.TRANSLOG : "TRANSLOG stage expected but was: " + recoveryState.getStage();
         return recoveredTypes;
-
     }
 
-    private Map<String, Mapping> internalPerformTranslogRecovery(boolean skipTranslogRecovery) {
+    private Map<String, Mapping> internalPerformTranslogRecovery(boolean skipTranslogRecovery, boolean indexExists) {
         if (state != IndexShardState.RECOVERING) {
             throw new IndexShardNotRecoveringException(shardId, state);
         }
@@ -852,6 +851,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         // we disable deletes since we allow for operations to be executed against the shard while recovering
         // but we need to make sure we don't loose deletes until we are done recovering
         engineConfig.setEnableGcDeletes(false);
+        engineConfig.setCreate(indexExists == false);
         createNewEngine(skipTranslogRecovery, engineConfig);
         return engineConfig.getTranslogRecoveryPerformer().getRecoveredTypes();
     }
@@ -860,12 +860,10 @@ public class IndexShard extends AbstractIndexShardComponent {
      * After the store has been recovered, we need to start the engine. This method starts a new engine but skips
      * the replay of the transaction log which is required in cases where we restore a previous index or recover from
      * a remote peer.
-     *
-     * @param wipeTranslogs if set to <code>true</code> all skipped / uncommitted translogs are removed.
      */
-    public void skipTranslogRecovery(boolean wipeTranslogs) throws IOException {
+    public void skipTranslogRecovery() throws IOException {
         assert engineUnsafe() == null : "engine was already created";
-        Map<String, Mapping> recoveredTypes = internalPerformTranslogRecovery(true);
+        Map<String, Mapping> recoveredTypes = internalPerformTranslogRecovery(true, true);
         assert recoveredTypes.isEmpty();
         assert recoveryState.getTranslog().recoveredOperations() == 0;
     }

@@ -153,6 +153,7 @@ consumption.  The default for the `human` flag is
 `false`.
 
 [[date-math]]
+[float]
 === Date Math
 
 Most parameters which accept a formatted date value -- such as `gt` and `lt`

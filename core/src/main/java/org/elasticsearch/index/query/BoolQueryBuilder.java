@@ -249,7 +249,7 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
     }
 
     @Override
-    public String getName() {
+    public String getWriteableName() {
         return NAME;
     }
 
@@ -308,13 +308,13 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
     @Override
     protected BoolQueryBuilder doReadFrom(StreamInput in) throws IOException {
         BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
-        List<QueryBuilder> queryBuilders = in.readNamedWriteableList();
+        List<QueryBuilder> queryBuilders = readQueries(in);
         boolQueryBuilder.mustClauses.addAll(queryBuilders);
-        queryBuilders = in.readNamedWriteableList();
+        queryBuilders = readQueries(in);
         boolQueryBuilder.mustNotClauses.addAll(queryBuilders);
-        queryBuilders = in.readNamedWriteableList();
+        queryBuilders = readQueries(in);
         boolQueryBuilder.shouldClauses.addAll(queryBuilders);
-        queryBuilders = in.readNamedWriteableList();
+        queryBuilders = readQueries(in);
         boolQueryBuilder.filterClauses.addAll(queryBuilders);
         boolQueryBuilder.adjustPureNegative = in.readBoolean();
         boolQueryBuilder.disableCoord = in.readBoolean();
@@ -325,10 +325,10 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeNamedWriteableList(mustClauses);
-        out.writeNamedWriteableList(mustNotClauses);
-        out.writeNamedWriteableList(shouldClauses);
-        out.writeNamedWriteableList(filterClauses);
+        writeQueries(out, mustClauses);
+        writeQueries(out, mustNotClauses);
+        writeQueries(out, shouldClauses);
+        writeQueries(out, filterClauses);
         out.writeBoolean(adjustPureNegative);
         out.writeBoolean(disableCoord);
         out.writeOptionalString(minimumShouldMatch);

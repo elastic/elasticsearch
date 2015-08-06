@@ -88,7 +88,7 @@ public class SpanTermQueryBuilder extends BaseTermQueryBuilder<SpanTermQueryBuil
     }
 
     @Override
-    public String getName() {
+    public String getWriteableName() {
         return NAME;
     }
 }

@@ -257,4 +257,42 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder> exte
         }
         return validationException;
     }
+
+    @Override
+    public String getName() {
+        //default impl returns the same as writeable name, but we keep the distinction between the two just to make sure
+        return getWriteableName();
+    }
+
+    protected final void writeQueries(StreamOutput out, List<? extends QueryBuilder> queries) throws IOException {
+        out.writeVInt(queries.size());
+        for (QueryBuilder query : queries) {
+            out.writeQuery(query);
+        }
+    }
+
+    protected final List<QueryBuilder> readQueries(StreamInput in) throws IOException {
+        List<QueryBuilder> queries = new ArrayList<>();
+        int size = in.readVInt();
+        for (int i = 0; i < size; i++) {
+            queries.add(in.readQuery());
+        }
+        return queries;
+    }
+
+    protected final void writeOptionalQuery(StreamOutput out, QueryBuilder query) throws IOException {
+        if (query == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            out.writeQuery(query);
+        }
+    }
+
+    protected final QueryBuilder readOptionalQuery(StreamInput in) throws IOException {
+        if (in.readBoolean()) {
+            return in.readQuery();
+        }
+        return null;
+    }
 }

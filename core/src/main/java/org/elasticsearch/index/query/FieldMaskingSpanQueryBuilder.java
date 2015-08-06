@@ -103,13 +103,13 @@ public class FieldMaskingSpanQueryBuilder extends AbstractQueryBuilder<FieldMask
 
     @Override
     protected FieldMaskingSpanQueryBuilder doReadFrom(StreamInput in) throws IOException {
-        QueryBuilder innerQueryBuilder = in.readNamedWriteable();
+        QueryBuilder innerQueryBuilder = in.readQuery();
         return new FieldMaskingSpanQueryBuilder((SpanQueryBuilder) innerQueryBuilder, in.readString());
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeNamedWriteable(queryBuilder);
+        out.writeQuery(queryBuilder);
         out.writeString(fieldName);
     }
 
@@ -125,7 +125,7 @@ public class FieldMaskingSpanQueryBuilder extends AbstractQueryBuilder<FieldMask
     }
 
     @Override
-    public String getName() {
+    public String getWriteableName() {
         return NAME;
     }
 }

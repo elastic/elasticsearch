@@ -105,7 +105,7 @@ public class MissingQueryBuilder extends AbstractQueryBuilder<MissingQueryBuilde
     }
 
     @Override
-    public String getName() {
+    public String getWriteableName() {
         return NAME;
     }
 

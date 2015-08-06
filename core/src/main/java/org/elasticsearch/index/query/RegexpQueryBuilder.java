@@ -144,7 +144,7 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
     }
 
     @Override
-    public String getName() {
+    public String getWriteableName() {
         return NAME;
     }
 

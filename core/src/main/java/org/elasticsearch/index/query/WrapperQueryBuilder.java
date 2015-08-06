@@ -83,7 +83,7 @@ public class WrapperQueryBuilder extends AbstractQueryBuilder<WrapperQueryBuilde
     }
 
     @Override
-    public String getName() {
+    public String getWriteableName() {
         return NAME;
     }
 }

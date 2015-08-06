@@ -91,17 +91,17 @@ public class QueryFilterBuilder extends AbstractQueryBuilder<QueryFilterBuilder>
 
     @Override
     protected QueryFilterBuilder doReadFrom(StreamInput in) throws IOException {
-        QueryBuilder innerQueryBuilder = in.readNamedWriteable();
+        QueryBuilder innerQueryBuilder = in.readQuery();
         return new QueryFilterBuilder(innerQueryBuilder);
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeNamedWriteable(queryBuilder);
+        out.writeQuery(queryBuilder);
     }
 
     @Override
-    public String getName() {
+    public String getWriteableName() {
         return NAME;
     }
 }

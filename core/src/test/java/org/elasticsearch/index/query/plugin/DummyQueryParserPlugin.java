@@ -66,7 +66,7 @@ public class DummyQueryParserPlugin extends AbstractPlugin {
         }
 
         @Override
-        public String getName() {
+        public String getWriteableName() {
             return NAME;
         }
     }

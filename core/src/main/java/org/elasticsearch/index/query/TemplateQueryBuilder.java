@@ -91,7 +91,7 @@ public class TemplateQueryBuilder extends AbstractQueryBuilder<TemplateQueryBuil
     }
 
     @Override
-    public String getName() {
+    public String getWriteableName() {
         return NAME;
     }
 }

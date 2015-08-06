@@ -52,7 +52,7 @@ public class QueryWrappingQueryBuilder extends AbstractQueryBuilder<QueryWrappin
     }
 
     @Override
-    public String getName() {
+    public String getWriteableName() {
         // this should not be called since we overwrite BaseQueryBuilder#toQuery() in this class
         throw new UnsupportedOperationException();
     }

@@ -58,12 +58,12 @@ public interface QueryBuilder<QB extends QueryBuilder> extends NamedWriteable<QB
     BytesReference buildAsBytes();
 
     /**
-     * Sets the query name for the query.
+     * Sets the arbitrary name to be assigned to the query (see named queries).
      */
     QB queryName(String queryName);
 
     /**
-     * Returns the query name for the query.
+     * Returns the arbitrary name assigned to the query (see named queries).
      */
     String queryName();
 
@@ -77,4 +77,9 @@ public interface QueryBuilder<QB extends QueryBuilder> extends NamedWriteable<QB
      * weightings) have their score multiplied by the boost provided.
      */
     QB boost(float boost);
+
+    /**
+     * Returns the name that identifies uniquely the query
+     */
+    String getName();
 }

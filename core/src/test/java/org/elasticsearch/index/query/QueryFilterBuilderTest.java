@@ -68,8 +68,8 @@ public class QueryFilterBuilderTest extends BaseQueryTestCase<QueryFilterBuilder
         String queryString = "{ \"constant_score\" : { \"filter\" : {} }";
         XContentParser parser = XContentFactory.xContent(queryString).createParser(queryString);
         context.reset(parser);
-        assertQueryHeader(parser, ConstantScoreQueryBuilder.PROTOTYPE.getName());
-        QueryBuilder innerQuery = context.queryParser(ConstantScoreQueryBuilder.PROTOTYPE.getName()).fromXContent(context);
+        assertQueryHeader(parser, ConstantScoreQueryBuilder.NAME);
+        QueryBuilder innerQuery = context.queryParser(ConstantScoreQueryBuilder.NAME).fromXContent(context);
 
         // check that when wrapping this filter, toQuery() returns null
         QueryFilterBuilder queryFilterQuery = new QueryFilterBuilder(innerQuery);

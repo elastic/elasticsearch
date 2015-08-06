@@ -87,7 +87,7 @@ public class LimitQueryBuilder extends AbstractQueryBuilder<LimitQueryBuilder> {
     }
 
     @Override
-    public String getName() {
+    public String getWriteableName() {
         return NAME;
     }
 }

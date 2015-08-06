@@ -88,7 +88,7 @@ public class DisMaxQueryBuilderTest extends BaseQueryTestCase<DisMaxQueryBuilder
     @Test
     public void testInnerQueryReturnsNull() throws IOException {
         QueryParseContext context = createParseContext();
-        String queryId = ConstantScoreQueryBuilder.PROTOTYPE.getName();
+        String queryId = ConstantScoreQueryBuilder.NAME;
         String queryString = "{ \""+queryId+"\" : { \"filter\" : { } }";
         XContentParser parser = XContentFactory.xContent(queryString).createParser(queryString);
         context.reset(parser);

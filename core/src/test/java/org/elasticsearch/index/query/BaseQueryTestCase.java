@@ -31,10 +31,7 @@ import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.inject.util.Providers;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.FilterStreamInput;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.*;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -237,8 +234,8 @@ public abstract class BaseQueryTestCase<QB extends AbstractQueryBuilder<QB>> ext
 
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             firstQuery.writeTo(output);
-            try (StreamInput in = new FilterStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
-                QueryBuilder<? extends QueryBuilder> prototype = queryParserService.queryParser(firstQuery.getName()).getBuilderPrototype();
+            try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
+                QueryBuilder<? extends QueryBuilder> prototype = queryParserService.queryParser(firstQuery.getWriteableName()).getBuilderPrototype();
                 @SuppressWarnings("unchecked")
                 QB secondQuery = (QB)prototype.readFrom(in);
                 //query _name never should affect the result of toQuery, we randomly set it to make sure
@@ -301,8 +298,8 @@ public abstract class BaseQueryTestCase<QB extends AbstractQueryBuilder<QB>> ext
         QB testQuery = createTestQueryBuilder();
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             testQuery.writeTo(output);
-            try (StreamInput in = new FilterStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
-                QueryBuilder<? extends QueryBuilder> prototype = queryParserService.queryParser(testQuery.getName()).getBuilderPrototype();
+            try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
+                QueryBuilder<? extends QueryBuilder> prototype = queryParserService.queryParser(testQuery.getWriteableName()).getBuilderPrototype();
                 QueryBuilder deserializedQuery = prototype.readFrom(in);
                 assertEquals(deserializedQuery, testQuery);
                 assertEquals(deserializedQuery.hashCode(), testQuery.hashCode());

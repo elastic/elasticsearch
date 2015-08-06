@@ -29,5 +29,5 @@ public interface NamedWriteable<T> extends Writeable<T> {
     /**
      * Returns the name of the writeable object
      */
-    String getName();
+    String getWriteableName();
 }

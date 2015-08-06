@@ -68,8 +68,8 @@ public class NotQueryBuilderTest extends BaseQueryTestCase<NotQueryBuilder> {
         String queryString = "{ \"not\" : {}";
         XContentParser parser = XContentFactory.xContent(queryString).createParser(queryString);
         context.reset(parser);
-        assertQueryHeader(parser, NotQueryBuilder.PROTOTYPE.getName());
-        context.queryParser(NotQueryBuilder.PROTOTYPE.getName()).fromXContent(context);
+        assertQueryHeader(parser, NotQueryBuilder.NAME);
+        context.queryParser(NotQueryBuilder.NAME).fromXContent(context);
     }
 
     @Test

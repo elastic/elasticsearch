@@ -19,17 +19,18 @@
 
 package org.elasticsearch.common.io.stream;
 
+import org.elasticsearch.Version;
+
 import java.io.IOException;
 
 /**
- * Wraps a {@link StreamInput} and associates it with a {@link NamedWriteableRegistry}
+ * Wraps a {@link StreamInput} and delegates to it. To be used to add functionality to an existing stream by subclassing.
  */
-public class FilterStreamInput extends StreamInput {
+public abstract class FilterStreamInput extends StreamInput {
 
     private final StreamInput delegate;
 
-    public FilterStreamInput(StreamInput delegate, NamedWriteableRegistry namedWriteableRegistry) {
-        super(namedWriteableRegistry);
+    protected FilterStreamInput(StreamInput delegate) {
         this.delegate = delegate;
     }
 
@@ -56,5 +57,15 @@ public class FilterStreamInput extends StreamInput {
     @Override
     public void close() throws IOException {
         delegate.close();
+    }
+
+    @Override
+    public Version getVersion() {
+        return delegate.getVersion();
+    }
+
+    @Override
+    public void setVersion(Version version) {
+        delegate.setVersion(version);
     }
 }

@@ -38,7 +38,7 @@ public class SpanOrQueryBuilder extends AbstractQueryBuilder<SpanOrQueryBuilder>
 
     public static final String NAME = "span_or";
 
-    private final ArrayList<SpanQueryBuilder> clauses = new ArrayList<>();
+    private final List<SpanQueryBuilder> clauses = new ArrayList<>();
 
     static final SpanOrQueryBuilder PROTOTYPE = new SpanOrQueryBuilder();
 
@@ -96,9 +96,9 @@ public class SpanOrQueryBuilder extends AbstractQueryBuilder<SpanOrQueryBuilder>
     @Override
     protected SpanOrQueryBuilder doReadFrom(StreamInput in) throws IOException {
         SpanOrQueryBuilder queryBuilder = new SpanOrQueryBuilder();
-        List<SpanQueryBuilder> clauses = in.readNamedWriteableList();
-        for (SpanQueryBuilder subClause : clauses) {
-            queryBuilder.clause(subClause);
+        List<QueryBuilder> clauses = readQueries(in);
+        for (QueryBuilder subClause : clauses) {
+            queryBuilder.clauses.add((SpanQueryBuilder)subClause);
         }
         return queryBuilder;
 
@@ -106,7 +106,7 @@ public class SpanOrQueryBuilder extends AbstractQueryBuilder<SpanOrQueryBuilder>
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeNamedWriteableList(clauses);
+        writeQueries(out, clauses);
     }
 
     @Override
@@ -120,7 +120,7 @@ public class SpanOrQueryBuilder extends AbstractQueryBuilder<SpanOrQueryBuilder>
     }
 
     @Override
-    public String getName() {
+    public String getWriteableName() {
         return NAME;
     }
 }

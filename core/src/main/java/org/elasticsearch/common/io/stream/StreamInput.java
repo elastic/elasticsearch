@@ -19,8 +19,6 @@
 
 package org.elasticsearch.common.io.stream;
 
-import com.fasterxml.jackson.core.JsonLocation;
-import com.fasterxml.jackson.core.JsonParseException;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
@@ -28,7 +26,6 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CharsRefBuilder;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -36,20 +33,17 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.text.StringAndBytesText;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
 import java.io.*;
 import java.nio.file.NoSuchFileException;
 import java.util.*;
-import java.util.regex.Pattern;
 
 import static org.elasticsearch.ElasticsearchException.readException;
 import static org.elasticsearch.ElasticsearchException.readStackTrace;
 
-/**
- *
- */
 public abstract class StreamInput extends InputStream {
 
     private final NamedWriteableRegistry namedWriteableRegistry;
@@ -68,9 +62,8 @@ public abstract class StreamInput extends InputStream {
         return this.version;
     }
 
-    public StreamInput setVersion(Version version) {
+    public void setVersion(Version version) {
         this.version = version;
-        return this;
     }
 
     /**
@@ -570,25 +563,18 @@ public abstract class StreamInput extends InputStream {
     /**
      * Reads a {@link NamedWriteable} from the current stream, by first reading its name and then looking for
      * the corresponding entry in the registry by name, so that the proper object can be read and returned.
+     * Default implementation throws {@link UnsupportedOperationException} as StreamInput doesn't hold a registry.
+     * Use {@link FilterInputStream} instead which wraps a stream and supports a {@link NamedWriteableRegistry} too.
      */
-    public <C> C readNamedWriteable() throws IOException {
-        String name = readString();
-        NamedWriteable<C> namedWriteable = namedWriteableRegistry.getPrototype(name);
-        return namedWriteable.readFrom(this);
+    <C> C readNamedWriteable(@SuppressWarnings("unused") Class<C> categoryClass) throws IOException {
+        throw new UnsupportedOperationException();
     }
 
     /**
-     * Reads a list of {@link NamedWriteable} from the current stream, by first reading its size and then
-     * reading the individual objects using {@link #readNamedWriteable()}.
+     * Reads a {@link QueryBuilder} from the current stream
      */
-    public <C> List<C> readNamedWriteableList() throws IOException {
-        List<C> list = new ArrayList<>();
-        int size = readInt();
-        for (int i = 0; i < size; i++) {
-            C obj = readNamedWriteable();
-            list.add(obj);
-        }
-        return list;
+    public QueryBuilder readQuery() throws IOException {
+        return readNamedWriteable(QueryBuilder.class);
     }
 
     public static StreamInput wrap(BytesReference reference) {
@@ -605,5 +591,4 @@ public abstract class StreamInput extends InputStream {
     public static StreamInput wrap(byte[] bytes, int offset, int length) {
         return new InputStreamStreamInput(new ByteArrayInputStream(bytes, offset, length));
     }
-
 }

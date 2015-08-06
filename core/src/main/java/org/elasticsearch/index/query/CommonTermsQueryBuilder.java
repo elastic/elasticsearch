@@ -223,7 +223,7 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
     }
 
     @Override
-    public String getName() {
+    public String getWriteableName() {
         return NAME;
     }
 

@@ -105,15 +105,15 @@ public class SpanWithinQueryBuilder extends AbstractQueryBuilder<SpanWithinQuery
 
     @Override
     protected SpanWithinQueryBuilder doReadFrom(StreamInput in) throws IOException {
-        SpanQueryBuilder big = in.readNamedWriteable();
-        SpanQueryBuilder little = in.readNamedWriteable();
+        SpanQueryBuilder big = (SpanQueryBuilder)in.readQuery();
+        SpanQueryBuilder little = (SpanQueryBuilder)in.readQuery();
         return new SpanWithinQueryBuilder(big, little);
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeNamedWriteable(big);
-        out.writeNamedWriteable(little);
+        out.writeQuery(big);
+        out.writeQuery(little);
     }
 
     @Override
@@ -128,7 +128,7 @@ public class SpanWithinQueryBuilder extends AbstractQueryBuilder<SpanWithinQuery
     }
 
     @Override
-    public String getName() {
+    public String getWriteableName() {
         return NAME;
     }
 }

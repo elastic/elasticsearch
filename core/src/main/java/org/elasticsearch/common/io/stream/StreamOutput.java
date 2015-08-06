@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.io.stream;
 
-import com.vividsolutions.jts.util.Assert;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
@@ -33,6 +32,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.joda.time.ReadableInstant;
 
 import java.io.EOFException;
@@ -618,19 +618,15 @@ public abstract class StreamOutput extends OutputStream {
     /**
      * Writes a {@link NamedWriteable} to the current stream, by first writing its name and then the object itself
      */
-    public void writeNamedWriteable(NamedWriteable namedWriteable) throws IOException {
-        writeString(namedWriteable.getName());
+    void writeNamedWriteable(NamedWriteable namedWriteable) throws IOException {
+        writeString(namedWriteable.getWriteableName());
         namedWriteable.writeTo(this);
     }
 
     /**
-     * Writes a list of {@link NamedWriteable} to the current stream, by first writing its size and then iterating over the objects
-     * in the list
+     * Writes a {@link QueryBuilder} to the current stream
      */
-    public void writeNamedWriteableList(List<? extends NamedWriteable> list) throws IOException {
-        writeInt(list.size());
-        for (NamedWriteable obj : list) {
-            writeNamedWriteable(obj);
-        }
+    public void writeQuery(QueryBuilder queryBuilder) throws IOException {
+        writeNamedWriteable(queryBuilder);
     }
 }

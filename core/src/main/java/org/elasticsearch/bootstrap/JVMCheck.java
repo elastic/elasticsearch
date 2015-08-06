@@ -59,7 +59,7 @@ final class JVMCheck {
         /** Returns an error message to the user for a broken version */
         String getErrorMessage() {
             StringBuilder sb = new StringBuilder();
-            sb.append("Java version: ").append(Constants.JAVA_VERSION);
+            sb.append("Java version: ").append(fullVersion());
             sb.append(" suffers from critical bug ").append(bugUrl);
             sb.append(" which can cause data corruption.");
             sb.append(System.lineSeparator());
@@ -111,7 +111,7 @@ final class JVMCheck {
      */
     static void check() {
         if (Boolean.parseBoolean(System.getProperty(JVM_BYPASS))) {
-            Loggers.getLogger(JVMCheck.class).warn("bypassing jvm version check for version [{}], this can result in data corruption!", Constants.JAVA_VERSION);
+            Loggers.getLogger(JVMCheck.class).warn("bypassing jvm version check for version [{}], this can result in data corruption!", fullVersion());
         } else if ("Oracle Corporation".equals(Constants.JVM_VENDOR)) {
             HotspotBug bug = JVM_BROKEN_HOTSPOT_VERSIONS.get(Constants.JVM_VERSION);
             if (bug != null) {
@@ -135,11 +135,28 @@ final class JVMCheck {
                 StringBuilder sb = new StringBuilder();
                 sb.append("IBM J9 runtimes < 2.8 suffer from several bugs which can cause data corruption.");
                 sb.append(System.lineSeparator());
-                sb.append("Your version: " + Constants.JVM_VERSION);
+                sb.append("Your version: " + fullVersion());
                 sb.append(System.lineSeparator());
                 sb.append("Please upgrade the JVM to a recent IBM JDK");
                 throw new RuntimeException(sb.toString());
             }
         }
+    }
+    
+    /** 
+     * Returns java + jvm version, looks like this:
+     * {@code Oracle Corporation 1.8.0_45 [Java HotSpot(TM) 64-Bit Server VM 25.45-b02]}
+     */
+    static String fullVersion() {
+        StringBuilder sb = new StringBuilder();
+        sb.append(Constants.JAVA_VENDOR);
+        sb.append(" ");
+        sb.append(Constants.JAVA_VERSION);
+        sb.append(" [");
+        sb.append(Constants.JVM_NAME);
+        sb.append(" ");
+        sb.append(Constants.JVM_VERSION);
+        sb.append("]");
+        return sb.toString();
     }
 }

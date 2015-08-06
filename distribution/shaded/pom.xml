@@ -74,7 +74,7 @@
                     <shadeTestJar>false</shadeTestJar>
                     <promoteTransitiveDependencies>true</promoteTransitiveDependencies>
                     <createDependencyReducedPom>true</createDependencyReducedPom>
-                    <dependencyReducedPomLocation>${build.directory}/dependency-reduced-pom.xml</dependencyReducedPomLocation>
+                    <dependencyReducedPomLocation>${project.build.directory}/dependency-reduced-pom.xml</dependencyReducedPomLocation>
                     <artifactSet>
                         <excludes>
                             <exclude>org.apache.lucene:*</exclude>

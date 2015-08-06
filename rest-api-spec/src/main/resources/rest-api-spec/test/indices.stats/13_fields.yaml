@@ -36,6 +36,27 @@ setup:
       indices.refresh: {}
 
   - do:
+      suggest:
+        index: test1
+        body:
+          result:
+            text: "b"
+            completion:
+              field: bar.completion
+
+  - do:
+      suggest:
+        index: test1
+        body:
+          result:
+            text: "b"
+            completion:
+              field: baz.completion
+
+  - do:
+      indices.refresh: {}
+
+  - do:
       search:
           sort: bar,baz
 

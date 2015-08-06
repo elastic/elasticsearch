@@ -78,11 +78,11 @@ public class ShardVersioningTests extends ESAllocationTestCase {
         }
 
         logger.info("start all the primary shards for test1, replicas will start initializing");
-        RoutingNodes routingNodes = clusterState.routingNodes();
+        RoutingNodes routingNodes = clusterState.getRoutingNodes();
         prevRoutingTable = routingTable;
         routingTable = strategy.applyStartedShards(clusterState, routingNodes.shardsWithState("test1", INITIALIZING)).routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
-        routingNodes = clusterState.routingNodes();
+        routingNodes = clusterState.getRoutingNodes();
 
         for (int i = 0; i < routingTable.index("test1").shards().size(); i++) {
             assertThat(routingTable.index("test1").shard(i).shards().size(), equalTo(2));

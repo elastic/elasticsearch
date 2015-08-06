@@ -90,10 +90,6 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
         return indicesRouting();
     }
 
-    public RoutingNodes routingNodes(ClusterState state) {
-        return new RoutingNodes(state);
-    }
-
     public RoutingTable validateRaiseException(MetaData metaData) throws RoutingValidationException {
         RoutingTableValidation validation = validate(metaData);
         if (!validation.valid()) {

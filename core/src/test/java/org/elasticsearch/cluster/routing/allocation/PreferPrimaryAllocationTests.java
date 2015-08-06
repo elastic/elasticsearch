@@ -67,8 +67,8 @@ public class PreferPrimaryAllocationTests extends ESAllocationTestCase {
         routingTable = strategy.reroute(clusterState).routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
-        while (!clusterState.routingNodes().shardsWithState(INITIALIZING).isEmpty()) {
-            routingTable = strategy.applyStartedShards(clusterState, clusterState.routingNodes().shardsWithState(INITIALIZING)).routingTable();
+        while (!clusterState.getRoutingNodes().shardsWithState(INITIALIZING).isEmpty()) {
+            routingTable = strategy.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING)).routingTable();
             clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         }
 
@@ -81,7 +81,7 @@ public class PreferPrimaryAllocationTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         logger.info("2 replicas should be initializing now for the existing indices (we throttle to 1)");
-        assertThat(clusterState.routingNodes().shardsWithState(INITIALIZING).size(), equalTo(2));
+        assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(2));
 
         logger.info("create a new index");
         metaData = MetaData.builder(clusterState.metaData())

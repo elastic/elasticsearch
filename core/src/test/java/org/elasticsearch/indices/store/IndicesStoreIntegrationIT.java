@@ -327,7 +327,7 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
         waitNoPendingTasksOnAll();
         ClusterStateResponse stateResponse = client().admin().cluster().prepareState().get();
 
-        RoutingNode routingNode = stateResponse.getState().routingNodes().node(nonMasterId);
+        RoutingNode routingNode = stateResponse.getState().getRoutingNodes().node(nonMasterId);
         final int[] node2Shards = new int[routingNode.numberOfOwningShards()];
         int i = 0;
         for (ShardRouting shardRouting : routingNode) {

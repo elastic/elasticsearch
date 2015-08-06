@@ -190,7 +190,7 @@ public class AckIT extends ESIntegTestCase {
 
         for (Client client : clients()) {
             ClusterState clusterState = getLocalClusterState(client);
-            for (ShardRouting shardRouting : clusterState.routingNodes().routingNodeIter(moveAllocationCommand.fromNode())) {
+            for (ShardRouting shardRouting : clusterState.getRoutingNodes().routingNodeIter(moveAllocationCommand.fromNode())) {
                 //if the shard that we wanted to move is still on the same node, it must be relocating
                 if (shardRouting.shardId().equals(moveAllocationCommand.shardId())) {
                     assertThat(shardRouting.relocating(), equalTo(true));
@@ -199,7 +199,7 @@ public class AckIT extends ESIntegTestCase {
             }
 
             boolean found = false;
-            for (ShardRouting shardRouting : clusterState.routingNodes().routingNodeIter(moveAllocationCommand.toNode())) {
+            for (ShardRouting shardRouting : clusterState.getRoutingNodes().routingNodeIter(moveAllocationCommand.toNode())) {
                 if (shardRouting.shardId().equals(moveAllocationCommand.shardId())) {
                     assertThat(shardRouting.state(), anyOf(equalTo(ShardRoutingState.INITIALIZING), equalTo(ShardRoutingState.STARTED)));
                     found = true;
@@ -240,7 +240,7 @@ public class AckIT extends ESIntegTestCase {
         //all nodes hold the same cluster state version. We only know there was no need to change anything, thus no need for ack on this update.
         ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().get();
         boolean found = false;
-        for (ShardRouting shardRouting : clusterStateResponse.getState().routingNodes().routingNodeIter(moveAllocationCommand.fromNode())) {
+        for (ShardRouting shardRouting : clusterStateResponse.getState().getRoutingNodes().routingNodeIter(moveAllocationCommand.fromNode())) {
             //the shard that we wanted to move is still on the same node, as we had dryRun flag
             if (shardRouting.shardId().equals(moveAllocationCommand.shardId())) {
                 assertThat(shardRouting.started(), equalTo(true));
@@ -250,7 +250,7 @@ public class AckIT extends ESIntegTestCase {
         }
         assertThat(found, equalTo(true));
 
-        for (ShardRouting shardRouting : clusterStateResponse.getState().routingNodes().routingNodeIter(moveAllocationCommand.toNode())) {
+        for (ShardRouting shardRouting : clusterStateResponse.getState().getRoutingNodes().routingNodeIter(moveAllocationCommand.toNode())) {
             if (shardRouting.shardId().equals(moveAllocationCommand.shardId())) {
                 fail("shard [" + shardRouting + "] shouldn't be on node [" + moveAllocationCommand.toString() + "]");
             }
@@ -277,7 +277,7 @@ public class AckIT extends ESIntegTestCase {
         String toNodeId = null;
         ShardRouting shardToBeMoved = null;
         ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().get();
-        for (RoutingNode routingNode : clusterStateResponse.getState().routingNodes()) {
+        for (RoutingNode routingNode : clusterStateResponse.getState().getRoutingNodes()) {
             if (routingNode.node().isDataNode()) {
                 if (fromNodeId == null && routingNode.numberOfOwningShards() > 0) {
                     fromNodeId = routingNode.nodeId();

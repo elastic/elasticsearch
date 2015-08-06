@@ -553,7 +553,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         ClusterStateResponse stateResponse = client().admin().cluster().prepareState().get();
         final String blueNodeId = internalCluster().getInstance(DiscoveryService.class, blueNodeName).localNode().id();
 
-        assertFalse(stateResponse.getState().readOnlyRoutingNodes().node(blueNodeId).isEmpty());
+        assertFalse(stateResponse.getState().getRoutingNodes().node(blueNodeId).isEmpty());
 
         SearchResponse searchResponse = client().prepareSearch(indexName).get();
         assertHitCount(searchResponse, numDocs);

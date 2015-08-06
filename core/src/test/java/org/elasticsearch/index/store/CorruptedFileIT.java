@@ -431,7 +431,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
         // we are green so primaries got not corrupted.
         // ensure that no shard is actually allocated on the unlucky node
         ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().get();
-        for (IndexShardRoutingTable table : clusterStateResponse.getState().routingNodes().getRoutingTable().index("test")) {
+        for (IndexShardRoutingTable table : clusterStateResponse.getState().getRoutingNodes().getRoutingTable().index("test")) {
             for (ShardRouting routing : table) {
                 if (unluckyNode.getNode().getId().equals(routing.currentNodeId())) {
                     assertThat(routing.state(), not(equalTo(ShardRoutingState.STARTED)));

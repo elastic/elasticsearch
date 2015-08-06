@@ -78,7 +78,7 @@ public class IndexLifecycleActionIT extends ESIntegTestCase {
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
 
         ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
-        RoutingNode routingNodeEntry1 = clusterState.readOnlyRoutingNodes().node(node1);
+        RoutingNode routingNodeEntry1 = clusterState.getRoutingNodes().node(node1);
         assertThat(routingNodeEntry1.numberOfShardsWithState(STARTED), equalTo(11));
 
         logger.info("Starting server2");
@@ -108,11 +108,11 @@ public class IndexLifecycleActionIT extends ESIntegTestCase {
 
 
         clusterState = client().admin().cluster().prepareState().get().getState();
-        assertNodesPresent(clusterState.readOnlyRoutingNodes(), node1, node2);
-        routingNodeEntry1 = clusterState.readOnlyRoutingNodes().node(node1);
+        assertNodesPresent(clusterState.getRoutingNodes(), node1, node2);
+        routingNodeEntry1 = clusterState.getRoutingNodes().node(node1);
         assertThat(routingNodeEntry1.numberOfShardsWithState(RELOCATING), equalTo(0));
         assertThat(routingNodeEntry1.numberOfShardsWithState(STARTED), equalTo(11));
-        RoutingNode routingNodeEntry2 = clusterState.readOnlyRoutingNodes().node(node2);
+        RoutingNode routingNodeEntry2 = clusterState.getRoutingNodes().node(node2);
         assertThat(routingNodeEntry2.numberOfShardsWithState(INITIALIZING), equalTo(0));
         assertThat(routingNodeEntry2.numberOfShardsWithState(STARTED), equalTo(11));
 
@@ -144,11 +144,11 @@ public class IndexLifecycleActionIT extends ESIntegTestCase {
 
 
         clusterState = client().admin().cluster().prepareState().get().getState();
-        assertNodesPresent(clusterState.readOnlyRoutingNodes(), node1, node2, node3);
+        assertNodesPresent(clusterState.getRoutingNodes(), node1, node2, node3);
 
-        routingNodeEntry1 = clusterState.readOnlyRoutingNodes().node(node1);
-        routingNodeEntry2 = clusterState.readOnlyRoutingNodes().node(node2);
-        RoutingNode routingNodeEntry3 = clusterState.readOnlyRoutingNodes().node(node3);
+        routingNodeEntry1 = clusterState.getRoutingNodes().node(node1);
+        routingNodeEntry2 = clusterState.getRoutingNodes().node(node2);
+        RoutingNode routingNodeEntry3 = clusterState.getRoutingNodes().node(node3);
 
         assertThat(routingNodeEntry1.numberOfShardsWithState(STARTED) + routingNodeEntry2.numberOfShardsWithState(STARTED) + routingNodeEntry3.numberOfShardsWithState(STARTED), equalTo(22));
 
@@ -181,9 +181,9 @@ public class IndexLifecycleActionIT extends ESIntegTestCase {
         assertThat(clusterHealth.getActivePrimaryShards(), equalTo(11));
 
         clusterState = client().admin().cluster().prepareState().get().getState();
-        assertNodesPresent(clusterState.readOnlyRoutingNodes(), node3, node2);
-        routingNodeEntry2 = clusterState.readOnlyRoutingNodes().node(node2);
-        routingNodeEntry3 = clusterState.readOnlyRoutingNodes().node(node3);
+        assertNodesPresent(clusterState.getRoutingNodes(), node3, node2);
+        routingNodeEntry2 = clusterState.getRoutingNodes().node(node2);
+        routingNodeEntry3 = clusterState.getRoutingNodes().node(node3);
 
         assertThat(routingNodeEntry2.numberOfShardsWithState(STARTED) + routingNodeEntry3.numberOfShardsWithState(STARTED), equalTo(22));
 
@@ -200,11 +200,11 @@ public class IndexLifecycleActionIT extends ESIntegTestCase {
         assertThat(deleteIndexResponse.isAcknowledged(), equalTo(true));
 
         clusterState = client().admin().cluster().prepareState().get().getState();
-        assertNodesPresent(clusterState.readOnlyRoutingNodes(), node3, node2);
-        routingNodeEntry2 = clusterState.readOnlyRoutingNodes().node(node2);
+        assertNodesPresent(clusterState.getRoutingNodes(), node3, node2);
+        routingNodeEntry2 = clusterState.getRoutingNodes().node(node2);
         assertThat(routingNodeEntry2.isEmpty(), equalTo(true));
 
-        routingNodeEntry3 = clusterState.readOnlyRoutingNodes().node(node3);
+        routingNodeEntry3 = clusterState.getRoutingNodes().node(node3);
         assertThat(routingNodeEntry3.isEmpty(), equalTo(true));
     }
 

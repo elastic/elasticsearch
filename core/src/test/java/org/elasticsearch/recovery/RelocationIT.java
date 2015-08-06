@@ -395,7 +395,7 @@ public class RelocationIT extends ESIntegTestCase {
         ClusterStateResponse stateResponse = client().admin().cluster().prepareState().get();
         String blueNodeId = internalCluster().getInstance(DiscoveryService.class, blueNodeName).localNode().id();
 
-        assertFalse(stateResponse.getState().readOnlyRoutingNodes().node(blueNodeId).isEmpty());
+        assertFalse(stateResponse.getState().getRoutingNodes().node(blueNodeId).isEmpty());
 
         SearchResponse searchResponse = client().prepareSearch(indexName).get();
         assertHitCount(searchResponse, numDocs);
@@ -445,7 +445,7 @@ public class RelocationIT extends ESIntegTestCase {
         assertHitCount(searchResponse, numDocs);
 
         stateResponse = client().admin().cluster().prepareState().get();
-        assertTrue(stateResponse.getState().readOnlyRoutingNodes().node(blueNodeId).isEmpty());
+        assertTrue(stateResponse.getState().getRoutingNodes().node(blueNodeId).isEmpty());
     }
 
     @Test

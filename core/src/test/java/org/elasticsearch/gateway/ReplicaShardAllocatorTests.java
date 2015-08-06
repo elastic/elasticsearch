@@ -302,7 +302,7 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
                 .metaData(metaData)
                 .routingTable(routingTable)
                 .nodes(DiscoveryNodes.builder().put(node1).put(node2).put(node3)).build();
-        return new RoutingAllocation(deciders, state.routingNodes(), state.nodes(), null);
+        return new RoutingAllocation(deciders, new RoutingNodes(state, false), state.nodes(), null);
     }
 
     private RoutingAllocation onePrimaryOnNode1And1ReplicaRecovering(AllocationDeciders deciders) {
@@ -321,7 +321,7 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
                 .metaData(metaData)
                 .routingTable(routingTable)
                 .nodes(DiscoveryNodes.builder().put(node1).put(node2).put(node3)).build();
-        return new RoutingAllocation(deciders, state.routingNodes(), state.nodes(), null);
+        return new RoutingAllocation(deciders, new RoutingNodes(state, false), state.nodes(), null);
     }
 
     class TestAllocator extends ReplicaShardAllocator {

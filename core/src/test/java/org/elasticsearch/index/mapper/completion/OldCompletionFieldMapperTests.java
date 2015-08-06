@@ -27,7 +27,7 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.core.OldCompletionFieldMapper;
-import org.elasticsearch.test.ElasticsearchSingleNodeTest;
+import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.junit.Test;
 
@@ -38,7 +38,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
-public class OldCompletionFieldMapperTests extends ElasticsearchSingleNodeTest {
+public class OldCompletionFieldMapperTests extends ESSingleNodeTestCase {
     private final Version PRE2X_VERSION = VersionUtils.randomVersionBetween(getRandom(), Version.V_1_0_0, Version.V_1_7_0);
 
     @Test

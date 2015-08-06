@@ -29,7 +29,7 @@ import org.elasticsearch.search.suggest.completion.context.CategoryContextMappin
 import org.elasticsearch.search.suggest.completion.context.CategoryQueryContext;
 import org.elasticsearch.search.suggest.completion.context.ContextBuilder;
 import org.elasticsearch.search.suggest.completion.context.ContextMapping;
-import org.elasticsearch.test.ElasticsearchSingleNodeTest;
+import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.junit.Test;
 
 import java.util.*;
@@ -38,7 +38,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.isIn;
 
-public class CategoryContextMappingTest extends ElasticsearchSingleNodeTest {
+public class CategoryContextMappingTest extends ESSingleNodeTestCase {
 
     @Test
     public void testIndexingWithNoContexts() throws Exception {

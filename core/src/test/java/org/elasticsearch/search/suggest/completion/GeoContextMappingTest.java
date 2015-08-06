@@ -29,7 +29,7 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.search.suggest.completion.context.*;
-import org.elasticsearch.test.ElasticsearchSingleNodeTest;
+import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.junit.Test;
 
 import java.util.*;
@@ -38,7 +38,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.search.suggest.completion.CategoryContextMappingTest.assertContextSuggestFields;
 import static org.hamcrest.Matchers.equalTo;
 
-public class GeoContextMappingTest extends ElasticsearchSingleNodeTest {
+public class GeoContextMappingTest extends ESSingleNodeTestCase {
 
     @Test
     public void testIndexingWithNoContexts() throws Exception {

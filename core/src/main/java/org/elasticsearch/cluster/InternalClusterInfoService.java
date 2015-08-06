@@ -19,7 +19,6 @@
 
 package org.elasticsearch.cluster;
 
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
@@ -32,7 +31,6 @@ import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.admin.indices.stats.TransportIndicesStatsAction;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -66,8 +64,8 @@ public class InternalClusterInfoService extends AbstractComponent implements Clu
 
     private volatile TimeValue updateFrequency;
 
-    private volatile ImmutableMap<String, DiskUsage> usages;
-    private volatile ImmutableMap<String, Long> shardSizes;
+    private volatile Map<String, DiskUsage> usages;
+    private volatile Map<String, Long> shardSizes;
     private volatile boolean isMaster = false;
     private volatile boolean enabled;
     private volatile TimeValue fetchTimeout;
@@ -83,8 +81,8 @@ public class InternalClusterInfoService extends AbstractComponent implements Clu
                                       TransportIndicesStatsAction transportIndicesStatsAction, ClusterService clusterService,
                                       ThreadPool threadPool) {
         super(settings);
-        this.usages = ImmutableMap.of();
-        this.shardSizes = ImmutableMap.of();
+        this.usages = Collections.emptyMap();
+        this.shardSizes = Collections.emptyMap();
         this.transportNodesStatsAction = transportNodesStatsAction;
         this.transportIndicesStatsAction = transportIndicesStatsAction;
         this.clusterService = clusterService;
@@ -201,7 +199,7 @@ public class InternalClusterInfoService extends AbstractComponent implements Clu
                     }
                     Map<String, DiskUsage> newUsages = new HashMap<>(usages);
                     newUsages.remove(removedNode.getId());
-                    usages = ImmutableMap.copyOf(newUsages);
+                    usages = Collections.unmodifiableMap(newUsages);
                 }
             }
         }
@@ -332,7 +330,7 @@ public class InternalClusterInfoService extends AbstractComponent implements Clu
                             newUsages.put(nodeId, new DiskUsage(nodeId, nodeName, total, available));
                         }
                     }
-                    usages = ImmutableMap.copyOf(newUsages);
+                    usages = Collections.unmodifiableMap(newUsages);
                 }
 
                 @Override
@@ -348,7 +346,7 @@ public class InternalClusterInfoService extends AbstractComponent implements Clu
                             logger.warn("Failed to execute NodeStatsAction for ClusterInfoUpdateJob", e);
                         }
                         // we empty the usages list, to be safe - we don't know what's going on.
-                        usages = ImmutableMap.of();
+                        usages = Collections.emptyMap();
                     }
                 }
             });
@@ -366,7 +364,7 @@ public class InternalClusterInfoService extends AbstractComponent implements Clu
                         }
                         newShardSizes.put(sid, size);
                     }
-                    shardSizes = ImmutableMap.copyOf(newShardSizes);
+                    shardSizes = Collections.unmodifiableMap(newShardSizes);
                 }
 
                 @Override
@@ -382,7 +380,7 @@ public class InternalClusterInfoService extends AbstractComponent implements Clu
                             logger.warn("Failed to execute IndicesStatsAction for ClusterInfoUpdateJob", e);
                         }
                         // we empty the usages list, to be safe - we don't know what's going on.
-                        shardSizes = ImmutableMap.of();
+                        shardSizes = Collections.emptyMap();
                     }
                 }
             });

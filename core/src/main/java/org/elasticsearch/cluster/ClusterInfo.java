@@ -19,9 +19,9 @@
 
 package org.elasticsearch.cluster;
 
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.cluster.routing.ShardRouting;
 
+import java.util.Collections;
 import java.util.Map;
 
 /**
@@ -30,10 +30,16 @@ import java.util.Map;
  * <code>InternalClusterInfoService.shardIdentifierFromRouting(String)</code>
  * for the key used in the shardSizes map
  */
-public class ClusterInfo {
+public final class ClusterInfo {
 
     private final Map<String, DiskUsage> usages;
     final Map<String, Long> shardSizes;
+    public static final ClusterInfo EMPTY = new ClusterInfo();
+
+    private ClusterInfo() {
+        this.usages = Collections.emptyMap();
+        this.shardSizes = Collections.emptyMap();
+    }
 
     public ClusterInfo(Map<String, DiskUsage> usages, Map<String, Long> shardSizes) {
         this.usages = usages;

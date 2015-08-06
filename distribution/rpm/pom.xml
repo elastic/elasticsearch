@@ -105,6 +105,13 @@
                     <group>Application/Internet</group>
                     <packager>Elasticsearch</packager>
                     <prefix>/usr</prefix>
+                    <!-- To get rpm-maven-plugin to pickup targetOS you need
+                         to specify needarch too.... If you don't specify
+                         targetOS then it'll just use whatever the current
+                         machine's OS is which means you can't build rpms for
+                         linux on OSX even if you have rpmbuild.... -->
+                    <needarch>noarch</needarch>
+                    <targetOS>linux</targetOS>
                     <changelogFile>src/changelog</changelogFile>
                     <defineStatements>
                         <defineStatement>_unpackaged_files_terminate_build 0</defineStatement>

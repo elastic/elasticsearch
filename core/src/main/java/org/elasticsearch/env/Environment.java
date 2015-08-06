@@ -53,6 +53,8 @@ public class Environment {
 
     private final Path configFile;
 
+    private final Path scriptsFile;
+
     private final Path pluginsFile;
 
     /** location of bin/, used by plugin manager */
@@ -98,6 +100,12 @@ public class Environment {
             configFile = PathUtils.get(cleanPath(settings.get("path.conf")));
         } else {
             configFile = homeFile.resolve("config");
+        }
+
+        if (settings.get("path.scripts") != null) {
+            scriptsFile = PathUtils.get(cleanPath(settings.get("path.scripts")));
+        } else {
+            scriptsFile = configFile.resolve("scripts");
         }
 
         if (settings.get("path.plugins") != null) {
@@ -231,6 +239,13 @@ public class Environment {
      */
     public Path configFile() {
         return configFile;
+    }
+
+    /**
+     * Location of on-disk scripts
+     */
+    public Path scriptsFile() {
+        return scriptsFile;
     }
 
     public Path pluginsFile() {

@@ -40,6 +40,20 @@ Attachment datatype::
     which supports indexing ``attachments'' like Microsoft Office formats, Open
     Document formats, ePub, HTML, etc. into an `attachment` datatype.
 
+[float]
+=== Multi-fields
+
+It is often useful to index the same field in different ways for different
+purposes. For instance, a `string` field could be <<mapping-index,indexed>> as
+an `analyzed` field for full-text search, and as a `not_analyzed` field for
+sorting or aggregations.  Alternatively, you could index a string field with
+the <<analysis-standard-analyzer,`standard` analyzer>>, the
+<<english-analyzer,`english`>> analyzer, and the
+<<french-analyzer,`french` analyzer>>.
+
+This is the purpose of _multi-fields_.  Most datatypes support multi-fields
+via the <<multi-fields>> parameter.
+
 include::types/array.asciidoc[]
 
 include::types/binary.asciidoc[]

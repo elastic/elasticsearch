@@ -1,0 +1,82 @@
+[[default-mapping]]
+=== `_default_` mapping
+
+The default mapping, which will be used as the base mapping for any new
+mapping types, can be customised by adding a mapping type with the name
+`_default_` to an index, either when
+<<indices-create-index,creating the index>> or later on with the
+<<indices-put-mapping,PUT mapping>> API.
+
+
+[source,js]
+--------------------------------------------------
+PUT my_index
+{
+  "mappings": {
+    "_default_": { <1>
+      "_all": {
+        "enabled": false
+      }
+    },
+    "user": {}, <2>
+    "blogpost": { <3>
+      "_all": {
+        "enabled": true
+      }
+    }
+  }
+}
+--------------------------------------------------
+// AUTOSENSE
+<1> The `_default_` mapping defaults the <<mapping-all-field,`_all`>> field to disabled.
+<2> The `user` type inherits the settings from `_default_`.
+<3> The `blogpost` type overrides the defaults and enables the <<mapping-all-field,`_all`>> field.
+
+While the `_default_` mapping can be updated after an index has been created,
+the new defaults will only affect mapping types that are created afterwards.
+
+The `_default_` mapping can be used in conjunction with
+<<indices-templates,Index templates>> to control dynamically created types
+within automatically created indices:
+
+
+[source,js]
+--------------------------------------------------
+PUT _template/logging
+{
+  "template":   "logs-*", <1>
+  "settings": { "number_of_shards": 1 }, <2>
+  "mappings": {
+    "_default_": {
+      "_all": { <3>
+        "enabled": false
+      },
+      "dynamic_templates": [
+        {
+          "strings": { <4>
+            "match_mapping_type": "string",
+            "mapping": {
+              "type": "string",
+              "fields": {
+                "raw": {
+                  "type":  "string",
+                  "index": "not_analyzed",
+                  "ignore_above": 256
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}
+
+PUT logs-2015.10.01/event/1
+{ "message": "error:16" }
+--------------------------------------------------
+// AUTOSENSE
+<1> The `logging` template will match any indices beginning with `logs-`.
+<2> Matching indices will be created with a single primary shard.
+<3> The `_all` field will be disabled by default for new type mappings.
+<4> String fields will be created with an `analyzed` main field, and a `not_analyzed` `.raw` field.

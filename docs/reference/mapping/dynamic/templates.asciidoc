@@ -1,0 +1,251 @@
+[[dynamic-templates]]
+=== Dynamic templates
+
+Dynamic templates allow you to define custom mappings that can be applied to
+dynamically added fields based on:
+
+* the <<dynamic-mapping,datatype>> detected by Elasticsearch, with <<match-mapping-type,`match_mapping_type`>>.
+* the name of the field, with <<match-unmatch,`match` and `unmatch`>> or <<match-pattern,`match_pattern`>>.
+* the full dotted path to the field, with <<path-match-unmatch,`path_match` and `path_unmatch`>>.
+
+The original field name `{name}` and the detected datatype
+`{dynamic_type`} <<template-variables,template variables>> can be used in
+the mapping specification as placeholders.
+
+IMPORTANT: Dynamic field mappings are only added when a field contains a
+concrete value -- not `null` or an empty array. This means that if the
+`null_value` option  is used in a `dynamic_template`, it will only be applied
+after the first document  with a concrete value for the field has been
+indexed.
+
+Dynamic templates are specified as an array of named objects:
+
+[source,js]
+--------------------------------------------------
+  "dynamic_templates": [
+    {
+      "my_template_name": { <1>
+        ...  match conditions ... <2>
+        "mapping": { ... } <3>
+      }
+    },
+    ...
+  ]
+--------------------------------------------------
+<1> The template name can be any string value.
+<2> The match conditions can include any of : `match_mapping_type`, `match`, `match_pattern`, `unmatch`, `match_path`, `unmatch_path`.
+<3> The mapping that the matched field should use.
+
+
+Templates are processed in order -- the first matching template wins. New
+templates can be appended to the end of the list with the
+<<indices-put-mapping,PUT mapping>> API.  If a new template has the same
+name as an existing template, it will replace the old version.
+
+[[match-mapping-type]]
+==== `match_mapping_type`
+
+The `match_mapping_type` matches on the datatype detected by
+<<dynamic-field-mapping,dynamic field mapping>>, in other words, the datatype
+that Elasticsearch thinks the field should have.  Only the following datatypes
+can be automatically detected: `boolean`, `date`, `double`, `long`, `object`,
+`string`.  It also accepts `*` to match all datatypes.
+
+For example, if we wanted to map all integer fields as `integer` instead of
+`long`, and all `string` fields as both `analyzed` and `not_analyzed`, we
+could use the following template:
+
+[source,js]
+--------------------------------------------------
+PUT my_index
+{
+  "mappings": {
+    "my_type": {
+      "dynamic_templates": [
+        {
+          "integers": {
+            "match_mapping_type": "long",
+            "mapping": {
+              "type": "integer"
+            }
+          }
+        },
+        {
+          "strings": {
+            "match_mapping_type": "string",
+            "mapping": {
+              "type": "string",
+              "fields": {
+                "raw": {
+                  "type":  "string",
+                  "index": "not_analyzed",
+                  "ignore_above": 256
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}
+
+PUT my_index/my_type/1
+{
+  "my_integer": 5, <1>
+  "my_string": "Some string" <2>
+}
+
+--------------------------------------------------
+// AUTOSENSE
+<1> The `my_integer` field is mapped as an `integer`.
+<2> The `my_string` field is mapped as an analyzed `string`, with a `not_analyzed` <<multi-fields,multi field>>.
+
+
+[[match-unmatch]]
+==== `match` and `unmatch`
+
+The `match` parameter uses a pattern to match on the fieldname, while
+`unmatch` uses a pattern to exclude fields matched by `match`.
+
+The following example matches all `string` fields whose name starts with
+`long_` (except for those which end with `_text`) and maps them as `long`
+fields:
+
+
+[source,js]
+--------------------------------------------------
+PUT my_index
+{
+  "mappings": {
+    "my_type": {
+      "dynamic_templates": [
+        {
+          "longs_as_strings": {
+            "match_mapping_type": "string",
+            "match":   "long_*",
+            "unmatch": "*_text",
+            "mapping": {
+              "type": "long"
+            }
+          }
+        }
+      ]
+    }
+  }
+}
+
+PUT my_index/my_type/1
+{
+  "long_num": "5", <1>
+  "long_text": "foo" <2>
+}
+--------------------------------------------------
+// AUTOSENSE
+<1> The `long_num` field is mapped as a `long`.
+<2> The `long_text` field uses the default `string` mapping.
+
+[[match-pattern]]
+==== `match_pattern`
+
+The `match_pattern` parameter behaves just like the `match` parameter, but
+supports full Java regular expression matching on the field name instead of
+simple wildcards, for instance:
+
+[source,js]
+--------------------------------------------------
+  "match_pattern": "^profit_\d+$"
+--------------------------------------------------
+
+[[path-match-unmatch]]
+==== `path_match` and `path_unmatch`
+
+The `path_match` and `path_unmatch` parameters work in the same way as `match`
+and `unmatch`, but operate on the full dotted path to the field, not just the
+final name, e.g. `some_object.*.some_field`.
+
+This example copies the values of any fields in the `name` object to the
+top-level `full_name` field, except for the `middle` field:
+
+[source,js]
+--------------------------------------------------
+PUT my_index
+{
+  "mappings": {
+    "my_type": {
+      "dynamic_templates": [
+        {
+          "full_name": {
+            "path_match":   "name.*",
+            "path_unmatch": "*.middle",
+            "mapping": {
+              "type":       "string",
+              "copy_to":    "full_name"
+            }
+          }
+        }
+      ]
+    }
+  }
+}
+
+PUT my_index/my_type/1
+{
+  "name": {
+    "first":  "Alice",
+    "middle": "Mary",
+    "last":   "White"
+  }
+}
+--------------------------------------------------
+// AUTOSENSE
+
+[[template-variables]]
+==== `{name}` and `{dynamic_type}`
+
+The `{name}` and `{dynamic_type}` placeholders are replaced in the `mapping`
+with the field name and detected dynamic type.  The following example sets all
+string fields to use an <<analyzer,`analyzer`>> with the same name as the
+field, and disables <<doc-values,`doc_values`>> for all non-string fields:
+
+[source,js]
+--------------------------------------------------
+PUT my_index
+{
+  "mappings": {
+    "my_type": {
+      "dynamic_templates": [
+        {
+          "named_analyzers": {
+            "match_mapping_type": "string",
+            "match": "*",
+            "mapping": {
+              "type": "string",
+              "analyzer": "{name}"
+            }
+          }
+        },
+        {
+          "no_doc_values": {
+            "match_mapping_type":"*",
+            "mapping": {
+              "type": "{dynamic_type}",
+              "doc_values": false
+            }
+          }
+        }
+      ]
+    }
+  }
+}
+
+PUT my_index/my_type/1
+{
+  "english": "Some English text", <1>
+  "count":   5 <2>
+}
+--------------------------------------------------
+// AUTOSENSE
+<1> The `english` field is mapped as a `string` field with the `english` analyzer.
+<2> The `count` field is mapped as a `long` field with `doc_values` disabled
+

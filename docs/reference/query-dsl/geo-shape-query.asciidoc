@@ -3,7 +3,7 @@
 
 Filter documents indexed using the `geo_shape` type.
 
-Requires the <<mapping-geo-shape-type,geo_shape Mapping>>.
+Requires the <<geo-shape,`geo_shape` Mapping>>.
 
 The `geo_shape` query uses the same grid square representation as the
 geo_shape mapping to find documents that have a shape that intersects

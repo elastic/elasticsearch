@@ -36,6 +36,11 @@ public class NativeConstantForLoopScoreScript extends AbstractSearchScript {
         public ExecutableScript newScript(@Nullable Map<String, Object> params) {
             return new NativeConstantForLoopScoreScript(params);
         }
+
+        @Override
+        public boolean needsScores() {
+            return false;
+        }
     }
 
     private NativeConstantForLoopScoreScript(Map<String, Object> params) {

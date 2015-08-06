@@ -44,8 +44,8 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
-import org.elasticsearch.index.mapper.internal.SizeFieldMapper;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
@@ -387,7 +387,7 @@ public class SimpleAllMapperTests extends ESSingleNodeTestCase {
         String mapping = "{";
         Map<String, String> rootTypes = new HashMap<>();
         //just pick some example from DocumentMapperParser.rootTypeParsers
-        rootTypes.put(SizeFieldMapper.NAME, "{\"enabled\" : true}");
+        rootTypes.put(TimestampFieldMapper.NAME, "{\"enabled\" : true}");
         rootTypes.put("include_in_all", "true");
         rootTypes.put("dynamic_date_formats", "[\"yyyy-MM-dd\", \"dd-MM-yyyy\"]");
         rootTypes.put("numeric_detection", "true");

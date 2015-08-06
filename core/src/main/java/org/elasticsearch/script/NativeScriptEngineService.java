@@ -86,6 +86,10 @@ public class NativeScriptEngineService extends AbstractComponent implements Scri
                 script.setLookup(lookup.getLeafSearchLookup(context));
                 return script;
             }
+            @Override
+            public boolean needsScores() {
+                return scriptFactory.needsScores();
+            }
         };
     }
 

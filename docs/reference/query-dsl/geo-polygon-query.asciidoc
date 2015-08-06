@@ -112,7 +112,6 @@ Format in `lat,lon`.
 [float]
 ==== geo_point Type
 
-The filter *requires* the
-<<mapping-geo-point-type,geo_point>> type to be
-set on the relevant field.
+The query *requires* the <<geo-point,`geo_point`>> type to be set on the
+relevant field.
 

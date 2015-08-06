@@ -102,7 +102,6 @@ import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.Loading;
-import org.elasticsearch.index.mapper.internal.SizeFieldMapper;
 import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
 import org.elasticsearch.index.shard.MergePolicyConfig;
 import org.elasticsearch.index.translog.Translog;
@@ -356,11 +355,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
                     mappings.startObject(TimestampFieldMapper.NAME)
                             .field("enabled", randomBoolean());
                     mappings.endObject();
-                }
-                if (randomBoolean()) {
-                    mappings.startObject(SizeFieldMapper.NAME)
-                            .field("enabled", randomBoolean())
-                            .endObject();
                 }
                 mappings.startArray("dynamic_templates")
                         .startObject()

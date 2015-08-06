@@ -1,0 +1,48 @@
+[[mapping-index]]
+=== `index`
+
+The `index` option controls how field values are indexed and, thus, how they
+are searchable.  It accepts three values:
+
+[horizontal]
+`no`::
+
+    Do not add this field value to the index. With this setting, the field
+    will not be queryable.
+
+`not_analyzed`::
+
+    Add the field value to the index unchanged, as a single term.  This is the
+    default for all fields that support this option except for
+    <<string,`string`>> fields.  `not_analyzed` fields are usually used with
+    <<term-level-queries,term-level queries>> for structured search.
+
+`analyzed`::
+
+    This option applies only to `string` fields, for which it is the default.
+    The string field value is first <<analysis,analyzed>> to convert the
+    string into terms (e.g. a list of individual words), which are then
+    indexed.  At search time, the the query string is passed through
+    (<<search-analyzer,usually>>) the same analyzer to generate terms
+    in the same format as those in the index.  It is this process that enables
+    <<full-text-queries,full text search>>.
+
+For example, you can create a `not_analyzed` string field with the following:
+
+[source,js]
+--------------------------------------------------
+PUT /my_index
+{
+  "mappings": {
+    "my_type": {
+      "properties": {
+        "status_code": {
+          "type": "string",
+          "index": "not_analyzed"
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// AUTOSENSE

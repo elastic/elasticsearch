@@ -39,4 +39,11 @@ public abstract class ScoreFunction {
     }
 
     public abstract LeafScoreFunction getLeafScoreFunction(LeafReaderContext ctx) throws IOException;
+
+    /**
+     * Indicates if document scores are needed by this function.
+     * 
+     * @return {@code true} if scores are needed.
+     */
+    public abstract boolean needsScores();
 }

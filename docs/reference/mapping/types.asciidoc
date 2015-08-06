@@ -40,6 +40,33 @@ Attachment datatype::
     which supports indexing ``attachments'' like Microsoft Office formats, Open
     Document formats, ePub, HTML, etc. into an `attachment` datatype.
 
+[[field-conflicts]]
+[IMPORTANT]
+.Fields are shared across mapping types
+=========================================
+
+Mapping types are used to group fields, but the fields in each mapping type
+are not independent of each other. Fields with:
+
+* the _same name_
+* in the _same index_
+* in _different mapping types_
+* map to the _same field_ internally,
+* and *must have the same mapping*.
+
+If a `title` field exists in both the `user` and `blogpost` mapping types, the
+`title` fields must have exactly the same mapping in each type.  The only
+exceptions to this rule are the <<copy-to>>, <<dynamic>>, <<enabled>>,
+<<ignore-above>>, <<include-in-all>>, and <<properties>> parameters, which may
+have different settings per field.
+
+Usually, fields with the same name also contain the same type of data, so
+having the same mapping is not a problem.  When conflicts do arise, these can
+be solved by choosing more descriptive names, such as `user_title` and
+`blog_title`.
+
+=========================================
+
 include::types/array.asciidoc[]
 
 include::types/binary.asciidoc[]

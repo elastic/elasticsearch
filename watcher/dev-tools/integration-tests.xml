@@ -3,7 +3,7 @@
 
   <import file="${elasticsearch.integ.antfile.default}"/>
 
-  <target name="start-external-cluster-with-plugin" depends="setup-workspace" unless="${shouldskip}">
+  <target name="start-external-cluster-with-plugin" depends="setup-workspace">
     <install-plugin name="elasticsearch-license" file="${integ.deps}/elasticsearch-license-plugin-${project.version}.zip" />
     <install-plugin name="${project.artifactId}" file="${project.build.directory}/releases/${project.artifactId}-${project.version}.zip"/>
     <startup-elasticsearch/>

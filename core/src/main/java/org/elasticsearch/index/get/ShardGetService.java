@@ -228,8 +228,6 @@ public final class ShardGetService extends AbstractIndexShardComponent {
                         if (source.ttl > 0) {
                             value = docMapper.TTLFieldMapper().valueForSearch(source.timestamp + source.ttl);
                         }
-                    } else if (field.equals(SizeFieldMapper.NAME) && docMapper.rootMapper(SizeFieldMapper.class).fieldType().stored()) {
-                        value = source.source.length();
                     } else {
                         if (searchLookup == null) {
                             searchLookup = new SearchLookup(mapperService, null, new String[]{type});

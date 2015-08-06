@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.mapper.internal;
+package org.elasticsearch.index.mapper.size;
 
 import org.apache.lucene.document.Field;
 import org.elasticsearch.Version;
@@ -33,6 +33,7 @@ import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.core.IntegerFieldMapper;
+import org.elasticsearch.index.mapper.internal.EnabledAttributeMapper;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -86,7 +87,7 @@ public class SizeFieldMapper extends MetadataFieldMapper {
 
     public static class TypeParser implements Mapper.TypeParser {
         @Override
-        public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        public Mapper.Builder<?, ?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             Builder builder = new Builder(parserContext.mapperService().fullName(NAME));
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
@@ -106,11 +107,7 @@ public class SizeFieldMapper extends MetadataFieldMapper {
 
     private EnabledAttributeMapper enabledState;
 
-    public SizeFieldMapper(Settings indexSettings, MappedFieldType existing) {
-        this(Defaults.ENABLED_STATE, existing == null ? Defaults.SIZE_FIELD_TYPE.clone() : existing.clone(), indexSettings);
-    }
-
-    public SizeFieldMapper(EnabledAttributeMapper enabled, MappedFieldType fieldType, Settings indexSettings) {
+    private SizeFieldMapper(EnabledAttributeMapper enabled, MappedFieldType fieldType, Settings indexSettings) {
         super(NAME, fieldType, Defaults.SIZE_FIELD_TYPE, indexSettings);
         this.enabledState = enabled;
 

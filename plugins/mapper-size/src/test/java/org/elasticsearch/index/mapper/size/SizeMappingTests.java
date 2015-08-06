@@ -38,7 +38,9 @@ public class SizeMappingTests extends ESSingleNodeTestCase {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_size").field("enabled", true).endObject()
                 .endObject().endObject().string();
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
+        parser.putRootTypeParser(SizeFieldMapper.NAME, new SizeFieldMapper.TypeParser());
+        DocumentMapper docMapper = parser.parse(mapping);
 
         BytesReference source = XContentFactory.jsonBuilder()
                 .startObject()
@@ -56,7 +58,10 @@ public class SizeMappingTests extends ESSingleNodeTestCase {
                 .startObject("_size").field("enabled", true).field("store", "yes").endObject()
                 .endObject().endObject().string();
         Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
-        DocumentMapper docMapper = createIndex("test", indexSettings).mapperService().documentMapperParser().parse(mapping);
+
+        DocumentMapperParser parser = createIndex("test", indexSettings).mapperService().documentMapperParser();
+        parser.putRootTypeParser(SizeFieldMapper.NAME, new SizeFieldMapper.TypeParser());
+        DocumentMapper docMapper = parser.parse(mapping);
 
         BytesReference source = XContentFactory.jsonBuilder()
                 .startObject()
@@ -73,7 +78,9 @@ public class SizeMappingTests extends ESSingleNodeTestCase {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_size").field("enabled", false).endObject()
                 .endObject().endObject().string();
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
+        parser.putRootTypeParser(SizeFieldMapper.NAME, new SizeFieldMapper.TypeParser());
+        DocumentMapper docMapper = parser.parse(mapping);
 
         BytesReference source = XContentFactory.jsonBuilder()
                 .startObject()
@@ -105,6 +112,7 @@ public class SizeMappingTests extends ESSingleNodeTestCase {
                 .startObject("_size").field("enabled", true).endObject()
                 .endObject().endObject().string();
         DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
+        parser.putRootTypeParser(SizeFieldMapper.NAME, new SizeFieldMapper.TypeParser());
         DocumentMapper enabledMapper = parser.parse(enabledMapping);
 
         String disabledMapping = XContentFactory.jsonBuilder().startObject().startObject("type")
@@ -113,6 +121,6 @@ public class SizeMappingTests extends ESSingleNodeTestCase {
         DocumentMapper disabledMapper = parser.parse(disabledMapping);
 
         enabledMapper.merge(disabledMapper.mapping(), false, false);
-        assertThat(enabledMapper.SizeFieldMapper().enabled(), is(false));
+        assertThat(enabledMapper.rootMapper(SizeFieldMapper.class).enabled(), is(false));
     }
 }

@@ -3,7 +3,20 @@
 
   <import file="${elasticsearch.integ.antfile.default}"/>
 
+  <property name="integ.args" value="
+-Des.cluster.name=${integ.cluster.name}
+-Des.http.port=${integ.http.port}
+-Des.transport.tcp.port=${integ.transport.port}
+-Des.pidfile=${integ.pidfile}
+-Des.discovery.zen.ping.multicast.enabled=false
+-Des.script.inline=on
+-Des.script.indexed=on
+-Des.repositories.url.allowed_urls=http://snapshot.test*
+  "/>
+
+
   <!-- TODO shield redefines this because the wait for http will fail due to auth -->
+  <!-- TODO: remove this, its really fragile as shit -->
   <macrodef name="startup-elasticsearch">
     <attribute name="home" default="${integ.scratch}/elasticsearch-${elasticsearch.version}"/>
     <attribute name="args" default="${integ.args}"/>
@@ -13,16 +26,16 @@
                   args="@{args} -Des.path.repo=@{home}/repo" />
 
       <waitfor maxwait="3" maxwaitunit="minute" checkevery="500">
-        <socket server="127.0.0.1" port="9200"/>
+        <socket server="127.0.0.1" port="${integ.http.port}"/>
       </waitfor>
 
       <local name="integ.pid"/>
-      <extract-pid property="integ.pid"/>
+      <extract-pid file="${integ.pidfile}" property="integ.pid"/>
       <echo>External cluster started PID ${integ.pid}</echo>
     </sequential>
   </macrodef>
 
-  <target name="start-external-cluster-with-plugin" depends="setup-workspace" unless="${shouldskip}">
+  <target name="start-external-cluster-with-plugin" depends="setup-workspace">
     <local name="home"/>
     <property name="home" location="${integ.scratch}/elasticsearch-${elasticsearch.version}"/>
     <install-plugin name="elasticsearch-license" file="${integ.deps}/elasticsearch-license-plugin-${project.version}.zip" />
@@ -32,6 +45,6 @@
 
     <local name="temp.file"/>
     <tempfile property="temp.file" destdir="${java.io.tmpdir}"/>
-    <get src="http://127.0.0.1:9200" dest="${temp.file}" username="test_user" password="changeme" verbose="true" retries="10"/>
+    <get src="http://127.0.0.1:${integ.http.port}" dest="${temp.file}" username="test_user" password="changeme" verbose="true" retries="10"/>
   </target>
 </project>

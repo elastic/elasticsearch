@@ -26,7 +26,7 @@ import java.io.IOException;
 /**
  * Wraps a {@link StreamInput} and delegates to it. To be used to add functionality to an existing stream by subclassing.
  */
-public class FilterStreamInput extends StreamInput {
+public abstract class FilterStreamInput extends StreamInput {
 
     private final StreamInput delegate;
 

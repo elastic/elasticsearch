@@ -70,8 +70,8 @@ The following parameters are accepted by `string` fields:
 <<analyzer,`analyzer`>>::
 
     The <<analysis,analyzer>> which should be used for
-    <<mapping-index,`analyzed`>> string fields, both at index-time
-    and at search-time (unless overridden by the <<search-analyzer,`search_analyzer>>).
+    <<mapping-index,`analyzed`>> string fields, both at index-time and at
+    search-time (unless overridden by the  <<search-analyzer,`search_analyzer`>>).
     Defaults to the default index analyzer, or the
     <<analysis-standard-analyzer,`standard` analyzer>>.
 

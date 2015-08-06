@@ -74,6 +74,10 @@ public class UpdateByNativeScriptIT extends ESIntegTestCase {
         public ExecutableScript newScript(@Nullable Map<String, Object> params) {
             return new CustomScript(params);
         }
+        @Override
+        public boolean needsScores() {
+            return false;
+        }
     }
 
     static class CustomScript extends AbstractExecutableScript {

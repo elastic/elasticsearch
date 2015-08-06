@@ -36,6 +36,11 @@ public class NativeSignificanceScoreScriptWithParams extends TestScript {
         public ExecutableScript newScript(@Nullable Map<String, Object> params) {
             return new NativeSignificanceScoreScriptWithParams(params);
         }
+
+        @Override
+        public boolean needsScores() {
+            return false;
+        }
     }
 
     private NativeSignificanceScoreScriptWithParams(Map<String, Object> params) {

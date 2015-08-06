@@ -81,6 +81,11 @@ public class ScriptFieldIT extends ESIntegTestCase {
         public ExecutableScript newScript(@Nullable Map<String, Object> params) {
             return new IntScript();
         }
+
+        @Override
+        public boolean needsScores() {
+            return false;
+        }
     }
 
     static class IntScript extends AbstractSearchScript {
@@ -94,6 +99,11 @@ public class ScriptFieldIT extends ESIntegTestCase {
         @Override
         public ExecutableScript newScript(@Nullable Map<String, Object> params) {
             return new LongScript();
+        }
+
+        @Override
+        public boolean needsScores() {
+            return false;
         }
     }
 
@@ -109,6 +119,11 @@ public class ScriptFieldIT extends ESIntegTestCase {
         public ExecutableScript newScript(@Nullable Map<String, Object> params) {
             return new FloatScript();
         }
+
+        @Override
+        public boolean needsScores() {
+            return false;
+        }
     }
 
     static class FloatScript extends AbstractSearchScript {
@@ -122,6 +137,11 @@ public class ScriptFieldIT extends ESIntegTestCase {
         @Override
         public ExecutableScript newScript(@Nullable Map<String, Object> params) {
             return new DoubleScript();
+        }
+
+        @Override
+        public boolean needsScores() {
+            return false;
         }
     }
 

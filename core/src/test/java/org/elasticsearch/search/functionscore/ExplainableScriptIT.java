@@ -102,6 +102,10 @@ public class ExplainableScriptIT extends ESIntegTestCase {
         public ExecutableScript newScript(@Nullable Map<String, Object> params) {
             return new MyScript();
         }
+        @Override
+        public boolean needsScores() {
+            return true;
+        }
     }
 
     static class MyScript extends AbstractDoubleSearchScript implements ExplainableSearchScript, ExecutableScript {

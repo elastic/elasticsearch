@@ -97,6 +97,11 @@ public class NativeScriptTests extends ESTestCase {
         public ExecutableScript newScript(@Nullable Map<String, Object> params) {
             return new MyScript();
         }
+
+        @Override
+        public boolean needsScores() {
+            return false;
+        }
     }
 
     static class MyScript extends AbstractExecutableScript {

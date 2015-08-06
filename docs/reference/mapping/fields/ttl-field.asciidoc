@@ -1,5 +1,5 @@
 [[mapping-ttl-field]]
-=== `_ttl`
+=== `_ttl` field
 
 Some types of documents, such as session data or special offers, come with an
 expiration date. The `_ttl` field allows you to specify the minimum time a

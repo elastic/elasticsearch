@@ -71,6 +71,7 @@ curl -XPOST 'localhost:9200/_search' -d '{
 }'
 --------------------------------------------------
 
+[[nested-sorting]]
 ==== Sorting within nested objects.
 
 Elasticsearch also supports sorting by
@@ -166,6 +167,7 @@ If any of the indices that are queried doesn't have a mapping for `price`
 then Elasticsearch will handle it as if there was a mapping of type
 `long`, with all documents in this index having no value for this field.
 
+[[geo-sorting]]
 ==== Geo Distance Sorting
 
 Allow to sort by `_geo_distance`. Here is an example:

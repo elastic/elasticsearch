@@ -284,7 +284,6 @@ supported operations are:
 |=======================================================================
 |Value |Description
 | `aggs`    |Aggregations (wherever they may be used)
-| `mapping` |Mappings (script transform feature)
 | `search`  |Search api, Percolator api and Suggester api (e.g filters, script_fields)
 | `update`  |Update api
 | `plugin`  |Any plugin that makes use of scripts under the generic `plugin` category

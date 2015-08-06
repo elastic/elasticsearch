@@ -6,8 +6,8 @@ are scored. Similarity is per field, meaning that via the mapping one
 can define a different similarity per field.
 
 Configuring a custom similarity is considered a expert feature and the
-builtin similarities are most likely sufficient as is described in the
-<<mapping-core-types,mapping section>>
+builtin similarities are most likely sufficient as is described in
+<<similarity>>.
 
 [float]
 [[configuration]]
@@ -41,7 +41,7 @@ Here we configure the DFRSimilarity so it can be referenced as
     "properties" : {
       "title" : { "type" : "string", "similarity" : "my_similarity" }
     }
-} 
+}
 --------------------------------------------------
 
 [float]
@@ -52,9 +52,9 @@ Here we configure the DFRSimilarity so it can be referenced as
 ==== Default similarity
 
 The default similarity that is based on the TF/IDF model. This
-similarity has the following option: 
+similarity has the following option:
 
-`discount_overlaps`:: 
+`discount_overlaps`::
     Determines whether overlap tokens (Tokens with
     0 position increment) are ignored when computing norm. By default this
     is true, meaning overlap tokens do not count when computing norms.
@@ -71,14 +71,14 @@ http://en.wikipedia.org/wiki/Okapi_BM25[Okapi_BM25] for more details.
 This similarity has the following options:
 
 [horizontal]
-`k1`:: 
+`k1`::
     Controls non-linear term frequency normalization
-    (saturation). 
+    (saturation).
 
-`b`:: 
-    Controls to what degree document length normalizes tf values. 
+`b`::
+    Controls to what degree document length normalizes tf values.
 
-`discount_overlaps`:: 
+`discount_overlaps`::
     Determines whether overlap tokens (Tokens with
     0 position increment) are ignored when computing norm. By default this
     is true, meaning overlap tokens do not count when computing norms.
@@ -90,17 +90,17 @@ Type name: `BM25`
 ==== DFR similarity
 
 Similarity that implements the
-http://lucene.apache.org/core/4_1_0/core/org/apache/lucene/search/similarities/DFRSimilarity.html[divergence
+http://lucene.apache.org/core/5_2_1/core/org/apache/lucene/search/similarities/DFRSimilarity.html[divergence
 from randomness] framework. This similarity has the following options:
 
 [horizontal]
-`basic_model`:: 
-    Possible values: `be`, `d`, `g`, `if`, `in`, `ine` and `p`. 
+`basic_model`::
+    Possible values: `be`, `d`, `g`, `if`, `in`, `ine` and `p`.
 
 `after_effect`::
-    Possible values: `no`, `b` and `l`. 
+    Possible values: `no`, `b` and `l`.
 
-`normalization`:: 
+`normalization`::
     Possible values: `no`, `h1`, `h2`, `h3` and `z`.
 
 All options but the first option need a normalization value.
@@ -111,12 +111,12 @@ Type name: `DFR`
 [[ib]]
 ==== IB similarity.
 
-http://lucene.apache.org/core/4_1_0/core/org/apache/lucene/search/similarities/IBSimilarity.html[Information
+http://lucene.apache.org/core/5_2_1/core/org/apache/lucene/search/similarities/IBSimilarity.html[Information
 based model] . This similarity has the following options:
 
 [horizontal]
-`distribution`::  Possible values: `ll` and `spl`. 
-`lambda`::        Possible values: `df` and `ttf`. 
+`distribution`::  Possible values: `ll` and `spl`.
+`lambda`::        Possible values: `df` and `ttf`.
 `normalization`:: Same as in `DFR` similarity.
 
 Type name: `IB`
@@ -125,7 +125,7 @@ Type name: `IB`
 [[lm_dirichlet]]
 ==== LM Dirichlet similarity.
 
-http://lucene.apache.org/core/4_7_1/core/org/apache/lucene/search/similarities/LMDirichletSimilarity.html[LM
+http://lucene.apache.org/core/5_2_1/core/org/apache/lucene/search/similarities/LMDirichletSimilarity.html[LM
 Dirichlet similarity] . This similarity has the following options:
 
 [horizontal]
@@ -137,7 +137,7 @@ Type name: `LMDirichlet`
 [[lm_jelinek_mercer]]
 ==== LM Jelinek Mercer similarity.
 
-http://lucene.apache.org/core/4_7_1/core/org/apache/lucene/search/similarities/LMJelinekMercerSimilarity.html[LM
+http://lucene.apache.org/core/5_2_1/core/org/apache/lucene/search/similarities/LMJelinekMercerSimilarity.html[LM
 Jelinek Mercer similarity] . This similarity has the following options:
 
 [horizontal]

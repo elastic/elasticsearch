@@ -44,7 +44,7 @@ These documents would *not* match the above query:
 [float]
 ===== `null_value` mapping
 
-If the field mapping includes the `null_value` setting (see <<mapping-core-types>>)
+If the field mapping includes the <<null-value,`null_value`>> setting
 then explicit `null` values are replaced with the specified `null_value`.  For
 instance, if the `user` field were mapped as follows:
 

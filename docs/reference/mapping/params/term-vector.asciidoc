@@ -1,0 +1,68 @@
+[[term-vector]]
+=== `term_vector`
+
+Term vectors contain information about the terms produced by the
+<<analysis,analysis>> process, including:
+
+* a list of terms.
+* the position (or order) of each term.
+* the start and end character offsets mapping the term to its
+  origin in the original string.
+
+These term vectors can be stored so that they can be retrieved for a
+particular document.
+
+The `term_vector` setting accepts:
+
+[horizontal]
+`no`::                      No term vectors are stored. (default)
+`yes`::                     Just the terms in the field are stored.
+`with_positions`::          Terms and positions are stored.
+`with_offsets`::            Terms and character offsets are stored.
+`with_positions_offsets`::  Terms, positions, and character offsets are stored.
+
+The fast vector highlighter requires `with_positions_offsets`.  The term
+vectors API can retrieve whatever is stored.
+
+WARNING:  Setting `with_positions_offsets` will double the size of a field's
+index.
+
+[source,js]
+--------------------------------------------------
+PUT my_index
+{
+  "mappings": {
+    "my_type": {
+      "properties": {
+        "text": {
+          "type":        "string",
+          "term_vector": "with_positions_offsets"
+        }
+      }
+    }
+  }
+}
+
+PUT my_index/my_type/1
+{
+  "text": "Quick brown fox"
+}
+
+GET my_index/_search
+{
+  "query": {
+    "match": {
+      "text": "brown fox"
+    }
+  },
+  "highlight": {
+    "fields": {
+      "text": {} <1>
+    }
+  }
+}
+--------------------------------------------------
+// AUTOSENSE
+<1> The fast vector highlighter will be used by default for the `text` field
+    because term vectors are enabled.
+

@@ -1,7 +1,7 @@
-[[mapping-geo-shape-type]]
-=== Geo Shape Type
+[[geo-shape]]
+=== Geo-Shape datatype
 
-The `geo_shape` mapping type facilitates the indexing of and searching
+The `geo_shape` datatype facilitates the indexing of and searching
 with arbitrary geo shapes such as rectangles and polygons. It should be
 used when either the data being indexed or the queries being executed
 contain shapes other than just points.

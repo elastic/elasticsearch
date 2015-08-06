@@ -14,7 +14,7 @@ docs/html/
 docs/build.log
 /tmp/
 backwards/
-
+html_docs
 ## eclipse ignores (use 'mvn eclipse:eclipse' to build eclipse projects)
 ## All files (.project, .classpath, .settings/*) should be generated through Maven which
 ## will correctly set the classpath based on the declared dependencies and write settings 

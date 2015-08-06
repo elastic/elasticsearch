@@ -1,73 +1,67 @@
-[[mapping-dynamic-mapping]]
+[[dynamic-mapping]]
 == Dynamic Mapping
 
-Default mappings allow generic mapping definitions to be automatically applied
-to types that do not have mappings predefined. This is mainly done
-thanks to the fact that the
-<<mapping-object-type,object mapping>> and
-namely the <<mapping-root-object-type,root
-object mapping>> allow for schema-less dynamic addition of unmapped
-fields.
-
-The default mapping definition is a plain mapping definition that is
-embedded within the distribution:
+One of the most important features of Elasticsearch is that it tries to get
+out of your way and let you start exploring your data as quickly as possible.
+To index a document, you don't have to first create an index, define a mapping
+type, and define your fields -- you can just index a document and the index,
+type, and fields will spring to life automatically:
 
 [source,js]
 --------------------------------------------------
-{
-    "_default_" : {
-    }
-}
+PUT data/counters/1 <1>
+{ "count": 5 }
 --------------------------------------------------
+// AUTOSENSE
+<1> Creates the `data` index, the `counters` mapping type, and a field
+    called `count` with datatype `long`.
 
-Pretty short, isn't it? Basically, everything is defaulted, especially the
-dynamic nature of the root object mapping. The default mapping can be
-overridden by specifying the `_default_` type when creating a new index.
+The automatic detection and addition of new types and fields is called
+_dynamic mapping_. The dynamic mapping rules can be customised to suit your
+purposes with:
 
-The dynamic creation of mappings for unmapped types can be completely
-disabled by setting `index.mapper.dynamic` to `false`.
+<<default-mapping,`_default_` mapping>>::
 
-The dynamic creation of fields within a type can be completely
-disabled by setting the `dynamic` property of the type to `strict`.
+    Configure the base mapping to be used for new mapping types.
 
-Here is a <<indices-put-mapping,Put Mapping>> example that
-disables dynamic field creation for a `tweet`:
+<<dynamic-field-mapping,Dynamic field mappings>>::
 
-[source,js]
---------------------------------------------------
-$ curl -XPUT 'http://localhost:9200/twitter/_mapping/tweet' -d '
-{
-    "tweet" : {
-        "dynamic": "strict",
-        "properties" : {
-            "message" : {"type" : "string", "store" : true }
-        }
-    }
-}
-'
---------------------------------------------------
+    The rules governing dynamic field detection.
 
-Here is how we can change the default
-<<mapping-date-format,date_formats>> used in the
-root and inner object types:
+<<dynamic-templates,Dynamic templates>>::
 
-[source,js]
---------------------------------------------------
-{
-    "_default_" : {
-        "dynamic_date_formats" : ["yyyy-MM-dd", "dd-MM-yyyy", "date_optional_time"]
-    }
-}
---------------------------------------------------
+    Custom rules to configure the mapping for dynamically added fields.
+
+TIP: <<indices-templates,Index templates>> allow you to configure the default
+mappings, settings, aliases, and warmers for new indices, whether created
+automatically or explicitly.
+
 
 [float]
-=== Unmapped fields in queries
+=== Disabling automatic type creation
 
-Queries and filters can refer to fields that don't exist in a mapping. Whether this
-is allowed is controlled by the `index.query.parse.allow_unmapped_fields` setting.
-This setting defaults to `true`. Setting it to `false` will disallow the usage of
-unmapped fields in queries.
+Automatic type creation can be disabled by setting the `index.mapper.dynamic`
+setting to `false`, either by setting the default value in the
+`config/elasticsearch.yml` file, or per-index as an index setting:
 
-When registering a new <<search-percolate,percolator query>> or creating
-a <<filtered,filtered alias>> then the `index.query.parse.allow_unmapped_fields` setting
-is forcefully overwritten to disallowed unmapped fields.
+[source,js]
+--------------------------------------------------
+PUT /_settings <1>
+{
+  "index.mapper.dynamic":false
+}
+--------------------------------------------------
+// AUTOSENSE
+<1> Disable automatic type creation for all indices.
+
+Regardless of the value of this setting, types can still be added explicitly
+when <<indices-create-index,creating an index>> or with the
+<<indices-put-mapping,PUT mapping>> API.
+
+
+include::dynamic/default-mapping.asciidoc[]
+
+include::dynamic/field-mapping.asciidoc[]
+
+include::dynamic/templates.asciidoc[]
+

@@ -17,7 +17,7 @@
                   "must": [
                     {
                       "range": {
-                        "@timestamp": {
+                        "timestamp": {
                           "gte": "now-2m",
                           "lte": "now"
                         }
@@ -45,10 +45,10 @@
               }
             }
           },
-          "fields": ["@timestamp","status"],
+          "fields": ["timestamp","status"],
           "sort": [
             {
-              "@timestamp": {
+              "timestamp": {
                 "order": "desc"
               }
             }
@@ -57,7 +57,7 @@
           "aggs": {
             "minutes": {
               "date_histogram": {
-                "field": "@timestamp",
+                "field": "timestamp",
                 "interval": "5s"
               },
               "aggs": {

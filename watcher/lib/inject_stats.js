@@ -18,7 +18,7 @@ module.exports = function (fixture) {
 
   function createEntries(row) {
     var index = workingDate.format(indexPattern);
-    var entry = { '@timestamp': workingDate.toISOString() };
+    var entry = { 'timestamp': workingDate.toISOString() };
     row.forEach(function (val, index) {
       _.set(entry, fields[index], val);
     });

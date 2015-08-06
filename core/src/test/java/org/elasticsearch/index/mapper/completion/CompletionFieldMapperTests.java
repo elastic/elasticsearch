@@ -52,7 +52,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.Matchers.*;
 
 public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
-    private final Version PRE2X_VERSION = VersionUtils.randomVersionBetween(getRandom(), Version.V_1_0_0, Version.V_1_7_0);
 
     @Test
     public void testDefaultConfiguration() throws IOException {

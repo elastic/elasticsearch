@@ -49,7 +49,7 @@ import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.search.suggest.completion.old.CompletionSuggestion;
 import org.elasticsearch.search.suggest.completion.old.CompletionSuggestionBuilder;
 import org.elasticsearch.search.suggest.completion.old.CompletionSuggestionFuzzyBuilder;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.junit.Test;
 
@@ -70,7 +70,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllS
 import static org.hamcrest.Matchers.*;
 
 @SuppressCodecs("*") // requires custom completion format
-public class OldCompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
+public class OldCompletionSuggestSearchIT extends ESIntegTestCase {
 
     private final String INDEX = RandomStrings.randomAsciiOfLength(getRandom(), 10).toLowerCase(Locale.ROOT);
     private final String TYPE = RandomStrings.randomAsciiOfLength(getRandom(), 10).toLowerCase(Locale.ROOT);

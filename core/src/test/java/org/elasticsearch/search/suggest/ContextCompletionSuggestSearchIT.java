@@ -27,10 +27,10 @@ import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.search.suggest.CompletionSuggestSearchTests.CompletionMappingBuilder;
+import org.elasticsearch.search.suggest.CompletionSuggestSearchIT.CompletionMappingBuilder;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestionBuilder;
 import org.elasticsearch.search.suggest.completion.context.*;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -39,7 +39,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
 @SuppressCodecs("*") // requires custom completion format
-public class ContextCompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
+public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
 
     /* TODO: currently to get n completions with contexts, we have to request size of
      * n * size(contexts); internally a suggestion + a context value is considered
@@ -539,7 +539,7 @@ public class ContextCompletionSuggestSearchTests extends ElasticsearchIntegratio
     public void assertSuggestions(String suggestionName, SuggestBuilder.SuggestionBuilder suggestBuilder, String... suggestions) {
         SuggestResponse suggestResponse = client().prepareSuggest(INDEX).addSuggestion(suggestBuilder
         ).execute().actionGet();
-        CompletionSuggestSearchTests.assertSuggestions(suggestResponse, suggestionName, suggestions);
+        CompletionSuggestSearchIT.assertSuggestions(suggestResponse, suggestionName, suggestions);
     }
 
     private void createIndexAndMapping(CompletionMappingBuilder completionMappingBuilder) throws IOException {

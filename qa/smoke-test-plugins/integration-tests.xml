@@ -1,0 +1,42 @@
+<?xml version="1.0"?>
+<project name="smoke-test-plugins"
+         xmlns:ac="antlib:net.sf.antcontrib">
+
+  <import file="${elasticsearch.integ.antfile.default}"/>
+
+  <macrodef name="convert-plugin-name">
+      <attribute name="file"/>
+      <attribute name="outputproperty"/>
+    <sequential>
+      <local name="file.base"/>
+      <basename file="@{file}" property="file.base"/>
+      <filter-property src="file.base" dest="@{outputproperty}">
+        <chain>
+          <replaceregex pattern="^elasticsearch-" replace=""/>
+          <replacestring from="-${elasticsearch.version}.zip" to=""/>
+        </chain>
+      </filter-property>
+    </sequential>
+  </macrodef>
+
+  <target name="start-external-cluster-with-plugins" depends="setup-workspace" unless="${shouldskip}">
+    <fail message="Expected ${expected.plugin.count} dependencies, are plugins missing from this pom.xml?">
+      <condition>
+        <resourcecount count="${expected.plugin.count}" when="ne">
+          <fileset dir="${integ.deps}/plugins"/>
+        </resourcecount>
+      </condition>
+    </fail>
+    <ac:for param="file">
+      <path>
+        <fileset dir="${integ.deps}/plugins"/>
+      </path>
+      <sequential>
+        <local name="plugin.name"/>
+        <convert-plugin-name file="@{file}" outputproperty="plugin.name"/>
+        <install-plugin name="${plugin.name}" file="@{file}"/>
+      </sequential>
+    </ac:for>
+    <startup-elasticsearch/>
+  </target>
+</project>

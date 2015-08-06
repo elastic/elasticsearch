@@ -5,12 +5,12 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>org.elasticsearch.plugin</groupId>
-    <artifactId>elasticsearch-plugin</artifactId>
+    <groupId>org.elasticsearch.qa</groupId>
+    <artifactId>elasticsearch-qa</artifactId>
     <version>2.0.0-beta1-SNAPSHOT</version>
     <packaging>pom</packaging>
-    <name>Elasticsearch Plugin POM</name>
-    <inceptionYear>2009</inceptionYear>
+    <name>QA: Parent POM</name>
+    <inceptionYear>2015</inceptionYear>
 
     <parent>
         <groupId>org.elasticsearch</groupId>
@@ -19,11 +19,6 @@
     </parent>
 
     <properties>
-        <elasticsearch.assembly.descriptor>${elasticsearch.tools.directory}/plugin-metadata/plugin-assembly.xml</elasticsearch.assembly.descriptor>
-        <elasticsearch.assembly.appendId>false</elasticsearch.assembly.appendId>
-        <elasticsearch.plugin.jvm>true</elasticsearch.plugin.jvm>
-        <elasticsearch.plugin.isolated>true</elasticsearch.plugin.isolated>
-        <elasticsearch.plugin.site>false</elasticsearch.plugin.site>
     </properties>
 
     <dependencies>
@@ -222,7 +217,7 @@
         </dependency>
     </dependencies>
 
-    <!-- typical layout for plugins -->
+    <!-- typical layout -->
     <build>
         <resources>
             <resource>
@@ -260,6 +255,7 @@
             <!-- REST API specification and test suites -->
             <testResource>
                 <directory>${project.basedir}/rest-api-spec</directory>
+                <filtering>true</filtering>
                 <targetPath>rest-api-spec</targetPath>
                 <includes>
                     <include>api/*.json</include>
@@ -267,7 +263,7 @@
                 </includes>
             </testResource>
             <!-- REST API specifications copied from main Elasticsearch specs
-                 because they are required to execute the REST tests in plugins  -->
+                 because they are required to execute the REST tests in here  -->
             <testResource>
                 <directory>${elasticsearch.tools.directory}/rest-api-spec</directory>
                 <targetPath>rest-api-spec</targetPath>
@@ -295,111 +291,8 @@
             </testResource>
         </testResources>
 
-        <plugins>
-           <!-- integration tests -->
-                <plugin>
-                    <groupId>org.apache.maven.plugins</groupId>
-                    <artifactId>maven-antrun-plugin</artifactId>
-                    <executions>
-                        <!-- start up external cluster -->
-                        <execution>
-                            <id>integ-setup</id>
-                            <phase>pre-integration-test</phase>
-                            <goals>
-                                <goal>run</goal>
-                            </goals>
-                            <configuration>
-                                <skip>${skip.integ.tests}</skip>
-                                <target>
-                                    <ant antfile="${elasticsearch.integ.antfile}" target="start-external-cluster-with-plugin"/>
-                                </target>
-                            </configuration>
-                        </execution>
-                        <!-- shut down external cluster -->
-                        <execution>
-                            <id>integ-teardown</id>
-                            <phase>post-integration-test</phase>
-                            <goals>
-                                <goal>run</goal>
-                            </goals>
-                            <configuration>
-                                <skip>${skip.integ.tests}</skip>
-                                <target>
-                                    <ant antfile="${elasticsearch.integ.antfile}" target="stop-external-cluster"/>
-                                </target>
-                            </configuration>
-                        </execution>
-                    </executions>
-                </plugin>
-        </plugins>
-
         <pluginManagement>
             <plugins>
-                <plugin>
-                    <groupId>org.apache.maven.plugins</groupId>
-                    <artifactId>maven-assembly-plugin</artifactId>
-                    <configuration>
-                        <appendAssemblyId>${elasticsearch.assembly.appendId}</appendAssemblyId>
-                        <outputDirectory>${project.build.directory}/releases/</outputDirectory>
-                        <descriptors>
-                            <descriptor>${elasticsearch.assembly.descriptor}</descriptor>
-                        </descriptors>
-                    </configuration>
-                    <executions>
-                        <execution>
-                            <phase>package</phase>
-                            <goals>
-                                <goal>single</goal>
-                            </goals>
-                        </execution>
-                    </executions>
-                </plugin>
-                <plugin>
-                    <groupId>org.apache.maven.plugins</groupId>
-                    <artifactId>maven-enforcer-plugin</artifactId>
-                    <executions>
-                        <execution>
-                            <id>enforce-plugin-classname</id>
-                            <goals>
-                                <goal>enforce</goal>
-                            </goals>
-                            <configuration>
-                                <rules>
-                                    <requireProperty>
-                                        <property>elasticsearch.plugin.classname</property>
-                                    </requireProperty>
-                                </rules>
-                            </configuration>
-                        </execution>
-                    </executions>
-                </plugin>
-                <plugin>
-                    <groupId>org.apache.maven.plugins</groupId>
-                    <artifactId>maven-dependency-plugin</artifactId>
-                    <executions>
-                        <execution>
-                            <id>integ-setup-dependencies</id>
-                            <phase>pre-integration-test</phase>
-                            <goals>
-                                <goal>copy</goal>
-                            </goals>
-                            <configuration>
-                                <skip>${skip.integ.tests}</skip>
-                                <artifactItems>
-                                    <artifactItem>
-                                        <groupId>org.elasticsearch.distribution.zip</groupId>
-                                        <artifactId>elasticsearch</artifactId>
-                                        <version>${elasticsearch.version}</version>
-                                        <type>zip</type>
-                                        <overWrite>true</overWrite>
-                                    </artifactItem>
-                                </artifactItems>
-                                <useBaseVersion>true</useBaseVersion>
-                                <outputDirectory>${integ.deps}</outputDirectory>
-                            </configuration>
-                        </execution>
-                    </executions>
-                </plugin>
                 <plugin>
                     <groupId>com.carrotsearch.randomizedtesting</groupId>
                     <artifactId>junit4-maven-plugin</artifactId>
@@ -422,17 +315,6 @@
     </build>
 
     <modules>
-        <module>analysis-kuromoji</module>
-        <module>analysis-smartcn</module>
-        <module>analysis-stempel</module>
-        <module>analysis-phonetic</module>
-        <module>analysis-icu</module>
-        <module>cloud-gce</module>
-        <module>cloud-azure</module>
-        <module>cloud-aws</module>
-        <module>site-example</module>
-        <module>lang-python</module>
-        <module>lang-javascript</module>
-        <module>delete-by-query</module>
+        <module>smoke-test-plugins</module>
     </modules>
 </project>

@@ -692,12 +692,15 @@ public abstract class ESIntegTestCase extends ESTestCase {
         if (numberOfReplicas >= 0) {
             builder.put(SETTING_NUMBER_OF_REPLICAS, numberOfReplicas).build();
         }
+        // norelease: disabled because custom data paths don't play well against
+        // an external test cluster: the security manager is not happy that random
+        // files are touched. See http://build-us-00.elastic.co/job/es_core_master_strong/4357/console
         // 30% of the time
-        if (randomInt(9) < 3) {
-            final Path dataPath = createTempDir();
-            logger.info("using custom data_path for index: [{}]", dataPath);
-            builder.put(IndexMetaData.SETTING_DATA_PATH, dataPath);
-        }
+        // if (randomInt(9) < 3) {
+        //     final Path dataPath = createTempDir();
+        //     logger.info("using custom data_path for index: [{}]", dataPath);
+        //    builder.put(IndexMetaData.SETTING_DATA_PATH, dataPath);
+        // }
         return builder.build();
     }
 

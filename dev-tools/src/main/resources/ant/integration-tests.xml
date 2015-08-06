@@ -52,9 +52,10 @@
 
   <!-- extracts PID from file -->
   <macrodef name="extract-pid">
+      <attribute name="file"/>
       <attribute name="property"/>
     <sequential>
-      <loadfile srcFile="${integ.pidfile}" property="@{property}">
+      <loadfile srcFile="@{file}" property="@{property}">
         <filterchain>
           <striplinebreaks/>
         </filterchain>
@@ -169,8 +170,8 @@
       <fail message="ES instance did not start" if="failed.to.start"/>
 
       <local name="integ.pid"/>
-      <extract-pid property="integ.pid"/>
-      <echo>External cluster started PID @{es.pidfile}</echo>
+      <extract-pid file="@{es.pidfile}" property="integ.pid"/>
+      <echo>External cluster started PID ${integ.pid}</echo>
     </sequential>
   </macrodef>
 
@@ -207,7 +208,7 @@
   <target name="stop-external-cluster" if="integ.pidfile.exists">
     <local name="integ.pid"/>
 
-    <extract-pid property="integ.pid"/>
+    <extract-pid file="${integ.pidfile}" property="integ.pid"/>
     <echo>Shutting down external cluster PID ${integ.pid}</echo>
 
     <exec executable="taskkill" failonerror="true" osfamily="winnt">

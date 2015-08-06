@@ -18,6 +18,8 @@
  */
 package org.apache.lucene.queries;
 
+import org.apache.lucene.util.ToStringUtils;
+
 import com.google.common.primitives.Ints;
 import org.apache.lucene.index.*;
 import org.apache.lucene.search.*;
@@ -53,13 +55,17 @@ import java.util.Set;
 public abstract class BlendedTermQuery extends Query {
 
     private final Term[] terms;
+    private final float[] boosts;
 
-
-    public BlendedTermQuery(Term[] terms) {
+    public BlendedTermQuery(Term[] terms, float[] boosts) {
         if (terms == null || terms.length == 0) {
             throw new IllegalArgumentException("terms must not be null or empty");
         }
+        if (boosts != null && boosts.length != terms.length) {
+            throw new IllegalArgumentException("boosts must have the same size as terms");
+        }
         this.terms = terms;
+        this.boosts = boosts;
     }
 
     @Override
@@ -185,8 +191,22 @@ public abstract class BlendedTermQuery extends Query {
 
     @Override
     public String toString(String field) {
-        return "blended(terms: " + Arrays.toString(terms) + ")";
-
+        StringBuilder builder = new StringBuilder("blended(terms:[");
+        for (int i = 0; i < terms.length; ++i) {
+            builder.append(terms[i]);
+            float boost = 1f;
+            if (boosts != null) {
+                boost = boosts[i];
+            }
+            builder.append(ToStringUtils.boost(boost));
+            builder.append(", ");
+        }
+        if (terms.length > 0) {
+            builder.setLength(builder.length() - 2);
+        }
+        builder.append("])");
+        builder.append(ToStringUtils.boost(getBoost()));
+        return builder.toString();
     }
 
     @Override
@@ -238,7 +258,7 @@ public abstract class BlendedTermQuery extends Query {
     }
 
     public static BlendedTermQuery booleanBlendedQuery(Term[] terms, final float[] boosts, final boolean disableCoord) {
-        return new BlendedTermQuery(terms) {
+        return new BlendedTermQuery(terms, boosts) {
             protected Query topLevelQuery(Term[] terms, TermContext[] ctx, int[] docFreqs, int maxDoc) {
                 BooleanQuery query = new BooleanQuery(disableCoord);
                 for (int i = 0; i < terms.length; i++) {
@@ -254,7 +274,7 @@ public abstract class BlendedTermQuery extends Query {
     }
 
     public static BlendedTermQuery commonTermsBlendedQuery(Term[] terms, final float[] boosts, final boolean disableCoord, final float maxTermFrequency) {
-        return new BlendedTermQuery(terms) {
+        return new BlendedTermQuery(terms, boosts) {
             protected Query topLevelQuery(Term[] terms, TermContext[] ctx, int[] docFreqs, int maxDoc) {
                 BooleanQuery query = new BooleanQuery(true);
                 BooleanQuery high = new BooleanQuery(disableCoord);
@@ -293,7 +313,7 @@ public abstract class BlendedTermQuery extends Query {
     }
 
     public static BlendedTermQuery dismaxBlendedQuery(Term[] terms, final float[] boosts, final float tieBreakerMultiplier) {
-        return new BlendedTermQuery(terms) {
+        return new BlendedTermQuery(terms, boosts) {
             protected Query topLevelQuery(Term[] terms, TermContext[] ctx, int[] docFreqs, int maxDoc) {
                 DisjunctionMaxQuery query = new DisjunctionMaxQuery(tieBreakerMultiplier);
                 for (int i = 0; i < terms.length; i++) {

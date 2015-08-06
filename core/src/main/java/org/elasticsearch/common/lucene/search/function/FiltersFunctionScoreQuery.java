@@ -124,25 +124,31 @@ public class FiltersFunctionScoreQuery extends Query {
 
     @Override
     public Weight createWeight(IndexSearcher searcher, boolean needsScores) throws IOException {
-        // TODO: needsScores
-        // if we dont need scores, just return the underlying Weight?
-        Weight subQueryWeight = subQuery.createWeight(searcher, needsScores);
+        if (needsScores == false) {
+            return subQuery.createWeight(searcher, needsScores);
+        }
+
+        boolean subQueryNeedsScores = combineFunction != CombineFunction.REPLACE;
         Weight[] filterWeights = new Weight[filterFunctions.length];
         for (int i = 0; i < filterFunctions.length; ++i) {
+            subQueryNeedsScores |= filterFunctions[i].function.needsScores();
             filterWeights[i] = searcher.createNormalizedWeight(filterFunctions[i].filter, false);
         }
-        return new CustomBoostFactorWeight(this, subQueryWeight, filterWeights);
+        Weight subQueryWeight = subQuery.createWeight(searcher, subQueryNeedsScores);
+        return new CustomBoostFactorWeight(this, subQueryWeight, filterWeights, subQueryNeedsScores);
     }
 
     class CustomBoostFactorWeight extends Weight {
 
         final Weight subQueryWeight;
         final Weight[] filterWeights;
+        final boolean needsScores;
 
-        public CustomBoostFactorWeight(Query parent, Weight subQueryWeight, Weight[] filterWeights) throws IOException {
+        public CustomBoostFactorWeight(Query parent, Weight subQueryWeight, Weight[] filterWeights, boolean needsScores) throws IOException {
             super(parent);
             this.subQueryWeight = subQueryWeight;
             this.filterWeights = filterWeights;
+            this.needsScores = needsScores;
         }
 
         @Override
@@ -179,7 +185,7 @@ public class FiltersFunctionScoreQuery extends Query {
                 Scorer filterScorer = filterWeights[i].scorer(context, null); // no need to apply accepted docs
                 docSets[i] = Lucene.asSequentialAccessBits(context.reader().maxDoc(), filterScorer);
             }
-            return new FiltersFunctionFactorScorer(this, subQueryScorer, scoreMode, filterFunctions, maxBoost, functions, docSets, combineFunction, minScore);
+            return new FiltersFunctionFactorScorer(this, subQueryScorer, scoreMode, filterFunctions, maxBoost, functions, docSets, combineFunction, minScore, needsScores);
         }
 
         @Override
@@ -269,21 +275,26 @@ public class FiltersFunctionScoreQuery extends Query {
         private final ScoreMode scoreMode;
         private final LeafScoreFunction[] functions;
         private final Bits[] docSets;
+        private final boolean needsScores;
 
         private FiltersFunctionFactorScorer(CustomBoostFactorWeight w, Scorer scorer, ScoreMode scoreMode, FilterFunction[] filterFunctions,
-                                            float maxBoost, LeafScoreFunction[] functions, Bits[] docSets, CombineFunction scoreCombiner, Float minScore) throws IOException {
+                                            float maxBoost, LeafScoreFunction[] functions, Bits[] docSets, CombineFunction scoreCombiner, Float minScore, boolean needsScores) throws IOException {
             super(w, scorer, maxBoost, scoreCombiner, minScore);
             this.scoreMode = scoreMode;
             this.filterFunctions = filterFunctions;
             this.functions = functions;
             this.docSets = docSets;
+            this.needsScores = needsScores;
         }
 
         @Override
         public float innerScore() throws IOException {
             int docId = scorer.docID();
             double factor = 1.0f;
-            float subQueryScore = scorer.score();
+            // Even if the weight is created with needsScores=false, it might
+            // be costly to call score(), so we explicitly check if scores
+            // are needed
+            float subQueryScore = needsScores ? scorer.score() : 0f;
             if (scoreMode == ScoreMode.First) {
                 for (int i = 0; i < filterFunctions.length; i++) {
                     if (docSets[i].get(docId)) {

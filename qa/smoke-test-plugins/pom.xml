@@ -193,6 +193,7 @@
             <configuration>
               <target>
                 <ant antfile="${elasticsearch.integ.antfile}" target="start-external-cluster-with-plugins">
+                  <property name="tests.jvm.argline" value="${tests.jvm.argline}"/>
                   <property name="plugins.dir" value="${plugins.dir}"/>
                   <property name="expected.plugin.count" value="${expected.plugin.count}"/>
                 </ant>

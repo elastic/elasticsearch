@@ -50,14 +50,16 @@ if NOT "%ES_USE_IPV4%" == "" (
 set JAVA_OPTS=%JAVA_OPTS% -Djava.net.preferIPv4Stack=true
 )
 
-set JAVA_OPTS=%JAVA_OPTS% -XX:+UseParNewGC
-set JAVA_OPTS=%JAVA_OPTS% -XX:+UseConcMarkSweepGC
-
-set JAVA_OPTS=%JAVA_OPTS% -XX:CMSInitiatingOccupancyFraction=75
-set JAVA_OPTS=%JAVA_OPTS% -XX:+UseCMSInitiatingOccupancyOnly
-
+REM Add gc options. ES_GC_OPTS is unsupported, for internal testing
+if "%ES_GC_OPTS%" == "" (
+set ES_GC_OPTS=%ES_GC_OPTS% -XX:+UseParNewGC
+set ES_GC_OPTS=%ES_GC_OPTS% -XX:+UseConcMarkSweepGC
+set ES_GC_OPTS=%ES_GC_OPTS% -XX:CMSInitiatingOccupancyFraction=75
+set ES_GC_OPTS=%ES_GC_OPTS% -XX:+UseCMSInitiatingOccupancyOnly
 REM When running under Java 7
 REM JAVA_OPTS=%JAVA_OPTS% -XX:+UseCondCardMark
+)
+set JAVA_OPTS=%JAVA_OPTS% %ES_GC_OPTS
 
 if "%ES_GC_LOG_FILE%" == "" goto nogclog
 

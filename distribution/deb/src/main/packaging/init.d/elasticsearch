@@ -106,6 +106,7 @@ fi
 
 # Define other required variables
 PID_FILE="$PID_DIR/$NAME.pid"
+LEGACY_PID_FILE="/var/run/$NAME.pid"
 DAEMON=$ES_HOME/bin/elasticsearch
 DAEMON_OPTS="-d -p $PID_FILE --default.config=$CONF_FILE --default.path.home=$ES_HOME --default.path.logs=$LOG_DIR --default.path.data=$DATA_DIR --default.path.conf=$CONF_DIR"
 
@@ -131,6 +132,21 @@ checkJava() {
 	fi
 }
 
+# Ensure that the PID_DIR exists (it is cleaned at OS startup time)
+if [ -n "$PID_DIR" ] && [ ! -e "$PID_DIR" ]; then
+	mkdir -p "$PID_DIR" && chown "$ES_USER":"$ES_GROUP" "$PID_DIR"
+fi
+if [ -n "$PID_FILE" ] && [ ! -e "$PID_FILE" ]; then
+	touch "$PID_FILE" && chown "$ES_USER":"$ES_GROUP" "$PID_FILE"
+fi
+
+# Move any PID file at the (pre 1.6) legacy location to the current
+# location so that this init script can locate old daemons that are
+# still running after an upgrade.
+if [ -f "$LEGACY_PID_FILE" ] && [ "$LEGACY_PID_FILE" != "$PID_FILE" ]; then
+	mv "$LEGACY_PID_FILE" "$PID_FILE" || exit 1
+fi
+
 case "$1" in
   start)
 	checkJava
@@ -151,14 +167,6 @@ case "$1" in
 
 	# Prepare environment
 	mkdir -p "$LOG_DIR" "$DATA_DIR" && chown "$ES_USER":"$ES_GROUP" "$LOG_DIR" "$DATA_DIR"
-
-	# Ensure that the PID_DIR exists (it is cleaned at OS startup time)
-	if [ -n "$PID_DIR" ] && [ ! -e "$PID_DIR" ]; then
-		mkdir -p "$PID_DIR" && chown "$ES_USER":"$ES_GROUP" "$PID_DIR"
-	fi
-	if [ -n "$PID_FILE" ] && [ ! -e "$PID_FILE" ]; then
-		touch "$PID_FILE" && chown "$ES_USER":"$ES_GROUP" "$PID_FILE"
-	fi
 
 	if [ -n "$MAX_OPEN_FILES" ]; then
 		ulimit -n $MAX_OPEN_FILES

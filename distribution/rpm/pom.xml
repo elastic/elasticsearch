@@ -327,7 +327,9 @@
                         <configuration>
                             <skip>${skip.integ.tests}</skip>
                             <target>
-                                <ant antfile="${elasticsearch.integ.antfile}" target="start-external-cluster-rpm"/>
+                                <ant antfile="${elasticsearch.integ.antfile}" target="start-external-cluster-rpm">
+                                    <property name="tests.jvm.argline" value="${tests.jvm.argline}"/>
+                                </ant>
                             </target>
                         </configuration>
                     </execution>

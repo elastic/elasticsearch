@@ -134,7 +134,7 @@
       <attribute name="es.transport.tcp.port" default="${integ.transport.port}"/>
       <attribute name="es.pidfile" default="${integ.pidfile}"/>
       <attribute name="additional.args" default=""/>
-      <element name="nested.args" optional="true"/>
+      <attribute name="jvm.args" default="${tests.jvm.argline}"/>
     <sequential>
 
       <!-- build args to pass to es -->
@@ -154,11 +154,16 @@
 
       <!-- run bin/elasticsearch with args -->
       <echo>Starting up external cluster...</echo>
+      <echo>JAVA=${java.home}</echo>
+      <echo>ARGS=@{jvm.args}</echo>
+
       <run-script script="@{home}/bin/elasticsearch" 
                   spawn="@{spawn}"
                   args="${integ.args}">
         <nested>
-          <nested.args/>
+          <env key="JAVA_HOME" value="${java.home}"/>
+          <!-- we pass these as gc options, even if they arent, to avoid conflicting gc options -->
+          <env key="ES_GC_OPTS" value="@{jvm.args}"/>
         </nested>
       </run-script>
 
@@ -197,11 +202,8 @@
       <unzip src="${project.build.directory}/releases/${project.artifactId}-${project.version}.zip" dest="${integ.scratch}"/>
       <local name="home"/>
       <property name="home" location="${integ.scratch}/${project.artifactId}-${elasticsearch.version}"/>
-      <startup-elasticsearch spawn="false" home="${home}">
-        <nested.args>
-          <env key="JAVA_OPTS" value="-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=8000"/>
-        </nested.args>
-      </startup-elasticsearch>
+      <startup-elasticsearch spawn="false" home="${home}"
+                             jvm.args="${tests.jvm.argline} -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=8000"/>
   </target>
 
   <!-- unzip core release artifact, install plugin, then start ES -->

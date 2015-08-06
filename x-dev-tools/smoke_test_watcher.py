@@ -206,11 +206,11 @@ if __name__ == '__main__':
             es_dir = version_tmp_dir + 'elasticsearch-%s/' % (es_version)
             print('Installing License plugin...')
             url = 'file://%s' % license_artifact
-            run('%s; %s install %s --url %s' % (JAVA_ENV, es_dir + 'bin/plugin', 'elasticsearch/license', url))
+            run('%s; %s install %s --url %s' % (JAVA_ENV, es_dir + 'bin/plugin', 'license', url))
 
             url = 'file://%s' % watcher_artifact
             print('Installing Watcher plugin...')
-            run('%s; %s install %s --url %s' % (JAVA_ENV, es_dir + 'bin/plugin', 'elasticsearch/watcher', url))
+            run('%s; %s install %s --url %s' % (JAVA_ENV, es_dir + 'bin/plugin', 'watcher', url))
 
             p = None
             try:

@@ -11,7 +11,7 @@ To install and run Watcher:
 +
 [source,shell]
 ----------------------------------------------------------
-bin/plugin install elasticsearch/license/latest
+bin/plugin install license
 ----------------------------------------------------------
 +
 NOTE:   You need to install the License and Watcher plugins on each node in your cluster. 
@@ -20,7 +20,7 @@ NOTE:   You need to install the License and Watcher plugins on each node in your
 +
 [source,shell]
 ----------------------------------------------------------
-bin/plugin install elasticsearch/watcher/latest
+bin/plugin install watcher
 ----------------------------------------------------------
 +
 NOTE:   If you are using a <<package-installation, DEB/RPM distribution>> of Elasticsearch, 

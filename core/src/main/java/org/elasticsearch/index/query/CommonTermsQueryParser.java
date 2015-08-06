@@ -191,6 +191,11 @@ public class CommonTermsQueryParser implements QueryParser {
         ExtendedCommonTermsQuery commonsQuery = new ExtendedCommonTermsQuery(highFreqOccur, lowFreqOccur, maxTermFrequency, disableCoord, fieldType);
         commonsQuery.setBoost(boost);
         Query query = parseQueryString(commonsQuery, value.toString(), field, parseContext, analyzer, lowFreqMinimumShouldMatch, highFreqMinimumShouldMatch);
+
+        if (query == null){
+            return null;
+        }
+
         if (queryName != null) {
             parseContext.addNamedQuery(queryName, query);
         }

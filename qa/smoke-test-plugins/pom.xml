@@ -45,7 +45,7 @@
                <goal>copy</goal>
              </goals>
              <configuration>
-               <!-- <skip>${skip.integ.tests}</skip> -->
+               <skip>${skip.integ.tests}</skip>
                <useBaseVersion>true</useBaseVersion>
                <outputDirectory>${integ.deps}/plugins</outputDirectory>
 
@@ -197,6 +197,7 @@
                   <property name="expected.plugin.count" value="${expected.plugin.count}"/>
                 </ant>
               </target>
+              <skip>${skip.integ.tests}</skip>
             </configuration>
           </execution>
           <!-- shut down external cluster -->
@@ -210,6 +211,7 @@
               <target>
                 <ant antfile="${elasticsearch.integ.antfile}" target="stop-external-cluster"/>
               </target>
+              <skip>${skip.integ.tests}</skip>
             </configuration>
           </execution>
         </executions>

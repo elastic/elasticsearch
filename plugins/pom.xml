@@ -309,6 +309,7 @@
                                 <goal>run</goal>
                             </goals>
                             <configuration>
+                                <skip>${skip.integ.tests}</skip>
                                 <target>
                                     <ant antfile="${elasticsearch.integ.antfile}" target="start-external-cluster-with-plugin"/>
                                 </target>
@@ -322,6 +323,7 @@
                                 <goal>run</goal>
                             </goals>
                             <configuration>
+                                <skip>${skip.integ.tests}</skip>
                                 <target>
                                     <ant antfile="${elasticsearch.integ.antfile}" target="stop-external-cluster"/>
                                 </target>

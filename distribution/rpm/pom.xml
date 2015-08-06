@@ -24,7 +24,7 @@
     </dependencies>
 
     <properties>
-        <skip.integ.tests>true</skip.integ.tests>
+        <skip.unit.tests>true</skip.unit.tests>
         <rpm.outputDirectory>${project.build.directory}/releases/</rpm.outputDirectory>
     </properties>
 

@@ -1,11 +1,6 @@
 <?xml version="1.0"?>
 <project name="elasticsearch-integration-tests">
 
-  <!-- this is all to not run tests for 'pom' packaging. maven you fail -->
-  <condition property="shouldskip">
-    <istrue value="${skip.integ.tests}"/>
-  </condition>
-
   <!-- our pid file for easy cleanup -->
   <property name="integ.pidfile" location="${integ.scratch}/es.pid"/>
 
@@ -176,7 +171,7 @@
   </macrodef>
 
   <!-- unzip the elasticsearch zip -->
-  <target name="setup-workspace" depends="stop-external-cluster" unless="${shouldskip}">
+  <target name="setup-workspace" depends="stop-external-cluster">
     <sequential>
       <delete dir="${integ.scratch}"/>
       <unzip src="${integ.deps}/elasticsearch-${elasticsearch.version}.zip" dest="${integ.scratch}"/>
@@ -198,7 +193,7 @@
   </target>
 
   <!-- unzip core release artifact, install plugin, then start ES -->
-  <target name="start-external-cluster-with-plugin" depends="setup-workspace" unless="${shouldskip}">
+  <target name="start-external-cluster-with-plugin" depends="setup-workspace">
     <install-plugin name="${project.artifactId}" file="${project.build.directory}/releases/${project.artifactId}-${project.version}.zip"/>
     <startup-elasticsearch/>
   </target>
@@ -225,7 +220,7 @@
 
   <!-- distribution tests: .zip -->
 
-  <target name="setup-workspace-zip" depends="stop-external-cluster" unless="${shouldskip}">
+  <target name="setup-workspace-zip" depends="stop-external-cluster">
     <sequential>
       <delete dir="${integ.scratch}"/>
       <unzip src="${project.build.directory}/releases/${project.artifactId}-${project.version}.zip" 
@@ -233,14 +228,14 @@
     </sequential>
   </target>
 
-  <target name="start-external-cluster-zip" depends="setup-workspace-zip" unless="${shouldskip}">
+  <target name="start-external-cluster-zip" depends="setup-workspace-zip">
     <startup-elasticsearch/>
   </target>
 
 
   <!-- distribution tests: .tar.gz -->
 
-  <target name="setup-workspace-tar" depends="stop-external-cluster" unless="${shouldskip}">
+  <target name="setup-workspace-tar" depends="stop-external-cluster">
     <sequential>
       <delete dir="${integ.scratch}"/>
       <untar src="${project.build.directory}/releases/${project.artifactId}-${project.version}.tar.gz" 
@@ -249,13 +244,13 @@
     </sequential>
   </target>
 
-  <target name="start-external-cluster-tar" depends="setup-workspace-tar" unless="${shouldskip}">
+  <target name="start-external-cluster-tar" depends="setup-workspace-tar">
     <startup-elasticsearch/>
   </target>
 
   <!-- distribution tests: .deb -->
 
-  <target name="setup-workspace-deb" depends="stop-external-cluster" unless="${shouldskip}">
+  <target name="setup-workspace-deb" depends="stop-external-cluster">
     <sequential>
       <delete dir="${integ.scratch}"/>
       <mkdir dir="${integ.scratch}/deb-extracted"/>
@@ -275,12 +270,12 @@
     </sequential>
   </target>
 
-  <target name="start-external-cluster-deb" depends="setup-workspace-deb" unless="${shouldskip}">
+  <target name="start-external-cluster-deb" depends="setup-workspace-deb">
     <startup-elasticsearch home="${integ.scratch}/deb-extracted/usr/share/elasticsearch/"/>
   </target>
 
   <!-- distribution tests: .rpm -->
-  <target name="setup-workspace-rpm" depends="stop-external-cluster" unless="${shouldskip}">
+  <target name="setup-workspace-rpm" depends="stop-external-cluster">
     <sequential>
       <delete dir="${integ.scratch}"/>
       <!-- use full paths with paranoia, we will be doing relocations -->
@@ -315,7 +310,7 @@
     </sequential>
   </target>
 
-  <target name="start-external-cluster-rpm" depends="setup-workspace-rpm" unless="${shouldskip}">
+  <target name="start-external-cluster-rpm" depends="setup-workspace-rpm">
     <startup-elasticsearch home="${integ.scratch}/rpm-extracted/usr/share/elasticsearch/"/>
   </target>
 

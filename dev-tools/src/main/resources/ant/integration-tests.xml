@@ -319,7 +319,7 @@
          <arg value="--noscripts"/> 
          <arg value="--notriggers"/> 
          <arg value="-i"/>
-         <arg value="${rpm.file}"/> 
+         <arg value="${rpm.file}"/>
       </exec>
     </sequential>
   </target>

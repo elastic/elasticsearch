@@ -1939,40 +1939,6 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertFirstHit(searchResponse, hasId("1"));
     }
 
-    @Test
-    public void testIndicesFilter() throws Exception {
-        createIndex("index1", "index2", "index3");
-
-        client().prepareIndex("index1", "type1").setId("1").setSource("text", "value1").get();
-        client().prepareIndex("index2", "type2").setId("2").setSource("text", "value2").get();
-        client().prepareIndex("index3", "type3").setId("3").setSource("text", "value3").get();
-        refresh();
-
-        SearchResponse searchResponse = client().prepareSearch("index1", "index2", "index3")
-                .setPostFilter(indicesQuery(termQuery("text", "value1"), "index1")
-                        .noMatchQuery(termQuery("text", "value2"))).get();
-        assertHitCount(searchResponse, 2l);
-        assertSearchHits(searchResponse, "1", "2");
-
-        //default no match filter is "all"
-        searchResponse = client().prepareSearch("index1", "index2", "index3")
-                .setPostFilter(indicesQuery(termQuery("text", "value1"), "index1")).get();
-        assertHitCount(searchResponse, 3l);
-        assertSearchHits(searchResponse, "1", "2", "3");
-
-        searchResponse = client().prepareSearch("index1", "index2", "index3")
-                .setPostFilter(indicesQuery(termQuery("text", "value1"), "index1")
-                        .noMatchQuery("all")).get();
-        assertHitCount(searchResponse, 3l);
-        assertSearchHits(searchResponse, "1", "2", "3");
-
-        searchResponse = client().prepareSearch("index1", "index2", "index3")
-                .setPostFilter(indicesQuery(termQuery("text", "value1"), "index1")
-                        .noMatchQuery("none")).get();
-        assertHitCount(searchResponse, 1l);
-        assertFirstHit(searchResponse, hasId("1"));
-    }
-
     @Test // https://github.com/elasticsearch/elasticsearch/issues/2416
     public void testIndicesQuerySkipParsing() throws Exception {
         createIndex("simple");
@@ -2001,37 +1967,6 @@ public class SearchQueryIT extends ESIntegTestCase {
         SearchResponse searchResponse = client().prepareSearch("related", "simple")
                 .setQuery(indicesQuery(hasChildQuery("child", matchQuery("text", "value2")), "related")
                         .noMatchQuery(matchQuery("text", "value1"))).get();
-        assertHitCount(searchResponse, 2l);
-        assertSearchHits(searchResponse, "1", "2");
-    }
-
-    @Test // https://github.com/elasticsearch/elasticsearch/issues/2416
-    public void testIndicesFilterSkipParsing() throws Exception {
-        createIndex("simple");
-        assertAcked(prepareCreate("related")
-                .addMapping("child", jsonBuilder().startObject().startObject("child").startObject("_parent").field("type", "parent")
-                        .endObject().endObject().endObject()));
-
-        indexRandom(true,
-                client().prepareIndex("simple", "lone").setId("1").setSource("text", "value1"),
-                client().prepareIndex("related", "parent").setId("2").setSource("text", "parent"),
-                client().prepareIndex("related", "child").setId("3").setParent("2").setSource("text", "value2"));
-
-        //has_child fails if executed on "simple" index
-        try {
-            client().prepareSearch("simple")
-                    .setPostFilter(hasChildQuery("child", termQuery("text", "value1"))).get();
-            fail("Should have failed as has_child query can only be executed against parent-child types");
-        } catch (SearchPhaseExecutionException e) {
-            assertThat(e.shardFailures().length, greaterThan(0));
-            for (ShardSearchFailure shardSearchFailure : e.shardFailures()) {
-                assertThat(shardSearchFailure.reason(), containsString("No mapping for for type [child]"));
-            }
-        }
-
-        SearchResponse searchResponse = client().prepareSearch("related", "simple")
-                .setPostFilter(indicesQuery(hasChildQuery("child", termQuery("text", "value2")), "related")
-                        .noMatchQuery(termQuery("text", "value1"))).get();
         assertHitCount(searchResponse, 2l);
         assertSearchHits(searchResponse, "1", "2");
     }
@@ -2091,79 +2026,6 @@ public class SearchQueryIT extends ESIntegTestCase {
         searchResponse = client().prepareSearch().setQuery(
                 indicesQuery(termQuery("field", "missing"), "index1", "test1")
                         .noMatchQuery(termQuery("field", "match"))).get();
-
-        assertHitCount(searchResponse, 2l);
-
-        for (SearchHit hit : searchResponse.getHits().getHits()) {
-            if ("index2".equals(hit.index())) {
-                assertThat(hit, hasId("10"));
-            } else if ("index3".equals(hit.index())) {
-                assertThat(hit, hasId("100"));
-            } else {
-                fail("Returned documents should belong to either index2 or index3");
-            }
-        }
-    }
-
-    @Test
-    public void testIndicesFilterMissingIndices() throws IOException, ExecutionException, InterruptedException {
-        createIndex("index1");
-        createIndex("index2");
-        createIndex("index3");
-
-        indexRandom(true,
-                client().prepareIndex("index1", "type1", "1").setSource("field", "match"),
-                client().prepareIndex("index1", "type1", "2").setSource("field", "no_match"),
-                client().prepareIndex("index2", "type1", "10").setSource("field", "match"),
-                client().prepareIndex("index2", "type1", "20").setSource("field", "no_match"),
-                client().prepareIndex("index3", "type1", "100").setSource("field", "match"),
-                client().prepareIndex("index3", "type1", "200").setSource("field", "no_match"));
-
-        //all indices are missing
-        SearchResponse searchResponse = client().prepareSearch().setQuery(
-                filteredQuery(matchAllQuery(),
-                        indicesQuery(termQuery("field", "missing"), "test1", "test2", "test3")
-                                .noMatchQuery(termQuery("field", "match")))).get();
-
-        assertHitCount(searchResponse, 3l);
-
-        for (SearchHit hit : searchResponse.getHits().getHits()) {
-            if ("index1".equals(hit.index())) {
-                assertThat(hit, hasId("1"));
-            } else if ("index2".equals(hit.index())) {
-                assertThat(hit, hasId("10"));
-            } else if ("index3".equals(hit.index())) {
-                assertThat(hit, hasId("100"));
-            } else {
-                fail("Returned documents should belong to either index1, index2 or index3");
-            }
-        }
-
-        //only one index specified, which is missing
-        searchResponse = client().prepareSearch().setQuery(
-                filteredQuery(matchAllQuery(),
-                        indicesQuery(termQuery("field", "missing"), "test1")
-                                .noMatchQuery(termQuery("field", "match")))).get();
-
-        assertHitCount(searchResponse, 3l);
-
-        for (SearchHit hit : searchResponse.getHits().getHits()) {
-            if ("index1".equals(hit.index())) {
-                assertThat(hit, hasId("1"));
-            } else if ("index2".equals(hit.index())) {
-                assertThat(hit, hasId("10"));
-            } else if ("index3".equals(hit.index())) {
-                assertThat(hit, hasId("100"));
-            } else {
-                fail("Returned documents should belong to either index1, index2 or index3");
-            }
-        }
-
-        //more than one index specified, one of them is missing
-        searchResponse = client().prepareSearch().setQuery(
-                filteredQuery(matchAllQuery(),
-                        indicesQuery(termQuery("field", "missing"), "index1", "test1")
-                                .noMatchQuery(termQuery("field", "match")))).get();
 
         assertHitCount(searchResponse, 2l);
 

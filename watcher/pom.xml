@@ -62,7 +62,7 @@
             <groupId>org.elasticsearch.plugin</groupId>
             <artifactId>elasticsearch-shield</artifactId>
             <version>${project.version}</version>
-            <optional>true</optional>
+            <scope>provided</scope>
         </dependency>
 
         <dependency>

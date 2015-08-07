@@ -47,8 +47,10 @@ import org.junit.Test;
 import java.util.List;
 
 import static org.elasticsearch.cluster.metadata.AliasMetaData.newAliasMetaDataBuilder;
+import static org.elasticsearch.cluster.routing.RandomShardRoutingMutator.randomChange;
+import static org.elasticsearch.cluster.routing.RandomShardRoutingMutator.randomReason;
 import static org.elasticsearch.test.XContentTestUtils.convertToMap;
-import static org.elasticsearch.test.XContentTestUtils.mapsEqualIgnoringArrayOrder;
+import static org.elasticsearch.test.XContentTestUtils.differenceBetweenMapsIgnoringArrayOrder;
 import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -151,7 +153,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                 assertThat(clusterStateFromDiffs.metaData().equalsAliases(clusterState.metaData()), is(true));
 
                 // JSON Serialization test - make sure that both states produce similar JSON
-                assertThat(mapsEqualIgnoringArrayOrder(convertToMap(clusterStateFromDiffs), convertToMap(clusterState)), equalTo(true));
+                assertNull(differenceBetweenMapsIgnoringArrayOrder(convertToMap(clusterStateFromDiffs), convertToMap(clusterState)));
 
                 // Smoke test - we cannot compare bytes to bytes because some elements might get serialized in different order
                 // however, serialized size should remain the same
@@ -200,7 +202,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                 if (randomBoolean()) {
                     builder.remove(index);
                 } else {
-                    builder.add(randomIndexRoutingTable(index, clusterState.nodes().nodes().keys().toArray(String.class)));
+                    builder.add(randomChangeToIndexRoutingTable(clusterState.routingTable().indicesRouting().get(index), clusterState.nodes().nodes().keys().toArray(String.class)));
                 }
             }
         }
@@ -222,10 +224,30 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
             IndexShardRoutingTable.Builder indexShard = new IndexShardRoutingTable.Builder(new ShardId(index, i));
             int replicaCount = randomIntBetween(1, 10);
             for (int j = 0; j < replicaCount; j++) {
+                UnassignedInfo unassignedInfo = null;
+                if (randomInt(5) == 1) {
+                    unassignedInfo = new UnassignedInfo(randomReason(), randomAsciiOfLength(10));
+                }
                 indexShard.addShard(
-                        TestShardRouting.newShardRouting(index, i, randomFrom(nodeIds), null, null, j == 0, ShardRoutingState.fromValue((byte) randomIntBetween(2, 4)), 1));
+                        TestShardRouting.newShardRouting(index, i, randomFrom(nodeIds), null, null, j == 0,
+                                ShardRoutingState.fromValue((byte) randomIntBetween(2, 4)), 1, unassignedInfo));
             }
             builder.addIndexShard(indexShard.build());
+        }
+        return builder.build();
+    }
+
+    /**
+     * Randomly updates index routing table in the cluster state
+     */
+    private IndexRoutingTable randomChangeToIndexRoutingTable(IndexRoutingTable original, String[] nodes) {
+        IndexRoutingTable.Builder builder = IndexRoutingTable.builder(original.getIndex());
+        for (ObjectCursor<IndexShardRoutingTable> indexShardRoutingTable :  original.shards().values()) {
+            for (ShardRouting shardRouting : indexShardRoutingTable.value.shards()) {
+                final ShardRouting newShardRouting = new ShardRouting(shardRouting);
+                randomChange(newShardRouting, nodes);
+                builder.addShard(indexShardRoutingTable.value, newShardRouting);
+            }
         }
         return builder.build();
     }

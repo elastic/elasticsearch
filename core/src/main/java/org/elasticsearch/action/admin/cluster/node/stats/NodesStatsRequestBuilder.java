@@ -62,6 +62,11 @@ public class NodesStatsRequestBuilder extends NodesOperationRequestBuilder<Nodes
         return this;
     }
 
+    public NodesStatsRequestBuilder setScript(boolean script) {
+        request.script(script);
+        return this;
+    }
+
     /**
      * Should the node indices stats be returned.
      */

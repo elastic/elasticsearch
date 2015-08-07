@@ -57,6 +57,8 @@ public class Environment {
 
     private final Path pluginsFile;
 
+    private final Path sharedDataFile;
+
     /** location of bin/, used by plugin manager */
     private final Path binFile;
 
@@ -126,6 +128,11 @@ public class Environment {
             dataFiles = new Path[]{homeFile.resolve("data")};
             dataWithClusterFiles = new Path[]{homeFile.resolve("data").resolve(ClusterName.clusterNameFromSettings(settings).value())};
         }
+        if (settings.get("path.shared_data") != null) {
+            sharedDataFile = PathUtils.get(cleanPath(settings.get("path.shared_data")));
+        } else {
+            sharedDataFile = null;
+        }
         String[] repoPaths = settings.getAsArray("path.repo");
         if (repoPaths.length > 0) {
             repoFiles = new Path[repoPaths.length];
@@ -163,6 +170,13 @@ public class Environment {
      */
     public Path[] dataFiles() {
         return dataFiles;
+    }
+
+    /**
+     * The shared data location
+     */
+    public Path sharedDataFile() {
+        return sharedDataFile;
     }
 
     /**

@@ -35,6 +35,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.node.Node;
@@ -118,16 +119,20 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
 
     private static Node newNode() {
         Node build = NodeBuilder.nodeBuilder().local(true).data(true).settings(Settings.builder()
-            .put(ClusterName.SETTING, InternalTestCluster.clusterName("single-node-cluster", randomLong()))
-            .put("path.home", createTempDir())
-            .put("node.name", nodeName())
-            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put("script.inline", "on")
-            .put("script.indexed", "on")
-            .put(EsExecutors.PROCESSORS, 1) // limit the number of threads created
-            .put("http.enabled", false)
-            .put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING, true) // make sure we get what we set :)
+                .put(ClusterName.SETTING, InternalTestCluster.clusterName("single-node-cluster", randomLong()))
+                .put("path.home", createTempDir())
+                // TODO: use a consistent data path for custom paths
+                // This needs to tie into the ESIntegTestCase#indexSettings() method
+                .put("path.shared_data", createTempDir().getParent())
+                .put("node.name", nodeName())
+                .put(NodeEnvironment.SETTING_CUSTOM_DATA_PATH_ENABLED, true)
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put("script.inline", "on")
+                .put("script.indexed", "on")
+                .put(EsExecutors.PROCESSORS, 1) // limit the number of threads created
+                .put("http.enabled", false)
+                .put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING, true) // make sure we get what we set :)
         ).build();
         build.start();
         assertThat(DiscoveryNode.localNode(build.settings()), is(true));

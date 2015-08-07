@@ -30,8 +30,10 @@ import com.google.common.collect.Lists;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.http.impl.client.HttpClients;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.shard.MergeSchedulerConfig;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.LuceneTestCase;
@@ -691,15 +693,12 @@ public abstract class ESIntegTestCase extends ESTestCase {
         if (numberOfReplicas >= 0) {
             builder.put(SETTING_NUMBER_OF_REPLICAS, numberOfReplicas).build();
         }
-        // norelease: disabled because custom data paths don't play well against
-        // an external test cluster: the security manager is not happy that random
-        // files are touched. See http://build-us-00.elastic.co/job/es_core_master_strong/4357/console
         // 30% of the time
-        // if (randomInt(9) < 3) {
-        //     final Path dataPath = createTempDir();
-        //     logger.info("using custom data_path for index: [{}]", dataPath);
-        //    builder.put(IndexMetaData.SETTING_DATA_PATH, dataPath);
-        // }
+        if (randomInt(9) < 3) {
+            final String dataPath = randomAsciiOfLength(10);
+            logger.info("using custom data_path for index: [{}]", dataPath);
+            builder.put(IndexMetaData.SETTING_DATA_PATH, dataPath);
+        }
         return builder.build();
     }
 
@@ -1616,6 +1615,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 // from failing on nodes without enough disk space
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK, "1b")
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK, "1b")
+                .put(NodeEnvironment.SETTING_CUSTOM_DATA_PATH_ENABLED, true)
                 .put("script.indexed", "on")
                 .put("script.inline", "on")
                         // wait short time for other active shards before actually deleting, default 30s not needed in tests

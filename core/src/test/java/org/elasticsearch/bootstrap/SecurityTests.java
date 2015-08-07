@@ -77,6 +77,7 @@ public class SecurityTests extends ESTestCase {
         settingsBuilder.put("path.scripts", esHome.resolve("scripts").toString());
         settingsBuilder.put("path.plugins", esHome.resolve("plugins").toString());
         settingsBuilder.putArray("path.data", esHome.resolve("data1").toString(), esHome.resolve("data2").toString());
+        settingsBuilder.put("path.shared_data", esHome.resolve("custom").toString());
         settingsBuilder.put("path.logs", esHome.resolve("logs").toString());
         settingsBuilder.put("pidfile", esHome.resolve("test.pid").toString());
         Settings settings = settingsBuilder.build();
@@ -122,6 +123,7 @@ public class SecurityTests extends ESTestCase {
         for (Path dataPath : environment.dataWithClusterFiles()) {
             assertExactPermissions(new FilePermission(dataPath.toString(), "read,readlink,write,delete"), permissions);
         }
+        assertExactPermissions(new FilePermission(environment.sharedDataFile().toString(), "read,readlink,write,delete"), permissions);
         // logs: r/w
         assertExactPermissions(new FilePermission(environment.logsFile().toString(), "read,readlink,write,delete"), permissions);
         // temp dir: r/w

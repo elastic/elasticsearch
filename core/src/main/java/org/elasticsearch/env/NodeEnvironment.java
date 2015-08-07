@@ -105,6 +105,7 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
     }
 
     private final NodePath[] nodePaths;
+    private final Path sharedDataPath;
     private final Lock[] locks;
 
     private final boolean addNodeId;
@@ -137,6 +138,7 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
 
         if (!DiscoveryNode.nodeRequiresLocalStorage(settings)) {
             nodePaths = null;
+            sharedDataPath = null;
             locks = null;
             localNodeId = -1;
             return;
@@ -144,6 +146,7 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
 
         final NodePath[] nodePaths = new NodePath[environment.dataWithClusterFiles().length];
         final Lock[] locks = new Lock[nodePaths.length];
+        sharedDataPath = environment.sharedDataFile();
 
         int localNodeId = -1;
         IOException lastException = null;
@@ -792,7 +795,6 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
      *
      * @param indexSettings settings for the index
      */
-    @SuppressForbidden(reason = "Lee is working on it: https://github.com/elastic/elasticsearch/pull/11065")
     private Path resolveCustomLocation(@IndexSettings Settings indexSettings) {
         assert indexSettings != Settings.EMPTY;
         String customDataDir = indexSettings.get(IndexMetaData.SETTING_DATA_PATH);
@@ -800,9 +802,9 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
             // This assert is because this should be caught by MetaDataCreateIndexService
             assert customPathsEnabled;
             if (addNodeId) {
-                return PathUtils.get(customDataDir).resolve(Integer.toString(this.localNodeId));
+                return sharedDataPath.resolve(customDataDir).resolve(Integer.toString(this.localNodeId));
             } else {
-                return PathUtils.get(customDataDir);
+                return sharedDataPath.resolve(customDataDir);
             }
         } else {
             throw new IllegalArgumentException("no custom " + IndexMetaData.SETTING_DATA_PATH + " setting available");

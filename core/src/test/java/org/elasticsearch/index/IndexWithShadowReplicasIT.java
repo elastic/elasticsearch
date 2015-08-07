@@ -68,12 +68,33 @@ import static org.hamcrest.Matchers.*;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class IndexWithShadowReplicasIT extends ESIntegTestCase {
 
-    private Settings nodeSettings() {
+    private Settings nodeSettings(Path dataPath) {
+        return nodeSettings(dataPath.toString());
+    }
+
+    private Settings nodeSettings(String dataPath) {
         return Settings.builder()
                 .put("node.add_id_to_custom_path", false)
                 .put("node.enable_custom_paths", true)
+                .put("path.shared_data", dataPath)
                 .put("index.store.fs.fs_lock", randomFrom("native", "simple"))
                 .build();
+    }
+
+    public void testCannotCreateWithBadPath() throws Exception {
+        Settings nodeSettings = nodeSettings("/badpath");
+        internalCluster().startNodesAsync(1, nodeSettings).get();
+        Settings idxSettings = Settings.builder()
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetaData.SETTING_DATA_PATH, "/etc/foo")
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0).build();
+        try {
+            assertAcked(prepareCreate("foo").setSettings(idxSettings));
+            fail("should have failed");
+        } catch (IllegalArgumentException e) {
+            assertTrue(e.getMessage(),
+                    e.getMessage().contains("custom path [/etc/foo] is not a sub-path of path.shared_data"));
+        }
     }
 
     /**
@@ -81,10 +102,10 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
      * an index with shadow replicas enabled.
      */
     public void testRestoreToShadow() throws ExecutionException, InterruptedException {
-        Settings nodeSettings = nodeSettings();
+        final Path dataPath = createTempDir();
+        Settings nodeSettings = nodeSettings(dataPath);
 
         internalCluster().startNodesAsync(3, nodeSettings).get();
-        final Path dataPath = createTempDir();
         Settings idxSettings = Settings.builder()
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0).build();
@@ -137,11 +158,11 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
 
     @Test
     public void testIndexWithFewDocuments() throws Exception {
-        Settings nodeSettings = nodeSettings();
+        final Path dataPath = createTempDir();
+        Settings nodeSettings = nodeSettings(dataPath);
 
         internalCluster().startNodesAsync(3, nodeSettings).get();
         final String IDX = "test";
-        final Path dataPath = createTempDir();
 
         Settings idxSettings = Settings.builder()
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
@@ -200,10 +221,10 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
 
     @Test
     public void testReplicaToPrimaryPromotion() throws Exception {
-        Settings nodeSettings = nodeSettings();
+        Path dataPath = createTempDir();
+        Settings nodeSettings = nodeSettings(dataPath);
 
         String node1 = internalCluster().startNode(nodeSettings);
-        Path dataPath = createTempDir();
         String IDX = "test";
 
         Settings idxSettings = Settings.builder()
@@ -259,10 +280,10 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
 
     @Test
     public void testPrimaryRelocation() throws Exception {
-        Settings nodeSettings = nodeSettings();
+        Path dataPath = createTempDir();
+        Settings nodeSettings = nodeSettings(dataPath);
 
         String node1 = internalCluster().startNode(nodeSettings);
-        Path dataPath = createTempDir();
         String IDX = "test";
 
         Settings idxSettings = Settings.builder()
@@ -320,10 +341,10 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
 
     @Test
     public void testPrimaryRelocationWithConcurrentIndexing() throws Throwable {
-        Settings nodeSettings = nodeSettings();
+        Path dataPath = createTempDir();
+        Settings nodeSettings = nodeSettings(dataPath);
 
         String node1 = internalCluster().startNode(nodeSettings);
-        Path dataPath = createTempDir();
         final String IDX = "test";
 
         Settings idxSettings = Settings.builder()
@@ -393,14 +414,15 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
 
     @Test
     public void testPrimaryRelocationWhereRecoveryFails() throws Exception {
+        Path dataPath = createTempDir();
         Settings nodeSettings = Settings.builder()
                 .put("node.add_id_to_custom_path", false)
                 .put("node.enable_custom_paths", true)
                 .put("plugin.types", MockTransportService.Plugin.class.getName())
+                .put("path.shared_data", dataPath)
                 .build();
 
         String node1 = internalCluster().startNode(nodeSettings);
-        Path dataPath = createTempDir();
         final String IDX = "test";
 
         Settings idxSettings = Settings.builder()
@@ -490,11 +512,11 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
 
     @Test
     public void testIndexWithShadowReplicasCleansUp() throws Exception {
-        Settings nodeSettings = nodeSettings();
+        Path dataPath = createTempDir();
+        Settings nodeSettings = nodeSettings(dataPath);
 
         int nodeCount = randomIntBetween(2, 5);
         internalCluster().startNodesAsync(nodeCount, nodeSettings).get();
-        Path dataPath = createTempDir();
         String IDX = "test";
 
         Settings idxSettings = Settings.builder()
@@ -532,10 +554,10 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
      */
     @Test
     public void testShadowReplicaNaturalRelocation() throws Exception {
-        Settings nodeSettings = nodeSettings();
+        Path dataPath = createTempDir();
+        Settings nodeSettings = nodeSettings(dataPath);
 
         internalCluster().startNodesAsync(2, nodeSettings).get();
-        Path dataPath = createTempDir();
         String IDX = "test";
 
         Settings idxSettings = Settings.builder()
@@ -586,10 +608,10 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
 
     @Test
     public void testShadowReplicasUsingFieldData() throws Exception {
-        Settings nodeSettings = nodeSettings();
+        Path dataPath = createTempDir();
+        Settings nodeSettings = nodeSettings(dataPath);
 
         internalCluster().startNodesAsync(3, nodeSettings).get();
-        Path dataPath = createTempDir();
         String IDX = "test";
 
         Settings idxSettings = Settings.builder()
@@ -655,7 +677,8 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
 
     @Test
     public void testIndexOnSharedFSRecoversToAnyNode() throws Exception {
-        Settings nodeSettings = nodeSettings();
+        Path dataPath = createTempDir();
+        Settings nodeSettings = nodeSettings(dataPath);
         Settings fooSettings = Settings.builder().put(nodeSettings).put("node.affinity", "foo").build();
         Settings barSettings = Settings.builder().put(nodeSettings).put("node.affinity", "bar").build();
 
@@ -663,7 +686,6 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
         final Future<List<String>> barNodes = internalCluster().startNodesAsync(2, barSettings);
         fooNodes.get();
         barNodes.get();
-        Path dataPath = createTempDir();
         String IDX = "test";
 
         Settings includeFoo = Settings.builder()

@@ -42,9 +42,23 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  * Tests for custom data path locations and templates
  */
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class IndicesCustomDataPathIT extends ESIntegTestCase {
 
     private String path;
+
+    private Settings nodeSettings(Path dataPath) {
+        return nodeSettings(dataPath.toString());
+    }
+
+    private Settings nodeSettings(String dataPath) {
+        return Settings.builder()
+                .put("node.add_id_to_custom_path", false)
+                .put("node.enable_custom_paths", true)
+                .put("path.shared_data", dataPath)
+                .put("index.store.fs.fs_lock", randomFrom("native", "simple"))
+                .build();
+    }
 
     @Before
     public void setup() {
@@ -61,6 +75,7 @@ public class IndicesCustomDataPathIT extends ESIntegTestCase {
     public void testDataPathCanBeChanged() throws Exception {
         final String INDEX = "idx";
         Path root = createTempDir();
+        internalCluster().startNodesAsync(1, nodeSettings(root));
         Path startDir = root.resolve("start");
         Path endDir = root.resolve("end");
         logger.info("--> start dir: [{}]", startDir.toAbsolutePath().toString());
@@ -128,9 +143,12 @@ public class IndicesCustomDataPathIT extends ESIntegTestCase {
     @Test
     public void testIndexCreatedWithCustomPathAndTemplate() throws Exception {
         final String INDEX = "myindex2";
+        internalCluster().startNodesAsync(1, nodeSettings(path));
 
         logger.info("--> creating an index with data_path [{}]", path);
-        Settings.Builder sb = Settings.builder().put(IndexMetaData.SETTING_DATA_PATH, path);
+        Settings.Builder sb = Settings.builder()
+                .put(IndexMetaData.SETTING_DATA_PATH, path)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0);
 
         client().admin().indices().prepareCreate(INDEX).setSettings(sb).get();
         ensureGreen(INDEX);

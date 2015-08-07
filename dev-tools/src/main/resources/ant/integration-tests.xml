@@ -29,9 +29,8 @@
       <!-- print commands we run -->
       <local name="script.base"/>
       <basename file="@{script}" property="script.base"/>
-      <echo>execute: ${script.base}</echo>
       <!-- crappy way to output, but we need it. make it nice later -->
-      <echoxml><args><nested/></args></echoxml>
+      <echoxml><exec script="${script.base}"><nested/></exec></echoxml>
 
       <exec executable="cmd" osfamily="winnt" dir="${temp.cwd}" failonerror="${failonerror}" spawn="@{spawn}" taskname="${script.base}">
         <arg value="/c"/>
@@ -146,8 +145,6 @@
 
       <!-- run bin/elasticsearch with args -->
       <echo>Starting up external cluster...</echo>
-      <echo>JAVA=${java.home}</echo>
-      <echo>ARGS=@{jvm.args}</echo>
 
       <run-script script="@{home}/bin/elasticsearch" 
                   spawn="@{spawn}">

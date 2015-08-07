@@ -110,8 +110,8 @@
         <tests.ifNoTests>fail</tests.ifNoTests>
         <skip.unit.tests>${skipTests}</skip.unit.tests>
         <skip.integ.tests>${skipTests}</skip.integ.tests>
-        <integ.scratch>${project.build.directory}/integ-tests</integ.scratch>
-        <integ.deps>${project.build.directory}/integ-deps</integ.deps>
+        <integ.scratch>${project.build.directory}/integ tests</integ.scratch>
+        <integ.deps>${project.build.directory}/integ deps</integ.deps>
         <integ.temp>${integ.scratch}/temp</integ.temp>
         <integ.http.port>9400</integ.http.port>
         <integ.transport.port>9500</integ.transport.port>

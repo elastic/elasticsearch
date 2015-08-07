@@ -127,10 +127,10 @@ export HOSTNAME=`hostname -s`
 daemonized=`echo $* | grep -E -- '(^-d |-d$| -d |--daemonize$|--daemonize )'`
 if [ -z "$daemonized" ] ; then
     eval exec "$JAVA" $JAVA_OPTS $ES_JAVA_OPTS "\"-Des.path.home=$ES_HOME\"" -cp "\"$ES_CLASSPATH\"" \
-          org.elasticsearch.bootstrap.Elasticsearch start $*
+          org.elasticsearch.bootstrap.Elasticsearch start \"$@\"
 else
     eval exec "$JAVA" $JAVA_OPTS $ES_JAVA_OPTS "\"-Des.path.home=$ES_HOME\"" -cp "\"$ES_CLASSPATH\"" \
-          org.elasticsearch.bootstrap.Elasticsearch start $* <&- &
+          org.elasticsearch.bootstrap.Elasticsearch start \"$@\" <&- &
 fi
 
 exit $?

@@ -20,6 +20,7 @@
 package org.elasticsearch.plugins;
 
 import com.google.common.base.Strings;
+
 import org.apache.commons.cli.CommandLine;
 import org.elasticsearch.common.cli.CliTool;
 import org.elasticsearch.common.cli.CliToolConfig;
@@ -32,7 +33,8 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.plugins.PluginManager.OutputMode;
 
-import java.io.IOException;
+import java.net.MalformedURLException;
+import java.net.URL;
 import java.util.Locale;
 
 import static org.elasticsearch.common.cli.CliToolConfig.Builder.cmd;
@@ -166,19 +168,29 @@ public class PluginManagerCliParser extends CliTool {
         private static final String NAME = "install";
 
         private static final CliToolConfig.Cmd CMD = cmd(NAME, Install.class)
-                .options(option("u", "url").required(false).hasArg(true))
                 .options(option("t", "timeout").required(false).hasArg(false))
                 .build();
 
         static Command parse(Terminal terminal, CommandLine cli) {
             String[] args = cli.getArgs();
+
+            // install [plugin-name/url]
             if ((args == null) || (args.length == 0)) {
-                return exitCmd(ExitStatus.USAGE, terminal, "plugin name is missing (type -h for help)");
+                return exitCmd(ExitStatus.USAGE, terminal, "plugin name or url is missing (type -h for help)");
+            }
+            String name = args[0];
+
+            URL optionalPluginUrl = null;
+            // try parsing cli argument as URL
+            try {
+                optionalPluginUrl = new URL(name);
+                name = null;
+            } catch (MalformedURLException e) {
+                // we tried to parse the cli argument as url and failed
+                // continue treating it as a symbolic plugin name like `analysis-icu` etc.
             }
 
-            String name = args[0];
             TimeValue timeout = TimeValue.parseTimeValue(cli.getOptionValue("t"), DEFAULT_TIMEOUT, "cli");
-            String url = cli.getOptionValue("u");
 
             OutputMode outputMode = OutputMode.DEFAULT;
             if (cli.hasOption("s")) {
@@ -188,15 +200,15 @@ public class PluginManagerCliParser extends CliTool {
                 outputMode = OutputMode.VERBOSE;
             }
 
-            return new Install(terminal, name, outputMode, url, timeout);
+            return new Install(terminal, name, outputMode, optionalPluginUrl, timeout);
         }
 
         final String name;
         private OutputMode outputMode;
-        final String url;
+        final URL url;
         final TimeValue timeout;
 
-        Install(Terminal terminal, String name, OutputMode outputMode, String url, TimeValue timeout) {
+        Install(Terminal terminal, String name, OutputMode outputMode, URL url, TimeValue timeout) {
             super(terminal);
             this.name = name;
             this.outputMode = outputMode;
@@ -207,7 +219,11 @@ public class PluginManagerCliParser extends CliTool {
         @Override
         public ExitStatus execute(Settings settings, Environment env) throws Exception {
             PluginManager pluginManager = new PluginManager(env, url, outputMode, timeout);
-            terminal.println("-> Installing " + Strings.nullToEmpty(name) + "...");
+            if (name != null) {
+                terminal.println("-> Installing " + Strings.nullToEmpty(name) + "...");
+            } else {
+                terminal.println("-> Installing from " + url + "...");
+            }
             pluginManager.downloadAndExtract(name, terminal);
             return ExitStatus.OK;
         }

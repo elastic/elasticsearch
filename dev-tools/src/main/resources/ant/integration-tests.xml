@@ -87,8 +87,6 @@
       <run-script script="@{home}/bin/plugin">
         <nested>
           <arg value="install"/>
-          <arg value="@{name}"/>
-          <arg value="-u"/>
           <arg value="${url}"/>
         </nested>
       </run-script>

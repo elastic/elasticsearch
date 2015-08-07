@@ -91,11 +91,11 @@ public class PluginManager {
             ).build();
 
     private final Environment environment;
-    private String url;
+    private URL url;
     private OutputMode outputMode;
     private TimeValue timeout;
 
-    public PluginManager(Environment environment, String url, OutputMode outputMode, TimeValue timeout) {
+    public PluginManager(Environment environment, URL url, OutputMode outputMode, TimeValue timeout) {
         this.environment = environment;
         this.url = url;
         this.outputMode = outputMode;
@@ -103,8 +103,8 @@ public class PluginManager {
     }
 
     public void downloadAndExtract(String name, Terminal terminal) throws IOException {
-        if (name == null) {
-            throw new IllegalArgumentException("plugin name must be supplied with install [name].");
+        if (name == null && url == null) {
+            throw new IllegalArgumentException("plugin name or url must be supplied with install.");
         }
 
         if (!Files.exists(environment.pluginsFile())) {
@@ -116,8 +116,14 @@ public class PluginManager {
             throw new IOException("plugin directory " + environment.pluginsFile() + " is read only");
         }
 
-        PluginHandle pluginHandle = PluginHandle.parse(name);
-        checkForForbiddenName(pluginHandle.name);
+        PluginHandle pluginHandle;
+        if (name != null) {
+            pluginHandle = PluginHandle.parse(name);
+            checkForForbiddenName(pluginHandle.name);
+        } else {
+            // if we have no name but url, use temporary name that will be overwritten later
+            pluginHandle = new PluginHandle("temp_name" + new Random().nextInt(), null, null);
+        }
 
         Path pluginFile = download(pluginHandle, terminal);
         extract(pluginHandle, terminal, pluginFile);
@@ -138,7 +144,7 @@ public class PluginManager {
 
         // first, try directly from the URL provided
         if (url != null) {
-            URL pluginUrl = new URL(url);
+            URL pluginUrl = url;
             boolean isSecureProcotol = "https".equalsIgnoreCase(pluginUrl.getProtocol());
             boolean isAuthInfoSet = !Strings.isNullOrEmpty(pluginUrl.getUserInfo());
             if (isAuthInfoSet && !isSecureProcotol) {
@@ -204,14 +210,10 @@ public class PluginManager {
     }
 
     private void extract(PluginHandle pluginHandle, Terminal terminal, Path pluginFile) throws IOException {
-        final Path extractLocation = pluginHandle.extractedDir(environment);
-        if (Files.exists(extractLocation)) {
-            throw new IOException("plugin directory " + extractLocation.toAbsolutePath() + " already exists. To update the plugin, uninstall it first using 'remove " + pluginHandle.name + "' command");
-        }
 
         // unzip plugin to a staging temp dir, named for the plugin
         Path tmp = Files.createTempDirectory(environment.tmpFile(), null);
-        Path root = tmp.resolve(pluginHandle.name); 
+        Path root = tmp.resolve(pluginHandle.name);
         unzipPlugin(pluginFile, root);
 
         // find the actual root (in case its unzipped with extra directory wrapping)
@@ -224,6 +226,13 @@ public class PluginManager {
         // check for jar hell before any copying
         if (info.isJvm()) {
             jarHellCheck(root, info.isIsolated());
+        }
+
+        // update name in handle based on 'name' property found in descriptor file
+        pluginHandle = new PluginHandle(info.getName(), pluginHandle.version, pluginHandle.user);
+        final Path extractLocation = pluginHandle.extractedDir(environment);
+        if (Files.exists(extractLocation)) {
+            throw new IOException("plugin directory " + extractLocation.toAbsolutePath() + " already exists. To update the plugin, uninstall it first using 'remove " + pluginHandle.name + "' command");
         }
 
         // install plugin
@@ -334,7 +343,7 @@ public class PluginManager {
 
     private void unzipPlugin(Path zip, Path target) throws IOException {
         Files.createDirectories(target);
-        
+
         try (ZipInputStream zipInput = new ZipInputStream(Files.newInputStream(zip))) {
             ZipEntry entry;
             byte[] buffer = new byte[8192];
@@ -395,7 +404,7 @@ public class PluginManager {
         }
     }
 
-    private static void checkForForbiddenName(String name) {
+    static void checkForForbiddenName(String name) {
         if (!hasLength(name) || BLACKLIST.contains(name.toLowerCase(Locale.ROOT))) {
             throw new IllegalArgumentException("Illegal plugin name: " + name);
         }

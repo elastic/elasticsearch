@@ -95,18 +95,18 @@ public class FQueryFilterBuilder extends AbstractQueryBuilder<FQueryFilterBuilde
 
     @Override
     protected FQueryFilterBuilder doReadFrom(StreamInput in) throws IOException {
-        QueryBuilder innerQueryBuilder = in.readNamedWriteable();
+        QueryBuilder innerQueryBuilder = in.readQuery();
         FQueryFilterBuilder fquery = new FQueryFilterBuilder(innerQueryBuilder);
         return fquery;
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeNamedWriteable(queryBuilder);
+        out.writeQuery(queryBuilder);
     }
 
     @Override
-    public String getName() {
+    public String getWriteableName() {
         return NAME;
     }
 }

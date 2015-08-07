@@ -108,7 +108,7 @@ public class OrQueryBuilder extends AbstractQueryBuilder<OrQueryBuilder> {
     }
 
     @Override
-    public String getName() {
+    public String getWriteableName() {
         return NAME;
     }
 
@@ -125,7 +125,7 @@ public class OrQueryBuilder extends AbstractQueryBuilder<OrQueryBuilder> {
     @Override
     protected OrQueryBuilder doReadFrom(StreamInput in) throws IOException {
         OrQueryBuilder orQueryBuilder = new OrQueryBuilder();
-        List<QueryBuilder> queryBuilders = in.readNamedWriteableList();
+        List<QueryBuilder> queryBuilders = readQueries(in);
         for (QueryBuilder queryBuilder : queryBuilders) {
             orQueryBuilder.add(queryBuilder);
         }
@@ -135,6 +135,6 @@ public class OrQueryBuilder extends AbstractQueryBuilder<OrQueryBuilder> {
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeNamedWriteableList(filters);
+        writeQueries(out, filters);
     }
 }

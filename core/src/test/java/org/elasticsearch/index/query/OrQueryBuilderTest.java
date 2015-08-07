@@ -115,8 +115,8 @@ public class OrQueryBuilderTest extends BaseQueryTestCase<OrQueryBuilder> {
         String queryString = "{ \"or\" : {}";
         XContentParser parser = XContentFactory.xContent(queryString).createParser(queryString);
         context.reset(parser);
-        assertQueryHeader(parser, OrQueryBuilder.PROTOTYPE.getName());
-        context.queryParser(OrQueryBuilder.PROTOTYPE.getName()).fromXContent(context);
+        assertQueryHeader(parser, OrQueryBuilder.NAME);
+        context.queryParser(OrQueryBuilder.NAME).fromXContent(context);
     }
 
     @Test

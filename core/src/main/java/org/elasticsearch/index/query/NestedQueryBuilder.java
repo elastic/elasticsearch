@@ -87,7 +87,7 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
     }
 
     @Override
-    public final String getName() {
+    public final String getWriteableName() {
         return NAME;
     }
 }

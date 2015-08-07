@@ -138,21 +138,21 @@ public class FilteredQueryBuilder extends AbstractQueryBuilder<FilteredQueryBuil
     }
 
     @Override
-    public String getName() {
+    public String getWriteableName() {
         return NAME;
     }
 
     @Override
     public FilteredQueryBuilder doReadFrom(StreamInput in) throws IOException {
-        QueryBuilder query = in.readNamedWriteable();
-        QueryBuilder filter = in.readNamedWriteable();
+        QueryBuilder query = in.readQuery();
+        QueryBuilder filter = in.readQuery();
         FilteredQueryBuilder qb = new FilteredQueryBuilder(query, filter);
         return qb;
     }
 
     @Override
     public void doWriteTo(StreamOutput out) throws IOException {
-        out.writeNamedWriteable(queryBuilder);
-        out.writeNamedWriteable(filterBuilder);
+        out.writeQuery(queryBuilder);
+        out.writeQuery(filterBuilder);
     }
 }

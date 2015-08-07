@@ -24,7 +24,8 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
-import org.elasticsearch.*;
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
@@ -150,6 +151,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
     protected volatile TransportServiceAdapter transportServiceAdapter;
     protected volatile BoundTransportAddress boundAddress;
     protected final KeyedLock<String> connectionLock = new KeyedLock<>();
+    protected final NamedWriteableRegistry namedWriteableRegistry;
 
     // this lock is here to make sure we close this transport and disconnect all the client nodes
     // connections while no connect operations is going on... (this might help with 100% CPU when stopping the transport?)
@@ -157,8 +159,6 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
 
     // package visibility for tests
     final ScheduledPing scheduledPing;
-
-    protected final NamedWriteableRegistry namedWriteableRegistry;
 
     @Inject
     public NettyTransport(Settings settings, ThreadPool threadPool, NetworkService networkService, BigArrays bigArrays, Version version, NamedWriteableRegistry namedWriteableRegistry) {
@@ -973,7 +973,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
     }
 
     protected static class ClientChannelPipelineFactory implements ChannelPipelineFactory {
-        protected NettyTransport nettyTransport;
+        protected final NettyTransport nettyTransport;
 
         public ClientChannelPipelineFactory(NettyTransport nettyTransport) {
             this.nettyTransport = nettyTransport;

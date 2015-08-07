@@ -85,17 +85,17 @@ public class NotQueryBuilder extends AbstractQueryBuilder<NotQueryBuilder> {
 
     @Override
     protected NotQueryBuilder doReadFrom(StreamInput in) throws IOException {
-        QueryBuilder queryBuilder = in.readNamedWriteable();
+        QueryBuilder queryBuilder = in.readQuery();
         return new NotQueryBuilder(queryBuilder);
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeNamedWriteable(filter);
+        out.writeQuery(filter);
     }
 
     @Override
-    public String getName() {
+    public String getWriteableName() {
         return NAME;
     }
 }

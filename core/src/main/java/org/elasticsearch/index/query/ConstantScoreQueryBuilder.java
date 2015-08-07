@@ -88,7 +88,7 @@ public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScor
     }
 
     @Override
-    public String getName() {
+    public String getWriteableName() {
         return NAME;
     }
 
@@ -104,12 +104,12 @@ public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScor
 
     @Override
     protected ConstantScoreQueryBuilder doReadFrom(StreamInput in) throws IOException {
-        QueryBuilder innerFilterBuilder = in.readNamedWriteable();
+        QueryBuilder innerFilterBuilder = in.readQuery();
         return new ConstantScoreQueryBuilder(innerFilterBuilder);
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeNamedWriteable(filterBuilder);
+        out.writeQuery(filterBuilder);
     }
 }

@@ -79,13 +79,13 @@ public class SpanMultiTermQueryBuilder extends AbstractQueryBuilder<SpanMultiTer
 
     @Override
     protected SpanMultiTermQueryBuilder doReadFrom(StreamInput in) throws IOException {
-        MultiTermQueryBuilder multiTermBuilder = in.readNamedWriteable();
+        MultiTermQueryBuilder multiTermBuilder = (MultiTermQueryBuilder)in.readQuery();
         return new SpanMultiTermQueryBuilder(multiTermBuilder);
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeNamedWriteable(multiTermQueryBuilder);
+        out.writeQuery(multiTermQueryBuilder);
     }
 
     @Override
@@ -99,7 +99,7 @@ public class SpanMultiTermQueryBuilder extends AbstractQueryBuilder<SpanMultiTer
     }
 
     @Override
-    public String getName() {
+    public String getWriteableName() {
         return NAME;
     }
 }

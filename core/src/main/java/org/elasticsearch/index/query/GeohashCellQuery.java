@@ -169,7 +169,7 @@ public class GeohashCellQuery {
         }
 
         @Override
-        public String getName() {
+        public String getWriteableName() {
             return NAME;
         }
     }

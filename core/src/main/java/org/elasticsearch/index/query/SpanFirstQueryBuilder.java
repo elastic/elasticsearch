@@ -98,14 +98,14 @@ public class SpanFirstQueryBuilder extends AbstractQueryBuilder<SpanFirstQueryBu
 
     @Override
     protected SpanFirstQueryBuilder doReadFrom(StreamInput in) throws IOException {
-        SpanQueryBuilder matchBuilder = in.readNamedWriteable();
+        SpanQueryBuilder matchBuilder = (SpanQueryBuilder)in.readQuery();
         int end = in.readInt();
         return new SpanFirstQueryBuilder(matchBuilder, end);
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeNamedWriteable(matchBuilder);
+        out.writeQuery(matchBuilder);
         out.writeInt(end);
     }
 
@@ -121,7 +121,7 @@ public class SpanFirstQueryBuilder extends AbstractQueryBuilder<SpanFirstQueryBu
     }
 
     @Override
-    public String getName() {
+    public String getWriteableName() {
         return NAME;
     }
 }

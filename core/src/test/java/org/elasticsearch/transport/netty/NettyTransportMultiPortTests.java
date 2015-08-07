@@ -20,7 +20,6 @@ package org.elasticsearch.transport.netty;
 
 import com.carrotsearch.hppc.IntHashSet;
 import com.google.common.base.Charsets;
-
 import org.elasticsearch.Version;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.common.component.Lifecycle;

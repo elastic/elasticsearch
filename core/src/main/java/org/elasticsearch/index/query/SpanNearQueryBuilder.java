@@ -46,7 +46,7 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
     /** Default for flag controlling whether payloads are collected */
     public static boolean DEFAULT_COLLECT_PAYLOADS = true;
 
-    private final ArrayList<SpanQueryBuilder> clauses = new ArrayList<>();
+    private final List<SpanQueryBuilder> clauses = new ArrayList<>();
 
     private final int slop;
 
@@ -159,9 +159,9 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
     @Override
     protected SpanNearQueryBuilder doReadFrom(StreamInput in) throws IOException {
         SpanNearQueryBuilder queryBuilder = new SpanNearQueryBuilder(in.readVInt());
-        List<SpanQueryBuilder> clauses = in.readNamedWriteableList();
-        for (SpanQueryBuilder subClause : clauses) {
-            queryBuilder.clause(subClause);
+        List<QueryBuilder> clauses = readQueries(in);
+        for (QueryBuilder subClause : clauses) {
+            queryBuilder.clauses.add((SpanQueryBuilder)subClause);
         }
         queryBuilder.collectPayloads = in.readBoolean();
         queryBuilder.inOrder = in.readBoolean();
@@ -172,7 +172,7 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeVInt(slop);
-        out.writeNamedWriteableList(clauses);
+        writeQueries(out, clauses);
         out.writeBoolean(collectPayloads);
         out.writeBoolean(inOrder);
     }
@@ -191,7 +191,7 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
     }
 
     @Override
-    public String getName() {
+    public String getWriteableName() {
         return NAME;
     }
 }

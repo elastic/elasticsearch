@@ -26,8 +26,9 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.*;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
@@ -226,7 +227,7 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
         Transports.assertTransportThread();
         try {
             transportServiceAdapter.received(data.length);
-            StreamInput stream = new FilterStreamInput(StreamInput.wrap(data), namedWriteableRegistry);
+            StreamInput stream = StreamInput.wrap(data);
             stream.setVersion(version);
 
             long requestId = stream.readLong();
@@ -259,6 +260,7 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
     }
 
     private void handleRequest(StreamInput stream, long requestId, LocalTransport sourceTransport, Version version) throws Exception {
+        stream = new NamedWriteableAwareStreamInput(stream, namedWriteableRegistry);
         final String action = stream.readString();
         transportServiceAdapter.onRequestReceived(requestId, action);
         final LocalTransportChannel transportChannel = new LocalTransportChannel(this, transportServiceAdapter, sourceTransport, action, requestId, version);

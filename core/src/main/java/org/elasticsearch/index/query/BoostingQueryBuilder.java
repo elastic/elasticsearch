@@ -124,7 +124,7 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
     }
 
     @Override
-    public String getName() {
+    public String getWriteableName() {
         return NAME;
     }
 
@@ -155,8 +155,8 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
 
     @Override
     protected BoostingQueryBuilder doReadFrom(StreamInput in) throws IOException {
-        QueryBuilder positiveQuery = in.readNamedWriteable();
-        QueryBuilder negativeQuery = in.readNamedWriteable();
+        QueryBuilder positiveQuery = in.readQuery();
+        QueryBuilder negativeQuery = in.readQuery();
         BoostingQueryBuilder boostingQuery = new BoostingQueryBuilder(positiveQuery, negativeQuery);
         boostingQuery.negativeBoost = in.readFloat();
         return boostingQuery;
@@ -164,8 +164,8 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeNamedWriteable(positiveQuery);
-        out.writeNamedWriteable(negativeQuery);
+        out.writeQuery(positiveQuery);
+        out.writeQuery(negativeQuery);
         out.writeFloat(negativeBoost);
     }
 }

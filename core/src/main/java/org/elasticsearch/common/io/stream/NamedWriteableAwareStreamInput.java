@@ -17,22 +17,26 @@
  * under the License.
  */
 
-package org.elasticsearch.index.query;
+package org.elasticsearch.common.io.stream;
 
+import java.io.IOException;
 
 /**
- * A filter for a field based on several terms matching on any of them.
- * @deprecated use {@link TermsQueryBuilder} instead.
+ * Wraps a {@link StreamInput} and associates it with a {@link NamedWriteableRegistry}
  */
-@Deprecated
-public class TermsLookupQueryBuilder extends TermsQueryBuilder {
+public class NamedWriteableAwareStreamInput extends FilterStreamInput {
 
-    public TermsLookupQueryBuilder(String name) {
-        super(name, (Object[]) null);
+    private final NamedWriteableRegistry namedWriteableRegistry;
+
+    public NamedWriteableAwareStreamInput(StreamInput delegate, NamedWriteableRegistry namedWriteableRegistry) {
+        super(delegate);
+        this.namedWriteableRegistry = namedWriteableRegistry;
     }
 
     @Override
-    public String getWriteableName() {
-        return TermsQueryBuilder.NAME;
+    <C> C readNamedWriteable(Class<C> categoryClass) throws IOException {
+        String name = readString();
+        NamedWriteable<? extends C> namedWriteable = namedWriteableRegistry.getPrototype(categoryClass, name);
+        return namedWriteable.readFrom(this);
     }
 }

@@ -188,7 +188,7 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
     }
 
     @Override
-    public String getName() {
+    public String getWriteableName() {
         return FunctionScoreQueryParser.NAME;
     }
 }

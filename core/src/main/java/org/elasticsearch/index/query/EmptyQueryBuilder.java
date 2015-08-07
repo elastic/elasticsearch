@@ -50,8 +50,13 @@ public class EmptyQueryBuilder extends ToXContentToBytes implements QueryBuilder
     }
 
     @Override
-    public String getName() {
+    public String getWriteableName() {
         return NAME;
+    }
+
+    @Override
+    public String getName() {
+        return getWriteableName();
     }
 
     @Override

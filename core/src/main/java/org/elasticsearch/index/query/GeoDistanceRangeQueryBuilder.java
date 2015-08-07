@@ -46,6 +46,10 @@ public class GeoDistanceRangeQueryBuilder extends QueryBuilder {
 
     private String optimizeBbox;
 
+    private Boolean coerce;
+
+    private Boolean ignoreMalformed;
+
     public GeoDistanceRangeQueryBuilder(String name) {
         this.name = name;
     }
@@ -125,6 +129,16 @@ public class GeoDistanceRangeQueryBuilder extends QueryBuilder {
         return this;
     }
 
+    public GeoDistanceRangeQueryBuilder coerce(boolean coerce) {
+        this.coerce = coerce;
+        return this;
+    }
+
+    public GeoDistanceRangeQueryBuilder ignoreMalformed(boolean ignoreMalformed) {
+        this.ignoreMalformed = ignoreMalformed;
+        return this;
+    }
+
     /**
      * Sets the filter name for the filter that can be used when searching for matched_filters per hit.
      */
@@ -153,6 +167,12 @@ public class GeoDistanceRangeQueryBuilder extends QueryBuilder {
         }
         if (queryName != null) {
             builder.field("_name", queryName);
+        }
+        if (coerce != null) {
+            builder.field("coerce", coerce);
+        }
+        if (ignoreMalformed != null) {
+            builder.field("ignore_malformed", ignoreMalformed);
         }
         builder.endObject();
     }

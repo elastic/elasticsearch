@@ -68,7 +68,7 @@ fi
 
 if [ "$REMOVE_SERVICE" = "true" ]; then
     if command -v systemctl >/dev/null; then
-        systemctl --no-reload disable elasticsearch.service > /dev/null 2>&1 || true
+        systemctl disable elasticsearch.service > /dev/null 2>&1 || true
     fi
 
     if command -v chkconfig >/dev/null; then

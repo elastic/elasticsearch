@@ -13,7 +13,6 @@
   <!-- runs an OS script -->
   <macrodef name="run-script">
       <attribute name="script"/>
-      <attribute name="args"/>
       <attribute name="spawn" default="false"/>
       <element name="nested" optional="true"/>
     <sequential>
@@ -23,23 +22,25 @@
       </condition>
 
       <!-- create a temp CWD, to enforce that commands don't rely on CWD -->
-      <mkdir dir="${integ.temp}"/>
+      <local name="temp.cwd"/>
+      <tempfile property="temp.cwd" destDir="${integ.temp}"/>
+      <mkdir dir="${temp.cwd}"/>
 
       <!-- print commands we run -->
       <local name="script.base"/>
       <basename file="@{script}" property="script.base"/>
-      <echo>execute: ${script.base} @{args}</echo>
+      <echo>execute: ${script.base}</echo>
+      <!-- crappy way to output, but we need it. make it nice later -->
+      <echoxml><args><nested/></args></echoxml>
 
-      <exec executable="cmd" osfamily="winnt" dir="${integ.temp}" failonerror="${failonerror}" spawn="@{spawn}" taskname="${script.base}">
+      <exec executable="cmd" osfamily="winnt" dir="${temp.cwd}" failonerror="${failonerror}" spawn="@{spawn}" taskname="${script.base}">
         <arg value="/c"/>
         <arg value="@{script}.bat"/>
-        <arg line="@{args}"/>
         <nested/>
       </exec>
 
-      <exec executable="sh" osfamily="unix" dir="${integ.temp}" failonerror="${failonerror}" spawn="@{spawn}" taskname="${script.base}">
+      <exec executable="sh" osfamily="unix" dir="${temp.cwd}" failonerror="${failonerror}" spawn="@{spawn}" taskname="${script.base}">
         <arg value="@{script}"/>
-        <arg line="@{args}"/>
         <nested/>
       </exec>
     </sequential>
@@ -86,7 +87,14 @@
 
       <!-- install plugin -->
       <echo>Installing plugin @{name}...</echo>
-      <run-script script="@{home}/bin/plugin" args="install @{name} -u ${url}"/>
+      <run-script script="@{home}/bin/plugin">
+        <nested>
+          <arg value="install"/>
+          <arg value="@{name}"/>
+          <arg value="-u"/>
+          <arg value="${url}"/>
+        </nested>
+      </run-script>
 
       <!-- check that plugin was installed into correct place -->
       <local name="longname"/>
@@ -133,24 +141,8 @@
       <attribute name="es.http.port" default="${integ.http.port}"/>
       <attribute name="es.transport.tcp.port" default="${integ.transport.port}"/>
       <attribute name="es.pidfile" default="${integ.pidfile}"/>
-      <attribute name="additional.args" default=""/>
       <attribute name="jvm.args" default="${tests.jvm.argline}"/>
     <sequential>
-
-      <!-- build args to pass to es -->
-      <local name="integ.args"/>
-      <property name="integ.args" value="
--Des.cluster.name=@{es.cluster.name}
--Des.http.port=@{es.http.port}
--Des.transport.tcp.port=@{es.transport.tcp.port}
--Des.pidfile=@{es.pidfile}
--Des.path.repo=@{home}/repo
--Des.discovery.zen.ping.multicast.enabled=false
--Des.script.inline=on
--Des.script.indexed=on
--Des.repositories.url.allowed_urls=http://snapshot.test*
-@{additional.args}"
-      />
 
       <!-- run bin/elasticsearch with args -->
       <echo>Starting up external cluster...</echo>
@@ -158,12 +150,20 @@
       <echo>ARGS=@{jvm.args}</echo>
 
       <run-script script="@{home}/bin/elasticsearch" 
-                  spawn="@{spawn}"
-                  args="${integ.args}">
+                  spawn="@{spawn}">
         <nested>
           <env key="JAVA_HOME" value="${java.home}"/>
           <!-- we pass these as gc options, even if they arent, to avoid conflicting gc options -->
           <env key="ES_GC_OPTS" value="@{jvm.args}"/>
+          <arg value="-Des.cluster.name=@{es.cluster.name}"/>
+          <arg value="-Des.http.port=@{es.http.port}"/>
+          <arg value="-Des.transport.tcp.port=@{es.transport.tcp.port}"/>
+          <arg value="-Des.pidfile=@{es.pidfile}"/>
+          <arg value="-Des.path.repo=@{home}/repo"/>
+          <arg value="-Des.discovery.zen.ping.multicast.enabled=false"/>
+          <arg value="-Des.script.inline=on"/>
+          <arg value="-Des.script.indexed=on"/>
+          <arg value="-Des.repositories.url.allowed_urls=http://snapshot.test*"/>
         </nested>
       </run-script>
 
@@ -306,7 +306,7 @@
          <arg value="-q"/>
          <arg value="-i"/>
          <arg value="-p"/>
-         <arg value="${rpm.file}"/> 
+         <arg value="${rpm.file}"/>
       </exec>
       <!-- extract contents from .rpm package -->
       <exec executable="rpm" failonerror="true" taskname="rpm">

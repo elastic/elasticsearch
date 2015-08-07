@@ -95,7 +95,7 @@ public class RoutingTableTest extends ESAllocationTestCase {
     private void startInitializingShards(String index) {
         this.clusterState = ClusterState.builder(clusterState).routingTable(this.testRoutingTable).build();
         logger.info("start primary shards for index " + index);
-        RoutingAllocation.Result rerouteResult = ALLOCATION_SERVICE.applyStartedShards(this.clusterState, this.clusterState.routingNodes().shardsWithState(index, INITIALIZING));
+        RoutingAllocation.Result rerouteResult = ALLOCATION_SERVICE.applyStartedShards(this.clusterState, this.clusterState.getRoutingNodes().shardsWithState(index, INITIALIZING));
         this.clusterState = ClusterState.builder(clusterState).routingTable(rerouteResult.routingTable()).build();
         this.testRoutingTable = rerouteResult.routingTable();
     }

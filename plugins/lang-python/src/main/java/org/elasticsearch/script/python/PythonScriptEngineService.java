@@ -90,6 +90,11 @@ public class PythonScriptEngineService extends AbstractComponent implements Scri
                 final LeafSearchLookup leafLookup = lookup.getLeafSearchLookup(context);
                 return new PythonSearchScript((PyCode) compiledScript.compiled(), vars, leafLookup);
             }
+            @Override
+            public boolean needsScores() {
+                // TODO: can we reliably know if a python script makes use of _score
+                return true;
+            }
         };
     }
 

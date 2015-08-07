@@ -1031,9 +1031,6 @@ public class GetActionIT extends ESIntegTestCase {
             "    \"doc\": {\n" +
             "      \"_timestamp\": {\n" +
             "        \"enabled\": true\n" +
-            "      },\n" +
-            "      \"_size\": {\n" +
-            "        \"enabled\": true\n" +
             "      }\n" +
             "    }\n" +
             "  }\n" +
@@ -1045,7 +1042,7 @@ public class GetActionIT extends ESIntegTestCase {
             "  \"text\": \"some text.\"\n" +
             "}\n";
         client().prepareIndex("test", "doc").setId("1").setSource(doc).setRouting("1").get();
-        String[] fieldsList = {"_timestamp", "_size", "_routing"};
+        String[] fieldsList = {"_timestamp", "_routing"};
         // before refresh - document is only in translog
         assertGetFieldsAlwaysWorks(indexOrAlias(), "doc", "1", fieldsList, "1");
         refresh();

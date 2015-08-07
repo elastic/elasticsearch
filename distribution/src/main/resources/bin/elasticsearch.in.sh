@@ -44,11 +44,15 @@ if [ "x$ES_USE_IPV4" != "x" ]; then
   JAVA_OPTS="$JAVA_OPTS -Djava.net.preferIPv4Stack=true"
 fi
 
-JAVA_OPTS="$JAVA_OPTS -XX:+UseParNewGC"
-JAVA_OPTS="$JAVA_OPTS -XX:+UseConcMarkSweepGC"
+# Add gc options. ES_GC_OPTS is unsupported, for internal testing
+if [ "x$ES_GC_OPTS" = "x" ]; then
+  ES_GC_OPTS="$ES_GC_OPTS -XX:+UseParNewGC"
+  ES_GC_OPTS="$ES_GC_OPTS -XX:+UseConcMarkSweepGC"
+  ES_GC_OPTS="$ES_GC_OPTS -XX:CMSInitiatingOccupancyFraction=75"
+  ES_GC_OPTS="$ES_GC_OPTS -XX:+UseCMSInitiatingOccupancyOnly"
+fi
 
-JAVA_OPTS="$JAVA_OPTS -XX:CMSInitiatingOccupancyFraction=75"
-JAVA_OPTS="$JAVA_OPTS -XX:+UseCMSInitiatingOccupancyOnly"
+JAVA_OPTS="$JAVA_OPTS $ES_GC_OPTS"
 
 # GC logging options
 if [ -n "$ES_GC_LOG_FILE" ]; then

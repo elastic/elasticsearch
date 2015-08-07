@@ -389,7 +389,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                     StringBuilder sb = new StringBuilder("failed to execute cluster state update in ").append(executionTime).append(", state:\nversion [").append(previousClusterState.version()).append("], source [").append(source).append("]\n");
                     sb.append(previousClusterState.nodes().prettyPrint());
                     sb.append(previousClusterState.routingTable().prettyPrint());
-                    sb.append(previousClusterState.readOnlyRoutingNodes().prettyPrint());
+                    sb.append(previousClusterState.getRoutingNodes().prettyPrint());
                     logger.trace(sb.toString(), e);
                 }
                 warnAboutSlowTaskIfNeeded(executionTime, source);
@@ -533,7 +533,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                 StringBuilder sb = new StringBuilder("failed to apply updated cluster state in ").append(executionTime).append(":\nversion [").append(newClusterState.version()).append("], uuid [").append(newClusterState.stateUUID()).append("], source [").append(source).append("]\n");
                 sb.append(newClusterState.nodes().prettyPrint());
                 sb.append(newClusterState.routingTable().prettyPrint());
-                sb.append(newClusterState.readOnlyRoutingNodes().prettyPrint());
+                sb.append(newClusterState.getRoutingNodes().prettyPrint());
                 logger.warn(sb.toString(), t);
                 // TODO: do we want to call updateTask.onFailure here?
             }

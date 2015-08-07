@@ -133,7 +133,7 @@ public class TransportIndexFailuresIT extends ESIntegTestCase {
                 client().prepareGet(INDEX, "doc", resp.getId()).get().isExists(), equalTo(true));
 
         state = getNodeClusterState(randomFrom(nodes.toArray(Strings.EMPTY_ARRAY)));
-        RoutingNodes rn = state.routingNodes();
+        RoutingNodes rn = state.getRoutingNodes();
         logger.info("--> counts: total: {}, unassigned: {}, initializing: {}, relocating: {}, started: {}",
                 rn.shards(new Predicate<ShardRouting>() {
                     @Override

@@ -311,7 +311,9 @@
                             <configuration>
                                 <skip>${skip.integ.tests}</skip>
                                 <target>
-                                    <ant antfile="${elasticsearch.integ.antfile}" target="start-external-cluster-with-plugin"/>
+                                    <ant antfile="${elasticsearch.integ.antfile}" target="start-external-cluster-with-plugin">
+                                        <property name="tests.jvm.argline" value="${tests.jvm.argline}"/>
+                                    </ant>
                                 </target>
                             </configuration>
                         </execution>
@@ -430,9 +432,10 @@
         <module>cloud-gce</module>
         <module>cloud-azure</module>
         <module>cloud-aws</module>
-        <module>site-example</module>
+        <module>delete-by-query</module>
         <module>lang-python</module>
         <module>lang-javascript</module>
-        <module>delete-by-query</module>
+        <module>mapper-size</module>
+        <module>site-example</module>
     </modules>
 </project>

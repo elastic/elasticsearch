@@ -1,0 +1,139 @@
+[[dynamic-field-mapping]]
+=== Dynamic field mapping
+
+By default, when a previously unseen field is found in a document,
+Elasticsearch will add the new field to the type mapping.   This behaviour can
+be disabled, both at the document and at the <<object,`object`>>  level, by
+setting the <<dynamic,`dynamic`>> parameter to `false` or to `strict`.
+
+Assuming `dynamic` field mapping is enabled, some simple rules are used to
+determine which datatype the field should have:
+
+[horizontal]
+*JSON datatype*::                   *Elasticsearch datatype*
+
+`null`::                            No field is added.
+`true` or `false`::                 <<boolean,`boolean`>> field
+floating{nbsp}point{nbsp}number::   <<number,`double`>> field
+integer::                           <<number,`long`>> field
+object::                            <<object,`object`>> field
+array::                             Depends on the first non-`null` value in the array.
+string::                            Either a <<date,`date`>> field
+                                        (if the value passes <<date-detection,date detection>>),
+                                    a <<number,`double`>> or <<number,`long`>> field
+                                        (if the value passes <<numeric-detection,numeric detection>>)
+                                    or an <<mapping-index,`analyzed`>> <<string,`string`>> field.
+
+These are the only <<mapping-types,field datatypes>> that are dynamically
+detected.  All other datatypes must be mapped explicitly.
+
+Besides the options listed below, dynamic field mapping rules can be further
+customised with <<dynamic-templates,`dynamic_templates`>>.
+
+[[date-detection]]
+==== Date detection
+
+If `date_detection` is enabled (default), then new string fields are checked
+to see whether their contents match any of the date patterns specified in
+`dynamic_date_formats`.  If a match is found, a new <<date,`date`>> field is
+added with the corresponding format.
+
+The default value for `dynamic_date_formats` is:
+
+&#91; <<strict-date-time,`"strict_date_optional_time"`>>,`"yyyy/MM/dd HH:mm:ss Z||yyyy/MM/dd Z"`]
+
+For example:
+
+
+[source,js]
+--------------------------------------------------
+PUT my_index/my_type/1
+{
+  "create_date": "2015/09/02"
+}
+
+GET my_index/_mapping <1>
+--------------------------------------------------
+// AUTOSENSE
+<1> The `create_date` field has been added as a <<date,`date`>>
+    field with the <<mapping-date-format,`format`>>: +
+    `"yyyy/MM/dd HH:mm:ss Z||yyyy/MM/dd Z"`.
+
+===== Disabling date detection
+
+Dynamic date dection can be disabled by setting `date_detection` to `false`:
+
+[source,js]
+--------------------------------------------------
+PUT my_index
+{
+  "mappings": {
+    "my_type": {
+      "date_detection": false
+    }
+  }
+}
+
+PUT my_index/my_type/1 <1>
+{
+  "create": "2015/09/02"
+}
+--------------------------------------------------
+// AUTOSENSE
+
+<1> The `create_date` field has been added as a <<string,`string`>> field.
+
+===== Customising detected date formats
+
+Alternatively, the `dynamic_date_formats` can be customised to support your
+own <<mapping-date-format,date formats>>:
+
+[source,js]
+--------------------------------------------------
+PUT my_index
+{
+  "mappings": {
+    "my_type": {
+      "dynamic_date_formats": ["MM/dd/yyyy"]
+    }
+  }
+}
+
+PUT my_index/my_type/1
+{
+  "create_date": "09/25/2015"
+}
+--------------------------------------------------
+// AUTOSENSE
+
+
+[[numeric-detection]]
+==== Numeric detection
+
+While JSON has support for native floating point and integer datatypes, some
+applications or languages may sometimes render numbers as strings. Usually the
+correct solution is to map these fields explicitly, but numeric detection
+(which is disabled by default) can be enabled to do this automatically:
+
+
+[source,js]
+--------------------------------------------------
+PUT my_index
+{
+  "mappings": {
+    "my_type": {
+      "numeric_detection": true
+    }
+  }
+}
+
+PUT my_index/my_type/1
+{
+  "my_float":   "1.0", <1>
+  "my_integer": "1" <2>
+}
+--------------------------------------------------
+// AUTOSENSE
+<1> The `my_float` field is added as a <<number,`double`>> field.
+<2> The `my_integer` field is added as a <<number,`long`>> field.
+

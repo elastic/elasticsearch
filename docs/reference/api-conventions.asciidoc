@@ -152,6 +152,34 @@ being consumed by a monitoring tool, rather than intended for human
 consumption.  The default for the `human` flag is
 `false`.
 
+[[date-math]]
+[float]
+=== Date Math
+
+Most parameters which accept a formatted date value -- such as `gt` and `lt`
+in <<query-dsl-range-query,range queries>> `range` queries, or `from` and `to`
+in <<search-aggregations-bucket-daterange-aggregation,`daterange`
+aggregations>> -- understand date maths.
+
+The expression starts with an anchor date, which can either be `now`, or a
+date string ending with `||`. This anchor date can optionally be followed by
+one or more maths expressions:
+
+* `+1h` - add one hour
+* `-1d` - subtract one day
+* `/d`  - round down to the nearest day
+
+The supported <<time-units,time units>> are: `y` (year), `M` (month), `w` (week),
+`d` (day), `h` (hour), `m` (minute), and `s` (second).
+
+Some examples are:
+
+[horizontal]
+`now+1h`::              The current time plus one hour, with ms resolution.
+`now+1h+1m`::           The current time plus one hour plus one minute, with ms resolution.
+`now+1h/d`::            The current time plus one hour, rounded down to the nearest day.
+`2015-01-01||+1M/d`::   `2015-01-01` plus one month, rounded down to the nearest day.
+
 [float]
 === Response Filtering
 
@@ -237,10 +265,10 @@ curl 'localhost:9200/_segments?pretty&filter_path=indices.**.version'
 --------------------------------------------------
 
 Note that elasticsearch sometimes returns directly the raw value of a field,
-like the `_source` field. If you want to filter _source fields, you should
+like the `_source` field. If you want to filter `_source` fields, you should
 consider combining the already existing `_source` parameter (see
 <<get-source-filtering,Get API>> for more details) with the `filter_path`
- parameter like this:
+parameter like this:
 
 [source,sh]
 --------------------------------------------------
@@ -318,8 +346,9 @@ of supporting the native JSON number types.
 [float]
 === Time units
 
-Whenever durations need to be specified, eg for a `timeout` parameter, the duration
-can be specified as a whole number representing time in milliseconds, or as a time value like `2d` for 2 days.  The supported units are:
+Whenever durations need to be specified, eg for a `timeout` parameter, the
+duration must specify the unit, like `2d` for 2 days.  The supported units
+are:
 
 [horizontal]
 `y`::   Year
@@ -329,6 +358,7 @@ can be specified as a whole number representing time in milliseconds, or as a ti
 `h`::   Hour
 `m`::   Minute
 `s`::   Second
+`ms`::  Milli-second
 
 [[distance-units]]
 [float]

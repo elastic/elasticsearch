@@ -48,7 +48,6 @@ import org.elasticsearch.index.mapper.internal.IdFieldMapper;
 import org.elasticsearch.index.mapper.internal.IndexFieldMapper;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.mapper.internal.RoutingFieldMapper;
-import org.elasticsearch.index.mapper.internal.SizeFieldMapper;
 import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
 import org.elasticsearch.index.mapper.internal.TTLFieldMapper;
 import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
@@ -106,7 +105,6 @@ public class DocumentMapper implements ToXContent {
             this.rootMappers.put(IdFieldMapper.class, new IdFieldMapper(indexSettings, mapperService.fullName(IdFieldMapper.NAME)));
             this.rootMappers.put(RoutingFieldMapper.class, new RoutingFieldMapper(indexSettings, mapperService.fullName(RoutingFieldMapper.NAME)));
             // add default mappers, order is important (for example analyzer should come before the rest to set context.analyzer)
-            this.rootMappers.put(SizeFieldMapper.class, new SizeFieldMapper(indexSettings, mapperService.fullName(SizeFieldMapper.NAME)));
             this.rootMappers.put(IndexFieldMapper.class, new IndexFieldMapper(indexSettings, mapperService.fullName(IndexFieldMapper.NAME)));
             this.rootMappers.put(SourceFieldMapper.class, new SourceFieldMapper(indexSettings));
             this.rootMappers.put(TypeFieldMapper.class, new TypeFieldMapper(indexSettings, mapperService.fullName(TypeFieldMapper.NAME)));
@@ -283,10 +281,6 @@ public class DocumentMapper implements ToXContent {
         return rootMapper(ParentFieldMapper.class);
     }
 
-    public SizeFieldMapper sizeFieldMapper() {
-        return rootMapper(SizeFieldMapper.class);
-    }
-
     public TimestampFieldMapper timestampFieldMapper() {
         return rootMapper(TimestampFieldMapper.class);
     }
@@ -297,10 +291,6 @@ public class DocumentMapper implements ToXContent {
 
     public IndexFieldMapper IndexFieldMapper() {
         return rootMapper(IndexFieldMapper.class);
-    }
-
-    public SizeFieldMapper SizeFieldMapper() {
-        return rootMapper(SizeFieldMapper.class);
     }
 
     public Query typeFilter() {

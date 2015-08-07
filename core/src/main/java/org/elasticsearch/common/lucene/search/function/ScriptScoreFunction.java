@@ -127,6 +127,11 @@ public class ScriptScoreFunction extends ScoreFunction {
     }
 
     @Override
+    public boolean needsScores() {
+        return script.needsScores();
+    }
+
+    @Override
     public String toString() {
         return "script" + sScript.toString();
     }

@@ -290,6 +290,11 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
         }
 
         @Override
+        public boolean needsScores() {
+            return false;
+        }
+
+        @Override
         protected NumericDoubleValues distance(LeafReaderContext context) {
             final MultiGeoPointValues geoPointValues = fieldData.load(context).getGeoPointValues();
             return mode.select(new MultiValueMode.UnsortedNumericDoubleValues() {
@@ -350,6 +355,11 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
             super(scale, decay, offset, func, mode);
             this.fieldData = fieldData;
             this.origin = origin;
+        }
+
+        @Override
+        public boolean needsScores() {
+            return false;
         }
 
         @Override

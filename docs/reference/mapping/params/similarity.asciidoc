@@ -1,0 +1,54 @@
+[[similarity]]
+=== `similarity`
+
+Elasticsearch allows you to configure a scoring algorithm or _similarity_ per
+field. The `similarity` setting provides a simple way of choosing a similarity
+algorithm other than the default TF/IDF, such as `BM25`.
+
+Similarities are mostly useful for <<string,`string`>> fields, especially
+`analyzed` string fields, but can also apply to other field types.
+
+Custom similarites can be configured by tuning the parameters of the built-in
+similarities. For more details about this expert options, see the
+<<index-modules-similarity,similarity module>>.
+
+The only similarities which can be used out of the box, without any further
+configuration are:
+
+`default`::
+        The Default TF/IDF algorithm used by Elasticsearch and
+        Lucene. See {defguide}/practical-scoring-function.html[Lucene’s Practical Scoring Function]
+        for more information.
+
+`BM25`::
+        The Okapi BM25 algorithm.
+        See {defguide}/pluggable-similarites.html[Plugggable Similarity Algorithms]
+        for more information.
+
+
+The `similarity` can be set on the field level when a field is first created,
+as follows:
+
+[source,js]
+--------------------------------------------------
+PUT my_index
+{
+  "mappings": {
+    "my_type": {
+      "properties": {
+        "default_field": { <1>
+          "type": "string"
+        },
+        "bm25_field": {
+          "type": "string",
+          "similarity": "BM25" <2>
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// AUTOSENSE
+<1> The `default_field` uses the `default` similarity (ie TF/IDF).
+<2> The `bm25_field` uses the `BM25` similarity.
+

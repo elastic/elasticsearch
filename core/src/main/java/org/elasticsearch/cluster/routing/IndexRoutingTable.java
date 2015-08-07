@@ -498,7 +498,6 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
                     for (ShardRouting shardRouting : indexShard) {
                         if (!shardRouting.primary()) {
                             builder.removeShard(shardRouting);
-                            removed = true;
                             break;
                         }
                     }

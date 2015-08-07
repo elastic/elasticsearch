@@ -254,7 +254,7 @@ decay function is specified as
 <1> The `DECAY_FUNCTION` should be one of `linear`, `exp`, or `gauss`.
 <2> The specified field must be a numeric, date, or geo-point field.
 
-In the above example, the field is a <<mapping-geo-point-type>> and origin can be provided in geo format. `scale` and `offset` must be given with a unit in this case. If your field is a date field, you can set `scale` and `offset` as days, weeks, and so on. Example:
+In the above example, the field is a <<geo-point,`geo_point`>> and origin can be provided in geo format. `scale` and `offset` must be given with a unit in this case. If your field is a date field, you can set `scale` and `offset` as days, weeks, and so on. Example:
 
 
 [source,js]
@@ -268,7 +268,7 @@ In the above example, the field is a <<mapping-geo-point-type>> and origin can b
         }
     }
 --------------------------------------------------
-<1> The date format of the origin depends on the <<mapping-date-format>> defined in
+<1> The date format of the origin depends on the <<mapping-date-format,`format`>> defined in
     your mapping. If you do not define the origin, the current time is used.
 <2> The `offset` and `decay` parameters are optional.
 

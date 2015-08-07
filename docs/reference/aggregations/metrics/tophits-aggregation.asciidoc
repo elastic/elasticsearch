@@ -200,7 +200,7 @@ and therefore can't be used in the `order` option of the `terms` aggregator.
 If the `top_hits` aggregator is wrapped in a `nested` or `reverse_nested` aggregator then nested hits are being returned.
 Nested hits are in a sense hidden mini documents that are part of regular document where in the mapping a nested field type
 has been configured. The `top_hits` aggregator has the ability to un-hide these documents if it is wrapped in a `nested`
-or `reverse_nested` aggregator. Read more about nested in the <<mapping-nested-type,nested type mapping>>.
+or `reverse_nested` aggregator. Read more about nested in the <<nested,nested type mapping>>.
 
 If nested type has been configured a single document is actually indexed as multiple Lucene documents and they share
 the same id. In order to determine the identity of a nested hit there is more needed than just the id, so that is why

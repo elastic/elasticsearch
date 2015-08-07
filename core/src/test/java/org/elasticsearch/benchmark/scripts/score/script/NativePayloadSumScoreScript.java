@@ -44,6 +44,11 @@ public class NativePayloadSumScoreScript extends AbstractSearchScript {
         public ExecutableScript newScript(@Nullable Map<String, Object> params) {
             return new NativePayloadSumScoreScript(params);
         }
+
+        @Override
+        public boolean needsScores() {
+            return false;
+        }
     }
 
     private NativePayloadSumScoreScript(Map<String, Object> params) {

@@ -508,37 +508,6 @@ public class PercolatorIT extends ESIntegTestCase {
     }
 
     @Test
-    public void percolateWithSizeField() throws Exception {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
-                .startObject("_size").field("enabled", true).endObject()
-                .startObject("properties").startObject("field1").field("type", "string").endObject().endObject()
-                .endObject().endObject().string();
-
-        assertAcked(prepareCreate("test").addMapping("type1", mapping));
-        ensureGreen();
-
-        logger.info("--> register a query");
-        client().prepareIndex("test", PercolatorService.TYPE_NAME, "kuku")
-                .setSource(jsonBuilder().startObject()
-                        .field("query", termQuery("field1", "value1"))
-                        .endObject())
-                .setRefresh(true)
-                .execute().actionGet();
-
-        logger.info("--> percolate a document");
-        PercolateResponse percolate = client().preparePercolate().setIndices("test").setDocumentType("type1")
-                .setSource(jsonBuilder().startObject()
-                        .startObject("doc")
-                        .field("field1", "value1")
-                        .endObject()
-                        .endObject())
-                .execute().actionGet();
-        assertMatchCount(percolate, 1l);
-        assertThat(percolate.getMatches(), arrayWithSize(1));
-        assertThat(convertFromTextArray(percolate.getMatches(), "test"), arrayContaining("kuku"));
-    }
-
-    @Test
     public void testPercolateStatistics() throws Exception {
         client().admin().indices().prepareCreate("test").execute().actionGet();
         ensureGreen();

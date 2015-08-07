@@ -46,14 +46,21 @@ class ExpressionSearchScript implements SearchScript {
     final SimpleBindings bindings;
     final ValueSource source;
     final ReplaceableConstValueSource specialValue; // _value
+    final boolean needsScores;
     Scorer scorer;
     int docid;
 
-    ExpressionSearchScript(CompiledScript c, SimpleBindings b, ReplaceableConstValueSource v) {
+    ExpressionSearchScript(CompiledScript c, SimpleBindings b, ReplaceableConstValueSource v, boolean needsScores) {
         compiledScript = c;
         bindings = b;
         source = ((Expression)compiledScript.compiled()).getValueSource(bindings);
         specialValue = v;
+        this.needsScores = needsScores;
+    }
+
+    @Override
+    public boolean needsScores() {
+        return needsScores;
     }
 
     @Override

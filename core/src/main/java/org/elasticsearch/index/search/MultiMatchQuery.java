@@ -84,7 +84,7 @@ public class MultiMatchQuery extends MatchQuery {
                 throw new IllegalStateException("No such type: " + type);
         }
         final List<? extends Query> queries = queryBuilder.buildGroupedQueries(type, fieldNames, value, minimumShouldMatch);
-        return queryBuilder.conbineGrouped(queries);
+        return queryBuilder.combineGrouped(queries);
     }
 
     private QueryBuilder queryBuilder;
@@ -118,7 +118,7 @@ public class MultiMatchQuery extends MatchQuery {
             return parseAndApply(type, field, value, minimumShouldMatch, boostValue);
         }
 
-        public Query conbineGrouped(List<? extends Query> groupQuery) {
+        public Query combineGrouped(List<? extends Query> groupQuery) {
             if (groupQuery == null || groupQuery.isEmpty()) {
                 return null;
             }
@@ -195,7 +195,7 @@ public class MultiMatchQuery extends MatchQuery {
                     blendedFields = null;
                 }
                 final FieldAndFieldType fieldAndFieldType = group.get(0);
-                Query q = parseGroup(type.matchQueryType(), fieldAndFieldType.field, fieldAndFieldType.boost, value, minimumShouldMatch);
+                Query q = parseGroup(type.matchQueryType(), fieldAndFieldType.field, 1f, value, minimumShouldMatch);
                 if (q != null) {
                     queries.add(q);
                 }

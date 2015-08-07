@@ -42,6 +42,11 @@ public class NativeNaiveTFIDFScoreScript extends AbstractSearchScript {
         public ExecutableScript newScript(@Nullable Map<String, Object> params) {
             return new NativeNaiveTFIDFScoreScript(params);
         }
+
+        @Override
+        public boolean needsScores() {
+            return false;
+        }
     }
 
     private NativeNaiveTFIDFScoreScript(Map<String, Object> params) {

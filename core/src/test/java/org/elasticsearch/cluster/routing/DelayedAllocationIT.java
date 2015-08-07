@@ -76,7 +76,7 @@ public class DelayedAllocationIT extends ESIntegTestCase {
         assertBusy(new Runnable() {
             @Override
             public void run() {
-                assertThat(client().admin().cluster().prepareState().all().get().getState().routingNodes().hasUnassigned(), equalTo(true));
+                assertThat(client().admin().cluster().prepareState().all().get().getState().getRoutingNodes().hasUnassigned(), equalTo(true));
             }
         });
         assertThat(client().admin().cluster().prepareHealth().get().getDelayedUnassignedShards(), equalTo(1));
@@ -124,7 +124,7 @@ public class DelayedAllocationIT extends ESIntegTestCase {
         assertBusy(new Runnable() {
             @Override
             public void run() {
-                assertThat(client().admin().cluster().prepareState().all().get().getState().routingNodes().hasUnassigned(), equalTo(true));
+                assertThat(client().admin().cluster().prepareState().all().get().getState().getRoutingNodes().hasUnassigned(), equalTo(true));
             }
         });
         assertThat(client().admin().cluster().prepareHealth().get().getDelayedUnassignedShards(), equalTo(1));
@@ -151,7 +151,7 @@ public class DelayedAllocationIT extends ESIntegTestCase {
         assertBusy(new Runnable() {
             @Override
             public void run() {
-                assertThat(client().admin().cluster().prepareState().all().get().getState().routingNodes().hasUnassigned(), equalTo(true));
+                assertThat(client().admin().cluster().prepareState().all().get().getState().getRoutingNodes().hasUnassigned(), equalTo(true));
             }
         });
         assertThat(client().admin().cluster().prepareHealth().get().getDelayedUnassignedShards(), equalTo(1));

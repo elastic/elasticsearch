@@ -127,7 +127,7 @@
 
                  <artifactItem>
                    <groupId>org.elasticsearch.plugin</groupId>
-                   <artifactId>elasticsearch-site-example</artifactId>
+                   <artifactId>elasticsearch-delete-by-query</artifactId>
                    <version>${elasticsearch.version}</version>
                    <type>zip</type>
                    <overWrite>true</overWrite>
@@ -151,11 +151,20 @@
 
                  <artifactItem>
                    <groupId>org.elasticsearch.plugin</groupId>
-                   <artifactId>elasticsearch-delete-by-query</artifactId>
+                   <artifactId>elasticsearch-mapper-size</artifactId>
                    <version>${elasticsearch.version}</version>
                    <type>zip</type>
                    <overWrite>true</overWrite>
                  </artifactItem>
+
+                 <artifactItem>
+                   <groupId>org.elasticsearch.plugin</groupId>
+                   <artifactId>elasticsearch-site-example</artifactId>
+                   <version>${elasticsearch.version}</version>
+                   <type>zip</type>
+                   <overWrite>true</overWrite>
+                 </artifactItem>
+
                </artifactItems>
              </configuration>
            </execution>
@@ -193,6 +202,7 @@
             <configuration>
               <target>
                 <ant antfile="${elasticsearch.integ.antfile}" target="start-external-cluster-with-plugins">
+                  <property name="tests.jvm.argline" value="${tests.jvm.argline}"/>
                   <property name="plugins.dir" value="${plugins.dir}"/>
                   <property name="expected.plugin.count" value="${expected.plugin.count}"/>
                 </ant>

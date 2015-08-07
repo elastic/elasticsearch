@@ -20,7 +20,6 @@ package org.elasticsearch.test;
 
 import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -118,7 +117,7 @@ public abstract class ESAllocationTestCase extends ESTestCase {
     }
 
     public static ClusterState startRandomInitializingShard(ClusterState clusterState, AllocationService strategy) {
-        List<ShardRouting> initializingShards = clusterState.routingNodes().shardsWithState(INITIALIZING);
+        List<ShardRouting> initializingShards = clusterState.getRoutingNodes().shardsWithState(INITIALIZING);
         if (initializingShards.isEmpty()) {
             return clusterState;
         }

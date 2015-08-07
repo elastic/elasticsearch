@@ -67,14 +67,14 @@ public class SameShardRoutingTests extends ESAllocationTestCase {
         routingTable = strategy.reroute(clusterState).routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
-        assertThat(numberOfShardsOfType(clusterState.readOnlyRoutingNodes(), ShardRoutingState.INITIALIZING), equalTo(2));
+        assertThat(numberOfShardsOfType(clusterState.getRoutingNodes(), ShardRoutingState.INITIALIZING), equalTo(2));
 
         logger.info("--> start all primary shards, no replica will be started since its on the same host");
-        routingTable = strategy.applyStartedShards(clusterState, clusterState.readOnlyRoutingNodes().shardsWithState(INITIALIZING)).routingTable();
+        routingTable = strategy.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING)).routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
-        assertThat(numberOfShardsOfType(clusterState.readOnlyRoutingNodes(), ShardRoutingState.STARTED), equalTo(2));
-        assertThat(numberOfShardsOfType(clusterState.readOnlyRoutingNodes(), ShardRoutingState.INITIALIZING), equalTo(0));
+        assertThat(numberOfShardsOfType(clusterState.getRoutingNodes(), ShardRoutingState.STARTED), equalTo(2));
+        assertThat(numberOfShardsOfType(clusterState.getRoutingNodes(), ShardRoutingState.INITIALIZING), equalTo(0));
 
         logger.info("--> add another node, with a different host, replicas will be allocating");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
@@ -82,9 +82,9 @@ public class SameShardRoutingTests extends ESAllocationTestCase {
         routingTable = strategy.reroute(clusterState).routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
-        assertThat(numberOfShardsOfType(clusterState.readOnlyRoutingNodes(), ShardRoutingState.STARTED), equalTo(2));
-        assertThat(numberOfShardsOfType(clusterState.readOnlyRoutingNodes(), ShardRoutingState.INITIALIZING), equalTo(2));
-        for (ShardRouting shardRouting : clusterState.readOnlyRoutingNodes().shardsWithState(INITIALIZING)) {
+        assertThat(numberOfShardsOfType(clusterState.getRoutingNodes(), ShardRoutingState.STARTED), equalTo(2));
+        assertThat(numberOfShardsOfType(clusterState.getRoutingNodes(), ShardRoutingState.INITIALIZING), equalTo(2));
+        for (ShardRouting shardRouting : clusterState.getRoutingNodes().shardsWithState(INITIALIZING)) {
             assertThat(shardRouting.currentNodeId(), equalTo("node3"));
         }
     }

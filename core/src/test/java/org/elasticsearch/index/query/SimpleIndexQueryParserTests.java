@@ -54,6 +54,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
@@ -83,6 +84,7 @@ import static org.hamcrest.Matchers.*;
 public class SimpleIndexQueryParserTests extends ESSingleNodeTestCase {
 
     private IndexQueryParserService queryParser;
+    private IndexService indexService;
 
     @Before
     public void setup() throws IOException {
@@ -99,6 +101,7 @@ public class SimpleIndexQueryParserTests extends ESSingleNodeTestCase {
         assertNotNull(doc.dynamicMappingsUpdate());
         client().admin().indices().preparePutMapping("test").setType("person").setSource(doc.dynamicMappingsUpdate().toString()).get();
 
+        this.indexService = indexService;
         queryParser = indexService.queryParserService();
     }
 
@@ -2262,6 +2265,23 @@ public class SimpleIndexQueryParserTests extends ESSingleNodeTestCase {
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/multiMatch-query-fields-as-string.json");
         Query parsedQuery = queryParser.parse(query).query();
         assertThat(parsedQuery, instanceOf(BooleanQuery.class));
+    }
+
+    public void testCrossFieldMultiMatchQuery() throws IOException {
+        IndexQueryParserService queryParser = queryParser();
+        Query parsedQuery = queryParser.parse(multiMatchQuery("banon", "name.first^2", "name.last^3", "foobar").type(MultiMatchQueryBuilder.Type.CROSS_FIELDS)).query();
+        try (Engine.Searcher searcher = indexService.shardSafe(0).acquireSearcher("test")) {
+            Query rewrittenQuery = searcher.searcher().rewrite(parsedQuery);
+
+            BooleanQuery expected = new BooleanQuery();
+            expected.add(new TermQuery(new Term("foobar", "banon")), Occur.SHOULD);
+            TermQuery tq1 = new TermQuery(new Term("name.first", "banon"));
+            tq1.setBoost(2);
+            TermQuery tq2 = new TermQuery(new Term("name.last", "banon"));
+            tq2.setBoost(3);
+            expected.add(new DisjunctionMaxQuery(Arrays.<Query>asList(tq1, tq2), 0f), Occur.SHOULD);
+            assertEquals(expected, rewrittenQuery);
+        }
     }
 
     @Test

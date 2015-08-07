@@ -6,27 +6,13 @@
 package org.elasticsearch.watcher.test.rest;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.client.support.Headers;
-import org.elasticsearch.common.io.FileSystemUtils;
-import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.license.plugin.LicensePlugin;
-import org.elasticsearch.node.Node;
-import org.elasticsearch.plugins.PluginsService;
-import org.elasticsearch.shield.ShieldPlugin;
-import org.elasticsearch.shield.authc.esusers.ESUsersRealm;
-import org.elasticsearch.shield.authc.support.Hasher;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.test.rest.RestTestCandidate;
-import org.elasticsearch.watcher.WatcherPlugin;
-import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
 import org.junit.Test;
 
-import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 
 import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.containsString;
@@ -50,12 +36,16 @@ public class WatcherShieldAuthorizationFailedRestTests extends WatcherRestTests 
             super.test();
             fail();
         } catch(AssertionError ae) {
-            if (ae.getMessage() == null || ae.getMessage().contains("not supported")){
-                //This was a test testing the "hijacked" methods
-                return;
-            }
             assertThat(ae.getMessage(), containsString("returned [403 Forbidden]"));
-            assertThat(ae.getMessage(), containsString("is unauthorized for user [admin]"));
+            assertThat(ae.getMessage(), containsString("is unauthorized for user [test]"));
         }
+    }
+
+    @Override
+    protected Settings restClientSettings() {
+        String token = basicAuthHeaderValue("test", new SecuredString("changeme".toCharArray()));
+        return Settings.builder()
+                .put(Headers.PREFIX + ".Authorization", token)
+                .build();
     }
 }

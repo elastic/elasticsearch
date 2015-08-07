@@ -31,16 +31,14 @@ public class WatcherDisabledLicenseRestTests extends WatcherRestTests {
 
     @Test
     public void test() throws IOException {
-        disableLicensing();
         try {
+            disableLicensing();
             super.test();
             fail();
-        } catch(AssertionError ae) {
-            if (ae.getMessage() == null || ae.getMessage().contains("not supported")){
-                //This was a test testing the "hijacked" methods
-                return;
-            }
-            assertThat(ae.getMessage(), containsString("license expired for feature [watcher]"));
+        } catch(AssertionError e) {
+            assertThat(e.getMessage(), containsString("license expired for feature [watcher]"));
+        } finally {
+            enableLicensing();
         }
     }
 
@@ -48,5 +46,16 @@ public class WatcherDisabledLicenseRestTests extends WatcherRestTests {
         for (MockLicenseService service : internalCluster().getInstances(MockLicenseService.class)) {
             service.disable();
         }
+    }
+
+    public static void enableLicensing() {
+        for (MockLicenseService service : internalCluster().getInstances(MockLicenseService.class)) {
+            service.enable();
+        }
+    }
+
+    @Override
+    protected boolean enableShield() {
+        return false;
     }
 }

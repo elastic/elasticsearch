@@ -80,7 +80,7 @@ public class TransportNodesStatsAction extends TransportNodesAction<NodesStatsRe
     protected NodeStats nodeOperation(NodeStatsRequest nodeStatsRequest) {
         NodesStatsRequest request = nodeStatsRequest.request;
         return nodeService.stats(request.indices(), request.os(), request.process(), request.jvm(), request.threadPool(), request.network(),
-                request.fs(), request.transport(), request.http(), request.breaker());
+                request.fs(), request.transport(), request.http(), request.breaker(), request.script());
     }
 
     @Override

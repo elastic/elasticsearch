@@ -179,7 +179,8 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
                 System.currentTimeMillis(),
                 null, null, null, null, null,
                 fsInfo,
-                null, null, null);
+                null, null, null,
+                null);
     }
 
     /**

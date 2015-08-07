@@ -168,6 +168,8 @@ percolating |0s
 |`percolate.total` |`pto`, `percolateTotal` |No |Total percolations |0
 |`refresh.total` |`rto`, `refreshTotal` |No |Number of refreshes |16
 |`refresh.time` |`rti`, `refreshTime` |No |Time spent in refreshes |91ms
+|`script.compilations` |`scrcc`, `scriptCompilations` |No |Total script compilations |17
+|`script.cache_evictions` |`scrce`, `scriptCacheEvictions` |No |Total compiled scripts evicted from cache |6
 |`search.fetch_current` |`sfc`, `searchFetchCurrent` |No |Current fetch
 phase operations |0
 |`search.fetch_time` |`sfti`, `searchFetchTime` |No |Time spent in fetch

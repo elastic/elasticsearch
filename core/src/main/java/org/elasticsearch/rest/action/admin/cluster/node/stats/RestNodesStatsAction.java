@@ -76,6 +76,7 @@ public class RestNodesStatsAction extends BaseRestHandler {
             nodesStatsRequest.indices(metrics.contains("indices"));
             nodesStatsRequest.process(metrics.contains("process"));
             nodesStatsRequest.breaker(metrics.contains("breaker"));
+            nodesStatsRequest.script(metrics.contains("script"));
 
             // check for index specific metrics
             if (metrics.contains("indices")) {

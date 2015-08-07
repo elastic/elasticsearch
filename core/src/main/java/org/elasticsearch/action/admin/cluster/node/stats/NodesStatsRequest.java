@@ -41,6 +41,7 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
     private boolean transport;
     private boolean http;
     private boolean breaker;
+    private boolean script;
 
     protected NodesStatsRequest() {
     }
@@ -67,6 +68,7 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         this.transport = true;
         this.http = true;
         this.breaker = true;
+        this.script = true;
         return this;
     }
 
@@ -84,6 +86,7 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         this.transport = false;
         this.http = false;
         this.breaker = false;
+        this.script = false;
         return this;
     }
 
@@ -240,6 +243,15 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         return this;
     }
 
+    public boolean script() {
+        return script;
+    }
+
+    public NodesStatsRequest script(boolean script) {
+        this.script = script;
+        return this;
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
@@ -253,6 +265,7 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         transport = in.readBoolean();
         http = in.readBoolean();
         breaker = in.readBoolean();
+        script = in.readBoolean();
     }
 
     @Override
@@ -268,6 +281,7 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         out.writeBoolean(transport);
         out.writeBoolean(http);
         out.writeBoolean(breaker);
+        out.writeBoolean(script);
     }
 
 }

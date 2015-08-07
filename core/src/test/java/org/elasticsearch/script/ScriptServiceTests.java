@@ -413,7 +413,7 @@ public class ScriptServiceTests extends ESTestCase {
         buildScriptService(Settings.EMPTY);
         int numberOfCompilations = randomIntBetween(1, 1024);
         for (int i = 0; i < numberOfCompilations; i++) {
-            scriptService.compile(new Script(String.format("%d+%d", i, i), ScriptType.INLINE, "test", null), randomFrom(scriptContexts));
+            scriptService.compile(new Script(i + " + " + i, ScriptType.INLINE, "test", null), randomFrom(scriptContexts));
         }
         assertEquals(numberOfCompilations, scriptService.stats().getCompilations());
     }

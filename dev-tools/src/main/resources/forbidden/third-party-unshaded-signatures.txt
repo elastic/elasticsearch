@@ -58,3 +58,14 @@ com.ning.compress.lzf.LZFOutputStream#<init>(java.io.OutputStream)
 com.ning.compress.lzf.LZFOutputStream#<init>(java.io.OutputStream, com.ning.compress.BufferRecycler)
 com.ning.compress.lzf.LZFUncompressor#<init>(com.ning.compress.DataHandler)
 com.ning.compress.lzf.LZFUncompressor#<init>(com.ning.compress.DataHandler, com.ning.compress.BufferRecycler)
+
+@defaultMessage Constructing a DateTime without a time zone is dangerous
+org.joda.time.DateTime#<init>()
+org.joda.time.DateTime#<init>(long)
+org.joda.time.DateTime#<init>(int, int, int, int, int)
+org.joda.time.DateTime#<init>(int, int, int, int, int, int)
+org.joda.time.DateTime#<init>(int, int, int, int, int, int, int)
+org.joda.time.DateTime#now()
+org.joda.time.DateTimeZone#getDefault()
+
+com.google.common.collect.Iterators#emptyIterator() @ Use Collections.emptyIterator instead

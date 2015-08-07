@@ -12,7 +12,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.plugin.LicensePlugin;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.shield.ShieldPlugin;
 import org.elasticsearch.shield.authc.esusers.ESUsersRealm;
 import org.elasticsearch.shield.authc.support.Hasher;
@@ -62,6 +61,8 @@ public class WatcherRestTests extends ESRestTestCase {
                         + (shieldEnabled ? ShieldPlugin.class.getName() + "," : "")
                         + "," + licensePluginClass().getName())
                 .put(Node.HTTP_ENABLED, true)
+                .put("http.netty.port", "9400-9500") // at least matches with integ.http.port property
+                .put("transport.tcp.port", "9500-9600") // at least matches with integ.transport.port property
                 .put(ShieldSettings.settings(shieldEnabled))
         .build();
     }
@@ -106,7 +107,6 @@ public class WatcherRestTests extends ESRestTestCase {
                         + "," + LicensePlugin.class.getName())
                 .build();
     }
-
 
     /** Shield related settings */
 

@@ -34,8 +34,10 @@ import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.similarity.SimilarityLookupService;
+import org.elasticsearch.index.store.IndexStoreModule;
 import org.elasticsearch.script.ScriptService;
 
+import java.util.Locale;
 import java.util.Set;
 
 /**
@@ -99,8 +101,48 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
         IndexMetaData newMetaData = upgradeLegacyRoutingSettings(indexMetaData);
         newMetaData = addDefaultUnitsIfNeeded(newMetaData);
         checkMappingsCompatibility(newMetaData);
+        newMetaData = upgradeSettings(newMetaData);
         newMetaData = markAsUpgraded(newMetaData);
         return newMetaData;
+    }
+
+    IndexMetaData upgradeSettings(IndexMetaData indexMetaData) {
+        final String storeType = indexMetaData.getSettings().get(IndexStoreModule.STORE_TYPE);
+        if (storeType != null) {
+            final String upgradeStoreType;
+            switch (storeType.toLowerCase(Locale.ROOT)) {
+                case "nio_fs":
+                case "niofs":
+                    upgradeStoreType = "niofs";
+                    break;
+                case "mmap_fs":
+                case "mmapfs":
+                    upgradeStoreType = "mmapfs";
+                    break;
+                case "simple_fs":
+                case "simplefs":
+                    upgradeStoreType = "simplefs";
+                    break;
+                case "default":
+                    upgradeStoreType = "default";
+                    break;
+                case "fs":
+                    upgradeStoreType = "fs";
+                    break;
+                default:
+                    upgradeStoreType = storeType;
+            }
+            if (storeType.equals(upgradeStoreType) == false) {
+                Settings indexSettings = Settings.builder().put(indexMetaData.settings())
+                        .put(IndexStoreModule.STORE_TYPE, upgradeStoreType)
+                        .build();
+                return IndexMetaData.builder(indexMetaData)
+                        .version(indexMetaData.version())
+                        .settings(indexSettings)
+                        .build();
+            }
+        }
+        return indexMetaData;
     }
 
     /**

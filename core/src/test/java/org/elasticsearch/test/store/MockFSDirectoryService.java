@@ -210,7 +210,7 @@ public class MockFSDirectoryService extends FsDirectoryService {
     private FsDirectoryService randomDirectorService(IndexStore indexStore, ShardPath path) {
         Settings.Builder builder = Settings.settingsBuilder();
         builder.put(indexSettings);
-        builder.put(IndexStoreModule.STORE_TYPE, RandomPicks.randomFrom(random, IndexStoreModule.Type.values()));
+        builder.put(IndexStoreModule.STORE_TYPE, RandomPicks.randomFrom(random, IndexStoreModule.Type.values()).getSettingsKey());
         return new FsDirectoryService(builder.build(), indexStore, path);
     }
 

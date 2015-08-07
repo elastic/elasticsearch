@@ -82,6 +82,12 @@ serves as a protection against (partial) network failures where node may unjustl
 think that the master has failed. In this case the node will simply hear from
 other nodes about the currently active master.
 
+If `discovery.zen.master_election.filter_client` is `true`, pings from client nodes (nodes where `node.client` is
+`true`, or both `node.data` and `node.master` are `false`) are ignored during master election; the default value is
+`true`. If `discovery.zen.master_election.filter_data` is `true`, pings from non-master-eligible data nodes (nodes
+where `node.data` is `true` and `node.master` is `false`) are ignored during master election; the default value is
+`false`. Pings from master-eligible nodes are always observed during master election.
+
 Nodes can be excluded from becoming a master by setting `node.master` to
 `false`. Note, once a node is a client node (`node.client` set to
 `true`), it will not be allowed to become a master (`node.master` is

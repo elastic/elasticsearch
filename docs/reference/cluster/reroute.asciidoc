@@ -70,3 +70,8 @@ The commands supported are:
     allocate the shard to. It also accepts `allow_primary` flag to
     explicitly specify that it is allowed to explicitly allocate a primary
     shard (might result in data loss).
+
+WARNING: The `allow_primary` parameter will force a new _empty_ primary shard
+to be allocated *without any data*. If a node which has a copy of the original
+primary shard (including data) rejoins the cluster later on, that data will be
+deleted: the old shard copy will be replaced by the new live shard copy.

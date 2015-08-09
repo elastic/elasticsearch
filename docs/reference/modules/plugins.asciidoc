@@ -289,6 +289,7 @@ deprecated[1.5.0,Rivers have been deprecated.  See https://www.elastic.co/blog/d
 .Supported by the community
 * https://github.com/lukas-vlcek/bigdesk[BigDesk Plugin] (by Lukáš Vlček)
 * https://github.com/mobz/elasticsearch-head[Elasticsearch Head Plugin] (by Ben Birch)
+* https://github.com/OlegKunitsyn/elasticsearch-browser[Elasticsearch Browser Plugin] (by Oleg Kunitsyn)
 * https://github.com/royrusso/elasticsearch-HQ[Elasticsearch HQ] (by Roy Russo)
 * https://github.com/andrewvc/elastic-hammer[Hammer Plugin] (by Andrew Cholakian)
 * https://github.com/polyfractal/elasticsearch-inquisitor[Inquisitor Plugin] (by Zachary Tong)

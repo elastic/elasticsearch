@@ -32,6 +32,9 @@ my $Source      = shift(@ARGV) || die usage();
 $License_Dir = File::Spec->rel2abs($License_Dir) . '/';
 $Source      = File::Spec->rel2abs($Source);
 
+print "LICENSE DIR: $License_Dir\n";
+print "SOURCE: $Source\n";
+
 die "License dir is not a directory: $License_Dir\n" . usage()
     unless -d $License_Dir;
 

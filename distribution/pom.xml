@@ -29,6 +29,10 @@
         <packaging.elasticsearch.systemd.sysctl.dir>/usr/lib/sysctl.d</packaging.elasticsearch.systemd.sysctl.dir>
         <packaging.elasticsearch.tmpfilesd.dir>/usr/lib/tmpfiles.d</packaging.elasticsearch.tmpfilesd.dir>
 
+        <!-- Properties for the license checker -->
+        <project.licenses.dir>${project.basedir}/../licenses</project.licenses.dir>
+        <project.licenses.check_target>${integ.scratch}</project.licenses.check_target>
+
         <!-- rpmbuild location : default to /usr/bin/rpmbuild -->
         <packaging.rpm.rpmbuild>/usr/bin/rpmbuild</packaging.rpm.rpmbuild>
 
@@ -97,32 +101,6 @@
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-antrun-plugin</artifactId>
                     <!-- checks integration test scratch area (where we extract the distribution) -->
-                    <executions>
-                        <execution>
-                            <id>check-license</id>
-                            <phase>verify</phase>
-                            <goals>
-                                <goal>run</goal>
-                            </goals>
-                            <configuration>
-                                <skip>${skip.integ.tests}</skip>
-                                <target>
-                                    <condition property="licenses.exists">
-                                        <available file="${basedir}/../licenses" type="dir"/>
-                                    </condition>
-                                    <echo taskName="license check">Running license check</echo>
-                                    <!-- don't run on windows, because everyone hates it -->
-                                    <exec failonerror="${licenses.exists}" executable="perl" osfamily="unix"
-                                          dir="${elasticsearch.tools.directory}/license-check">
-                                        <arg value="check_license_and_sha.pl"/>
-                                        <arg value="--check"/>
-                                        <arg value="${basedir}/../licenses"/>
-                                        <arg value="${integ.scratch}"/>
-                                    </exec>
-                                </target>
-                            </configuration>
-                        </execution>
-                    </executions>
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>

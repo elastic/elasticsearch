@@ -342,3 +342,20 @@ To run tests instrumented with jacoco and produce a coverage report in
 ---------------------------------------------------------------------------
 mvn -Dtests.coverage test jacoco:report
 ---------------------------------------------------------------------------
+
+== Debugging from an IDE
+
+If you want to run elasticsearch from your IDE, you should launch the `Bootstrap` class using the following parameters:
+
+* `-Des.foreground=yes`: run elasticsearch as a foreground process
+* `-Des.path.home=/path/to/elasticsearch/core/source_dir`: define fro which dir your process is allowed to write files
+* `-Des.security.manager.enabled=false`: disable the security manager 
+* `-Des.http.cors.enabled=true`: if you want to use with Sense
+* `-Des.http.cors.allow-origin=*`: if you want to use with Sense
+
+For example:
+
+```
+-Xms256m -Xmx1g -Djava.awt.headless=true -XX:+UseParNewGC -XX:+UseConcMarkSweepGC -XX:CMSInitiatingOccupancyFraction=75 -XX:+UseCMSInitiatingOccupancyOnly -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=logs/heapdump.hprof -Delasticsearch -Des.foreground=yes -ea -Des.path.home=/Users/me/workspace/elasticsearch/core/ -Des.security.manager.enabled=false -Des.http.cors.enabled=true -Des.http.cors.allow-origin=*
+```
+

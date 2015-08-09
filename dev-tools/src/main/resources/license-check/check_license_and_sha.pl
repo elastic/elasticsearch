@@ -215,8 +215,6 @@ sub jars_from_zip {
     $archive->extract( to => $dir_name ) || die $archive->error;
     my @jars = map { File::Spec->rel2abs( $_, $dir_name ) }
         grep { /\.jar$/ && !/elasticsearch[^\/]*$/ } @{ $archive->files };
-    die "No JARS found in: $source\n"
-        unless @jars;
     return calculate_shas(@jars);
 }
 
@@ -234,8 +232,6 @@ sub jars_from_dir {
         },
         $source
     );
-    die "No JARS found in: $source\n"
-        unless @jars;
     return calculate_shas(@jars);
 }
 

@@ -40,7 +40,7 @@ public class RestPendingClusterTasksAction extends AbstractCatAction {
     }
 
     @Override
-    void documentation(StringBuilder sb) {
+    protected void documentation(StringBuilder sb) {
         sb.append("/_cat/pending_tasks\n");
     }
 
@@ -59,7 +59,7 @@ public class RestPendingClusterTasksAction extends AbstractCatAction {
     }
 
     @Override
-    Table getTableWithHeader(final RestRequest request) {
+    protected Table getTableWithHeader(final RestRequest request) {
         Table t = new Table();
         t.startHeaders();
         t.addCell("insertOrder", "alias:o;text-align:right;desc:task insertion order");

@@ -53,7 +53,7 @@ public class RestFielddataAction extends AbstractCatAction {
     }
 
     @Override
-    void doRequest(final RestRequest request, final RestChannel channel, final Client client) {
+    protected void doRequest(final RestRequest request, final RestChannel channel, final Client client) {
 
         final NodesStatsRequest nodesStatsRequest = new NodesStatsRequest("data:true");
         nodesStatsRequest.clear();
@@ -70,13 +70,13 @@ public class RestFielddataAction extends AbstractCatAction {
     }
 
     @Override
-    void documentation(StringBuilder sb) {
+    protected void documentation(StringBuilder sb) {
         sb.append("/_cat/fielddata\n");
         sb.append("/_cat/fielddata/{fields}\n");
     }
 
     @Override
-    Table getTableWithHeader(RestRequest request) {
+    protected Table getTableWithHeader(RestRequest request) {
         Table table = new Table();
         table.startHeaders()
                 .addCell("id", "desc:node id")

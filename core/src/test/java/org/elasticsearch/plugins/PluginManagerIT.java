@@ -502,7 +502,6 @@ public class PluginManagerIT extends ESIntegTestCase {
     }
 
     @Test
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/12766")
     public void testThatBasicAuthIsSupportedWithHttps() throws Exception {
         assumeTrue("test requires security manager to be disabled", System.getSecurityManager() == null);
 

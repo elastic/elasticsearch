@@ -327,7 +327,7 @@ vagrant plugin install vagrant-cachier
 
 . Validate your installed dependencies:
 -------------------------------------
-mvn -Pvagrant -pl qa/vagrant validate
+mvn -Dtests.vagrant -pl qa/vagrant validate
 -------------------------------------
 
 . Download the VMs. Since Maven or ant or something eats the progress reports
@@ -350,22 +350,22 @@ done
 . Smoke test the maven/ant dance that we use to get vagrant involved in
 integration testing is working:
 ---------------------------------------------
-mvn -Pvagrant,smoke-vms -pl qa/vagrant verify
+mvn -Dtests.vagrant -Psmoke-vms -pl qa/vagrant verify
 ---------------------------------------------
 or this to validate all the VMs:
 -------------------------------------------------
-mvn -Pvagrant,smoke-vms,all -pl qa/vagrant verify
+mvn -Dtests.vagrant=all -Psmoke-vms -pl qa/vagrant verify
 -------------------------------------------------
 That will start up the VMs and then immediate quit.
 
 . Finally run the tests. The fastest way to get this started is to run:
 -----------------------------------
 mvn clean install -DskipTests
-mvn -Pvagrant -pl qa/vagrant verify
+mvn -Dtests.vagrant -pl qa/vagrant verify
 -----------------------------------
 You could just run:
 --------------------
-mvn -Pvagrant verify
+mvn -Dtests.vagrant verify
 --------------------
 but that will run all the tests. Which is probably a good thing, but not always
 what you want.
@@ -380,15 +380,15 @@ packaging and SyvVinit and systemd.
 You can control the boxes that are used for testing like so. Run just
 fedora-22 with:
 --------------------------------------------
-mvn -Pvagrant -pl qa/vagrant verify -DboxesToTest=fedora-22
+mvn -Dtests.vagrant -pl qa/vagrant verify -DboxesToTest=fedora-22
 --------------------------------------------
 or run wheezy and trusty:
 ------------------------------------------------------------------
-mvn -Pvagrant -pl qa/vagrant verify -DboxesToTest='wheezy, trusty'
+mvn -Dtests.vagrant -pl qa/vagrant verify -DboxesToTest='wheezy, trusty'
 ------------------------------------------------------------------
 or run all the boxes:
 ---------------------------------------
-mvn -Pvagrant,all -pl qa/vagrant verify
+mvn -Dtests.vagrant=all -pl qa/vagrant verify
 ---------------------------------------
 
 Its important to know that if you ctrl-c any of these `mvn` runs that you'll
@@ -483,7 +483,7 @@ If you wanted to retest all the release artifacts on a single VM you could:
 # Build all the distributions fresh but skip recompiling elasticsearch:
 mvn -amd -pl distribution install -DskipTests
 # Copy them all the testroot
-mvn -Pvagrant -pl qa/vagrant pre-integration-test
+mvn -Dtests.vagrant -pl qa/vagrant pre-integration-test
 vagrant up trusty && vagrant ssh trusty
 cd $TESTROOT
 sudo ES_CLEAN_BEFORE_TEST=true bats $BATS/*.bats

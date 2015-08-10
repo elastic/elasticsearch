@@ -1,8 +1,39 @@
 <?xml version="1.0"?>
 <project name="elasticsearch-integration-tests">
-  <target name="vagrant-test-all-boxes">
+  <target name="vagrant-test-all-boxes" depends="set-boxesToTest">
+    <echo message="Running package tests on ${boxesToTest}"/>
     <foreach list="${boxesToTest}" trim="true" param="box"
       target="vagrant-test" inheritall="true" inheritrefs="true"/>
+  </target>
+
+  <target name="set-boxesToTest">
+    <!-- If the user specifies the vagrant=all then try on all boxes. -->
+    <condition property="debBoxes" value="${allDebBoxes}"
+        else="${defaultDebBoxes}">
+      <equals arg1="${tests.vagrant}" arg2="all"/>
+    </condition>
+    <condition property="rpmBoxes" value="${allRpmBoxes}"
+        else="${defaultRpmBoxes}">
+      <equals arg1="${tests.vagrant}" arg2="all"/>
+    </condition>
+    <!-- By defaut only test on debian boxes because we always can build debs.
+         Only test on rpm based boxes if we can build RPM. -->
+    <condition property="proposedBoxesToTest" value="${debBoxes}, ${rpmBoxes}"
+        else="${debBoxes}">
+      <equals arg1="${rpmOk}" arg2="ok"/>
+    </condition>
+    <!-- Only use the proposedBoxesToTest list if the user did -Dtests.vagrant
+         or -Dtests.vagrant=all. Otherwise we assume they did
+         -Dtests.vagrant=somelistofboxes and we just set the boxesToTest to
+         that. If they set an rpm based box and don't have the rpm available
+         its on them. -->
+    <condition property="boxesToTest" value="${proposedBoxesToTest}"
+        else="${tests.vagrant}">
+      <or>
+        <equals arg1="${tests.vagrant}" arg2="true"/>
+        <equals arg1="${tests.vagrant}" arg2="all"/>
+      </or>
+    </condition>
   </target>
 
   <target name="vagrant-test" depends="vagrant-up">

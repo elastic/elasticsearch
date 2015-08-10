@@ -22,12 +22,12 @@ describe('Marvel Watchers', function () {
         this.timeout(5000);
         var workingDate = moment.utc();
         var rawData = _.times(12, function () {
-          return { '@timestamp': workingDate.subtract(5, 's').format(), status: 'red' };
+          return { 'timestamp': workingDate.subtract(5, 's').format(), status: 'red' };
         });
         var fixture = {
           indexPattern: '[.marvel-]YYYY.MM.DD',
           type: 'cluster_stats',
-          dateField: '@timestamp',
+          dateField: 'timestamp',
           rawData: rawData
         };
         return executeWatcher('cluster_status', fixture).then(function (resp) {
@@ -54,10 +54,10 @@ describe('Marvel Watchers', function () {
     testNoExecute('Red for 55 then Yellow for 60 seconds', function () {
       var workingDate = moment.utc();
       var rawData = _.times(11, function () {
-        return { '@timestamp': workingDate.subtract(5, 's').format(), status: 'red' };
+        return { 'timestamp': workingDate.subtract(5, 's').format(), status: 'red' };
       });
       rawData.concat(_.times(12, function () {
-        return { '@timestamp': workingDate.subtract(5, 's').format(), status: 'yellow' };
+        return { 'timestamp': workingDate.subtract(5, 's').format(), status: 'yellow' };
       }));
       return rawData;
     });
@@ -65,10 +65,10 @@ describe('Marvel Watchers', function () {
     testNoExecute('Red for 30 then Yellow for 60 seconds', function () {
       var workingDate = moment.utc();
       var rawData = _.times(6, function () {
-        return { '@timestamp': workingDate.subtract(5, 's').format(), status: 'red' };
+        return { 'timestamp': workingDate.subtract(5, 's').format(), status: 'red' };
       });
       rawData.concat(_.times(12, function () {
-        return { '@timestamp': workingDate.subtract(5, 's').format(), status: 'yellow' };
+        return { 'timestamp': workingDate.subtract(5, 's').format(), status: 'yellow' };
       }));
       return rawData;
     });
@@ -76,16 +76,16 @@ describe('Marvel Watchers', function () {
     testNoExecute('Red for 5 Yellow for 10 Red for 10 Green for 60', function () {
       var workingDate = moment.utc();
       var rawData = _.times(1, function () {
-        return { '@timestamp': workingDate.subtract(5, 's').format(), status: 'red' };
+        return { 'timestamp': workingDate.subtract(5, 's').format(), status: 'red' };
       });
       rawData.concat(_.times(2, function () {
-        return { '@timestamp': workingDate.subtract(5, 's').format(), status: 'yellow' };
+        return { 'timestamp': workingDate.subtract(5, 's').format(), status: 'yellow' };
       }));
       rawData.concat(_.times(2, function () {
-        return { '@timestamp': workingDate.subtract(5, 's').format(), status: 'red' };
+        return { 'timestamp': workingDate.subtract(5, 's').format(), status: 'red' };
       }));
       rawData.concat(_.times(12, function () {
-        return { '@timestamp': workingDate.subtract(5, 's').format(), status: 'green' };
+        return { 'timestamp': workingDate.subtract(5, 's').format(), status: 'green' };
       }));
       return rawData;
     });

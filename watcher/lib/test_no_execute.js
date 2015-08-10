@@ -10,7 +10,7 @@ module.exports = function testNoExecute(options, message, generateRawData) {
       var fixture = {
         indexPattern: options.indexPattern,
         type: options.type,
-        dateField: '@timestamp',
+        dateField: 'timestamp',
         rawData: rawData
       };
       return executeWatcher(options.watcher, fixture).then(function (resp) {

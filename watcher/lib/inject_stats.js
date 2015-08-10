@@ -1,5 +1,4 @@
 var _ = require('lodash');
-_.mixin(require('lodash-deep'));
 var moment = require('moment');
 var client = require('./client');
 
@@ -19,9 +18,9 @@ module.exports = function (fixture) {
 
   function createEntries(row) {
     var index = workingDate.format(indexPattern);
-    var entry = { '@timestamp': workingDate.toISOString() };
+    var entry = { 'timestamp': workingDate.toISOString() };
     row.forEach(function (val, index) {
-      _.deepSet(entry, fields[index], val);
+      _.set(entry, fields[index], val);
     });
 
     indices.push(index);
@@ -40,7 +39,7 @@ module.exports = function (fixture) {
       var index = moment.utc(row[dateField]).format(indexPattern);
       var entry = {};
       _.each(row, function (val, key) {
-        _.deepSet(entry, key, val);
+        _.set(entry, key, val);
       });
       indices.push(index);
       body.push({

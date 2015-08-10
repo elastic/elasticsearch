@@ -536,6 +536,9 @@ public class PluginManagerIT extends ESIntegTestCase {
             // IO_ERROR because there is no real file delivered...
             assertStatus(String.format(Locale.ROOT, "install foo --url https://user:pass@localhost:%s/foo.zip --verbose --timeout 1s", port), ExitStatus.IO_ERROR);
 
+            // ensure that we did not try any other data source like download.elastic.co, in case we specified our own local URL
+            assertThat(terminal.getTerminalOutput(), not(hasItem(containsString("download.elastic.co"))));
+
             assertThat(requests, hasSize(1));
             String msg = String.format(Locale.ROOT, "Request header did not contain Authorization header, terminal output was: %s", terminal.getTerminalOutput());
             assertThat(msg, requests.get(0).headers().contains("Authorization"), is(true));

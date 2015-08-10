@@ -122,6 +122,28 @@
                     <include>test/**/*.yaml</include>
                 </includes>
             </testResource>
+            <!-- REST API specifications copied from main Elasticsearch specs
+                 because they are required to execute the Watcher REST tests -->
+            <testResource>
+                <directory>${elasticsearch.tools.directory}/rest-api-spec</directory>
+                <targetPath>rest-api-spec</targetPath>
+                <includes>
+                    <!-- required by the test framework -->
+                    <include>api/info.json</include>
+                    <include>api/cluster.health.json</include>
+                    <include>api/cluster.state.json</include>
+                    <!-- used by Watcher REST tests -->
+                    <include>api/index.json</include>
+                    <include>api/get.json</include>
+                    <include>api/delete.json</include>
+                    <include>api/delete-by-query.json</include>
+                    <include>api/bulk.json</include>
+                    <include>api/update.json</include>
+                    <include>api/search.json</include>
+                    <include>api/indices.delete.json</include>
+                    <include>api/indices.refresh.json</include>
+                </includes>
+            </testResource>
         </testResources>
         <plugins>
             <plugin>

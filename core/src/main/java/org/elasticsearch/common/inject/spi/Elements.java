@@ -211,6 +211,9 @@ public final class Elements {
 
                 try {
                     module.configure(binder);
+                } catch (IllegalArgumentException e) {
+                    // NOTE: This is not in the original guice. We rethrow here to expose any explicit errors in configure()
+                    throw e;
                 } catch (RuntimeException e) {
                     Collection<Message> messages = Errors.getMessagesFromThrowable(e);
                     if (!messages.isEmpty()) {

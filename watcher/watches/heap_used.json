@@ -16,7 +16,7 @@
             "filtered": {
               "filter": {
                 "range": {
-                  "@timestamp": {
+                  "timestamp": {
                     "gte": "now-2m",
                     "lte": "now"
                   }
@@ -27,7 +27,7 @@
           "aggs": {
             "minutes": {
               "date_histogram": {
-                "field": "@timestamp",
+                "field": "timestamp",
                 "interval": "minute"
               },
               "aggs": {

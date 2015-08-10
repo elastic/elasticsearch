@@ -32,9 +32,9 @@ import java.util.Map;
 import static com.google.common.collect.Maps.newHashMap;
 
 /**
- *
+ * Parser for script query
  */
-public class ScriptQueryParser extends BaseQueryParser {
+public class ScriptQueryParser extends BaseQueryParser<ScriptQueryBuilder> {
 
     @Inject
     public ScriptQueryParser() {
@@ -46,7 +46,7 @@ public class ScriptQueryParser extends BaseQueryParser {
     }
 
     @Override
-    public QueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public ScriptQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
         ScriptParameterParser scriptParameterParser = new ScriptParameterParser();
         

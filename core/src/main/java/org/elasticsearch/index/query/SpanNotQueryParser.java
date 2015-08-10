@@ -26,9 +26,9 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;
 
 /**
- *
+ * Parser for span_not query
  */
-public class SpanNotQueryParser extends BaseQueryParser {
+public class SpanNotQueryParser extends BaseQueryParser<SpanNotQueryBuilder> {
 
     @Inject
     public SpanNotQueryParser() {
@@ -40,7 +40,7 @@ public class SpanNotQueryParser extends BaseQueryParser {
     }
 
     @Override
-    public QueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public SpanNotQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;

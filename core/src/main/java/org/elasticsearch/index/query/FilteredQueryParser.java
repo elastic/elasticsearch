@@ -25,11 +25,11 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;
 
 /**
+ * Parser for filtered query.
  * @deprecated Use {@link BoolQueryParser} instead.
  */
-
 @Deprecated
-public class FilteredQueryParser extends BaseQueryParser {
+public class FilteredQueryParser extends BaseQueryParser<FilteredQueryBuilder> {
 
     @Inject
     public FilteredQueryParser() {
@@ -41,7 +41,7 @@ public class FilteredQueryParser extends BaseQueryParser {
     }
 
     @Override
-    public QueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public FilteredQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
         QueryBuilder query = null;

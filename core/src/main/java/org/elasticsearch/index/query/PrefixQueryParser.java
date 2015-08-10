@@ -25,9 +25,9 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;
 
 /**
- *
+ * Parser for prefix query
  */
-public class PrefixQueryParser extends BaseQueryParser {
+public class PrefixQueryParser extends BaseQueryParser<PrefixQueryBuilder> {
 
     @Inject
     public PrefixQueryParser() {
@@ -39,7 +39,7 @@ public class PrefixQueryParser extends BaseQueryParser {
     }
 
     @Override
-    public QueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public PrefixQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
         String fieldName = parser.currentName();

@@ -29,9 +29,9 @@ import java.util.List;
 import static com.google.common.collect.Lists.newArrayList;
 
 /**
- *
+ * Parser for span_near query
  */
-public class SpanNearQueryParser extends BaseQueryParser {
+public class SpanNearQueryParser extends BaseQueryParser<SpanNearQueryBuilder> {
 
     @Inject
     public SpanNearQueryParser() {
@@ -43,7 +43,7 @@ public class SpanNearQueryParser extends BaseQueryParser {
     }
 
     @Override
-    public QueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public SpanNearQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
@@ -77,7 +77,7 @@ public class SpanNearQueryParser extends BaseQueryParser {
                 } else if ("collect_payloads".equals(currentFieldName) || "collectPayloads".equals(currentFieldName)) {
                     collectPayloads = parser.booleanValue();
                 } else if ("slop".equals(currentFieldName)) {
-                    slop = Integer.valueOf(parser.intValue());
+                    slop = parser.intValue();
                 } else if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
                 } else if ("_name".equals(currentFieldName)) {

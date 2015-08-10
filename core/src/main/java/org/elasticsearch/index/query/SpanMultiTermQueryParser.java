@@ -25,9 +25,9 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;
 
 /**
- *
+ * Parser for span_multi query
  */
-public class SpanMultiTermQueryParser extends BaseQueryParser {
+public class SpanMultiTermQueryParser extends BaseQueryParser<SpanMultiTermQueryBuilder> {
 
     public static final String MATCH_NAME = "match";
 
@@ -41,7 +41,7 @@ public class SpanMultiTermQueryParser extends BaseQueryParser {
     }
 
     @Override
-    public QueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public SpanMultiTermQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
         String currentFieldName = null;
         MultiTermQueryBuilder subQuery = null;

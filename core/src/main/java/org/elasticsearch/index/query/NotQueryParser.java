@@ -26,9 +26,9 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;
 
 /**
- *
+ * Parser for not query
  */
-public class NotQueryParser extends BaseQueryParser {
+public class NotQueryParser extends BaseQueryParser<NotQueryBuilder> {
 
     private static final ParseField QUERY_FIELD = new ParseField("filter", "query");
 
@@ -42,7 +42,7 @@ public class NotQueryParser extends BaseQueryParser {
     }
 
     @Override
-    public QueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public NotQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
         QueryBuilder query = null;

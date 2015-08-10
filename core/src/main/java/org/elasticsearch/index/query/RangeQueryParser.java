@@ -26,9 +26,9 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;
 
 /**
- *
+ * Parser for range query
  */
-public class RangeQueryParser extends BaseQueryParser {
+public class RangeQueryParser extends BaseQueryParser<RangeQueryBuilder> {
 
     private static final ParseField FIELDDATA_FIELD = new ParseField("fielddata").withAllDeprecated("[no replacement]");
 

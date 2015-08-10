@@ -28,9 +28,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Parser for the IdsQuery.
+ * Parser for ids query
  */
-public class IdsQueryParser extends BaseQueryParser {
+public class IdsQueryParser extends BaseQueryParser<IdsQueryBuilder> {
 
     @Inject
     public IdsQueryParser() {
@@ -45,7 +45,7 @@ public class IdsQueryParser extends BaseQueryParser {
      * @return a QueryBuilder representation of the query passed in as XContent in the parse context
      */
     @Override
-    public QueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
+    public IdsQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
         List<String> ids = new ArrayList<>();
         List<String> types = new ArrayList<>();

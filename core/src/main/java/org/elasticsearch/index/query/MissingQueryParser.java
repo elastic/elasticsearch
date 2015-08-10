@@ -25,9 +25,9 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;
 
 /**
- *
+ * Parser for missing query
  */
-public class MissingQueryParser extends BaseQueryParser {
+public class MissingQueryParser extends BaseQueryParser<MissingQueryBuilder> {
 
     @Inject
     public MissingQueryParser() {
@@ -39,7 +39,7 @@ public class MissingQueryParser extends BaseQueryParser {
     }
 
     @Override
-    public QueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public MissingQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
         String fieldPattern = null;

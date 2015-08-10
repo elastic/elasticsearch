@@ -27,9 +27,9 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;
 
 /**
- *
+ * Parser for constant_score query
  */
-public class ConstantScoreQueryParser extends BaseQueryParser {
+public class ConstantScoreQueryParser extends BaseQueryParser<ConstantScoreQueryBuilder> {
 
     private static final ParseField INNER_QUERY_FIELD = new ParseField("filter", "query");
 
@@ -43,7 +43,7 @@ public class ConstantScoreQueryParser extends BaseQueryParser {
     }
 
     @Override
-    public QueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public ConstantScoreQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
         QueryBuilder query = null;

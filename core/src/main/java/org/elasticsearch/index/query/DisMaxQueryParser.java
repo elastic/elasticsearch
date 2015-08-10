@@ -29,9 +29,9 @@ import java.util.List;
 import static com.google.common.collect.Lists.newArrayList;
 
 /**
- *
+ * Parser for dis_max query
  */
-public class DisMaxQueryParser extends BaseQueryParser {
+public class DisMaxQueryParser extends BaseQueryParser<DisMaxQueryBuilder> {
 
     @Inject
     public DisMaxQueryParser() {
@@ -43,7 +43,7 @@ public class DisMaxQueryParser extends BaseQueryParser {
     }
 
     @Override
-    public QueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public DisMaxQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;

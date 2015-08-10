@@ -45,7 +45,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 
 /**
- *
+ * Parser for function_score query
  */
 public class FunctionScoreQueryParser implements QueryParser {
 

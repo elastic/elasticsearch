@@ -27,8 +27,12 @@ import java.util.ArrayList;
 
 import static com.google.common.collect.Lists.newArrayList;
 
+/**
+ * Parser for and query
+ * @deprecated use bool query instead
+ */
 @Deprecated
-public class AndQueryParser extends BaseQueryParser {
+public class AndQueryParser extends BaseQueryParser<AndQueryBuilder> {
 
     @Inject
     public AndQueryParser() {
@@ -40,7 +44,7 @@ public class AndQueryParser extends BaseQueryParser {
     }
 
     @Override
-    public QueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public AndQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
         final ArrayList<QueryBuilder> queries = newArrayList();

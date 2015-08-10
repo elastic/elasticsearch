@@ -25,7 +25,10 @@ import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 
-public class TypeQueryParser extends BaseQueryParser {
+/**
+ * Parser for type query
+ */
+public class TypeQueryParser extends BaseQueryParser<TypeQueryBuilder> {
 
     @Inject
     public TypeQueryParser() {
@@ -37,7 +40,7 @@ public class TypeQueryParser extends BaseQueryParser {
     }
 
     @Override
-    public QueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public TypeQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
         BytesRef type = null;
 

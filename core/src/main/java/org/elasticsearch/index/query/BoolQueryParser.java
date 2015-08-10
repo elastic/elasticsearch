@@ -30,9 +30,9 @@ import java.util.List;
 import static com.google.common.collect.Lists.newArrayList;
 
 /**
- * Parser for the {@link BoolQueryBuilder}
+ * Parser for bool query
  */
-public class BoolQueryParser extends BaseQueryParser {
+public class BoolQueryParser extends BaseQueryParser<BoolQueryBuilder> {
 
     @Inject
     public BoolQueryParser(Settings settings) {
@@ -45,7 +45,7 @@ public class BoolQueryParser extends BaseQueryParser {
     }
 
     @Override
-    public QueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public BoolQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
         boolean disableCoord = BoolQueryBuilder.DISABLE_COORD_DEFAULT;

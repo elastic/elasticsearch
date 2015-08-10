@@ -25,9 +25,9 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;
 
 /**
- * Parser for the TermQuery.
+ * Parser for the term query
  */
-public class TermQueryParser extends BaseQueryParser {
+public class TermQueryParser extends BaseQueryParser<TermQueryBuilder> {
 
     @Inject
     public TermQueryParser() {
@@ -39,7 +39,7 @@ public class TermQueryParser extends BaseQueryParser {
     }
 
     @Override
-    public QueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public TermQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
         String queryName = null;

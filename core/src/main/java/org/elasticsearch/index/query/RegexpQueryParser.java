@@ -24,9 +24,10 @@ import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 
-public class RegexpQueryParser extends BaseQueryParser {
-
-    public static final int DEFAULT_FLAGS_VALUE = RegexpFlag.ALL.value();
+/**
+ * Parser for regexp query
+ */
+public class RegexpQueryParser extends BaseQueryParser<RegexpQueryBuilder> {
 
     @Inject
     public RegexpQueryParser() {
@@ -38,7 +39,7 @@ public class RegexpQueryParser extends BaseQueryParser {
     }
 
     @Override
-    public QueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public RegexpQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
         String fieldName = parser.currentName();

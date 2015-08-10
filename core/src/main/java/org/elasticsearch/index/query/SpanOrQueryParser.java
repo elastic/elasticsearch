@@ -27,7 +27,10 @@ import java.util.List;
 
 import static com.google.common.collect.Lists.newArrayList;
 
-public class SpanOrQueryParser extends BaseQueryParser {
+/**
+ * Parser for span_or query
+ */
+public class SpanOrQueryParser extends BaseQueryParser<SpanOrQueryBuilder> {
 
     @Override
     public String[] names() {
@@ -35,7 +38,7 @@ public class SpanOrQueryParser extends BaseQueryParser {
     }
 
     @Override
-    public QueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public SpanOrQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;

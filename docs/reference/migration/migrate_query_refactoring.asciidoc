@@ -11,7 +11,8 @@ Plugins implementing custom queries need to implement the `fromXContent(QueryPar
 into an intermediate query representation that can be streamed between the nodes in binary format, effectively the
 query object used in the java api. Also, the query parser needs to implement the `getBuilderPrototype` method that
 returns a prototype of the streamable query, which allows to deserialize an incoming query by calling
-`readFrom(StreamInput)` against it, which will create a new object, see usages of `Writeable`.
+`readFrom(StreamInput)` against it, which will create a new object, see usages of `Writeable`. The `QueryParser`
+also needs to declare the generic type of the query that it supports and it's able to parse.
 The query object can then transform itself into a lucene query through the new `toQuery(QueryShardContext)` method,
 which returns a lucene query to be executed on the data node. The query implementation also needs to implement the
 `validate` method that allows to validate the content of the query, no matter whether it came in through the java api

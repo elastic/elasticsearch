@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.spans.SpanWithinQuery;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -27,9 +26,9 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;
 
 /**
- * Parser for {@link SpanWithinQuery}
+ * Parser for span_within query
  */
-public class SpanWithinQueryParser extends BaseQueryParser {
+public class SpanWithinQueryParser extends BaseQueryParser<SpanWithinQueryBuilder> {
 
     @Inject
     public SpanWithinQueryParser() {
@@ -41,7 +40,7 @@ public class SpanWithinQueryParser extends BaseQueryParser {
     }
 
     @Override
-    public QueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public SpanWithinQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;

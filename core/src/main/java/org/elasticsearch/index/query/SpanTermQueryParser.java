@@ -26,10 +26,9 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;
 
 /**
- * Parses the json representation of a spantermquery into the Elasticsearch internal
- * query builder representation.
+ * Parser for span_term query
  */
-public class SpanTermQueryParser extends BaseQueryParser {
+public class SpanTermQueryParser extends BaseQueryParser<SpanTermQueryBuilder> {
 
     @Inject
     public SpanTermQueryParser() {
@@ -41,7 +40,7 @@ public class SpanTermQueryParser extends BaseQueryParser {
     }
 
     @Override
-    public QueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public SpanTermQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
         XContentParser.Token token = parser.currentToken();

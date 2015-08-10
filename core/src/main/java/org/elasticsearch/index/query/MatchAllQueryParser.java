@@ -26,9 +26,9 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;
 
 /**
- * Parser code for MatchAllQuery
+ * Parser for match_all query
  */
-public class MatchAllQueryParser extends BaseQueryParser {
+public class MatchAllQueryParser extends BaseQueryParser<MatchAllQueryBuilder> {
 
     @Inject
     public MatchAllQueryParser() {

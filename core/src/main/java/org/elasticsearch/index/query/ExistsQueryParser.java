@@ -25,9 +25,9 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;
 
 /**
- *
+ * Parser for exists query
  */
-public class ExistsQueryParser extends BaseQueryParser {
+public class ExistsQueryParser extends BaseQueryParser<ExistsQueryBuilder> {
 
     @Inject
     public ExistsQueryParser() {
@@ -39,7 +39,7 @@ public class ExistsQueryParser extends BaseQueryParser {
     }
 
     @Override
-    public QueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public ExistsQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
         String fieldPattern = null;

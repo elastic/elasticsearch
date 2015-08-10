@@ -27,8 +27,12 @@ import java.util.ArrayList;
 
 import static com.google.common.collect.Lists.newArrayList;
 
+/**
+ * Parser for or query
+ * @deprecated use bool query instead
+ */
 @Deprecated
-public class OrQueryParser extends BaseQueryParser {
+public class OrQueryParser extends BaseQueryParser<OrQueryBuilder> {
 
     @Inject
     public OrQueryParser() {
@@ -40,7 +44,7 @@ public class OrQueryParser extends BaseQueryParser {
     }
 
     @Override
-    public QueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public OrQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
         final ArrayList<QueryBuilder> queries = newArrayList();

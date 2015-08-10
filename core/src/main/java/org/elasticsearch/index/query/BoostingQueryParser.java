@@ -25,9 +25,9 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;
 
 /**
- *
+ * Parser for boosting query
  */
-public class BoostingQueryParser extends BaseQueryParser {
+public class BoostingQueryParser extends BaseQueryParser<BoostingQueryBuilder> {
 
     @Inject
     public BoostingQueryParser() {
@@ -39,7 +39,7 @@ public class BoostingQueryParser extends BaseQueryParser {
     }
 
     @Override
-    public QueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public BoostingQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
         QueryBuilder positiveQuery = null;

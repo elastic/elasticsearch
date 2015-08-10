@@ -23,8 +23,12 @@ import org.elasticsearch.common.inject.Inject;
 
 import java.io.IOException;
 
+/**
+ * Parser for query filter
+ * @deprecated use any query instead directly, possible since queries and filters are merged.
+ */
 @Deprecated
-public class QueryFilterParser extends BaseQueryParser {
+public class QueryFilterParser extends BaseQueryParser<QueryFilterBuilder> {
 
     @Inject
     public QueryFilterParser() {
@@ -36,7 +40,7 @@ public class QueryFilterParser extends BaseQueryParser {
     }
 
     @Override
-    public QueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public QueryFilterBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
         return new QueryFilterBuilder(parseContext.parseInnerQueryBuilder());
     }
 

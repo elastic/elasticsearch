@@ -24,8 +24,12 @@ import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 
+/**
+ * Parser for limit query
+ * @deprecated use terminate_after feature instead
+ */
 @Deprecated
-public class LimitQueryParser extends BaseQueryParser {
+public class LimitQueryParser extends BaseQueryParser<LimitQueryBuilder> {
 
     @Inject
     public LimitQueryParser() {
@@ -37,7 +41,7 @@ public class LimitQueryParser extends BaseQueryParser {
     }
 
     @Override
-    public QueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public LimitQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
         int limit = -1;

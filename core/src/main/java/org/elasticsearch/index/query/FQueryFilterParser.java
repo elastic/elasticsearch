@@ -27,9 +27,11 @@ import java.io.IOException;
 /**
  * The "fquery" filter is the same as the {@link QueryFilterParser} except that it allows also to
  * associate a name with the query filter.
+ * @deprecated Useless now that queries and filters are merged: pass the
+ *             query as a filter directly.
  */
 @Deprecated
-public class FQueryFilterParser extends BaseQueryParser {
+public class FQueryFilterParser extends BaseQueryParser<FQueryFilterBuilder> {
 
     @Inject
     public FQueryFilterParser() {
@@ -41,7 +43,7 @@ public class FQueryFilterParser extends BaseQueryParser {
     }
 
     @Override
-    public QueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public FQueryFilterBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
         QueryBuilder wrappedQuery = null;

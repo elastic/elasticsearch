@@ -8,7 +8,7 @@ experimental[]
 
 Pipeline aggregations work on the outputs produced from other aggregations rather than from document sets, adding
 information to the output tree. There are many different types of pipeline aggregation, each computing different information from
-other aggregations, but these types can broken down into two families:
+other aggregations, but these types can be broken down into two families:
 
 _Parent_::
                 A family of pipeline aggregations that is provided with the output of its parent aggregation and is able

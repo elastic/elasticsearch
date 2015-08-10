@@ -120,7 +120,7 @@ start() {
 stop() {
     echo -n $"Stopping $prog: "
     # stop it here, often "killproc $prog"
-    killproc -p $pidfile -d 20 $prog
+    killproc -p $pidfile -d ${packaging.elasticsearch.stopping.timeout} $prog
     retval=$?
     echo
     [ $retval -eq 0 ] && rm -f $lockfile

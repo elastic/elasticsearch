@@ -46,17 +46,6 @@ java.nio.file.FileSystems#getDefault() @ use PathUtils.getDefault instead.
 java.nio.file.Files#createTempDirectory(java.lang.String,java.nio.file.attribute.FileAttribute[])
 java.nio.file.Files#createTempFile(java.lang.String,java.lang.String,java.nio.file.attribute.FileAttribute[])
 
-@defaultMessage Constructing a DateTime without a time zone is dangerous
-org.joda.time.DateTime#<init>()
-org.joda.time.DateTime#<init>(long)
-org.joda.time.DateTime#<init>(int, int, int, int, int)
-org.joda.time.DateTime#<init>(int, int, int, int, int, int)
-org.joda.time.DateTime#<init>(int, int, int, int, int, int, int)
-org.joda.time.DateTime#now()
-org.joda.time.DateTimeZone#getDefault()
-
-com.google.common.collect.Iterators#emptyIterator() @ Use Collections.emptyIterator instead
-
 @defaultMessage Don't use java serialization - this can break BWC without noticing it
 java.io.ObjectOutputStream
 java.io.ObjectOutput

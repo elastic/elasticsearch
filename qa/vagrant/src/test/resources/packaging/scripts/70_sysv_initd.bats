@@ -97,7 +97,8 @@ setup() {
     skip_not_sysvinit
 
     run service elasticsearch status
-    [ "$status" -eq 3 ]
+    # precise returns 4, trusty 3
+    [ "$status" -eq 3 ] || [ "$status" -eq 4 ]
 }
 
 # Simulates the behavior of a system restart:

@@ -32,9 +32,6 @@ StandardOutput=null
 # Connects standard error to journal
 StandardError=journal
 
-# When a JVM receives a SIGTERM signal it exits with code 143
-SuccessExitStatus=143
-
 # Specifies the maximum file descriptor number that can be opened by this process
 LimitNOFILE=${packaging.os.max.open.files}
 
@@ -43,8 +40,17 @@ LimitNOFILE=${packaging.os.max.open.files}
 # in elasticsearch.yml and 'MAX_LOCKED_MEMORY=unlimited' in ${packaging.env.file}
 #LimitMEMLOCK=infinity
 
-# Shutdown delay in seconds, before process is tried to be killed with KILL (if configured)
-TimeoutStopSec=20
+# Disable timeout logic and wait until process is stopped
+TimeoutStopSec=0
+
+# SIGTERM signal is used to stop the Java process
+KillSignal=SIGTERM
+
+# Java process is never killed
+SendSIGKILL=no
+
+# When a JVM receives a SIGTERM signal it exits with code 143
+SuccessExitStatus=143
 
 [Install]
 WantedBy=multi-user.target

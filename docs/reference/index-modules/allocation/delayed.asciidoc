@@ -60,6 +60,17 @@ NOTE: This setting will not affect the promotion of replicas to primaries, nor
 will it affect the assignment of replicas that have not been assigned
 previously.
 
+==== Cancellation of shard relocation
+
+If delayed allocation times out, the master assigns the missing shards to
+another node which will start recovery.  If the missing node rejoins the
+cluster, and its shards still have the same sync-id as the primary, shard
+relocation will be cancelled and the synced shard will be used for recovery
+instead.
+
+For this reason, the default `timeout` is set to just one minute: even if shard
+relocation begins, cancelling recovery in favour of the synced shard is cheap.
+
 ==== Monitoring delayed unassigned shards
 
 The number of shards whose allocation has been delayed by this timeout setting

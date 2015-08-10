@@ -139,6 +139,12 @@
                                         <group>root</group>
                                     </mapper>
                                 </data>
+                                <data>
+                                    <type>template</type>
+                                    <paths>
+                                        <path>${packaging.elasticsearch.conf.dir}/scripts</path>
+                                    </paths>
+                                </data>
                                 <!-- Add environment vars file -->
                                 <data>
                                     <src>${project.build.directory}/generated-packaging/deb/env/elasticsearch</src>

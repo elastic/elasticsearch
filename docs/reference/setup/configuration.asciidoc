@@ -319,9 +319,8 @@ YAML or JSON):
 --------------------------------------------------
 $ curl -XPUT http://localhost:9200/kimchy/ -d \
 '
-index :
-    store:
-        type: memory
+index:
+    refresh_interval: 5s
 '
 --------------------------------------------------
 
@@ -331,8 +330,7 @@ within the `elasticsearch.yml` file, the following can be set:
 [source,yaml]
 --------------------------------------------------
 index :
-    store:
-        type: memory
+    refresh_interval: 5s
 --------------------------------------------------
 
 This means that every index that gets created on the specific node
@@ -343,7 +341,7 @@ above can also be set as a "collapsed" setting, for example:
 
 [source,sh]
 --------------------------------------------------
-$ elasticsearch -Des.index.store.type=memory
+$ elasticsearch -Des.index.refresh_interval=5s
 --------------------------------------------------
 
 All of the index level configuration can be found within each

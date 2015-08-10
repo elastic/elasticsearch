@@ -2,6 +2,7 @@
 
 use strict;
 use warnings;
+use v5.10;
 
 use FindBin qw($RealBin);
 use lib "$RealBin/lib";
@@ -10,19 +11,8 @@ use File::Temp();
 use File::Find();
 use File::Basename qw(basename);
 use Archive::Extract();
+use Digest::SHA();
 $Archive::Extract::PREFER_BIN = 1;
-
-our $SHA_CLASS = 'Digest::SHA';
-if ( eval { require Digest::SHA } ) {
-    $SHA_CLASS = 'Digest::SHA';
-}
-else {
-
-    print STDERR "Digest::SHA not available. "
-        . "Falling back to Digest::SHA::PurePerl\n";
-    require Digest::SHA::PurePerl;
-    $SHA_CLASS = 'Digest::SHA::PurePerl';
-}
 
 my $mode = shift(@ARGV) || "";
 die usage() unless $mode =~ /^--(check|update)$/;
@@ -31,6 +21,9 @@ my $License_Dir = shift(@ARGV) || die usage();
 my $Source      = shift(@ARGV) || die usage();
 $License_Dir = File::Spec->rel2abs($License_Dir) . '/';
 $Source      = File::Spec->rel2abs($Source);
+
+say "LICENSE DIR: $License_Dir";
+say "SOURCE: $Source";
 
 die "License dir is not a directory: $License_Dir\n" . usage()
     unless -d $License_Dir;
@@ -59,15 +52,15 @@ sub check_shas_and_licenses {
     for my $jar ( sort keys %new ) {
         my $old_sha = delete $old{$jar};
         unless ($old_sha) {
-            print STDERR "$jar: SHA is missing\n";
+            say STDERR "$jar: SHA is missing";
             $error++;
             $sha_error++;
             next;
         }
 
         unless ( $old_sha eq $new{$jar} ) {
-            print STDERR
-                "$jar: SHA has changed, expected $old_sha but found $new{$jar}\n";
+            say STDERR
+                "$jar: SHA has changed, expected $old_sha but found $new{$jar}";
             $error++;
             $sha_error++;
             next;
@@ -95,41 +88,37 @@ sub check_shas_and_licenses {
             }
         }
         unless ($license_found) {
-            print STDERR "$jar: LICENSE is missing\n";
+            say STDERR "$jar: LICENSE is missing";
             $error++;
             $sha_error++;
         }
         unless ($notice_found) {
-            print STDERR "$jar: NOTICE is missing\n";
+            say STDERR "$jar: NOTICE is missing";
             $error++;
         }
     }
 
     if ( keys %old ) {
-        print STDERR "Extra SHA files present for: " . join ", ",
-            sort keys %old;
-        print "\n";
+        say STDERR "Extra SHA files present for: " . join ", ", sort keys %old;
         $error++;
     }
 
     my @unused_licenses = grep { !$licenses{$_} } keys %licenses;
     if (@unused_licenses) {
         $error++;
-        print STDERR "Extra LICENCE file present: " . join ", ",
+        say STDERR "Extra LICENCE file present: " . join ", ",
             sort @unused_licenses;
-        print "\n";
     }
 
     my @unused_notices = grep { !$notices{$_} } keys %notices;
     if (@unused_notices) {
         $error++;
-        print STDERR "Extra NOTICE file present: " . join ", ",
+        say STDERR "Extra NOTICE file present: " . join ", ",
             sort @unused_notices;
-        print "\n";
     }
 
     if ($sha_error) {
-        print STDERR <<"SHAS"
+        say STDERR <<"SHAS"
 
 You can update the SHA files by running:
 
@@ -137,7 +126,7 @@ $0 --update $License_Dir $Source
 
 SHAS
     }
-    print("All SHAs and licenses OK\n") unless $error;
+    say("All SHAs and licenses OK") unless $error;
     return $error;
 }
 
@@ -150,13 +139,13 @@ sub write_shas {
     for my $jar ( sort keys %new ) {
         if ( $old{$jar} ) {
             next if $old{$jar} eq $new{$jar};
-            print "Updating $jar\n";
+            say "Updating $jar";
         }
         else {
-            print "Adding $jar\n";
+            say "Adding $jar";
         }
         open my $fh, '>', $License_Dir . $jar or die $!;
-        print $fh $new{$jar} . "\n" or die $!;
+        say $fh $new{$jar} or die $!;
         close $fh or die $!;
     }
     continue {
@@ -164,10 +153,10 @@ sub write_shas {
     }
 
     for my $jar ( sort keys %old ) {
-        print "Deleting $jar\n";
+        say "Deleting $jar";
         unlink $License_Dir . $jar or die $!;
     }
-    print "SHAs updated\n";
+    say "SHAs updated";
     return 0;
 }
 
@@ -212,8 +201,6 @@ sub jars_from_zip {
     $archive->extract( to => $dir_name ) || die $archive->error;
     my @jars = map { File::Spec->rel2abs( $_, $dir_name ) }
         grep { /\.jar$/ && !/elasticsearch[^\/]*$/ } @{ $archive->files };
-    die "No JARS found in: $source\n"
-        unless @jars;
     return calculate_shas(@jars);
 }
 
@@ -231,8 +218,6 @@ sub jars_from_dir {
         },
         $source
     );
-    die "No JARS found in: $source\n"
-        unless @jars;
     return calculate_shas(@jars);
 }
 
@@ -241,7 +226,7 @@ sub calculate_shas {
 #===================================
     my %shas;
     while ( my $file = shift() ) {
-        my $digest = eval { $SHA_CLASS->new(1)->addfile($file) }
+        my $digest = eval { Digest::SHA->new(1)->addfile($file) }
             or die "Error calculating SHA1 for <$file>: $!\n";
         $shas{ basename($file) . ".sha1" } = $digest->hexdigest;
     }

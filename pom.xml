@@ -57,6 +57,10 @@
         <elasticsearch.integ.antfile.default>${elasticsearch.tools.directory}/ant/integration-tests.xml</elasticsearch.integ.antfile.default>
         <elasticsearch.integ.antfile>${elasticsearch.integ.antfile.default}</elasticsearch.integ.antfile>
 
+        <!-- Properties for the license checker -->
+        <project.licenses.dir>${project.basedir}/licenses</project.licenses.dir>
+        <project.licenses.check_target>${basedir}/target/releases/${project.build.finalName}.zip</project.licenses.check_target>
+
         <!-- Test properties -->
         <tests.jvms>auto</tests.jvms>
         <tests.shuffle>true</tests.shuffle>
@@ -1190,6 +1194,28 @@ org.eclipse.jdt.ui.text.custom_code_templates=<?xml version\="1.0" encoding\="UT
                             <goals>
                                 <goal>run</goal>
                             </goals>
+                        </execution>
+                        <execution>
+                            <id>check-license</id>
+                            <phase>verify</phase>
+                            <goals>
+                                <goal>run</goal>
+                            </goals>
+                            <configuration>
+                                <!-- <skip>${skip.integ.tests}</skip> -->
+                                <skip>true</skip>
+                                <target>
+                                    <echo taskName="license check">Running license check</echo>
+                                    <!-- don't run on windows, because everyone hates it -->
+                                    <exec failonerror="true" executable="perl" osfamily="unix"
+                                          dir="${elasticsearch.tools.directory}/license-check">
+                                        <arg value="check_license_and_sha.pl"/>
+                                        <arg value="--check"/>
+                                        <arg value="${project.licenses.dir}"/>
+                                        <arg value="${project.licenses.check_target}"/>
+                                    </exec>
+                                </target>
+                            </configuration>
                         </execution>
                     </executions>
                     <dependencies>

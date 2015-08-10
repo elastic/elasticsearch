@@ -20,3 +20,14 @@ org.elasticsearch.common.primitives.Longs#compare(long,long)
 @defaultMessage unsafe encoders/decoders have problems in the lzf compress library.  Use variants of encode/decode functions which take Encoder/Decoder.
 org.elasticsearch.common.compress.lzf.impl.UnsafeChunkDecoder#<init>()
 org.elasticsearch.common.compress.lzf.util.ChunkDecoderFactory#optimalInstance()
+
+@defaultMessage Constructing a DateTime without a time zone is dangerous
+org.elasticsearch.joda.time.DateTime#<init>()
+org.elasticsearch.joda.time.DateTime#<init>(long)
+org.elasticsearch.joda.time.DateTime#<init>(int, int, int, int, int)
+org.elasticsearch.joda.time.DateTime#<init>(int, int, int, int, int, int)
+org.elasticsearch.joda.time.DateTime#<init>(int, int, int, int, int, int, int)
+org.elasticsearch.joda.time.DateTime#now()
+org.elasticsearch.joda.time.DateTimeZone#getDefault()
+
+org.elasticsearch.common.collect.Iterators#emptyIterator() @ Use Collections.emptyIterator instead

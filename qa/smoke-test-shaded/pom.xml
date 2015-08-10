@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>org.elasticsearch.qa</groupId>
+        <artifactId>elasticsearch-qa</artifactId>
+        <version>2.0.0-beta1-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>smoke-test-shaded</artifactId>
+    <name>QA: Smoke Test Shaded Jar</name>
+    <description>Runs a simple </description>
+
+    <properties>
+        <elasticsearch.thirdparty.config>shaded</elasticsearch.thirdparty.config>
+    </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.elasticsearch.distribution.shaded</groupId>
+            <artifactId>elasticsearch</artifactId>
+            <version>2.0.0-beta1-SNAPSHOT</version>
+        </dependency>
+        <dependency>
+            <groupId>org.hamcrest</groupId>
+            <artifactId>hamcrest-all</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.lucene</groupId>
+            <artifactId>lucene-test-framework</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+</project>

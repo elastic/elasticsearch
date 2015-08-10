@@ -17,16 +17,23 @@
  * under the License.
  */
 
-package org.elasticsearch.bootstrap;
+package org.elasticsearch.script;
 
-/**
- * Same as {@link Elasticsearch} just runs it in the foreground by default (does not close
- * sout and serr).
- */
-public class ElasticsearchF {
+import org.elasticsearch.common.metrics.CounterMetric;
 
-    public static void main(String[] args) throws Throwable {
-        System.setProperty("es.foreground", "yes");
-        Bootstrap.main(args);
+public class ScriptMetrics {
+    final CounterMetric compilationsMetric = new CounterMetric();
+    final CounterMetric cacheEvictionsMetric = new CounterMetric();
+
+    public ScriptStats stats() {
+        return new ScriptStats(compilationsMetric.count(), cacheEvictionsMetric.count());
+    }
+
+    public void onCompilation() {
+        compilationsMetric.inc();
+    }
+
+    public void onCacheEviction() {
+        cacheEvictionsMetric.inc();
     }
 }

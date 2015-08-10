@@ -63,6 +63,7 @@ install_package() {
 # Install plugins with DEB/RPM package
 ##################################
 @test "[PLUGINS] install shield plugin" {
+    skip "awaits public release of shield for 2.0"
 
     # Install the package
     install_package
@@ -103,6 +104,7 @@ install_package() {
 }
 
 @test "[PLUGINS] install shield plugin with a custom path.plugins" {
+    skip "awaits public release of shield for 2.0"
 
     # Install the package
     install_package
@@ -160,6 +162,7 @@ install_package() {
 }
 
 @test "[PLUGINS] install shield plugin with a custom CONFIG_DIR" {
+    skip "awaits public release of shield for 2.0"
 
     # Install the package
     install_package
@@ -227,6 +230,7 @@ install_package() {
 }
 
 @test "[PLUGINS] install shield plugin with a custom ES_JAVA_OPTS" {
+    skip "awaits public release of shield for 2.0"
 
     # Install the package
     install_package

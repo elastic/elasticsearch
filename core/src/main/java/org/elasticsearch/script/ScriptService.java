@@ -84,6 +84,7 @@ public class ScriptService extends AbstractComponent implements Closeable {
 
     public static final String DEFAULT_SCRIPTING_LANGUAGE_SETTING = "script.default_lang";
     public static final String SCRIPT_CACHE_SIZE_SETTING = "script.cache.max_size";
+    public static final int SCRIPT_CACHE_SIZE_DEFAULT = 100;
     public static final String SCRIPT_CACHE_EXPIRE_SETTING = "script.cache.expire";
     public static final String SCRIPT_INDEX = ".scripts";
     public static final String DEFAULT_LANG = GroovyScriptEngineService.NAME;
@@ -106,6 +107,8 @@ public class ScriptService extends AbstractComponent implements Closeable {
     private final ParseFieldMatcher parseFieldMatcher;
 
     private Client client = null;
+
+    private final ScriptMetrics scriptMetrics = new ScriptMetrics();
 
     /**
      * @deprecated Use {@link org.elasticsearch.script.Script.ScriptField} instead. This should be removed in
@@ -140,7 +143,7 @@ public class ScriptService extends AbstractComponent implements Closeable {
 
         this.scriptEngines = scriptEngines;
         this.scriptContextRegistry = scriptContextRegistry;
-        int cacheMaxSize = settings.getAsInt(SCRIPT_CACHE_SIZE_SETTING, 100);
+        int cacheMaxSize = settings.getAsInt(SCRIPT_CACHE_SIZE_SETTING, SCRIPT_CACHE_SIZE_DEFAULT);
         TimeValue cacheExpire = settings.getAsTime(SCRIPT_CACHE_EXPIRE_SETTING, null);
         logger.debug("using script cache with max_size [{}], expire [{}]", cacheMaxSize, cacheExpire);
 
@@ -306,6 +309,7 @@ public class ScriptService extends AbstractComponent implements Closeable {
 
             //Since the cache key is the script content itself we don't need to
             //invalidate/check the cache if an indexed script changes.
+            scriptMetrics.onCompilation();
             cache.put(cacheKey, compiledScript);
         }
 
@@ -474,6 +478,10 @@ public class ScriptService extends AbstractComponent implements Closeable {
         }
     }
 
+    public ScriptStats stats() {
+        return scriptMetrics.stats();
+    }
+
     /**
      * A small listener for the script cache that calls each
      * {@code ScriptEngineService}'s {@code scriptRemoved} method when the
@@ -486,6 +494,7 @@ public class ScriptService extends AbstractComponent implements Closeable {
             if (logger.isDebugEnabled()) {
                 logger.debug("notifying script services of script removal due to: [{}]", notification.getCause());
             }
+            scriptMetrics.onCacheEviction();
             for (ScriptEngineService service : scriptEngines) {
                 try {
                     service.scriptRemoved(notification.getValue());
@@ -532,6 +541,7 @@ public class ScriptService extends AbstractComponent implements Closeable {
                                 String script = Streams.copyToString(reader);
                                 String cacheKey = getCacheKey(engineService, scriptNameExt.v1(), null);
                                 staticCache.put(cacheKey, new CompiledScript(ScriptType.FILE, scriptNameExt.v1(), engineService.types()[0], engineService.compile(script)));
+                                scriptMetrics.onCompilation();
                             }
                         } else {
                             logger.warn("skipping compile of script file [{}] as all scripted operations are disabled for file scripts", file.toAbsolutePath());

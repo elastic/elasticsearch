@@ -19,6 +19,9 @@
     </parent>
 
     <properties>
+        <!-- we aren't really a plugin... -->
+        <!-- TODO: its just the plugin props check we really should disable -->
+        <enforcer.skip>true</enforcer.skip>
     </properties>
 
     <dependencies>

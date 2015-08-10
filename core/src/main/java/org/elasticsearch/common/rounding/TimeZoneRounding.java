@@ -64,6 +64,9 @@ public abstract class TimeZoneRounding extends Rounding {
         }
 
         public Builder timeZone(DateTimeZone timeZone) {
+            if (timeZone == null) {
+                throw new IllegalArgumentException("Setting null as timezone is not supported");
+            }
             this.timeZone = timeZone;
             return this;
         }

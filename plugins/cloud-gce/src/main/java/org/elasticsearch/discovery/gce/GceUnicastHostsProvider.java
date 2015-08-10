@@ -59,7 +59,7 @@ public class GceUnicastHostsProvider extends AbstractComponent implements Unicas
 
     private final Version version;
     private final String project;
-    private final String zone;
+    private final String[] zones;
     private final String[] tags;
 
     private final TimeValue refreshInterval;
@@ -79,11 +79,11 @@ public class GceUnicastHostsProvider extends AbstractComponent implements Unicas
 
         this.refreshInterval = settings.getAsTime(Fields.REFRESH, TimeValue.timeValueSeconds(0));
         this.project = settings.get(Fields.PROJECT);
-        this.zone = settings.get(Fields.ZONE);
+        this.zones = settings.getAsArray(Fields.ZONE);
 
         // Check that we have all needed properties
         checkProperty(Fields.PROJECT, project);
-        checkProperty(Fields.ZONE, zone);
+        checkProperty(Fields.ZONE, zones);
 
         this.tags = settings.getAsArray(Fields.TAGS);
         if (logger.isDebugEnabled()) {
@@ -125,7 +125,7 @@ public class GceUnicastHostsProvider extends AbstractComponent implements Unicas
             Collection<Instance> instances = gceComputeService.instances();
 
             if (instances == null) {
-                logger.trace("no instance found for project [{}], zone [{}].", this.project, this.zone);
+                logger.trace("no instance found for project [{}], zones [{}].", this.project, this.zones);
                 return cachedDiscoNodes;
             }
 
@@ -172,7 +172,7 @@ public class GceUnicastHostsProvider extends AbstractComponent implements Unicas
                 }
                 if (filterByTag) {
                     logger.trace("filtering out instance {} based tags {}, not part of {}", name, tags,
-                            instance.getTags() == null || instance.getTags().getItems() == null ? "" : "");
+                            instance.getTags() == null || instance.getTags().getItems() == null ? "" : instance.getTags());
                     continue;
                 } else {
                     logger.trace("instance {} with tags {} is added to discovery", name, tags);
@@ -250,6 +250,12 @@ public class GceUnicastHostsProvider extends AbstractComponent implements Unicas
 
     private void checkProperty(String name, String value) {
         if (!Strings.hasText(value)) {
+            logger.warn("{} is not set.", name);
+        }
+    }
+
+    private void checkProperty(String name, String[] values) {
+        if (values == null || values.length == 0) {
             logger.warn("{} is not set.", name);
         }
     }

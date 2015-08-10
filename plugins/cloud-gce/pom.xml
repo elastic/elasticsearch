@@ -28,10 +28,7 @@ governing permissions and limitations under the License. -->
     <properties>
         <elasticsearch.plugin.classname>org.elasticsearch.plugin.cloud.gce.CloudGcePlugin</elasticsearch.plugin.classname>
         <google.gce.version>v1-rev71-1.20.0</google.gce.version>
-        <es.plugin.port>9300</es.plugin.port>
         <!-- currently has no unit tests -->
-        <tests.ifNoTests>warn</tests.ifNoTests>
-        <tests.jvms>1</tests.jvms>
         <tests.rest.suite>cloud_gce</tests.rest.suite>
         <tests.rest.load_packaged>false</tests.rest.load_packaged>
     </properties>

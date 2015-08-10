@@ -123,7 +123,7 @@ public class S3Repository extends BlobStoreRepository {
                 bucket, region, endpoint, protocol, chunkSize, serverSideEncryption, bufferSize, maxRetries);
 
         blobStore = new S3BlobStore(settings, s3Service.client(endpoint, protocol, region, repositorySettings.settings().get("access_key"), repositorySettings.settings().get("secret_key"), maxRetries), bucket, region, serverSideEncryption, bufferSize, maxRetries);
-        String basePath = repositorySettings.settings().get("base_path", null);
+        String basePath = repositorySettings.settings().get("base_path", settings.get("repositories.s3.base_path"));
         if (Strings.hasLength(basePath)) {
             BlobPath path = new BlobPath();
             for(String elem : Strings.splitStringToArray(basePath, '/')) {

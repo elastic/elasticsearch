@@ -187,7 +187,7 @@ The following settings are supported:
 * `region`: The region where bucket is located. Defaults to US Standard
 * `endpoint`: The endpoint to the S3 API. Defaults to AWS's default S3 endpoint. Note that setting a region overrides the endpoint setting.
 * `protocol`: The protocol to use (`http` or `https`). Defaults to value of `cloud.aws.protocol` or `cloud.aws.s3.protocol`.
-* `base_path`: Specifies the path within bucket to repository data. Defaults to root directory.
+* `base_path`: Specifies the path within bucket to repository data. Defaults to value of `repositories.s3.base_path` or to root directory if not set.
 * `access_key`: The access key to use for authentication. Defaults to value of `cloud.aws.access_key`.
 * `secret_key`: The secret key to use for authentication. Defaults to value of `cloud.aws.secret_key`.
 * `chunk_size`: Big files can be broken down into chunks during snapshotting if needed. The chunk size can be specified in bytes or by using size value notation, i.e. `1g`, `10m`, `5k`. Defaults to `100m`.

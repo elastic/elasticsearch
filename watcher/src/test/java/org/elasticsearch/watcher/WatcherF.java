@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.watcher;
 
-import org.elasticsearch.bootstrap.ElasticsearchF;
+import org.elasticsearch.bootstrap.Elasticsearch;
 import org.elasticsearch.license.plugin.LicensePlugin;
 
 /**
@@ -27,7 +27,7 @@ public class WatcherF {
         System.setProperty("es.plugin.types", WatcherPlugin.class.getName() + "," + LicensePlugin.class.getName());
         System.setProperty("es.cluster.name", WatcherF.class.getSimpleName());
 
-        ElasticsearchF.main(args);
+        Elasticsearch.main(args);
     }
 
 }

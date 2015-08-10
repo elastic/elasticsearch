@@ -25,6 +25,7 @@ import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeBuilder;
+import org.junit.Test;
 
 import java.nio.file.Path;
 
@@ -50,5 +51,27 @@ public class ShadedIT extends LuceneTestCase {
             assertEquals(response.getHits().getTotalHits(), 1l);
         }
 
+    }
+
+    @Test
+    public void testLoadShadedClasses() throws ClassNotFoundException {
+        Class.forName("org.elasticsearch.common.collect.ImmutableList");
+        Class.forName("org.elasticsearch.common.joda.time.DateTime");
+        Class.forName("org.elasticsearch.common.util.concurrent.jsr166e.LongAdder");
+    }
+
+    @Test(expected = ClassNotFoundException.class)
+    public void testGuavaIsNotOnTheCP() throws ClassNotFoundException {
+        Class.forName("com.google.common.collect.ImmutableList");
+    }
+
+    @Test(expected = ClassNotFoundException.class)
+    public void testJodaIsNotOnTheCP() throws ClassNotFoundException {
+        Class.forName("org.joda.time.DateTime");
+    }
+
+    @Test(expected = ClassNotFoundException.class)
+    public void testjsr166eIsNotOnTheCP() throws ClassNotFoundException {
+        Class.forName("com.twitter.jsr166e.LongAdder");
     }
 }

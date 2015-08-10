@@ -19,6 +19,7 @@
 package org.elasticsearch.common.unit;
 
 import com.google.common.base.Preconditions;
+
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -29,6 +30,7 @@ import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Locale;
 import java.util.Objects;
 
 /**
@@ -50,7 +52,7 @@ public final class Fuzziness implements ToXContent, Writeable<Fuzziness> {
     /** the prototype constant is intended for deserialization when used with
      * {@link org.elasticsearch.common.io.stream.StreamableReader#readFrom(StreamInput)} */
     static final Fuzziness PROTOTYPE = AUTO;
-    
+
     private Fuzziness(int fuzziness) {
         Preconditions.checkArgument(fuzziness >= 0 && fuzziness <= 2, "Valid edit distances are [0, 1, 2] but was [" + fuzziness + "]");
         this.fuzziness = Integer.toString(fuzziness);
@@ -60,7 +62,7 @@ public final class Fuzziness implements ToXContent, Writeable<Fuzziness> {
         if (fuzziness == null) {
             throw new IllegalArgumentException("fuzziness can't be null!");
         }
-        this.fuzziness = fuzziness.toUpperCase();
+        this.fuzziness = fuzziness.toUpperCase(Locale.ROOT);
     }
 
     /**
@@ -233,7 +235,7 @@ public final class Fuzziness implements ToXContent, Writeable<Fuzziness> {
     public int hashCode() {
         return fuzziness.hashCode();
     }
-    
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(fuzziness);

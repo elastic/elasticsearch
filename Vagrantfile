@@ -22,32 +22,32 @@
 # under the License.
 
 Vagrant.configure(2) do |config|
-  config.vm.define "precise", autostart: false do |config|
+  config.vm.define "precise" do |config|
     config.vm.box = "ubuntu/precise64"
     ubuntu_common config
   end
-  config.vm.define "trusty", autostart: false do |config|
+  config.vm.define "trusty" do |config|
     config.vm.box = "ubuntu/trusty64"
     ubuntu_common config
   end
-  config.vm.define "vivid", autostart: false do |config|
+  config.vm.define "vivid" do |config|
     config.vm.box = "ubuntu/vivid64"
     ubuntu_common config
   end
-  config.vm.define "wheezy", autostart: false do |config|
+  config.vm.define "wheezy" do |config|
     config.vm.box = "debian/wheezy64"
     deb_common(config)
   end
-  config.vm.define "jessie", autostart: false do |config|
+  config.vm.define "jessie" do |config|
     config.vm.box = "debian/jessie64"
     deb_common(config)
   end
-  config.vm.define "centos-6", autostart: false do |config|
+  config.vm.define "centos-6" do |config|
     # TODO switch from chef to boxcutter to provide?
     config.vm.box = "chef/centos-6.6"
     rpm_common(config)
   end
-  config.vm.define "centos-7", autostart: false do |config|
+  config.vm.define "centos-7" do |config|
     # There is a centos/7 box but it doesn't have rsync or virtualbox guest
     # stuff on there so its slow to use. So chef it is....
     # TODO switch from chef to boxcutter to provide?
@@ -59,11 +59,11 @@ Vagrant.configure(2) do |config|
   #   config.vm.box = "boxcutter/oel66"
   #   rpm_common(config)
   # end
-  config.vm.define "oel-7", autostart: false do |config|
+  config.vm.define "oel-7" do |config|
     config.vm.box = "boxcutter/oel70"
     rpm_common(config)
   end
-  config.vm.define "fedora-22", autostart: false do |config|
+  config.vm.define "fedora-22" do |config|
     # Fedora hosts their own 'cloud' images that aren't in Vagrant's Atlas but
     # and are missing required stuff like rsync. It'd be nice if we could use
     # them but they much slower to get up and running then the boxcutter image.
@@ -75,6 +75,33 @@ Vagrant.configure(2) do |config|
   # the elasticsearch project called vagrant....
   config.vm.synced_folder ".", "/vagrant", disabled: true
   config.vm.synced_folder "", "/elasticsearch"
+  if Vagrant.has_plugin?("vagrant-cachier")
+    config.cache.scope = :box
+  end
+  config.vm.defined_vms.each do |name, config|
+    config.options[:autostart] = false
+    set_prompt = lambda do |config|
+      # Sets up a consistent prompt for all users. Or tries to. The VM might
+      # contain overrides for root and vagrant but this attempts to work around
+      # them by re-source-ing the standard prompt file.
+      config.vm.provision "prompt", type: "shell", inline: <<-SHELL
+        cat \<\<PROMPT > /etc/profile.d/elasticsearch_prompt.sh
+export PS1='#{name}:\\w$ '
+PROMPT
+        grep 'source /etc/profile.d/elasticsearch_prompt.sh' ~/.bashrc |
+          cat \<\<SOURCE_PROMPT >> ~/.bashrc
+# Replace the standard prompt with a consistent one
+source /etc/profile.d/elasticsearch_prompt.sh
+SOURCE_PROMPT
+        grep 'source /etc/profile.d/elasticsearch_prompt.sh' ~vagrant/.bashrc |
+          cat \<\<SOURCE_PROMPT >> ~vagrant/.bashrc
+# Replace the standard prompt with a consistent one
+source /etc/profile.d/elasticsearch_prompt.sh
+SOURCE_PROMPT
+      SHELL
+    end
+    config.config_procs.push ['2', set_prompt]
+  end
 end
 
 def ubuntu_common(config)
@@ -90,24 +117,17 @@ end
 def deb_common(config)
   provision(config, "apt-get update", "/var/cache/apt/archives/last_update",
     "apt-get install -y", "openjdk-7-jdk")
-  if Vagrant.has_plugin?("vagrant-cachier")
-    config.cache.scope = :box
-  end
 end
 
 def rpm_common(config)
   provision(config, "yum check-update", "/var/cache/yum/last_update",
     "yum install -y", "java-1.7.0-openjdk-devel")
-  if Vagrant.has_plugin?("vagrant-cachier")
-    config.cache.scope = :box
-  end
 end
 
 def dnf_common(config)
   provision(config, "dnf check-update", "/var/cache/dnf/last_update",
     "dnf install -y", "java-1.8.0-openjdk-devel")
   if Vagrant.has_plugin?("vagrant-cachier")
-    config.cache.scope = :box
     # Autodetect doesn't work....
     config.cache.auto_detect = false
     config.cache.enable :generic, { :cache_dir => "/var/cache/dnf" }
@@ -116,7 +136,7 @@ end
 
 
 def provision(config, update_command, update_tracking_file, install_command, java_package)
-  config.vm.provision "elasticsearch bats dependencies", type: "shell", inline: <<-SHELL
+  config.vm.provision "bats dependencies", type: "shell", inline: <<-SHELL
     set -e
     installed() {
       command -v $1 2>&1 >/dev/null

@@ -17,6 +17,7 @@
         But if you do this, then maven lifecycle does not execute any test (nor compile any test)
      -->
     <!--packaging>pom</packaging-->
+    <description>The TAR distribution of Elasticsearch</description>
 
     <dependencies>
         <dependency>

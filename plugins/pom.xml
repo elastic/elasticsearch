@@ -11,6 +11,7 @@
     <packaging>pom</packaging>
     <name>Elasticsearch Plugin POM</name>
     <inceptionYear>2009</inceptionYear>
+    <description>A parent project for Elasticsearch plugins</description>
 
     <parent>
         <groupId>org.elasticsearch</groupId>

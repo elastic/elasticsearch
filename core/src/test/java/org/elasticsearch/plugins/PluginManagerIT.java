@@ -105,7 +105,7 @@ public class PluginManagerIT extends ESIntegTestCase {
     public void clearPathHome() {
         System.clearProperty("es.default.path.home");
     }
-    
+
     /** creates a plugin .zip and returns the url for testing */
     private String createPlugin(final Path structure, String... properties) throws IOException {
         writeProperties(structure, properties);
@@ -144,7 +144,7 @@ public class PluginManagerIT extends ESIntegTestCase {
         Files.createFile(pluginDir.resolve("bin").resolve("tool"));
         Files.createDirectories(pluginDir.resolve("config"));
         Files.createFile(pluginDir.resolve("config").resolve("file"));
-        
+
         String pluginUrl = createPlugin(pluginDir,
             "description", "fake desc",
             "version", "1.0",
@@ -152,7 +152,7 @@ public class PluginManagerIT extends ESIntegTestCase {
             "java.version", System.getProperty("java.specification.version"),
             "jvm", "true",
             "classname", "FakePlugin");
-        
+
         Environment env = initialSettings.v2();
         Path binDir = env.binFile();
         Path pluginBinDir = binDir.resolve(pluginName);
@@ -189,7 +189,7 @@ public class PluginManagerIT extends ESIntegTestCase {
         // create config/test.txt with contents 'version1'
         Files.createDirectories(pluginDir.resolve("config"));
         Files.write(pluginDir.resolve("config").resolve("test.txt"), "version1".getBytes(StandardCharsets.UTF_8));
-        
+
         String pluginUrl = createPlugin(pluginDir,
             "description", "fake desc",
             "version", "1.0",
@@ -197,7 +197,7 @@ public class PluginManagerIT extends ESIntegTestCase {
             "java.version", System.getProperty("java.specification.version"),
             "jvm", "true",
             "classname", "FakePlugin");
-        
+
         Environment env = initialSettings.v2();
         Path pluginConfigDir = env.configFile().resolve(pluginName);
 
@@ -233,7 +233,7 @@ public class PluginManagerIT extends ESIntegTestCase {
                 "java.version", System.getProperty("java.specification.version"),
                 "jvm", "true",
                 "classname", "FakePlugin");
- 
+
         assertStatusOk(String.format(Locale.ROOT, "install %s --url %s --verbose", pluginName, pluginUrl));
 
         assertFileContent(pluginConfigDir, "test.txt", "version1");
@@ -297,7 +297,7 @@ public class PluginManagerIT extends ESIntegTestCase {
             "java.version", System.getProperty("java.specification.version"),
             "jvm", "true",
             "classname", "FakePlugin");
-        
+
         Environment env = initialSettings.v2();
         Path binDir = env.binFile();
         Path pluginBinDir = binDir.resolve(pluginName);
@@ -431,7 +431,7 @@ public class PluginManagerIT extends ESIntegTestCase {
     @Test
     public void testRemovePlugin() throws Exception {
         String pluginName = "plugintest";
-        Path pluginDir = createTempDir().resolve(pluginName);        
+        Path pluginDir = createTempDir().resolve(pluginName);
         String pluginUrl = createPlugin(pluginDir,
             "description", "fake desc",
             "version", "1.0.0",
@@ -439,7 +439,7 @@ public class PluginManagerIT extends ESIntegTestCase {
             "java.version", System.getProperty("java.specification.version"),
             "jvm", "true",
             "classname", "FakePlugin");
-        
+
         // We want to remove plugin with plugin short name
         singlePluginInstallAndRemove("plugintest", "plugintest", pluginUrl);
 
@@ -502,6 +502,7 @@ public class PluginManagerIT extends ESIntegTestCase {
     }
 
     @Test
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/12766")
     public void testThatBasicAuthIsSupportedWithHttps() throws Exception {
         assumeTrue("test requires security manager to be disabled", System.getSecurityManager() == null);
 

@@ -19,20 +19,16 @@
 
 package org.elasticsearch.common.lucene.search;
 
-import com.google.common.base.Stopwatch;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.Bits;
-import org.elasticsearch.search.profile.TimingWrapper;
+import org.elasticsearch.search.profile.InternalProfileBreakdown;
 import org.elasticsearch.search.query.InternalProfiler;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 
 
 /**
@@ -135,9 +131,9 @@ public class ProfileQuery extends Query {
 
         @Override
         public Scorer scorer(LeafReaderContext context, Bits acceptDocs) throws IOException {
-            profiler.startTime(getQuery(), TimingWrapper.TimingType.BUILD_SCORER);
+            profiler.startTime(getQuery(), InternalProfileBreakdown.TimingType.BUILD_SCORER);
             Scorer subQueryScorer = subQueryWeight.scorer(context, acceptDocs);
-            profiler.stopAndRecordTime(getQuery(), TimingWrapper.TimingType.BUILD_SCORER);
+            profiler.stopAndRecordTime(getQuery(), InternalProfileBreakdown.TimingType.BUILD_SCORER);
             if (subQueryScorer == null) {
                 return null;
             }
@@ -147,9 +143,9 @@ public class ProfileQuery extends Query {
 
         @Override
         public BulkScorer bulkScorer(LeafReaderContext context, Bits acceptDocs) throws IOException {
-            profiler.startTime(getQuery(), TimingWrapper.TimingType.BUILD_SCORER);
+            profiler.startTime(getQuery(), InternalProfileBreakdown.TimingType.BUILD_SCORER);
             BulkScorer bScorer = subQueryWeight.bulkScorer(context, acceptDocs);
-            profiler.stopAndRecordTime(getQuery(), TimingWrapper.TimingType.BUILD_SCORER);
+            profiler.stopAndRecordTime(getQuery(), InternalProfileBreakdown.TimingType.BUILD_SCORER);
 
             if (bScorer == null) {
                 return null;
@@ -170,9 +166,9 @@ public class ProfileQuery extends Query {
 
         @Override
         public void normalize(float norm, float topLevelBoost) {
-            profiler.startTime(getQuery(), TimingWrapper.TimingType.NORMALIZE);
+            profiler.startTime(getQuery(), InternalProfileBreakdown.TimingType.NORMALIZE);
             subQueryWeight.normalize(norm, topLevelBoost);
-            profiler.stopAndRecordTime(getQuery(), TimingWrapper.TimingType.NORMALIZE);
+            profiler.stopAndRecordTime(getQuery(), InternalProfileBreakdown.TimingType.NORMALIZE);
         }
 
         @Override
@@ -216,9 +212,9 @@ public class ProfileQuery extends Query {
 
         @Override
         public float score() throws IOException {
-            profiler.startTime(query, TimingWrapper.TimingType.SCORE);
+            profiler.startTime(query, InternalProfileBreakdown.TimingType.SCORE);
             float score = scorer.score();
-            profiler.stopAndRecordTime(query, TimingWrapper.TimingType.SCORE);
+            profiler.stopAndRecordTime(query, InternalProfileBreakdown.TimingType.SCORE);
 
             return score;
         }
@@ -254,24 +250,24 @@ public class ProfileQuery extends Query {
 
         @Override
         public void score(LeafCollector collector) throws IOException {
-            profiler.startTime(query, TimingWrapper.TimingType.SCORE);
+            profiler.startTime(query, InternalProfileBreakdown.TimingType.SCORE);
             bulkScorer.score(collector);
-            profiler.stopAndRecordTime(query, TimingWrapper.TimingType.SCORE);
+            profiler.stopAndRecordTime(query, InternalProfileBreakdown.TimingType.SCORE);
         }
 
         @Override
         public int score(LeafCollector collector, int min, int max) throws IOException {
-            profiler.startTime(query, TimingWrapper.TimingType.SCORE);
+            profiler.startTime(query, InternalProfileBreakdown.TimingType.SCORE);
             int score = bulkScorer.score(collector, min, max);
-            profiler.stopAndRecordTime(query, TimingWrapper.TimingType.SCORE);
+            profiler.stopAndRecordTime(query, InternalProfileBreakdown.TimingType.SCORE);
             return score;
         }
 
         @Override
         public long cost() {
-            profiler.startTime(query, TimingWrapper.TimingType.COST);
+            profiler.startTime(query, InternalProfileBreakdown.TimingType.COST);
             long cost = bulkScorer.cost();
-            profiler.stopAndRecordTime(query, TimingWrapper.TimingType.COST);
+            profiler.stopAndRecordTime(query, InternalProfileBreakdown.TimingType.COST);
             return cost;
         }
     }

@@ -1,6 +1,8 @@
 package org.elasticsearch.search.profile;
 
 
+import com.google.common.base.Function;
+import com.google.common.collect.Lists;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -11,9 +13,10 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 
-public class InternalProfileResults implements Streamable, ToXContent {
+public class InternalProfileResult implements ProfileResult, Streamable, ToXContent {
 
     private static final ParseField QUERY_TYPE = new ParseField("query_type");
     private static final ParseField LUCENE_DESCRIPTION = new ParseField("lucene");
@@ -24,33 +27,40 @@ public class InternalProfileResults implements Streamable, ToXContent {
 
     private String queryType;
     private String luceneDescription;
-    private TimingWrapper timings;
+    private InternalProfileBreakdown timings;
     private long nodeTime = -1;     // Use -1 instead of Null so it can be serialized, and there should never be a negative time
     private long globalTime;
-    private ArrayList<InternalProfileResults> children;
+    private ArrayList<InternalProfileResult> children;
 
-    public InternalProfileResults(Query query, TimingWrapper timings) {
-        this();
+    private static final Function<InternalProfileResult, ProfileResult> SUPERTYPE_CAST = new Function<InternalProfileResult, ProfileResult>() {
+        @Override
+        public ProfileResult apply(InternalProfileResult input) {
+            return input;
+        }
+    };
+
+    public InternalProfileResult(Query query, InternalProfileBreakdown timings) {
+        children = new ArrayList<>(5);
         this.queryType = query.getClass().getSimpleName();
         this.luceneDescription = query.toString();
         this.timings = timings;
     }
 
-    public InternalProfileResults() {
-        children = new ArrayList<>(5);
+    public InternalProfileResult() {
+
     }
 
-    public void addChild(InternalProfileResults child) {
+    public void addChild(InternalProfileResult child) {
         children.add(child);
     }
 
-    public ArrayList<InternalProfileResults> getChildren() {
+    public ArrayList<InternalProfileResult> getChildren() {
         return children;
     }
 
     public void setGlobalTime(long globalTime) {
         this.globalTime = globalTime;
-        for (InternalProfileResults child : children) {
+        for (InternalProfileResult child : children) {
             child.setGlobalTime(globalTime);
         }
     }
@@ -64,22 +74,54 @@ public class InternalProfileResults implements Streamable, ToXContent {
         nodeTime = timings.getTotalTime();
 
         // Then add up our children
-        for (InternalProfileResults child : children) {
+        for (InternalProfileResult child : children) {
             child.calculateNodeTime();
         }
 
         return nodeTime;
     }
 
+    @Override
     public double getRelativeTime() {
         return calculateNodeTime() / (double) globalTime;
+    }
+
+    @Override
+    public String getLuceneDescription() {
+        return luceneDescription;
+    }
+
+    @Override
+    public String getQueryName() {
+        return queryType;
+    }
+
+    @Override
+    public ProfileBreakdown getTimeBreakdown() {
+        return timings;
+    }
+
+    @Override
+    public long getTime() {
+        return nodeTime;
+    }
+
+    public static InternalProfileResult readProfileResults(StreamInput in) throws IOException {
+        InternalProfileResult newResults = new InternalProfileResult();
+        newResults.readFrom(in);
+        return newResults;
+    }
+
+    @Override
+    public List<ProfileResult> getProfiledChildren() {
+        return Lists.transform(children, SUPERTYPE_CAST);
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         queryType = in.readString();
         luceneDescription = in.readString();
-        timings = new TimingWrapper();
+        timings = new InternalProfileBreakdown();
         nodeTime = in.readVLong();
         globalTime = in.readVLong();
         timings.readFrom(in);
@@ -87,7 +129,7 @@ public class InternalProfileResults implements Streamable, ToXContent {
         children = new ArrayList<>(size);
 
         for (int i = 0; i < size; i++) {
-            InternalProfileResults child = new InternalProfileResults();
+            InternalProfileResult child = new InternalProfileResult();
             child.readFrom(in);
         }
     }
@@ -100,7 +142,7 @@ public class InternalProfileResults implements Streamable, ToXContent {
         out.writeVLong(globalTime);
         timings.writeTo(out);
         out.writeVLong(children.size());
-        for (InternalProfileResults child : children) {
+        for (InternalProfileResult child : children) {
             child.writeTo(out);
         }
     }
@@ -118,7 +160,7 @@ public class InternalProfileResults implements Streamable, ToXContent {
                 .endObject()
                 .startArray(CHILDREN.getPreferredName());
 
-        for (InternalProfileResults child : children) {
+        for (InternalProfileResult child : children) {
             builder = child.toXContent(builder, params);
         }
 

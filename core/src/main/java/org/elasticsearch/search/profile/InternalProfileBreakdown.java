@@ -8,7 +8,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-public class TimingWrapper implements Streamable, ToXContent {
+public class InternalProfileBreakdown implements ProfileBreakdown, Streamable, ToXContent {
 
     public enum TimingType {
         REWRITE(0), WEIGHT(1), SCORE(2), COST(3), NORMALIZE(4), BUILD_SCORER(5);
@@ -25,14 +25,14 @@ public class TimingWrapper implements Streamable, ToXContent {
 
         @Override
         public String toString() {
-            return name().substring(0,1).toUpperCase() + name().substring(1).toLowerCase();
+            return name().toLowerCase();
         }
     }
 
     private long[] timings;
     private long[] scratch;
 
-    public TimingWrapper() {
+    public InternalProfileBreakdown() {
         timings = new long[6];
         scratch = new long[6];
     }
@@ -65,10 +65,6 @@ public class TimingWrapper implements Streamable, ToXContent {
             time += timings[type.getType()];
         }
         return time;
-    }
-
-    public long getRecursiveTime() {
-        return timings[TimingType.WEIGHT.getType()] + timings[TimingType.SCORE.getType()] + timings[TimingType.BUILD_SCORER.getType()];
     }
 
     @Override

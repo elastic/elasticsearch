@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.internal;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -28,13 +27,11 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.profile.InternalProfileResults;
 import org.elasticsearch.search.profile.InternalProfileShardResults;
+import org.elasticsearch.search.profile.ProfileResults;
 import org.elasticsearch.search.suggest.Suggest;
 
 import java.io.IOException;
-import java.util.List;
-import java.util.Map;
 
 import static org.elasticsearch.search.internal.InternalSearchHits.readSearchHits;
 
@@ -92,6 +89,10 @@ public class InternalSearchResponse implements Streamable, ToXContent {
         return suggest;
     }
 
+    public ProfileResults profile() {
+        return profileResults;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         hits.toXContent(builder, params);
@@ -125,6 +126,11 @@ public class InternalSearchResponse implements Streamable, ToXContent {
         timedOut = in.readBoolean();
 
         terminatedEarly = in.readOptionalBoolean();
+
+        // nocommit TODO need version check here?
+        if (in.readBoolean()) {
+            profileResults = InternalProfileShardResults.readProfileShardResults(in);
+        }
     }
 
     @Override
@@ -145,5 +151,13 @@ public class InternalSearchResponse implements Streamable, ToXContent {
         out.writeBoolean(timedOut);
 
         out.writeOptionalBoolean(terminatedEarly);
+
+        // nocommit TODO need version check here?
+        if (profileResults == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            profileResults.writeTo(out);
+        }
     }
 }

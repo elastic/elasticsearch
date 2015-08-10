@@ -55,8 +55,7 @@ import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.query.QuerySearchResultProvider;
 import org.elasticsearch.search.suggest.Suggest;
-import org.elasticsearch.search.profile.InternalProfileResults;
-import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.search.profile.InternalProfileResult;
 import org.elasticsearch.search.profile.InternalProfileShardResults;
 
 import java.io.IOException;
@@ -418,7 +417,7 @@ public class SearchPhaseController extends AbstractComponent {
         if (!queryResults.isEmpty()) {
             profileResults = new InternalProfileShardResults();
             for (AtomicArray.Entry<? extends QuerySearchResultProvider> entry : queryResults) {
-                profileResults.addShardResult(entry.value.queryResult().shardTarget(), (InternalProfileResults) entry.value.queryResult().profileResults());
+                profileResults.addShardResult(entry.value.queryResult().shardTarget(), (InternalProfileResult) entry.value.queryResult().profileResults());
             }
             profileResults.finalizeTimings();
         }

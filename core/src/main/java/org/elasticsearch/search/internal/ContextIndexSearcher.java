@@ -27,7 +27,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.internal.SearchContext.Lifetime;
 import org.elasticsearch.common.lucene.search.ProfileQuery;
-import org.elasticsearch.search.profile.TimingWrapper;
+import org.elasticsearch.search.profile.InternalProfileBreakdown;
 import org.elasticsearch.search.query.InternalProfiler;
 
 import java.io.IOException;
@@ -114,9 +114,9 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         if (profile) {
             searchContext.queryProfiler().pushQuery(query);
 
-            searchContext.queryProfiler().startTime(query, TimingWrapper.TimingType.WEIGHT);
+            searchContext.queryProfiler().startTime(query, InternalProfileBreakdown.TimingType.WEIGHT);
             Weight weight = super.createWeight(query, needsScores);
-            searchContext.queryProfiler().stopAndRecordTime(query, TimingWrapper.TimingType.WEIGHT);
+            searchContext.queryProfiler().stopAndRecordTime(query, InternalProfileBreakdown.TimingType.WEIGHT);
 
             searchContext.queryProfiler().pollLast();
 

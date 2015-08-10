@@ -32,9 +32,11 @@ import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.internal.InternalSearchResponse;
+import org.elasticsearch.search.profile.ProfileResults;
 import org.elasticsearch.search.suggest.Suggest;
 
 import java.io.IOException;
+import java.util.Map;
 
 import static org.elasticsearch.action.search.ShardSearchFailure.readShardSearchFailure;
 import static org.elasticsearch.search.internal.InternalSearchResponse.readInternalSearchResponse;
@@ -158,6 +160,10 @@ public class SearchResponse extends ActionResponse implements StatusToXContent {
 
     public void scrollId(String scrollId) {
         this.scrollId = scrollId;
+    }
+
+    public ProfileResults getProfileResults() {
+        return internalResponse.profile();
     }
 
     static final class Fields {

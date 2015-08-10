@@ -29,7 +29,7 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorStreams;
 import org.elasticsearch.search.aggregations.pipeline.SiblingPipelineAggregator;
-import org.elasticsearch.search.profile.InternalProfileResults;
+import org.elasticsearch.search.profile.InternalProfileResult;
 import org.elasticsearch.search.suggest.Suggest;
 
 import java.io.IOException;
@@ -54,7 +54,7 @@ public class QuerySearchResult extends QuerySearchResultProvider {
     private Suggest suggest;
     private boolean searchTimedOut;
     private Boolean terminatedEarly = null;
-    private InternalProfileResults profileResults;
+    private InternalProfileResult profileResults;
 
     public QuerySearchResult() {
 
@@ -122,11 +122,11 @@ public class QuerySearchResult extends QuerySearchResultProvider {
         this.aggregations = aggregations;
     }
 
-    public InternalProfileResults profileResults() {
+    public InternalProfileResult profileResults() {
         return profileResults;
     }
 
-    public void profileResults(InternalProfileResults profileResults) {
+    public void profileResults(InternalProfileResult profileResults) {
         this.profileResults = profileResults;
     }
 

@@ -31,7 +31,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.search.dfs.CachedDfSource;
 import org.elasticsearch.search.internal.SearchContext.Lifetime;
 import org.elasticsearch.common.lucene.search.ProfileQuery;
-import org.elasticsearch.search.profile.TimingWrapper;
+import org.elasticsearch.search.profile.InternalProfileBreakdown;
 import org.elasticsearch.search.query.InternalProfiler;
 
 import java.io.IOException;
@@ -80,9 +80,9 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     private Query doRewrite(Query original) throws IOException {
         if (profile) {
-            searchContext.queryProfiler().startTime(original, TimingWrapper.TimingType.REWRITE);
+            searchContext.queryProfiler().startTime(original, InternalProfileBreakdown.TimingType.REWRITE);
             Query rewritten = super.rewrite(original);      // nocommit Had to use super!  kosher?
-            searchContext.queryProfiler().stopAndRecordTime(original, TimingWrapper.TimingType.REWRITE);
+            searchContext.queryProfiler().stopAndRecordTime(original, InternalProfileBreakdown.TimingType.REWRITE);
 
             searchContext.queryProfiler().reconcileRewrite(original, rewritten);
 
@@ -125,9 +125,9 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         if (profile) {
             searchContext.queryProfiler().pushQuery(query);
 
-            searchContext.queryProfiler().startTime(query, TimingWrapper.TimingType.WEIGHT);
+            searchContext.queryProfiler().startTime(query, InternalProfileBreakdown.TimingType.WEIGHT);
             Weight weight = super.createWeight(query, needsScores);
-            searchContext.queryProfiler().stopAndRecordTime(query, TimingWrapper.TimingType.WEIGHT);
+            searchContext.queryProfiler().stopAndRecordTime(query, InternalProfileBreakdown.TimingType.WEIGHT);
 
             searchContext.queryProfiler().pollLast();
 

@@ -1,8 +1,8 @@
 package org.elasticsearch.search.query;
 
 import org.apache.lucene.search.Query;
-import org.elasticsearch.search.profile.InternalProfileResults;
-import org.elasticsearch.search.profile.TimingWrapper;
+import org.elasticsearch.search.profile.InternalProfileResult;
+import org.elasticsearch.search.profile.InternalProfileBreakdown;
 
 import java.util.*;
 import java.util.concurrent.LinkedBlockingDeque;
@@ -10,7 +10,7 @@ import java.util.concurrent.LinkedBlockingDeque;
 
 public class InternalProfiler {
 
-    private Map<Query, TimingWrapper> timings;
+    private Map<Query, InternalProfileBreakdown> timings;
     private Map<Query, ArrayList<Query>> tree;
     private Deque<Query> stack;
     private Query root;
@@ -21,11 +21,11 @@ public class InternalProfiler {
         tree = new HashMap<>(10);
     }
 
-    public void startTime(Query query, TimingWrapper.TimingType timing) {
-        TimingWrapper queryTimings = timings.get(query);
+    public void startTime(Query query, InternalProfileBreakdown.TimingType timing) {
+        InternalProfileBreakdown queryTimings = timings.get(query);
 
         if (queryTimings == null) {
-            queryTimings = new TimingWrapper();
+            queryTimings = new InternalProfileBreakdown();
         }
 
         queryTimings.startTime(timing);
@@ -33,21 +33,21 @@ public class InternalProfiler {
 
     }
 
-    public void stopAndRecordTime(Query query, TimingWrapper.TimingType timing) {
-        TimingWrapper queryTimings = timings.get(query);
+    public void stopAndRecordTime(Query query, InternalProfileBreakdown.TimingType timing) {
+        InternalProfileBreakdown queryTimings = timings.get(query);
         queryTimings.stopAndRecordTime(timing);
         timings.put(query, queryTimings);
 
     }
 
     public void reconcileRewrite(Query original, Query rewritten) {
-        TimingWrapper originalTimings = timings.get(original);
+        InternalProfileBreakdown originalTimings = timings.get(original);
 
-        TimingWrapper rewrittenTimings = timings.get(rewritten);
+        InternalProfileBreakdown rewrittenTimings = timings.get(rewritten);
         if (rewrittenTimings == null) {
-            rewrittenTimings = new TimingWrapper();
+            rewrittenTimings = new InternalProfileBreakdown();
         }
-        rewrittenTimings.setTime(TimingWrapper.TimingType.REWRITE, originalTimings.getTime(TimingWrapper.TimingType.REWRITE));
+        rewrittenTimings.setTime(InternalProfileBreakdown.TimingType.REWRITE, originalTimings.getTime(InternalProfileBreakdown.TimingType.REWRITE));
         timings.put(rewritten, rewrittenTimings);
         timings.remove(original);
     }
@@ -67,16 +67,16 @@ public class InternalProfiler {
         stack.pollLast();
     }
 
-    public InternalProfileResults finalizeProfileResults() {
+    public InternalProfileResult finalizeProfileResults() {
         return doFinalizeProfileResults(root);
     }
 
-    private InternalProfileResults doFinalizeProfileResults(Query query) {
-        InternalProfileResults rootNode =  new InternalProfileResults(query, timings.get(query));
+    private InternalProfileResult doFinalizeProfileResults(Query query) {
+        InternalProfileResult rootNode =  new InternalProfileResult(query, timings.get(query));
         ArrayList<Query> children = tree.get(query);
 
         for (Query child : children) {
-            InternalProfileResults childNode = doFinalizeProfileResults(child);
+            InternalProfileResult childNode = doFinalizeProfileResults(child);
             rootNode.addChild(childNode);
         }
 

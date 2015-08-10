@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.routing.RoutingService;
 import org.elasticsearch.cluster.routing.allocation.AllocationModule;
 import org.elasticsearch.cluster.service.InternalClusterService;
 import org.elasticsearch.cluster.settings.ClusterDynamicSettingsModule;
+import org.elasticsearch.common.Classes;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.SpawnModules;
@@ -88,7 +89,12 @@ public class ClusterModule extends AbstractModule implements SpawnModules {
         bind(NodeMappingRefreshAction.class).asEagerSingleton();
         bind(MappingUpdatedAction.class).asEagerSingleton();
 
-        bind(ClusterInfoService.class).to(settings.getAsClass(CLUSTER_SERVICE_IMPL, InternalClusterInfoService.class)).asEagerSingleton();
+        String impl = settings.get(CLUSTER_SERVICE_IMPL);
+        Class<? extends ClusterInfoService> implClass = InternalClusterInfoService.class;
+        if (impl != null) {
+            implClass = Classes.loadClass(getClass().getClassLoader(), impl);
+        }
+        bind(ClusterInfoService.class).to(implClass).asEagerSingleton();
 
         Multibinder<IndexTemplateFilter> mbinder = Multibinder.newSetBinder(binder(), IndexTemplateFilter.class);
         for (Class<? extends IndexTemplateFilter> indexTemplateFilter : indexTemplateFilters) {

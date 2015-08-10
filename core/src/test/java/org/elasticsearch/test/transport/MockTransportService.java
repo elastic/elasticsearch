@@ -32,6 +32,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.plugins.AbstractPlugin;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 
@@ -44,6 +45,24 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * A mock transport service that allows to simulate different network topology failures.
  */
 public class MockTransportService extends TransportService {
+
+    public static class Plugin extends AbstractPlugin {
+        @Override
+        public String name() {
+            return "mock-transport-service";
+        }
+        @Override
+        public String description() {
+            return "a mock transport service for testing";
+        }
+        public void onModule(TransportModule transportModule) {
+            transportModule.addTransportService("mock", MockTransportService.class);
+        }
+        @Override
+        public Settings additionalSettings() {
+            return Settings.builder().put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, "mock").build();
+        }
+    }
 
     private final Transport original;
 

@@ -17,23 +17,25 @@
  * under the License.
  */
 
-package org.elasticsearch.cache.recycler;
+package org.elasticsearch.plugin.example;
 
-import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.settings.Settings;
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.test.rest.RestTestCandidate;
+import org.elasticsearch.test.rest.parser.RestTestParseException;
 
-/**
- */
-public class DefaultPageCacheRecyclerModule extends AbstractModule {
+import java.io.IOException;
 
-    private final Settings settings;
+public class JvmExampleRestIT extends ESRestTestCase {
 
-    public DefaultPageCacheRecyclerModule(Settings settings) {
-        this.settings = settings;
+    public JvmExampleRestIT(@Name("yaml") RestTestCandidate testCandidate) {
+        super(testCandidate);
     }
 
-    @Override
-    protected void configure() {
-        bind(PageCacheRecycler.class).asEagerSingleton();
+    @ParametersFactory
+    public static Iterable<Object[]> parameters() throws IOException, RestTestParseException {
+        return ESRestTestCase.createParameters(0, 1);
     }
 }
+

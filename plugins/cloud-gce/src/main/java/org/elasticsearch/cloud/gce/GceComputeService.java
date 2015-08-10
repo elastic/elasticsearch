@@ -20,13 +20,15 @@
 package org.elasticsearch.cloud.gce;
 
 import com.google.api.services.compute.model.Instance;
+import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.component.LifecycleComponent;
 
 import java.util.Collection;
 
 /**
  *
  */
-public interface GceComputeService {
+public interface GceComputeService extends LifecycleComponent<GceComputeService> {
     static final public class Fields {
         public static final String PROJECT = "cloud.gce.project_id";
         public static final String ZONE = "cloud.gce.zone";

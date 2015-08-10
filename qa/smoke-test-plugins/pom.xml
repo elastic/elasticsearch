@@ -349,6 +349,14 @@
                    <overWrite>true</overWrite>
                  </artifactItem>
 
+                 <artifactItem>
+                   <groupId>org.elasticsearch.plugin</groupId>
+                   <artifactId>elasticsearch-jvm-example</artifactId>
+                   <version>${elasticsearch.version}</version>
+                   <type>zip</type>
+                   <overWrite>true</overWrite>
+                 </artifactItem>
+
                </artifactItems>
              </configuration>
            </execution>

@@ -102,7 +102,7 @@ public class RelocationIT extends ESIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
-                .put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, MockTransportService.class.getName()).build();
+            .put("plugin.types", MockTransportService.Plugin.class.getName()).build();
     }
 
 

@@ -52,7 +52,7 @@ public class NettyTransportMultiPortIntegrationIT extends ESIntegTestCase {
         return settingsBuilder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put("network.host", "127.0.0.1")
-                .put(TransportModule.TRANSPORT_TYPE_KEY, NettyTransport.class.getName())
+                .put(TransportModule.TRANSPORT_TYPE_KEY, "netty")
                 .put("node.mode", "network")
                 .put("transport.profiles.client1.port", randomPortRange)
                 .put("transport.profiles.client1.publish_host", "127.0.0.7")
@@ -65,7 +65,7 @@ public class NettyTransportMultiPortIntegrationIT extends ESIntegTestCase {
     public void testThatTransportClientCanConnect() throws Exception {
         Settings settings = settingsBuilder()
                 .put("cluster.name", internalCluster().getClusterName())
-                .put(TransportModule.TRANSPORT_TYPE_KEY, NettyTransport.class.getName())
+                .put(TransportModule.TRANSPORT_TYPE_KEY, "netty")
                 .put("path.home", createTempDir().toString())
                 .build();
         try (TransportClient transportClient = TransportClient.builder().settings(settings).loadConfigSettings(false).build()) {

@@ -19,6 +19,7 @@
 package org.elasticsearch.test;
 
 import com.carrotsearch.randomizedtesting.annotations.TestGroup;
+import org.apache.commons.lang3.ArrayUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -31,6 +32,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.junit.listeners.LoggingListener;
+import org.elasticsearch.test.transport.AssertingLocalTransport;
+import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportModule;
 import org.elasticsearch.transport.TransportService;
@@ -247,9 +250,10 @@ public abstract class ESBackcompatTestCase extends ESIntegTestCase {
     }
 
     protected Settings commonNodeSettings(int nodeOrdinal) {
-        Settings.Builder builder = Settings.builder().put(requiredSettings())
-                .put(TransportModule.TRANSPORT_TYPE_KEY, NettyTransport.class.getName()) // run same transport  / disco as external
-                .put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, TransportService.class.getName());
+        Settings.Builder builder = Settings.builder().put(requiredSettings());
+        builder.removeArrayElement("plugin.types", MockTransportService.Plugin.class.getName());
+        builder.removeArrayElement("plugin.types", AssertingLocalTransport.class.getName());
+        builder.put(TransportModule.TRANSPORT_TYPE_KEY, "netty"); // run same transport  / disco as external
         if (compatibilityVersion().before(Version.V_1_3_2)) {
             // if we test against nodes before 1.3.2 we disable all the compression due to a known bug
             // see #7210

@@ -75,17 +75,6 @@ public class ScriptModule extends AbstractModule {
             scriptsBinder.addBinding(entry.getKey()).to(entry.getValue()).asEagerSingleton();
         }
 
-        // now, check for config based ones
-        Map<String, Settings> nativeSettings = settings.getGroups("script.native");
-        for (Map.Entry<String, Settings> entry : nativeSettings.entrySet()) {
-            String name = entry.getKey();
-            Class<? extends NativeScriptFactory> type = entry.getValue().getAsClass("type", NativeScriptFactory.class);
-            if (type == NativeScriptFactory.class) {
-                throw new IllegalArgumentException("type is missing for native script [" + name + "]");
-            }
-            scriptsBinder.addBinding(name).to(type).asEagerSingleton();
-        }
-
         Multibinder<ScriptEngineService> multibinder = Multibinder.newSetBinder(binder(), ScriptEngineService.class);
         multibinder.addBinding().to(NativeScriptEngineService.class);
 

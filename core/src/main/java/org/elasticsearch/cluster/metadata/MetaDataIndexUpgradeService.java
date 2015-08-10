@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.routing.DjbHashFunction;
 import org.elasticsearch.cluster.routing.HashFunction;
 import org.elasticsearch.cluster.routing.SimpleHashFunction;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.common.Classes;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -66,14 +67,18 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
         // the hash function package has changed we replace the two hash functions if their fully qualified name is used.
         if (hasCustomPre20HashFunction) {
             switch (pre20HashFunctionName) {
+                case "Simple":
+                case "simple":
                 case "org.elasticsearch.cluster.routing.operation.hash.simple.SimpleHashFunction":
                     pre20HashFunction = SimpleHashFunction.class;
                     break;
+                case "Djb":
+                case "djb":
                 case "org.elasticsearch.cluster.routing.operation.hash.djb.DjbHashFunction":
                     pre20HashFunction = DjbHashFunction.class;
                     break;
                 default:
-                    pre20HashFunction = settings.getAsClass(DEPRECATED_SETTING_ROUTING_HASH_FUNCTION, DjbHashFunction.class, "org.elasticsearch.cluster.routing.", "HashFunction");
+                    pre20HashFunction = Classes.loadClass(getClass().getClassLoader(), pre20HashFunctionName);
             }
         } else {
             pre20HashFunction = DjbHashFunction.class;

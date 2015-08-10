@@ -40,6 +40,7 @@ import org.elasticsearch.index.cache.IndexCacheModule;
 import org.elasticsearch.index.query.functionscore.FunctionScoreModule;
 import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.index.similarity.SimilarityModule;
+import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.query.IndicesQueriesModule;
@@ -80,7 +81,7 @@ public class TemplateQueryParserTest extends ESTestCase {
                 new ScriptModule(settings),
                 new IndexSettingsModule(index, settings),
                 new IndexCacheModule(settings),
-                new AnalysisModule(settings),
+                new AnalysisModule(settings, new IndicesAnalysisService(settings)),
                 new SimilarityModule(settings),
                 new IndexNameModule(index),
                 new FunctionScoreModule(),

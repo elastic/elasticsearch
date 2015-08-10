@@ -98,7 +98,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
                 // we really need local GW here since this also checks for corruption etc.
                 // and we need to make sure primaries are not just trashed if we don't have replicas
                 .put(super.nodeSettings(nodeOrdinal))
-                .put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, MockTransportService.class.getName())
+                .extendArray("plugin.types", MockTransportService.Plugin.class.getName())
                         // speed up recoveries
                 .put(RecoverySettings.INDICES_RECOVERY_CONCURRENT_STREAMS, 10)
                 .put(RecoverySettings.INDICES_RECOVERY_CONCURRENT_SMALL_FILE_STREAMS, 10)

@@ -48,35 +48,6 @@ public class SettingsTests extends ESTestCase {
     }
 
     @Test
-    public void testGetAsClass() {
-        Settings settings = settingsBuilder()
-                .put("test.class", "bar")
-                .put("test.class.package", "org.elasticsearch.common.settings.bar")
-                .build();
-
-        // Assert that defaultClazz is loaded if setting is not specified
-        assertThat(settings.getAsClass("no.settings", FooTestClass.class, "org.elasticsearch.common.settings.", "TestClass").getName(),
-                equalTo(FooTestClass.class.getName()));
-
-        // Assert that correct class is loaded if setting contain name without package
-        assertThat(settings.getAsClass("test.class", FooTestClass.class, "org.elasticsearch.common.settings.", "TestClass").getName(),
-                equalTo(BarTestClass.class.getName()));
-
-        // Assert that class cannot be loaded if wrong packagePrefix is specified
-        try {
-            settings.getAsClass("test.class", FooTestClass.class, "com.example.elasticsearch.test.unit..common.settings.", "TestClass");
-            fail("Class with wrong package name shouldn't be loaded");
-        } catch (NoClassSettingsException ex) {
-            // Ignore
-        }
-
-        // Assert that package name in settings is getting correctly applied
-        assertThat(settings.getAsClass("test.class.package", FooTestClass.class, "com.example.elasticsearch.test.unit.common.settings.", "TestClass").getName(),
-                equalTo(BarTestClass.class.getName()));
-
-    }
-
-    @Test
     public void testLoadFromDelimitedString() {
         Settings settings = settingsBuilder()
                 .loadFromDelimitedString("key1=value1;key2=value2", ';')
@@ -93,13 +64,6 @@ public class SettingsTests extends ESTestCase {
         assertThat(settings.get("key2"), equalTo("value2"));
         assertThat(settings.getAsMap().size(), equalTo(2));
         assertThat(settings.toDelimitedString(';'), equalTo("key1=value1;key2=value2;"));
-    }
-
-    @Test(expected = NoClassSettingsException.class)
-    public void testThatAllClassNotFoundExceptionsAreCaught() {
-        // this should be nGram in order to really work, but for sure not not throw a NoClassDefFoundError
-        Settings settings = settingsBuilder().put("type", "ngram").build();
-        settings.getAsClass("type", null, "org.elasticsearch.index.analysis.", "TokenFilterFactory");
     }
 
     @Test

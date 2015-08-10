@@ -17,24 +17,37 @@
  * under the License.
  */
 
-package org.elasticsearch.discovery.gce.mock;
+package org.elasticsearch.cloud.gce;
 
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.discovery.gce.mock.GceComputeServiceAbstractMock;
+import org.elasticsearch.plugins.AbstractPlugin;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-/**
- *
- */
-public class GceComputeServiceTwoNodesTwoZonesMock extends GceComputeServiceAbstractMock {
-    private static List<String> zones = Arrays.asList("us-central1-a", "europe-west1-a");
+public class GceComputeServiceTwoNodesOneZoneMock extends GceComputeServiceAbstractMock {
+    public static class Plugin extends AbstractPlugin {
+        @Override
+        public String name() {
+            return "mock-compute-service";
+        }
+        @Override
+        public String description() {
+            return "a mock compute service for testing";
+        }
+        public void onModule(GceModule gceModule) {
+            gceModule.computeServiceImpl = GceComputeServiceTwoNodesOneZoneMock.class;
+        }
+    }
+
+    private static List<String> zones = Arrays.asList("us-central1-a", "us-central1-a");
 
     @Override
     protected List<List<String>> getTags() {
-        return new ArrayList();
+        return new ArrayList<>();
     }
 
     @Override
@@ -43,7 +56,7 @@ public class GceComputeServiceTwoNodesTwoZonesMock extends GceComputeServiceAbst
     }
 
     @Inject
-    protected GceComputeServiceTwoNodesTwoZonesMock(Settings settings) {
+    protected GceComputeServiceTwoNodesOneZoneMock(Settings settings) {
         super(settings);
     }
 }

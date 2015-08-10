@@ -17,17 +17,16 @@
  * under the License.
  */
 
-package org.elasticsearch.repositories.azure;
+package org.elasticsearch.cloud.azure;
 
 import com.microsoft.azure.storage.StorageException;
-
-import org.elasticsearch.cloud.azure.AbstractAzureTest;
 import org.elasticsearch.cloud.azure.storage.AzureStorageService;
 import org.elasticsearch.cloud.azure.storage.AzureStorageService.Storage;
+import org.elasticsearch.cloud.azure.storage.AzureStorageServiceMock;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugin.cloud.azure.CloudAzurePlugin;
-import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.plugins.AbstractPlugin;
 import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.test.store.MockFSDirectoryService;
 import org.junit.After;
@@ -37,13 +36,24 @@ import java.net.URISyntaxException;
 
 public abstract class AbstractAzureRepositoryServiceTest extends AbstractAzureTest {
 
+    public static class Plugin extends AbstractPlugin {
+        @Override
+        public String name() {
+            return "mock-stoarge-service";
+        }
+        @Override
+        public String description() {
+            return "plugs in a mock storage service for testing";
+        }
+        public void onModule(AzureModule azureModule) {
+            azureModule.storageServiceImpl = AzureStorageServiceMock.class;
+        }
+    }
+
     protected String basePath;
     private Class<? extends AzureStorageService> mock;
 
-    public AbstractAzureRepositoryServiceTest(Class<? extends AzureStorageService> mock,
-                                              String basePath) {
-        // We want to inject the Azure API Mock
-        this.mock = mock;
+    public AbstractAzureRepositoryServiceTest(String basePath) {
         this.basePath = basePath;
     }
 
@@ -67,7 +77,7 @@ public abstract class AbstractAzureRepositoryServiceTest extends AbstractAzureTe
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         Settings.Builder builder = Settings.settingsBuilder()
-                .put("plugin.types", CloudAzurePlugin.class.getName())
+                .extendArray("plugin.types", CloudAzurePlugin.class.getName(), Plugin.class.getName())
                 .put(Storage.API_IMPLEMENTATION, mock)
                 .put(Storage.CONTAINER, "snapshots");
 

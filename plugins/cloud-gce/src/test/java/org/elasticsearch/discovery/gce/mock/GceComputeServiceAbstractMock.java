@@ -39,7 +39,7 @@ import static com.carrotsearch.randomizedtesting.RandomizedTest.randomInt;
 /**
  *
  */
-public abstract class GceComputeServiceAbstractMock extends AbstractLifecycleComponent<GceComputeServiceAbstractMock>
+public abstract class GceComputeServiceAbstractMock extends AbstractLifecycleComponent<GceComputeService>
     implements GceComputeService {
 
     protected abstract List<List<String>> getTags();

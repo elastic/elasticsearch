@@ -19,16 +19,11 @@
 
 package org.elasticsearch.search;
 
-import com.google.common.collect.ImmutableList;
-
+import org.elasticsearch.common.Classes;
 import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.inject.SpawnModules;
 import org.elasticsearch.common.settings.Settings;
 
-import static org.elasticsearch.common.inject.Modules.createModule;
-
-public class SearchServiceModule extends AbstractModule implements SpawnModules {
+public class SearchServiceModule extends AbstractModule {
 
     public static final String IMPL = "search.service_impl";
 
@@ -40,10 +35,12 @@ public class SearchServiceModule extends AbstractModule implements SpawnModules 
 
     @Override
     protected void configure() {
-    }
-
-    @Override
-    public Iterable<? extends Module> spawnModules() {
-        return ImmutableList.of(createModule(settings.getAsClass(IMPL, DefaultSearchServiceModule.class), settings));
+        String impl = settings.get(IMPL);
+        if (impl == null) {
+            bind(SearchService.class).asEagerSingleton();
+        } else {
+            Class<? extends SearchService> implClass = Classes.loadClass(getClass().getClassLoader(), impl);
+            bind(SearchService.class).to(implClass).asEagerSingleton();
+        }
     }
 }

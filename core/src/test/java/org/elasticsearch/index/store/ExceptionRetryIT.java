@@ -54,7 +54,7 @@ public class ExceptionRetryIT extends ESIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, MockTransportService.class.getName())
+                .extendArray("plugin.types", MockTransportService.Plugin.class.getName())
                 .build();
     }
 

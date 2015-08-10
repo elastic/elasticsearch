@@ -19,7 +19,8 @@
 
 package org.elasticsearch.discovery.azure;
 
-import org.elasticsearch.cloud.azure.management.AzureComputeServiceTwoNodesMock;
+import org.elasticsearch.cloud.azure.AbstractAzureComputeServiceTest;
+import org.elasticsearch.cloud.azure.AzureComputeServiceTwoNodesMock;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -43,13 +44,13 @@ import static org.hamcrest.Matchers.nullValue;
 public class AzureMinimumMasterNodesTest extends AbstractAzureComputeServiceTest {
 
     public AzureMinimumMasterNodesTest() {
-        super(AzureComputeServiceTwoNodesMock.class);
+        super(AzureComputeServiceTwoNodesMock.Plugin.class.getName());
     }
 
     @Override
-    protected final Settings settingsBuilder() {
+    protected Settings nodeSettings(int nodeOrdinal) {
         Settings.Builder builder = Settings.settingsBuilder()
-                .put(super.settingsBuilder())
+                .put(super.nodeSettings(nodeOrdinal))
                 .put("discovery.zen.minimum_master_nodes", 2)
                 // Make the test run faster
                 .put("discovery.zen.join.timeout", "50ms")
@@ -61,7 +62,7 @@ public class AzureMinimumMasterNodesTest extends AbstractAzureComputeServiceTest
     @Test
     public void simpleOnlyMasterNodeElection() throws IOException {
         logger.info("--> start data node / non master node");
-        internalCluster().startNode(settingsBuilder());
+        internalCluster().startNode();
         try {
             assertThat(client().admin().cluster().prepareState().setMasterNodeTimeout("100ms").execute().actionGet().getState().nodes().masterNodeId(), nullValue());
             fail("should not be able to find master");
@@ -69,7 +70,7 @@ public class AzureMinimumMasterNodesTest extends AbstractAzureComputeServiceTest
             // all is well, no master elected
         }
         logger.info("--> start another node");
-        internalCluster().startNode(settingsBuilder());
+        internalCluster().startNode();
         assertThat(client().admin().cluster().prepareState().setMasterNodeTimeout("1s").execute().actionGet().getState().nodes().masterNodeId(), notNullValue());
 
         logger.info("--> stop master node");
@@ -83,7 +84,7 @@ public class AzureMinimumMasterNodesTest extends AbstractAzureComputeServiceTest
         }
 
         logger.info("--> start another node");
-        internalCluster().startNode(settingsBuilder());
+        internalCluster().startNode();
         assertThat(client().admin().cluster().prepareState().setMasterNodeTimeout("1s").execute().actionGet().getState().nodes().masterNodeId(), notNullValue());
     }
 }

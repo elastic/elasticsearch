@@ -34,33 +34,25 @@ public class HttpServerModule extends AbstractModule {
     private final Settings settings;
     private final ESLogger logger;
 
-    private Class<? extends HttpServerTransport> configuredHttpServerTransport;
-    private String configuredHttpServerTransportSource;
+    private Class<? extends HttpServerTransport> httpServerTransportClass;
 
     public HttpServerModule(Settings settings) {
         this.settings = settings;
         this.logger = Loggers.getLogger(getClass(), settings);
+        this.httpServerTransportClass = NettyHttpServerTransport.class;
     }
 
     @SuppressWarnings({"unchecked"})
     @Override
     protected void configure() {
-        if (configuredHttpServerTransport != null) {
-            logger.info("Using [{}] as http transport, overridden by [{}]", configuredHttpServerTransport.getName(), configuredHttpServerTransportSource);
-            bind(HttpServerTransport.class).to(configuredHttpServerTransport).asEagerSingleton();
-        } else {
-            Class<? extends HttpServerTransport> defaultHttpServerTransport = NettyHttpServerTransport.class;
-            Class<? extends HttpServerTransport> httpServerTransport = settings.getAsClass("http.type", defaultHttpServerTransport, "org.elasticsearch.http.", "HttpServerTransport");
-            bind(HttpServerTransport.class).to(httpServerTransport).asEagerSingleton();
-        }
-
+        bind(HttpServerTransport.class).to(httpServerTransportClass).asEagerSingleton();
         bind(HttpServer.class).asEagerSingleton();
     }
 
     public void setHttpServerTransport(Class<? extends HttpServerTransport> httpServerTransport, String source) {
         Preconditions.checkNotNull(httpServerTransport, "Configured http server transport may not be null");
         Preconditions.checkNotNull(source, "Plugin, that changes transport may not be null");
-        this.configuredHttpServerTransport = httpServerTransport;
-        this.configuredHttpServerTransportSource = source;
+        logger.info("Using [{}] as http transport, overridden by [{}]", httpServerTransportClass.getName(), source);
+        this.httpServerTransportClass = httpServerTransport;
     }
 }

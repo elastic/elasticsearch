@@ -324,7 +324,7 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
                             injector.getInstance(IndicesQueryCache.class).onClose(shardId);
                         }
                     }), path));
-            modules.add(new DeletionPolicyModule(indexSettings));
+            modules.add(new DeletionPolicyModule());
             try {
                 shardInjector = modules.createChildInjector(injector);
             } catch (CreationException e) {

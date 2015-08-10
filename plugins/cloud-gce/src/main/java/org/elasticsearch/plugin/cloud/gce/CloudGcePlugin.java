@@ -23,6 +23,8 @@ import org.elasticsearch.cloud.gce.GceModule;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.discovery.DiscoveryModule;
+import org.elasticsearch.discovery.gce.GceDiscovery;
 import org.elasticsearch.plugins.AbstractPlugin;
 
 import java.util.ArrayList;
@@ -62,9 +64,13 @@ public class CloudGcePlugin extends AbstractPlugin {
     public Collection<Class<? extends LifecycleComponent>> services() {
         Collection<Class<? extends LifecycleComponent>> services = new ArrayList<>();
         if (settings.getAsBoolean("cloud.enabled", true)) {
-//            services.add(GceComputeServiceImpl.class);
+            services.add(GceModule.getComputeServiceImpl());
         }
         return services;
+    }
+
+    public void onModule(DiscoveryModule discoveryModule) {
+        discoveryModule.addDiscoveryType("gce", GceDiscovery.class);
     }
 
 }

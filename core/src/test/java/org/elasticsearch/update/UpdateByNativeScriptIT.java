@@ -22,11 +22,13 @@ import com.google.common.collect.Maps;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.plugins.AbstractPlugin;
 import org.elasticsearch.script.AbstractExecutableScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.NativeScriptEngineService;
 import org.elasticsearch.script.NativeScriptFactory;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
@@ -48,7 +50,7 @@ public class UpdateByNativeScriptIT extends ESIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.settingsBuilder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put("script.native.custom.type", CustomNativeScriptFactory.class.getName())
+                .extendArray("plugin.types", CustomNativeScriptFactory.Plugin.class.getName())
                 .build();
     }
 
@@ -69,7 +71,20 @@ public class UpdateByNativeScriptIT extends ESIntegTestCase {
         assertThat(data.get("foo").toString(), is("SETVALUE"));
     }
 
-    static class CustomNativeScriptFactory implements NativeScriptFactory {
+    public static class CustomNativeScriptFactory implements NativeScriptFactory {
+        public static class Plugin extends AbstractPlugin {
+            @Override
+            public String name() {
+                return "mock-native-script";
+            }
+            @Override
+            public String description() {
+                return "a mock native script for testing";
+            }
+            public void onModule(ScriptModule scriptModule) {
+                scriptModule.registerScript("custom", CustomNativeScriptFactory.class);
+            }
+        }
         @Override
         public ExecutableScript newScript(@Nullable Map<String, Object> params) {
             return new CustomScript(params);

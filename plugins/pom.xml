@@ -437,6 +437,7 @@
         <module>lang-python</module>
         <module>lang-javascript</module>
         <module>mapper-size</module>
+        <module>jvm-example</module>
         <module>site-example</module>
     </modules>
 </project>

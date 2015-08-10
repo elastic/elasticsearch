@@ -24,6 +24,11 @@ import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.discovery.DiscoveryModule;
+import org.elasticsearch.discovery.azure.AzureDiscovery;
+import org.elasticsearch.index.store.IndexStoreModule;
+import org.elasticsearch.index.store.smbmmapfs.SmbMmapFsIndexStore;
+import org.elasticsearch.index.store.smbsimplefs.SmbSimpleFsIndexStore;
 import org.elasticsearch.plugins.AbstractPlugin;
 import org.elasticsearch.repositories.RepositoriesModule;
 import org.elasticsearch.repositories.azure.AzureRepository;
@@ -72,5 +77,14 @@ public class CloudAzurePlugin extends AbstractPlugin {
                 && module instanceof RepositoriesModule) {
             ((RepositoriesModule)module).registerRepository(AzureRepository.TYPE, AzureRepositoryModule.class);
         }
+    }
+
+    public void onModule(DiscoveryModule discoveryModule) {
+        discoveryModule.addDiscoveryType("azure", AzureDiscovery.class);
+    }
+
+    public void onModule(IndexStoreModule storeModule) {
+        storeModule.addIndexStore("smb_mmap_fs", SmbMmapFsIndexStore.class);
+        storeModule.addIndexStore("smb_simple_fs", SmbSimpleFsIndexStore.class);
     }
 }

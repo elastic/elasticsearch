@@ -23,13 +23,15 @@ import com.google.common.collect.Lists;
 
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
-import org.elasticsearch.cloud.gce.GceComputeService;
 import org.elasticsearch.cloud.gce.GceComputeService.Fields;
+import org.elasticsearch.cloud.gce.GceComputeServiceTwoNodesDifferentTagsMock;
+import org.elasticsearch.cloud.gce.GceComputeServiceTwoNodesOneZoneMock;
+import org.elasticsearch.cloud.gce.GceComputeServiceTwoNodesSameTagsMock;
+import org.elasticsearch.cloud.gce.GceComputeServiceTwoNodesTwoZonesMock;
+import org.elasticsearch.cloud.gce.GceComputeServiceZeroNodeMock;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.gce.mock.*;
 import org.elasticsearch.plugin.cloud.gce.CloudGcePlugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Ignore;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -61,10 +63,9 @@ public class GceComputeEngineTest extends ESIntegTestCase {
         assertEquals(expected, nodeInfos.getNodes().length);
     }
 
-    protected Settings settingsBuilder(int nodeOrdinal, Class<? extends GceComputeService> mock, Settings settings) {
+    protected Settings settingsBuilder(int nodeOrdinal, String mockClass, Settings settings) {
         Settings.Builder builder = Settings.settingsBuilder()
                 .put("discovery.type", "gce")
-                .put("cloud.gce.api.impl", mock)
                         // We need the network to make the mock working
                 .put("node.mode", "network")
                         // Make the tests run faster
@@ -76,29 +77,29 @@ public class GceComputeEngineTest extends ESIntegTestCase {
                         // We disable http
                 .put("http.enabled", false)
                         // We force plugin loading
-                .put("plugin.types", CloudGcePlugin.class.getName())
+                .extendArray("plugin.types", CloudGcePlugin.class.getName(), mockClass)
                 .put(settings)
                 .put(super.nodeSettings(nodeOrdinal));
 
         return builder.build();
     }
 
-    protected void startNode(int nodeOrdinal, Class<? extends GceComputeService> mock, Settings settings) {
-        logger.info("--> start node #{}, mock [{}], settings [{}]", nodeOrdinal, mock.getSimpleName(), settings.getAsMap());
+    protected void startNode(int nodeOrdinal, String mockClass, Settings settings) {
+        logger.info("--> start node #{}, mock [{}], settings [{}]", nodeOrdinal, mockClass, settings.getAsMap());
         internalCluster().startNode(settingsBuilder(
-                nodeOrdinal,
-                mock,
-                settings));
+            nodeOrdinal,
+            mockClass,
+            settings));
         assertThat(client().admin().cluster().prepareState().setMasterNodeTimeout("1s").execute().actionGet().getState().nodes().masterNodeId(), notNullValue());
     }
 
     @Test
     public void nodes_with_different_tags_and_no_tag_set() {
         startNode(1,
-                GceComputeServiceTwoNodesDifferentTagsMock.class,
+                GceComputeServiceTwoNodesDifferentTagsMock.Plugin.class.getName(),
                 Settings.EMPTY);
         startNode(2,
-                GceComputeServiceTwoNodesDifferentTagsMock.class,
+                GceComputeServiceTwoNodesDifferentTagsMock.Plugin.class.getName(),
                 Settings.EMPTY);
 
         // We expect having 2 nodes as part of the cluster, let's test that
@@ -114,10 +115,10 @@ public class GceComputeEngineTest extends ESIntegTestCase {
     @Test
     public void nodes_with_different_tags_and_one_tag_set() {
         startNode(1,
-                GceComputeServiceTwoNodesDifferentTagsMock.class,
+                GceComputeServiceTwoNodesDifferentTagsMock.Plugin.class.getName(),
                 Settings.settingsBuilder().put(Fields.TAGS, "elasticsearch").build());
         startNode(2,
-                GceComputeServiceTwoNodesDifferentTagsMock.class,
+                GceComputeServiceTwoNodesDifferentTagsMock.Plugin.class.getName(),
                 Settings.settingsBuilder().put(Fields.TAGS, "elasticsearch").build());
 
         // We expect having 1 nodes as part of the cluster, let's test that
@@ -133,11 +134,11 @@ public class GceComputeEngineTest extends ESIntegTestCase {
     @Test
     public void nodes_with_different_tags_and_two_tag_set() {
         startNode(1,
-                GceComputeServiceTwoNodesDifferentTagsMock.class,
-                Settings.settingsBuilder().put(Fields.TAGS, Lists.newArrayList("elasticsearch", "dev")).build());
+            GceComputeServiceTwoNodesDifferentTagsMock.Plugin.class.getName(),
+            Settings.settingsBuilder().put(Fields.TAGS, Lists.newArrayList("elasticsearch", "dev")).build());
         startNode(2,
-                GceComputeServiceTwoNodesDifferentTagsMock.class,
-                Settings.settingsBuilder().put(Fields.TAGS, Lists.newArrayList("elasticsearch", "dev")).build());
+            GceComputeServiceTwoNodesDifferentTagsMock.Plugin.class.getName(),
+            Settings.settingsBuilder().put(Fields.TAGS, Lists.newArrayList("elasticsearch", "dev")).build());
 
         // We expect having 1 nodes as part of the cluster, let's test that
         checkNumberOfNodes(1);
@@ -146,10 +147,10 @@ public class GceComputeEngineTest extends ESIntegTestCase {
     @Test
     public void nodes_with_same_tags_and_no_tag_set() {
         startNode(1,
-                GceComputeServiceTwoNodesSameTagsMock.class,
+                GceComputeServiceTwoNodesSameTagsMock.Plugin.class.getName(),
                 Settings.EMPTY);
         startNode(2,
-                GceComputeServiceTwoNodesSameTagsMock.class,
+                GceComputeServiceTwoNodesSameTagsMock.Plugin.class.getName(),
                 Settings.EMPTY);
 
         // We expect having 2 nodes as part of the cluster, let's test that
@@ -159,11 +160,11 @@ public class GceComputeEngineTest extends ESIntegTestCase {
     @Test
     public void nodes_with_same_tags_and_one_tag_set() {
         startNode(1,
-                GceComputeServiceTwoNodesSameTagsMock.class,
-                Settings.settingsBuilder().put(Fields.TAGS, "elasticsearch").build());
+            GceComputeServiceTwoNodesSameTagsMock.Plugin.class.getName(),
+            Settings.settingsBuilder().put(Fields.TAGS, "elasticsearch").build());
         startNode(2,
-                GceComputeServiceTwoNodesSameTagsMock.class,
-                Settings.settingsBuilder().put(Fields.TAGS, "elasticsearch").build());
+            GceComputeServiceTwoNodesSameTagsMock.Plugin.class.getName(),
+            Settings.settingsBuilder().put(Fields.TAGS, "elasticsearch").build());
 
         // We expect having 2 nodes as part of the cluster, let's test that
         checkNumberOfNodes(2);
@@ -172,10 +173,10 @@ public class GceComputeEngineTest extends ESIntegTestCase {
     @Test
     public void nodes_with_same_tags_and_two_tags_set() {
         startNode(1,
-                GceComputeServiceTwoNodesSameTagsMock.class,
-                Settings.settingsBuilder().put(Fields.TAGS, Lists.newArrayList("elasticsearch", "dev")).build());
+            GceComputeServiceTwoNodesSameTagsMock.Plugin.class.getName(),
+            Settings.settingsBuilder().put(Fields.TAGS, Lists.newArrayList("elasticsearch", "dev")).build());
         startNode(2,
-                GceComputeServiceTwoNodesSameTagsMock.class,
+                GceComputeServiceTwoNodesSameTagsMock.Plugin.class.getName(),
                 Settings.settingsBuilder().put(Fields.TAGS, Lists.newArrayList("elasticsearch", "dev")).build());
 
         // We expect having 2 nodes as part of the cluster, let's test that
@@ -185,13 +186,13 @@ public class GceComputeEngineTest extends ESIntegTestCase {
     @Test
     public void multiple_zones_and_two_nodes_in_same_zone() {
         startNode(1,
-                GceComputeServiceTwoNodesOneZoneMock.class,
+                GceComputeServiceTwoNodesOneZoneMock.Plugin.class.getName(),
                 Settings.settingsBuilder().put(Fields.ZONE, Lists.newArrayList("us-central1-a", "us-central1-b",
                         "us-central1-f", "europe-west1-a", "europe-west1-b")).build());
         startNode(2,
-                GceComputeServiceTwoNodesOneZoneMock.class,
-                Settings.settingsBuilder().put(Fields.ZONE, Lists.newArrayList("us-central1-a", "us-central1-b",
-                        "us-central1-f", "europe-west1-a", "europe-west1-b")).build());
+            GceComputeServiceTwoNodesOneZoneMock.Plugin.class.getName(),
+            Settings.settingsBuilder().put(Fields.ZONE, Lists.newArrayList("us-central1-a", "us-central1-b",
+                "us-central1-f", "europe-west1-a", "europe-west1-b")).build());
 
         // We expect having 2 nodes as part of the cluster, let's test that
         checkNumberOfNodes(2);
@@ -200,11 +201,11 @@ public class GceComputeEngineTest extends ESIntegTestCase {
     @Test
     public void multiple_zones_and_two_nodes_in_different_zones() {
         startNode(1,
-                GceComputeServiceTwoNodesTwoZonesMock.class,
+                GceComputeServiceTwoNodesTwoZonesMock.Plugin.class.getName(),
                 Settings.settingsBuilder().put(Fields.ZONE, Lists.newArrayList("us-central1-a", "us-central1-b",
                         "us-central1-f", "europe-west1-a", "europe-west1-b")).build());
         startNode(2,
-                GceComputeServiceTwoNodesTwoZonesMock.class,
+                GceComputeServiceTwoNodesTwoZonesMock.Plugin.class.getName(),
                 Settings.settingsBuilder().put(Fields.ZONE, Lists.newArrayList("us-central1-a", "us-central1-b",
                         "us-central1-f", "europe-west1-a", "europe-west1-b")).build());
 
@@ -218,9 +219,9 @@ public class GceComputeEngineTest extends ESIntegTestCase {
     @Test
     public void zero_node_43() {
         startNode(1,
-                GceComputeServiceZeroNodeMock.class,
-                Settings.settingsBuilder().put(Fields.ZONE, Lists.newArrayList("us-central1-a", "us-central1-b",
-                        "us-central1-f", "europe-west1-a", "europe-west1-b")).build());
+            GceComputeServiceZeroNodeMock.Plugin.class.getName(),
+            Settings.settingsBuilder().put(Fields.ZONE, Lists.newArrayList("us-central1-a", "us-central1-b",
+                "us-central1-f", "europe-west1-a", "europe-west1-b")).build());
     }
 
 }

@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.node.DiscoveryNodeFilters;
 import org.elasticsearch.cluster.routing.HashFunction;
 import org.elasticsearch.cluster.routing.Murmur3HashFunction;
+import org.elasticsearch.common.Classes;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -245,10 +246,11 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
         } else {
             this.minimumCompatibleLuceneVersion = null;
         }
-        final Class<? extends HashFunction> hashFunctionClass = settings.getAsClass(SETTING_LEGACY_ROUTING_HASH_FUNCTION, null);
-        if (hashFunctionClass == null) {
+        final String hashFunction = settings.get(SETTING_LEGACY_ROUTING_HASH_FUNCTION);
+        if (hashFunction == null) {
             routingHashFunction = MURMUR3_HASH_FUNCTION;
         } else {
+            final Class<? extends HashFunction> hashFunctionClass = Classes.loadClass(getClass().getClassLoader(), hashFunction);
             try {
                 routingHashFunction = hashFunctionClass.newInstance();
             } catch (InstantiationException | IllegalAccessException e) {

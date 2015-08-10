@@ -396,7 +396,7 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
         Settings nodeSettings = Settings.builder()
                 .put("node.add_id_to_custom_path", false)
                 .put("node.enable_custom_paths", true)
-                .put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, MockTransportService.class.getName())
+                .put("plugin.types", MockTransportService.Plugin.class.getName())
                 .build();
 
         String node1 = internalCluster().startNode(nodeSettings);

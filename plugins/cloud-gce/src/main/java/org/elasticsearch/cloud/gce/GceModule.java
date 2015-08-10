@@ -23,21 +23,16 @@ import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 
-/**
- *
- */
 public class GceModule extends AbstractModule {
-    private Settings settings;
+    // pkg private so tests can override with mock
+    static Class<? extends GceComputeService> computeServiceImpl = GceComputeServiceImpl.class;
 
-    @Inject
-    public GceModule(Settings settings) {
-        this.settings = settings;
+    public static Class<? extends GceComputeService> getComputeServiceImpl() {
+        return computeServiceImpl;
     }
 
     @Override
     protected void configure() {
-        bind(GceComputeService.class)
-                .to(settings.getAsClass("cloud.gce.api.impl", GceComputeServiceImpl.class))
-                .asEagerSingleton();
+        bind(GceComputeService.class).to(computeServiceImpl).asEagerSingleton();
     }
 }

@@ -17,31 +17,44 @@
  * under the License.
  */
 
-package org.elasticsearch.discovery.azure;
+package org.elasticsearch.cloud.azure;
 
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
+import org.elasticsearch.cloud.azure.AzureModule;
 import org.elasticsearch.cloud.azure.management.AzureComputeService;
 import org.elasticsearch.cloud.azure.management.AzureComputeService.Discovery;
 import org.elasticsearch.cloud.azure.management.AzureComputeService.Management;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugin.cloud.azure.CloudAzurePlugin;
+import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 
 public abstract class AbstractAzureComputeServiceTest extends ESIntegTestCase {
 
-    private Class<? extends AzureComputeService> mock;
+    private String mockPlugin;
 
-    public AbstractAzureComputeServiceTest(Class<? extends AzureComputeService> mock) {
+    public AbstractAzureComputeServiceTest(String mockPlugin) {
         // We want to inject the Azure API Mock
-        this.mock = mock;
+        this.mockPlugin = mockPlugin;
     }
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        Settings.Builder settings = Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal))
-                .put("plugin.types", CloudAzurePlugin.class.getName());
-        return settings.build();
+        Settings.Builder builder = Settings.settingsBuilder()
+            .put(super.nodeSettings(nodeOrdinal))
+            .put("discovery.type", "azure")
+                // We need the network to make the mock working
+            .put("node.mode", "network")
+            .extendArray("plugin.types", CloudAzurePlugin.class.getName(), mockPlugin);
+
+        // We add a fake subscription_id to start mock compute service
+        builder.put(Management.SUBSCRIPTION_ID, "fake")
+            .put(Discovery.REFRESH, "5s")
+            .put(Management.KEYSTORE_PATH, "dummy")
+            .put(Management.KEYSTORE_PASSWORD, "dummy")
+            .put(Management.SERVICE_NAME, "dummy");
+        return builder.build();
     }
 
     protected void checkNumberOfNodes(int expected) {
@@ -49,22 +62,5 @@ public abstract class AbstractAzureComputeServiceTest extends ESIntegTestCase {
         assertNotNull(nodeInfos);
         assertNotNull(nodeInfos.getNodes());
         assertEquals(expected, nodeInfos.getNodes().length);
-    }
-
-    protected Settings settingsBuilder() {
-        Settings.Builder builder = Settings.settingsBuilder()
-                .put("discovery.type", "azure")
-                .put(Management.API_IMPLEMENTATION, mock)
-                // We need the network to make the mock working
-                .put("node.mode", "network");
-
-        // We add a fake subscription_id to start mock compute service
-        builder.put(Management.SUBSCRIPTION_ID, "fake")
-                .put(Discovery.REFRESH, "5s")
-                .put(Management.KEYSTORE_PATH, "dummy")
-                .put(Management.KEYSTORE_PASSWORD, "dummy")
-                .put(Management.SERVICE_NAME, "dummy");
-
-        return builder.build();
     }
 }

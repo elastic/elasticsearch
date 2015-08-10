@@ -143,8 +143,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
         return Settings.builder()
                 // manual collection or upon cluster forming.
                 .put(InternalClusterInfoService.INTERNAL_CLUSTER_INFO_TIMEOUT, "1s")
-                .put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, MockTransportService.class.getName())
-                .put("plugin.types", Plugin.class.getName())
+                .putArray("plugin.types", Plugin.class.getName(), MockTransportService.Plugin.class.getName())
                 .build();
     }
 

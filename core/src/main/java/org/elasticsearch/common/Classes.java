@@ -19,6 +19,8 @@
 
 package org.elasticsearch.common;
 
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.bootstrap.Elasticsearch;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.NoClassSettingsException;
 
@@ -81,14 +83,6 @@ public class Classes {
         return (lastDotIndex != -1 ? className.substring(0, lastDotIndex) : "");
     }
 
-    public static String getPackageNameNoDomain(Class<?> clazz) {
-        String fullPackage = getPackageName(clazz);
-        if (fullPackage.startsWith("org.") || fullPackage.startsWith("com.") || fullPackage.startsWith("net.")) {
-            return fullPackage.substring(4);
-        }
-        return fullPackage;
-    }
-
     public static boolean isInnerClass(Class<?> clazz) {
         return !Modifier.isStatic(clazz.getModifiers())
                 && clazz.getEnclosingClass() != null;
@@ -99,47 +93,13 @@ public class Classes {
         return !clazz.isInterface() && !Modifier.isAbstract(modifiers);
     }
 
-    public static <T> Class<? extends T> loadClass(ClassLoader classLoader, String className, String prefixPackage, String suffixClassName) {
-        return loadClass(classLoader, className, prefixPackage, suffixClassName, null);
-    }
-
-    @SuppressWarnings({"unchecked"})
-    public static <T> Class<? extends T> loadClass(ClassLoader classLoader, String className, String prefixPackage, String suffixClassName, String errorPrefix) {
-        Throwable t = null;
-        String[] classNames = classNames(className, prefixPackage, suffixClassName);
-        for (String fullClassName : classNames) {
-            try {
-                return (Class<? extends T>) classLoader.loadClass(fullClassName);
-            } catch (ClassNotFoundException ex) {
-                t = ex;
-            } catch (NoClassDefFoundError er) {
-                t = er;
-            }
+    public static <T> Class<? extends T> loadClass(ClassLoader classLoader, String className) {
+        try {
+            return (Class<? extends T>) classLoader.loadClass(className);
+        } catch (ClassNotFoundException|NoClassDefFoundError e) {
+            throw new ElasticsearchException("failed to load class [" + className + "]", e);
         }
-        if (errorPrefix == null) {
-            errorPrefix = "failed to load class";
-        }
-        throw new NoClassSettingsException(errorPrefix + " with value [" + className + "]; tried " + Arrays.toString(classNames), t);
     }
 
-    private static String[] classNames(String className, String prefixPackage, String suffixClassName) {
-        String prefixValue = prefixPackage;
-        int packageSeparator = className.lastIndexOf('.');
-        String classNameValue = className;
-        // If class name contains package use it as package prefix instead of specified default one
-        if (packageSeparator > 0) {
-            prefixValue = className.substring(0, packageSeparator + 1);
-            classNameValue = className.substring(packageSeparator + 1);
-        }
-        return new String[]{
-                className,
-                prefixValue + Strings.capitalize(toCamelCase(classNameValue)) + suffixClassName,
-                prefixValue + toCamelCase(classNameValue) + "." + Strings.capitalize(toCamelCase(classNameValue)) + suffixClassName,
-                prefixValue + toCamelCase(classNameValue).toLowerCase(Locale.ROOT) + "." + Strings.capitalize(toCamelCase(classNameValue)) + suffixClassName,
-        };
-    }
-
-    private Classes() {
-
-    }
+    private Classes() {}
 }

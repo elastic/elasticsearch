@@ -20,7 +20,15 @@
 package org.elasticsearch.common.inject;
 
 /**
+ * This interface can be added to a Module to spawn sub modules. DO NOT USE.
  *
+ * This is fundamentally broken.
+ * <ul>
+ * <li>If you have a plugin with multiple modules, return all the modules at once.</li>
+ * <li>If you are trying to make the implementation of a module "pluggable", don't do it.
+ * This is not extendable because custom implementations (using onModule) cannot be
+ * registered before spawnModules() is called.</li>
+ * </ul>
  */
 public interface SpawnModules {
 

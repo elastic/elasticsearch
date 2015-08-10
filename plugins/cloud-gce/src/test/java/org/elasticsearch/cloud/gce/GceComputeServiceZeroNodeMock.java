@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.discovery.gce.mock;
+package org.elasticsearch.cloud.gce;
 
 import com.google.api.services.compute.model.Instance;
 import com.google.common.base.Function;
@@ -25,15 +25,27 @@ import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.discovery.gce.mock.GceComputeServiceAbstractMock;
+import org.elasticsearch.plugins.AbstractPlugin;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
-/**
- *
- */
 public class GceComputeServiceZeroNodeMock extends GceComputeServiceAbstractMock {
+    public static class Plugin extends AbstractPlugin {
+        @Override
+        public String name() {
+            return "mock-compute-service";
+        }
+        @Override
+        public String description() {
+            return "a mock compute service for testing";
+        }
+        public void onModule(GceModule gceModule) {
+            gceModule.computeServiceImpl = GceComputeServiceZeroNodeMock.class;
+        }
+    }
 
     @Override
     protected List<List<String>> getTags() {

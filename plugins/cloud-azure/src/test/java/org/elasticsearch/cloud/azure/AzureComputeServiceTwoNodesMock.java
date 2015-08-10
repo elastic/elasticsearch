@@ -17,13 +17,17 @@
  * under the License.
  */
 
-package org.elasticsearch.cloud.azure.management;
+package org.elasticsearch.cloud.azure;
 
 import com.microsoft.windowsazure.management.compute.models.*;
+import org.elasticsearch.cloud.azure.AzureModule;
+import org.elasticsearch.cloud.azure.management.AzureComputeServiceAbstractMock;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.plugins.Plugin;
 
 import java.net.InetAddress;
 
@@ -32,6 +36,19 @@ import java.net.InetAddress;
  * Mock Azure API with two started nodes
  */
 public class AzureComputeServiceTwoNodesMock extends AzureComputeServiceAbstractMock {
+    public static class Plugin extends AbstractPlugin {
+        @Override
+        public String name() {
+            return "mock-compute-service";
+        }
+        @Override
+        public String description() {
+            return "plugs in a mock compute service for testing";
+        }
+        public void onModule(AzureModule azureModule) {
+            azureModule.computeServiceImpl = AzureComputeServiceTwoNodesMock.class;
+        }
+    }
 
     NetworkService networkService;
 

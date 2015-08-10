@@ -4,6 +4,19 @@
 This section discusses changes that are breaking to the current rest or java-api
 on the query-refactoring feature branch.
 
+=== Plugins
+
+Plugins implementing custom queries need to implement the `fromXContent(QueryParseContext)` method in their
+`QueryParser` subclass rather than `parse`. This method will take care of parsing the query from `XContent` format
+into an intermediate query representation that can be streamed between the nodes in binary format, effectively the
+query object used in the java api. Also, the query parser needs to implement the `getBuilderPrototype` method that
+returns a prototype of the streamable query, which allows to deserialize an incoming query by calling
+`readFrom(StreamInput)` against it, which will create a new object, see usages of `Writeable`.
+The query object can then transform itself into a lucene query through the new `toQuery(QueryShardContext)` method,
+which returns a lucene query to be executed on the data node. The query implementation also needs to implement the
+`validate` method that allows to validate the content of the query, no matter whether it came in through the java api
+directly or through the REST layer.
+
 === Java-API
 
 ==== BoostingQueryBuilder
@@ -32,7 +45,6 @@ Updated the static factory methods in QueryBuilders and tests accordingly.
 Removed setters for mandatory big/little inner span queries. Both arguments now have
 to be supplied at construction time already and have to be non-null. Updated
 static factory methods in QueryBuilders accordingly.
->>>>>>> Query refactoring: SpanWithinQueryBuilder and Parser
 
 ==== QueryFilterBuilder
 
@@ -52,4 +64,4 @@ codebase and avoid duplication.
 Support for `queryName` and `boost` has been streamlined to all of the queries. That is
 a breaking change till queries get sent over the network as serialized json rather
 than in `Streamable` format. In fact whenever additional fields are added to the json
-representation of the query, older nodes might throw error when they find unknown fields.pd
+representation of the query, older nodes might throw error when they find unknown fields.

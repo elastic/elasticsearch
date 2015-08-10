@@ -237,7 +237,7 @@
   <target name="setup-workspace-zip" depends="stop-external-cluster">
     <sequential>
       <delete dir="${integ.scratch}"/>
-      <unzip src="${project.build.directory}/releases/${project.artifactId}-${project.version}.zip" 
+      <unzip src="${project.build.directory}/releases/${project.artifactId}-${project.version}.zip"
              dest="${integ.scratch}"/>
     </sequential>
   </target>
@@ -252,7 +252,7 @@
   <target name="setup-workspace-tar" depends="stop-external-cluster">
     <sequential>
       <delete dir="${integ.scratch}"/>
-      <untar src="${project.build.directory}/releases/${project.artifactId}-${project.version}.tar.gz" 
+      <untar src="${project.build.directory}/releases/${project.artifactId}-${project.version}.tar.gz"
              dest="${integ.scratch}"
              compression="gzip"/>
     </sequential>
@@ -273,13 +273,13 @@
       <!-- print some basic package info -->
       <exec executable="dpkg-deb" failonerror="true" taskname="deb-info">
          <arg value="-I"/>
-         <arg value="${debfile}"/> 
+         <arg value="${debfile}"/>
       </exec>
       <!-- extract contents from .deb package -->
       <exec executable="dpkg-deb" failonerror="true">
-         <arg value="-x"/> 
-         <arg value="${debfile}"/> 
-         <arg value="${integ.scratch}/deb-extracted"/> 
+         <arg value="-x"/>
+         <arg value="${debfile}"/>
+         <arg value="${integ.scratch}/deb-extracted"/>
       </exec>
     </sequential>
   </target>
@@ -306,7 +306,7 @@
          <arg value="-q"/>
          <arg value="-i"/>
          <arg value="-p"/>
-         <arg value="${rpm.file}"/> 
+         <arg value="${rpm.file}"/>
       </exec>
       <!-- extract contents from .rpm package -->
       <exec executable="rpm" failonerror="true" taskname="rpm">
@@ -315,11 +315,11 @@
          <arg value="--badreloc"/>
          <arg value="--relocate"/>
          <arg value="/=${rpm.extracted}"/>
-         <arg value="--nodeps"/> 
-         <arg value="--noscripts"/> 
-         <arg value="--notriggers"/> 
+         <arg value="--nodeps"/>
+         <arg value="--noscripts"/>
+         <arg value="--notriggers"/>
          <arg value="-i"/>
-         <arg value="${rpm.file}"/> 
+         <arg value="${rpm.file}"/>
       </exec>
     </sequential>
   </target>
@@ -359,5 +359,4 @@
        </condition>
     </fail>
   </target>
-
 </project>

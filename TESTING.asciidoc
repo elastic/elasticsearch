@@ -81,7 +81,7 @@ You can also filter tests by certain annotations ie:
 Those annotation names can be combined into a filter expression like:
 
 ------------------------------------------------
-mvn test -Dtests.filter="@nightly and not @backwards" 
+mvn test -Dtests.filter="@nightly and not @backwards"
 ------------------------------------------------
 
 to run all nightly test but not the ones that are backwards tests. `tests.filter` supports
@@ -89,7 +89,7 @@ the boolean operators `and, or, not` and grouping ie:
 
 
 ---------------------------------------------------------------
-mvn test -Dtests.filter="@nightly and not(@badapple or @backwards)" 
+mvn test -Dtests.filter="@nightly and not(@badapple or @backwards)"
 ---------------------------------------------------------------
 
 === Seed and repetitions.
@@ -102,7 +102,7 @@ mvn test -Dtests.seed=DEADBEEF
 
 === Repeats _all_ tests of ClassName N times.
 
-Every test repetition will have a different method seed 
+Every test repetition will have a different method seed
 (derived from a single random master seed).
 
 --------------------------------------------------
@@ -149,7 +149,7 @@ mvn test -Dtests.awaitsfix=[false] - known issue (@AwaitsFix)
 
 === Load balancing and caches.
 
-By default, the tests run sequentially on a single forked JVM. 
+By default, the tests run sequentially on a single forked JVM.
 
 To run with more forked JVMs than the default use:
 
@@ -158,7 +158,7 @@ mvn test -Dtests.jvms=8 test
 ----------------------------
 
 Don't count hypercores for CPU-intense tests and leave some slack
-for JVM-internal threads (like the garbage collector). Make sure there is 
+for JVM-internal threads (like the garbage collector). Make sure there is
 enough RAM to handle child JVMs.
 
 === Test compatibility.
@@ -208,7 +208,7 @@ mvn test -Dtests.output=always
 Configure the heap size.
 
 ------------------------------
-mvn test -Dtests.heap.size=512m 
+mvn test -Dtests.heap.size=512m
 ------------------------------
 
 Pass arbitrary jvm arguments.
@@ -231,7 +231,7 @@ mvn test -Dtests.filter="@backwards" -Dtests.bwc.version=x.y.z -Dtests.bwc.path=
 Note that backwards tests must be run with security manager disabled.
 If the elasticsearch release is placed under `./backwards/elasticsearch-x.y.z` the path
 can be omitted:
- 
+
 ---------------------------------------------------------------------------
 mvn test -Dtests.filter="@backwards" -Dtests.bwc.version=x.y.z -Dtests.security.manager=false
 ---------------------------------------------------------------------------
@@ -242,7 +242,7 @@ already in your elasticsearch clone):
 ---------------------------------------------------------------------------
 $ mkdir backwards && cd backwards
 $ curl -O https://download.elasticsearch.org/elasticsearch/elasticsearch/elasticsearch-1.2.1.tar.gz
-$ tar -xzf elasticsearch-1.2.1.tar.gz 
+$ tar -xzf elasticsearch-1.2.1.tar.gz
 ---------------------------------------------------------------------------
 
 == Running integration tests
@@ -314,25 +314,180 @@ mvn test -Pdev
 
 == Testing scripts
 
-Shell scripts can be tested with the Bash Automate Testing System tool available
-at https://github.com/sstephenson/bats. Once the tool is installed, you can
-execute a .bats test file with the following command:
+The simplest way to test scripts and the packaged distributions is to use
+Vagrant. You can get started by following there five easy steps:
 
----------------------------------------------------------------------------
-bats test_file.bats
----------------------------------------------------------------------------
+. Install Virtual Box and Vagrant.
 
-When executing the test files located in the `/packaging/scripts` folder,
-it's possible to add the flag `ES_CLEAN_BEFORE_TEST=true` to clean the test
-environment before the tests are executed:
+. (Optional) Install vagrant-cachier to squeeze a bit more performance out of
+the process:
+--------------------------------------
+vagrant plugin install vagrant-cachier
+--------------------------------------
 
----------------------------------------------------------------------------
-ES_CLEAN_BEFORE_TEST=true bats 30_deb_package.bats
----------------------------------------------------------------------------
+. Validate your installed dependencies:
+-------------------------------------
+mvn -Pvagrant -pl qa/vagrant validate
+-------------------------------------
 
-The current mode of execution is to copy all the packages that should be tested
-into one directory, then copy the bats files into the same directory and run
-those.
+. Download the VMs. Since Maven or ant or something eats the progress reports
+from Vagrant when you run it inside mvn its probably best if you run this one
+time to setup all the VMs one at a time. Run this to download and setup the VMs
+we use for testing by default:
+--------------------------------------------------------
+vagrant up --provision trusty && vagrant halt trusty
+vagrant up --provision centos-7 && vagrant halt centos-7
+--------------------------------------------------------
+or run this to download and setup all the VMs:
+-------------------------------------------------------------------------------
+vagrant halt
+for box in $(vagrant status | grep 'poweroff\|not created' | cut -f1 -d' '); do
+  vagrant up --provision $box
+  vagrant halt $box
+done
+-------------------------------------------------------------------------------
+
+. Smoke test the maven/ant dance that we use to get vagrant involved in
+integration testing is working:
+---------------------------------------------
+mvn -Pvagrant,smoke-vms -pl qa/vagrant verify
+---------------------------------------------
+or this to validate all the VMs:
+-------------------------------------------------
+mvn -Pvagrant,smoke-vms,all -pl qa/vagrant verify
+-------------------------------------------------
+That will start up the VMs and then immediate quit.
+
+. Finally run the tests. The fastest way to get this started is to run:
+-----------------------------------
+mvn clean install -DskipTests
+mvn -Pvagrant -pl qa/vagrant verify
+-----------------------------------
+You could just run:
+--------------------
+mvn -Pvagrant verify
+--------------------
+but that will run all the tests. Which is probably a good thing, but not always
+what you want.
+
+Whichever snippet you run mvn will build the tar, zip and deb packages. If you
+have rpmbuild installed it'll build the rpm package as well. Then mvn will
+spin up trusty and verify the tar, zip, and deb package. If you have rpmbuild
+installed it'll spin up centos-7 and verify the tar, zip and rpm packages. We
+chose those two distributions as the default because they cover deb and rpm
+packaging and SyvVinit and systemd.
+
+You can control the boxes that are used for testing like so. Run just
+fedora-22 with:
+--------------------------------------------
+mvn -Pvagrant -pl qa/vagrant verify -DboxesToTest=fedora-22
+--------------------------------------------
+or run wheezy and trusty:
+------------------------------------------------------------------
+mvn -Pvagrant -pl qa/vagrant verify -DboxesToTest='wheezy, trusty'
+------------------------------------------------------------------
+or run all the boxes:
+---------------------------------------
+mvn -Pvagrant,all -pl qa/vagrant verify
+---------------------------------------
+
+Its important to know that if you ctrl-c any of these `mvn` runs that you'll
+probably leave a VM up. You can terminate it by running:
+------------
+vagrant halt
+------------
+
+This is just regular vagrant so you can run normal multi box vagrant commands
+to test things manually. Just run:
+---------------------------------------
+vagrant up trusty && vagrant ssh trusty
+---------------------------------------
+to get an Ubuntu or
+-------------------------------------------
+vagrant up centos-7 && vagrant ssh centos-7
+-------------------------------------------
+to get a CentOS. Once you are done with them you should halt them:
+-------------------
+vagrant halt trusty
+-------------------
+
+These are the linux flavors the Vagrantfile currently supports:
+* precise aka Ubuntu 12.04
+* trusty aka Ubuntu 14.04
+* vivid aka Ubuntun 15.04
+* wheezy aka Debian 7, the current debian oldstable distribution
+* jessie aka Debian 8, the current debina stable distribution
+* centos-6
+* centos-7
+* fedora-22
+* oel-7 aka Oracle Enterprise Linux 7
+
+We're missing the following from the support matrix because there aren't high
+quality boxes available in vagrant atlas:
+* sles-11
+* sles-12
+* opensuse-13
+* oel-6
+
+We're missing the follow because our tests are very linux/bash centric:
+* Windows Server 2012
+
+Its important to think of VMs like cattle: if they become lame you just shoot
+them and let vagrant reprovision them. Say you've hosed your precise VM:
+----------------------------------------------------
+vagrant ssh precise -c 'sudo rm -rf /bin'; echo oops
+----------------------------------------------------
+All you've got to do to get another one is
+----------------------------------------------
+vagrant destroy -f trusty && vagrant up trusty
+----------------------------------------------
+The whole process takes a minute and a half on a modern laptop, two and a half
+without vagrant-cachier.
+
+Its possible that some downloads will fail and it'll be impossible to restart
+them. This is a bug in vagrant. See the instructions here for how to work
+around it:
+https://github.com/mitchellh/vagrant/issues/4479
+
+Some vagrant commands will work on all VMs at once:
+------------------
+vagrant halt
+vagrant destroy -f
+------------------
+
+----------
+vagrant up
+----------
+would normally start all the VMs but we've prevented that because that'd
+consume a ton of ram.
+
+== Testing scripts more directly
+
+In general its best to stick to testing in vagrant because the bats scripts are
+destructive. When working with a single package its generally faster to run its
+tests in a tighter loop than maven provides. In one window:
+--------------------------------
+mvn -pl distribution/rpm package
+--------------------------------
+and in another window:
+----------------------------------------------------
+vagrant up centos-7 && vagrant ssh centos-7
+cd $RPM
+sudo ES_CLEAN_BEFORE_TEST=true bats $BATS/*rpm*.bats
+----------------------------------------------------
+
+At this point `ES_CLEAN_BEFORE_TEST=true` is required or tests fail spuriously.
+
+If you wanted to retest all the release artifacts on a single VM you could:
+-------------------------------------------------
+# Build all the distributions fresh but skip recompiling elasticsearch:
+mvn -amd -pl distribution install -DskipTests
+# Copy them all the testroot
+mvn -Pvagrant -pl qa/vagrant pre-integration-test
+vagrant up trusty && vagrant ssh trusty
+cd $TESTROOT
+sudo ES_CLEAN_BEFORE_TEST=true bats $BATS/*.bats
+-------------------------------------------------
 
 == Coverage analysis
 

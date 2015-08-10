@@ -5,7 +5,7 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>org.elasticsearch.plugin.qa</groupId>
+    <groupId>org.elasticsearch.qa</groupId>
     <artifactId>x-plugins-qa</artifactId>
     <version>2.0.0-beta1-SNAPSHOT</version>
     <packaging>pom</packaging>
@@ -13,10 +13,9 @@
     <inceptionYear>2015</inceptionYear>
 
     <parent>
-        <groupId>org.elasticsearch</groupId>
-        <artifactId>elasticsearch-parent</artifactId>
+        <groupId>org.elasticsearch.plugin</groupId>
+        <artifactId>x-plugins</artifactId>
         <version>2.0.0-beta1-SNAPSHOT</version>
-        <relativePath></relativePath>
     </parent>
 
     <properties>

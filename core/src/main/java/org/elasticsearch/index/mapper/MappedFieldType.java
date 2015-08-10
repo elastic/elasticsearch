@@ -274,7 +274,7 @@ public abstract class MappedFieldType extends FieldType {
             conflicts.add("mapper [" + names().fullName() + "] has different analyzer");
         }
 
-        if (!names().equals(other.names())) {
+        if (!names().indexName().equals(other.names().indexName())) {
             conflicts.add("mapper [" + names().fullName() + "] has different index_name");
         }
         if (Objects.equals(similarity(), other.similarity()) == false) {

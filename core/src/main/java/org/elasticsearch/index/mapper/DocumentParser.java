@@ -629,6 +629,7 @@ class DocumentParser implements Closeable {
                 // best-effort to not introduce a conflict
                 if (builder instanceof StringFieldMapper.Builder) {
                     StringFieldMapper.Builder stringBuilder = (StringFieldMapper.Builder) builder;
+                    stringBuilder.fieldDataSettings(existingFieldType.fieldDataType().getSettings());
                     stringBuilder.store(existingFieldType.stored());
                     stringBuilder.indexOptions(existingFieldType.indexOptions());
                     stringBuilder.tokenized(existingFieldType.tokenized());
@@ -638,6 +639,7 @@ class DocumentParser implements Closeable {
                     stringBuilder.searchAnalyzer(existingFieldType.searchAnalyzer());
                 } else if (builder instanceof NumberFieldMapper.Builder) {
                     NumberFieldMapper.Builder<?,?> numberBuilder = (NumberFieldMapper.Builder<?, ?>) builder;
+                    numberBuilder.fieldDataSettings(existingFieldType.fieldDataType().getSettings());
                     numberBuilder.store(existingFieldType.stored());
                     numberBuilder.indexOptions(existingFieldType.indexOptions());
                     numberBuilder.tokenized(existingFieldType.tokenized());

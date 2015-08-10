@@ -97,7 +97,7 @@ public class FilteredQueryBuilder extends AbstractQueryBuilder<FilteredQueryBuil
     @Override
     public Query doToQuery(QueryShardContext context) throws QueryShardException, IOException {
         Query query = queryBuilder.toQuery(context);
-        Query filter = filterBuilder.toQuery(context);
+        Query filter = filterBuilder.toFilter(context);
 
         if (query == null) {
             // Most likely this query was generated from the JSON query DSL - it parsed to an EmptyQueryBuilder so we ignore

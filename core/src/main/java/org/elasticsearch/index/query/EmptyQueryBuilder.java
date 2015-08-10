@@ -73,6 +73,13 @@ public class EmptyQueryBuilder extends ToXContentToBytes implements QueryBuilder
     }
 
     @Override
+    public Query toFilter(QueryShardContext context) throws IOException {
+        // empty
+        return null;
+    }
+
+
+    @Override
     public QueryValidationException validate() {
         // nothing to validate
         return null;

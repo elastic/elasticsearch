@@ -37,7 +37,6 @@ public class QueryParseContext {
     private XContentParser parser;
     private final Index index;
     //norelease this flag is also used in the QueryShardContext, we need to make sure we set it there correctly in doToQuery()
-    private boolean isFilter;
     private ParseFieldMatcher parseFieldMatcher;
 
     //norelease this can eventually be deleted when context() method goes away
@@ -172,32 +171,30 @@ public class QueryParseContext {
      * @throws IOException
      */
     @Nullable
+    //norelease setting and checking the isFilter Flag should completely be moved to toQuery/toFilter after query refactoring
     public QueryBuilder parseInnerFilterToQueryBuilder() throws IOException {
-        final boolean originalIsFilter = isFilter;
+        final boolean originalIsFilter = this.shardContext.isFilter;
         try {
-            isFilter = true;
+            this.shardContext.isFilter = true;
             return parseInnerQueryBuilder();
         } finally {
-            isFilter = originalIsFilter;
+            this.shardContext.isFilter = originalIsFilter;
         }
     }
 
+    //norelease setting and checking the isFilter Flag should completely be moved to toQuery/toFilter after query refactoring
     QueryBuilder parseInnerFilterToQueryBuilder(String queryName) throws IOException, QueryParsingException {
-        final boolean originalIsFilter = isFilter;
+        final boolean originalIsFilter = this.shardContext.isFilter;
         try {
-            isFilter = true;
+            this.shardContext.isFilter = true;
             QueryParser queryParser = queryParser(queryName);
             if (queryParser == null) {
                 throw new QueryParsingException(this, "No query registered for [" + queryName + "]");
             }
             return queryParser.fromXContent(this);
         } finally {
-            isFilter = originalIsFilter;
+            this.shardContext.isFilter = originalIsFilter;
         }
-    }
-
-    public boolean isFilter() {
-        return this.isFilter;
     }
 
     public ParseFieldMatcher parseFieldMatcher() {

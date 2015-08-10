@@ -76,12 +76,6 @@ public class BoolQueryParser extends BaseQueryParser {
                 case "should":
                     query = parseContext.parseInnerQueryBuilder();
                     shouldClauses.add(query);
-                    // EmptyQueryBuilder does not add lucene query later, skip setting minuminShouldMatch
-                    if (query != EmptyQueryBuilder.PROTOTYPE) {
-                        if (parseContext.isFilter() && minimumShouldMatch == null) {
-                            minimumShouldMatch = "1";
-                        }
-                    }
                     break;
                 case "filter":
                     query = parseContext.parseInnerFilterToQueryBuilder();
@@ -105,12 +99,6 @@ public class BoolQueryParser extends BaseQueryParser {
                     case "should":
                         query = parseContext.parseInnerQueryBuilder();
                         shouldClauses.add(query);
-                        // EmptyQueryBuilder does not add lucene query later, skip setting minuminShouldMatch
-                        if (query != EmptyQueryBuilder.PROTOTYPE) {
-                            if (parseContext.isFilter() && minimumShouldMatch == null) {
-                                minimumShouldMatch = "1";
-                            }
-                        }
                         break;
                     case "filter":
                         query = parseContext.parseInnerFilterToQueryBuilder();

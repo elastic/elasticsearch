@@ -79,6 +79,19 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder> exte
         return query;
     }
 
+    @Override
+    public final Query toFilter(QueryShardContext context) throws IOException {
+        Query result = null;
+            final boolean originalIsFilter = context.isFilter;
+            try {
+                context.isFilter = true;
+                result = toQuery(context);
+            } finally {
+                context.isFilter = originalIsFilter;
+            }
+        return result;
+    }
+
     //norelease to be made abstract once all query builders override doToQuery providing their own specific implementation.
     protected Query doToQuery(QueryShardContext context) throws IOException {
         return context.indexQueryParserService().queryParser(getName()).parse(context);

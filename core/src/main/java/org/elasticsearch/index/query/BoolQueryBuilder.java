@@ -279,9 +279,23 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
         return validationException;
     }
 
-    private static void addBooleanClauses(QueryShardContext context, BooleanQuery booleanQuery, List<QueryBuilder> clauses, Occur occurs) throws IOException {
+    private void addBooleanClauses(QueryShardContext context, BooleanQuery booleanQuery, List<QueryBuilder> clauses, Occur occurs) throws IOException {
         for (QueryBuilder query : clauses) {
-            Query luceneQuery = query.toQuery(context);
+            Query luceneQuery = null;
+            switch (occurs) {
+            case SHOULD:
+                if (context.isFilter() && minimumShouldMatch == null) {
+                    minimumShouldMatch = "1";
+                }
+                luceneQuery = query.toQuery(context);
+                break;
+            case FILTER:
+            case MUST_NOT:
+                luceneQuery = query.toFilter(context);
+                break;
+            case MUST:
+                luceneQuery = query.toQuery(context);
+            }
             if (luceneQuery != null) {
                 booleanQuery.add(new BooleanClause(luceneQuery, occurs));
             }

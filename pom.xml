@@ -208,5 +208,6 @@
         <module>shield</module>
         <module>watcher</module>
         <module>marvel</module>
+        <module>qa</module>
     </modules>
 </project>

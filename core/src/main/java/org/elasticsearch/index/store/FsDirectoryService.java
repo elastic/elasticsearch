@@ -33,6 +33,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
+import java.util.Locale;
 import java.util.Set;
 
 /**
@@ -101,7 +102,7 @@ public class FsDirectoryService extends DirectoryService implements StoreRateLim
 
 
     protected Directory newFSDirectory(Path location, LockFactory lockFactory) throws IOException {
-        final String storeType = indexSettings.get(IndexStoreModule.STORE_TYPE, IndexStoreModule.Type.DEFAULT.name());
+        final String storeType = indexSettings.get(IndexStoreModule.STORE_TYPE, IndexStoreModule.Type.DEFAULT.getSettingsKey());
         if (IndexStoreModule.Type.FS.match(storeType) || IndexStoreModule.Type.DEFAULT.match(storeType)) {
             final FSDirectory open = FSDirectory.open(location, lockFactory); // use lucene defaults
             if (open instanceof MMapDirectory && Constants.WINDOWS == false) {

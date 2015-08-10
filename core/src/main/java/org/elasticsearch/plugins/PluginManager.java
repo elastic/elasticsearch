@@ -153,7 +153,7 @@ public class PluginManager {
             }
         }
 
-        if (!downloaded) {
+        if (!downloaded && url == null) {
             // We try all possible locations
             for (URL url : pluginHandle.urls()) {
                 terminal.println("Trying %s ...", url.toExternalForm());

@@ -23,6 +23,8 @@ import com.google.common.collect.ImmutableList;
 import org.elasticsearch.common.inject.*;
 import org.elasticsearch.common.settings.Settings;
 
+import java.util.Locale;
+
 /**
  *
  */
@@ -33,32 +35,20 @@ public class IndexStoreModule extends AbstractModule implements SpawnModules {
     private final Settings settings;
 
     public enum Type {
-        NIOFS {
-            @Override
-            public boolean match(String setting) {
-                return super.match(setting) || "nio_fs".equalsIgnoreCase(setting);
-            }
-        },
-        MMAPFS {
-            @Override
-            public boolean match(String setting) {
-                return super.match(setting) || "mmap_fs".equalsIgnoreCase(setting);
-            }
-        },
-
-        SIMPLEFS {
-            @Override
-            public boolean match(String setting) {
-                return super.match(setting) || "simple_fs".equalsIgnoreCase(setting);
-            }
-        },
+        NIOFS,
+        MMAPFS,
+        SIMPLEFS,
         FS,
-        DEFAULT,;
+        DEFAULT;
+
+        public String getSettingsKey() {
+            return this.name().toLowerCase(Locale.ROOT);
+        }
         /**
          * Returns true iff this settings matches the type.
          */
         public boolean match(String setting) {
-            return this.name().equalsIgnoreCase(setting);
+            return getSettingsKey().equals(setting);
         }
     }
 
@@ -68,7 +58,7 @@ public class IndexStoreModule extends AbstractModule implements SpawnModules {
 
     @Override
     public Iterable<? extends Module> spawnModules() {
-        final String storeType = settings.get(STORE_TYPE, Type.DEFAULT.name());
+        final String storeType = settings.get(STORE_TYPE, Type.DEFAULT.getSettingsKey());
         for (Type type : Type.values()) {
             if (type.match(storeType)) {
                 return ImmutableList.of(new DefaultStoreModule());

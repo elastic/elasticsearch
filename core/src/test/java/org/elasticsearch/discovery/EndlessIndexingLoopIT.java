@@ -155,14 +155,14 @@ public class EndlessIndexingLoopIT extends ESIntegTestCase {
                 }
                 assertNotNull(nodeId);
                 // check that node_1 actually has removed the shard
-                assertFalse(clusterState.routingNodes().routingNodeIter(nodeId).hasNext());
+                assertFalse(clusterState.getRoutingNodes().routingNodeIter(nodeId).hasNext());
             }
         });
 
         logger.info("--> cluster state on {} {}", node_1, node1Client.admin().cluster().prepareState().setLocal(true).get().getState().prettyPrint());
         logger.info("--> cluster state on {} {}", node_2, node2Client.admin().cluster().prepareState().setLocal(true).get().getState().prettyPrint());
         logger.info("--> index doc");
-        Future<IndexResponse> indexResponseFuture = client().prepareIndex("test", "doc").setSource("{\"text\":\"a\"}").execute();
+        Future<IndexResponse> indexResponseFuture = client(node_2).prepareIndex("test", "doc").setSource("{\"text\":\"a\"}").execute();
         // wait a little and then see how often the indexing request was sent back and forth
         sleep(1000);
         // stop disrupting so that node_2 can finally apply cluster state 2

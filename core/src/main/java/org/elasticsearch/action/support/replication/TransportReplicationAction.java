@@ -260,7 +260,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                     try {
                         channel.sendResponse(e);
                     } catch (Throwable t) {
-                        logger.warn("failed to send response for get", t);
+                        logger.warn("failed to send response for a write request", t);
                     }
                 }
             };

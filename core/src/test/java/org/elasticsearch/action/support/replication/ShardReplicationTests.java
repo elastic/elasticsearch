@@ -352,6 +352,10 @@ public class ShardReplicationTests extends ESTestCase {
                 assertIndexShardCounter(1);
             }
         } else {
+            // The coordinating node says primary shard is on the local node, but the local node doesn' have it,
+            // We need to retry, something has changed in time between the coordination node received the request
+            // and the node holding the primary shard processing the write request.
+            // So we fail and retry (wait on a new cluster update or the timeout to expire) again from the coordinating node.
             logger.info("--> primary is assigned to [{}], checking request is going to be retried at some point", primaryNodeId);
             assertThat(clusterService.getListeners().size(), equalTo(0));
             primaryPhase.moveToPrimaryAction(shardRoutingTable.primaryShard());

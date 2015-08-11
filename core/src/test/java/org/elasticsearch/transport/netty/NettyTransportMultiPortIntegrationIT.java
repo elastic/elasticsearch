@@ -39,7 +39,7 @@ import static org.elasticsearch.test.ESIntegTestCase.Scope;
 import static org.hamcrest.Matchers.*;
 
 @ClusterScope(scope = Scope.SUITE, numDataNodes = 1, numClientNodes = 0)
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/12788")
+//@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/12788")
 public class NettyTransportMultiPortIntegrationIT extends ESIntegTestCase {
 
     private static int randomPort = -1;
@@ -56,6 +56,7 @@ public class NettyTransportMultiPortIntegrationIT extends ESIntegTestCase {
                 .put("network.host", "127.0.0.1")
                 .put(TransportModule.TRANSPORT_TYPE_KEY, "netty")
                 .put("node.mode", "network")
+                .put("node.local", false) // ensure randomization doesn't set local mode, since this has higher precedence
                 .put("transport.profiles.client1.port", randomPortRange)
                 .put("transport.profiles.client1.publish_host", "127.0.0.7")
                 .put("transport.profiles.client1.publish_port", "4321")

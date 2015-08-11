@@ -56,14 +56,10 @@ public class NettyTransportMultiPortIntegrationIT extends ESIntegTestCase {
                 .put("network.host", "127.0.0.1")
                 .put(TransportModule.TRANSPORT_TYPE_KEY, "netty")
                 .put("node.mode", "network")
-                .put("node.local", false) // ensure randomization doesn't set local mode, since this has higher precedence
                 .put("transport.profiles.client1.port", randomPortRange)
                 .put("transport.profiles.client1.publish_host", "127.0.0.7")
                 .put("transport.profiles.client1.publish_port", "4321")
                 .put("transport.profiles.client1.reuse_address", true);
-        // more things that might have been randomized to remove to ensure a real network stack
-        builder.removeArrayElement("plugin.types", MockTransportService.Plugin.class.getName());
-        builder.removeArrayElement("plugin.types", AssertingLocalTransport.Plugin.class.getName());
         return builder.build();
     }
 

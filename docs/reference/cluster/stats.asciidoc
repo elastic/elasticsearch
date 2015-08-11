@@ -15,6 +15,7 @@ Will return, for example:
 ["source","js",subs="attributes,callouts"]
 --------------------------------------------------
 {
+   "timestamp": 1439326129256,
    "cluster_name": "elasticsearch",
    "status": "green",
    "indices": {
@@ -61,12 +62,35 @@ Will return, for example:
          "memory_size_in_bytes": 0,
          "evictions": 0
       },
+      "id_cache": {
+         "memory_size": "0b",
+         "memory_size_in_bytes": 0
+      },
       "completion": {
          "size": "0b",
          "size_in_bytes": 0
       },
       "segments": {
-         "count": 2
+         "count": 2,
+         "memory": "6.4kb",
+         "memory_in_bytes": 6596,
+         "index_writer_memory": "0b",
+         "index_writer_memory_in_bytes": 0,
+         "index_writer_max_memory": "275.7mb",
+         "index_writer_max_memory_in_bytes": 289194639,
+         "version_map_memory": "0b",
+         "version_map_memory_in_bytes": 0,
+         "fixed_bit_set": "0b",
+         "fixed_bit_set_memory_in_bytes": 0
+      },
+      "percolate": {
+         "total": 0,
+         "get_time": "0s",
+         "time_in_millis": 0,
+         "current": 0,
+         "memory_size_in_bytes": -1,
+         "memory_size": "-1b",
+         "queries": 0
       }
    },
    "nodes": {

@@ -21,54 +21,51 @@ For information about installing the latest Oracle JDK, see http://www.oracle.co
 [[deb-rpm-install]]
 === Installing Shield on a DEB/RPM Package Installation
 
-If you install Elasticsearch as a package or you specify a custom configuration directory, the command line
-tools require you to specify the configuration directory. On Linux systems, add the following line to your
-`.profile` file:
+If you use the DEB/RPM packages to install Elasticsearch, by default Elasticsearch is installed in 
+`/usr/share/elasticsearch` and the configuration files are stored in `/etc/elasticsearch`. (For the 
+complete list of default paths, see {ref}/setup-dir-layout.html#_deb_and_rpm[Directory Layout] in
+the Elasticsearch Reference.)
+
+To install the Shield and License plugins on a DEB/RPM package installation, you need to run 
+`bin/plugin -i` from the `/usr/share/elasticsearch` directory with superuser permissions, and 
+specify the location of the configuration files by setting `-Des.path.conf`. For example:
 
 [source,shell]
 ----------------------------------------------------------
-export ES_JAVA_OPTS="-Des.path.conf=/etc/elasticsearch"
+cd /usr/share/elasticsearch
+sudo bin/plugin -i elasticsearch/license/latest -Des.path.conf=/etc/elasticsearch
+sudo bin/plugin -i elasticsearch/shield/latest -Des.path.conf=/etc/elasticsearch
 ----------------------------------------------------------
 
-NOTE: When using `sudo` to run commands as a different user, the `ES_JAVA_OPTS` setting from your profile will not be
-available in the other user's environment. You can manually pass the environment variables to the command or you can
-make the environment variable available by adding the following line to the `/etc/sudoers` file:
-
-[source,shell]
-----------------------------------------------------------
-Defaults    env_keep += "ES_JAVA_OPTS"
-----------------------------------------------------------
-
-On Windows systems, the `setx` command can be used to specify a custom configuration directory:
-
-[source,shell]
-----------------------------------------------------------
-setx ES_JAVA_OPTS "-Des.path.conf=C:\config"
-----------------------------------------------------------
-
-
-If your server doesn't have direct Internet access, see <<offline-install,Installing Shield on Offline Machines>> for information about downloading the Shield binaries.
+NOTE: If you are using a version of Shield prior to 1.3, you also need to specify the location
+of the configuration files when running `esusers` and `syskeygen`. 
 
 [float]
 [[offline-install]]
 === Installing Shield on Offline Machines
 
-Elasticsearch’s `bin/plugin` script requires direct Internet access for downloading and installing the security plugin.
-If your server doesn’t have Internet access, you can download the required binaries from the following link:
+Elasticsearch’s `bin/plugin` script requires direct Internet access to download and install the 
+License and Shield plugins. If your server doesn’t have Internet access, you can manually 
+download and install the plugins.
 
-[source,sh]
-----------------------------------------------------
-https://download.elastic.co/elasticsearch/shield/shield-1.3.0.zip
-----------------------------------------------------
+To install Shield on a machine that doesn't have Internet access:
 
-Transfer the compressed file to your server, then install the plugin with the `bin/plugin` script:
+. Manually download the appropriate License and Shield binaries: 
+** https://download.elastic.co/elasticsearch/license/license-latest.zip[
+`https://download.elastic.co/elasticsearch/license/license-latest.zip`]
+** https://download.elastic.co/elasticsearch/watcher/shield-latest.zip[
+`https://download.elastic.co/elasticsearch/watcher/shield-latest.zip`]
 
+. Transfer the zip files to the offline machine.
+
+. Run `bin/plugin` with the `-u` option to install the plugins using the zip files. For example:
++
 [source,shell]
-----------------------------------------------------
-bin/plugin install shield -u file://PATH_TO_ZIP_FILE <1>
-----------------------------------------------------
-<1> Absolute path to Shield plugin zip distribution file (e.g. `file:///path/to/file/shield-1.3.0.zip`,
-    note the three slashes at the beginning)
+----------------------------------------------------------
+bin/plugin -i license -u file:///path/to/file/license-latest.zip <1>
+bin/plugin -i watcher -u file:///path/to/file/shield-1.3.2.zip
+----------------------------------------------------------
+<1> Note that you must specify an absolute path to the zip file after the `file://` protocol.
 
 [float]
 [[tribe-node]]

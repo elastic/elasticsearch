@@ -52,6 +52,7 @@ import org.elasticsearch.index.query.functionscore.FunctionScoreModule;
 import org.elasticsearch.index.query.support.QueryParsers;
 import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.index.similarity.SimilarityModule;
+import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.query.IndicesQueriesModule;
@@ -67,8 +68,6 @@ import org.joda.time.DateTimeZone;
 import org.junit.*;
 
 import java.io.IOException;
-import java.util.Arrays;
-
 import static org.hamcrest.Matchers.*;
 
 public abstract class BaseQueryTestCase<QB extends AbstractQueryBuilder<QB>> extends ESTestCase {
@@ -116,7 +115,7 @@ public abstract class BaseQueryTestCase<QB extends AbstractQueryBuilder<QB>> ext
                 new ScriptModule(settings),
                 new IndexSettingsModule(index, settings),
                 new IndexCacheModule(settings),
-                new AnalysisModule(settings),
+                new AnalysisModule(settings, new IndicesAnalysisService(settings)),
                 new SimilarityModule(settings),
                 new IndexNameModule(index),
                 new FunctionScoreModule(),
@@ -432,7 +431,7 @@ public abstract class BaseQueryTestCase<QB extends AbstractQueryBuilder<QB>> ext
         }
         return new Tuple(fieldName, value);
     }
-    
+
     protected static Fuzziness randomFuzziness(String fieldName) {
         Fuzziness fuzziness = Fuzziness.AUTO;
         switch (fieldName) {

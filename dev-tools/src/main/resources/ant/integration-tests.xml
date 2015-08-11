@@ -1,6 +1,5 @@
 <?xml version="1.0"?>
 <project name="elasticsearch-integration-tests">
-
   <!-- our pid file for easy cleanup -->
   <property name="integ.pidfile" location="${integ.scratch}/es.pid"/>
 
@@ -124,11 +123,27 @@
     </sequential>
   </macrodef>
 
+  <!-- waits for cluster to form and have exactly two nodes -->
+  <macrodef name="waitfor-two-nodes">
+    <attribute name="port"/>
+    <attribute name="timeoutproperty"/>
+    <sequential>
+      <echo>Waiting for elasticsearch to form a cluster of two...</echo>
+      <waitfor maxwait="30" maxwaitunit="second"
+               checkevery="500" checkeveryunit="millisecond"
+               timeoutproperty="@{timeoutproperty}">
+        <http url="http://127.0.0.1:@{port}/_cluster/health?wait_for_nodes=2"/>
+      </waitfor>
+    </sequential>
+  </macrodef>
+
   <!-- start elasticsearch and wait until its ready -->
   <macrodef name="startup-elasticsearch">
       <attribute name="home" default="${integ.scratch}/elasticsearch-${elasticsearch.version}"/>
       <attribute name="spawn" default="true"/>
       <attribute name="args" default="${integ.args}"/>
+      <attribute name="es.unicast.enabled" default="false"/>
+      <attribute name="es.unicast.hosts" default=""/>
       <attribute name="es.cluster.name" default="${integ.cluster.name}"/>
       <attribute name="es.http.port" default="${integ.http.port}"/>
       <attribute name="es.transport.tcp.port" default="${integ.transport.port}"/>
@@ -146,6 +161,8 @@
 -Des.pidfile=@{es.pidfile}
 -Des.path.repo=@{home}/repo
 -Des.discovery.zen.ping.multicast.enabled=false
+-Des.discovery.zen.ping.unicast.enabled=@{es.unicast.enabled}
+-Des.discovery.zen.ping.unicast.hosts=@{es.unicast.hosts}
 -Des.script.inline=on
 -Des.script.indexed=on
 -Des.repositories.url.allowed_urls=http://snapshot.test*
@@ -183,7 +200,7 @@
 
       <local name="integ.pid"/>
       <extract-pid file="@{es.pidfile}" property="integ.pid"/>
-      <echo>External cluster started PID ${integ.pid}</echo>
+      <echo>External node started PID ${integ.pid}</echo>
     </sequential>
   </macrodef>
 
@@ -202,6 +219,40 @@
           <replacestring from="-${elasticsearch.version}.zip" to=""/>
         </chain>
       </filter-property>
+    </sequential>
+  </macrodef>
+
+  <macrodef name="stop-node">
+    <attribute name="es.pidfile" default="${integ.pidfile}"/>
+    <sequential>
+      <local name="integ.pid"/>
+
+      <extract-pid file="@{es.pidfile}" property="integ.pid"/>
+      <echo>Shutting down external node PID ${integ.pid}</echo>
+
+      <exec executable="taskkill" failonerror="true" osfamily="winnt">
+        <arg value="/F"/>
+        <arg value="/PID"/>
+        <arg value="${integ.pid}"/>
+      </exec>
+      <exec executable="kill" failonerror="true" osfamily="unix">
+        <arg value="-9"/>
+        <arg value="${integ.pid}"/>
+      </exec>
+      <delete file="@{es.pidfile}"/>
+    </sequential>
+  </macrodef>
+
+  <!-- starts a unicast node on an already setup workspace-->
+  <macrodef name="start-unicast-node">
+    <attribute name="es.http.port" default="${integ.http.port}"/>
+    <attribute name="es.transport.port" default="${integ.transport.port}"/>
+    <attribute name="es.pidfile" default="${integ.pidfile}"/>
+    <attribute name="es.peer.list" />
+    <sequential>
+    <startup-elasticsearch es.pidfile="@{es.pidfile}" es.unicast.enabled="true"
+                           es.transport.tcp.port="@{es.transport.port}" es.http.port="@{es.http.port}"
+                           es.unicast.hosts="@{es.peer.list}"/>
     </sequential>
   </macrodef>
 
@@ -233,21 +284,7 @@
   <!-- TODO, for some more safety, add back some of the old jps logic
        and verify the pid is really an ES process! (fail otherwise) -->
   <target name="stop-external-cluster" if="integ.pidfile.exists">
-    <local name="integ.pid"/>
-
-    <extract-pid file="${integ.pidfile}" property="integ.pid"/>
-    <echo>Shutting down external cluster PID ${integ.pid}</echo>
-
-    <exec executable="taskkill" failonerror="true" osfamily="winnt">
-      <arg value="/F"/>
-      <arg value="/PID"/>
-      <arg value="${integ.pid}"/>
-    </exec>
-    <exec executable="kill" failonerror="true" osfamily="unix">
-      <arg value="-9"/>
-      <arg value="${integ.pid}"/>
-    </exec>
-    <delete file="${integ.pidfile}"/>
+    <stop-node/>
   </target>
 
   <!-- distribution tests: .zip -->

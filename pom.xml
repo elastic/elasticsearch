@@ -115,6 +115,8 @@
         <integ.temp>${integ.scratch}/temp</integ.temp>
         <integ.http.port>9400</integ.http.port>
         <integ.transport.port>9500</integ.transport.port>
+        <integ.http.port.sec>9600</integ.http.port.sec>
+        <integ.transport.port.sec>9700</integ.transport.port.sec>
         <no.commit.pattern>\bno(n|)commit\b</no.commit.pattern>
     </properties>
 

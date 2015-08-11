@@ -21,28 +21,41 @@ package org.elasticsearch.search.highlight;
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Settings;
 
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Set;
 
 /**
  *
  */
 public class Highlighters {
-    private final ImmutableMap<String, Highlighter> parsers;
+
+    private final Map<String, Highlighter> parsers;
 
     @Inject
-    public Highlighters(Set<Highlighter> parsers) {
-        MapBuilder<String, Highlighter> builder = MapBuilder.newMapBuilder();
-        for (Highlighter parser : parsers) {
-            for (String type : parser.names()) {
-                builder.put(type, parser);
-            }
+    public Highlighters(Settings settings, Set<Highlighter> parsers) {
+        // build in highlighers
+        Map<String, Highlighter> map = new HashMap<>();
+        add(map, new FastVectorHighlighter(settings));
+        add(map, new PlainHighlighter());
+        add(map, new PostingsHighlighter());
+        for (Highlighter highlighter : parsers) {
+            add(map, highlighter);
         }
-        this.parsers = builder.immutableMap();
+        this.parsers = Collections.unmodifiableMap(map);
     }
 
     public Highlighter get(String type) {
         return parsers.get(type);
+    }
+
+    private void add(Map<String, Highlighter> map, Highlighter highlighter) {
+        for (String type : highlighter.names()) {
+            map.put(type, highlighter);
+        }
     }
 
 }

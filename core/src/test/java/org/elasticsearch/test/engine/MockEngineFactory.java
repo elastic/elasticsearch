@@ -18,14 +18,18 @@
  */
 package org.elasticsearch.test.engine;
 
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.transport.TransportModule;
 
 /**
  *
  */
 public final class MockEngineFactory implements EngineFactory {
+
     @Override
     public Engine newReadWriteEngine(EngineConfig config, boolean skipTranslogRecovery) {
         return new MockInternalEngine(config, skipTranslogRecovery);

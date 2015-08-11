@@ -31,6 +31,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.plugins.AbstractPlugin;
 import org.elasticsearch.search.SearchHitField;
+import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.InternalSearchHitField;
@@ -110,8 +111,8 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
             return "fetch plugin to test if the plugin mechanism works";
         }
 
-        public void onModule(FetchSubPhaseModule fetchSubPhaseModule) {
-            fetchSubPhaseModule.registerFetchSubPhase(TermVectorsFetchSubPhase.class);
+        public void onModule(SearchModule searchModule) {
+            searchModule.registerFetchSubPhase(TermVectorsFetchSubPhase.class);
         }
     }
 

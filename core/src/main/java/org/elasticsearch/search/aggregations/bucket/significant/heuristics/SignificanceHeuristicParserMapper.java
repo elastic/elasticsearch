@@ -20,28 +20,41 @@
 
 package org.elasticsearch.search.aggregations.bucket.significant.heuristics;
 
-import com.google.common.collect.ImmutableMap;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.script.ScriptService;
 
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Set;
 
 public class SignificanceHeuristicParserMapper {
 
-    protected ImmutableMap<String, SignificanceHeuristicParser> significanceHeuristicParsers;
+    protected final Map<String, SignificanceHeuristicParser> significanceHeuristicParsers;
 
     @Inject
-    public SignificanceHeuristicParserMapper(Set<SignificanceHeuristicParser> parsers) {
-        MapBuilder<String, SignificanceHeuristicParser> builder = MapBuilder.newMapBuilder();
+    public SignificanceHeuristicParserMapper(Set<SignificanceHeuristicParser> parsers, ScriptService scriptService) {
+        Map<String, SignificanceHeuristicParser> map = new HashMap<>();
+        add(map, new JLHScore.JLHScoreParser());
+        add(map, new PercentageScore.PercentageScoreParser());
+        add(map, new MutualInformation.MutualInformationParser());
+        add(map, new ChiSquare.ChiSquareParser());
+        add(map, new GND.GNDParser());
+        add(map, new ScriptHeuristic.ScriptHeuristicParser(scriptService));
         for (SignificanceHeuristicParser parser : parsers) {
-            for (String name : parser.getNames()) {
-                builder.put(name, parser);
-            }
+            add(map, parser);
         }
-        significanceHeuristicParsers = builder.immutableMap();
+        significanceHeuristicParsers = Collections.unmodifiableMap(map);
     }
 
     public SignificanceHeuristicParser get(String parserName) {
         return significanceHeuristicParsers.get(parserName);
+    }
+
+
+    private void add(Map<String, SignificanceHeuristicParser> map, SignificanceHeuristicParser parser) {
+        for (String type : parser.getNames()) {
+            map.put(type, parser);
+        }
     }
 }

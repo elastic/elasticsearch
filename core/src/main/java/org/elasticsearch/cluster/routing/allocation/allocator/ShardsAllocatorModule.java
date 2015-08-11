@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
+import org.elasticsearch.common.Classes;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
@@ -64,8 +65,7 @@ public class ShardsAllocatorModule extends AbstractModule {
             logger.warn("{} allocator has been removed in 2.0 using {} instead", EVEN_SHARD_COUNT_ALLOCATOR_KEY, BALANCED_ALLOCATOR_KEY);
             shardsAllocator = BalancedShardsAllocator.class;
         } else {
-            shardsAllocator = settings.getAsClass(TYPE_KEY, BalancedShardsAllocator.class,
-                    "org.elasticsearch.cluster.routing.allocation.allocator.", "Allocator");
+            throw new IllegalArgumentException("Unknown ShardsAllocator type [" + type + "]");
         }
         return shardsAllocator;
     }

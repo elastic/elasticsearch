@@ -34,6 +34,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
+import org.elasticsearch.snapshots.mockstore.MockRepositoryPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.io.IOException;
@@ -47,10 +48,17 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return settingsBuilder().put(super.nodeSettings(nodeOrdinal))
+            .extendArray("plugin.types", MockRepositoryPlugin.class.getName()).build();
+    }
 
     public static long getFailureCount(String repository) {
         long failureCount = 0;

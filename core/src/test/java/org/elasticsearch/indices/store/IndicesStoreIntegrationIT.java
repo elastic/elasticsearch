@@ -87,7 +87,7 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
                 // which is between 1 and 2 sec can cause each of the shard deletion requests to timeout.
                 // to prevent this we are setting the timeout here to something highish ie. the default in practice
                 .put(IndicesStore.INDICES_STORE_DELETE_SHARD_TIMEOUT, new TimeValue(30, TimeUnit.SECONDS))
-                .put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, MockTransportService.class.getName())
+                .extendArray("plugin.types", MockTransportService.Plugin.class.getName())
                 .build();
     }
 

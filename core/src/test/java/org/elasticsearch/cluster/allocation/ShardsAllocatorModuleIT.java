@@ -47,15 +47,6 @@ public class ShardsAllocatorModuleIT extends ESIntegTestCase {
         assertAllocatorInstance(build, BalancedShardsAllocator.class);
     }
 
-    public void testLoadByClassNameShardsAllocator() throws IOException {
-        Settings build = settingsBuilder().put(ShardsAllocatorModule.TYPE_KEY, "BalancedShards").build();
-        assertAllocatorInstance(build, BalancedShardsAllocator.class);
-
-        build = settingsBuilder().put(ShardsAllocatorModule.TYPE_KEY,
-                "org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator").build();
-        assertAllocatorInstance(build, BalancedShardsAllocator.class);
-    }
-
     private void assertAllocatorInstance(Settings settings, Class<? extends ShardsAllocator> clazz) throws IOException {
         while (cluster().size() != 0) {
             internalCluster().stopRandomDataNode();

@@ -74,7 +74,7 @@ import java.util.List;
 /**
  * The main module for the get (binding all get components together)
  */
-public class AggregationModule extends AbstractModule implements SpawnModules{
+public class AggregationModule extends AbstractModule implements SpawnModules {
 
     private List<Class<? extends Aggregator.Parser>> aggParsers = Lists.newArrayList();
     private List<Class<? extends PipelineAggregator.Parser>> pipelineAggParsers = Lists.newArrayList();

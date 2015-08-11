@@ -303,7 +303,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         logger.info("--> create repository");
         logger.info("--> creating repository");
         PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
-                .setType(MockRepositoryModule.class.getCanonicalName()).setSettings(
+                .setType("mock").setSettings(
                         Settings.settingsBuilder()
                                 .put("location", randomRepoPath())
                                 .put("random", randomAsciiOfLength(10))
@@ -352,7 +352,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         logger.info("--> creating repository");
         Path repo = randomRepoPath();
         PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
-                .setType(MockRepositoryModule.class.getCanonicalName()).setSettings(
+                .setType("mock").setSettings(
                         Settings.settingsBuilder()
                                 .put("location", repo)
                                 .put("random", randomAsciiOfLength(10))

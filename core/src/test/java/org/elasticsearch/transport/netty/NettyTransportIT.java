@@ -33,6 +33,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.plugins.AbstractPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ActionNotFoundTransportException;
@@ -66,7 +67,7 @@ public class NettyTransportIT extends ESIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         return settingsBuilder().put(super.nodeSettings(nodeOrdinal))
                 .put("node.mode", "network")
-                .put(TransportModule.TRANSPORT_TYPE_KEY, ExceptionThrowingNettyTransport.class.getName()).build();
+                .extendArray("plugin.types", ExceptionThrowingNettyTransport.Plugin.class.getName()).build();
     }
 
     @Test
@@ -85,6 +86,24 @@ public class NettyTransportIT extends ESIntegTestCase {
     }
 
     public static final class ExceptionThrowingNettyTransport extends NettyTransport {
+
+        public static class Plugin extends AbstractPlugin {
+            @Override
+            public String name() {
+                return "exception-throwing-netty-transport";
+            }
+            @Override
+            public String description() {
+                return "an exception throwing transport for testing";
+            }
+            public void onModule(TransportModule transportModule) {
+                transportModule.addTransport("exception-throwing", ExceptionThrowingNettyTransport.class);
+            }
+            @Override
+            public Settings additionalSettings() {
+                return Settings.builder().put(TransportModule.TRANSPORT_TYPE_KEY, "exception-throwing").build();
+            }
+        }
 
         @Inject
         public ExceptionThrowingNettyTransport(Settings settings, ThreadPool threadPool, NetworkService networkService, BigArrays bigArrays, Version version, NamedWriteableRegistry namedWriteableRegistry) {

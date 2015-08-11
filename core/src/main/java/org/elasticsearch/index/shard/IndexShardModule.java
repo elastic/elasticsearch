@@ -20,9 +20,11 @@
 package org.elasticsearch.index.shard;
 
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.Classes;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.multibindings.Multibinder;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.cache.query.index.IndexQueryCache;
 import org.elasticsearch.index.engine.IndexSearcherWrapper;
 import org.elasticsearch.index.engine.IndexSearcherWrappingService;
 import org.elasticsearch.index.engine.EngineFactory;
@@ -39,10 +41,6 @@ import org.elasticsearch.index.translog.TranslogService;
 public class IndexShardModule extends AbstractModule {
 
     public static final String ENGINE_FACTORY = "index.engine.factory";
-    private static final Class<? extends EngineFactory> DEFAULT_ENGINE_FACTORY_CLASS = InternalEngineFactory.class;
-
-    private static final String ENGINE_PREFIX = "org.elasticsearch.index.engine.";
-    private static final String ENGINE_SUFFIX = "EngineFactory";
 
     private final ShardId shardId;
     private final Settings settings;
@@ -72,7 +70,13 @@ public class IndexShardModule extends AbstractModule {
             bind(TranslogService.class).asEagerSingleton();
         }
 
-        bind(EngineFactory.class).to(settings.getAsClass(ENGINE_FACTORY, DEFAULT_ENGINE_FACTORY_CLASS, ENGINE_PREFIX, ENGINE_SUFFIX));
+        Class<? extends InternalEngineFactory> engineFactoryClass = InternalEngineFactory.class;
+        String customEngineFactory = settings.get(ENGINE_FACTORY);
+        if (customEngineFactory != null) {
+            // TODO: make this only useable from tests
+            engineFactoryClass = Classes.loadClass(getClass().getClassLoader(), customEngineFactory);
+        }
+        bind(EngineFactory.class).to(engineFactoryClass);
         bind(StoreRecoveryService.class).asEagerSingleton();
         bind(ShardPercolateService.class).asEagerSingleton();
         bind(ShardTermVectorsService.class).asEagerSingleton();

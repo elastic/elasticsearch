@@ -19,17 +19,13 @@
 
 package org.elasticsearch.cache.recycler;
 
-import com.google.common.collect.ImmutableList;
+import org.elasticsearch.common.Classes;
 import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.inject.SpawnModules;
 import org.elasticsearch.common.settings.Settings;
-
-import static org.elasticsearch.common.inject.Modules.createModule;
 
 /**
  */
-public class PageCacheRecyclerModule extends AbstractModule implements SpawnModules {
+public class PageCacheRecyclerModule extends AbstractModule {
 
     public static final String CACHE_IMPL = "cache.recycler.page_cache_impl";
 
@@ -41,10 +37,12 @@ public class PageCacheRecyclerModule extends AbstractModule implements SpawnModu
 
     @Override
     protected void configure() {
-    }
-
-    @Override
-    public Iterable<? extends Module> spawnModules() {
-        return ImmutableList.of(createModule(settings.getAsClass(CACHE_IMPL, DefaultPageCacheRecyclerModule.class), settings));
+        String impl = settings.get(CACHE_IMPL);
+        if (impl == null) {
+            bind(PageCacheRecycler.class).asEagerSingleton();
+        } else {
+            Class<? extends PageCacheRecycler> implClass = Classes.loadClass(getClass().getClassLoader(), impl);
+            bind(PageCacheRecycler.class).to(implClass).asEagerSingleton();
+        }
     }
 }

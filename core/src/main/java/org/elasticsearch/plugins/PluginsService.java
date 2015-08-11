@@ -202,12 +202,11 @@ public class PluginsService extends AbstractComponent {
     }
 
     public Settings updatedSettings() {
-        Settings.Builder builder = Settings.settingsBuilder()
-                .put(this.settings);
+        final Settings.Builder builder = Settings.settingsBuilder();
         for (Tuple<PluginInfo, Plugin> plugin : plugins) {
             builder.put(plugin.v2().additionalSettings());
         }
-        return builder.build();
+        return builder.put(this.settings).build();
     }
 
     public Collection<Class<? extends Module>> modules() {

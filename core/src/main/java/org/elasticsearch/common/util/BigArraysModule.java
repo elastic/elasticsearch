@@ -19,17 +19,15 @@
 
 package org.elasticsearch.common.util;
 
-import com.google.common.collect.ImmutableList;
+import org.elasticsearch.common.Classes;
 import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.inject.SpawnModules;
 import org.elasticsearch.common.settings.Settings;
 
 import static org.elasticsearch.common.inject.Modules.createModule;
 
 /**
  */
-public class BigArraysModule extends AbstractModule implements SpawnModules {
+public class BigArraysModule extends AbstractModule {
 
     public static final String IMPL = "common.util.big_arrays_impl";
 
@@ -41,10 +39,12 @@ public class BigArraysModule extends AbstractModule implements SpawnModules {
 
     @Override
     protected void configure() {
-    }
-
-    @Override
-    public Iterable<? extends Module> spawnModules() {
-        return ImmutableList.of(createModule(settings.getAsClass(IMPL, DefaultBigArraysModule.class), settings));
+        String impl = settings.get(IMPL);
+        if (impl == null) {
+            bind(BigArrays.class).asEagerSingleton();
+        } else {
+            Class<? extends BigArrays> implClass = Classes.loadClass(getClass().getClassLoader(), impl);
+            bind(BigArrays.class).to(implClass).asEagerSingleton();
+        }
     }
 }

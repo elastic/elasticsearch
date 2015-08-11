@@ -20,6 +20,7 @@
 package org.elasticsearch.transport;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.Maps;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -29,6 +30,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.transport.local.LocalTransport;
 import org.elasticsearch.transport.netty.NettyTransport;
 
+import java.util.Map;
+
 /**
  *
  */
@@ -37,9 +40,14 @@ public class TransportModule extends AbstractModule {
     public static final String TRANSPORT_TYPE_KEY = "transport.type";
     public static final String TRANSPORT_SERVICE_TYPE_KEY = "transport.service.type";
 
+    public static final String LOCAL_TRANSPORT = "local";
+    public static final String NETTY_TRANSPORT = "netty";
+
     private final ESLogger logger;
     private final Settings settings;
 
+    private final Map<String, Class<? extends TransportService>> transportServices = Maps.newHashMap();
+    private final Map<String, Class<? extends Transport>> transports = Maps.newHashMap();
     private Class<? extends TransportService> configuredTransportService;
     private Class<? extends Transport> configuredTransport;
     private String configuredTransportServiceSource;
@@ -48,6 +56,22 @@ public class TransportModule extends AbstractModule {
     public TransportModule(Settings settings) {
         this.settings = settings;
         this.logger = Loggers.getLogger(getClass(), settings);
+        addTransport(LOCAL_TRANSPORT, LocalTransport.class);
+        addTransport(NETTY_TRANSPORT, NettyTransport.class);
+    }
+
+    public void addTransportService(String name, Class<? extends TransportService> clazz) {
+        Class<? extends TransportService> oldClazz = transportServices.put(name, clazz);
+        if (oldClazz != null) {
+            throw new IllegalArgumentException("Cannot register TransportService [" + name + "] to " + clazz.getName() + ", already registered to " + oldClazz.getName());
+        }
+    }
+
+    public void addTransport(String name, Class<? extends Transport> clazz) {
+        Class<? extends Transport> oldClazz = transports.put(name, clazz);
+        if (oldClazz != null) {
+            throw new IllegalArgumentException("Cannot register Transport [" + name + "] to " + clazz.getName() + ", already registered to " + oldClazz.getName());
+        }
     }
 
     @Override
@@ -56,12 +80,14 @@ public class TransportModule extends AbstractModule {
             logger.info("Using [{}] as transport service, overridden by [{}]", configuredTransportService.getName(), configuredTransportServiceSource);
             bind(TransportService.class).to(configuredTransportService).asEagerSingleton();
         } else {
-            Class<? extends TransportService> defaultTransportService = TransportService.class;
-            Class<? extends TransportService> transportService = settings.getAsClass(TRANSPORT_SERVICE_TYPE_KEY, defaultTransportService, "org.elasticsearch.transport.", "TransportService");
-            if (!TransportService.class.equals(transportService)) {
-                bind(TransportService.class).to(transportService).asEagerSingleton();
-            } else {
+            String typeName = settings.get(TRANSPORT_SERVICE_TYPE_KEY);
+            if (typeName == null) {
                 bind(TransportService.class).asEagerSingleton();
+            } else {
+                if (transportServices.containsKey(typeName) == false) {
+                    throw new IllegalArgumentException("Unknown TransportService [" + typeName + "]");
+                }
+                bind(TransportService.class).to(transportServices.get(typeName)).asEagerSingleton();
             }
         }
 
@@ -71,9 +97,13 @@ public class TransportModule extends AbstractModule {
             logger.info("Using [{}] as transport, overridden by [{}]", configuredTransport.getName(), configuredTransportSource);
             bind(Transport.class).to(configuredTransport).asEagerSingleton();
         } else {
-            Class<? extends Transport> defaultTransport = DiscoveryNode.localNode(settings) ? LocalTransport.class : NettyTransport.class;
-            Class<? extends Transport> transport = settings.getAsClass(TRANSPORT_TYPE_KEY, defaultTransport, "org.elasticsearch.transport.", "Transport");
-            bind(Transport.class).to(transport).asEagerSingleton();
+            String defaultType = DiscoveryNode.localNode(settings) ? LOCAL_TRANSPORT : NETTY_TRANSPORT;
+            String typeName = settings.get(TRANSPORT_TYPE_KEY, defaultType);
+            Class<? extends Transport> clazz = transports.get(typeName);
+            if (clazz == null) {
+                throw new IllegalArgumentException("Unknown Transport [" + typeName + "]");
+            }
+            bind(Transport.class).to(clazz).asEagerSingleton();
         }
     }
 

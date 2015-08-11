@@ -35,6 +35,7 @@ import org.elasticsearch.env.EnvironmentModule;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNameModule;
 import org.elasticsearch.index.analysis.compound.DictionaryCompoundWordTokenFilterFactory;
+import org.elasticsearch.index.analysis.filter1.MyFilterTokenFilterFactory;
 import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.indices.analysis.IndicesAnalysisModule;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
@@ -58,10 +59,12 @@ public class CompoundAnalysisTests extends ESTestCase {
         Index index = new Index("test");
         Settings settings = getJsonSettings();
         Injector parentInjector = new ModulesBuilder().add(new SettingsModule(settings), new EnvironmentModule(new Environment(settings)), new IndicesAnalysisModule()).createInjector();
+        AnalysisModule analysisModule = new AnalysisModule(settings, parentInjector.getInstance(IndicesAnalysisService.class));
+        analysisModule.addTokenFilter("myfilter", MyFilterTokenFilterFactory.class);
         Injector injector = new ModulesBuilder().add(
                 new IndexSettingsModule(index, settings),
                 new IndexNameModule(index),
-                new AnalysisModule(settings, parentInjector.getInstance(IndicesAnalysisService.class)))
+                analysisModule)
                 .createChildInjector(parentInjector);
 
         AnalysisService analysisService = injector.getInstance(AnalysisService.class);
@@ -83,10 +86,12 @@ public class CompoundAnalysisTests extends ESTestCase {
     private List<String> analyze(Settings settings, String analyzerName, String text) throws IOException {
         Index index = new Index("test");
         Injector parentInjector = new ModulesBuilder().add(new SettingsModule(settings), new EnvironmentModule(new Environment(settings)), new IndicesAnalysisModule()).createInjector();
+        AnalysisModule analysisModule = new AnalysisModule(settings, parentInjector.getInstance(IndicesAnalysisService.class));
+        analysisModule.addTokenFilter("myfilter", MyFilterTokenFilterFactory.class);
         Injector injector = new ModulesBuilder().add(
                 new IndexSettingsModule(index, settings),
                 new IndexNameModule(index),
-                new AnalysisModule(settings, parentInjector.getInstance(IndicesAnalysisService.class)))
+                analysisModule)
                 .createChildInjector(parentInjector);
 
         AnalysisService analysisService = injector.getInstance(AnalysisService.class);

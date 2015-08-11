@@ -67,11 +67,13 @@ public class AnalysisModuleTests extends ESTestCase {
     public AnalysisService getAnalysisService(Settings settings) {
         Index index = new Index("test");
         Injector parentInjector = new ModulesBuilder().add(new SettingsModule(settings), new EnvironmentModule(new Environment(settings)), new IndicesAnalysisModule()).createInjector();
+        AnalysisModule analysisModule = new AnalysisModule(settings, parentInjector.getInstance(IndicesAnalysisService.class));
+        analysisModule.addTokenFilter("myfilter", MyFilterTokenFilterFactory.class);
         injector = new ModulesBuilder().add(
                 new IndexSettingsModule(index, settings),
                 new IndexNameModule(index),
-                new AnalysisModule(settings, parentInjector.getInstance(IndicesAnalysisService.class)))
-                .createChildInjector(parentInjector);
+                analysisModule)
+            .createChildInjector(parentInjector);
 
         return injector.getInstance(AnalysisService.class);
     }

@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.cache.query;
 
+import org.elasticsearch.cluster.metadata.AliasOrIndex;
+import org.elasticsearch.common.Classes;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Scopes;
 import org.elasticsearch.common.settings.Settings;
@@ -43,8 +45,12 @@ public class QueryCacheModule extends AbstractModule {
 
     @Override
     protected void configure() {
-        bind(QueryCache.class)
-                .to(settings.getAsClass(QueryCacheSettings.QUERY_CACHE_TYPE, IndexQueryCache.class, "org.elasticsearch.index.cache.query.", "QueryCache"))
-                .in(Scopes.SINGLETON);
+        Class<? extends IndexQueryCache> queryCacheClass = IndexQueryCache.class;
+        String customQueryCache = settings.get(QueryCacheSettings.QUERY_CACHE_TYPE);
+        if (customQueryCache != null) {
+            // TODO: make this only useable from tests
+            queryCacheClass = Classes.loadClass(getClass().getClassLoader(), customQueryCache);
+        }
+        bind(QueryCache.class).to(queryCacheClass).in(Scopes.SINGLETON);
     }
 }

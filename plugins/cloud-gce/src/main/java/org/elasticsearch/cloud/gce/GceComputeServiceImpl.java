@@ -45,7 +45,7 @@ import java.util.List;
 /**
  *
  */
-public class GceComputeServiceImpl extends AbstractLifecycleComponent<GceComputeServiceImpl>
+public class GceComputeServiceImpl extends AbstractLifecycleComponent<GceComputeService>
     implements GceComputeService {
 
     private final String project;

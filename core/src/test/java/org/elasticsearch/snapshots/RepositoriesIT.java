@@ -33,12 +33,14 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.RepositoryVerificationException;
 import org.elasticsearch.snapshots.mockstore.MockRepositoryModule;
+import org.elasticsearch.snapshots.mockstore.MockRepositoryPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
 import java.nio.file.Path;
 import java.util.List;
 
+import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
 import static org.hamcrest.Matchers.containsString;
@@ -211,12 +213,12 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
                 .put("random_control_io_exception_rate", 1.0).build();
         logger.info("-->  creating repository that cannot write any files - should fail");
         assertThrows(client.admin().cluster().preparePutRepository("test-repo-1")
-                        .setType(MockRepositoryModule.class.getCanonicalName()).setSettings(settings),
+                        .setType("mock").setSettings(settings),
                 RepositoryVerificationException.class);
 
         logger.info("-->  creating repository that cannot write any files, but suppress verification - should be acked");
         assertAcked(client.admin().cluster().preparePutRepository("test-repo-1")
-                .setType(MockRepositoryModule.class.getCanonicalName()).setSettings(settings).setVerify(false));
+                .setType("mock").setSettings(settings).setVerify(false));
 
         logger.info("-->  verifying repository");
         assertThrows(client.admin().cluster().prepareVerifyRepository("test-repo-1"), RepositoryVerificationException.class);
@@ -226,7 +228,7 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
         logger.info("-->  creating repository");
         try {
             client.admin().cluster().preparePutRepository("test-repo-1")
-                    .setType(MockRepositoryModule.class.getCanonicalName())
+                    .setType("mock")
                     .setSettings(Settings.settingsBuilder()
                                     .put("location", location)
                                     .put("localize_location", true)
@@ -246,12 +248,12 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
                 .put("random_control_io_exception_rate", 1.0).build();
         logger.info("-->  creating repository that cannot write any files - should fail");
         assertThrows(client.admin().cluster().preparePutRepository("test-repo-1")
-                        .setType(MockRepositoryModule.class.getCanonicalName()).setSettings(settings),
+                        .setType("mock").setSettings(settings),
                 RepositoryVerificationException.class);
 
         logger.info("-->  creating repository that cannot write any files, but suppress verification - should be acked");
         assertAcked(client.admin().cluster().preparePutRepository("test-repo-1")
-                .setType(MockRepositoryModule.class.getCanonicalName()).setSettings(settings).setVerify(false));
+                .setType("mock").setSettings(settings).setVerify(false));
 
         logger.info("-->  verifying repository");
         assertThrows(client.admin().cluster().prepareVerifyRepository("test-repo-1"), RepositoryVerificationException.class);
@@ -261,7 +263,7 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
         logger.info("-->  creating repository");
         try {
             client.admin().cluster().preparePutRepository("test-repo-1")
-                    .setType(MockRepositoryModule.class.getCanonicalName())
+                    .setType("mock")
                     .setSettings(Settings.settingsBuilder()
                                     .put("location", location)
                                     .put("localize_location", true)

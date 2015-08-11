@@ -16,6 +16,7 @@
 
     <properties>
         <elasticsearch.thirdparty.config>shaded</elasticsearch.thirdparty.config>
+        <skip.unit.tests>true</skip.unit.tests>
     </properties>
 
     <dependencies>

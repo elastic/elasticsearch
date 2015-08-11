@@ -27,6 +27,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.junit.annotations.Network;
+import org.elasticsearch.test.transport.AssertingLocalTransport;
+import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportModule;
 import org.junit.Test;
 
@@ -49,23 +51,23 @@ public class NettyTransportMultiPortIntegrationIT extends ESIntegTestCase {
             randomPort = randomIntBetween(49152, 65525);
             randomPortRange = String.format(Locale.ROOT, "%s-%s", randomPort, randomPort+10);
         }
-        return settingsBuilder()
+        Settings.Builder builder = settingsBuilder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put("network.host", "127.0.0.1")
-                .put(TransportModule.TRANSPORT_TYPE_KEY, NettyTransport.class.getName())
+                .put(TransportModule.TRANSPORT_TYPE_KEY, "netty")
                 .put("node.mode", "network")
                 .put("transport.profiles.client1.port", randomPortRange)
                 .put("transport.profiles.client1.publish_host", "127.0.0.7")
                 .put("transport.profiles.client1.publish_port", "4321")
-                .put("transport.profiles.client1.reuse_address", true)
-                .build();
+                .put("transport.profiles.client1.reuse_address", true);
+        return builder.build();
     }
 
     @Test
     public void testThatTransportClientCanConnect() throws Exception {
         Settings settings = settingsBuilder()
                 .put("cluster.name", internalCluster().getClusterName())
-                .put(TransportModule.TRANSPORT_TYPE_KEY, NettyTransport.class.getName())
+                .put(TransportModule.TRANSPORT_TYPE_KEY, "netty")
                 .put("path.home", createTempDir().toString())
                 .build();
         try (TransportClient transportClient = TransportClient.builder().settings(settings).loadConfigSettings(false).build()) {

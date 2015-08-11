@@ -24,6 +24,8 @@ import org.elasticsearch.cloud.aws.AwsModule;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.discovery.DiscoveryModule;
+import org.elasticsearch.discovery.ec2.Ec2Discovery;
 import org.elasticsearch.plugins.AbstractPlugin;
 import org.elasticsearch.repositories.RepositoriesModule;
 import org.elasticsearch.repositories.s3.S3Repository;
@@ -57,7 +59,7 @@ public class CloudAwsPlugin extends AbstractPlugin {
     public Collection<Module> modules(Settings settings) {
         Collection<Module> modules = new ArrayList<>();
         if (settings.getAsBoolean("cloud.enabled", true)) {
-            modules.add(new AwsModule(settings));
+            modules.add(new AwsModule());
         }
         return modules;
     }
@@ -66,7 +68,7 @@ public class CloudAwsPlugin extends AbstractPlugin {
     public Collection<Class<? extends LifecycleComponent>> services() {
         Collection<Class<? extends LifecycleComponent>> services = new ArrayList<>();
         if (settings.getAsBoolean("cloud.enabled", true)) {
-            services.add(AwsModule.getS3ServiceClass(settings));
+            services.add(AwsModule.getS3ServiceImpl());
             services.add(AwsEc2Service.class);
         }
         return services;
@@ -76,5 +78,9 @@ public class CloudAwsPlugin extends AbstractPlugin {
         if (settings.getAsBoolean("cloud.enabled", true)) {
             repositoriesModule.registerRepository(S3Repository.TYPE, S3RepositoryModule.class);
         }
+    }
+
+    public void onModule(DiscoveryModule discoveryModule) {
+        discoveryModule.addDiscoveryType("ec2", Ec2Discovery.class);
     }
 }

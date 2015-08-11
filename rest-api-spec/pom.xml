@@ -4,6 +4,7 @@
   <artifactId>elasticsearch-rest-api-spec</artifactId>
   <version>2.0.0-beta1-SNAPSHOT</version>
   <name>Elasticsearch Rest API Spec</name>
+  <description>REST API Specification and tests for use with the Elasticsearch REST Test framework</description>
   <parent>
       <groupId>org.sonatype.oss</groupId>
       <artifactId>oss-parent</artifactId>

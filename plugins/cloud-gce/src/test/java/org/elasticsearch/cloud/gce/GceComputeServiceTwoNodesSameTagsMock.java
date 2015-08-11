@@ -17,22 +17,36 @@
  * under the License.
  */
 
-package org.elasticsearch.discovery.gce.mock;
+package org.elasticsearch.cloud.gce;
 
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.discovery.gce.mock.GceComputeServiceAbstractMock;
+import org.elasticsearch.plugins.AbstractPlugin;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-/**
- *
- */
-public class GceComputeServiceTwoNodesDifferentTagsMock extends GceComputeServiceAbstractMock {
+public class GceComputeServiceTwoNodesSameTagsMock extends GceComputeServiceAbstractMock {
+    public static class Plugin extends AbstractPlugin {
+        @Override
+        public String name() {
+            return "mock-compute-service";
+        }
+        @Override
+        public String description() {
+            return "a mock compute service for testing";
+        }
+        public void onModule(GceModule gceModule) {
+            gceModule.computeServiceImpl = GceComputeServiceTwoNodesSameTagsMock.class;
+        }
+    }
+
     private static List<List<String>> tags = Arrays.asList(
-            Arrays.asList("dev"),
+            Arrays.asList("elasticsearch", "dev"),
             Arrays.asList("elasticsearch", "dev"));
+
 
     @Override
     protected List<List<String>> getTags() {
@@ -41,11 +55,11 @@ public class GceComputeServiceTwoNodesDifferentTagsMock extends GceComputeServic
 
     @Override
     protected List<String> getZones() {
-        return new ArrayList();
+        return new ArrayList<>();
     }
 
     @Inject
-    protected GceComputeServiceTwoNodesDifferentTagsMock(Settings settings) {
+    protected GceComputeServiceTwoNodesSameTagsMock(Settings settings) {
         super(settings);
     }
 }

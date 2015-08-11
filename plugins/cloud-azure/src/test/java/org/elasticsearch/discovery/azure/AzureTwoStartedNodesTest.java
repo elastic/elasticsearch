@@ -19,9 +19,10 @@
 
 package org.elasticsearch.discovery.azure;
 
+import org.elasticsearch.cloud.azure.AbstractAzureComputeServiceTest;
 import org.elasticsearch.cloud.azure.management.AzureComputeService.Discovery;
 import org.elasticsearch.cloud.azure.management.AzureComputeService.Management;
-import org.elasticsearch.cloud.azure.management.AzureComputeServiceTwoNodesMock;
+import org.elasticsearch.cloud.azure.AzureComputeServiceTwoNodesMock;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
@@ -35,7 +36,7 @@ import static org.hamcrest.Matchers.notNullValue;
 public class AzureTwoStartedNodesTest extends AbstractAzureComputeServiceTest {
 
     public AzureTwoStartedNodesTest() {
-        super(AzureComputeServiceTwoNodesMock.class);
+        super(AzureComputeServiceTwoNodesMock.Plugin.class.getName());
     }
 
     @Test
@@ -43,8 +44,7 @@ public class AzureTwoStartedNodesTest extends AbstractAzureComputeServiceTest {
     public void two_nodes_should_run_using_private_ip() {
         Settings.Builder settings = Settings.settingsBuilder()
                 .put(Management.SERVICE_NAME, "dummy")
-                .put(Discovery.HOST_TYPE, "private_ip")
-                .put(super.settingsBuilder());
+                .put(Discovery.HOST_TYPE, "private_ip");
 
         logger.info("--> start first node");
         internalCluster().startNode(settings);
@@ -63,8 +63,7 @@ public class AzureTwoStartedNodesTest extends AbstractAzureComputeServiceTest {
     public void two_nodes_should_run_using_public_ip() {
         Settings.Builder settings = Settings.settingsBuilder()
                 .put(Management.SERVICE_NAME, "dummy")
-                .put(Discovery.HOST_TYPE, "public_ip")
-                .put(super.settingsBuilder());
+                .put(Discovery.HOST_TYPE, "public_ip");
 
         logger.info("--> start first node");
         internalCluster().startNode(settings);

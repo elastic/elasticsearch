@@ -608,7 +608,12 @@ public final class ShardRouting implements Streamable, ToXContent {
             return false;
         }
         ShardRouting that = (ShardRouting) o;
-        // TODO: add version + unassigned info check. see #12387
+        if (version != that.version) {
+            return false;
+        }
+        if (unassignedInfo != null ? !unassignedInfo.equals(that.unassignedInfo) : that.unassignedInfo != null) {
+            return false;
+        }
         return equalsIgnoringMetaData(that);
     }
 
@@ -626,8 +631,10 @@ public final class ShardRouting implements Streamable, ToXContent {
         result = 31 * result + (relocatingNodeId != null ? relocatingNodeId.hashCode() : 0);
         result = 31 * result + (primary ? 1 : 0);
         result = 31 * result + (state != null ? state.hashCode() : 0);
+        result = 31 * result + (int) (version ^ (version >>> 32));
         result = 31 * result + (restoreSource != null ? restoreSource.hashCode() : 0);
         result = 31 * result + (allocationId != null ? allocationId.hashCode() : 0);
+        result = 31 * result + (unassignedInfo != null ? unassignedInfo.hashCode() : 0);
         return hashCode = result;
     }
 

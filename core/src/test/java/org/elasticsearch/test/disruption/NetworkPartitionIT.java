@@ -35,7 +35,7 @@ public class NetworkPartitionIT extends ESIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
-                .put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, MockTransportService.class.getName())
+                .put("plugin.types", MockTransportService.Plugin.class.getName())
                 .build();
     }
 

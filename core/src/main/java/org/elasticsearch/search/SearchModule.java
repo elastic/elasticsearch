@@ -33,15 +33,7 @@ import org.elasticsearch.search.controller.SearchPhaseController;
 import org.elasticsearch.search.dfs.DfsPhase;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseModule;
-import org.elasticsearch.search.fetch.explain.ExplainFetchSubPhase;
-import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsFetchSubPhase;
-import org.elasticsearch.search.fetch.innerhits.InnerHitsFetchSubPhase;
-import org.elasticsearch.search.fetch.matchedqueries.MatchedQueriesFetchSubPhase;
-import org.elasticsearch.search.fetch.script.ScriptFieldsFetchSubPhase;
-import org.elasticsearch.search.fetch.source.FetchSourceSubPhase;
-import org.elasticsearch.search.fetch.version.VersionFetchSubPhase;
 import org.elasticsearch.search.highlight.HighlightModule;
-import org.elasticsearch.search.highlight.HighlightPhase;
 import org.elasticsearch.search.query.QueryPhase;
 import org.elasticsearch.search.suggest.SuggestModule;
 

@@ -29,6 +29,7 @@ import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.SearcherManager;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.Classes;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
@@ -87,7 +88,13 @@ public final class MockEngineSupport {
         final long seed = indexSettings.getAsLong(ESIntegTestCase.SETTING_INDEX_SEED, 0l);
         Random random = new Random(seed);
         final double ratio = indexSettings.getAsDouble(WRAP_READER_RATIO, 0.0d); // DISABLED by default - AssertingDR is crazy slow
-        Class<? extends AssertingDirectoryReader> wrapper = indexSettings.getAsClass(READER_WRAPPER_TYPE, AssertingDirectoryReader.class);
+        String readerWrapperType = indexSettings.get(READER_WRAPPER_TYPE);
+        Class<? extends AssertingDirectoryReader > wrapper;
+        if (readerWrapperType == null) {
+            wrapper = AssertingDirectoryReader.class;
+        } else {
+            wrapper = Classes.loadClass(getClass().getClassLoader(), readerWrapperType);
+        }
         boolean wrapReader = random.nextDouble() < ratio;
         if (logger.isTraceEnabled()) {
             logger.trace("Using [{}] for shard [{}] seed: [{}] wrapReader: [{}]", this.getClass().getName(), shardId, seed, wrapReader);

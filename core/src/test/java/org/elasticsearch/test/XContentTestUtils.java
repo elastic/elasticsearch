@@ -46,58 +46,80 @@ public final class XContentTestUtils {
 
 
     /**
-     * Compares to maps generated from XContentObjects. The order of elements in arrays is ignored
+     * Compares to maps generated from XContentObjects. The order of elements in arrays is ignored.
+     *
+     * @return null if maps are equal or path to the element where the difference was found
      */
-    public static boolean mapsEqualIgnoringArrayOrder(Map<String, Object> first, Map<String, Object> second) {
+    public static String differenceBetweenMapsIgnoringArrayOrder(Map<String, Object> first, Map<String, Object> second) {
+        return differenceBetweenMapsIgnoringArrayOrder("", first, second);
+    }
+
+    private static String differenceBetweenMapsIgnoringArrayOrder(String path, Map<String, Object> first, Map<String, Object> second) {
         if (first.size() != second.size()) {
-            return false;
+            return path + ": sizes of the maps don't match: " + first.size() + " != " + second.size();
         }
 
         for (String key : first.keySet()) {
-            if (objectsEqualIgnoringArrayOrder(first.get(key), second.get(key)) == false) {
-                return false;
+            String reason = differenceBetweenObjectsIgnoringArrayOrder(path + "/" + key, first.get(key), second.get(key));
+            if (reason != null) {
+                return reason;
             }
         }
-        return true;
+        return null;
     }
 
     @SuppressWarnings("unchecked")
-    private static boolean objectsEqualIgnoringArrayOrder(Object first, Object second) {
-        if (first == null ) {
-            return second == null;
+    private static String differenceBetweenObjectsIgnoringArrayOrder(String path, Object first, Object second) {
+        if (first == null) {
+            if (second == null) {
+                return null;
+            } else {
+                return path + ": first element is null, the second element is not null";
+            }
         } else if (first instanceof List) {
-            if (second instanceof  List) {
+            if (second instanceof List) {
                 List<Object> secondList = Lists.newArrayList((List<Object>) second);
                 List<Object> firstList = (List<Object>) first;
                 if (firstList.size() == secondList.size()) {
+                    String reason = path + ": no matches found";
                     for (Object firstObj : firstList) {
                         boolean found = false;
                         for (Object secondObj : secondList) {
-                            if (objectsEqualIgnoringArrayOrder(firstObj, secondObj)) {
+                            reason = differenceBetweenObjectsIgnoringArrayOrder(path + "/*", firstObj, secondObj);
+                            if (reason == null) {
                                 secondList.remove(secondObj);
                                 found = true;
                                 break;
                             }
                         }
                         if (found == false) {
-                            return false;
+                            return reason;
                         }
                     }
-                    return secondList.isEmpty();
+                    if (secondList.isEmpty()) {
+                        return null;
+                    } else {
+                        return path + ": the second list is not empty";
+                    }
                 } else {
-                    return false;
+                    return path + ": sizes of the arrays don't match: " + firstList.size() + " != " + secondList.size();
                 }
             } else {
-                return false;
+                return path + ": the second element is not an array";
             }
         } else if (first instanceof Map) {
             if (second instanceof Map) {
-                return mapsEqualIgnoringArrayOrder((Map<String, Object>) first, (Map<String, Object>) second);
+                return differenceBetweenMapsIgnoringArrayOrder(path, (Map<String, Object>) first, (Map<String, Object>) second);
             } else {
-                return false;
+                return path + ": the second element is not a map";
             }
         } else {
-            return first.equals(second);
+            if (first.equals(second)) {
+                return null;
+            } else {
+                return path + ": the elements don't match: [" + first + "] != [" + second + "]";
+            }
+
         }
     }
 

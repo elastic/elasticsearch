@@ -293,4 +293,27 @@ public class UnassignedInfo implements ToXContent, Writeable<UnassignedInfo> {
         builder.endObject();
         return builder;
     }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        UnassignedInfo that = (UnassignedInfo) o;
+
+        if (timestamp != that.timestamp) return false;
+        if (reason != that.reason) return false;
+        if (message != null ? !message.equals(that.message) : that.message != null) return false;
+        return !(failure != null ? !failure.equals(that.failure) : that.failure != null);
+
+    }
+
+    @Override
+    public int hashCode() {
+        int result = reason != null ? reason.hashCode() : 0;
+        result = 31 * result + (int) (timestamp ^ (timestamp >>> 32));
+        result = 31 * result + (message != null ? message.hashCode() : 0);
+        result = 31 * result + (failure != null ? failure.hashCode() : 0);
+        return result;
+    }
 }

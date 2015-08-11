@@ -19,9 +19,10 @@
 
 package org.elasticsearch.discovery.azure;
 
+import org.elasticsearch.cloud.azure.AbstractAzureComputeServiceTest;
 import org.elasticsearch.cloud.azure.management.AzureComputeService.Discovery;
 import org.elasticsearch.cloud.azure.management.AzureComputeService.Management;
-import org.elasticsearch.cloud.azure.management.AzureComputeServiceSimpleMock;
+import org.elasticsearch.cloud.azure.AzureComputeServiceSimpleMock;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
@@ -35,15 +36,14 @@ import static org.hamcrest.Matchers.notNullValue;
 public class AzureSimpleTest extends AbstractAzureComputeServiceTest {
 
     public AzureSimpleTest() {
-        super(AzureComputeServiceSimpleMock.class);
+        super(AzureComputeServiceSimpleMock.Plugin.class.getName());
     }
 
     @Test
     public void one_node_should_run_using_private_ip() {
         Settings.Builder settings = Settings.settingsBuilder()
                 .put(Management.SERVICE_NAME, "dummy")
-                .put(Discovery.HOST_TYPE, "private_ip")
-                .put(super.settingsBuilder());
+                .put(Discovery.HOST_TYPE, "private_ip");
 
         logger.info("--> start one node");
         internalCluster().startNode(settings);
@@ -57,8 +57,7 @@ public class AzureSimpleTest extends AbstractAzureComputeServiceTest {
     public void one_node_should_run_using_public_ip() {
         Settings.Builder settings = Settings.settingsBuilder()
                 .put(Management.SERVICE_NAME, "dummy")
-                .put(Discovery.HOST_TYPE, "public_ip")
-                .put(super.settingsBuilder());
+                .put(Discovery.HOST_TYPE, "public_ip");
 
         logger.info("--> start one node");
         internalCluster().startNode(settings);
@@ -72,8 +71,7 @@ public class AzureSimpleTest extends AbstractAzureComputeServiceTest {
     public void one_node_should_run_using_wrong_settings() {
         Settings.Builder settings = Settings.settingsBuilder()
                 .put(Management.SERVICE_NAME, "dummy")
-                .put(Discovery.HOST_TYPE, "do_not_exist")
-                .put(super.settingsBuilder());
+                .put(Discovery.HOST_TYPE, "do_not_exist");
 
         logger.info("--> start one node");
         internalCluster().startNode(settings);

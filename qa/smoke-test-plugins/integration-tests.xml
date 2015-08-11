@@ -18,6 +18,64 @@
     </sequential>
   </macrodef>
 
+  <!-- FIXME remove this redefinition and fix in core -->
+  <macrodef name="startup-elasticsearch">
+    <attribute name="home" default="${integ.scratch}/elasticsearch-${elasticsearch.version}"/>
+    <attribute name="spawn" default="true"/>
+    <attribute name="args" default="${integ.args}"/>
+    <attribute name="es.unicast.enabled" default="false"/>
+    <attribute name="es.unicast.hosts" default=""/>
+    <attribute name="es.cluster.name" default="${integ.cluster.name}"/>
+    <attribute name="es.http.port" default="${integ.http.port}"/>
+    <attribute name="es.transport.tcp.port" default="${integ.transport.port}"/>
+    <attribute name="es.pidfile" default="${integ.pidfile}"/>
+    <attribute name="jvm.args" default="${tests.jvm.argline}"/>
+    <element name="nestedA" optional="true"/>
+    <sequential>
+      <!-- run bin/elasticsearch with args -->
+      <echo>Starting up external cluster...</echo>
+
+      <run-script script="@{home}/bin/elasticsearch"
+                  spawn="@{spawn}">
+        <nested>
+          <env key="JAVA_HOME" value="${java.home}"/>
+          <!-- we pass these as gc options, even if they arent, to avoid conflicting gc options -->
+          <env key="ES_GC_OPTS" value="@{jvm.args}"/>
+          <arg value="-Des.cluster.name=@{es.cluster.name}"/>
+          <arg value="-Des.http.port=@{es.http.port}"/>
+          <arg value="-Des.transport.tcp.port=@{es.transport.tcp.port}"/>
+          <arg value="-Des.pidfile=@{es.pidfile}"/>
+          <arg value="-Des.discovery.zen.ping.unicast.enabled=@{es.unicast.enabled}"/>
+          <arg value="-Des.discovery.zen.ping.unicast.hosts=@{es.unicast.hosts}"/>
+          <arg value="-Des.path.repo=@{home}/repo"/>
+          <arg value="-Des.discovery.zen.ping.multicast.enabled=false"/>
+          <arg value="-Des.script.inline=on"/>
+          <arg value="-Des.script.indexed=on"/>
+          <arg value="-Des.repositories.url.allowed_urls=http://snapshot.test*"/>
+          <nestedA/>
+        </nested>
+      </run-script>
+
+      <!-- wait for startup -->
+      <local name="failed.to.start"/>
+      <waitfor-elasticsearch port="@{es.http.port}"
+                             timeoutproperty="failed.to.start"/>
+
+      <!-- best effort, print console log. useful if it fails especially -->
+      <local name="log.contents"/>
+      <loadfile srcFile="@{home}/logs/@{es.cluster.name}.log"
+                property="log.contents"
+                failonerror="false"/>
+      <echo message="${log.contents}" taskname="elasticsearch"/>
+
+      <fail message="ES instance did not start" if="failed.to.start"/>
+
+      <local name="integ.pid"/>
+      <extract-pid file="@{es.pidfile}" property="integ.pid"/>
+      <echo>External node started PID ${integ.pid}</echo>
+    </sequential>
+  </macrodef>
+
   <target name="start-external-cluster-with-plugins" depends="setup-workspace">
     <ac:for list="${xplugins.list}" param="xplugin.name">
       <sequential>
@@ -46,10 +104,32 @@
     <property name="home" location="${integ.scratch}/elasticsearch-${elasticsearch.version}"/>
 
     <echo>Setting up Shield auth</echo>
-    <run-script script="${home}/bin/shield/esusers" args="useradd test_user -p changeme -r admin"/>
-    <run-script script="${home}/bin/shield/esusers" args="useradd marvel_export -p changeme -r marvel_agent"/>
+    <run-script script="${home}/bin/shield/esusers">
+      <nested>
+        <arg value="useradd"/>
+        <arg value="test_user"/>
+        <arg value="-p"/>
+        <arg value="changeme"/>
+        <arg value="-r"/>
+        <arg value="admin"/>
+      </nested>
+    </run-script>
+    <run-script script="${home}/bin/shield/esusers">
+      <nested>
+        <arg value="useradd"/>
+        <arg value="marvel_export"/>
+        <arg value="-p"/>
+        <arg value="changeme"/>
+        <arg value="-r"/>
+        <arg value="marvel_agent"/>
+      </nested>
+    </run-script>
 
-    <startup-elasticsearch additional.args="-Des.marvel.agent.exporter.es.hosts=http://marvel_export:changeme@localhost:${integ.http.port}" />
+    <startup-elasticsearch>
+      <nestedA>
+        <arg value="-Des.marvel.agent.exporter.es.hosts=http://marvel_export:changeme@localhost:${integ.http.port}"/>
+      </nestedA>
+    </startup-elasticsearch>
 
     <echo>Checking we can connect with basic auth on port ${integ.http.port}...</echo>
     <local name="temp.file"/>

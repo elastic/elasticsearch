@@ -22,7 +22,16 @@
     <property name="home" location="${integ.scratch}/elasticsearch-${elasticsearch.version}"/>
     <install-plugin name="elasticsearch-license" file="${integ.deps}/elasticsearch-license-${project.version}.zip" />
     <install-plugin name="${project.artifactId}" file="${project.build.directory}/releases/${project.artifactId}-${project.version}.zip"/>
-    <run-script script="${home}/bin/shield/esusers" args="useradd test_user -p changeme -r admin"/>
+    <run-script script="${home}/bin/shield/esusers">
+      <nested>
+        <arg value="useradd"/>
+        <arg value="test_user"/>
+        <arg value="-p"/>
+        <arg value="changeme"/>
+        <arg value="-r"/>
+        <arg value="admin"/>
+      </nested>
+    </run-script>
     <startup-elasticsearch/>
     <echo>Checking we can connect with basic auth on port ${integ.http.port}...</echo>
     <local name="temp.file"/>

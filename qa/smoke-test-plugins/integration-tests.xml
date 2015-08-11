@@ -4,21 +4,6 @@
 
   <import file="${elasticsearch.integ.antfile.default}"/>
 
-  <macrodef name="convert-plugin-name">
-      <attribute name="file"/>
-      <attribute name="outputproperty"/>
-    <sequential>
-      <local name="file.base"/>
-      <basename file="@{file}" property="file.base"/>
-      <filter-property src="file.base" dest="@{outputproperty}">
-        <chain>
-          <replaceregex pattern="^elasticsearch-" replace=""/>
-          <replacestring from="-${elasticsearch.version}.zip" to=""/>
-        </chain>
-      </filter-property>
-    </sequential>
-  </macrodef>
-
   <target name="start-external-cluster-with-plugins" depends="setup-workspace">
     <ac:for list="${xplugins.list}" param="xplugin.name">
       <sequential>

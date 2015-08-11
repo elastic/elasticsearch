@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.transport.netty;
 
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
@@ -28,6 +27,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.junit.annotations.Network;
+import org.elasticsearch.test.transport.AssertingLocalTransport;
+import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportModule;
 import org.junit.Test;
 
@@ -39,7 +40,6 @@ import static org.elasticsearch.test.ESIntegTestCase.Scope;
 import static org.hamcrest.Matchers.*;
 
 @ClusterScope(scope = Scope.SUITE, numDataNodes = 1, numClientNodes = 0)
-//@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/12788")
 public class NettyTransportMultiPortIntegrationIT extends ESIntegTestCase {
 
     private static int randomPort = -1;
@@ -51,7 +51,7 @@ public class NettyTransportMultiPortIntegrationIT extends ESIntegTestCase {
             randomPort = randomIntBetween(49152, 65525);
             randomPortRange = String.format(Locale.ROOT, "%s-%s", randomPort, randomPort+10);
         }
-        return settingsBuilder()
+        Settings.Builder builder = settingsBuilder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put("network.host", "127.0.0.1")
                 .put(TransportModule.TRANSPORT_TYPE_KEY, "netty")
@@ -60,8 +60,11 @@ public class NettyTransportMultiPortIntegrationIT extends ESIntegTestCase {
                 .put("transport.profiles.client1.port", randomPortRange)
                 .put("transport.profiles.client1.publish_host", "127.0.0.7")
                 .put("transport.profiles.client1.publish_port", "4321")
-                .put("transport.profiles.client1.reuse_address", true)
-                .build();
+                .put("transport.profiles.client1.reuse_address", true);
+        // more things that might have been randomized to remove to ensure a real network stack
+        builder.removeArrayElement("plugin.types", MockTransportService.Plugin.class.getName());
+        builder.removeArrayElement("plugin.types", AssertingLocalTransport.Plugin.class.getName());
+        return builder.build();
     }
 
     @Test

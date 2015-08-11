@@ -251,9 +251,9 @@ public abstract class ESBackcompatTestCase extends ESIntegTestCase {
 
     protected Settings commonNodeSettings(int nodeOrdinal) {
         Settings.Builder builder = Settings.builder().put(requiredSettings());
-        builder.removeArrayElement("plugin.types", MockTransportService.Plugin.class.getName());
-        builder.removeArrayElement("plugin.types", AssertingLocalTransport.class.getName());
         builder.put(TransportModule.TRANSPORT_TYPE_KEY, "netty"); // run same transport  / disco as external
+        builder.put("node.mode", "network");
+
         if (compatibilityVersion().before(Version.V_1_3_2)) {
             // if we test against nodes before 1.3.2 we disable all the compression due to a known bug
             // see #7210

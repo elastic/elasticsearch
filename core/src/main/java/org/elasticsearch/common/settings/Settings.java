@@ -787,43 +787,6 @@ public final class Settings implements ToXContent {
         }
 
         /**
-         * Removes the specified value from the given key.
-         * Returns true if the value was found and removed, false otherwise.
-         */
-        public boolean removeArrayElement(String key, String value) {
-            // TODO: this is too crazy, we should just have a multimap...
-            String oldValue = get(key);
-            if (oldValue != null) {
-                // single valued case
-                boolean match = oldValue.equals(value);
-                if (match) {
-                    remove(key);
-                }
-                return match;
-            }
-
-            // multi valued
-            int i = 0;
-            while (true) {
-                String toCheck = map.get(key + '.' + i++);
-                if (toCheck == null) {
-                    return false;
-                } else if (toCheck.equals(value)) {
-                    break;
-                }
-            }
-            // found the value, shift values after it back one index
-            int j = i + 1;
-            while (true) {
-                String toMove = map.get(key + '.' + j++);
-                if (toMove == null) {
-                    return true;
-                }
-                put(key + '.' + i++, toMove);
-            }
-        }
-
-        /**
          * Returns a setting value based on the setting key.
          */
         public String get(String key) {

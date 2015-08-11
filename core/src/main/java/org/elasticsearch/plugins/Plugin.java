@@ -99,7 +99,8 @@ public interface Plugin {
     void processModule(Module module);
 
     /**
-     * Additional node settings loaded by the plugin
+     * Additional node settings loaded by the plugin. Note that settings that are explicit in the nodes settings can't be
+     * overwritten with the additional settings. These settings added if they don't exist.
      */
     Settings additionalSettings();
 }

@@ -25,7 +25,6 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.CloseableThreadLocal;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.settings.Settings;
@@ -126,13 +125,6 @@ class DocumentParser implements Closeable {
 
             for (int i = 0; i < countDownTokens; i++) {
                 parser.nextToken();
-            }
-
-            // try to parse the next token, this should be null if the object is ended properly
-            // but will throw a JSON exception if the extra tokens is not valid JSON (this will be handled by the catch)
-            if (Version.indexCreated(indexSettings).onOrAfter(Version.V_2_0_0_beta1)) {
-                token = parser.nextToken();
-                assert token == null; // double check, in tests, that we didn't end parsing early
             }
 
             for (MetadataFieldMapper metadataMapper : mapping.metadataMappers) {

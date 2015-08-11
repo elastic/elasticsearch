@@ -155,6 +155,7 @@
       <attribute name="es.transport.tcp.port" default="${integ.transport.port}"/>
       <attribute name="es.pidfile" default="${integ.pidfile}"/>
       <attribute name="jvm.args" default="${tests.jvm.argline}"/>
+      <element name="additional-args" optional="true"/>
     <sequential>
       <!-- run bin/elasticsearch with args -->
       <echo>Starting up external cluster...</echo>
@@ -176,6 +177,7 @@
           <arg value="-Des.script.inline=on"/>
           <arg value="-Des.script.indexed=on"/>
           <arg value="-Des.repositories.url.allowed_urls=http://snapshot.test*"/>
+          <additional-args/>
         </nested>
       </run-script>
 

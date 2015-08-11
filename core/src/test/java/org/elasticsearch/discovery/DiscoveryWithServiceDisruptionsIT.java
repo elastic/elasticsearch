@@ -25,11 +25,13 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.support.replicatedbroadcast.ReplicatedBroadcastResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
@@ -1082,13 +1084,24 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
             logger.info("--> index doc");
             logLocalClusterStates(node1Client, node2Client, node3Client,  node4Client);
             assertTrue(node3Client.prepareIndex("test", "doc").setSource("{\"text\":\"a\"}").get().isCreated());
-            logger.info("--> refresh from node_3");
-            RefreshResponse refreshResponse = node3Client.admin().indices().prepareRefresh().get();
-            assertThat(refreshResponse.getFailedShards(), equalTo(0));
-            // the total shards is num replicas + 1 so that can be lower here because one shard
-            // is relocating and counts twice as successful
-            assertThat(refreshResponse.getTotalShards(), equalTo(1));
-            assertThat(refreshResponse.getSuccessfulShards(), equalTo(2));
+            //sometimes refresh and sometimes flush
+            if (randomBoolean()) {
+                logger.info("--> refresh from node_3");
+                RefreshResponse refreshResponse = node3Client.admin().indices().prepareRefresh().get();
+                assertThat(refreshResponse.getFailedShards(), equalTo(0));
+                // the total shards is num replicas + 1 so that can be lower here because one shard
+                // is relocating and counts twice as successful
+                assertThat(refreshResponse.getTotalShards(), equalTo(1));
+                assertThat(refreshResponse.getSuccessfulShards(), equalTo(2));
+            } else {
+                logger.info("--> flush from node_3");
+                FlushResponse flushResponse = node3Client.admin().indices().prepareFlush().get();
+                assertThat(flushResponse.getFailedShards(), equalTo(0));
+                // the total shards is num replicas + 1 so that can be lower here because one shard
+                // is relocating and counts twice as successful
+                assertThat(flushResponse.getTotalShards(), equalTo(1));
+                assertThat(flushResponse.getSuccessfulShards(), equalTo(2));
+            }
             // now stop disrupting so that node_3 can ack last cluster state to master and master can continue
             // to publish the next cluster state
             logger.info("--> stop disrupting node_3");
@@ -1109,7 +1122,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
                     }
                     assertNotNull(nodeId);
                     // check that node_1 does not have the shard in local cluster state
-                    assertFalse(clusterState.routingNodes().routingNodeIter(nodeId).hasNext());
+                    assertFalse(clusterState.getRoutingNodes().routingNodeIter(nodeId).hasNext());
                 }
             });
 

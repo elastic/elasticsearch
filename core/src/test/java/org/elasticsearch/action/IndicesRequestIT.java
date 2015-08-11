@@ -28,8 +28,8 @@ import org.elasticsearch.action.admin.indices.close.CloseIndexAction;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
-import org.elasticsearch.action.admin.indices.flush.FlushAction;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
+import org.elasticsearch.action.admin.indices.flush.TransportShardFlushAction;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsAction;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsAction;
@@ -43,6 +43,7 @@ import org.elasticsearch.action.admin.indices.optimize.OptimizeRequest;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryAction;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
+import org.elasticsearch.action.admin.indices.refresh.TransportShardRefreshAction;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsAction;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsAction;
@@ -71,7 +72,6 @@ import org.elasticsearch.action.percolate.MultiPercolateAction;
 import org.elasticsearch.action.percolate.MultiPercolateRequest;
 import org.elasticsearch.action.percolate.PercolateAction;
 import org.elasticsearch.action.percolate.PercolateRequest;
-import org.elasticsearch.action.replicatedrefresh.ReplicatedRefreshAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
@@ -369,14 +369,15 @@ public class IndicesRequestIT extends ESIntegTestCase {
 
     @Test
     public void testFlush() {
-        String flushShardAction = FlushAction.NAME + "[s]";
-        interceptTransportActions(flushShardAction);
+        String[] indexShardActions = new String[]{TransportShardFlushAction.NAME + "[r]", TransportShardFlushAction.NAME};
+        interceptTransportActions(indexShardActions);
 
         FlushRequest flushRequest = new FlushRequest(randomIndicesOrAliases());
         internalCluster().clientNodeClient().admin().indices().flush(flushRequest).actionGet();
 
         clearInterceptedActions();
-        assertSameIndices(flushRequest, flushShardAction);
+        String[] indices = new IndexNameExpressionResolver(Settings.EMPTY).concreteIndices(client().admin().cluster().prepareState().get().getState(), flushRequest);
+        assertIndicesSubset(Arrays.asList(indices), indexShardActions);
     }
 
     @Test
@@ -393,7 +394,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
 
     @Test
     public void testRefresh() {
-        String[] indexShardActions = new String[]{ReplicatedRefreshAction.NAME + "[r]", ReplicatedRefreshAction.NAME};
+        String[] indexShardActions = new String[]{TransportShardRefreshAction.NAME + "[r]", TransportShardRefreshAction.NAME};
         interceptTransportActions(indexShardActions);
 
         RefreshRequest refreshRequest = new RefreshRequest(randomIndicesOrAliases());

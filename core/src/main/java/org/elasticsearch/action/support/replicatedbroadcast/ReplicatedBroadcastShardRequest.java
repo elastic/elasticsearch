@@ -17,21 +17,17 @@
  * under the License.
  */
 
-package org.elasticsearch.action.replicatedrefresh;
+package org.elasticsearch.action.support.replicatedbroadcast;
 
-import org.elasticsearch.action.ActionWriteResponse;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 
-/**
- * A response of an index operation,
- *
- * @see ReplicatedRefreshRequest
- */
-public class ReplicatedRefreshResponse extends ActionWriteResponse {
+public class ReplicatedBroadcastShardRequest<Request extends ReplicatedBroadcastShardRequest> extends ReplicationRequest<Request> {
 
     public ShardId getShardId() {
         return shardId;
@@ -39,44 +35,45 @@ public class ReplicatedRefreshResponse extends ActionWriteResponse {
 
     public void setShardId(ShardId shardId) {
         this.shardId = shardId;
+        index(shardId.index().name());
     }
 
     private ShardId shardId;
 
-    private int totalNumCopies;
-
-
-    public ReplicatedRefreshResponse() {
+    /**
+     * Copy constructor that creates a new refresh request that is a copy of the one provided as an argument.
+     * The new request will inherit though headers and context from the original request that caused it.
+     */
+    public ReplicatedBroadcastShardRequest(ActionRequest originalRequest) {
+        super(originalRequest);
     }
 
-    public ReplicatedRefreshResponse(ShardId shardId, int totalNumCopies) {
+    public ReplicatedBroadcastShardRequest() {
+    }
+
+    public ReplicatedBroadcastShardRequest(ShardId shardId) {
         this.shardId = shardId;
-        this.totalNumCopies = totalNumCopies;
+        index(shardId.index().name());
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        shardId = ShardId.readShardId(in);
-        totalNumCopies = in.readVInt();
+        this.shardId = ShardId.readShardId(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         shardId.writeTo(out);
-        out.writeVInt(totalNumCopies);
     }
 
     @Override
-    public String toString() {
-        return "ReplicatedRefreshResponse{" +
-                "shardId=" + shardId +
-                ", totalNumCopies=" + totalNumCopies +
-                '}';
+    public boolean skipExecutionOnShadowReplicas() {
+        return false;
     }
 
-    public int getTotalNumCopies() {
-        return totalNumCopies;
+    public ReplicatedBroadcastShardResponse newResponse(ShardId shardId, int totalNumShards) {
+        return new ReplicatedBroadcastShardResponse(shardId, totalNumShards);
     }
 }

@@ -20,19 +20,16 @@
 package org.elasticsearch.action.admin.indices.refresh;
 
 
-import org.elasticsearch.cluster.block.ClusterBlockException;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
-import org.hamcrest.CoreMatchers;
 import org.junit.Test;
 
 import java.util.Arrays;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 
 @ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class RefreshBlocksIT extends ESIntegTestCase {
@@ -60,11 +57,7 @@ public class RefreshBlocksIT extends ESIntegTestCase {
         for (String blockSetting : Arrays.asList(SETTING_READ_ONLY, SETTING_BLOCKS_METADATA)) {
             try {
                 enableIndexBlock("test", blockSetting);
-                RefreshResponse refreshResponse = client().admin().indices().prepareRefresh("test").get();
-                assertThat("all shard requests should have failed", refreshResponse.getFailedShards(), equalTo(refreshResponse.getTotalShards()));
-                ClusterBlockException t = (ClusterBlockException)refreshResponse.getShardFailures()[0].getCause().getCause();
-                assertThat(t.blocks().size(), greaterThan(0));
-                assertThat(t.status(), CoreMatchers.equalTo(RestStatus.FORBIDDEN));
+                assertBlocked(client().admin().indices().prepareRefresh("test").get());
             } finally {
                 disableIndexBlock("test", blockSetting);
             }
@@ -77,11 +70,7 @@ public class RefreshBlocksIT extends ESIntegTestCase {
             assertThat(response.getSuccessfulShards(), equalTo(numShards.totalNumShards));
 
             setClusterReadOnly(true);
-            RefreshResponse refreshResponse = client().admin().indices().prepareRefresh().get();
-            assertThat("all shard requests should have failed", refreshResponse.getFailedShards(), equalTo(refreshResponse.getTotalShards()));
-            ClusterBlockException t = (ClusterBlockException)refreshResponse.getShardFailures()[0].getCause().getCause();
-            assertThat(t.blocks().size(), greaterThan(0));
-            assertThat(t.status(), CoreMatchers.equalTo(RestStatus.FORBIDDEN));
+            assertBlocked(client().admin().indices().prepareRefresh().get());
         } finally {
             setClusterReadOnly(false);
         }

@@ -17,34 +17,31 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.refresh;
+package org.elasticsearch.action.support.replicatedbroadcast;
 
 import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.support.replicatedbroadcast.ReplicatedBroadcastRequest;
+import org.elasticsearch.action.support.broadcast.BroadcastRequest;
 
 /**
- * A refresh request making all operations performed since the last refresh available for search. The (near) real-time
- * capabilities depends on the index engine used. For example, the internal one requires refresh to be called, but by
- * default a refresh is scheduled periodically.
- *
- * @see org.elasticsearch.client.Requests#refreshRequest(String...)
- * @see org.elasticsearch.client.IndicesAdminClient#refresh(RefreshRequest)
- * @see RefreshResponse
+ * A request that is broadcasted to all primaries of an index and then replicated just like write requests.
+ * This is used for refresh and flush.
  */
-public class RefreshRequest extends ReplicatedBroadcastRequest<RefreshRequest> {
+public class ReplicatedBroadcastRequest<Request extends ReplicatedBroadcastRequest> extends BroadcastRequest<Request> {
 
-    RefreshRequest() {
+
+    ReplicatedBroadcastRequest() {
     }
 
     /**
      * Copy constructor that creates a new refresh request that is a copy of the one provided as an argument.
      * The new request will inherit though headers and context from the original request that caused it.
      */
-    public RefreshRequest(ActionRequest originalRequest) {
+    public ReplicatedBroadcastRequest(ActionRequest originalRequest) {
         super(originalRequest);
     }
 
-    public RefreshRequest(String... indices) {
+    public ReplicatedBroadcastRequest(String... indices) {
         super(indices);
     }
+
 }

@@ -20,7 +20,7 @@
 package org.elasticsearch.action.admin.indices.flush;
 
 import org.elasticsearch.action.ShardOperationFailedException;
-import org.elasticsearch.action.support.broadcast.BroadcastResponse;
+import org.elasticsearch.action.support.replicatedbroadcast.ReplicatedBroadcastResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -32,7 +32,7 @@ import java.util.List;
  *
  *
  */
-public class FlushResponse extends BroadcastResponse {
+public class FlushResponse extends ReplicatedBroadcastResponse {
 
     FlushResponse() {
 

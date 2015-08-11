@@ -74,7 +74,7 @@ public class OptimizeBlocksIT extends ESIntegTestCase {
             assertThat(response.getSuccessfulShards(), equalTo(numShards.totalNumShards));
 
             setClusterReadOnly(true);
-            assertBlocked(client().admin().indices().prepareFlush());
+            assertBlocked(client().admin().indices().prepareOptimize());
         } finally {
             setClusterReadOnly(false);
         }

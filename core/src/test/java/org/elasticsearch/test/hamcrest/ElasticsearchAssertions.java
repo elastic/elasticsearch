@@ -35,6 +35,7 @@ import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
+import org.elasticsearch.action.support.replicatedbroadcast.ReplicatedBroadcastResponse;
 import org.elasticsearch.plugins.PluginInfo;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsInfo;
 import org.elasticsearch.action.admin.indices.alias.exists.AliasesExistResponse;
@@ -67,6 +68,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.rest.client.http.HttpResponse;
+import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 import org.junit.Assert;
@@ -124,6 +126,22 @@ public class ElasticsearchAssertions {
      */
     public static void assertBlocked(ActionRequestBuilder builder) {
         assertBlocked(builder, null);
+    }
+
+    /**
+     * Checks that all shard requests of a replicated brodcast request failed due to a cluster block
+     *
+     * @param replicatedBroadcastResponse the response that should only contain failed shard responses
+     *
+     * */
+    public static void assertBlocked(ReplicatedBroadcastResponse replicatedBroadcastResponse) {
+        assertThat("all shard requests should have failed", replicatedBroadcastResponse.getFailedShards(), Matchers.equalTo(replicatedBroadcastResponse.getTotalShards()));
+        for (ShardOperationFailedException exception : replicatedBroadcastResponse.getShardFailures()) {
+            ClusterBlockException clusterBlockException = (ClusterBlockException) ExceptionsHelper.unwrap(exception.getCause(), ClusterBlockException.class);
+            assertNotNull("expected the cause of failure to be a ClusterBlockException but got " + exception.getCause().getMessage(), clusterBlockException);
+            assertThat(clusterBlockException.blocks().size(), greaterThan(0));
+            assertThat(clusterBlockException.status(), CoreMatchers.equalTo(RestStatus.FORBIDDEN));
+        }
     }
 
     /**

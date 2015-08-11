@@ -172,6 +172,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
         if (isConflictException(e)) {
             return true;
         }
+        // TODO should we check here for refresh and flush failures which should not make replica fail? if so, which are they?
         return false;
     }
 

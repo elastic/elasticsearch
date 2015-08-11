@@ -8,14 +8,10 @@ package org.elasticsearch.watcher.test.rest;
 import org.elasticsearch.test.rest.RestTestCandidate;
 
 /** Runs rest tests against external cluster */
-public class WatcherRestIT extends WatcherRestTests {
+public class WatcherRestIT extends WatcherRestTestCase {
 
     public WatcherRestIT(RestTestCandidate testCandidate) {
         super(testCandidate);
     }
 
-    @Override
-    protected boolean enableShield() {
-        return false;
-    }
 }

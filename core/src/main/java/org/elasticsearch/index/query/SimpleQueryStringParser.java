@@ -20,7 +20,9 @@
 package org.elasticsearch.index.query;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
+
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Locale;
@@ -59,20 +61,26 @@ import java.util.Map;
  */
 public class SimpleQueryStringParser extends BaseQueryParser {
 
+    public static final String NAME = "simple_query_string";
+
+    @Inject
+    public SimpleQueryStringParser() {
+
+    }
+
     @Override
     public String[] names() {
         return new String[]{SimpleQueryStringBuilder.NAME, Strings.toCamelCase(SimpleQueryStringBuilder.NAME)};
     }
 
     @Override
-    public QueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public SimpleQueryStringBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
         String currentFieldName = null;
         String queryBody = null;
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         String queryName = null;
-        String field = null;
         String minimumShouldMatch = null;
         Map<String, Float> fieldsAndWeights = new HashMap<>();
         Operator defaultOperator = null;
@@ -108,9 +116,7 @@ public class SimpleQueryStringParser extends BaseQueryParser {
                         fieldsAndWeights.put(fField, fBoost);
                     }
                 } else {
-                    throw new QueryParsingException(parseContext,
- "[" + SimpleQueryStringBuilder.NAME + "] query does not support [" + currentFieldName
- + "]");
+                    throw new QueryParsingException(parseContext, "[" + NAME + "] query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
                 if ("query".equals(currentFieldName)) {
@@ -119,8 +125,6 @@ public class SimpleQueryStringParser extends BaseQueryParser {
                     boost = parser.floatValue();
                 } else if ("analyzer".equals(currentFieldName)) {
                     analyzerName = parser.text();
-                } else if ("field".equals(currentFieldName)) {
-                    field = parser.text();
                 } else if ("default_operator".equals(currentFieldName) || "defaultOperator".equals(currentFieldName)) {
                     defaultOperator = Operator.fromString(parser.text());
                 } else if ("flags".equals(currentFieldName)) {
@@ -156,11 +160,6 @@ public class SimpleQueryStringParser extends BaseQueryParser {
         // Query text is required
         if (queryBody == null) {
             throw new QueryParsingException(parseContext, "[" + SimpleQueryStringBuilder.NAME + "] query text missing");
-        }
-
-        // Support specifying only a field instead of a map
-        if (field == null) {
-            field = currentFieldName;
         }
 
         SimpleQueryStringBuilder qb = new SimpleQueryStringBuilder(queryBody);

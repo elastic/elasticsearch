@@ -263,10 +263,9 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
-        // Use the default field (_all) if no fields specified
+        // Use the default field if no fields specified
         if (fieldsAndWeights.isEmpty()) {
-            String field = context.defaultField();
-            fieldsAndWeights.put(field, 1.0F);
+            fieldsAndWeights.put(context.defaultField(), AbstractQueryBuilder.DEFAULT_BOOST);
         }
 
         // field names in builder can have wildcards etc, need to resolve them here

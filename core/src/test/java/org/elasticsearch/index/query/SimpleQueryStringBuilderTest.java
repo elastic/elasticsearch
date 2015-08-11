@@ -19,16 +19,20 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
+import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.junit.Test;
 
 import java.io.IOException;
 import java.util.*;
 
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.*;
 
 public class SimpleQueryStringBuilderTest extends BaseQueryTestCase<SimpleQueryStringBuilder> {
 
@@ -86,6 +90,27 @@ public class SimpleQueryStringBuilderTest extends BaseQueryTestCase<SimpleQueryS
     @Override
     protected void doAssertLuceneQuery(SimpleQueryStringBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         assertThat(query, notNullValue());
+        if (queryBuilder.fields().size() > 1) {
+            assertThat(query, instanceOf(BooleanQuery.class));
+            BooleanQuery booleanQuery = (BooleanQuery) query;
+            assertThat(booleanQuery.clauses().size(), equalTo(queryBuilder.fields().size()));
+            Iterator<String> fields = queryBuilder.fields().keySet().iterator();
+            for (BooleanClause booleanClause : booleanQuery) {
+                assertThat(booleanClause.getQuery(), instanceOf(TermQuery.class));
+                TermQuery termQuery = (TermQuery) booleanClause.getQuery();
+                assertThat(termQuery.getTerm(), equalTo(new Term(fields.next(), queryBuilder.text().toLowerCase(Locale.ROOT))));
+            }
+        } else {
+            assertThat(query, instanceOf(TermQuery.class));
+            String field;
+            if (queryBuilder.fields().size() == 0) {
+                field = MetaData.ALL;
+            } else {
+                field = queryBuilder.fields().keySet().iterator().next();
+            }
+            TermQuery termQuery = (TermQuery) query;
+            assertThat(termQuery.getTerm(), equalTo(new Term(field, queryBuilder.text().toLowerCase(Locale.ROOT))));
+        }
     }
 
     @Test
@@ -214,7 +239,28 @@ public class SimpleQueryStringBuilderTest extends BaseQueryTestCase<SimpleQueryS
         qb.fields(null);
     }
 
-    private int shouldClauses(BooleanQuery query) {
+    @Test
+    public void testDefaultFieldParsing() throws IOException {
+        QueryParseContext context = createParseContext();
+        String query = randomAsciiOfLengthBetween(1, 10).toLowerCase(Locale.ROOT);
+        String contentString = "{\n" +
+                "    \"simple_query_string\" : {\n" +
+                "      \"query\" : \"" + query + "\"" +
+                "    }\n" +
+                "}";
+        XContentParser parser = XContentFactory.xContent(contentString).createParser(contentString);
+        context.reset(parser);
+        SimpleQueryStringBuilder queryBuilder = new SimpleQueryStringParser().fromXContent(context);
+        assertThat(queryBuilder.text(), equalTo(query));
+        assertThat(queryBuilder.fields(), notNullValue());
+        assertThat(queryBuilder.fields().size(), equalTo(0));
+        Query luceneQuery = queryBuilder.toQuery(createShardContext());
+        assertThat(luceneQuery, instanceOf(TermQuery.class));
+        TermQuery termQuery = (TermQuery) luceneQuery;
+        assertThat(termQuery.getTerm(), equalTo(new Term(MetaData.ALL, query)));
+    }
+
+    private static int shouldClauses(BooleanQuery query) {
         int result = 0;
         for (BooleanClause c : query.clauses()) {
             if (c.getOccur() == BooleanClause.Occur.SHOULD) {

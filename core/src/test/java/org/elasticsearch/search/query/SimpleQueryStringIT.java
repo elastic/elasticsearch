@@ -24,7 +24,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.Operator;
-import org.elasticsearch.index.query.SimpleQueryStringBuilder;
 import org.elasticsearch.index.query.SimpleQueryStringFlag;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
@@ -34,10 +33,7 @@ import java.util.Locale;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
-import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
-import static org.elasticsearch.index.query.QueryBuilders.simpleQueryStringQuery;
-import static org.elasticsearch.index.query.QueryBuilders.termQuery;
+import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -92,11 +88,6 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getAt(0).getMatchedQueries()[0], equalTo("myquery"));
 
         searchResponse = client().prepareSearch().setQuery(simpleQueryStringQuery("spaghetti").field("*body")).get();
-        assertHitCount(searchResponse, 2l);
-        assertSearchHits(searchResponse, "5", "6");
-
-        // Have to bypass the builder here because the builder always uses "fields" instead of "field"
-        searchResponse = client().prepareSearch().setQuery("{\"simple_query_string\": {\"query\": \"spaghetti\", \"field\": \"_all\"}}").get();
         assertHitCount(searchResponse, 2l);
         assertSearchHits(searchResponse, "5", "6");
     }

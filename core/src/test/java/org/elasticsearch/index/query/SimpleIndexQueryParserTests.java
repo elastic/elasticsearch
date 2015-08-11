@@ -21,7 +21,6 @@ package org.elasticsearch.index.query;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
-
 import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.index.*;
 import org.apache.lucene.index.memory.MemoryIndex;
@@ -74,10 +73,10 @@ import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.List;
 
-import static org.elasticsearch.test.StreamsUtils.copyToBytesFromClasspath;
-import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.*;
+import static org.elasticsearch.test.StreamsUtils.copyToBytesFromClasspath;
+import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBooleanSubQuery;
 import static org.hamcrest.Matchers.*;
 
@@ -2285,14 +2284,6 @@ public class SimpleIndexQueryParserTests extends ESSingleNodeTestCase {
     }
 
     @Test
-    public void testSimpleQueryString() throws Exception {
-        IndexQueryParserService queryParser = queryParser();
-        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/simple-query-string.json");
-        Query parsedQuery = queryParser.parse(query).query();
-        assertThat(parsedQuery, instanceOf(BooleanQuery.class));
-    }
-
-    @Test
     public void testMatchWithFuzzyTranspositions() throws Exception {
         IndexQueryParserService queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/match-with-fuzzy-transpositions.json");
@@ -2374,7 +2365,7 @@ public class SimpleIndexQueryParserTests extends ESSingleNodeTestCase {
         IndexQueryParserService queryParser = queryParser();
         String query = jsonBuilder().startObject().startObject("function_score")
                 .startArray("functions")
-                .startObject().field("weight", 2).field("boost_factor",2).endObject()
+                .startObject().field("weight", 2).field("boost_factor", 2).endObject()
                 .endArray()
                 .endObject().endObject().string();
         try {

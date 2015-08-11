@@ -53,10 +53,12 @@ import java.io.EOFException;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.NoSuchFileException;
+import java.util.Collections;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class ESExceptionTests extends ESTestCase {
+    private static final ToXContent.Params PARAMS = new ToXContent.MapParams(Collections.singletonMap(ElasticsearchException.REST_EXCEPTION_SKIP_STACK_TRACE, "true"));
 
     @Test
     public void testStatus() {
@@ -145,7 +147,7 @@ public class ESExceptionTests extends ESTestCase {
             SearchPhaseExecutionException ex = new SearchPhaseExecutionException("search", "all shards failed", new ShardSearchFailure[]{failure, failure1});
             XContentBuilder builder = XContentFactory.jsonBuilder();
             builder.startObject();
-            ex.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            ex.toXContent(builder, PARAMS);
             builder.endObject();
             String expected = "{\"type\":\"search_phase_execution_exception\",\"reason\":\"all shards failed\",\"phase\":\"search\",\"grouped\":true,\"failed_shards\":[{\"shard\":1,\"index\":\"foo\",\"node\":\"node_1\",\"reason\":{\"type\":\"test_query_parsing_exception\",\"reason\":\"foobar\",\"index\":\"foo\"}}]}";
             assertEquals(expected, builder.string());
@@ -160,7 +162,7 @@ public class ESExceptionTests extends ESTestCase {
             SearchPhaseExecutionException ex = new SearchPhaseExecutionException("search", "all shards failed", new ShardSearchFailure[]{failure, failure1, failure2});
             XContentBuilder builder = XContentFactory.jsonBuilder();
             builder.startObject();
-            ex.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            ex.toXContent(builder, PARAMS);
             builder.endObject();
             String expected = "{\"type\":\"search_phase_execution_exception\",\"reason\":\"all shards failed\",\"phase\":\"search\",\"grouped\":true,\"failed_shards\":[{\"shard\":1,\"index\":\"foo\",\"node\":\"node_1\",\"reason\":{\"type\":\"test_query_parsing_exception\",\"reason\":\"foobar\",\"index\":\"foo\"}},{\"shard\":1,\"index\":\"foo1\",\"node\":\"node_1\",\"reason\":{\"type\":\"test_query_parsing_exception\",\"reason\":\"foobar\",\"index\":\"foo1\"}}]}";
             assertEquals(expected, builder.string());
@@ -185,7 +187,7 @@ public class ESExceptionTests extends ESTestCase {
             ElasticsearchException ex = new SearchParseException(new TestSearchContext(), "foo", new XContentLocation(1,0));
             XContentBuilder builder = XContentFactory.jsonBuilder();
             builder.startObject();
-            ex.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            ex.toXContent(builder, PARAMS);
             builder.endObject();
 
             String expected = "{\"type\":\"search_parse_exception\",\"reason\":\"foo\",\"line\":1,\"col\":0}";
@@ -195,7 +197,7 @@ public class ESExceptionTests extends ESTestCase {
             ElasticsearchException ex = new ElasticsearchException("foo", new ElasticsearchException("bar", new IllegalArgumentException("index is closed", new RuntimeException("foobar"))));
             XContentBuilder builder = XContentFactory.jsonBuilder();
             builder.startObject();
-            ex.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            ex.toXContent(builder, PARAMS);
             builder.endObject();
 
             String expected = "{\"type\":\"exception\",\"reason\":\"foo\",\"caused_by\":{\"type\":\"exception\",\"reason\":\"bar\",\"caused_by\":{\"type\":\"illegal_argument_exception\",\"reason\":\"index is closed\",\"caused_by\":{\"type\":\"runtime_exception\",\"reason\":\"foobar\"}}}}";
@@ -210,7 +212,7 @@ public class ESExceptionTests extends ESTestCase {
             }
             XContentBuilder builder = XContentFactory.jsonBuilder();
             builder.startObject();
-            ElasticsearchException.toXContent(builder, ToXContent.EMPTY_PARAMS, ex);
+            ElasticsearchException.toXContent(builder, PARAMS, ex);
             builder.endObject();
 
             String expected = "{\"type\":\"file_not_found_exception\",\"reason\":\"foo not found\"}";
@@ -221,7 +223,7 @@ public class ESExceptionTests extends ESTestCase {
             QueryParsingException ex = new TestQueryParsingException(new Index("foo"), 1, 2, "foobar", null);
             XContentBuilder builder = XContentFactory.jsonBuilder();
             builder.startObject();
-            ElasticsearchException.toXContent(builder, ToXContent.EMPTY_PARAMS, ex);
+            ElasticsearchException.toXContent(builder, PARAMS, ex);
             builder.endObject();
             String expected = "{\"type\":\"test_query_parsing_exception\",\"reason\":\"foobar\",\"index\":\"foo\",\"line\":1,\"col\":2}";
             assertEquals(expected, builder.string());
@@ -231,13 +233,13 @@ public class ESExceptionTests extends ESTestCase {
             ElasticsearchException ex =  new RemoteTransportException("foobar", new FileNotFoundException("foo not found"));
             XContentBuilder builder = XContentFactory.jsonBuilder();
             builder.startObject();
-            ElasticsearchException.toXContent(builder, ToXContent.EMPTY_PARAMS, ex);
+            ElasticsearchException.toXContent(builder, PARAMS, ex);
             builder.endObject();
 
             XContentBuilder otherBuilder = XContentFactory.jsonBuilder();
 
             otherBuilder.startObject();
-            ex.toXContent(otherBuilder, ToXContent.EMPTY_PARAMS);
+            ex.toXContent(otherBuilder, PARAMS);
             otherBuilder.endObject();
             assertEquals(otherBuilder.string(), builder.string());
             assertEquals("{\"type\":\"file_not_found_exception\",\"reason\":\"foo not found\"}", builder.string());
@@ -249,7 +251,7 @@ public class ESExceptionTests extends ESTestCase {
             ex.addHeader("test_multi", "some value", "another value");
             XContentBuilder builder = XContentFactory.jsonBuilder();
             builder.startObject();
-            ElasticsearchException.toXContent(builder, ToXContent.EMPTY_PARAMS, ex);
+            ElasticsearchException.toXContent(builder, PARAMS, ex);
             builder.endObject();
             assertThat(builder.string(), Matchers.anyOf( // iteration order depends on platform
                     equalTo("{\"type\":\"test_query_parsing_exception\",\"reason\":\"foobar\",\"index\":\"foo\",\"line\":1,\"col\":2,\"header\":{\"test_multi\":[\"some value\",\"another value\"],\"test\":\"some value\"}}"),

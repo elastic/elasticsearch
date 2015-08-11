@@ -93,6 +93,7 @@ import java.nio.file.FileVisitor;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -540,7 +541,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         try {
             XContentBuilder builder = XContentFactory.jsonBuilder();
             builder.startObject();
-            x.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            x.toXContent(builder, new ToXContent.MapParams(Collections.singletonMap(ElasticsearchException.REST_EXCEPTION_SKIP_STACK_TRACE, "true")));
             builder.endObject();
             return builder.string();
         } catch (IOException e) {

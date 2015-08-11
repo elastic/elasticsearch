@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.indexing;
 
+import org.elasticsearch.common.Booleans;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
@@ -26,7 +28,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.settings.IndexSettingsService;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -42,6 +43,12 @@ public final class IndexingSlowLog {
     private long indexInfoThreshold;
     private long indexDebugThreshold;
     private long indexTraceThreshold;
+    /**
+     * How much of the source to log in the slowlog - 0 means log none and
+     * anything greater than 0 means log at least that many <em>characters</em>
+     * of the source.
+     */
+    private int maxSourceCharsToLog;
 
     private String level;
 
@@ -55,18 +62,27 @@ public final class IndexingSlowLog {
     public static final String INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_TRACE = INDEX_INDEXING_SLOWLOG_PREFIX +".threshold.index.trace";
     public static final String INDEX_INDEXING_SLOWLOG_REFORMAT = INDEX_INDEXING_SLOWLOG_PREFIX +".reformat";
     public static final String INDEX_INDEXING_SLOWLOG_LEVEL = INDEX_INDEXING_SLOWLOG_PREFIX +".level";
+    public static final String INDEX_INDEXING_SLOWLOG_MAX_SOURCE_CHARS_TO_LOG = INDEX_INDEXING_SLOWLOG_PREFIX + ".source";
 
     IndexingSlowLog(Settings indexSettings) {
+        this(indexSettings, Loggers.getLogger(INDEX_INDEXING_SLOWLOG_PREFIX + ".index"),
+                Loggers.getLogger(INDEX_INDEXING_SLOWLOG_PREFIX + ".delete"));
+    }
+
+    /**
+     * Build with the specified loggers. Only used to testing.
+     */
+    IndexingSlowLog(Settings indexSettings, ESLogger indexLogger, ESLogger deleteLogger) {
+        this.indexLogger = indexLogger;
+        this.deleteLogger = deleteLogger;
+
         this.reformat = indexSettings.getAsBoolean(INDEX_INDEXING_SLOWLOG_REFORMAT, true);
         this.indexWarnThreshold = indexSettings.getAsTime(INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_WARN, TimeValue.timeValueNanos(-1)).nanos();
         this.indexInfoThreshold = indexSettings.getAsTime(INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_INFO, TimeValue.timeValueNanos(-1)).nanos();
         this.indexDebugThreshold = indexSettings.getAsTime(INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_DEBUG, TimeValue.timeValueNanos(-1)).nanos();
         this.indexTraceThreshold = indexSettings.getAsTime(INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_TRACE, TimeValue.timeValueNanos(-1)).nanos();
-
         this.level = indexSettings.get(INDEX_INDEXING_SLOWLOG_LEVEL, "TRACE").toUpperCase(Locale.ROOT);
-
-        this.indexLogger = Loggers.getLogger(INDEX_INDEXING_SLOWLOG_PREFIX +".index");
-        this.deleteLogger = Loggers.getLogger(INDEX_INDEXING_SLOWLOG_PREFIX +".delete");
+        this.maxSourceCharsToLog = readSourceToLog(indexSettings);
 
         indexLogger.setLevel(level);
         deleteLogger.setLevel(level);
@@ -101,6 +117,11 @@ public final class IndexingSlowLog {
         if (reformat != this.reformat) {
             this.reformat = reformat;
         }
+
+        int maxSourceCharsToLog = readSourceToLog(settings);
+        if (maxSourceCharsToLog != this.maxSourceCharsToLog) {
+            this.maxSourceCharsToLog = maxSourceCharsToLog;
+        }
     }
 
     void postIndex(Engine.Index index, long tookInNanos) {
@@ -111,27 +132,44 @@ public final class IndexingSlowLog {
         postIndexing(create.parsedDoc(), tookInNanos);
     }
 
-    private void postIndexing(ParsedDocument doc, long tookInNanos) {
-        if (indexWarnThreshold >= 0 && tookInNanos > indexWarnThreshold) {
-            indexLogger.warn("{}", new SlowLogParsedDocumentPrinter(doc, tookInNanos, reformat));
-        } else if (indexInfoThreshold >= 0 && tookInNanos > indexInfoThreshold) {
-            indexLogger.info("{}", new SlowLogParsedDocumentPrinter(doc, tookInNanos, reformat));
-        } else if (indexDebugThreshold >= 0 && tookInNanos > indexDebugThreshold) {
-            indexLogger.debug("{}", new SlowLogParsedDocumentPrinter(doc, tookInNanos, reformat));
-        } else if (indexTraceThreshold >= 0 && tookInNanos > indexTraceThreshold) {
-            indexLogger.trace("{}", new SlowLogParsedDocumentPrinter(doc, tookInNanos, reformat));
+    /**
+     * Reads how much of the source to log. The user can specify any value they
+     * like and numbers are interpreted the maximum number of characters to log
+     * and everything else is interpreted as Elasticsearch interprets booleans
+     * which is then converted to 0 for false and Integer.MAX_VALUE for true.
+     */
+    private int readSourceToLog(Settings settings) {
+        String sourceToLog = settings.get(INDEX_INDEXING_SLOWLOG_MAX_SOURCE_CHARS_TO_LOG, "1000");
+        try {
+            return Integer.parseInt(sourceToLog, 10);
+        } catch (NumberFormatException e) {
+            return Booleans.parseBoolean(sourceToLog, true) ? Integer.MAX_VALUE : 0;
         }
     }
 
-    final static class SlowLogParsedDocumentPrinter {
+    private void postIndexing(ParsedDocument doc, long tookInNanos) {
+        if (indexWarnThreshold >= 0 && tookInNanos > indexWarnThreshold) {
+            indexLogger.warn("{}", new SlowLogParsedDocumentPrinter(doc, tookInNanos, reformat, maxSourceCharsToLog));
+        } else if (indexInfoThreshold >= 0 && tookInNanos > indexInfoThreshold) {
+            indexLogger.info("{}", new SlowLogParsedDocumentPrinter(doc, tookInNanos, reformat, maxSourceCharsToLog));
+        } else if (indexDebugThreshold >= 0 && tookInNanos > indexDebugThreshold) {
+            indexLogger.debug("{}", new SlowLogParsedDocumentPrinter(doc, tookInNanos, reformat, maxSourceCharsToLog));
+        } else if (indexTraceThreshold >= 0 && tookInNanos > indexTraceThreshold) {
+            indexLogger.trace("{}", new SlowLogParsedDocumentPrinter(doc, tookInNanos, reformat, maxSourceCharsToLog));
+        }
+    }
+
+    static final class SlowLogParsedDocumentPrinter {
         private final ParsedDocument doc;
         private final long tookInNanos;
         private final boolean reformat;
+        private final int maxSourceCharsToLog;
 
-        SlowLogParsedDocumentPrinter(ParsedDocument doc, long tookInNanos, boolean reformat) {
+        SlowLogParsedDocumentPrinter(ParsedDocument doc, long tookInNanos, boolean reformat, int maxSourceCharsToLog) {
             this.doc = doc;
             this.tookInNanos = tookInNanos;
             this.reformat = reformat;
+            this.maxSourceCharsToLog = maxSourceCharsToLog;
         }
 
         @Override
@@ -141,18 +179,19 @@ public final class IndexingSlowLog {
             sb.append("type[").append(doc.type()).append("], ");
             sb.append("id[").append(doc.id()).append("], ");
             if (doc.routing() == null) {
-                sb.append("routing[], ");
+                sb.append("routing[] ");
             } else {
-                sb.append("routing[").append(doc.routing()).append("], ");
+                sb.append("routing[").append(doc.routing()).append("] ");
             }
-            if (doc.source() != null && doc.source().length() > 0) {
-                try {
-                    sb.append("source[").append(XContentHelper.convertToJson(doc.source(), reformat)).append("]");
-                } catch (IOException e) {
-                    sb.append("source[_failed_to_convert_]");
-                }
-            } else {
-                sb.append("source[]");
+
+            if (maxSourceCharsToLog == 0 || doc.source() == null || doc.source().length() == 0) {
+                return sb.toString();
+            }
+            try {
+                String source = XContentHelper.convertToJson(doc.source(), reformat);
+                sb.append(", source[").append(Strings.cleanTruncate(source, maxSourceCharsToLog)).append("]");
+            } catch (IOException e) {
+                sb.append(", source[_failed_to_convert_]");
             }
             return sb.toString();
         }

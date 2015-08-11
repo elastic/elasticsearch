@@ -68,9 +68,16 @@ index.indexing.slowlog.threshold.index.warn: 10s
 index.indexing.slowlog.threshold.index.info: 5s
 index.indexing.slowlog.threshold.index.debug: 2s
 index.indexing.slowlog.threshold.index.trace: 500ms
+index.indexing.slowlog.level: info
+index.indexing.slowlog.source: 1000
 --------------------------------------------------
 
 All of the above settings are _dynamic_ and can be set per-index.
+
+By default Elasticsearch will log the first 1000 characters of the _source in
+the slowlog. You can change that with `index.indexing.slowlog.source`. Setting
+it to `false` or `0` will skip logging the source entirely an setting it to
+`true` will log the entire source regardless of size.
 
 The index slow log file is configured by default in the `logging.yml`
 file:

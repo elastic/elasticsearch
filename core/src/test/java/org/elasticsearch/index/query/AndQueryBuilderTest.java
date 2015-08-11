@@ -53,11 +53,11 @@ public class AndQueryBuilderTest extends BaseQueryTestCase<AndQueryBuilder> {
 
     @Override
     protected void doAssertLuceneQuery(AndQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
-        if (queryBuilder.filters().isEmpty()) {
+        if (queryBuilder.innerQueries().isEmpty()) {
             assertThat(query, nullValue());
         } else {
             List<Query> clauses = new ArrayList<>();
-            for (QueryBuilder innerFilter : queryBuilder.filters()) {
+            for (QueryBuilder innerFilter : queryBuilder.innerQueries()) {
                 Query clause = innerFilter.toQuery(context);
                 if (clause != null) {
                     clauses.add(clause);

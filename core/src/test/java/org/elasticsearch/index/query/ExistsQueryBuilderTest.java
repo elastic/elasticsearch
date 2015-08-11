@@ -55,7 +55,7 @@ public class ExistsQueryBuilderTest extends BaseQueryTestCase<ExistsQueryBuilder
 
     @Override
     protected void doAssertLuceneQuery(ExistsQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
-        String fieldPattern = queryBuilder.name();
+        String fieldPattern = queryBuilder.fieldName();
         ObjectMapper objectMapper = context.getObjectMapper(fieldPattern);
         if (objectMapper != null) {
             // automatic make the object mapper pattern

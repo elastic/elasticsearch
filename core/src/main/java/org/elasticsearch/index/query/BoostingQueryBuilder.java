@@ -66,14 +66,14 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
     /**
      * Get the positive query for this boosting query.
      */
-    public QueryBuilder positive() {
+    public QueryBuilder positiveQuery() {
         return this.positiveQuery;
     }
 
     /**
      * Get the negative query for this boosting query.
      */
-    public QueryBuilder negative() {
+    public QueryBuilder negativeQuery() {
         return this.negativeQuery;
     }
 

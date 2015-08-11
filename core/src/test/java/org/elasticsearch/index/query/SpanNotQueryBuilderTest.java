@@ -58,8 +58,8 @@ public class SpanNotQueryBuilderTest extends BaseQueryTestCase<SpanNotQueryBuild
     protected void doAssertLuceneQuery(SpanNotQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         assertThat(query, instanceOf(SpanNotQuery.class));
         SpanNotQuery spanNotQuery = (SpanNotQuery) query;
-        assertThat(spanNotQuery.getExclude(), equalTo(queryBuilder.exclude().toQuery(context)));
-        assertThat(spanNotQuery.getInclude(), equalTo(queryBuilder.include().toQuery(context)));
+        assertThat(spanNotQuery.getExclude(), equalTo(queryBuilder.excludeQuery().toQuery(context)));
+        assertThat(spanNotQuery.getInclude(), equalTo(queryBuilder.includeQuery().toQuery(context)));
     }
 
     @Test
@@ -141,8 +141,8 @@ public class SpanNotQueryBuilderTest extends BaseQueryTestCase<SpanNotQueryBuild
         SpanNotQueryBuilder query = (SpanNotQueryBuilder) new SpanNotQueryParser().fromXContent(context);
         assertThat(query.pre(), equalTo(3));
         assertThat(query.post(), equalTo(3));
-        assertNotNull(query.include());
-        assertNotNull(query.exclude());
+        assertNotNull(query.includeQuery());
+        assertNotNull(query.excludeQuery());
     }
 
     /**

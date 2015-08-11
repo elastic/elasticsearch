@@ -45,7 +45,7 @@ public class NotQueryBuilderTest extends BaseQueryTestCase<NotQueryBuilder> {
 
     @Override
     protected void doAssertLuceneQuery(NotQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
-        Query filter = queryBuilder.filter().toQuery(context);
+        Query filter = queryBuilder.innerQuery().toQuery(context);
         if (filter == null) {
             assertThat(query, nullValue());
         } else {

@@ -51,14 +51,14 @@ public class SpanContainingQueryBuilder extends AbstractQueryBuilder<SpanContain
     /**
      * @return the big clause, it must enclose {@code little} for a match.
      */
-    public SpanQueryBuilder big() {
+    public SpanQueryBuilder bigQuery() {
         return this.big;
     }
 
     /**
      * @return the little clause, it must be contained within {@code big} for a match.
      */
-    public SpanQueryBuilder little() {
+    public SpanQueryBuilder littleQuery() {
         return this.little;
     }
 

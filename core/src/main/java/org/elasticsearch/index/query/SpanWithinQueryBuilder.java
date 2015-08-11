@@ -52,14 +52,14 @@ public class SpanWithinQueryBuilder extends AbstractQueryBuilder<SpanWithinQuery
     /**
      * @return the little clause, contained within {@code big} for a match.
      */
-    public SpanQueryBuilder little() {
+    public SpanQueryBuilder littleQuery() {
         return this.little;
     }
 
     /**
      * @return the big clause that must enclose {@code little} for a match.
      */
-    public SpanQueryBuilder big() {
+    public SpanQueryBuilder bigQuery() {
         return this.big;
     }
 

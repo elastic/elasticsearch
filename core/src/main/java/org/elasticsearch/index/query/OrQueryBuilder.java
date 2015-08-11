@@ -30,6 +30,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
@@ -47,9 +48,7 @@ public class OrQueryBuilder extends AbstractQueryBuilder<OrQueryBuilder> {
     static final OrQueryBuilder PROTOTYPE = new OrQueryBuilder();
 
     public OrQueryBuilder(QueryBuilder... filters) {
-        for (QueryBuilder filter : filters) {
-            this.filters.add(filter);
-        }
+        Collections.addAll(this.filters, filters);
     }
 
     /**
@@ -62,9 +61,9 @@ public class OrQueryBuilder extends AbstractQueryBuilder<OrQueryBuilder> {
     }
 
     /**
-     * @return the list of filters added to "or".
+     * @return the list of queries added to "or".
      */
-    public List<QueryBuilder> filters() {
+    public List<QueryBuilder> innerQueries() {
         return this.filters;
     }
 

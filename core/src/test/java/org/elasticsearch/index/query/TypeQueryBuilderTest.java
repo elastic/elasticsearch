@@ -45,7 +45,7 @@ public class TypeQueryBuilderTest extends BaseQueryTestCase<TypeQueryBuilder> {
         }
         TermQuery termQuery = (TermQuery) query;
         assertThat(termQuery.getTerm().field(), equalTo(TypeFieldMapper.NAME));
-        assertThat(termQuery.getTerm().bytes(), equalTo(queryBuilder.type()));
+        assertThat(termQuery.getTerm().text(), equalTo(queryBuilder.type()));
     }
 
     @Test

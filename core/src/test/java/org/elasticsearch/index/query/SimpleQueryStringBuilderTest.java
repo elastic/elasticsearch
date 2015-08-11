@@ -98,7 +98,7 @@ public class SimpleQueryStringBuilderTest extends BaseQueryTestCase<SimpleQueryS
             for (BooleanClause booleanClause : booleanQuery) {
                 assertThat(booleanClause.getQuery(), instanceOf(TermQuery.class));
                 TermQuery termQuery = (TermQuery) booleanClause.getQuery();
-                assertThat(termQuery.getTerm(), equalTo(new Term(fields.next(), queryBuilder.text().toLowerCase(Locale.ROOT))));
+                assertThat(termQuery.getTerm(), equalTo(new Term(fields.next(), queryBuilder.value().toLowerCase(Locale.ROOT))));
             }
         } else {
             assertThat(query, instanceOf(TermQuery.class));
@@ -109,7 +109,7 @@ public class SimpleQueryStringBuilderTest extends BaseQueryTestCase<SimpleQueryS
                 field = queryBuilder.fields().keySet().iterator().next();
             }
             TermQuery termQuery = (TermQuery) query;
-            assertThat(termQuery.getTerm(), equalTo(new Term(field, queryBuilder.text().toLowerCase(Locale.ROOT))));
+            assertThat(termQuery.getTerm(), equalTo(new Term(field, queryBuilder.value().toLowerCase(Locale.ROOT))));
         }
     }
 
@@ -251,7 +251,7 @@ public class SimpleQueryStringBuilderTest extends BaseQueryTestCase<SimpleQueryS
         XContentParser parser = XContentFactory.xContent(contentString).createParser(contentString);
         context.reset(parser);
         SimpleQueryStringBuilder queryBuilder = new SimpleQueryStringParser().fromXContent(context);
-        assertThat(queryBuilder.text(), equalTo(query));
+        assertThat(queryBuilder.value(), equalTo(query));
         assertThat(queryBuilder.fields(), notNullValue());
         assertThat(queryBuilder.fields().size(), equalTo(0));
         Query luceneQuery = queryBuilder.toQuery(createShardContext());

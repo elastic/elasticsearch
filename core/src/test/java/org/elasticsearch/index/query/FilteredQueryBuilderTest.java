@@ -44,11 +44,11 @@ public class FilteredQueryBuilderTest extends BaseQueryTestCase<FilteredQueryBui
 
     @Override
     protected void doAssertLuceneQuery(FilteredQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
-        Query innerQuery = queryBuilder.query().toQuery(context);
+        Query innerQuery = queryBuilder.innerQuery().toQuery(context);
         if (innerQuery == null) {
             assertThat(query, nullValue());
         } else {
-            Query innerFilter = queryBuilder.filter().toQuery(context);
+            Query innerFilter = queryBuilder.innerFilter().toQuery(context);
             if (innerFilter == null || Queries.isConstantMatchAllQuery(innerFilter)) {
                 innerQuery.setBoost(queryBuilder.boost());
                 assertThat(query, equalTo(innerQuery));

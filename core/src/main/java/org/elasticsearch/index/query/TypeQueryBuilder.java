@@ -49,8 +49,8 @@ public class TypeQueryBuilder extends AbstractQueryBuilder<TypeQueryBuilder> {
         this.type = type;
     }
 
-    public BytesRef type() {
-        return this.type;
+    public String type() {
+        return BytesRefs.toString(this.type);
     }
 
     @Override

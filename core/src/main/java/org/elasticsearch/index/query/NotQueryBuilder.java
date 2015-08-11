@@ -44,9 +44,9 @@ public class NotQueryBuilder extends AbstractQueryBuilder<NotQueryBuilder> {
     }
 
     /**
-     * @return the filter added to "not".
+     * @return the query added to "not".
      */
-    public QueryBuilder filter() {
+    public QueryBuilder innerQuery() {
         return this.filter;
     }
 

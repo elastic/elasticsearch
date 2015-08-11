@@ -62,14 +62,14 @@ public class SpanNotQueryBuilder extends AbstractQueryBuilder<SpanNotQueryBuilde
     /**
      * @return the span query whose matches are filtered
      */
-    public SpanQueryBuilder include() {
+    public SpanQueryBuilder includeQuery() {
         return this.include;
     }
 
     /**
      * @return the span query whose matches must not overlap
      */
-    public SpanQueryBuilder exclude() {
+    public SpanQueryBuilder excludeQuery() {
         return this.exclude;
     }
 
@@ -137,8 +137,7 @@ public class SpanNotQueryBuilder extends AbstractQueryBuilder<SpanNotQueryBuilde
         Query excludeQuery = this.exclude.toQuery(context);
         assert excludeQuery instanceof SpanQuery;
 
-        SpanNotQuery query = new SpanNotQuery((SpanQuery) includeQuery, (SpanQuery) excludeQuery, pre, post);
-        return query;
+        return new SpanNotQuery((SpanQuery) includeQuery, (SpanQuery) excludeQuery, pre, post);
     }
 
     @Override

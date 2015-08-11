@@ -39,8 +39,8 @@ public class BoostingQueryBuilderTest extends BaseQueryTestCase<BoostingQueryBui
 
     @Override
     protected void doAssertLuceneQuery(BoostingQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
-        Query positive = queryBuilder.positive().toQuery(context);
-        Query negative = queryBuilder.negative().toQuery(context);
+        Query positive = queryBuilder.positiveQuery().toQuery(context);
+        Query negative = queryBuilder.negativeQuery().toQuery(context);
         if (positive == null || negative == null) {
             assertThat(query, nullValue());
         } else {

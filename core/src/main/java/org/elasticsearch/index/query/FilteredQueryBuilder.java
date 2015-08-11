@@ -74,12 +74,12 @@ public class FilteredQueryBuilder extends AbstractQueryBuilder<FilteredQueryBuil
     }
 
     /** Returns the query to apply the filter to. */
-    public QueryBuilder query() {
+    public QueryBuilder innerQuery() {
         return queryBuilder;
     }
 
     /** Returns the filter to apply to the query results. */
-    public QueryBuilder filter() {
+    public QueryBuilder innerFilter() {
         return filterBuilder;
     }
 

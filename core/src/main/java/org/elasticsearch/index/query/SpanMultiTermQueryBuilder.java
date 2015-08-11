@@ -42,7 +42,7 @@ public class SpanMultiTermQueryBuilder extends AbstractQueryBuilder<SpanMultiTer
         this.multiTermQueryBuilder = multiTermQueryBuilder;
     }
 
-    public MultiTermQueryBuilder multiTermQueryBuilder() {
+    public MultiTermQueryBuilder innerQuery() {
         return this.multiTermQueryBuilder;
     }
 

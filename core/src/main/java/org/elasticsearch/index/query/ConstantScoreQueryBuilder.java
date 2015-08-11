@@ -53,7 +53,7 @@ public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScor
     /**
      * @return the query that was wrapped in this constant score query
      */
-    public QueryBuilder query() {
+    public QueryBuilder innerQuery() {
         return this.filterBuilder;
     }
 

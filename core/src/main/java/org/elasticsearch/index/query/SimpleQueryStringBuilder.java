@@ -94,7 +94,7 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
     }
 
     /** Returns the text to parse the query from. */
-    public String text() {
+    public String value() {
         return this.queryText;
     }
 

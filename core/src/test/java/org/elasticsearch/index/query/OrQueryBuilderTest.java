@@ -74,11 +74,11 @@ public class OrQueryBuilderTest extends BaseQueryTestCase<OrQueryBuilder> {
 
     @Override
     protected void doAssertLuceneQuery(OrQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
-        if (queryBuilder.filters().isEmpty()) {
+        if (queryBuilder.innerQueries().isEmpty()) {
             assertThat(query, nullValue());
         } else {
             List<Query> innerQueries = new ArrayList<>();
-            for (QueryBuilder subQuery : queryBuilder.filters()) {
+            for (QueryBuilder subQuery : queryBuilder.innerQueries()) {
                 Query innerQuery = subQuery.toQuery(context);
                 // ignore queries that are null
                 if (innerQuery != null) {

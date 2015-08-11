@@ -54,7 +54,7 @@ public class SpanFirstQueryBuilder extends AbstractQueryBuilder<SpanFirstQueryBu
     /**
      * @return the inner {@link SpanQueryBuilder} defined in this query
      */
-    public SpanQueryBuilder matchBuilder() {
+    public SpanQueryBuilder innerQuery() {
         return this.matchBuilder;
     }
 

@@ -39,32 +39,32 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
 
     public static final String NAME = "exists";
 
-    private final String name;
+    private final String fieldName;
 
     static final ExistsQueryBuilder PROTOTYPE = new ExistsQueryBuilder(null);
 
-    public ExistsQueryBuilder(String name) {
-        this.name = name;
+    public ExistsQueryBuilder(String fieldName) {
+        this.fieldName = fieldName;
     }
 
     /**
      * @return the field name that has to exist for this query to match
      */
-    public String name() {
-        return this.name;
+    public String fieldName() {
+        return this.fieldName;
     }
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
-        builder.field("field", name);
+        builder.field("field", fieldName);
         printBoostAndQueryName(builder);
         builder.endObject();
     }
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
-        return newFilter(context, name);
+        return newFilter(context, fieldName);
     }
 
     @Override
@@ -119,12 +119,12 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(name);
+        return Objects.hash(fieldName);
     }
 
     @Override
     protected boolean doEquals(ExistsQueryBuilder other) {
-        return Objects.equals(name, other.name);
+        return Objects.equals(fieldName, other.fieldName);
     }
 
     @Override
@@ -134,7 +134,7 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeString(name);
+        out.writeString(fieldName);
     }
 
     @Override

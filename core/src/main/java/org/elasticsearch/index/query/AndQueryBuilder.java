@@ -30,6 +30,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
@@ -50,9 +51,7 @@ public class AndQueryBuilder extends AbstractQueryBuilder<AndQueryBuilder> {
      * @param filters nested filters, no <tt>null</tt> values are allowed
      */
     public AndQueryBuilder(QueryBuilder... filters) {
-        for (QueryBuilder filter : filters) {
-            this.filters.add(filter);
-        }
+        Collections.addAll(this.filters, filters);
     }
 
     /**
@@ -65,9 +64,9 @@ public class AndQueryBuilder extends AbstractQueryBuilder<AndQueryBuilder> {
     }
 
     /**
-     * @return the list of filters added to "and".
+     * @return the list of queries added to "and".
      */
-    public List<QueryBuilder> filters() {
+    public List<QueryBuilder> innerQueries() {
         return this.filters;
     }
 

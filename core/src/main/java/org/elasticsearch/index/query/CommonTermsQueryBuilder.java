@@ -99,7 +99,7 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
         return this.fieldName;
     }
 
-    public Object text() {
+    public Object value() {
         return this.text;
     }
 

@@ -41,7 +41,7 @@ public class SpanMultiTermQueryBuilderTest extends BaseQueryTestCase<SpanMultiTe
     protected void doAssertLuceneQuery(SpanMultiTermQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         assertThat(query, instanceOf(SpanMultiTermQueryWrapper.class));
         SpanMultiTermQueryWrapper spanMultiTermQueryWrapper = (SpanMultiTermQueryWrapper) query;
-        Query multiTermQuery = queryBuilder.multiTermQueryBuilder().toQuery(context);
+        Query multiTermQuery = queryBuilder.innerQuery().toQuery(context);
         assertThat(multiTermQuery, instanceOf(MultiTermQuery.class));
         assertThat(spanMultiTermQueryWrapper.getWrappedQuery(), equalTo(new SpanMultiTermQueryWrapper<>((MultiTermQuery)multiTermQuery).getWrappedQuery()));
     }

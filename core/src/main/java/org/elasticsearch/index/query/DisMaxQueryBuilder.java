@@ -59,7 +59,7 @@ public class DisMaxQueryBuilder extends AbstractQueryBuilder<DisMaxQueryBuilder>
     /**
      * @return an immutable list copy of the current sub-queries of this disjunction
      */
-    public List<QueryBuilder> queries() {
+    public List<QueryBuilder> innerQueries() {
         return this.queries;
     }
 

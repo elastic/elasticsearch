@@ -61,8 +61,6 @@ import java.util.Map;
  */
 public class SimpleQueryStringParser extends BaseQueryParser {
 
-    public static final String NAME = "simple_query_string";
-
     @Inject
     public SimpleQueryStringParser() {
 
@@ -116,7 +114,7 @@ public class SimpleQueryStringParser extends BaseQueryParser {
                         fieldsAndWeights.put(fField, fBoost);
                     }
                 } else {
-                    throw new QueryParsingException(parseContext, "[" + NAME + "] query does not support [" + currentFieldName + "]");
+                    throw new QueryParsingException(parseContext, "[" + SimpleQueryStringBuilder.NAME + "] query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
                 if ("query".equals(currentFieldName)) {

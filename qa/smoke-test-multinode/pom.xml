@@ -274,7 +274,7 @@
             </goals>
             <configuration>
               <target>
-                <ant antfile="${elasticsearch.integ.antfile}" target="stop-external-cluster"/>
+                <ant antfile="${elasticsearch.integ.antfile}" target="stop-external-multi-node-cluster"/>
               </target>
               <skip>${skip.integ.tests}</skip>
             </configuration>

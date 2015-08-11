@@ -309,4 +309,18 @@ public class DefaultSourceMappingTests extends ESSingleNodeTestCase {
             .endObject().endObject().string();
         assertFalse(parser.parse(mapping).sourceMapper().isComplete());
     }
+
+    public void testSourceObjectContainsExtraTokens() throws Exception {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().string();
+        DocumentMapper documentMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+
+        try {
+            documentMapper.parse("test", "type", "1", new BytesArray("{}}")); // extra end object (invalid JSON)
+            fail("Expected parse exception");
+        } catch (MapperParsingException e) {
+            assertNotNull(e.getRootCause());
+            String message = e.getRootCause().getMessage();
+            assertTrue(message, message.contains("Unexpected close marker '}'"));
+        }
+    }
 }

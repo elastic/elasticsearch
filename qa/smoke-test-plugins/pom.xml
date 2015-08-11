@@ -25,9 +25,17 @@
     <elasticsearch.integ.antfile>${project.basedir}/integration-tests.xml</elasticsearch.integ.antfile>
     <tests.rest.suite>smoke_test_plugins</tests.rest.suite>
     <tests.rest.load_packaged>false</tests.rest.load_packaged>
-    <!-- TODO: improve these smoke tests to support auth and add 'elasticsearch-shield' to this list -->
-    <xplugins.list>elasticsearch-watcher,elasticsearch-marvel,elasticsearch-license</xplugins.list>
+    <xplugins.list>elasticsearch-license,elasticsearch-marvel,elasticsearch-shield,elasticsearch-watcher</xplugins.list>
   </properties>
+
+  <dependencies>
+    <dependency>
+      <groupId>org.elasticsearch.plugin</groupId>
+      <artifactId>elasticsearch-shield</artifactId>
+      <version>2.0.0-beta1-SNAPSHOT</version>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
 
   <build>
     <plugins>
@@ -74,14 +82,13 @@
                    <overWrite>true</overWrite>
                  </artifactItem>
 
-                 <!-- Shield is harder to test through REST
                  <artifactItem>
                    <groupId>org.elasticsearch.plugin</groupId>
                    <artifactId>elasticsearch-shield</artifactId>
                    <version>${elasticsearch.version}</version>
                    <type>zip</type>
                    <overWrite>true</overWrite>
-                 </artifactItem>-->
+                 </artifactItem>
 
                  <artifactItem>
                    <groupId>org.elasticsearch.plugin</groupId>

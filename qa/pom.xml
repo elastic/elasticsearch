@@ -319,5 +319,6 @@
 
     <modules>
         <module>smoke-test-plugins</module>
+        <module>smoke-test-plugins-ssl</module>
     </modules>
 </project>

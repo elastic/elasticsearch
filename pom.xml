@@ -1204,8 +1204,7 @@ org.eclipse.jdt.ui.text.custom_code_templates=<?xml version\="1.0" encoding\="UT
                                 <goal>run</goal>
                             </goals>
                             <configuration>
-                                <!-- <skip>${skip.integ.tests}</skip> -->
-                                <skip>true</skip>
+                                <skip>${skip.integ.tests}</skip>
                                 <target>
                                     <echo taskName="license check">Running license check</echo>
                                     <!-- don't run on windows, because everyone hates it -->

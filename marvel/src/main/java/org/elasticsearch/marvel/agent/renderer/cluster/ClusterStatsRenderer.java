@@ -16,7 +16,7 @@ import java.io.IOException;
 
 public class ClusterStatsRenderer extends AbstractRenderer<ClusterStatsMarvelDoc> {
 
-    private static final String[] FILTERS = {
+    public static final String[] FILTERS = {
             "cluster_stats.nodes.count.total",
             "cluster_stats.indices.shards.total",
             "cluster_stats.indices.shards.index.replication.min",

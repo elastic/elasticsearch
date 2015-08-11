@@ -16,7 +16,7 @@ import java.io.IOException;
 
 public class NodeStatsRenderer extends AbstractRenderer<NodeStatsMarvelDoc> {
 
-    private static final String[] FILTERS = {
+    public static final String[] FILTERS = {
             // Extra information
             "node_stats.node_id",
             "node_stats.node_master",
@@ -32,6 +32,7 @@ public class NodeStatsRenderer extends AbstractRenderer<NodeStatsMarvelDoc> {
             "node_stats.fs.total.total_in_bytes",
             "node_stats.fs.total.free_in_bytes",
             "node_stats.fs.total.available_in_bytes",
+            "node_stats.os.load_average",
             "node_stats.process.max_file_descriptors",
             "node_stats.process.open_file_descriptors",
             "node_stats.jvm.mem.heap_used_in_bytes",

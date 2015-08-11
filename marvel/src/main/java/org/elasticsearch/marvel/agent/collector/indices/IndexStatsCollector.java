@@ -49,9 +49,6 @@ public class IndexStatsCollector extends AbstractCollector<IndexStatsCollector> 
         ImmutableList.Builder<MarvelDoc> results = ImmutableList.builder();
 
         IndicesStatsResponse indicesStats = client.admin().indices().prepareStats()
-                .setStore(true)
-                .setIndexing(true)
-                .setDocs(true)
                 .setIndices(marvelSettings.indices())
                 .get(marvelSettings.indexStatsTimeout());
 

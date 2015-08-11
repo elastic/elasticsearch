@@ -22,6 +22,9 @@
         "count": 0
       }
     },
+    "os": {
+      "load_average" : 0.66
+    },
     "process": {
       "open_file_descriptors": 235,
       "max_file_descriptors": 4096
@@ -48,10 +51,10 @@
       "index": {
         "rejected": 0
       },
-      "bulk": {
+      "search": {
         "rejected": 0
       },
-      "search": {
+      "bulk": {
         "rejected": 0
       }
     },

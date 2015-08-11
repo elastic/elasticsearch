@@ -20,7 +20,7 @@ import java.util.Locale;
 
 public class ClusterStateRenderer extends AbstractRenderer<ClusterStateMarvelDoc> {
 
-    private static final String[] FILTERS = {
+    public static final String[] FILTERS = {
             "cluster_state.version",
             "cluster_state.master_node",
             "cluster_state.status",

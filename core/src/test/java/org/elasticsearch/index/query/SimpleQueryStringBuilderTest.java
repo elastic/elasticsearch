@@ -22,6 +22,7 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.Version;
@@ -88,38 +89,13 @@ public class SimpleQueryStringBuilderTest extends BaseQueryTestCase<SimpleQueryS
         return result;
     }
 
-    @Override
-    protected void doAssertLuceneQuery(SimpleQueryStringBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
-        assertThat(query, notNullValue());
-        if (queryBuilder.fields().size() > 1) {
-            assertThat(query, instanceOf(BooleanQuery.class));
-            BooleanQuery booleanQuery = (BooleanQuery) query;
-            assertThat(booleanQuery.clauses().size(), equalTo(queryBuilder.fields().size()));
-            Iterator<String> fields = queryBuilder.fields().keySet().iterator();
-            for (BooleanClause booleanClause : booleanQuery) {
-                assertThat(booleanClause.getQuery(), instanceOf(TermQuery.class));
-                TermQuery termQuery = (TermQuery) booleanClause.getQuery();
-                assertThat(termQuery.getTerm(), equalTo(new Term(fields.next(), queryBuilder.value().toLowerCase(Locale.ROOT))));
-            }
-        } else {
-            assertThat(query, instanceOf(TermQuery.class));
-            String field;
-            if (queryBuilder.fields().size() == 0) {
-                field = MetaData.ALL;
-            } else {
-                field = queryBuilder.fields().keySet().iterator().next();
-            }
-            TermQuery termQuery = (TermQuery) query;
-            assertThat(termQuery.getTerm(), equalTo(new Term(field, queryBuilder.value().toLowerCase(Locale.ROOT))));
-        }
-    }
-
     @Test
     public void testDefaults() {
         SimpleQueryStringBuilder qb = new SimpleQueryStringBuilder("The quick brown fox.");
 
         assertEquals("Wrong default default boost.", AbstractQueryBuilder.DEFAULT_BOOST, qb.boost(), 0.001);
-        assertEquals("Wrong default default boost field.", AbstractQueryBuilder.DEFAULT_BOOST, SimpleQueryStringBuilder.DEFAULT_BOOST, 0.001);
+        assertEquals("Wrong default default boost field.", AbstractQueryBuilder.DEFAULT_BOOST, SimpleQueryStringBuilder.DEFAULT_BOOST,
+                0.001);
 
         assertEquals("Wrong default flags.", SimpleQueryStringFlag.ALL.value, qb.flags());
         assertEquals("Wrong default flags field.", SimpleQueryStringFlag.ALL.value(), SimpleQueryStringBuilder.DEFAULT_FLAGS);
@@ -134,7 +110,8 @@ public class SimpleQueryStringBuilderTest extends BaseQueryTestCase<SimpleQueryS
         assertEquals("Wrong default default analyze_wildcard field.", false, SimpleQueryStringBuilder.DEFAULT_ANALYZE_WILDCARD);
 
         assertEquals("Wrong default default lowercase_expanded_terms.", true, qb.lowercaseExpandedTerms());
-        assertEquals("Wrong default default lowercase_expanded_terms field.", true, SimpleQueryStringBuilder.DEFAULT_LOWERCASE_EXPANDED_TERMS);
+        assertEquals("Wrong default default lowercase_expanded_terms field.", true,
+                SimpleQueryStringBuilder.DEFAULT_LOWERCASE_EXPANDED_TERMS);
 
         assertEquals("Wrong default default lenient.", false, qb.lenient());
         assertEquals("Wrong default default lenient field.", false, SimpleQueryStringBuilder.DEFAULT_LENIENT);
@@ -147,32 +124,32 @@ public class SimpleQueryStringBuilderTest extends BaseQueryTestCase<SimpleQueryS
     public void testDefaultNullLocale() {
         SimpleQueryStringBuilder qb = new SimpleQueryStringBuilder("The quick brown fox.");
         qb.locale(null);
-        assertEquals("Setting locale to null should result in returning to default value.",
-                SimpleQueryStringBuilder.DEFAULT_LOCALE, qb.locale());
+        assertEquals("Setting locale to null should result in returning to default value.", SimpleQueryStringBuilder.DEFAULT_LOCALE,
+                qb.locale());
     }
 
     @Test
     public void testDefaultNullComplainFlags() {
         SimpleQueryStringBuilder qb = new SimpleQueryStringBuilder("The quick brown fox.");
         qb.flags((SimpleQueryStringFlag[]) null);
-        assertEquals("Setting flags to null should result in returning to default value.",
-                SimpleQueryStringBuilder.DEFAULT_FLAGS, qb.flags());
+        assertEquals("Setting flags to null should result in returning to default value.", SimpleQueryStringBuilder.DEFAULT_FLAGS,
+                qb.flags());
     }
 
     @Test
     public void testDefaultEmptyComplainFlags() {
         SimpleQueryStringBuilder qb = new SimpleQueryStringBuilder("The quick brown fox.");
-        qb.flags(new SimpleQueryStringFlag[]{});
-        assertEquals("Setting flags to empty should result in returning to default value.",
-                SimpleQueryStringBuilder.DEFAULT_FLAGS, qb.flags());
+        qb.flags(new SimpleQueryStringFlag[] {});
+        assertEquals("Setting flags to empty should result in returning to default value.", SimpleQueryStringBuilder.DEFAULT_FLAGS,
+                qb.flags());
     }
 
     @Test
     public void testDefaultNullComplainOp() {
         SimpleQueryStringBuilder qb = new SimpleQueryStringBuilder("The quick brown fox.");
         qb.defaultOperator(null);
-        assertEquals("Setting operator to null should result in returning to default value.",
-                SimpleQueryStringBuilder.DEFAULT_OPERATOR, qb.defaultOperator());
+        assertEquals("Setting operator to null should result in returning to default value.", SimpleQueryStringBuilder.DEFAULT_OPERATOR,
+                qb.defaultOperator());
     }
 
     // Check operator handling, and default field handling.
@@ -180,7 +157,10 @@ public class SimpleQueryStringBuilderTest extends BaseQueryTestCase<SimpleQueryS
     public void testDefaultOperatorHandling() throws IOException {
         SimpleQueryStringBuilder qb = new SimpleQueryStringBuilder("The quick brown fox.").field(STRING_FIELD_NAME);
         QueryShardContext shardContext = createShardContext();
-        shardContext.setAllowUnmappedFields(true); // to avoid occasional cases in setup where we didn't add types but strict field resolution
+        shardContext.setAllowUnmappedFields(true); // to avoid occasional cases
+                                                   // in setup where we didn't
+                                                   // add types but strict field
+                                                   // resolution
         BooleanQuery boolQuery = (BooleanQuery) qb.toQuery(shardContext);
         assertThat(shouldClauses(boolQuery), is(4));
 
@@ -267,7 +247,78 @@ public class SimpleQueryStringBuilderTest extends BaseQueryTestCase<SimpleQueryS
         }
     }
 
-    private static int shouldClauses(BooleanQuery query) {
+    /*
+     * This assumes that Lucene query parsing is being checked already, adding
+     * checks only for our parsing extensions.
+     * 
+     * Also this relies on {@link SimpleQueryStringTests} to test most of the
+     * actual functionality of query parsing.
+     */
+    @Override
+    protected void doAssertLuceneQuery(SimpleQueryStringBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
+        assertThat(query, notNullValue());
+
+        if (queryBuilder.fields().size() > 1 && (!"".equals(queryBuilder.value()))) {
+            assertTrue("Query should have been BooleanQuery but was " + query.getClass().getName(), query instanceof BooleanQuery);
+
+            BooleanQuery boolQuery = (BooleanQuery) query;
+            if (queryBuilder.lowercaseExpandedTerms()) {
+                for (BooleanClause clause : boolQuery.clauses()) {
+                    if (clause.getQuery() instanceof TermQuery) {
+                        TermQuery inner = (TermQuery) clause.getQuery();
+                        assertThat(inner.getTerm().bytes().toString(), is(inner.getTerm().bytes().toString().toLowerCase(Locale.ROOT)));
+                    }
+                }
+            }
+
+            assertThat(boolQuery.clauses().size(), equalTo(queryBuilder.fields().size()));
+            Iterator<String> fields = queryBuilder.fields().keySet().iterator();
+            for (BooleanClause booleanClause : boolQuery) {
+                assertThat(booleanClause.getQuery(), instanceOf(TermQuery.class));
+                TermQuery termQuery = (TermQuery) booleanClause.getQuery();
+                assertThat(termQuery.getTerm(), equalTo(new Term(fields.next(), queryBuilder.value().toLowerCase(Locale.ROOT))));
+            }
+
+            if (queryBuilder.minimumShouldMatch() != null) {
+                Collection<String> minMatchAlways = Arrays.asList(new String[] { "1", "-1", "75%", "-25%" });
+                Collection<String> minMatchLarger = Arrays.asList(new String[] { "2<75%", "2<-25%" });
+
+                if (minMatchAlways.contains(queryBuilder.minimumShouldMatch())) {
+                    assertThat(boolQuery.getMinimumNumberShouldMatch(), greaterThan(0));
+                } else if (minMatchLarger.contains(queryBuilder.minimumShouldMatch())) {
+                    if (shouldClauses(boolQuery) > 2) {
+                        assertThat(boolQuery.getMinimumNumberShouldMatch(), greaterThan(0));
+                    }
+                } else {
+                    assertEquals(0, boolQuery.getMinimumNumberShouldMatch());
+                }
+            }
+        } else if (queryBuilder.fields().size() == 1 && (!"".equals(queryBuilder.value()))) {
+            assertTrue("Query should have been TermQuery but was " + query.getClass().getName(), query instanceof TermQuery);
+
+            TermQuery termQuery = (TermQuery) query;
+            assertThat(termQuery.getTerm().field(), is(queryBuilder.fields().keySet().iterator().next()));
+
+            String field;
+            if (queryBuilder.fields().size() == 0) {
+                field = MetaData.ALL;
+            } else {
+                field = queryBuilder.fields().keySet().iterator().next();
+            }
+            assertThat(termQuery.getTerm(), equalTo(new Term(field, queryBuilder.value().toLowerCase(Locale.ROOT))));
+
+            if (queryBuilder.lowercaseExpandedTerms()) {
+                assertThat(termQuery.getTerm().bytes().toString(), is(termQuery.getTerm().bytes().toString().toLowerCase(Locale.ROOT)));
+            }
+
+        } else if ("".equals(queryBuilder.value())) {
+            assertTrue("Query should have been MatchNoDocsQuery but was " + query.getClass().getName(), query instanceof MatchNoDocsQuery);
+        } else {
+            fail("Encountered lucene query type we do not have a validation implementation for in our SimpleQueryStringBuilderTest");
+        }
+    }
+
+    private int shouldClauses(BooleanQuery query) {
         int result = 0;
         for (BooleanClause c : query.clauses()) {
             if (c.getOccur() == BooleanClause.Occur.SHOULD) {
@@ -277,4 +328,3 @@ public class SimpleQueryStringBuilderTest extends BaseQueryTestCase<SimpleQueryS
         return result;
     }
 }
-

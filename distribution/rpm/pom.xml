@@ -142,6 +142,15 @@
                         </mapping>
                         <!-- Add configuration files -->
                         <mapping>
+                            <!-- Explicitly add conf.dir to the file list so
+                                 that it is removed when the package is removed.
+                                 This is required because the scripts
+                                 subdirectory is created outside of the mapping
+                                 that creates the conf.dir.-->
+                            <directory>${packaging.elasticsearch.conf.dir}</directory>
+                            <configuration>noreplace</configuration>
+                        </mapping>
+                        <mapping>
                             <directory>${packaging.elasticsearch.conf.dir}/</directory>
                             <configuration>noreplace</configuration>
                             <sources>

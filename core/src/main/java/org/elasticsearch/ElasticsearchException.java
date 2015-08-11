@@ -43,7 +43,10 @@ import java.util.*;
  */
 public class ElasticsearchException extends RuntimeException implements ToXContent {
 
-    public static final String REST_EXCEPTION_SKIP_CAUSE = "rest.exception.skip_cause";
+    public static final String REST_EXCEPTION_SKIP_CAUSE = "rest.exception.cause.skip";
+    public static final String REST_EXCEPTION_SKIP_STACK_TRACE = "rest.exception.stacktrace.skip";
+    private static final boolean REST_EXCEPTION_SKIP_STACK_TRACE_DEFAULT = false;
+    private static final boolean REST_EXCEPTION_SKIP_CAUSE_DEFAULT = false;
     private static final String INDEX_HEADER_KEY = "es.index";
     private static final String SHARD_HEADER_KEY = "es.shard";
     private static final String RESOURCE_HEADER_TYPE_KEY = "es.resource.type";
@@ -270,6 +273,9 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             }
             innerToXContent(builder, params);
             renderHeader(builder, params);
+            if (params.paramAsBoolean(REST_EXCEPTION_SKIP_STACK_TRACE, REST_EXCEPTION_SKIP_STACK_TRACE_DEFAULT) == false) {
+                builder.field("stack_trace", ExceptionsHelper.stackTrace(this));
+            }
         }
         return builder;
     }
@@ -286,7 +292,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
      */
     protected final void causeToXContent(XContentBuilder builder, Params params) throws IOException {
         final Throwable cause = getCause();
-        if (cause != null && params.paramAsBoolean(REST_EXCEPTION_SKIP_CAUSE, false) == false) {
+        if (cause != null && params.paramAsBoolean(REST_EXCEPTION_SKIP_CAUSE, REST_EXCEPTION_SKIP_CAUSE_DEFAULT) == false) {
             builder.field("caused_by");
             builder.startObject();
             toXContent(builder, params, cause);
@@ -341,6 +347,9 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
                 builder.startObject();
                 toXContent(builder, params, ex.getCause());
                 builder.endObject();
+            }
+            if (params.paramAsBoolean(REST_EXCEPTION_SKIP_STACK_TRACE, REST_EXCEPTION_SKIP_STACK_TRACE_DEFAULT) == false) {
+                builder.field("stack_trace", ExceptionsHelper.stackTrace(ex));
             }
         }
     }

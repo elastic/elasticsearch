@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.search;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.test.StreamsUtils;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -28,6 +29,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.util.Collections;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
@@ -123,7 +125,7 @@ public class MultiSearchRequestTests extends ESTestCase {
     public void testResponseErrorToXContent() throws IOException {
         MultiSearchResponse response = new MultiSearchResponse(new MultiSearchResponse.Item[]{new MultiSearchResponse.Item(null, new IllegalStateException("foobar")), new MultiSearchResponse.Item(null, new IllegalStateException("baaaaaazzzz"))});
         XContentBuilder builder = XContentFactory.jsonBuilder();
-        response.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        response.toXContent(builder, new ToXContent.MapParams(Collections.singletonMap(ElasticsearchException.REST_EXCEPTION_SKIP_STACK_TRACE, "true")));
         assertEquals("\"responses\"[{\"error\":{\"root_cause\":[{\"type\":\"illegal_state_exception\",\"reason\":\"foobar\"}],\"type\":\"illegal_state_exception\",\"reason\":\"foobar\"}},{\"error\":{\"root_cause\":[{\"type\":\"illegal_state_exception\",\"reason\":\"baaaaaazzzz\"}],\"type\":\"illegal_state_exception\",\"reason\":\"baaaaaazzzz\"}}]",
                 builder.string());
     }

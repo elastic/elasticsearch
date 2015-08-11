@@ -176,6 +176,7 @@ public class BytesRestResponseTests extends ESTestCase {
 
         DetailedExceptionRestChannel(RestRequest request) {
             super(request, true);
+            request.params().put(ElasticsearchException.REST_EXCEPTION_SKIP_STACK_TRACE, "true");
         }
 
         @Override

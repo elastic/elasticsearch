@@ -26,6 +26,7 @@ import org.elasticsearch.search.action.SearchServiceTransportAction;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.audit.AuditTrail;
 import org.elasticsearch.shield.authc.AnonymousService;
+import org.elasticsearch.shield.authc.AuthenticationFailureHandler;
 import org.elasticsearch.shield.authz.indicesresolver.DefaultIndicesResolver;
 import org.elasticsearch.shield.authz.indicesresolver.IndicesResolver;
 import org.elasticsearch.shield.authz.store.RolesStore;
@@ -47,9 +48,11 @@ public class InternalAuthorizationService extends AbstractComponent implements A
     private final AuditTrail auditTrail;
     private final IndicesResolver[] indicesResolvers;
     private final AnonymousService anonymousService;
+    private final AuthenticationFailureHandler authcFailureHandler;
 
     @Inject
-    public InternalAuthorizationService(Settings settings, RolesStore rolesStore, ClusterService clusterService, AuditTrail auditTrail, AnonymousService anonymousService) {
+    public InternalAuthorizationService(Settings settings, RolesStore rolesStore, ClusterService clusterService,
+                                        AuditTrail auditTrail, AnonymousService anonymousService, AuthenticationFailureHandler authcFailureHandler) {
         super(settings);
         this.rolesStore = rolesStore;
         this.clusterService = clusterService;
@@ -58,6 +61,7 @@ public class InternalAuthorizationService extends AbstractComponent implements A
                 new DefaultIndicesResolver(this)
         };
         this.anonymousService = anonymousService;
+        this.authcFailureHandler = authcFailureHandler;
     }
 
     @Override
@@ -238,7 +242,7 @@ public class InternalAuthorizationService extends AbstractComponent implements A
         // Special case for anonymous user
         if (anonymousService.isAnonymous(user)) {
             if (!anonymousService.authorizationExceptionsEnabled()) {
-                throw authenticationError("action [{}] requires authentication", action);
+                throw authcFailureHandler.authenticationRequired(action);
             }
         }
         return authorizationError("action [{}] is unauthorized for user [{}]", action, user.principal());

@@ -317,6 +317,7 @@
         <module>smoke-test-plugins-ssl</module>-->
         <module>shield-core-rest-tests</module>
         <module>smoke-test-watcher-with-shield</module>
+        <module>shield-example-realm</module>
     </modules>
 
     <profiles>

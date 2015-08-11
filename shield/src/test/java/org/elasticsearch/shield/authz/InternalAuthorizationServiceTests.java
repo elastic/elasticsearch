@@ -24,6 +24,7 @@ import org.elasticsearch.search.action.SearchServiceTransportAction;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.audit.AuditTrail;
 import org.elasticsearch.shield.authc.AnonymousService;
+import org.elasticsearch.shield.authc.DefaultAuthenticationFailureHandler;
 import org.elasticsearch.shield.authz.store.RolesStore;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportRequest;
@@ -49,7 +50,7 @@ public class InternalAuthorizationServiceTests extends ESTestCase {
         clusterService = mock(ClusterService.class);
         auditTrail = mock(AuditTrail.class);
         AnonymousService anonymousService = new AnonymousService(Settings.EMPTY);
-        internalAuthorizationService = new InternalAuthorizationService(Settings.EMPTY, rolesStore, clusterService, auditTrail, anonymousService);
+        internalAuthorizationService = new InternalAuthorizationService(Settings.EMPTY, rolesStore, clusterService, auditTrail, anonymousService, new DefaultAuthenticationFailureHandler());
     }
 
     @Test
@@ -290,7 +291,7 @@ public class InternalAuthorizationServiceTests extends ESTestCase {
         TransportRequest request = new IndicesExistsRequest("b");
         ClusterState state = mock(ClusterState.class);
         AnonymousService anonymousService = new AnonymousService(Settings.builder().put("shield.authc.anonymous.roles", "a_all").build());
-        internalAuthorizationService = new InternalAuthorizationService(Settings.EMPTY, rolesStore, clusterService, auditTrail, anonymousService);
+        internalAuthorizationService = new InternalAuthorizationService(Settings.EMPTY, rolesStore, clusterService, auditTrail, anonymousService, new DefaultAuthenticationFailureHandler());
 
         when(rolesStore.role("a_all")).thenReturn(Permission.Global.Role.builder("a_all").add(Privilege.Index.ALL, "a").build());
         when(clusterService.state()).thenReturn(state);
@@ -315,7 +316,7 @@ public class InternalAuthorizationServiceTests extends ESTestCase {
                 .put("shield.authc.anonymous.roles", "a_all")
                 .put(AnonymousService.SETTING_AUTHORIZATION_EXCEPTION_ENABLED, false)
                 .build());
-        internalAuthorizationService = new InternalAuthorizationService(Settings.EMPTY, rolesStore, clusterService, auditTrail, anonymousService);
+        internalAuthorizationService = new InternalAuthorizationService(Settings.EMPTY, rolesStore, clusterService, auditTrail, anonymousService, new DefaultAuthenticationFailureHandler());
 
         when(rolesStore.role("a_all")).thenReturn(Permission.Global.Role.builder("a_all").add(Privilege.Index.ALL, "a").build());
         when(clusterService.state()).thenReturn(state);

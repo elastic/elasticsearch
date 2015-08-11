@@ -27,10 +27,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.LocaleUtils;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
@@ -55,7 +53,7 @@ import java.util.Map;
  * <li>'{@code ~}N' at the end of phrases specifies near/slop query: <tt>"term1 term2"~5</tt>
  * </ul>
  * <p/>
- * See: {@link XSimpleQueryParser} for more information.
+ * See: {@link SimpleQueryParser} for more information.
  * <p/>
  * This query supports these options:
  * <p/>
@@ -75,7 +73,7 @@ public class SimpleQueryStringParser implements QueryParser {
     public static final String NAME = "simple_query_string";
 
     @Inject
-    public SimpleQueryStringParser(Settings settings) {
+    public SimpleQueryStringParser() {
 
     }
 
@@ -92,7 +90,6 @@ public class SimpleQueryStringParser implements QueryParser {
         String queryBody = null;
         float boost = 1.0f; 
         String queryName = null;
-        String field = null;
         String minimumShouldMatch = null;
         Map<String, Float> fieldsAndWeights = null;
         BooleanClause.Occur defaultOperator = null;
@@ -141,9 +138,7 @@ public class SimpleQueryStringParser implements QueryParser {
                         }
                     }
                 } else {
-                    throw new QueryParsingException(parseContext,
- "[" + NAME + "] query does not support [" + currentFieldName
- + "]");
+                    throw new QueryParsingException(parseContext, "[" + NAME + "] query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
                 if ("query".equals(currentFieldName)) {
@@ -155,8 +150,6 @@ public class SimpleQueryStringParser implements QueryParser {
                     if (analyzer == null) {
                         throw new QueryParsingException(parseContext, "[" + NAME + "] analyzer [" + parser.text() + "] not found");
                     }
-                } else if ("field".equals(currentFieldName)) {
-                    field = parser.text();
                 } else if ("default_operator".equals(currentFieldName) || "defaultOperator".equals(currentFieldName)) {
                     String op = parser.text();
                     if ("or".equalsIgnoreCase(op)) {
@@ -201,16 +194,6 @@ public class SimpleQueryStringParser implements QueryParser {
         if (queryBody == null) {
             throw new QueryParsingException(parseContext, "[" + NAME + "] query text missing");
         }
-        
-        // Support specifying only a field instead of a map
-        if (field == null) {
-            field = currentFieldName;
-        }
-
-        // Use the default field (_all) if no fields specified
-        if (fieldsAndWeights == null) {
-            field = parseContext.defaultField();
-        }
 
         // Use standard analyzer by default
         if (analyzer == null) {
@@ -218,7 +201,7 @@ public class SimpleQueryStringParser implements QueryParser {
         }
 
         if (fieldsAndWeights == null) {
-            fieldsAndWeights = Collections.singletonMap(field, 1.0F);
+            fieldsAndWeights = Collections.singletonMap(parseContext.defaultField(), 1.0F);
         }
         SimpleQueryParser sqp = new SimpleQueryParser(analyzer, fieldsAndWeights, flags, sqsSettings);
 

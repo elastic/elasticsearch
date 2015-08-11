@@ -21,7 +21,6 @@ package org.elasticsearch.index.query;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
-
 import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.index.*;
 import org.apache.lucene.index.memory.MemoryIndex;
@@ -39,6 +38,7 @@ import org.apache.lucene.util.CharsRefBuilder;
 import org.apache.lucene.util.NumericUtils;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.action.termvectors.*;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -73,11 +73,12 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Locale;
 
-import static org.elasticsearch.test.StreamsUtils.copyToBytesFromClasspath;
-import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.*;
+import static org.elasticsearch.test.StreamsUtils.copyToBytesFromClasspath;
+import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBooleanSubQuery;
 import static org.hamcrest.Matchers.*;
 
@@ -2379,7 +2380,7 @@ public class SimpleIndexQueryParserTests extends ESSingleNodeTestCase {
         IndexQueryParserService queryParser = queryParser();
         String query = jsonBuilder().startObject().startObject("function_score")
                 .startArray("functions")
-                .startObject().field("weight", 2).field("boost_factor",2).endObject()
+                .startObject().field("weight", 2).field("boost_factor", 2).endObject()
                 .endArray()
                 .endObject().endObject().string();
         try {
@@ -2479,5 +2480,20 @@ public class SimpleIndexQueryParserTests extends ESSingleNodeTestCase {
             assertThat(prefixQuery.getPrefix(), equalTo(new Term("field", "val")));
             assertThat(prefixQuery.getRewriteMethod(), instanceOf(MultiTermQuery.TopTermsBlendedFreqScoringRewrite.class));
         }
+    }
+
+    @Test
+    public void testSimpleQueryStringNoFields() throws Exception {
+        IndexQueryParserService queryParser = queryParser();
+        String queryText = randomAsciiOfLengthBetween(1, 10).toLowerCase(Locale.ROOT);
+        String query = "{\n" +
+                "    \"simple_query_string\" : {\n" +
+                "        \"query\" : \"" + queryText + "\"\n" +
+                "    }\n" +
+                "}";
+        Query parsedQuery = queryParser.parse(query).query();
+        assertThat(parsedQuery, instanceOf(TermQuery.class));
+        TermQuery termQuery = (TermQuery) parsedQuery;
+        assertThat(termQuery.getTerm(), equalTo(new Term(MetaData.ALL, queryText)));
     }
 }

@@ -11,7 +11,6 @@
 
 ---
 "Data":
-
   - do:
       cat.configured_example:
         v: false

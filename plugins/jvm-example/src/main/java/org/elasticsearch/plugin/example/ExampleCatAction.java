@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.plugin.configured;
+package org.elasticsearch.plugin.example;
 
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Table;
@@ -31,12 +31,12 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 /**
  * Example of adding a cat action with a plugin.
  */
-public class ConfiguredExampleCatAction extends AbstractCatAction {
-    private final ConfiguredExamplePluginConfiguration config;
+public class ExampleCatAction extends AbstractCatAction {
+    private final ExamplePluginConfiguration config;
 
     @Inject
-    public ConfiguredExampleCatAction(Settings settings, RestController controller,
-            Client client, ConfiguredExamplePluginConfiguration config) {
+    public ExampleCatAction(Settings settings, RestController controller,
+            Client client, ExamplePluginConfiguration config) {
         super(settings, controller, client);
         this.config = config;
         controller.registerHandler(GET, "/_cat/configured_example", this);

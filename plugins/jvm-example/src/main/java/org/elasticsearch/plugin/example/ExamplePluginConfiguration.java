@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.plugin.configured;
+package org.elasticsearch.plugin.example;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.inject.AbstractModule;
@@ -46,13 +46,13 @@ import static java.nio.file.Files.newBufferedReader;
 /**
  * Example configuration.
  */
-public class ConfiguredExamplePluginConfiguration {
+public class ExamplePluginConfiguration {
     private String test = "not set in config";
 
     @Inject
-    public ConfiguredExamplePluginConfiguration(Environment env) throws IOException {
+    public ExamplePluginConfiguration(Environment env) throws IOException {
         // The directory part of the location matches the artifactId of this plugin
-        Path configFile = env.configFile().resolve("example-configured/example.yaml");
+        Path configFile = env.configFile().resolve("jvm-example/example.yaml");
         String contents = copyToString(newBufferedReader(configFile, UTF_8));
         XContentParser parser = YamlXContent.yamlXContent.createParser(contents);
 

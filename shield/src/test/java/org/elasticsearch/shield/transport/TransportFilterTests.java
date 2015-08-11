@@ -49,9 +49,8 @@ public class TransportFilterTests extends ESIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.settingsBuilder()
                 .put("plugins.load_classpath_plugins", false)
-                .put("plugin.types", InternalPlugin.class.getName())
+                .putArray("plugin.types", InternalPlugin.class.getName(), InternalPluginServerTransportService.Plugin.class.getName())
                 .put("node.mode", "network")
-                .put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, InternalPluginServerTransportService.class.getName())
                 .build();
     }
 
@@ -265,6 +264,23 @@ public class TransportFilterTests extends ESIntegTestCase {
 
     // Sub class the Shield transport to always inject a mock for testing
     static class InternalPluginServerTransportService extends ShieldServerTransportService {
+        public static class Plugin extends AbstractPlugin {
+            @Override
+            public String name() {
+                return "mock-transport-service";
+            }
+            @Override
+            public String description() {
+                return "a mock transport service for testing";
+            }
+            public void onModule(TransportModule transportModule) {
+                transportModule.addTransportService("filter-mock", InternalPluginServerTransportService.class);
+            }
+            @Override
+            public Settings additionalSettings() {
+                return Settings.builder().put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, "filter-mock").build();
+            }
+        }
 
         @Inject
         InternalPluginServerTransportService(Settings settings, Transport transport, ThreadPool threadPool, AuthenticationService authcService, AuthorizationService authzService, ShieldActionMapper actionMapper, ClientTransportFilter clientTransportFilter) {

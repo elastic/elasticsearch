@@ -94,7 +94,7 @@ public class ExecutionService extends AbstractComponent {
     }
 
     public boolean validate(ClusterState state) {
-        return historyStore.validate(state) && triggeredWatchStore.validate(state);
+        return triggeredWatchStore.validate(state);
     }
 
     public void stop() {

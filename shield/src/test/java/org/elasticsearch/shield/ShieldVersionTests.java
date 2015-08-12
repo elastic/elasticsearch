@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.shield;
 
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -14,7 +14,7 @@ import static org.hamcrest.Matchers.is;
 /**
  *
  */
-public class ShieldVersionTests extends ElasticsearchTestCase {
+public class ShieldVersionTests extends ESTestCase {
 
     @Test
     public void testStrings() throws Exception {

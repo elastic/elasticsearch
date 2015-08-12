@@ -6,14 +6,14 @@
 package org.elasticsearch.shield;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.Matchers.arrayContaining;
 
-public class ShieldPluginSettingsTests extends ElasticsearchTestCase {
+public class ShieldPluginSettingsTests extends ESTestCase {
 
     private static final String TRIBE_T1_SHIELD_ENABLED = "tribe.t1." + ShieldPlugin.ENABLED_SETTING_NAME;
     private static final String TRIBE_T2_SHIELD_ENABLED = "tribe.t2." + ShieldPlugin.ENABLED_SETTING_NAME;

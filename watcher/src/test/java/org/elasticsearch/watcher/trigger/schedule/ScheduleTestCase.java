@@ -8,7 +8,7 @@ package org.elasticsearch.watcher.trigger.schedule;
 import com.google.common.primitives.Ints;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.trigger.schedule.support.*;
 
 import java.io.IOException;
@@ -21,7 +21,7 @@ import static org.elasticsearch.watcher.trigger.schedule.Schedules.*;
 /**
  *
  */
-public abstract class ScheduleTestCase extends ElasticsearchTestCase {
+public abstract class ScheduleTestCase extends ESTestCase {
 
     protected static String[] expressions(CronnableSchedule schedule) {
         return expressions(schedule.crons);

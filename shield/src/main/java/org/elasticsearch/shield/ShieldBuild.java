@@ -5,14 +5,13 @@
  */
 package org.elasticsearch.shield;
 
-import org.elasticsearch.common.io.FastStringReader;
-import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.ISODateTimeFormat;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.Properties;
 
 /**
@@ -27,10 +26,9 @@ public class ShieldBuild {
         String hashShort = "NA";
         String timestamp = "NA";
 
-        try {
-            String properties = Streams.copyToStringFromClasspath("/shield-build.properties");
+        try (InputStream is = ShieldBuild.class.getResourceAsStream("/shield-build.properties")) {
             Properties props = new Properties();
-            props.load(new FastStringReader(properties));
+            props.load(is);
             hash = props.getProperty("hash", hash);
             if (!hash.equals("NA")) {
                 hashShort = hash.substring(0, 7);

@@ -8,7 +8,7 @@ package org.elasticsearch.shield.authz;
 import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableList;
 import org.elasticsearch.action.get.GetAction;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -20,7 +20,7 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-public class PermissionTests extends ElasticsearchTestCase {
+public class PermissionTests extends ESTestCase {
 
     private Permission.Global.Role permission;
 

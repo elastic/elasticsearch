@@ -10,7 +10,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.*;
@@ -19,7 +19,7 @@ import static org.hamcrest.Matchers.is;
 /**
  *
  */
-public class XContentSourceTests extends ElasticsearchTestCase {
+public class XContentSourceTests extends ESTestCase {
 
     @Test
     public void testToXContent() throws Exception {

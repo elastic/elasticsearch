@@ -20,6 +20,8 @@
     <properties>
         <elasticsearch.license.header>${elasticsearch.tools.directory}/commercial-license-check/elasticsearch_license_header.txt</elasticsearch.license.header>
         <elasticsearch.license.headerDefinition>${elasticsearch.tools.directory}/commercial-license-check/license_header_definition.xml</elasticsearch.license.headerDefinition>
+        <assembly.attach>true</assembly.attach>
+        <sources.attach>true</sources.attach>
     </properties>
 
     <scm>
@@ -87,6 +89,39 @@
               </resourceBundles>
             </configuration>
           </plugin>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-assembly-plugin</artifactId>
+            <configuration>
+              <attach>${assembly.attach}</attach>
+            </configuration>
+          </plugin>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-source-plugin</artifactId>
+            <executions>
+                <execution>
+                    <id>attach-sources</id>
+                    <goals>
+                        <goal>jar</goal>
+                    </goals>
+                    <configuration>
+                        <attach>${sources.attach}</attach>
+                    </configuration>
+                </execution>
+            </executions>
+          </plugin>
+          <plugin>
+              <groupId>org.apache.maven.plugins</groupId>
+              <artifactId>maven-antrun-plugin</artifactId>
+              <executions>
+                  <execution>
+                      <!-- Don't run the license checker in x-plugins -->
+                      <id>check-license</id>
+                      <phase>none</phase>
+                  </execution>
+              </executions>
+          </plugin>
         </plugins>
       </pluginManagement>
     </build>
@@ -109,6 +144,10 @@
         </profile>
         <profile>
             <id>deploy-public</id>
+            <properties>
+                <assembly.attach>false</assembly.attach>
+                <sources.attach>false</sources.attach>
+            </properties>
             <distributionManagement>
                 <repository>
                     <id>elasticsearch-public-releases</id>
@@ -116,15 +155,50 @@
                     <url>http://maven.elasticsearch.org/artifactory/public-releases</url>
                 </repository>
             </distributionManagement>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-enforcer-plugin</artifactId>
+                        <dependencies>
+                            <dependency>
+                                <groupId>org.elasticsearch</groupId>
+                                <artifactId>attached-artifact-enforcer</artifactId>
+                                <version>1.0-SNAPSHOT</version>
+                            </dependency>
+                        </dependencies>
+                        <executions>
+                            <execution>
+                                <id>check-attached-artifacts</id>
+                                <phase>verify</phase>
+                                <goals>
+                                    <goal>enforce</goal>
+                                </goals>
+                                <configuration>
+                                    <rules>
+                                        <bannedAttachedArtifacts implementation="org.elasticsearch.enforcer.rules.BannedAttachedArtifacts">
+                                            <excludes>
+                                                <exclude>.*\.zip</exclude>
+                                                <exclude>.*-sources\.jar</exclude>
+                                            </excludes>
+                                        </bannedAttachedArtifacts>
+                                    </rules>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
         </profile>
         <profile>
             <id>default</id>
             <activation>
                 <activeByDefault>true</activeByDefault>
             </activation>
-            <properties>
-                <enforcer.skip>true</enforcer.skip>
-            </properties>
+            <distributionManagement>
+                <!-- by doing this, we must always specify a profile when deploying and we will not inherit the
+                     the repositories from a parent, which could be a public repo that we do not want to deploy to. -->
+            </distributionManagement>
         </profile>
     </profiles>
 
@@ -134,5 +208,6 @@
         <module>shield</module>
         <module>watcher</module>
         <module>marvel</module>
+        <module>qa</module>
     </modules>
 </project>

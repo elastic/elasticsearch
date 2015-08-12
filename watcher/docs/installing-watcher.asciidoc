@@ -69,8 +69,8 @@ is slightly different. You need to install the License and Watcher plugins from 
 [source,shell]
 ----------------------------------------------------------
 cd /usr/share/elasticsearch
-sudo bin/plugin install elasticsearch/license/latest
-sudo bin/plugin install elasticsearch/watcher/latest
+sudo bin/plugin install license
+sudo bin/plugin install watcher
 ----------------------------------------------------------
 
 [float]
@@ -91,13 +91,4 @@ https://download.elastic.co/elasticsearch/watcher/watcher-1.0.0.zip].
 ----------------------------------------------------------
 bin/plugin install watcher -u file://<path_to_zip_file>
 ----------------------------------------------------------
-
-
-
-
-
-
-
-
-
 

@@ -12,7 +12,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.actions.Action;
 import org.elasticsearch.watcher.actions.email.service.Attachment;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
@@ -39,7 +39,7 @@ import static org.mockito.Mockito.*;
 
 /**
  */
-public class LoggingActionTests extends ElasticsearchTestCase {
+public class LoggingActionTests extends ESTestCase {
 
     private ESLogger actionLogger;
     private LoggingLevel level;

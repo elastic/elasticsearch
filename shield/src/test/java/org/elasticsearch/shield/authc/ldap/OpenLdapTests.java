@@ -11,11 +11,11 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.shield.authc.RealmConfig;
 import org.elasticsearch.shield.authc.ldap.support.LdapSearchScope;
 import org.elasticsearch.shield.authc.ldap.support.LdapSession;
-import org.elasticsearch.shield.authc.ldap.support.LdapTest;
+import org.elasticsearch.shield.authc.ldap.support.LdapTestCase;
 import org.elasticsearch.shield.authc.ldap.support.SessionFactory;
 import org.elasticsearch.shield.authc.support.SecuredStringTests;
 import org.elasticsearch.shield.ssl.ClientSSLService;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.annotations.Network;
 import org.junit.Before;
 import org.junit.Test;
@@ -27,7 +27,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItem;
 
 @Network
-public class OpenLdapTests extends ElasticsearchTestCase {
+public class OpenLdapTests extends ESTestCase {
 
     public static final String OPEN_LDAP_URL = "ldaps://54.200.235.244:636";
     public static final String PASSWORD = "NickFuryHeartsES";
@@ -57,7 +57,7 @@ public class OpenLdapTests extends ElasticsearchTestCase {
         //openldap does not use cn as naming attributes by default
         String groupSearchBase = "ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
         String userTemplate = "uid={0},ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
-        RealmConfig config = new RealmConfig("oldap-test", LdapTest.buildLdapSettings(OPEN_LDAP_URL, userTemplate, groupSearchBase, LdapSearchScope.ONE_LEVEL), globalSettings);
+        RealmConfig config = new RealmConfig("oldap-test", LdapTestCase.buildLdapSettings(OPEN_LDAP_URL, userTemplate, groupSearchBase, LdapSearchScope.ONE_LEVEL), globalSettings);
         LdapSessionFactory sessionFactory = new LdapSessionFactory(config, clientSSLService);
 
         String[] users = new String[] { "blackwidow", "cap", "hawkeye", "hulk", "ironman", "thor" };
@@ -74,7 +74,7 @@ public class OpenLdapTests extends ElasticsearchTestCase {
 
         String groupSearchBase = "cn=Avengers,ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
         String userTemplate = "uid={0},ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
-        RealmConfig config = new RealmConfig("oldap-test", LdapTest.buildLdapSettings(OPEN_LDAP_URL, userTemplate, groupSearchBase, LdapSearchScope.BASE), globalSettings);
+        RealmConfig config = new RealmConfig("oldap-test", LdapTestCase.buildLdapSettings(OPEN_LDAP_URL, userTemplate, groupSearchBase, LdapSearchScope.BASE), globalSettings);
         LdapSessionFactory sessionFactory = new LdapSessionFactory(config, clientSSLService);
 
         String[] users = new String[] { "blackwidow", "cap", "hawkeye", "hulk", "ironman", "thor" };
@@ -90,7 +90,7 @@ public class OpenLdapTests extends ElasticsearchTestCase {
         String groupSearchBase = "ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
         String userTemplate = "uid={0},ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
         Settings settings = Settings.builder()
-                .put(LdapTest.buildLdapSettings(OPEN_LDAP_URL, userTemplate, groupSearchBase, LdapSearchScope.ONE_LEVEL))
+                .put(LdapTestCase.buildLdapSettings(OPEN_LDAP_URL, userTemplate, groupSearchBase, LdapSearchScope.ONE_LEVEL))
                 .put("group_search.filter", "(&(objectclass=posixGroup)(memberUID={0}))")
                 .put("group_search.user_attribute", "uid")
                 .build();
@@ -108,7 +108,7 @@ public class OpenLdapTests extends ElasticsearchTestCase {
         String groupSearchBase = "ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
         String userTemplate = "uid={0},ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
         Settings settings = Settings.builder()
-                .put(LdapTest.buildLdapSettings(OPEN_LDAP_URL, userTemplate, groupSearchBase, LdapSearchScope.ONE_LEVEL))
+                .put(LdapTestCase.buildLdapSettings(OPEN_LDAP_URL, userTemplate, groupSearchBase, LdapSearchScope.ONE_LEVEL))
                 .put(SessionFactory.HOSTNAME_VERIFICATION_SETTING, false)
                 .put(SessionFactory.TIMEOUT_TCP_READ_SETTING, "1ms") //1 millisecond
                 .build();
@@ -130,7 +130,7 @@ public class OpenLdapTests extends ElasticsearchTestCase {
         String groupSearchBase = "ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
         String userTemplate = "uid={0},ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
         Settings settings = Settings.builder()
-                .put(LdapTest.buildLdapSettings(OPEN_LDAP_URL, userTemplate, groupSearchBase, LdapSearchScope.ONE_LEVEL))
+                .put(LdapTestCase.buildLdapSettings(OPEN_LDAP_URL, userTemplate, groupSearchBase, LdapSearchScope.ONE_LEVEL))
                 .put(LdapSessionFactory.HOSTNAME_VERIFICATION_SETTING, true)
                 .build();
 

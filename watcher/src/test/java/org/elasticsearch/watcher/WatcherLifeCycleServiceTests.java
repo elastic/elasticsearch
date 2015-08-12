@@ -6,25 +6,24 @@
 package org.elasticsearch.watcher;
 
 import com.google.common.util.concurrent.MoreExecutors;
-import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.GatewayService;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.invocation.InvocationOnMock;
+import org.mockito.stubbing.Answer;
 
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.*;
 
 /**
  */
-public class WatcherLifeCycleServiceTests extends ElasticsearchTestCase {
+public class WatcherLifeCycleServiceTests extends ESTestCase {
 
     private ClusterService clusterService;
     private WatcherService watcherService;
@@ -34,9 +33,18 @@ public class WatcherLifeCycleServiceTests extends ElasticsearchTestCase {
     public void prepareServices() {
         ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.executor(anyString())).thenReturn(MoreExecutors.newDirectExecutorService());
-        watcherService = mock(WatcherService.class);
         clusterService = mock(ClusterService.class);
-        lifeCycleService = new WatcherLifeCycleService(Settings.EMPTY, clusterService, threadPool, watcherService);
+        Answer<Object> answer = new Answer<Object>() {
+            @Override
+            public Object answer(InvocationOnMock invocationOnMock) throws Throwable {
+                AckedClusterStateUpdateTask updateTask = (AckedClusterStateUpdateTask) invocationOnMock.getArguments()[1];
+                updateTask.onAllNodesAcked(null);
+                return null;
+            }
+        };
+        doAnswer(answer).when(clusterService).submitStateUpdateTask(anyString(), any(ClusterStateUpdateTask.class));
+        watcherService = mock(WatcherService.class);
+        lifeCycleService = new WatcherLifeCycleService(Settings.EMPTY, threadPool, clusterService, watcherService);
     }
 
     @Test

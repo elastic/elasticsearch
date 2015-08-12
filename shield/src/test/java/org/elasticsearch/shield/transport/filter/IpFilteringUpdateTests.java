@@ -8,8 +8,8 @@ package org.elasticsearch.shield.transport.filter;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-import org.elasticsearch.test.ShieldIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.test.ShieldIntegTestCase;
 import org.junit.Test;
 
 import java.net.InetAddress;
@@ -17,12 +17,12 @@ import java.net.UnknownHostException;
 import java.util.Locale;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope.TEST;
+import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.is;
 
 @ClusterScope(scope = TEST, numDataNodes = 1)
-public class IpFilteringUpdateTests extends ShieldIntegrationTest {
+public class IpFilteringUpdateTests extends ShieldIntegTestCase {
 
     private final boolean httpEnabled = randomBoolean();
 

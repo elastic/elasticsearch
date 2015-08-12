@@ -10,7 +10,7 @@ import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.cluster.ClusterState;
 import org.joda.time.DateTime;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.actions.*;
 import org.elasticsearch.watcher.actions.throttler.ActionThrottler;
 import org.elasticsearch.watcher.actions.throttler.Throttler;
@@ -43,7 +43,7 @@ import static org.mockito.Mockito.*;
 
 /**
  */
-public class ExecutionServiceTests extends ElasticsearchTestCase {
+public class ExecutionServiceTests extends ESTestCase {
 
     private Payload payload;
     private ExecutableInput input;

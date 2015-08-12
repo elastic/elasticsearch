@@ -5,20 +5,27 @@
  */
 package org.elasticsearch.shield.authc.ldap;
 
+import com.carrotsearch.randomizedtesting.ThreadFilter;
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import com.unboundid.ldap.sdk.*;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.license.plugin.LicensePlugin;
+import org.elasticsearch.node.Node;
+import org.elasticsearch.node.NodeBuilder;
+import org.elasticsearch.shield.ShieldPlugin;
 import org.elasticsearch.shield.authc.RealmConfig;
 import org.elasticsearch.shield.authc.activedirectory.ActiveDirectorySessionFactoryTests;
 import org.elasticsearch.shield.authc.ldap.support.LdapSearchScope;
 import org.elasticsearch.shield.authc.ldap.support.LdapSession;
-import org.elasticsearch.shield.authc.ldap.support.LdapTest;
+import org.elasticsearch.shield.authc.ldap.support.LdapTestCase;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.SecuredStringTests;
 import org.elasticsearch.shield.ssl.ClientSSLService;
+import org.elasticsearch.shield.support.NoOpLogger;
 import org.elasticsearch.test.junit.annotations.Network;
 import org.junit.Before;
 import org.junit.Test;
@@ -27,12 +34,18 @@ import java.nio.file.Path;
 import java.text.MessageFormat;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.ShieldTestsUtils.assertAuthenticationException;
 import static org.hamcrest.Matchers.*;
 
-public class LdapUserSearchSessionFactoryTests extends LdapTest {
+// thread leak filter for UnboundID's background connect threads. The background connect threads do not always respect the
+// timeout and linger. Will be fixed in a new version of the library, see http://sourceforge.net/p/ldap-sdk/discussion/1001257/thread/154e3b71/
+@ThreadLeakFilters(filters = {
+        LdapUserSearchSessionFactoryTests.BackgroundConnectThreadLeakFilter.class
+})
+public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
 
     private ClientSSLService clientSSLService;
     private Settings globalSettings;
@@ -247,7 +260,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTest {
         String groupSearchBase = "DC=ad,DC=test,DC=elasticsearch,DC=com";
         String userSearchBase = "CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com";
         Settings settings = settingsBuilder()
-                .put(LdapTest.buildLdapSettings(ActiveDirectorySessionFactoryTests.AD_LDAP_URL, Strings.EMPTY_ARRAY, groupSearchBase, LdapSearchScope.SUB_TREE))
+                .put(LdapTestCase.buildLdapSettings(ActiveDirectorySessionFactoryTests.AD_LDAP_URL, Strings.EMPTY_ARRAY, groupSearchBase, LdapSearchScope.SUB_TREE))
                 .put("user_search.base_dn", userSearchBase)
                 .put("bind_dn", "ironman@ad.test.elasticsearch.com")
                 .put("bind_password", ActiveDirectorySessionFactoryTests.PASSWORD)
@@ -275,7 +288,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTest {
         String groupSearchBase = "ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
         String userSearchBase = "ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
         RealmConfig config = new RealmConfig("oldap-test", settingsBuilder()
-                .put(LdapTest.buildLdapSettings(OpenLdapTests.OPEN_LDAP_URL, Strings.EMPTY_ARRAY, groupSearchBase, LdapSearchScope.ONE_LEVEL))
+                .put(LdapTestCase.buildLdapSettings(OpenLdapTests.OPEN_LDAP_URL, Strings.EMPTY_ARRAY, groupSearchBase, LdapSearchScope.ONE_LEVEL))
                 .put("user_search.base_dn", userSearchBase)
                 .put("bind_dn", "uid=blackwidow,ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com")
                 .put("bind_password", OpenLdapTests.PASSWORD)
@@ -306,7 +319,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTest {
                 .put("bind_password", "pass")
                 .build(), globalSettings);
 
-        LDAPConnectionPool connectionPool = LdapUserSearchSessionFactory.connectionPool(config.settings(), new SingleServerSet("localhost", ldapServer.getListenPort()), TimeValue.timeValueSeconds(5));
+        LDAPConnectionPool connectionPool = LdapUserSearchSessionFactory.createConnectionPool(config, new SingleServerSet("localhost", ldapServer.getListenPort()), TimeValue.timeValueSeconds(5), NoOpLogger.INSTANCE);
         try {
             assertThat(connectionPool.getCurrentAvailableConnections(), is(LdapUserSearchSessionFactory.DEFAULT_CONNECTION_POOL_INITIAL_SIZE));
             assertThat(connectionPool.getMaximumAvailableConnections(), is(LdapUserSearchSessionFactory.DEFAULT_CONNECTION_POOL_SIZE));
@@ -333,7 +346,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTest {
                 .put("user_search.pool.health_check.enabled", false)
                 .build(), globalSettings);
 
-        LDAPConnectionPool connectionPool = LdapUserSearchSessionFactory.connectionPool(config.settings(), new SingleServerSet("localhost", ldapServer.getListenPort()), TimeValue.timeValueSeconds(5));
+        LDAPConnectionPool connectionPool = LdapUserSearchSessionFactory.createConnectionPool(config, new SingleServerSet("localhost", ldapServer.getListenPort()), TimeValue.timeValueSeconds(5), NoOpLogger.INSTANCE);
         try {
             assertThat(connectionPool.getCurrentAvailableConnections(), is(10));
             assertThat(connectionPool.getMaximumAvailableConnections(), is(12));
@@ -376,5 +389,42 @@ public class LdapUserSearchSessionFactoryTests extends LdapTest {
         assertEquals(request.getClass(), SimpleBindRequest.class);
         SimpleBindRequest simpleBindRequest = (SimpleBindRequest) request;
         assertThat(simpleBindRequest.getBindDN(), is("cn=ironman"));
+    }
+
+    @Test
+    public void testThatLDAPServerConnectErrorDoesNotPreventNodeFromStarting() {
+        String groupSearchBase = "DC=ad,DC=test,DC=elasticsearch,DC=com";
+        String userSearchBase = "CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com";
+        Settings ldapSettings = settingsBuilder()
+                .put(LdapTestCase.buildLdapSettings("ldaps://elastic.co:636", Strings.EMPTY_ARRAY, groupSearchBase, LdapSearchScope.SUB_TREE))
+                .put("user_search.base_dn", userSearchBase)
+                .put("bind_dn", "ironman@ad.test.elasticsearch.com")
+                .put("bind_password", ActiveDirectorySessionFactoryTests.PASSWORD)
+                .put("user_search.attribute", "cn")
+                .put("timeout.tcp_connect", "500ms")
+                .put("type", "ldap")
+                .build();
+
+        Settings.Builder builder = settingsBuilder();
+        for (Map.Entry<String, String> entry : ldapSettings.getAsMap().entrySet()) {
+            builder.put("shield.authc.realms.ldap1." + entry.getKey(), entry.getValue());
+        }
+        builder.put("path.home", createTempDir());
+        builder.putArray("plugin.types", ShieldPlugin.class.getName(), LicensePlugin.class.getName());
+
+        try (Node node = NodeBuilder.nodeBuilder().loadConfigSettings(false).settings(builder.build()).build()) {
+            node.start();
+        }
+    }
+
+    public static class BackgroundConnectThreadLeakFilter implements ThreadFilter {
+
+        @Override
+        public boolean reject(Thread thread) {
+            if (thread.getName().startsWith("Background connect thread for elastic.co")) {
+                return true;
+            }
+            return false;
+        }
     }
 }

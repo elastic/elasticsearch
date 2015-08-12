@@ -9,7 +9,7 @@ import com.google.common.base.Charsets;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.Base64;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportRequest;
 import org.junit.Rule;
 import org.junit.Test;
@@ -23,7 +23,7 @@ import static org.mockito.Mockito.when;
 /**
  *
  */
-public class UsernamePasswordTokenTests extends ElasticsearchTestCase {
+public class UsernamePasswordTokenTests extends ESTestCase {
 
     @Rule
     public ExpectedException thrown = ExpectedException.none();

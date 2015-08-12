@@ -5,11 +5,15 @@
  */
 package org.elasticsearch.marvel.agent.collector.indices;
 
+import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
-import org.elasticsearch.test.ElasticsearchSingleNodeTest;
+import org.elasticsearch.marvel.agent.settings.MarvelSettingsService;
+import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.junit.Test;
 
 import java.util.Collection;
@@ -18,16 +22,20 @@ import java.util.Iterator;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.*;
 
-public class IndexStatsCollectorTests extends ElasticsearchSingleNodeTest {
+public class IndexStatsCollectorTests extends ESSingleNodeTestCase {
 
     @Test
     public void testIndexStatsCollectorNoIndices() throws Exception {
+        waitForNoBlocksOnNode();
+
         Collection<MarvelDoc> results = newIndexStatsCollector().doCollect();
         assertThat(results, is(empty()));
     }
 
     @Test
     public void testIndexStatsCollectorOneIndex() throws Exception {
+        waitForNoBlocksOnNode();
+
         int nbDocs = randomIntBetween(1, 20);
         for (int i = 0; i < nbDocs; i++) {
             client().prepareIndex("test", "test").setSource("num", i).get();
@@ -47,18 +55,23 @@ public class IndexStatsCollectorTests extends ElasticsearchSingleNodeTest {
         assertThat(indexStatsMarvelDoc.timestamp(), greaterThan(0L));
         assertThat(indexStatsMarvelDoc.type(), equalTo(IndexStatsCollector.TYPE));
 
-        assertThat(indexStatsMarvelDoc.getIndex(), equalTo("test"));
-        assertNotNull(indexStatsMarvelDoc.getDocs());
-        assertThat(indexStatsMarvelDoc.getDocs().getCount(), equalTo((long) nbDocs));
-        assertNotNull(indexStatsMarvelDoc.getStore());
-        assertThat(indexStatsMarvelDoc.getStore().getSizeInBytes(), greaterThan(0L));
-        assertThat(indexStatsMarvelDoc.getStore().getThrottleTimeInMillis(), equalTo(0L));
-        assertNotNull(indexStatsMarvelDoc.getIndexing());
-        assertThat(indexStatsMarvelDoc.getIndexing().getThrottleTimeInMillis(), equalTo(0L));
+        IndexStatsMarvelDoc.Payload payload = indexStatsMarvelDoc.payload();
+        assertNotNull(payload);
+        assertNotNull(payload.getIndexStats());
+
+        assertThat(payload.getIndexStats().getIndex(), equalTo("test"));
+        assertThat(payload.getIndexStats().getTotal().getDocs().getCount(), equalTo((long) nbDocs));
+        assertNotNull(payload.getIndexStats().getTotal().getStore());
+        assertThat(payload.getIndexStats().getTotal().getStore().getSizeInBytes(), greaterThan(0L));
+        assertThat(payload.getIndexStats().getTotal().getStore().getThrottleTime().millis(), equalTo(0L));
+        assertNotNull(payload.getIndexStats().getTotal().getIndexing());
+        assertThat(payload.getIndexStats().getTotal().getIndexing().getTotal().getThrottleTimeInMillis(), equalTo(0L));
     }
 
     @Test
     public void testIndexStatsCollectorMultipleIndices() throws Exception {
+        waitForNoBlocksOnNode();
+
         int nbIndices = randomIntBetween(1, 5);
         int[] docsPerIndex = new int[nbIndices];
 
@@ -87,18 +100,23 @@ public class IndexStatsCollectorTests extends ElasticsearchSingleNodeTest {
                 assertThat(marvelDoc, instanceOf(IndexStatsMarvelDoc.class));
 
                 IndexStatsMarvelDoc indexStatsMarvelDoc = (IndexStatsMarvelDoc) marvelDoc;
-                if (indexStatsMarvelDoc.getIndex().equals("test-" + i)) {
+
+                IndexStatsMarvelDoc.Payload payload = indexStatsMarvelDoc.payload();
+                assertNotNull(payload);
+                assertNotNull(payload.getIndexStats());
+
+                if (payload.getIndexStats().getIndex().equals("test-" + i)) {
                     assertThat(indexStatsMarvelDoc.clusterName(), equalTo(clusterName));
                     assertThat(indexStatsMarvelDoc.timestamp(), greaterThan(0L));
                     assertThat(indexStatsMarvelDoc.type(), equalTo(IndexStatsCollector.TYPE));
 
-                    assertNotNull(indexStatsMarvelDoc.getDocs());
-                    assertThat(indexStatsMarvelDoc.getDocs().getCount(), equalTo((long) docsPerIndex[i]));
-                    assertNotNull(indexStatsMarvelDoc.getStore());
-                    assertThat(indexStatsMarvelDoc.getStore().getSizeInBytes(), greaterThan(0L));
-                    assertThat(indexStatsMarvelDoc.getStore().getThrottleTimeInMillis(), equalTo(0L));
-                    assertNotNull(indexStatsMarvelDoc.getIndexing());
-                    assertThat(indexStatsMarvelDoc.getIndexing().getThrottleTimeInMillis(), equalTo(0L));
+                    assertNotNull(payload.getIndexStats().getTotal().getDocs());
+                    assertThat(payload.getIndexStats().getTotal().getDocs().getCount(), equalTo((long) docsPerIndex[i]));
+                    assertNotNull(payload.getIndexStats().getTotal().getStore());
+                    assertThat(payload.getIndexStats().getTotal().getStore().getSizeInBytes(), greaterThan(0L));
+                    assertThat(payload.getIndexStats().getTotal().getStore().getThrottleTime().millis(), equalTo(0L));
+                    assertNotNull(payload.getIndexStats().getTotal().getIndexing());
+                    assertThat(payload.getIndexStats().getTotal().getIndexing().getTotal().getThrottleTimeInMillis(), equalTo(0L));
                     found = true;
                 }
             }
@@ -107,6 +125,21 @@ public class IndexStatsCollectorTests extends ElasticsearchSingleNodeTest {
     }
 
     private IndexStatsCollector newIndexStatsCollector() {
-        return new IndexStatsCollector(getInstanceFromNode(Settings.class), getInstanceFromNode(ClusterService.class), getInstanceFromNode(ClusterName.class), client());
+        return new IndexStatsCollector(getInstanceFromNode(Settings.class),
+                getInstanceFromNode(ClusterService.class),
+                getInstanceFromNode(ClusterName.class),
+                getInstanceFromNode(MarvelSettingsService.class),
+                client());
+    }
+
+    public void waitForNoBlocksOnNode() throws InterruptedException {
+        final long start = System.currentTimeMillis();
+        final TimeValue timeout = TimeValue.timeValueSeconds(30);
+        ImmutableSet<ClusterBlock> blocks;
+        do {
+            blocks = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState().blocks().global();
+        }
+        while (!blocks.isEmpty() && (System.currentTimeMillis() - start) < timeout.millis());
+        assertTrue(blocks.isEmpty());
     }
 }

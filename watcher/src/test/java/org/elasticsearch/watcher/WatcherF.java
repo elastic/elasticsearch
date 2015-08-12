@@ -5,21 +5,21 @@
  */
 package org.elasticsearch.watcher;
 
-import org.elasticsearch.bootstrap.ElasticsearchF;
+import org.elasticsearch.bootstrap.Elasticsearch;
 import org.elasticsearch.license.plugin.LicensePlugin;
 
 /**
  * Main class to easily run Watcher from a IDE.
  * It sets all the options to run the Watcher plugin and access it from Sense, but doesn't run with Shield.
  *
- * During startup an error will be printed that the config directory can't be found, to fix this:
- * 1) Add a config directly to the top level project directory
- * 2) or set `-Des.path.home=` to a location where there is a config directory on your machine.
+ * In order to run this class set configure the following:
+ * 1) Set `-Des.path.home=` to a directory containing an ES config directory
  */
 public class WatcherF {
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws Throwable {
         System.setProperty("es.http.cors.enabled", "true");
+        System.setProperty("es.http.cors.allow-origin", "*");
         System.setProperty("es.script.inline", "on");
         System.setProperty("es.shield.enabled", "false");
         System.setProperty("es.security.manager.enabled", "false");
@@ -27,7 +27,7 @@ public class WatcherF {
         System.setProperty("es.plugin.types", WatcherPlugin.class.getName() + "," + LicensePlugin.class.getName());
         System.setProperty("es.cluster.name", WatcherF.class.getSimpleName());
 
-        ElasticsearchF.main(args);
+        Elasticsearch.main(new String[]{"start"});
     }
 
 }

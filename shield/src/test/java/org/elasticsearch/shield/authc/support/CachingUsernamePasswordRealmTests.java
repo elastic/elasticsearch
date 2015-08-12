@@ -10,7 +10,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.authc.Realm;
 import org.elasticsearch.shield.authc.RealmConfig;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -18,7 +18,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.*;
 
-public class CachingUsernamePasswordRealmTests extends ElasticsearchTestCase {
+public class CachingUsernamePasswordRealmTests extends ESTestCase {
 
     private Settings globalSettings;
 

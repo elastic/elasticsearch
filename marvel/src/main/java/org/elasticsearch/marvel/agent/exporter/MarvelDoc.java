@@ -5,15 +5,7 @@
  */
 package org.elasticsearch.marvel.agent.exporter;
 
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
-
-import java.io.IOException;
-
-public abstract class MarvelDoc<T> implements ToXContent {
+public abstract class MarvelDoc<T> {
 
     private final String clusterName;
     private final String type;
@@ -38,17 +30,4 @@ public abstract class MarvelDoc<T> implements ToXContent {
     }
 
     public abstract T payload();
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field(Fields.CLUSTER_NAME, clusterName());
-        DateTime timestampDateTime = new DateTime(timestamp(), DateTimeZone.UTC);
-        builder.field(Fields.TIMESTAMP, timestampDateTime.toString());
-        return builder;
-    }
-
-    static final class Fields {
-        static final XContentBuilderString CLUSTER_NAME = new XContentBuilderString("cluster_name");
-        static final XContentBuilderString TIMESTAMP = new XContentBuilderString("timestamp");
-    }
 }

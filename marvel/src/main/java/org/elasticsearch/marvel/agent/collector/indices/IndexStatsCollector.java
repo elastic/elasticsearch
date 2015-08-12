@@ -15,28 +15,28 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.marvel.agent.collector.AbstractCollector;
 import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
+import org.elasticsearch.marvel.agent.settings.MarvelSettingsService;
 
 import java.util.Collection;
 
 /**
  * Collector for indices statistics.
- *
+ * <p/>
  * This collector runs on the master node only and collect a {@link IndexStatsMarvelDoc} document
  * for each existing index in the cluster.
  */
 public class IndexStatsCollector extends AbstractCollector<IndexStatsCollector> {
 
     public static final String NAME = "index-stats-collector";
-    protected static final String TYPE = "marvel_index";
+    public static final String TYPE = "marvel_index_stats";
 
-    private final ClusterName clusterName;
     private final Client client;
 
     @Inject
-    public IndexStatsCollector(Settings settings, ClusterService clusterService, ClusterName clusterName, Client client) {
-        super(settings, NAME, clusterService);
+    public IndexStatsCollector(Settings settings, ClusterService clusterService,
+                               ClusterName clusterName, MarvelSettingsService marvelSettings, Client client) {
+        super(settings, NAME, clusterService, clusterName, marvelSettings);
         this.client = client;
-        this.clusterName = clusterName;
     }
 
     @Override
@@ -48,11 +48,12 @@ public class IndexStatsCollector extends AbstractCollector<IndexStatsCollector> 
     protected Collection<MarvelDoc> doCollect() throws Exception {
         ImmutableList.Builder<MarvelDoc> results = ImmutableList.builder();
 
-        IndicesStatsResponse indicesStats = client.admin().indices().prepareStats().all()
+        IndicesStatsResponse indicesStats = client.admin().indices().prepareStats()
                 .setStore(true)
                 .setIndexing(true)
                 .setDocs(true)
-                .get();
+                .setIndices(marvelSettings.indices())
+                .get(marvelSettings.indexStatsTimeout());
 
         long timestamp = System.currentTimeMillis();
         for (IndexStats indexStats : indicesStats.getIndices().values()) {
@@ -62,10 +63,6 @@ public class IndexStatsCollector extends AbstractCollector<IndexStatsCollector> 
     }
 
     protected MarvelDoc buildMarvelDoc(String clusterName, String type, long timestamp, IndexStats indexStats) {
-        return IndexStatsMarvelDoc.createMarvelDoc(clusterName, type, timestamp,
-                indexStats.getIndex(),
-                indexStats.getTotal().getDocs().getCount(),
-                indexStats.getTotal().getStore().sizeInBytes(), indexStats.getTotal().getStore().throttleTime().millis(),
-                indexStats.getTotal().getIndexing().getTotal().getThrottleTimeInMillis());
+        return IndexStatsMarvelDoc.createMarvelDoc(clusterName, type, timestamp, indexStats);
     }
 }

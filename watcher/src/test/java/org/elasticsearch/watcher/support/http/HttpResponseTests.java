@@ -10,7 +10,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import java.nio.charset.StandardCharsets;
@@ -26,7 +26,7 @@ import static org.hamcrest.Matchers.notNullValue;
 /**
  *
  */
-public class HttpResponseTests extends ElasticsearchTestCase {
+public class HttpResponseTests extends ESTestCase {
 
     @Test
     public void testParse_SelfGenerated() throws Exception {

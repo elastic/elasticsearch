@@ -26,7 +26,7 @@ import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.shield.ssl.ClientSSLService;
 import org.elasticsearch.shield.transport.netty.ShieldNettyHttpServerTransport;
-import org.elasticsearch.test.ShieldIntegrationTest;
+import org.elasticsearch.test.ShieldIntegTestCase;
 import org.elasticsearch.test.ShieldSettingsSource;
 import org.elasticsearch.transport.Transport;
 import org.junit.Test;
@@ -42,7 +42,7 @@ import java.util.Locale;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.*;
 
-public class SslIntegrationTests extends ShieldIntegrationTest {
+public class SslIntegrationTests extends ShieldIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {

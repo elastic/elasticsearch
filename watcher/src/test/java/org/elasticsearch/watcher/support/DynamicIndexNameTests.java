@@ -8,7 +8,7 @@ package org.elasticsearch.watcher.support;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.DateTimeFormat;
@@ -20,7 +20,7 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-public class DynamicIndexNameTests extends ElasticsearchTestCase {
+public class DynamicIndexNameTests extends ESTestCase {
 
     @Test
     public void testNormal() throws Exception {

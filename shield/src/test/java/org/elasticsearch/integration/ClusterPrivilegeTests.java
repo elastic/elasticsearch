@@ -20,8 +20,8 @@ import org.junit.Test;
 import java.nio.file.Path;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope.TEST;
+import static org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
 
 @ClusterScope(scope = TEST)
 public class ClusterPrivilegeTests extends AbstractPrivilegeTests {

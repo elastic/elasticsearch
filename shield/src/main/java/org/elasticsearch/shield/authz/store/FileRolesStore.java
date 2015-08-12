@@ -96,7 +96,7 @@ public class FileRolesStore extends AbstractLifecycleComponent<RolesStore> imple
             return ShieldPlugin.resolveConfigFile(env, "roles.yml");
         }
 
-        return env.homeFile().resolve(location);
+        return env.binFile().getParent().resolve(location);
     }
 
     public static ImmutableSet<String> parseFileForRoleNames(Path path, ESLogger logger) {

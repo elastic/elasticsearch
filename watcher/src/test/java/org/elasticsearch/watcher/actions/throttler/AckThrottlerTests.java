@@ -7,7 +7,7 @@ package org.elasticsearch.watcher.actions.throttler;
 
 import org.elasticsearch.watcher.support.clock.SystemClock;
 import org.joda.time.DateTime;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.actions.ActionStatus;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.watch.Watch;
@@ -25,11 +25,11 @@ import static org.mockito.Mockito.when;
 /**
  *
  */
-public class AckThrottlerTests extends ElasticsearchTestCase {
+public class AckThrottlerTests extends ESTestCase {
 
     @Test
     public void testWhenAcked() throws Exception {
-        DateTime timestamp = SystemClock.INSTANCE.now();
+        DateTime timestamp = SystemClock.INSTANCE.nowUTC();
         WatchExecutionContext ctx = mockExecutionContext("_watch", EMPTY_PAYLOAD);
         Watch watch = ctx.watch();
         ActionStatus actionStatus = mock(ActionStatus.class);
@@ -45,7 +45,7 @@ public class AckThrottlerTests extends ElasticsearchTestCase {
 
     @Test
     public void testThrottle_When_AwaitsSuccessfulExecution() throws Exception {
-        DateTime timestamp = SystemClock.INSTANCE.now();
+        DateTime timestamp = SystemClock.INSTANCE.nowUTC();
         WatchExecutionContext ctx = mockExecutionContext("_watch", EMPTY_PAYLOAD);
         Watch watch = ctx.watch();
         ActionStatus actionStatus = mock(ActionStatus.class);
@@ -61,7 +61,7 @@ public class AckThrottlerTests extends ElasticsearchTestCase {
 
     @Test
     public void testThrottle_When_Ackable() throws Exception {
-        DateTime timestamp = SystemClock.INSTANCE.now();
+        DateTime timestamp = SystemClock.INSTANCE.nowUTC();
         WatchExecutionContext ctx = mockExecutionContext("_watch", EMPTY_PAYLOAD);
         Watch watch = ctx.watch();
         ActionStatus actionStatus = mock(ActionStatus.class);

@@ -10,7 +10,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -19,7 +19,7 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-public class IntervalScheduleTests extends ElasticsearchTestCase {
+public class IntervalScheduleTests extends ESTestCase {
 
     @Test
     public void testParse_Number() throws Exception {

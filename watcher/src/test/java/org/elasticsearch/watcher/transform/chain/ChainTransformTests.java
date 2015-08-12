@@ -12,7 +12,7 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.transform.ExecutableTransform;
 import org.elasticsearch.watcher.transform.Transform;
@@ -34,7 +34,7 @@ import static org.mockito.Mockito.mock;
 /**
  *
  */
-public class ChainTransformTests extends ElasticsearchTestCase {
+public class ChainTransformTests extends ESTestCase {
 
     @Test
     public void testExecute() throws Exception {

@@ -1,0 +1,56 @@
+{
+  "cluster_name": "test",
+  "timestamp": "2015-07-22T15:54:02.979Z",
+  "cluster_state": {
+    "status": "yellow",
+    "version": 14,
+    "master_node": "__node_id__",
+    "nodes": {
+      "__node_id__": {
+        "name": "Box",
+        "transport_address": "inet[/127.0.0.1:9300]",
+        "attributes": {
+          "local": "true"
+        }
+      }
+    },
+    "shards": [
+      {
+        "state": "STARTED",
+        "primary": true,
+        "node": "__node_id__",
+        "relocating_node": null,
+        "shard": 0,
+        "index": "my-index",
+        "version": 2,
+        "allocation_id": {
+          "id": "p6c9fBsNSc6SBTq0E0jLZw"
+        }
+      },
+      {
+        "state": "STARTED",
+        "primary": true,
+        "node": "__node_id__",
+        "relocating_node": null,
+        "shard": 1,
+        "index": "my-index",
+        "version": 2,
+        "allocation_id": {
+          "id": "KBOkx9UmRNmlZ6LGsnqxJw"
+        }
+      },
+      {
+        "state": "STARTED",
+        "primary": true,
+        "node": "__node_id__",
+        "relocating_node": null,
+        "shard": 2,
+        "index": "my-index",
+        "version": 2,
+        "allocation_id": {
+          "id": "aHXocqcnRme-y6OJIZX-CQ"
+        }
+      }
+    ]
+  }
+}

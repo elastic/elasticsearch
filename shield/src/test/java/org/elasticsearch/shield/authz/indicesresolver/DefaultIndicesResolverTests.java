@@ -29,7 +29,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.authz.AuthorizationService;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -39,7 +39,7 @@ import static org.hamcrest.Matchers.*;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class DefaultIndicesResolverTests extends ElasticsearchTestCase {
+public class DefaultIndicesResolverTests extends ESTestCase {
 
     private User user;
     private User userNoIndices;

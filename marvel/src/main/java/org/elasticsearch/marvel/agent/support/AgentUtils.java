@@ -140,6 +140,9 @@ public class AgentUtils {
     private static Pattern urlPwdSanitizer = Pattern.compile("([" + userInfoChars + "]+?):[" + userInfoChars + "]+?@");
 
     public static String santizeUrlPwds(Object text) {
+        if (text == null) {
+            return null;
+        }
         Matcher matcher = urlPwdSanitizer.matcher(text.toString());
         return matcher.replaceAll("$1:XXXXXX@");
     }

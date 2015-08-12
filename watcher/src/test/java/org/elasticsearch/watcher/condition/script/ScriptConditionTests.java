@@ -18,7 +18,7 @@ import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.search.internal.InternalSearchResponse;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.condition.Condition;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
@@ -41,7 +41,7 @@ import static org.hamcrest.Matchers.*;
 
 /**
  */
-public class ScriptConditionTests extends ElasticsearchTestCase {
+public class ScriptConditionTests extends ESTestCase {
 
     ThreadPool tp = null;
 

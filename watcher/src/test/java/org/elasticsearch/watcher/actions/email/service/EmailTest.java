@@ -12,7 +12,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.joda.time.DateTimeZone;
 import org.junit.Test;
 
@@ -23,7 +23,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
-public class EmailTest extends ElasticsearchTestCase {
+public class EmailTest extends ESTestCase {
 
     @Test
     public void testEmail_Parser_SelfGenerated() throws Exception {
@@ -36,7 +36,7 @@ public class EmailTest extends ElasticsearchTestCase {
         Email.AddressList possibleList = new Email.AddressList(addresses);
         Email.AddressList replyTo = randomFrom(possibleList, null);
         Email.Priority priority = randomFrom(Email.Priority.values());
-        DateTime sentDate = new DateTime(randomInt(), DateTimeZone.getDefault());
+        DateTime sentDate = new DateTime(randomInt(), DateTimeZone.UTC);
         Email.AddressList to = randomFrom(possibleList, null);
         Email.AddressList cc = randomFrom(possibleList, null);
         Email.AddressList bcc = randomFrom(possibleList, null);

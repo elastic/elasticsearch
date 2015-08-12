@@ -26,7 +26,7 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.InternalSearchHits;
 import org.elasticsearch.search.internal.InternalSearchResponse;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
 import org.hamcrest.core.IsNull;
 import org.junit.Before;
@@ -41,7 +41,7 @@ import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.*;
 
-public class TriggeredWatchStoreTests extends ElasticsearchTestCase {
+public class TriggeredWatchStoreTests extends ESTestCase {
 
     private ClientProxy clientProxy;
     private TriggeredWatch.Parser parser;

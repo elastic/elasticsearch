@@ -25,7 +25,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.InternalSearchHits;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
 import org.junit.Before;
 import org.junit.Test;
@@ -39,7 +39,7 @@ import static org.mockito.Mockito.*;
 
 /**
  */
-public class WatchStoreTests extends ElasticsearchTestCase {
+public class WatchStoreTests extends ESTestCase {
 
     private WatchStore watchStore;
     private ClientProxy clientProxy;

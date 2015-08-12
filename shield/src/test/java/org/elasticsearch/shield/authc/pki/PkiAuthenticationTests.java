@@ -20,8 +20,8 @@ import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.shield.transport.SSLClientAuth;
 import org.elasticsearch.shield.transport.netty.ShieldNettyHttpServerTransport;
-import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-import org.elasticsearch.test.ShieldIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.test.ShieldIntegTestCase;
 import org.elasticsearch.test.ShieldSettingsSource;
 import org.elasticsearch.transport.Transport;
 import org.junit.Test;
@@ -42,7 +42,7 @@ import static org.hamcrest.Matchers.*;
  * Test authentication via PKI on both REST and Transport layers
  */
 @ClusterScope(numClientNodes = 0, numDataNodes = 1)
-public class PkiAuthenticationTests extends ShieldIntegrationTest {
+public class PkiAuthenticationTests extends ShieldIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {

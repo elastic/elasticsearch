@@ -31,8 +31,8 @@ public class CronEvalTool extends CliTool {
             .build();
 
     public static void main(String[] args) throws Exception {
-        int status = new CronEvalTool().execute(args);
-        System.exit(status);
+        ExitStatus exitStatus = new CronEvalTool().execute(args);
+        System.exit(exitStatus.status());
     }
 
     public CronEvalTool() {
@@ -83,7 +83,7 @@ public class CronEvalTool extends CliTool {
 
             terminal.println("Valid!");
 
-            DateTime date = DateTime.now(DateTimeZone.getDefault());
+            DateTime date = DateTime.now(DateTimeZone.UTC);
 
             terminal.println("Now is [" + formatter.print(date) + "]");
             terminal.println("Here are the next " + count + " times this cron expression will trigger:");

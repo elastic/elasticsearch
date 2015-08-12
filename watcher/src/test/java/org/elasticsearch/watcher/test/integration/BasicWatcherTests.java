@@ -249,7 +249,6 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTests {
     }
 
     @Test
-    @LuceneTestCase.Slow
     public void testModifyWatchWithSameUnit() throws Exception {
         if (timeWarped()) {
             logger.info("Skipping testModifyWatches_ because timewarp is enabled");
@@ -438,7 +437,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTests {
     private void testConditionSearch(SearchRequest request) throws Exception {
         if (timeWarped()) {
             // reset, so we don't miss event docs when we filter over the _timestamp field.
-            timeWarp().clock().setTime(SystemClock.INSTANCE.now());
+            timeWarp().clock().setTime(SystemClock.INSTANCE.nowUTC());
         }
 
         String watchName = "_name";
@@ -451,7 +450,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTests {
                         .condition(ConditionBuilders.scriptCondition("return ctx.payload.hits.total >= 3")))
                 .get();
 
-        logger.info("created watch [{}] at [{}]", watchName, SystemClock.INSTANCE.now());
+        logger.info("created watch [{}] at [{}]", watchName, SystemClock.INSTANCE.nowUTC());
 
         client().prepareIndex("events", "event")
                 .setCreate(true)

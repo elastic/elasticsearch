@@ -10,7 +10,7 @@ import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.action.ShieldActionMapper;
 import org.elasticsearch.shield.authc.AuthenticationService;
 import org.elasticsearch.shield.authz.AuthorizationService;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.netty.NettyTransport;
 import org.elasticsearch.transport.netty.NettyTransportChannel;
@@ -25,7 +25,7 @@ import static org.mockito.Mockito.*;
 /**
  *
  */
-public class ServerTransportFilterTests extends ElasticsearchTestCase {
+public class ServerTransportFilterTests extends ESTestCase {
 
     private AuthenticationService authcService;
     private AuthorizationService authzService;

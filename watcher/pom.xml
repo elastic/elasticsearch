@@ -5,7 +5,6 @@
 
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>org.elasticsearch</groupId>
     <artifactId>elasticsearch-watcher</artifactId>
     <name>Elasticsearch X-Plugins - Watcher</name>
     <description>Elasticsearch Watcher</description>
@@ -25,6 +24,7 @@
         <elasticsearch.integ.antfile>dev-tools/integration-tests.xml</elasticsearch.integ.antfile>
         <tests.rest.load_packaged>false</tests.rest.load_packaged>
         <tests.timewarp>true</tests.timewarp>
+        <tests.rest.blacklist>hijack/10_basic/*</tests.rest.blacklist>
     </properties>
 
     <dependencies>
@@ -52,17 +52,17 @@
         <!-- Regular dependencies -->
 
         <dependency>
-            <groupId>org.elasticsearch</groupId>
-            <artifactId>elasticsearch-license-plugin</artifactId>
+            <groupId>org.elasticsearch.plugin</groupId>
+            <artifactId>elasticsearch-license</artifactId>
             <version>${project.version}</version>
             <scope>provided</scope>
         </dependency>
 
         <dependency>
-            <groupId>org.elasticsearch</groupId>
+            <groupId>org.elasticsearch.plugin</groupId>
             <artifactId>elasticsearch-shield</artifactId>
             <version>${project.version}</version>
-            <optional>true</optional>
+            <scope>provided</scope>
         </dependency>
 
         <dependency>
@@ -122,6 +122,39 @@
                     <include>test/**/*.yaml</include>
                 </includes>
             </testResource>
+            <!-- REST API specifications copied from main Elasticsearch specs
+                 because they are required to execute the Watcher REST tests -->
+            <testResource>
+                <directory>${elasticsearch.tools.directory}/rest-api-spec</directory>
+                <targetPath>rest-api-spec</targetPath>
+                <includes>
+                    <!-- required by the test framework -->
+                    <include>api/info.json</include>
+                    <include>api/cluster.health.json</include>
+                    <include>api/cluster.state.json</include>
+                    <!-- used by Watcher REST tests -->
+                    <include>api/index.json</include>
+                    <include>api/get.json</include>
+                    <include>api/delete.json</include>
+                    <include>api/delete-by-query.json</include>
+                    <include>api/bulk.json</include>
+                    <include>api/update.json</include>
+                    <include>api/search.json</include>
+                    <include>api/indices.delete.json</include>
+                    <include>api/indices.refresh.json</include>
+                </includes>
+            </testResource>
+            <!-- REST API specification and test suites -->
+            <!-- Copied this from plugins parent module, because filtering needs to be enabled -->
+            <testResource>
+                <directory>${project.basedir}/rest-api-spec</directory>
+                <targetPath>rest-api-spec</targetPath>
+                <filtering>true</filtering>
+                <includes>
+                    <include>api/*.json</include>
+                    <include>test/**/*.yaml</include>
+                </includes>
+            </testResource>
         </testResources>
         <plugins>
             <plugin>
@@ -150,8 +183,8 @@
                         <configuration>
                             <artifactItems combine.children="append">
                                 <artifactItem>
-                                    <groupId>org.elasticsearch</groupId>
-                                    <artifactId>elasticsearch-license-plugin</artifactId>
+                                    <groupId>org.elasticsearch.plugin</groupId>
+                                    <artifactId>elasticsearch-license</artifactId>
                                     <version>${project.version}</version>
                                     <type>zip</type>
                                     <overWrite>true</overWrite>

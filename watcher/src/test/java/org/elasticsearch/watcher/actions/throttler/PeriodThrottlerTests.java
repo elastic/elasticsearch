@@ -8,7 +8,7 @@ package org.elasticsearch.watcher.actions.throttler;
 import org.joda.time.DateTime;
 import org.joda.time.PeriodType;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.actions.ActionStatus;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.support.clock.SystemClock;
@@ -25,7 +25,7 @@ import static org.mockito.Mockito.when;
 /**
  *
  */
-public class PeriodThrottlerTests extends ElasticsearchTestCase {
+public class PeriodThrottlerTests extends ESTestCase {
 
     @Test
     public void testBelowPeriod_Successful() throws Exception {
@@ -35,7 +35,7 @@ public class PeriodThrottlerTests extends ElasticsearchTestCase {
 
         WatchExecutionContext ctx = mockExecutionContext("_name", EMPTY_PAYLOAD);
         ActionStatus actionStatus = mock(ActionStatus.class);
-        when(actionStatus.lastSuccessfulExecution()).thenReturn(ActionStatus.Execution.successful(SystemClock.INSTANCE.now().minusSeconds((int) period.seconds() - 1)));
+        when(actionStatus.lastSuccessfulExecution()).thenReturn(ActionStatus.Execution.successful(SystemClock.INSTANCE.nowUTC().minusSeconds((int) period.seconds() - 1)));
         WatchStatus status = mock(WatchStatus.class);
         when(status.actionStatus("_action")).thenReturn(actionStatus);
         when(ctx.watch().status()).thenReturn(status);
@@ -55,7 +55,7 @@ public class PeriodThrottlerTests extends ElasticsearchTestCase {
 
         WatchExecutionContext ctx = mockExecutionContext("_name", EMPTY_PAYLOAD);
         ActionStatus actionStatus = mock(ActionStatus.class);
-        when(actionStatus.lastSuccessfulExecution()).thenReturn(ActionStatus.Execution.successful(SystemClock.INSTANCE.now().minusSeconds((int) period.seconds() + 1)));
+        when(actionStatus.lastSuccessfulExecution()).thenReturn(ActionStatus.Execution.successful(SystemClock.INSTANCE.nowUTC().minusSeconds((int) period.seconds() + 1)));
         WatchStatus status = mock(WatchStatus.class);
         when(status.actionStatus("_action")).thenReturn(actionStatus);
         when(ctx.watch().status()).thenReturn(status);

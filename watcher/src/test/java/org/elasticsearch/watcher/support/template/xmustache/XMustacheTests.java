@@ -16,7 +16,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ScriptEngineService;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -30,7 +30,7 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-public class XMustacheTests extends ElasticsearchTestCase {
+public class XMustacheTests extends ESTestCase {
 
     private ScriptEngineService engine;
 

@@ -5,14 +5,14 @@
  */
 package org.elasticsearch.shield.authc.support;
 
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import java.nio.charset.StandardCharsets;
 
 import static org.hamcrest.Matchers.*;
 
-public class SecuredStringTests extends ElasticsearchTestCase {
+public class SecuredStringTests extends ESTestCase {
     public static SecuredString build(String password){
         return new SecuredString(password.toCharArray());
     }

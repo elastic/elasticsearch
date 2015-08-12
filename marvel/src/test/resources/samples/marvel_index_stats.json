@@ -1,0 +1,19 @@
+{
+  "cluster_name": "test",
+  "timestamp": "2015-07-22T15:54:02.979Z",
+  "index_stats": {
+    "index": "index-0",
+    "total": {
+      "docs": {
+        "count": 345678
+      },
+      "store": {
+        "size_in_bytes": 5761573,
+        "throttle_time_in_millis": 0
+      },
+      "indexing": {
+        "throttle_time_in_millis": 302
+      }
+    }
+  }
+}

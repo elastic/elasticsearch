@@ -220,12 +220,12 @@ shield.authc.realms:
 ._esusers_ Realm
 [options="header"]
 |======
-| Name                 | Required    | Default                                               | Description
-| `files.users`        | no          | `ES_HOME/config/shield/users`
-| `files.users_roles`  | no          | `ES_HOME/config/shield/users_roles`| The location of <<users_defining-roles, _users_roles_>> file
-| `cache.ttl`          | no          | `20m`                                                 | Specified the time-to-live for cached user entries (a user and its credentials will be cached for this configured period of time). Defaults to `20m` (use the standard Elasticsearch {ref}/common-options.html#time-units[time units]).
-| `cache.max_users`    | no          | 100000                                                | Specified the maximum number of user entries that can live in the cache at a given time. Defaults to 100,000.
-| `cache.hash_algo`    | no          | `ssha256`                                             | (Expert Setting) Specifies the hashing algorithm that will be used for the in-memory cached user credentials (see <<ref-cache-hash-algo,Cache hash algorithms>> table for all possible values).
+| Name                 | Required    | Default                            | Description
+| `files.users`        | no          | `ES_HOME/config/shield/users`      | The location of the <<users-file, users>> file.
+| `files.users_roles`  | no          | `ES_HOME/config/shield/users_roles`| The location of the <<users_defining-roles, users_roles>> file.
+| `cache.ttl`          | no          | `20m`                              | The time-to-live for cached user entries--user credentials are cached for this configured period of time. Defaults to `20m`. Specify values using the standard Elasticsearch {ref}/common-options.html#time-units[time units].
+| `cache.max_users`    | no          | 100000                             | The maximum number of user entries that can live in the cache at a given time. Defaults to 100,000.
+| `cache.hash_algo`    | no          | `ssha256`                          | (Expert Setting) The hashing algorithm that is used for the in-memory cached user credentials. See the <<ref-cache-hash-algo,Cache hash algorithms>> table for all possible values.
 |======
 
 [[ref-ldap-settings]]

@@ -8,6 +8,7 @@ package org.elasticsearch.shield.authc.ldap;
 import com.google.common.primitives.Ints;
 import com.unboundid.ldap.sdk.*;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.shield.ShieldSettingsFilter;
@@ -36,13 +37,14 @@ public class LdapUserSearchSessionFactory extends SessionFactory {
     static final TimeValue DEFAULT_HEALTH_CHECK_INTERVAL = TimeValue.timeValueSeconds(60L);
 
     private final GroupsResolver groupResolver;
-    private final LDAPConnectionPool connectionPool;
     private final String userSearchBaseDn;
     private final LdapSearchScope scope;
     private final String userAttribute;
     private final ServerSet serverSet;
 
-    public LdapUserSearchSessionFactory(RealmConfig config, ClientSSLService sslService) throws IOException {
+    private LDAPConnectionPool connectionPool;
+
+    public LdapUserSearchSessionFactory(RealmConfig config, ClientSSLService sslService) {
         super(config);
         Settings settings = config.settings();
         userSearchBaseDn = settings.get("user_search.base_dn");
@@ -52,8 +54,20 @@ public class LdapUserSearchSessionFactory extends SessionFactory {
         scope = LdapSearchScope.resolve(settings.get("user_search.scope"), LdapSearchScope.SUB_TREE);
         userAttribute = settings.get("user_search.attribute", DEFAULT_USERNAME_ATTRIBUTE);
         serverSet = serverSet(settings, sslService);
-        connectionPool = connectionPool(config.settings(), serverSet, timeout);
+        connectionPool = createConnectionPool(config, serverSet, timeout, logger);
         groupResolver = groupResolver(settings);
+    }
+
+    private synchronized LDAPConnectionPool connectionPool() throws IOException {
+        if (connectionPool == null) {
+            connectionPool = createConnectionPool(config, serverSet, timeout, logger);
+            // if it is still null throw an exception
+            if (connectionPool == null) {
+                throw new IOException("failed to create a connection pool for realm [" + config.name() + "] as no LDAP servers are available");
+            }
+        }
+
+        return connectionPool;
     }
 
     static void filterOutSensitiveSettings(String realmName, ShieldSettingsFilter filter) {
@@ -62,7 +76,8 @@ public class LdapUserSearchSessionFactory extends SessionFactory {
         filter.filterOut("shield.authc.realms." + realmName + "." + HOSTNAME_VERIFICATION_SETTING);
     }
 
-    static LDAPConnectionPool connectionPool(Settings settings, ServerSet serverSet, TimeValue timeout) throws IOException {
+    static LDAPConnectionPool createConnectionPool(RealmConfig config, ServerSet serverSet, TimeValue timeout, ESLogger logger) {
+        Settings settings = config.settings();
         SimpleBindRequest bindRequest = bindRequest(settings);
         int initialSize = settings.getAsInt("user_search.pool.initial_size", DEFAULT_CONNECTION_POOL_INITIAL_SIZE);
         int size = settings.getAsInt("user_search.pool.size", DEFAULT_CONNECTION_POOL_SIZE);
@@ -85,8 +100,13 @@ public class LdapUserSearchSessionFactory extends SessionFactory {
             }
             return pool;
         } catch (LDAPException e) {
-            throw new IOException("unable to connect to any LDAP servers", e);
+            if (logger.isDebugEnabled()) {
+                logger.debug("unable to create connection pool for realm [{}]", e, config.name());
+            } else {
+                logger.error("unable to create connection pool for realm [{}]: {}", config.name(), e.getMessage());
+            }
         }
+        return null;
     }
 
     static SimpleBindRequest bindRequest(Settings settings) {
@@ -126,6 +146,7 @@ public class LdapUserSearchSessionFactory extends SessionFactory {
     public LdapSession session(String user, SecuredString password) throws Exception {
         SearchRequest request = new SearchRequest(userSearchBaseDn, scope.scope(), createEqualityFilter(userAttribute, encodeValue(user)), Strings.EMPTY_ARRAY);
         request.setTimeLimitSeconds(Ints.checkedCast(timeout.seconds()));
+        LDAPConnectionPool connectionPool = connectionPool();
         try {
             SearchResultEntry entry = searchForEntry(connectionPool, request, logger);
             if (entry == null) {
@@ -160,7 +181,9 @@ public class LdapUserSearchSessionFactory extends SessionFactory {
      * This method is used to cleanup the connections for tests
      */
     void shutdown() {
-        connectionPool.close();
+        if (connectionPool != null) {
+            connectionPool.close();
+        }
     }
 
     static GroupsResolver groupResolver(Settings settings) {

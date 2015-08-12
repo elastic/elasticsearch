@@ -38,7 +38,8 @@ public class SystemKeyToolTests extends CliToolTestCase {
     public void init() throws Exception {
         terminal = mock(Terminal.class);
         env = mock(Environment.class);
-        when(env.homeFile()).thenReturn(createTempDir());
+        Path tmpDir = createTempDir();
+        when(env.binFile()).thenReturn(tmpDir.resolve("bin"));
     }
 
     @Test

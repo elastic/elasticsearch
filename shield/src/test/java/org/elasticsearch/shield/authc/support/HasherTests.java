@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.shield.authc.support;
 
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import static org.hamcrest.Matchers.sameInstance;
@@ -13,7 +13,7 @@ import static org.hamcrest.Matchers.sameInstance;
 /**
  *
  */
-public class HasherTests extends ElasticsearchTestCase {
+public class HasherTests extends ESTestCase {
 
     @Test
     public void testBcryptFamily_SelfGenerated() throws Exception {

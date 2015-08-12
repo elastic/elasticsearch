@@ -12,7 +12,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.shield.crypto.CryptoService;
 import org.elasticsearch.shield.crypto.InternalCryptoService;
-import org.elasticsearch.test.ShieldIntegrationTest;
+import org.elasticsearch.test.ShieldIntegTestCase;
 import org.junit.Test;
 
 import java.util.Locale;
@@ -22,7 +22,7 @@ import static org.elasticsearch.test.ShieldTestsUtils.assertAuthorizationExcepti
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.*;
 
-public class ScrollIdSigningTests extends ShieldIntegrationTest {
+public class ScrollIdSigningTests extends ShieldIntegTestCase {
 
     @Test
     public void testSearchAndClearScroll() throws Exception {

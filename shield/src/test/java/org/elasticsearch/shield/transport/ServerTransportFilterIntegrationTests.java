@@ -17,7 +17,7 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.shield.ShieldPlugin;
 import org.elasticsearch.shield.authc.esusers.ESUsersRealm;
 import org.elasticsearch.shield.crypto.InternalCryptoService;
-import org.elasticsearch.test.ShieldIntegrationTest;
+import org.elasticsearch.test.ShieldIntegTestCase;
 import org.elasticsearch.test.ShieldSettingsSource;
 import org.elasticsearch.transport.Transport;
 import org.junit.BeforeClass;
@@ -34,7 +34,7 @@ import static org.elasticsearch.shield.test.ShieldTestUtils.writeFile;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
 
-public class ServerTransportFilterIntegrationTests extends ShieldIntegrationTest {
+public class ServerTransportFilterIntegrationTests extends ShieldIntegTestCase {
 
     private static int randomClientPort;
 

@@ -18,8 +18,8 @@ import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.shield.transport.SSLClientAuth;
 import org.elasticsearch.shield.transport.netty.ShieldNettyHttpServerTransport;
 import org.elasticsearch.shield.transport.netty.ShieldNettyTransport;
-import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-import org.elasticsearch.test.ShieldIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.test.ShieldIntegTestCase;
 import org.elasticsearch.test.ShieldSettingsSource;
 import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
 import org.elasticsearch.test.rest.client.http.HttpResponse;
@@ -35,7 +35,7 @@ import java.util.Locale;
 import static org.hamcrest.Matchers.is;
 
 @ClusterScope(numClientNodes = 0, numDataNodes = 1)
-public class PkiWithoutClientAuthenticationTests extends ShieldIntegrationTest {
+public class PkiWithoutClientAuthenticationTests extends ShieldIntegTestCase {
 
     private TrustManager[] trustAllCerts = new TrustManager[] {
             new X509TrustManager() {

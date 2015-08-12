@@ -17,7 +17,7 @@ import org.elasticsearch.shield.authc.ldap.support.LdapSearchScope;
 import org.elasticsearch.shield.authc.ldap.support.SessionFactory;
 import org.elasticsearch.shield.ssl.ClientSSLService;
 import org.elasticsearch.shield.support.NoOpLogger;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.annotations.Network;
 import org.junit.After;
 import org.junit.Before;
@@ -29,7 +29,7 @@ import java.util.List;
 import static org.hamcrest.Matchers.*;
 
 @Network
-public class SearchGroupsResolverTests extends ElasticsearchTestCase {
+public class SearchGroupsResolverTests extends ESTestCase {
 
     public static final String BRUCE_BANNER_DN = "uid=hulk,ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
 

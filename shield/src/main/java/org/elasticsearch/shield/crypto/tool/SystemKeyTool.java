@@ -36,8 +36,8 @@ public class SystemKeyTool extends CliTool {
 
 
     public static void main(String[] args) throws Exception {
-        int status = new SystemKeyTool().execute(args);
-        System.exit(status);
+        ExitStatus exitStatus = new SystemKeyTool().execute(args);
+        System.exit(exitStatus.status());
     }
 
     private static final CliToolConfig CONFIG = config("syskey", SystemKeyTool.class)
@@ -69,7 +69,7 @@ public class SystemKeyTool extends CliTool {
             if (args.length > 1) {
                 return exitCmd(ExitStatus.USAGE, terminal, "Too many arguments");
             }
-            Path path = args.length != 0 ? env.homeFile().resolve(args[0]) : null;
+            Path path = args.length != 0 ? env.binFile().getParent().resolve(args[0]) : null;
             return new Generate(terminal, path);
         }
 

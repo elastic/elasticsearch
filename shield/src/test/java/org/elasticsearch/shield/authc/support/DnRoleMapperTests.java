@@ -15,7 +15,7 @@ import org.elasticsearch.shield.audit.logfile.CapturingLogger;
 import org.elasticsearch.shield.authc.RealmConfig;
 import org.elasticsearch.shield.authc.activedirectory.ActiveDirectoryRealm;
 import org.elasticsearch.shield.authc.ldap.LdapRealm;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.junit.After;
@@ -39,7 +39,7 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-public class DnRoleMapperTests extends ElasticsearchTestCase {
+public class DnRoleMapperTests extends ESTestCase {
 
     private static final String[] STARK_GROUP_DNS = new String[] {
             //groups can be named by different attributes, depending on the directory,
@@ -85,7 +85,7 @@ public class DnRoleMapperTests extends ElasticsearchTestCase {
     @Test
     public void testMapper_AutoReload() throws Exception {
         Path roleMappingFile = getDataPath("role_mapping.yml");
-        Path file = env.homeFile().resolve("test_role_mapping.yml");
+        Path file = env.binFile().getParent().resolve("test_role_mapping.yml");
         Files.copy(roleMappingFile, file, StandardCopyOption.REPLACE_EXISTING);
 
         final CountDownLatch latch = new CountDownLatch(1);
@@ -125,7 +125,7 @@ public class DnRoleMapperTests extends ElasticsearchTestCase {
     @Test
     public void testMapper_AutoReload_WithParseFailures() throws Exception {
         Path roleMappingFile = getDataPath("role_mapping.yml");
-        Path file = env.homeFile().resolve("test_role_mapping.yml");
+        Path file = env.binFile().getParent().resolve("test_role_mapping.yml");
         Files.copy(roleMappingFile, file, StandardCopyOption.REPLACE_EXISTING);
 
         final CountDownLatch latch = new CountDownLatch(1);

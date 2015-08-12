@@ -30,6 +30,7 @@ import org.junit.Test;
 
 import java.util.concurrent.TimeUnit;
 
+import static org.hamcrest.Matchers.is;
 import static org.joda.time.DateTimeZone.UTC;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
@@ -130,13 +131,13 @@ public class BootStrapTests extends AbstractWatcherIntegrationTests {
         client().prepareIndex(index, HistoryStore.DOC_TYPE, wid.value())
                 .setSource(jsonBuilder().startObject()
                         .startObject(WatchRecord.Field.TRIGGER_EVENT.getPreferredName())
-                            .field(event.type(), event)
+                        .field(event.type(), event)
                         .endObject()
                         .startObject(Watch.Field.CONDITION.getPreferredName())
-                            .field(condition.type(), condition)
+                        .field(condition.type(), condition)
                         .endObject()
                         .startObject(Watch.Field.INPUT.getPreferredName())
-                            .startObject("none").endObject()
+                        .startObject("none").endObject()
                         .endObject()
                         .endObject())
                 .setConsistencyLevel(WriteConsistencyLevel.ALL)
@@ -148,13 +149,13 @@ public class BootStrapTests extends AbstractWatcherIntegrationTests {
         client().prepareIndex(index, HistoryStore.DOC_TYPE, wid.value())
                 .setSource(jsonBuilder().startObject()
                         .startObject(WatchRecord.Field.TRIGGER_EVENT.getPreferredName())
-                            .field(event.type(), event)
+                        .field(event.type(), event)
                         .endObject()
                         .startObject(Watch.Field.CONDITION.getPreferredName())
-                            .startObject("unknown").endObject()
+                        .startObject("unknown").endObject()
                         .endObject()
                         .startObject(Watch.Field.INPUT.getPreferredName())
-                            .startObject("none").endObject()
+                        .startObject("none").endObject()
                         .endObject()
                         .endObject())
                 .setConsistencyLevel(WriteConsistencyLevel.ALL)
@@ -347,6 +348,18 @@ public class BootStrapTests extends AbstractWatcherIntegrationTests {
                 assertHitCount(searchResponse, numRecords);
             }
         });
+    }
+
+    @Test
+    public void testManuallyStopped() throws Exception {
+        WatcherStatsResponse response = watcherClient().prepareWatcherStats().get();
+        assertThat(response.getWatcherMetaData().manuallyStopped(), is(false));
+        stopWatcher();
+        response = watcherClient().prepareWatcherStats().get();
+        assertThat(response.getWatcherMetaData().manuallyStopped(), is(true));
+        startWatcher();
+        response = watcherClient().prepareWatcherStats().get();
+        assertThat(response.getWatcherMetaData().manuallyStopped(), is(false));
     }
 
 

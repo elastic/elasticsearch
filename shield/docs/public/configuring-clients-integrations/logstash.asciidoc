@@ -43,15 +43,19 @@ Once you've created the user, you are ready to configure Logstash.
 [[ls-http]]
 ==== Connecting with HTTP/HTTPS
 
-All three input, filter and output plugins support HTTP Basic Authentication as well as SSL/TLS.
-The sections below demonstrate the output plugin's configuration parameters, but input and filter are the same.
+When you set the `protocol` option to `http`, Logstash communicates with the Elasticsearch cluster through the REST APIs over HTTP.
 
 [float]
 [[ls-http-auth]]
+===== Authentication for HTTP protocol
+
+HTTP protocol supports both basic auth and client-certificate authentication through the use of Public Key Infrastructure (PKI).
+
+[float]
+[[ls-http-auth-basic]]
 ===== Basic Authentication
 
-To connect to an instance of Elasticsearch with Shield, set up the username and password credentials with the following 
-configuration parameters:
+The  input, filter, and output plugins all support HTTP Basic Authentication. To use basic authentication when connecting to an instance of Elasticsearch with Shield, you configure the plugins to include username and password credentials with each request. For example, the following snippet configures credentials for the output plugin. The credentials are configured the same way for each plugin type.
 
 [source, shell]
 --------------------------------------------------
@@ -62,6 +66,25 @@ output {
     ...
     user => ... # string
     password => ... # string
+  }
+}
+--------------------------------------------------
+
+[float]
+[[ls-http-auth-pki]]
+===== PKI Authentication
+
+Elasticsearch Output version 1.0.1 onwards supports the use of X.509 client-certificate to authenticate Logstash requests. To enable this you need to set up the following configuration parameters:
+
+[source, shell]
+--------------------------------------------------
+input { ... }
+output {
+  elasticsearch {
+    protocol => "http"
+    ...
+    keystore => ... # string
+    keystore_password => ... # string
   }
 }
 --------------------------------------------------
@@ -90,7 +113,7 @@ output {
 [[ls-transport]]
 ==== Connecting with Transport protocol
 
-By setting the "protocol" option to "transport", Logstash communicates with the Elasticsearch cluster through the same
+When you set the `protocol` option to `transport`, Logstash communicates with the Elasticsearch cluster through the same
 protocol nodes use between each other. This avoids JSON un/marshalling and is therefore more efficient.
 
 In order to unlock this option, it's necessary to install an additional plugin in Logstash using the following command:

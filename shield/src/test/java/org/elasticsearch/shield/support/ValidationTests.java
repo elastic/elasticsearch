@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.shield.support;
 
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import java.util.Arrays;
@@ -18,7 +18,7 @@ import static org.hamcrest.Matchers.nullValue;
 /**
  *
  */
-public class ValidationTests extends ElasticsearchTestCase {
+public class ValidationTests extends ESTestCase {
 
 
     private static final char[] alphabet = {

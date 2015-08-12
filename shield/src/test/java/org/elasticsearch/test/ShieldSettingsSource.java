@@ -85,7 +85,7 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
      * @param parentFolder the parent folder that will contain all of the configuration files that need to be created
      * @param scope the scope of the test that is requiring an instance of ShieldSettingsSource
      */
-    public ShieldSettingsSource(int numOfNodes, boolean sslTransportEnabled, Path parentFolder, ElasticsearchIntegrationTest.Scope scope) {
+    public ShieldSettingsSource(int numOfNodes, boolean sslTransportEnabled, Path parentFolder, ESIntegTestCase.Scope scope) {
         this(numOfNodes, sslTransportEnabled, generateKey(), parentFolder, scope);
     }
 
@@ -98,7 +98,7 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
      * @param parentFolder the parent folder that will contain all of the configuration files that need to be created
      * @param scope the scope of the test that is requiring an instance of ShieldSettingsSource
      */
-    public ShieldSettingsSource(int numOfNodes, boolean sslTransportEnabled, byte[] systemKey, Path parentFolder, ElasticsearchIntegrationTest.Scope scope) {
+    public ShieldSettingsSource(int numOfNodes, boolean sslTransportEnabled, byte[] systemKey, Path parentFolder, ESIntegTestCase.Scope scope) {
         super(numOfNodes, DEFAULT_SETTINGS);
         this.systemKey = systemKey;
         this.parentFolder = parentFolder;
@@ -193,11 +193,11 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
         }
     }
 
-    private Settings getNodeSSLSettings() {
+    public Settings getNodeSSLSettings() {
         return getSSLSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testnode.jks", "testnode", sslTransportEnabled, hostnameVerificationEnabled, hostnameVerificationResolveNameEnabled);
     }
 
-    private Settings getClientSSLSettings() {
+    public Settings getClientSSLSettings() {
         return getSSLSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testclient.jks", "testclient", sslTransportEnabled, hostnameVerificationEnabled, hostnameVerificationResolveNameEnabled);
     }
 

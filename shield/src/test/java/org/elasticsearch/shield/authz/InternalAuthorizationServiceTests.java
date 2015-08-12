@@ -25,7 +25,7 @@ import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.audit.AuditTrail;
 import org.elasticsearch.shield.authc.AnonymousService;
 import org.elasticsearch.shield.authz.store.RolesStore;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportRequest;
 import org.junit.Before;
 import org.junit.Test;
@@ -36,7 +36,7 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.*;
 import static org.mockito.Mockito.*;
 
-public class InternalAuthorizationServiceTests extends ElasticsearchTestCase {
+public class InternalAuthorizationServiceTests extends ESTestCase {
 
     private AuditTrail auditTrail;
     private RolesStore rolesStore;

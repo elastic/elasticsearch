@@ -18,7 +18,7 @@ import org.elasticsearch.plugins.AbstractPlugin;
 import org.elasticsearch.shield.action.ShieldActionMapper;
 import org.elasticsearch.shield.authc.AuthenticationService;
 import org.elasticsearch.shield.authz.AuthorizationService;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 import org.elasticsearch.transport.netty.NettyTransport;
@@ -33,8 +33,8 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope.SUITE;
+import static org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Matchers.isA;
 import static org.mockito.Mockito.*;
@@ -43,15 +43,14 @@ import static org.mockito.Mockito.*;
  *
  */
 @ClusterScope(scope = SUITE, numDataNodes = 0)
-public class TransportFilterTests extends ElasticsearchIntegrationTest {
+public class TransportFilterTests extends ESIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.settingsBuilder()
                 .put("plugins.load_classpath_plugins", false)
-                .put("plugin.types", InternalPlugin.class.getName())
+                .putArray("plugin.types", InternalPlugin.class.getName(), InternalPluginServerTransportService.Plugin.class.getName())
                 .put("node.mode", "network")
-                .put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, InternalPluginServerTransportService.class.getName())
                 .build();
     }
 
@@ -265,6 +264,23 @@ public class TransportFilterTests extends ElasticsearchIntegrationTest {
 
     // Sub class the Shield transport to always inject a mock for testing
     static class InternalPluginServerTransportService extends ShieldServerTransportService {
+        public static class Plugin extends AbstractPlugin {
+            @Override
+            public String name() {
+                return "mock-transport-service";
+            }
+            @Override
+            public String description() {
+                return "a mock transport service for testing";
+            }
+            public void onModule(TransportModule transportModule) {
+                transportModule.addTransportService("filter-mock", InternalPluginServerTransportService.class);
+            }
+            @Override
+            public Settings additionalSettings() {
+                return Settings.builder().put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, "filter-mock").build();
+            }
+        }
 
         @Inject
         InternalPluginServerTransportService(Settings settings, Transport transport, ThreadPool threadPool, AuthenticationService authcService, AuthorizationService authzService, ShieldActionMapper actionMapper, ClientTransportFilter clientTransportFilter) {

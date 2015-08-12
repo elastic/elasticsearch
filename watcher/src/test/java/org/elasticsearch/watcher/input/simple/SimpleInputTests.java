@@ -10,7 +10,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.input.ExecutableInput;
 import org.elasticsearch.watcher.input.Input;
 import org.elasticsearch.watcher.input.InputFactory;
@@ -26,7 +26,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
 /**
  */
-public class SimpleInputTests extends ElasticsearchTestCase {
+public class SimpleInputTests extends ESTestCase {
 
     @Test
     public void textExecute() throws Exception {

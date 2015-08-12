@@ -12,7 +12,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.condition.compare.CompareCondition.Op;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.support.clock.ClockMock;
@@ -30,7 +30,7 @@ import static org.hamcrest.Matchers.notNullValue;
 
 /**
  */
-public class CompareConditionTests extends ElasticsearchTestCase {
+public class CompareConditionTests extends ESTestCase {
 
     @Test
     public void testOpEval_EQ() throws Exception {
@@ -150,7 +150,7 @@ public class CompareConditionTests extends ElasticsearchTestCase {
         boolean met = randomBoolean();
         Op op = met ? randomFrom(Op.GT, Op.GTE, Op.NOT_EQ) : randomFrom(Op.LT, Op.LTE, Op.EQ);
         String value = "<{now-1d}>";
-        DateTime payloadValue = clock.now();
+        DateTime payloadValue = clock.nowUTC();
 
         ExecutableCompareCondition condition = new ExecutableCompareCondition(new CompareCondition("ctx.payload.value", op, value), logger, clock);
         WatchExecutionContext ctx = mockExecutionContext("_name", new Payload.Simple("value", payloadValue));

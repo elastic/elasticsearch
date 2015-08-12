@@ -25,28 +25,16 @@ public class ShieldIntegration {
 
     private static final int MIN_SHIELD_VERSION = /*00*/2000001; // 2.0.0_beta1
 
-    private final boolean installed;
-    private final boolean enabled;
     private final Object authcService;
     private final Object userHolder;
     private final Object settingsFilter;
 
     @Inject
     public ShieldIntegration(Settings settings, Injector injector) {
-        installed = installed(settings);
-        enabled = installed && ShieldPlugin.shieldEnabled(settings);
+        boolean enabled = enabled(settings);
         authcService = enabled ? injector.getInstance(AuthenticationService.class) : null;
         userHolder = enabled ? injector.getInstance(WatcherUserHolder.class) : null;
         settingsFilter = enabled ? injector.getInstance(ShieldSettingsFilter.class) : null;
-
-    }
-
-    public boolean installed() {
-        return installed;
-    }
-
-    public boolean enabled() {
-        return enabled;
     }
 
     public void bindWatcherUser(TransportMessage message) {
@@ -65,9 +53,9 @@ public class ShieldIntegration {
         }
     }
 
-    static boolean installed(Settings settings) {
+    static boolean installed() {
         try {
-            Class clazz = settings.getClassLoader().loadClass("org.elasticsearch.shield.ShieldPlugin");
+            Class clazz = ShieldIntegration.class.getClassLoader().loadClass("org.elasticsearch.shield.ShieldPlugin");
             if (clazz == null) {
                 return false;
             }
@@ -88,7 +76,7 @@ public class ShieldIntegration {
     }
 
     public static boolean enabled(Settings settings) {
-        return installed(settings) && ShieldPlugin.shieldEnabled(settings);
+        return installed() && ShieldPlugin.shieldEnabled(settings);
     }
 
 }

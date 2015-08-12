@@ -14,7 +14,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.WatcherService;
 import org.elasticsearch.watcher.WatcherState;
 import org.elasticsearch.watcher.actions.ActionStatus;
@@ -40,7 +40,7 @@ import static org.mockito.Mockito.*;
 
 /**
  */
-public class WatchServiceTests extends ElasticsearchTestCase {
+public class WatchServiceTests extends ESTestCase {
 
     private TriggerService triggerService;
     private WatchStore watchStore;
@@ -205,7 +205,7 @@ public class WatchServiceTests extends ElasticsearchTestCase {
 
     @Test
     public void testAckWatch_NotAck() throws Exception {
-        DateTime now = SystemClock.INSTANCE.now();
+        DateTime now = SystemClock.INSTANCE.nowUTC();
         TimeValue timeout = TimeValue.timeValueSeconds(5);
         WatchLockService.Lock lock = mock(WatchLockService.Lock.class);
         when(watchLockService.tryAcquire("_id", timeout)).thenReturn(lock);

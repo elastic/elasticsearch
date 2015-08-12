@@ -10,14 +10,9 @@ import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.shield.authc.support.Hasher;
 import org.elasticsearch.shield.authc.support.SecuredString;
-import org.junit.Ignore;
 
 import java.util.concurrent.ThreadLocalRandom;
 
-/**
- *
- */
-@Ignore
 public class HasherBenchmark {
 
     private static final int WARMING_ITERS = 1000;

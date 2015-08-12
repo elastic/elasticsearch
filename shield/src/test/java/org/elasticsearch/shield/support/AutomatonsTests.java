@@ -7,7 +7,7 @@ package org.elasticsearch.shield.support;
 
 import dk.brics.automaton.Automaton;
 import dk.brics.automaton.RunAutomaton;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import static org.elasticsearch.shield.support.Automatons.*;
@@ -16,7 +16,7 @@ import static org.hamcrest.Matchers.is;
 /**
  *
  */
-public class AutomatonsTests extends ElasticsearchTestCase {
+public class AutomatonsTests extends ESTestCase {
 
     @Test
     public void testPatterns_UnionOfMultiplePatterns() throws Exception {

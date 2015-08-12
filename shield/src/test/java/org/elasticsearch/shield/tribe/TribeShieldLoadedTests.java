@@ -12,7 +12,7 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeBuilder;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.shield.ShieldPlugin;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import static org.hamcrest.CoreMatchers.containsString;
@@ -22,7 +22,7 @@ import static org.hamcrest.CoreMatchers.containsString;
  * tribes settings depending on how they will load shield or not. Main goal is to make sure that all tribes will run
  * shield too if the tribe node does.
  */
-public class TribeShieldLoadedTests extends ElasticsearchTestCase {
+public class TribeShieldLoadedTests extends ESTestCase {
 
     @Test
     public void testShieldLoadedOnBothTribeNodeAndClients() {

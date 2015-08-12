@@ -22,7 +22,7 @@ import org.elasticsearch.script.ScriptEngineService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.groovy.GroovyScriptEngineService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.watcher.actions.ActionStatus;
@@ -77,7 +77,7 @@ import static com.carrotsearch.randomizedtesting.RandomizedTest.randomInt;
 import static org.apache.lucene.util.LuceneTestCase.createTempDir;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
-import static org.elasticsearch.test.ElasticsearchTestCase.randomFrom;
+import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.joda.time.DateTimeZone.UTC;
 import static org.junit.Assert.assertThat;
 import static org.mockito.Mockito.mock;
@@ -166,7 +166,7 @@ public final class WatcherTestUtils {
 
 
     public static Watch createTestWatch(String watchName, ScriptServiceProxy scriptService, HttpClient httpClient, EmailService emailService, ESLogger logger) throws AddressException {
-        return createTestWatch(watchName, ClientProxy.of(ElasticsearchIntegrationTest.client()), scriptService, httpClient, emailService, logger);
+        return createTestWatch(watchName, ClientProxy.of(ESIntegTestCase.client()), scriptService, httpClient, emailService, logger);
     }
 
 

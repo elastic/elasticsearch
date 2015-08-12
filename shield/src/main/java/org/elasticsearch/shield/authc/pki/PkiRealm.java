@@ -148,7 +148,7 @@ public class PkiRealm extends Realm<X509AuthenticationToken> {
 
         String trustStoreAlgorithm = settings.get("truststore.algorithm", System.getProperty("ssl.TrustManagerFactory.algorithm", TrustManagerFactory.getDefaultAlgorithm()));
         TrustManager[] trustManagers;
-        try (InputStream in = Files.newInputStream(env.homeFile().resolve(truststorePath))) {
+        try (InputStream in = Files.newInputStream(env.binFile().getParent().resolve(truststorePath))) {
             // Load TrustStore
             KeyStore ks = KeyStore.getInstance("jks");
             ks.load(in, password.toCharArray());

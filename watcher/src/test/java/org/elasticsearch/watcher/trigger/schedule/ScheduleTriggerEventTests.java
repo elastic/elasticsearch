@@ -10,7 +10,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.support.clock.SystemClock;
 import org.junit.Test;
 
@@ -18,7 +18,7 @@ import static org.hamcrest.Matchers.is;
 
 /**
  */
-public class ScheduleTriggerEventTests extends ElasticsearchTestCase {
+public class ScheduleTriggerEventTests extends ESTestCase {
 
     @Test
 

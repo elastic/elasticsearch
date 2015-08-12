@@ -20,7 +20,7 @@ import org.elasticsearch.shield.authc.AuthenticationToken;
 import org.elasticsearch.shield.rest.RemoteHostHeader;
 import org.elasticsearch.shield.transport.filter.IPFilter;
 import org.elasticsearch.shield.transport.filter.ShieldIpFilterRule;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportMessage;
 import org.junit.Before;
 import org.junit.Test;
@@ -39,7 +39,7 @@ import static org.mockito.Mockito.when;
 /**
  *
  */
-public class LoggingAuditTrailTests extends ElasticsearchTestCase {
+public class LoggingAuditTrailTests extends ESTestCase {
 
     private static enum RestContent {
 

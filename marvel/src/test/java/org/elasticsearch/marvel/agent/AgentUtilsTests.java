@@ -5,9 +5,9 @@
  */
 package org.elasticsearch.marvel.agent;
 
-import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.marvel.agent.support.AgentUtils;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.StreamsUtils;
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
 import org.junit.Test;
@@ -24,11 +24,11 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 
 
-public class AgentUtilsTests extends ElasticsearchTestCase {
+public class AgentUtilsTests extends ESTestCase {
 
     @Test
     public void testVersionIsExtractableFromIndexTemplate() throws IOException {
-        byte[] template = Streams.copyToBytesFromClasspath("/marvel_index_template.json");
+        byte[] template = StreamsUtils.copyToBytesFromClasspath("/marvel_index_template.json");
         MatcherAssert.assertThat(AgentUtils.parseIndexVersionFromTemplate(template), Matchers.greaterThan(0));
     }
 
@@ -110,19 +110,6 @@ public class AgentUtilsTests extends ElasticsearchTestCase {
         verifyUrl(url, "http", "server-dash", 9200, "/_bulk");
     }
 
-    void verifyUrl(URL url, String protocol, String host, int port, String path) throws URISyntaxException {
-        assertThat(url.getProtocol(), equalTo(protocol));
-        assertThat(url.getHost(), equalTo(host));
-        assertThat(url.getPort(), equalTo(port));
-        assertThat(url.toURI().getPath(), equalTo(path));
-    }
-
-    void verifyUrl(URL url, String protocol, String host, int port, String path, String userInfo) throws URISyntaxException {
-        verifyUrl(url, protocol, host, port, path);
-        assertThat(url.getUserInfo(), equalTo(userInfo));
-
-    }
-
     @Test
     public void sanitizeUrlPadTest() throws UnsupportedEncodingException {
         String pwd = URLEncoder.encode(randomRealisticUnicodeOfCodepointLengthBetween(3, 20), "UTF-8");
@@ -164,5 +151,18 @@ public class AgentUtilsTests extends ElasticsearchTestCase {
             String sanitized = AgentUtils.santizeUrlPwds(input);
             assertThat(sanitized, not(containsString(pwd)));
         }
+    }
+
+    void verifyUrl(URL url, String protocol, String host, int port, String path) throws URISyntaxException {
+        assertThat(url.getProtocol(), equalTo(protocol));
+        assertThat(url.getHost(), equalTo(host));
+        assertThat(url.getPort(), equalTo(port));
+        assertThat(url.toURI().getPath(), equalTo(path));
+    }
+
+    void verifyUrl(URL url, String protocol, String host, int port, String path, String userInfo) throws URISyntaxException {
+        verifyUrl(url, protocol, host, port, path);
+        assertThat(url.getUserInfo(), equalTo(userInfo));
+
     }
 }

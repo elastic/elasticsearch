@@ -24,7 +24,7 @@
         <elasticsearch.integ.antfile>dev-tools/integration-tests.xml</elasticsearch.integ.antfile>
         <tests.rest.load_packaged>false</tests.rest.load_packaged>
         <tests.timewarp>true</tests.timewarp>
-        <tests.rest.blacklist>hijack/10_basic/*,getting_started/10_monitor_cluster_health/*</tests.rest.blacklist>
+        <tests.rest.blacklist>hijack/10_basic/*</tests.rest.blacklist>
     </properties>
 
     <dependencies>
@@ -142,6 +142,17 @@
                     <include>api/search.json</include>
                     <include>api/indices.delete.json</include>
                     <include>api/indices.refresh.json</include>
+                </includes>
+            </testResource>
+            <!-- REST API specification and test suites -->
+            <!-- Copied this from plugins parent module, because filtering needs to be enabled -->
+            <testResource>
+                <directory>${project.basedir}/rest-api-spec</directory>
+                <targetPath>rest-api-spec</targetPath>
+                <filtering>true</filtering>
+                <includes>
+                    <include>api/*.json</include>
+                    <include>test/**/*.yaml</include>
                 </includes>
             </testResource>
         </testResources>

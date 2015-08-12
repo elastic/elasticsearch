@@ -7,9 +7,7 @@
 
   - do: {watcher.stats:{}}
   - match: { "watcher_state": "started" }
-  # - match: { "watch_count": 0 }
-  # Unfortunately we need to find a good way of starting and stopping watcher between tests for the different use cases (tests and integ tests)
-
+  - match: { "watch_count": 0 }
 
   - do:
       watcher.put_watch:
@@ -25,11 +23,11 @@
               "http": {
                 "request": {
                   "host": "localhost",
-                  "port": 9400,
+                  "port": ${integ.http.port},
                   "path": "/_cluster/health",
                   "auth" : {
                     "basic" : {
-                      "username" : "admin",
+                      "username" : "test_admin",
                       "password" : "changeme"
                     }
                   }
@@ -54,8 +52,8 @@
   - match: { _id: "cluster_health_watch" }
   - match: { created: true }
 
-  # - do: {watcher.stats:{}}
-  # - match: { "watch_count": 1 }
+  - do: {watcher.stats:{}}
+  - match: { "watch_count": 1 }
 
   # Simulate a Thread.sleep()
   - do:
@@ -102,5 +100,5 @@
   - match: { found: true }
 
 
-  # - do: {watcher.stats:{}}
-  # - match: { "watch_count": 0 }
+  - do: {watcher.stats:{}}
+  - match: { "watch_count": 0 }

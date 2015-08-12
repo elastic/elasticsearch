@@ -20,16 +20,19 @@
 package org.elasticsearch.search;
 
 import com.google.common.collect.Lists;
+
 import org.elasticsearch.common.Classes;
 import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.inject.binder.LinkedBindingBuilder;
 import org.elasticsearch.common.inject.multibindings.Multibinder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionParser;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionParserMapper;
 import org.elasticsearch.index.search.morelikethis.MoreLikeThisFetchService;
 import org.elasticsearch.search.action.SearchServiceTransportAction;
-import org.elasticsearch.search.aggregations.*;
+import org.elasticsearch.search.aggregations.AggregationParseElement;
+import org.elasticsearch.search.aggregations.AggregationPhase;
+import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.AggregatorParsers;
 import org.elasticsearch.search.aggregations.bucket.children.ChildrenParser;
 import org.elasticsearch.search.aggregations.bucket.children.InternalChildren;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterParser;
@@ -64,8 +67,14 @@ import org.elasticsearch.search.aggregations.bucket.significant.SignificantLongT
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantStringTerms;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTermsParser;
 import org.elasticsearch.search.aggregations.bucket.significant.UnmappedSignificantTerms;
-import org.elasticsearch.search.aggregations.bucket.significant.heuristics.*;
-import org.elasticsearch.search.aggregations.bucket.terms.*;
+import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicParser;
+import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicParserMapper;
+import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicStreams;
+import org.elasticsearch.search.aggregations.bucket.terms.DoubleTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.LongTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsParser;
+import org.elasticsearch.search.aggregations.bucket.terms.UnmappedTerms;
 import org.elasticsearch.search.aggregations.metrics.avg.AvgParser;
 import org.elasticsearch.search.aggregations.metrics.avg.InternalAvg;
 import org.elasticsearch.search.aggregations.metrics.cardinality.CardinalityParser;
@@ -116,7 +125,9 @@ import org.elasticsearch.search.aggregations.pipeline.having.BucketSelectorParse
 import org.elasticsearch.search.aggregations.pipeline.having.BucketSelectorPipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.movavg.MovAvgParser;
 import org.elasticsearch.search.aggregations.pipeline.movavg.MovAvgPipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.movavg.models.*;
+import org.elasticsearch.search.aggregations.pipeline.movavg.models.MovAvgModel;
+import org.elasticsearch.search.aggregations.pipeline.movavg.models.MovAvgModelParserMapper;
+import org.elasticsearch.search.aggregations.pipeline.movavg.models.MovAvgModelStreams;
 import org.elasticsearch.search.aggregations.pipeline.serialdiff.SerialDiffParser;
 import org.elasticsearch.search.aggregations.pipeline.serialdiff.SerialDiffPipelineAggregator;
 import org.elasticsearch.search.controller.SearchPhaseController;
@@ -130,9 +141,14 @@ import org.elasticsearch.search.fetch.matchedqueries.MatchedQueriesFetchSubPhase
 import org.elasticsearch.search.fetch.script.ScriptFieldsFetchSubPhase;
 import org.elasticsearch.search.fetch.source.FetchSourceSubPhase;
 import org.elasticsearch.search.fetch.version.VersionFetchSubPhase;
-import org.elasticsearch.search.highlight.*;
+import org.elasticsearch.search.highlight.HighlightPhase;
+import org.elasticsearch.search.highlight.Highlighter;
+import org.elasticsearch.search.highlight.Highlighters;
 import org.elasticsearch.search.query.QueryPhase;
-import org.elasticsearch.search.suggest.*;
+import org.elasticsearch.search.suggest.SuggestParseElement;
+import org.elasticsearch.search.suggest.SuggestPhase;
+import org.elasticsearch.search.suggest.Suggester;
+import org.elasticsearch.search.suggest.Suggesters;
 
 import java.util.List;
 
@@ -203,27 +219,59 @@ public class SearchModule extends AbstractModule {
         pipelineAggParsers.add(parser);
     }
 
-
     @Override
     protected void configure() {
-        // configure search private classes...
-        bind(DfsPhase.class).asEagerSingleton();
-        bind(QueryPhase.class).asEagerSingleton();
-        bind(SearchPhaseController.class).asEagerSingleton();
-        bind(FetchPhase.class).asEagerSingleton();
-        bind(SearchServiceTransportAction.class).asEagerSingleton();
-        bind(MoreLikeThisFetchService.class).asEagerSingleton();
+        configureSearch();
+        configureAggs();
+        configureHighlighters();
+        configureSuggesters();
+        configureFunctionScore();
+        configureFetchSubPhase();
+    }
 
-        // search service -- testing only!
-        String impl = settings.get(SEARCH_SERVICE_IMPL);
-        if (impl == null) {
-            bind(SearchService.class).asEagerSingleton();
-        } else {
-            Class<? extends SearchService> implClass = Classes.loadClass(getClass().getClassLoader(), impl);
-            bind(SearchService.class).to(implClass).asEagerSingleton();
+    protected void configureFetchSubPhase() {
+        Multibinder<FetchSubPhase> fetchSubPhaseMultibinder = Multibinder.newSetBinder(binder(), FetchSubPhase.class);
+        fetchSubPhaseMultibinder.addBinding().to(ExplainFetchSubPhase.class);
+        fetchSubPhaseMultibinder.addBinding().to(FieldDataFieldsFetchSubPhase.class);
+        fetchSubPhaseMultibinder.addBinding().to(ScriptFieldsFetchSubPhase.class);
+        fetchSubPhaseMultibinder.addBinding().to(FetchSourceSubPhase.class);
+        fetchSubPhaseMultibinder.addBinding().to(VersionFetchSubPhase.class);
+        fetchSubPhaseMultibinder.addBinding().to(MatchedQueriesFetchSubPhase.class);
+        fetchSubPhaseMultibinder.addBinding().to(HighlightPhase.class);
+        for (Class<? extends FetchSubPhase> clazz : fetchSubPhases) {
+            fetchSubPhaseMultibinder.addBinding().to(clazz);
+        }
+        bind(InnerHitsFetchSubPhase.class).asEagerSingleton();
+    }
+
+    protected void configureSuggesters() {
+        Multibinder<Suggester> suggesterMultibinder = Multibinder.newSetBinder(binder(), Suggester.class);
+        for (Class<? extends Suggester> clazz : suggesters) {
+            suggesterMultibinder.addBinding().to(clazz);
         }
 
-        // aggs
+        bind(SuggestParseElement.class).asEagerSingleton();
+        bind(SuggestPhase.class).asEagerSingleton();
+        bind(Suggesters.class).asEagerSingleton();
+    }
+
+    protected void configureFunctionScore() {
+        Multibinder<ScoreFunctionParser> parserMapBinder = Multibinder.newSetBinder(binder(), ScoreFunctionParser.class);
+        for (Class<? extends ScoreFunctionParser> clazz : functionScoreParsers) {
+            parserMapBinder.addBinding().to(clazz);
+        }
+        bind(ScoreFunctionParserMapper.class);
+    }
+
+    protected void configureHighlighters() {
+        Multibinder<Highlighter> multibinder = Multibinder.newSetBinder(binder(), Highlighter.class);
+        for (Class<? extends Highlighter> highlighter : highlighters) {
+            multibinder.addBinding().to(highlighter);
+        }
+        bind(Highlighters.class).asEagerSingleton();
+    }
+
+    protected void configureAggs() {
         Multibinder<Aggregator.Parser> multibinderAggParser = Multibinder.newSetBinder(binder(), Aggregator.Parser.class);
         multibinderAggParser.addBinding().to(AvgParser.class);
         multibinderAggParser.addBinding().to(SumParser.class);
@@ -288,44 +336,25 @@ public class SearchModule extends AbstractModule {
             modelParserMultibinder.addBinding().to(clazz);
         }
         bind(MovAvgModelParserMapper.class);
+    }
 
-        // highlighters
-        Multibinder<Highlighter> multibinder = Multibinder.newSetBinder(binder(), Highlighter.class);
-        for (Class<? extends Highlighter> highlighter : highlighters) {
-            multibinder.addBinding().to(highlighter);
+    protected void configureSearch() {
+        // configure search private classes...
+        bind(DfsPhase.class).asEagerSingleton();
+        bind(QueryPhase.class).asEagerSingleton();
+        bind(SearchPhaseController.class).asEagerSingleton();
+        bind(FetchPhase.class).asEagerSingleton();
+        bind(SearchServiceTransportAction.class).asEagerSingleton();
+        bind(MoreLikeThisFetchService.class).asEagerSingleton();
+
+        // search service -- testing only!
+        String impl = settings.get(SEARCH_SERVICE_IMPL);
+        if (impl == null) {
+            bind(SearchService.class).asEagerSingleton();
+        } else {
+            Class<? extends SearchService> implClass = Classes.loadClass(getClass().getClassLoader(), impl);
+            bind(SearchService.class).to(implClass).asEagerSingleton();
         }
-        bind(Highlighters.class).asEagerSingleton();
-
-        // suggest
-        Multibinder<Suggester> suggesterMultibinder = Multibinder.newSetBinder(binder(), Suggester.class);
-        for (Class<? extends Suggester> clazz : suggesters) {
-            suggesterMultibinder.addBinding().to(clazz);
-        }
-
-        bind(SuggestParseElement.class).asEagerSingleton();
-        bind(SuggestPhase.class).asEagerSingleton();
-        bind(Suggesters.class).asEagerSingleton();
-
-        // function score
-        Multibinder<ScoreFunctionParser> parserMapBinder = Multibinder.newSetBinder(binder(), ScoreFunctionParser.class);
-        for (Class<? extends ScoreFunctionParser> clazz : functionScoreParsers) {
-            parserMapBinder.addBinding().to(clazz);
-        }
-        bind(ScoreFunctionParserMapper.class);
-
-        // fetch sub phase
-        Multibinder<FetchSubPhase> fetchSubPhaseMultibinder = Multibinder.newSetBinder(binder(), FetchSubPhase.class);
-        fetchSubPhaseMultibinder.addBinding().to(ExplainFetchSubPhase.class);
-        fetchSubPhaseMultibinder.addBinding().to(FieldDataFieldsFetchSubPhase.class);
-        fetchSubPhaseMultibinder.addBinding().to(ScriptFieldsFetchSubPhase.class);
-        fetchSubPhaseMultibinder.addBinding().to(FetchSourceSubPhase.class);
-        fetchSubPhaseMultibinder.addBinding().to(VersionFetchSubPhase.class);
-        fetchSubPhaseMultibinder.addBinding().to(MatchedQueriesFetchSubPhase.class);
-        fetchSubPhaseMultibinder.addBinding().to(HighlightPhase.class);
-        for (Class<? extends FetchSubPhase> clazz : fetchSubPhases) {
-            fetchSubPhaseMultibinder.addBinding().to(clazz);
-        }
-        bind(InnerHitsFetchSubPhase.class).asEagerSingleton();
     }
 
     static {

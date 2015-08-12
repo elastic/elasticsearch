@@ -655,7 +655,7 @@ public class StoreTest extends ESTestCase {
         IndexOutput output = dir.createOutput(fileOut, IOContext.DEFAULT);
         long len = input.length();
         byte[] b = new byte[1024];
-        long broken = randomInt((int) len);
+        long broken = randomInt((int) len-1);
         long pos = 0;
         while (pos < len) {
             int min = (int) Math.min(input.length() - pos, b.length);

@@ -50,7 +50,7 @@ public class RestNodeAttrsAction extends AbstractCatAction {
     }
 
     @Override
-    void documentation(StringBuilder sb) {
+    protected void documentation(StringBuilder sb) {
         sb.append("/_cat/nodeattrs\n");
     }
 
@@ -84,7 +84,7 @@ public class RestNodeAttrsAction extends AbstractCatAction {
     }
 
     @Override
-    Table getTableWithHeader(final RestRequest request) {
+    protected Table getTableWithHeader(final RestRequest request) {
         Table table = new Table();
         table.startHeaders();
         table.addCell("node", "default:true;alias:name;desc:node name");

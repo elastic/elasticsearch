@@ -47,7 +47,7 @@ public class RestPluginsAction extends AbstractCatAction {
     }
 
     @Override
-    void documentation(StringBuilder sb) {
+    protected void documentation(StringBuilder sb) {
         sb.append("/_cat/plugins\n");
     }
 
@@ -74,7 +74,7 @@ public class RestPluginsAction extends AbstractCatAction {
     }
 
     @Override
-    Table getTableWithHeader(final RestRequest request) {
+    protected Table getTableWithHeader(final RestRequest request) {
         Table table = new Table();
         table.startHeaders();
         table.addCell("id", "default:false;desc:unique node id");

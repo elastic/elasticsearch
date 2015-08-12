@@ -20,10 +20,14 @@
 package org.elasticsearch.plugin.example;
 
 import org.elasticsearch.common.component.LifecycleComponent;
+import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.inject.multibindings.Multibinder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.AbstractPlugin;
 import org.elasticsearch.repositories.RepositoriesModule;
+import org.elasticsearch.rest.action.cat.AbstractCatAction;
 
 import java.io.Closeable;
 import java.util.ArrayList;
@@ -31,7 +35,7 @@ import java.util.Collection;
 import java.util.Collections;
 
 /**
- *
+ * Example of a plugin.
  */
 public class JvmExamplePlugin implements Plugin {
 
@@ -53,7 +57,9 @@ public class JvmExamplePlugin implements Plugin {
 
     @Override
     public Collection<Class<? extends Module>> modules() {
-        return Collections.emptyList();
+        Collection<Class<? extends Module>> modules = new ArrayList<>();
+        modules.add(ConfiguredExampleModule.class);
+        return modules;
     }
 
     @Override
@@ -111,5 +117,16 @@ public class JvmExamplePlugin implements Plugin {
     public void onModule(RepositoriesModule repositoriesModule) {
     }
 
-
+    /**
+     * Module decalaring some example configuration and a _cat action that uses
+     * it.
+     */
+    public static class ConfiguredExampleModule extends AbstractModule {
+        @Override
+        protected void configure() {
+          bind(ExamplePluginConfiguration.class).asEagerSingleton();
+          Multibinder<AbstractCatAction> catActionMultibinder = Multibinder.newSetBinder(binder(), AbstractCatAction.class);
+          catActionMultibinder.addBinding().to(ExampleCatAction.class).asEagerSingleton();
+        }
+    }
 }

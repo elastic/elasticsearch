@@ -42,7 +42,7 @@ public class RestMasterAction extends AbstractCatAction {
     }
 
     @Override
-    void documentation(StringBuilder sb) {
+    protected void documentation(StringBuilder sb) {
         sb.append("/_cat/master\n");
     }
 
@@ -62,7 +62,7 @@ public class RestMasterAction extends AbstractCatAction {
     }
 
     @Override
-    Table getTableWithHeader(final RestRequest request) {
+    protected Table getTableWithHeader(final RestRequest request) {
         Table table = new Table();
         table.startHeaders()
                 .addCell("id", "desc:node id")

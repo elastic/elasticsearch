@@ -57,6 +57,7 @@
 
   # Simulate a Thread.sleep()
   - do:
+      catch: request_timeout
       cluster.health:
         wait_for_nodes: 99
         timeout: 10s

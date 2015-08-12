@@ -319,7 +319,8 @@
 
     <modules>
         <module>smoke-test-plugins</module>
-        <module>smoke-test-plugins-ssl</module>
+        <!-- Disabled until 'openssl' is available on the Windows build machines
+        <module>smoke-test-plugins-ssl</module>-->
         <module>smoke-test-watcher-with-shield</module>
     </modules>
 </project>

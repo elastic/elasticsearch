@@ -24,6 +24,7 @@ import com.amazonaws.services.ec2.AmazonEC2;
 import com.amazonaws.services.ec2.model.*;
 import org.elasticsearch.Version;
 import org.elasticsearch.cloud.aws.AwsEc2Service;
+import org.elasticsearch.cloud.aws.AwsEc2Service.DISCOVERY_EC2;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -71,18 +72,19 @@ public class AwsEc2UnicastHostsProvider extends AbstractComponent implements Uni
         this.client = awsEc2Service.client();
         this.version = version;
 
-        this.hostType = HostType.valueOf(settings.get("discovery.ec2.host_type", "private_ip").toUpperCase(Locale.ROOT));
+        this.hostType = HostType.valueOf(settings.get(DISCOVERY_EC2.HOST_TYPE, "private_ip")
+                .toUpperCase(Locale.ROOT));
 
-        this.bindAnyGroup = settings.getAsBoolean("discovery.ec2.any_group", true);
+        this.bindAnyGroup = settings.getAsBoolean(DISCOVERY_EC2.ANY_GROUP, true);
         this.groups = new HashSet<>();
-        groups.addAll(Arrays.asList(settings.getAsArray("discovery.ec2.groups")));
+        groups.addAll(Arrays.asList(settings.getAsArray(DISCOVERY_EC2.GROUPS)));
 
-        this.tags = settings.getByPrefix("discovery.ec2.tag.").getAsMap();
+        this.tags = settings.getByPrefix(DISCOVERY_EC2.TAG_PREFIX).getAsMap();
 
         Set<String> availabilityZones = new HashSet();
-        availabilityZones.addAll(Arrays.asList(settings.getAsArray("discovery.ec2.availability_zones")));
-        if (settings.get("discovery.ec2.availability_zones") != null) {
-            availabilityZones.addAll(Strings.commaDelimitedListToSet(settings.get("discovery.ec2.availability_zones")));
+        availabilityZones.addAll(Arrays.asList(settings.getAsArray(DISCOVERY_EC2.AVAILABILITY_ZONES)));
+        if (settings.get(DISCOVERY_EC2.AVAILABILITY_ZONES) != null) {
+            availabilityZones.addAll(Strings.commaDelimitedListToSet(settings.get(DISCOVERY_EC2.AVAILABILITY_ZONES)));
         }
         this.availabilityZones = availabilityZones;
 

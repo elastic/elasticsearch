@@ -19,7 +19,7 @@
 
 package org.elasticsearch.plugin.cloud.aws;
 
-import org.elasticsearch.cloud.aws.AwsEc2Service;
+import org.elasticsearch.cloud.aws.AwsEc2ServiceImpl;
 import org.elasticsearch.cloud.aws.AwsModule;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
@@ -69,7 +69,7 @@ public class CloudAwsPlugin extends Plugin {
         Collection<Class<? extends LifecycleComponent>> services = new ArrayList<>();
         if (settings.getAsBoolean("cloud.enabled", true)) {
             services.add(AwsModule.getS3ServiceImpl());
-            services.add(AwsEc2Service.class);
+            services.add(AwsEc2ServiceImpl.class);
         }
         return services;
     }

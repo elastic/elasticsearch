@@ -25,6 +25,7 @@ import org.elasticsearch.common.inject.spi.LinkedKeyBinding;
 import org.elasticsearch.common.inject.spi.ProviderInstanceBinding;
 import org.elasticsearch.test.ESTestCase;
 
+import java.lang.reflect.Type;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -40,8 +41,8 @@ public abstract class ModuleTestCase extends ESTestCase {
         for (Element element : elements) {
             if (element instanceof LinkedKeyBinding) {
                 LinkedKeyBinding binding = (LinkedKeyBinding)element;
-                if (to.getName().equals(binding.getKey().getTypeLiteral().getType().getTypeName())) {
-                    assertEquals(clazz.getName(), binding.getLinkedKey().getTypeLiteral().getType().getTypeName());
+                if (to.equals(binding.getKey().getTypeLiteral().getType())) {
+                    assertSame(clazz, binding.getLinkedKey().getTypeLiteral().getType());
                     return;
                 }
             }
@@ -79,17 +80,17 @@ public abstract class ModuleTestCase extends ESTestCase {
      */
     public void assertSetMultiBinding(Module module, Class to, Class... classes) {
         List<Element> elements = Elements.getElements(module);
-        Set<String> bindings = new HashSet<>();
+        Set<Type> bindings = new HashSet<>();
         boolean providerFound = false;
         for (Element element : elements) {
             if (element instanceof LinkedKeyBinding) {
                 LinkedKeyBinding binding = (LinkedKeyBinding)element;
-                if (to.getName().equals(binding.getKey().getTypeLiteral().getType().getTypeName())) {
-                    bindings.add(binding.getLinkedKey().getTypeLiteral().getType().getTypeName());
+                if (to.equals(binding.getKey().getTypeLiteral().getType())) {
+                    bindings.add(binding.getLinkedKey().getTypeLiteral().getType());
                 }
             } else if (element instanceof ProviderInstanceBinding) {
                 ProviderInstanceBinding binding = (ProviderInstanceBinding)element;
-                String setType = binding.getKey().getTypeLiteral().getType().getTypeName();
+                String setType = binding.getKey().getTypeLiteral().getType().toString();
                 if (setType.equals("java.util.Set<" + to.getName() + ">")) {
                     providerFound = true;
                 }
@@ -97,7 +98,7 @@ public abstract class ModuleTestCase extends ESTestCase {
         }
 
         for (Class clazz : classes) {
-            if (bindings.contains(clazz.getName()) == false) {
+            if (bindings.contains(clazz) == false) {
                 fail("Expected to find " + clazz.getName() + " as set binding to " + to.getName() + ", found these classes:\n" + bindings);
             }
         }

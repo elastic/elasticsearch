@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.cluster;
+package org.elasticsearch.action.admin.cluster.health;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
@@ -26,6 +26,8 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.cluster.health.ClusterIndexHealth;
 import org.elasticsearch.action.admin.cluster.health.ClusterShardHealth;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -35,6 +37,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 import org.junit.Test;
@@ -179,6 +182,18 @@ public class ClusterHealthResponsesTests extends ESTestCase {
         assertThat(clusterHealth.getRelocatingShards(), equalTo(counter.relocating));
         assertThat(clusterHealth.getUnassignedShards(), equalTo(counter.unassigned));
         assertThat(clusterHealth.getValidationFailures(), empty());
+    }
+
+    public void testIsTimeout() throws IOException {
+        ClusterHealthResponse res = new ClusterHealthResponse();
+        for (int i = 0; i < 5; i++) {
+            res.timedOut = randomBoolean();
+            if (res.isTimedOut()) {
+                assertEquals(RestStatus.REQUEST_TIMEOUT, res.status());
+            } else {
+                assertEquals(RestStatus.OK, res.status());
+            }
+        }
     }
 
     @Test

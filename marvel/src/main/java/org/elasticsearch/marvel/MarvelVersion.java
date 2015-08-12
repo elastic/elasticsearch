@@ -21,10 +21,10 @@ public class MarvelVersion implements Serializable {
     // AA values below 50 are beta builds, and below 99 are RC builds, with 99 indicating a release
     // the (internal) format of the id is there so we can easily do after/before checks on the id
 
-    public static final int V_2_0_0_Beta1_ID = /*00*/2000001;
-    public static final MarvelVersion V_2_0_0_Beta1 = new MarvelVersion(V_2_0_0_Beta1_ID, true, Version.V_2_0_0_beta1, LicenseVersion.V_1_0_0);
+    public static final int V_2_0_0_ID = /*00*/2000099;
+    public static final MarvelVersion V_2_0_0 = new MarvelVersion(V_2_0_0_ID, true, Version.V_2_0_0, LicenseVersion.V_1_0_0);
 
-    public static final MarvelVersion CURRENT = V_2_0_0_Beta1;
+    public static final MarvelVersion CURRENT = V_2_0_0;
 
     public static MarvelVersion readVersion(StreamInput in) throws IOException {
         return fromId(in.readVInt());
@@ -32,8 +32,8 @@ public class MarvelVersion implements Serializable {
 
     public static MarvelVersion fromId(int id) {
         switch (id) {
-            case V_2_0_0_Beta1_ID:
-                return V_2_0_0_Beta1;
+            case V_2_0_0_ID:
+                return V_2_0_0;
             default:
                 return new MarvelVersion(id, null, Version.CURRENT, LicenseVersion.CURRENT);
         }

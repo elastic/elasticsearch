@@ -71,6 +71,7 @@ public class IndicesCustomDataPathIT extends ESIntegTestCase {
 
     @Test
     @TestLogging("_root:DEBUG,index:TRACE")
+    @AwaitsFix(bugUrl = "path shenanigans, Lee is looking into it")
     public void testDataPathCanBeChanged() throws Exception {
         final String INDEX = "idx";
         Path root = createTempDir();
@@ -140,6 +141,7 @@ public class IndicesCustomDataPathIT extends ESIntegTestCase {
     }
 
     @Test
+    @AwaitsFix(bugUrl = "path shenanigans, Lee is looking into it")
     public void testIndexCreatedWithCustomPathAndTemplate() throws Exception {
         final String INDEX = "myindex2";
         internalCluster().startNodesAsync(1, nodeSettings(path));

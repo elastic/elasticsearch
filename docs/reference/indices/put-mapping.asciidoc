@@ -70,7 +70,7 @@ In general, the mapping for existing fields cannot be updated.  There are some
 exceptions to this rule. For instance:
 
 * new <<properties>> can be added to <<object>> fields.
-* new <<fields,multi-fields>> can be added to existing fields.
+* new <<multi-fields,multi-fields>> can be added to existing fields.
 * <<doc-values>> can be disabled, but not enabled.
 * the <<ignore-above>> parameter can be updated.
 

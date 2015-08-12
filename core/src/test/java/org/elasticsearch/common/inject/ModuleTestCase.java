@@ -32,7 +32,7 @@ import java.util.Set;
 /**
  * Base testcase for testing {@link Module} implementations.
  */
-public class ModuleTestCase extends ESTestCase {
+public abstract class ModuleTestCase extends ESTestCase {
 
     /** Configures the module and asserts "clazz" is bound to "to". */
     public void assertBinding(Module module, Class to, Class clazz) {

@@ -2,12 +2,12 @@
 
 use strict;
 use warnings;
-use v5.10;
+use 5.010_000;
 
 use FindBin qw($RealBin);
 use lib "$RealBin/lib";
 use File::Spec();
-use File::Temp();
+use File::Temp 0.2304 ();
 use File::Find();
 use File::Basename qw(basename);
 use Archive::Extract();

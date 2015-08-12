@@ -300,7 +300,7 @@ public class NodeEnvironmentTests extends ESTestCase {
     @Test
     public void testCustomDataPaths() throws Exception {
         String[] dataPaths = tmpPaths();
-        NodeEnvironment env = newNodeEnvironment(dataPaths, Settings.EMPTY);
+        NodeEnvironment env = newNodeEnvironment(dataPaths, "/tmp", Settings.EMPTY);
 
         Settings s1 = Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).build();
         Settings s2 = Settings.builder().put(IndexMetaData.SETTING_DATA_PATH, "/tmp/foo").build();
@@ -323,7 +323,7 @@ public class NodeEnvironmentTests extends ESTestCase {
                 env.indexPaths(i), equalTo(stringsToPaths(dataPaths, "elasticsearch/nodes/0/indices/myindex")));
 
         env.close();
-        NodeEnvironment env2 = newNodeEnvironment(dataPaths,
+        NodeEnvironment env2 = newNodeEnvironment(dataPaths, "/tmp",
                 Settings.builder().put(NodeEnvironment.ADD_NODE_ID_TO_CUSTOM_PATH, false).build());
 
         assertThat(env2.availableShardPaths(sid), equalTo(env2.availableShardPaths(sid)));
@@ -368,7 +368,6 @@ public class NodeEnvironmentTests extends ESTestCase {
         Settings build = Settings.builder()
                 .put(settings)
                 .put("path.home", createTempDir().toAbsolutePath().toString())
-                .put(NodeEnvironment.SETTING_CUSTOM_DATA_PATH_ENABLED, true)
                 .putArray("path.data", tmpPaths()).build();
         return new NodeEnvironment(build, new Environment(build));
     }
@@ -377,7 +376,15 @@ public class NodeEnvironmentTests extends ESTestCase {
         Settings build = Settings.builder()
                 .put(settings)
                 .put("path.home", createTempDir().toAbsolutePath().toString())
-                .put(NodeEnvironment.SETTING_CUSTOM_DATA_PATH_ENABLED, true)
+                .putArray("path.data", dataPaths).build();
+        return new NodeEnvironment(build, new Environment(build));
+    }
+
+    public NodeEnvironment newNodeEnvironment(String[] dataPaths, String sharedDataPath, Settings settings) throws IOException {
+        Settings build = Settings.builder()
+                .put(settings)
+                .put("path.home", createTempDir().toAbsolutePath().toString())
+                .put("path.shared_data", sharedDataPath)
                 .putArray("path.data", dataPaths).build();
         return new NodeEnvironment(build, new Environment(build));
     }

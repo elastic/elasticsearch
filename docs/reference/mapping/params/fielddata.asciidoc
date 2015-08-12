@@ -22,7 +22,6 @@ by reading the entire inverted index for each segment from disk, inverting the
 term ↔︎ document relationship, and storing the result in memory, in the
 JVM heap.
 
-
 Loading fielddata is an expensive process so, once it has been loaded, it
 remains in memory for the lifetime of the segment.
 
@@ -37,6 +36,11 @@ of the
 aggregation).  Always think about whether a `not_analyzed` field (which can
 use `doc_values`) would be  a better fit for your use case.
 ==============================================================================
+
+TIP: The `fielddata.*` settings must have the same settings for fields of the
+same name in the same index.  Its value can be updated on existing fields
+using the <<indices-put-mapping,PUT mapping API>>.
+
 
 [[fielddata-format]]
 ==== `fielddata.format`

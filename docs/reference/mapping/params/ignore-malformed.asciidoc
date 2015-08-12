@@ -47,6 +47,10 @@ PUT my_index/my_type/2
 <1> This document will be rejected because `number_one` does not allow malformed values.
 <2> This document will have the `text` field indexed, but not the `number_two` field.
 
+TIP: The `ignore_malformed` setting is allowed to have different settings for
+fields of the same name in the same index.  Its value can be updated on
+existing fields using the <<indices-put-mapping,PUT mapping API>>.
+
 
 [[ignore-malformed-setting]]
 ==== Index-level default

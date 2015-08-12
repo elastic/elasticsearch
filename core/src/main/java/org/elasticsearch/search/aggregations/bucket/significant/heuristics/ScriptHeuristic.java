@@ -124,7 +124,6 @@ public class ScriptHeuristic extends SignificanceHeuristic {
     public static class ScriptHeuristicParser implements SignificanceHeuristicParser {
         private final ScriptService scriptService;
 
-        @Inject
         public ScriptHeuristicParser(ScriptService scriptService) {
             this.scriptService = scriptService;
         }

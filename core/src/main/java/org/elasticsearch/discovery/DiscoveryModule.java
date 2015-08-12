@@ -41,15 +41,18 @@ import java.util.Map;
 public class DiscoveryModule extends AbstractModule {
 
     public static final String DISCOVERY_TYPE_KEY = "discovery.type";
+    public static final String ZEN_MASTER_SERVICE_TYPE_KEY = "discovery.zen.masterservice.type";
 
     private final Settings settings;
     private final List<Class<? extends UnicastHostsProvider>> unicastHostProviders = Lists.newArrayList();
     private final Map<String, Class<? extends Discovery>> discoveryTypes = new HashMap<>();
+    private final Map<String, Class<? extends ElectMasterService>> masterServiceType = new HashMap<>();
 
     public DiscoveryModule(Settings settings) {
         this.settings = settings;
         addDiscoveryType("local", LocalDiscovery.class);
         addDiscoveryType("zen", ZenDiscovery.class);
+        addElectMasterService("zen", ElectMasterService.class);
     }
 
     /**
@@ -63,7 +66,20 @@ public class DiscoveryModule extends AbstractModule {
      * Adds a custom Discovery type.
      */
     public void addDiscoveryType(String type, Class<? extends Discovery> clazz) {
+        if (discoveryTypes.containsKey(type)) {
+            throw new IllegalArgumentException("discovery type [" + type + "] is already registered");
+        }
         discoveryTypes.put(type, clazz);
+    }
+
+    /**
+     * Adds a custom zen master service type.
+     */
+    public void addElectMasterService(String type, Class<? extends ElectMasterService> masterService) {
+        if (masterServiceType.containsKey(type)) {
+            throw new IllegalArgumentException("master service type [" + type + "] is already registered");
+        }
+        this.masterServiceType.put(type, masterService);
     }
 
     @Override
@@ -76,7 +92,16 @@ public class DiscoveryModule extends AbstractModule {
         }
 
         if (discoveryType.equals("local") == false) {
-            bind(ElectMasterService.class).asEagerSingleton();
+            String masterServiceTypeKey = settings.get(ZEN_MASTER_SERVICE_TYPE_KEY, "zen");
+            final Class<? extends ElectMasterService> masterService = masterServiceType.get(masterServiceTypeKey);
+            if (masterService == null) {
+                throw new IllegalArgumentException("Unknown master service type [" + masterServiceTypeKey + "]");
+            }
+            if (masterService == ElectMasterService.class) {
+                bind(ElectMasterService.class).asEagerSingleton();
+            } else {
+                bind(ElectMasterService.class).to(masterService).asEagerSingleton();
+            }
             bind(ZenPingService.class).asEagerSingleton();
             Multibinder<UnicastHostsProvider> unicastHostsProviderMultibinder = Multibinder.newSetBinder(binder(), UnicastHostsProvider.class);
             for (Class<? extends UnicastHostsProvider> unicastHostProvider : unicastHostProviders) {

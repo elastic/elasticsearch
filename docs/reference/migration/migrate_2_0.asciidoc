@@ -192,6 +192,7 @@ A `RoutingMissingException` is now thrown instead.
 
 * The setting `index.mapping.allow_type_wrapper` has been removed.  Documents should always be sent without the type as the root element.
 * The delete mappings API has been removed. Mapping types can no longer be deleted.
+* Mapping type names can no longer start with dots.
 * The `ignore_conflicts` option of the put mappings API has been removed. Conflicts can't be ignored anymore.
 * The `binary` field does not support the `compress` and `compress_threshold` options anymore.
 
@@ -851,3 +852,36 @@ parsed at alias creation time and the parsed form was kept around in memory.
 
 The `prefer_local` has been removed from the _analyze api. The _analyze api is a light operation and the caller shouldn't
 be concerned about whether it executes on the node that receives the request or another node.
+
+=== Shadow replicas
+
+The `node.enable_custom_paths` setting has been removed and replaced by the
+`path.shared_data` setting to allow shadow replicas with custom paths to work
+with the security manager. For example, if your previous configuration had:
+
+```
+node.enable_custom_paths: true
+```
+
+And you created an index using shadow replicas with `index.data_path` set to
+`/opt/data/my_index` with the following:
+
+[source,js]
+--------------------------------------------------
+curl -XPUT 'localhost:9200/my_index' -d '
+{
+    "index" : {
+        "number_of_shards" : 1,
+        "number_of_replicas" : 4,
+        "data_path": "/opt/data/my_index",
+        "shadow_replicas": true
+    }
+}'
+--------------------------------------------------
+
+For 2.0, you will need to set `path.shared_data` to a parent directory of the
+index's data_path, so:
+
+```
+path.shared_data: /opt/data
+```

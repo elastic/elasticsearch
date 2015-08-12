@@ -8,7 +8,7 @@
   <parent>
     <groupId>org.elasticsearch.qa</groupId>
     <artifactId>elasticsearch-qa</artifactId>
-    <version>2.0.0-beta1-SNAPSHOT</version>
+    <version>2.0.0-SNAPSHOT</version>
   </parent>
 
   <!-- 
@@ -274,7 +274,7 @@
             </goals>
             <configuration>
               <target>
-                <ant antfile="${elasticsearch.integ.antfile}" target="stop-external-cluster"/>
+                <ant antfile="${elasticsearch.integ.antfile}" target="stop-external-multi-node-cluster"/>
               </target>
               <skip>${skip.integ.tests}</skip>
             </configuration>

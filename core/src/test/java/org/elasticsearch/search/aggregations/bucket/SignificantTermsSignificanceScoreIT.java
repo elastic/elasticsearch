@@ -35,6 +35,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptService.ScriptType;
+import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilter;
@@ -165,11 +166,8 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
             return "Significance heuristic plugin";
         }
 
-        public void onModule(SignificantTermsHeuristicModule significanceModule) {
-            significanceModule.registerParser(SimpleHeuristic.SimpleHeuristicParser.class);
-        }
-
-        public void onModule(TransportSignificantTermsHeuristicModule significanceModule) {
+        public void onModule(SearchModule significanceModule) {
+            significanceModule.registerHeuristicParser(SimpleHeuristic.SimpleHeuristicParser.class);
             significanceModule.registerStream(SimpleHeuristic.STREAM);
         }
         public void onModule(ScriptModule module) {

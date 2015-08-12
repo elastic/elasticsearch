@@ -7,7 +7,7 @@
     <parent>
         <groupId>org.elasticsearch.plugin</groupId>
         <artifactId>elasticsearch-plugin</artifactId>
-        <version>2.0.0-beta1-SNAPSHOT</version>
+        <version>2.0.0-SNAPSHOT</version>
     </parent>
 
     <artifactId>elasticsearch-jvm-example</artifactId>
@@ -26,6 +26,13 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-assembly-plugin</artifactId>
+                <!-- This plugin bundles a config so it can't use the standard
+                     assembly for plugins. -->
+                <configuration>
+                    <descriptors>
+                        <descriptor>src/main/assemblies/plugin.xml</descriptor>
+                    </descriptors>
+                </configuration>
             </plugin>
         </plugins>
     </build>

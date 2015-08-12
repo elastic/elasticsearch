@@ -48,7 +48,7 @@ public class RestHealthAction extends AbstractCatAction {
     }
 
     @Override
-    void documentation(StringBuilder sb) {
+    protected void documentation(StringBuilder sb) {
         sb.append("/_cat/health\n");
     }
 
@@ -65,7 +65,7 @@ public class RestHealthAction extends AbstractCatAction {
     }
 
     @Override
-    Table getTableWithHeader(final RestRequest request) {
+    protected Table getTableWithHeader(final RestRequest request) {
         Table t = new Table();
         t.startHeaders();
         t.addCell("epoch", "alias:t,time;desc:seconds since 1970-01-01 00:00:00");

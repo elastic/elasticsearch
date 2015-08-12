@@ -24,6 +24,7 @@ import com.google.common.collect.Lists;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -131,7 +132,67 @@ public class FieldTypeLookupTests extends ESTestCase {
         }
     }
 
-    // TODO: add tests for validation
+    public void testCheckCompatibilityNewField() {
+        FakeFieldMapper f1 = new FakeFieldMapper("foo", "bar");
+        FieldTypeLookup lookup = new FieldTypeLookup();
+        lookup.checkCompatibility(newList(f1), false);
+    }
+
+    public void testCheckCompatibilityMismatchedTypes() {
+        FieldMapper f1 = new FakeFieldMapper("foo", "bar");
+        FieldTypeLookup lookup = new FieldTypeLookup();
+        lookup = lookup.copyAndAddAll(newList(f1));
+
+        MappedFieldType ft2 = FakeFieldMapper.makeOtherFieldType("foo", "foo");
+        FieldMapper f2 = new FakeFieldMapper("foo", ft2);
+        try {
+            lookup.checkCompatibility(newList(f2), false);
+            fail("expected type mismatch");
+        } catch (IllegalArgumentException e) {
+            assertTrue(e.getMessage().contains("cannot be changed from type [faketype] to [otherfaketype]"));
+        }
+        // fails even if updateAllTypes == true
+        try {
+            lookup.checkCompatibility(newList(f2), true);
+            fail("expected type mismatch");
+        } catch (IllegalArgumentException e) {
+            assertTrue(e.getMessage().contains("cannot be changed from type [faketype] to [otherfaketype]"));
+        }
+    }
+
+    public void testCheckCompatibilityConflict() {
+        FieldMapper f1 = new FakeFieldMapper("foo", "bar");
+        FieldTypeLookup lookup = new FieldTypeLookup();
+        lookup = lookup.copyAndAddAll(newList(f1));
+
+        MappedFieldType ft2 = FakeFieldMapper.makeFieldType("foo", "bar");
+        ft2.setBoost(2.0f);
+        FieldMapper f2 = new FakeFieldMapper("foo", ft2);
+        try {
+            lookup.checkCompatibility(newList(f2), false);
+            fail("expected conflict");
+        } catch (IllegalArgumentException e) {
+            assertTrue(e.getMessage().contains("to update [boost] across all types"));
+        }
+        lookup.checkCompatibility(newList(f2), true); // boost is updateable, so ok if forcing
+        // now with a non changeable setting
+        MappedFieldType ft3 = FakeFieldMapper.makeFieldType("foo", "bar");
+        ft3.setStored(true);
+        FieldMapper f3 = new FakeFieldMapper("foo", ft3);
+        try {
+            lookup.checkCompatibility(newList(f3), false);
+            fail("expected conflict");
+        } catch (IllegalArgumentException e) {
+            assertTrue(e.getMessage().contains("has different store values"));
+        }
+        // even with updateAllTypes == true, incompatible
+        try {
+            lookup.checkCompatibility(newList(f3), true);
+            fail("expected conflict");
+        } catch (IllegalArgumentException e) {
+            assertTrue(e.getMessage().contains("has different store values"));
+        }
+    }
 
     public void testSimpleMatchIndexNames() {
         FakeFieldMapper f1 = new FakeFieldMapper("foo", "baz");
@@ -179,8 +240,16 @@ public class FieldTypeLookupTests extends ESTestCase {
         public FakeFieldMapper(String fullName, String indexName) {
             super(fullName, makeFieldType(fullName, indexName), makeFieldType(fullName, indexName), dummySettings, null, null);
         }
+        public FakeFieldMapper(String fullName, MappedFieldType fieldType) {
+            super(fullName, fieldType, fieldType, dummySettings, null, null);
+        }
         static MappedFieldType makeFieldType(String fullName, String indexName) {
             FakeFieldType fieldType = new FakeFieldType();
+            fieldType.setNames(new MappedFieldType.Names(indexName, indexName, fullName));
+            return fieldType;
+        }
+        static MappedFieldType makeOtherFieldType(String fullName, String indexName) {
+            OtherFakeFieldType fieldType = new OtherFakeFieldType();
             fieldType.setNames(new MappedFieldType.Names(indexName, indexName, fullName));
             return fieldType;
         }
@@ -196,6 +265,20 @@ public class FieldTypeLookupTests extends ESTestCase {
             @Override
             public String typeName() {
                 return "faketype";
+            }
+        }
+        static class OtherFakeFieldType extends MappedFieldType {
+            public OtherFakeFieldType() {}
+            protected OtherFakeFieldType(OtherFakeFieldType ref) {
+                super(ref);
+            }
+            @Override
+            public MappedFieldType clone() {
+                return new OtherFakeFieldType(this);
+            }
+            @Override
+            public String typeName() {
+                return "otherfaketype";
             }
         }
         @Override

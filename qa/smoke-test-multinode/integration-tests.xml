@@ -13,6 +13,8 @@
     <stop-node es.pidfile="${integ.pidfile}"/>
   </target>
 
+  <target name="stop-external-multi-node-cluster" depends="stop-primary-node, stop-secondary-node"/>
+  
   <target name="start-external-multi-node-no-plugins" depends="stop-secondary-node, setup-workspace" unless="${shouldskip}">
     <start-unicast-node es.peer.list="127.0.0.1:9700"/>
     <ac:trycatch property="failure.message">

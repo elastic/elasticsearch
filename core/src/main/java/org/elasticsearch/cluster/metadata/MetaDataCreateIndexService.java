@@ -50,12 +50,14 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.FileSystemUtils;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -99,12 +101,14 @@ public class MetaDataCreateIndexService extends AbstractComponent {
     private final AliasValidator aliasValidator;
     private final IndexTemplateFilter indexTemplateFilter;
     private final NodeEnvironment nodeEnv;
+    private final Environment env;
 
     @Inject
     public MetaDataCreateIndexService(Settings settings, ThreadPool threadPool, ClusterService clusterService,
                                       IndicesService indicesService, AllocationService allocationService, MetaDataService metaDataService,
                                       Version version, AliasValidator aliasValidator,
-                                      Set<IndexTemplateFilter> indexTemplateFilters, NodeEnvironment nodeEnv) {
+                                      Set<IndexTemplateFilter> indexTemplateFilters, Environment env,
+                                      NodeEnvironment nodeEnv) {
         super(settings);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
@@ -114,6 +118,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         this.version = version;
         this.aliasValidator = aliasValidator;
         this.nodeEnv = nodeEnv;
+        this.env = env;
 
         if (indexTemplateFilters.isEmpty()) {
             this.indexTemplateFilter = DEFAULT_INDEX_TEMPLATE_FILTER;
@@ -511,8 +516,13 @@ public class MetaDataCreateIndexService extends AbstractComponent {
     public void validateIndexSettings(String indexName, Settings settings) throws IndexCreationException {
         String customPath = settings.get(IndexMetaData.SETTING_DATA_PATH, null);
         List<String> validationErrors = Lists.newArrayList();
-        if (customPath != null && nodeEnv.isCustomPathsEnabled() == false) {
-            validationErrors.add("custom data_paths for indices is disabled");
+        if (customPath != null && env.sharedDataFile() == null) {
+            validationErrors.add("path.shared_data must be set in order to use custom data paths");
+        } else if (customPath != null) {
+            Path resolvedPath = PathUtils.get(new Path[]{env.sharedDataFile()}, customPath);
+            if (resolvedPath == null) {
+                validationErrors.add("custom path [" + customPath + "] is not a sub-path of path.shared_data [" + env.sharedDataFile() + "]");
+            }
         }
         Integer number_of_primaries = settings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_SHARDS, null);
         Integer number_of_replicas = settings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, null);

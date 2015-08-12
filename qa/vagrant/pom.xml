@@ -6,7 +6,7 @@
     <parent>
         <groupId>org.elasticsearch.qa</groupId>
         <artifactId>elasticsearch-qa</artifactId>
-        <version>2.0.0-beta1-SNAPSHOT</version>
+        <version>2.0.0-SNAPSHOT</version>
     </parent>
 
     <artifactId>elasticsearch-distribution-tests</artifactId>
@@ -23,15 +23,14 @@
       <allDebBoxes>precise, trusty, vivid, wheezy, jessie</allDebBoxes>
       <allRpmBoxes>centos-6, centos-7, fedora-22, oel-7</allRpmBoxes>
 
-      <debBoxes>trusty</debBoxes>
-      <rpmBoxes>centos-7</rpmBoxes>
+      <defaultDebBoxes>trusty</defaultDebBoxes>
+      <defaultRpmBoxes>centos-7</defaultRpmBoxes>
 
       <!-- Unless rpmbuild is available on the host we can't test rpm based
            boxes because we can't build the rpm and they fail without the rpm.
            So to get good coverage you'll need to run this on a system with
            rpmbuild installed - either osx via homebrew or fedora/centos/rhel.
            -->
-      <proposedBoxesToTest>${debBoxes}</proposedBoxesToTest>
 
       <!-- rpmbuild location : default to /usr/bin/rpmbuild -->
       <packaging.rpm.rpmbuild>/usr/bin/rpmbuild</packaging.rpm.rpmbuild>
@@ -140,7 +139,6 @@
                             <target unless="${skipTests}">
                                 <taskdef resource="net/sf/antcontrib/antlib.xml"
                                     classpathref="maven.dependency.classpath" />
-                                <echo message="Running package tests on ${boxesToTest}"/>
                                 <ant antfile="src/dev/ant/vagrant-integration-tests.xml"
                                     target="vagrant-test-all-boxes"/>
                             </target>
@@ -152,19 +150,6 @@
     </build>
 
     <profiles>
-        <!-- The following profiles change which boxes are run and whether or
-             not this build depends on the rpm artifact. We only depend on the
-             rpm artifact if this machine is capable of building it and we only
-             test on the rpm based distributions if the rpm is available
-             because the tests require it to be. -->
-        <profile>
-            <!-- Test on all boxes -->
-            <id>all</id>
-            <properties>
-              <debBoxes>${allDebBoxes}</debBoxes>
-              <rpmBoxes>${allRpmBoxes}</rpmBoxes>
-            </properties>
-        </profile>
         <profile>
             <!-- Enable the rpm artifact and rpm-boxes because we're on an
                  rpm-based distribution. -->
@@ -210,7 +195,7 @@
                 </dependency>
             </dependencies>
             <properties>
-                <proposedBoxesToTest>${debBoxes}, ${rpmBoxes}</proposedBoxesToTest>
+                <rpmOk>ok</rpmOk>
             </properties>
         </profile>
         <profile>
@@ -250,20 +235,7 @@
                 </plugins>
             </build>
             <properties>
-                <proposedBoxesToTest>${debBoxes}, ${rpmBoxes}</proposedBoxesToTest>
-            </properties>
-        </profile>
-        <profile>
-            <!-- Only set boxesToTest if it hasn't been set on the command
-                 line. -->
-            <id>set-boxes-to-test</id>
-            <activation>
-                <property>
-                    <name>!boxesToTest</name>
-                </property>
-            </activation>
-            <properties>
-                <boxesToTest>${proposedBoxesToTest}</boxesToTest>
+                <rpmOk>ok</rpmOk>
             </properties>
         </profile>
 

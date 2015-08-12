@@ -126,6 +126,9 @@ final class Security {
         // read-write dirs
         addPath(policy, environment.tmpFile(), "read,readlink,write,delete");
         addPath(policy, environment.logsFile(), "read,readlink,write,delete");
+        if (environment.sharedDataFile() != null) {
+            addPath(policy, environment.sharedDataFile(), "read,readlink,write,delete");
+        }
         for (Path path : environment.dataFiles()) {
             addPath(policy, path, "read,readlink,write,delete");
         }

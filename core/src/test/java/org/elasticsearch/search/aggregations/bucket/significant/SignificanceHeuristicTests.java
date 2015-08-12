@@ -81,12 +81,6 @@ public class SignificanceHeuristicTests extends ESTestCase {
     // test that stream output can actually be read - does not replace bwc test
     @Test
     public void streamResponse() throws Exception {
-        SignificanceHeuristicStreams.registerStream(MutualInformation.STREAM, MutualInformation.STREAM.getName());
-        SignificanceHeuristicStreams.registerStream(JLHScore.STREAM, JLHScore.STREAM.getName());
-        SignificanceHeuristicStreams.registerStream(PercentageScore.STREAM, PercentageScore.STREAM.getName());
-        SignificanceHeuristicStreams.registerStream(GND.STREAM, GND.STREAM.getName());
-        SignificanceHeuristicStreams.registerStream(ChiSquare.STREAM, ChiSquare.STREAM.getName());
-        SignificanceHeuristicStreams.registerStream(ScriptHeuristic.STREAM, ScriptHeuristic.STREAM.getName());
         Version version = randomVersion(random());
         InternalSignificantTerms[] sigTerms = getRandomSignificantTerms(getRandomSignificanceheuristic());
 
@@ -143,11 +137,7 @@ public class SignificanceHeuristicTests extends ESTestCase {
     public void testBuilderAndParser() throws Exception {
 
         Set<SignificanceHeuristicParser> parsers = new HashSet<>();
-        parsers.add(new JLHScore.JLHScoreParser());
-        parsers.add(new MutualInformation.MutualInformationParser());
-        parsers.add(new GND.GNDParser());
-        parsers.add(new ChiSquare.ChiSquareParser());
-        SignificanceHeuristicParserMapper heuristicParserMapper = new SignificanceHeuristicParserMapper(parsers);
+        SignificanceHeuristicParserMapper heuristicParserMapper = new SignificanceHeuristicParserMapper(parsers, null);
         SearchContext searchContext = new SignificantTermsTestSearchContext();
 
         // test jlh with string

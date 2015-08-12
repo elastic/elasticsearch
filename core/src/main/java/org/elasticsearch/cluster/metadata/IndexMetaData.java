@@ -175,6 +175,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
     public static final String SETTING_SHARED_FS_ALLOW_RECOVERY_ON_ANY_NODE = "index.shared_filesystem.recover_on_any_node";
     public static final String INDEX_UUID_NA_VALUE = "_na_";
 
+
     // hard-coded hash function as of 2.0
     // older indices will read which hash function to use in their index settings
     private static final HashFunction MURMUR3_HASH_FUNCTION = new Murmur3HashFunction();

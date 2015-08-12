@@ -19,6 +19,7 @@
 package org.elasticsearch.search.suggest;
 
 import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.search.SearchModule;
 
 /**
  *
@@ -35,8 +36,8 @@ public class CustomSuggesterPlugin extends AbstractPlugin {
         return "Custom suggester to test pluggable implementation";
     }
 
-    public void onModule(SuggestModule suggestModule) {
-        suggestModule.registerSuggester(CustomSuggester.class);
+    public void onModule(SearchModule searchModule) {
+        searchModule.registerSuggester(CustomSuggester.class);
     }
 
 }

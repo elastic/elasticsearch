@@ -84,6 +84,8 @@ public class TermsQueryParser extends BaseQueryParserTemp {
         String lookupRouting = null;
         String minShouldMatch = null;
 
+        boolean disableCoord = false;
+
         XContentParser.Token token;
         List<Object> terms = Lists.newArrayList();
         String fieldName = null;
@@ -147,6 +149,8 @@ public class TermsQueryParser extends BaseQueryParserTemp {
                     minShouldMatch = parser.textOrNull();
                 } else if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
+                } else if (("disable_coord").equals(currentFieldName) || ("disableCoord").equals(currentFieldName)) {
+                    disableCoord = parser.booleanValue();
                 } else if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
                 } else {
@@ -191,7 +195,7 @@ public class TermsQueryParser extends BaseQueryParserTemp {
                 query = new TermsQuery(fieldName, filterValues);
             }
         } else {
-            BooleanQuery bq = new BooleanQuery();
+            BooleanQuery bq = new BooleanQuery(disableCoord);
             for (Object term : terms) {
                 if (fieldType != null) {
                     bq.add(fieldType.termQuery(term, context), Occur.SHOULD);

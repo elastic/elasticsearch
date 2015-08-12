@@ -21,12 +21,11 @@ package org.elasticsearch.percolator;
 
 import com.google.common.base.Predicate;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
-import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.percolate.MultiPercolateRequestBuilder;
 import org.elasticsearch.action.percolate.MultiPercolateResponse;
+import org.elasticsearch.action.percolate.PercolateRequestBuilder;
 import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
@@ -34,11 +33,9 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -46,21 +43,12 @@ import static org.elasticsearch.action.percolate.PercolateSourceBuilder.docBuild
 import static org.elasticsearch.client.Requests.clusterHealthRequest;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
-import static org.elasticsearch.index.query.QueryBuilders.termQuery;
+import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.percolator.PercolatorIT.convertFromTextArray;
 import static org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import static org.elasticsearch.test.ESIntegTestCase.Scope;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertMatchCount;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
-import static org.hamcrest.Matchers.arrayWithSize;
-import static org.hamcrest.Matchers.emptyArray;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.nullValue;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
+import static org.hamcrest.Matchers.*;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0, numClientNodes = 0, transportClientRatio = 0)
 public class RecoveryPercolatorIT extends ESIntegTestCase {
@@ -265,64 +253,32 @@ public class RecoveryPercolatorIT extends ESIntegTestCase {
                     .get();
         }
 
+        final String document = "{\"field\" : \"a\"}";
         client.prepareIndex("test", "type", "1")
-                .setSource(jsonBuilder().startObject().field("field", "a"))
+                .setSource(document)
                 .get();
 
         final AtomicBoolean run = new AtomicBoolean(true);
-        final CountDownLatch done = new CountDownLatch(1);
         final AtomicReference<Throwable> error = new AtomicReference<>();
         Runnable r = new Runnable() {
             @Override
             public void run() {
                 try {
-                    XContentBuilder doc = jsonBuilder().startObject().field("field", "a").endObject();
                     while (run.get()) {
-                        NodesInfoResponse nodesInfoResponse = client.admin().cluster().prepareNodesInfo()
-                                .get();
-                        String node2Id = null;
-                        String node3Id = null;
-                        for (NodeInfo nodeInfo : nodesInfoResponse) {
-                            if ("node2".equals(nodeInfo.getNode().getName())) {
-                                node2Id = nodeInfo.getNode().id();
-                            } else if ("node3".equals(nodeInfo.getNode().getName())) {
-                                node3Id = nodeInfo.getNode().id();
-                            }
-                        }
-
-                        String preference;
-                        if (node2Id == null && node3Id == null) {
-                            preference = "_local";
-                        } else if (node2Id == null || node3Id == null) {
-                            if (node2Id != null) {
-                                preference = "_prefer_node:" + node2Id;
-                            } else {
-                                preference = "_prefer_node:" + node3Id;
-                            }
-                        } else {
-                            preference = "_prefer_node:" + (randomBoolean() ? node2Id : node3Id);
-                        }
-
                         if (multiPercolate) {
                             MultiPercolateRequestBuilder builder = client
                                     .prepareMultiPercolate();
                             int numPercolateRequest = randomIntBetween(50, 100);
 
                             for (int i = 0; i < numPercolateRequest; i++) {
+                                PercolateRequestBuilder percolateBuilder = client.preparePercolate()
+                                        .setIndices("test").setDocumentType("type");
                                 if (randomBoolean()) {
-                                    builder.add(
-                                            client.preparePercolate()
-                                                    .setPreference(preference)
-                                                    .setGetRequest(Requests.getRequest("test").type("type").id("1"))
-                                                    .setIndices("test").setDocumentType("type")
-                                    );
+                                    percolateBuilder.setGetRequest(Requests.getRequest("test").type("type").id("1"));
                                 } else {
-                                    builder.add(
-                                            client.preparePercolate()
-                                                    .setPreference(preference)
-                                                    .setIndices("test").setDocumentType("type")
-                                                    .setPercolateDoc(docBuilder().setDoc(doc)));
+                                    percolateBuilder.setPercolateDoc(docBuilder().setDoc(document));
                                 }
+                                builder.add(percolateBuilder);
                             }
 
                             MultiPercolateResponse response = builder.get();
@@ -335,20 +291,14 @@ public class RecoveryPercolatorIT extends ESIntegTestCase {
                                 assertThat(item.getResponse().getMatches().length, equalTo(numQueries));
                             }
                         } else {
-                            PercolateResponse response;
+                            PercolateRequestBuilder percolateBuilder = client.preparePercolate()
+                                    .setIndices("test").setDocumentType("type");
                             if (randomBoolean()) {
-                                response = client.preparePercolate()
-                                        .setIndices("test").setDocumentType("type")
-                                        .setPercolateDoc(docBuilder().setDoc(doc))
-                                        .setPreference(preference)
-                                        .get();
+                                percolateBuilder.setPercolateDoc(docBuilder().setDoc(document));
                             } else {
-                                response = client.preparePercolate()
-                                        .setGetRequest(Requests.getRequest("test").type("type").id("1"))
-                                        .setIndices("test").setDocumentType("type")
-                                        .setPreference(preference)
-                                        .get();
+                                percolateBuilder.setGetRequest(Requests.getRequest("test").type("type").id("1"));
                             }
+                            PercolateResponse response = percolateBuilder.get();
                             assertNoFailures(response);
                             assertThat(response.getSuccessfulShards(), equalTo(response.getTotalShards()));
                             assertThat(response.getCount(), equalTo((long) numQueries));
@@ -359,13 +309,11 @@ public class RecoveryPercolatorIT extends ESIntegTestCase {
                     logger.info("Error in percolate thread...", t);
                     run.set(false);
                     error.set(t);
-                } finally {
-                    done.countDown();
                 }
             }
         };
-        new Thread(r).start();
-
+        Thread t = new Thread(r);
+        t.start();
         Predicate<Settings> nodePredicate = new Predicate<Settings>() {
             @Override
             public boolean apply(Settings input) {
@@ -411,7 +359,7 @@ public class RecoveryPercolatorIT extends ESIntegTestCase {
         } finally {
             run.set(false);
         }
-        done.await();
+        t.join();
         assertThat(error.get(), nullValue());
     }
 

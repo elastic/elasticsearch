@@ -48,8 +48,7 @@
 
   - do:
         cluster.health:
-            wait_for_status: green
-            timeout: 1s
+            wait_for_status: yellow
 
   - do:
         cat.allocation:

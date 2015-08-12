@@ -1072,6 +1072,33 @@ public class SimpleIndexQueryParserTests extends ESSingleNodeTestCase {
 
         assertThat(((TermQuery) clauses[1].getQuery()).getTerm(), equalTo(new Term("name.first", "test")));
         assertThat(clauses[1].getOccur(), equalTo(BooleanClause.Occur.SHOULD));
+
+        assertFalse("terms query disable_coord disabled by default", booleanQuery.isCoordDisabled());
+    }
+
+    @Test
+    public void testTermsQueryOptions() throws IOException {
+        IndexQueryParserService queryParser = queryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/terms-query-options.json");
+        Query parsedQuery = queryParser.parse(query).query();
+        assertThat(parsedQuery, instanceOf(BooleanQuery.class));
+        BooleanQuery booleanQuery = (BooleanQuery) parsedQuery;
+        BooleanClause[] clauses = booleanQuery.getClauses();
+
+        assertThat(clauses.length, equalTo(3));
+
+        assertThat(((TermQuery) clauses[0].getQuery()).getTerm(), equalTo(new Term("name.first", "shay")));
+        assertThat(clauses[0].getOccur(), equalTo(BooleanClause.Occur.SHOULD));
+
+        assertThat(((TermQuery) clauses[1].getQuery()).getTerm(), equalTo(new Term("name.first", "test")));
+        assertThat(clauses[1].getOccur(), equalTo(BooleanClause.Occur.SHOULD));
+
+        assertThat(((TermQuery) clauses[2].getQuery()).getTerm(), equalTo(new Term("name.first", "elasticsearch")));
+        assertThat(clauses[2].getOccur(), equalTo(BooleanClause.Occur.SHOULD));
+
+        assertTrue("terms query disable_coord option mismatch", booleanQuery.isCoordDisabled());
+        assertThat(booleanQuery.getBoost(), equalTo(2.0f));
+        assertThat(booleanQuery.getMinimumNumberShouldMatch(), equalTo(2));
     }
 
     @Test

@@ -36,7 +36,7 @@ of `indices`, `os`, `process`, `jvm`, `transport`, `http`,
 
 `jvm`::
 	JVM stats, memory pool information, garbage collection, buffer
-	pools
+	pools, number of loaded/unloaded classes
 
 `os`::
 	Operating system stats, load average, cpu, mem, swap

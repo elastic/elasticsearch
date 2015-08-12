@@ -62,7 +62,7 @@ public class RestIndicesAction extends AbstractCatAction {
     }
 
     @Override
-    void documentation(StringBuilder sb) {
+    protected void documentation(StringBuilder sb) {
         sb.append("/_cat/indices\n");
         sb.append("/_cat/indices/{index}\n");
     }
@@ -103,7 +103,7 @@ public class RestIndicesAction extends AbstractCatAction {
     }
 
     @Override
-    Table getTableWithHeader(final RestRequest request) {
+    protected Table getTableWithHeader(final RestRequest request) {
         Table table = new Table();
         table.startHeaders();
         table.addCell("health", "alias:h;desc:current health status");
@@ -115,7 +115,7 @@ public class RestIndicesAction extends AbstractCatAction {
         table.addCell("docs.deleted", "alias:dd,docsDeleted;text-align:right;desc:deleted docs");
 
         table.addCell("creation.date", "alias:cd;default:false;desc:index creation date (millisecond value)");
-        table.addCell("creation.date.string", "alias:cds;default:false;desc:index creation date (as string)");        
+        table.addCell("creation.date.string", "alias:cds;default:false;desc:index creation date (as string)");
 
         table.addCell("store.size", "sibling:pri;alias:ss,storeSize;text-align:right;desc:store size of primaries & replicas");
         table.addCell("pri.store.size", "text-align:right;desc:store size of primaries");

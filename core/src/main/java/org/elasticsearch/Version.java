@@ -255,8 +255,10 @@ public class Version {
 
     public static final int V_2_0_0_beta1_ID = 2000001;
     public static final Version V_2_0_0_beta1 = new Version(V_2_0_0_beta1_ID, true, org.apache.lucene.util.Version.LUCENE_5_2_1);
+    public static final int V_2_0_0_ID = 2000099;
+    public static final Version V_2_0_0 = new Version(V_2_0_0_ID, true, org.apache.lucene.util.Version.LUCENE_5_2_1);
 
-    public static final Version CURRENT = V_2_0_0_beta1;
+    public static final Version CURRENT = V_2_0_0;
 
     static {
         assert CURRENT.luceneVersion.equals(Lucene.VERSION) : "Version must be upgraded to [" + Lucene.VERSION + "] is still set to [" + CURRENT.luceneVersion + "]";
@@ -268,6 +270,8 @@ public class Version {
 
     public static Version fromId(int id) {
         switch (id) {
+            case V_2_0_0_ID:
+                return V_2_0_0;
             case V_2_0_0_beta1_ID:
                 return V_2_0_0_beta1;
             case V_1_7_2_ID:

@@ -309,7 +309,6 @@ public final class InternalTestCluster extends TestCluster {
         builder.put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING, true);
         builder.put("node.mode", NODE_MODE);
         builder.put("http.pipelining", enableHttpPipelining);
-        builder.put(NodeEnvironment.SETTING_CUSTOM_DATA_PATH_ENABLED, true);
         if (Strings.hasLength(System.getProperty("es.logger.level"))) {
             builder.put("logger.level", System.getProperty("es.logger.level"));
         }

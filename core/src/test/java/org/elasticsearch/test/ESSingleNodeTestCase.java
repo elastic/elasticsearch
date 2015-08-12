@@ -125,7 +125,6 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
                 // This needs to tie into the ESIntegTestCase#indexSettings() method
                 .put("path.shared_data", createTempDir().getParent())
                 .put("node.name", nodeName())
-                .put(NodeEnvironment.SETTING_CUSTOM_DATA_PATH_ENABLED, true)
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
                 .put("script.inline", "on")

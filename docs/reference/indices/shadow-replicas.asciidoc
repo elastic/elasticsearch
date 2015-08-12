@@ -9,11 +9,12 @@ as how Elasticsearch should replay operations on all the replica shards of an
 index.
 
 In order to fully utilize the `index.data_path` and `index.shadow_replicas`
-settings, you need to enable using it in elasticsearch.yml:
+settings, you need to allow Elasticsearch to use the same data directory for
+multiple instances by setting `node.add_id_to_custom_path` to false in
+elasticsearch.yml:
 
 [source,yaml]
 --------------------------------------------------
-node.enable_custom_paths: true
 node.add_id_to_custom_path: false
 --------------------------------------------------
 
@@ -117,8 +118,3 @@ These are non-dynamic settings that need to be configured in `elasticsearch.yml`
     of "/tmp/foo" is used, the first locally-running node will use "/tmp/foo/0",
     the second will use "/tmp/foo/1", the third "/tmp/foo/2", etc. Defaults to
     `true`.
-
-`node.enable_custom_paths`::
-    Boolean value that must be set to `true` in order to use the
-    `index.data_path` setting. Defaults to `false`.
-

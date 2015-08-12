@@ -75,7 +75,6 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
     private Settings nodeSettings(String dataPath) {
         return Settings.builder()
                 .put("node.add_id_to_custom_path", false)
-                .put("node.enable_custom_paths", true)
                 .put("path.shared_data", dataPath)
                 .put("index.store.fs.fs_lock", randomFrom("native", "simple"))
                 .build();
@@ -417,7 +416,6 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
         Path dataPath = createTempDir();
         Settings nodeSettings = Settings.builder()
                 .put("node.add_id_to_custom_path", false)
-                .put("node.enable_custom_paths", true)
                 .put("plugin.types", MockTransportService.Plugin.class.getName())
                 .put("path.shared_data", dataPath)
                 .build();

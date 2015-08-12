@@ -54,7 +54,6 @@ public class IndicesCustomDataPathIT extends ESIntegTestCase {
     private Settings nodeSettings(String dataPath) {
         return Settings.builder()
                 .put("node.add_id_to_custom_path", false)
-                .put("node.enable_custom_paths", true)
                 .put("path.shared_data", dataPath)
                 .put("index.store.fs.fs_lock", randomFrom("native", "simple"))
                 .build();

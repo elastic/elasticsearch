@@ -20,8 +20,10 @@
 package org.elasticsearch.discovery;
 
 import com.google.common.base.Predicate;
+import com.sun.javafx.property.adapter.PropertyDescriptor;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
@@ -31,6 +33,7 @@ import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.replicatedbroadcast.ReplicatedBroadcastResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.*;
@@ -50,6 +53,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.discovery.zen.fd.FaultDetection;
@@ -58,10 +62,16 @@ import org.elasticsearch.discovery.zen.ping.ZenPing;
 import org.elasticsearch.discovery.zen.ping.ZenPingService;
 import org.elasticsearch.discovery.zen.ping.unicast.UnicastZenPing;
 import org.elasticsearch.discovery.zen.publish.PublishClusterStateAction;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.flush.IndicesSyncedFlushResult;
+import org.elasticsearch.indices.flush.SyncedFlushService;
 import org.elasticsearch.indices.recovery.RecoverySource;
 import org.elasticsearch.indices.store.IndicesStoreIntegrationIT;
+import org.elasticsearch.rest.BytesRestResponse;
+import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.action.support.RestBuilderListener;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.discovery.ClusterDiscoveryConfiguration;
@@ -1085,22 +1095,57 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
             logLocalClusterStates(node1Client, node2Client, node3Client,  node4Client);
             assertTrue(node3Client.prepareIndex("test", "doc").setSource("{\"text\":\"a\"}").get().isCreated());
             //sometimes refresh and sometimes flush
-            if (randomBoolean()) {
-                logger.info("--> refresh from node_3");
-                RefreshResponse refreshResponse = node3Client.admin().indices().prepareRefresh().get();
-                assertThat(refreshResponse.getFailedShards(), equalTo(0));
-                // the total shards is num replicas + 1 so that can be lower here because one shard
-                // is relocating and counts twice as successful
-                assertThat(refreshResponse.getTotalShards(), equalTo(1));
-                assertThat(refreshResponse.getSuccessfulShards(), equalTo(2));
-            } else {
-                logger.info("--> flush from node_3");
-                FlushResponse flushResponse = node3Client.admin().indices().prepareFlush().get();
-                assertThat(flushResponse.getFailedShards(), equalTo(0));
-                // the total shards is num replicas + 1 so that can be lower here because one shard
-                // is relocating and counts twice as successful
-                assertThat(flushResponse.getTotalShards(), equalTo(1));
-                assertThat(flushResponse.getSuccessfulShards(), equalTo(2));
+            int refreshOrFlushType = randomIntBetween(1, 3);
+            switch (refreshOrFlushType) {
+                case 1: {
+                    logger.info("--> refresh from node_3");
+                    RefreshResponse refreshResponse = node3Client.admin().indices().prepareRefresh().get();
+                    assertThat(refreshResponse.getFailedShards(), equalTo(0));
+                    // the total shards is num replicas + 1 so that can be lower here because one shard
+                    // is relocating and counts twice as successful
+                    assertThat(refreshResponse.getTotalShards(), equalTo(1));
+                    assertThat(refreshResponse.getSuccessfulShards(), equalTo(2));
+                    break;
+                }
+                case 2: {
+                    logger.info("--> flush from node_3");
+                    FlushResponse flushResponse = node3Client.admin().indices().prepareFlush().get();
+                    assertThat(flushResponse.getFailedShards(), equalTo(0));
+                    // the total shards is num replicas + 1 so that can be lower here because one shard
+                    // is relocating and counts twice as successful
+                    assertThat(flushResponse.getTotalShards(), equalTo(1));
+                    assertThat(flushResponse.getSuccessfulShards(), equalTo(2));
+                    break;
+                }
+                case 3: {
+                    logger.info("--> synced flush from node_3");
+                    final AtomicReference<Object> syncedFlushResult = new AtomicReference<>();
+                    final CountDownLatch latch = new CountDownLatch(1);
+                    internalCluster().getInstance(SyncedFlushService.class, node_3).attemptSyncedFlush(new String[]{"test"}, IndicesOptions.lenientExpandOpen(), new ActionListener<IndicesSyncedFlushResult>() {
+                        @Override
+                        public void onResponse(IndicesSyncedFlushResult indicesSyncedFlushResult) {
+                            syncedFlushResult.set(indicesSyncedFlushResult);
+                            latch.countDown();
+                        }
+
+                        @Override
+                        public void onFailure(Throwable e) {
+                            syncedFlushResult.set(e);
+                            latch.countDown();
+
+                        }
+                    });
+                    latch.await();
+                    assertFalse(syncedFlushResult.get() instanceof Throwable);
+                    IndicesSyncedFlushResult flushResponse = (IndicesSyncedFlushResult)syncedFlushResult.get();
+                    assertThat(flushResponse.failedShards(), equalTo(0));
+                    // the total shards is num replicas + 1 so that can be lower here because one shard
+                    // is relocating and counts twice as successful
+                    assertThat(flushResponse.totalShards(), equalTo(1));
+                    assertThat(flushResponse.successfulShards(), equalTo(1));
+                }
+                default:
+                    fail("this is  test bug, number should be between 1 and 3");
             }
             // now stop disrupting so that node_3 can ack last cluster state to master and master can continue
             // to publish the next cluster state

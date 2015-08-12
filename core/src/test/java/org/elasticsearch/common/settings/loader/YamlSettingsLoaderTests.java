@@ -63,4 +63,17 @@ public class YamlSettingsLoaderTests extends ESTestCase {
                 .loadFromClasspath("org/elasticsearch/common/settings/loader/indentation-with-explicit-document-start-settings.yml")
                 .build();
     }
+
+    
+    @Test
+    public void testYamlSettingsNoFile() throws Exception {
+        String invalidResourceName = "org/elasticsearch/common/settings/loader/no-test-settings.yml";
+        try {
+            Settings defaultSettings = settingsBuilder().loadFromClasspath(invalidResourceName).build();
+            fail("For a not exiting file an exception should be thrown.");
+        } catch (Exception e) {
+            assertTrue(e instanceof SettingsException);
+            assertThat(e.getMessage(), equalTo("Failed to load settings from [" + invalidResourceName + "]"));
+        }
+    }
 }

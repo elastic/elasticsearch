@@ -597,6 +597,10 @@ public abstract class ESTestCase extends LuceneTestCase {
         if (Files.exists(path)) {
             try (DirectoryStream<Path> stream = Files.newDirectoryStream(path)) {
                 for (Path file : stream) {
+                    // Skip files added by Lucene's ExtraFS
+                    if (file.getFileName().toString().startsWith("extra")) {
+                        continue;
+                    }
                     logger.info("--> found file: [{}]", file.toAbsolutePath().toString());
                     if (Files.isDirectory(file)) {
                         assertPathHasBeenCleared(file);

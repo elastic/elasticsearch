@@ -152,6 +152,9 @@
         }
       }
     },
+    "cluster_licenses": {
+      "enabled": false
+    },
     "marvel_node_stats": {
       "properties": {
         "node_stats": {

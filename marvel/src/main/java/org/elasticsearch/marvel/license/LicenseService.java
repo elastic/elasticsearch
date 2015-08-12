@@ -14,12 +14,14 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.license.core.License;
 import org.elasticsearch.license.plugin.core.LicensesClientService;
+import org.elasticsearch.license.plugin.core.LicensesManagerService;
 import org.elasticsearch.license.plugin.core.LicensesService;
 import org.elasticsearch.marvel.MarvelPlugin;
 import org.elasticsearch.marvel.mode.Mode;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
 import java.util.Locale;
 
 public class LicenseService extends AbstractLifecycleComponent<LicenseService> {
@@ -31,14 +33,16 @@ public class LicenseService extends AbstractLifecycleComponent<LicenseService> {
 
     private static final FormatDateTimeFormatter DATE_FORMATTER = Joda.forPattern("EEEE, MMMMM dd, yyyy", Locale.ROOT);
 
+    private final LicensesManagerService managerService;
     private final LicensesClientService clientService;
     private final Collection<LicensesService.ExpirationCallback> expirationLoggers;
 
     private volatile Mode mode;
 
     @Inject
-    public LicenseService(Settings settings, LicensesClientService clientService) {
+    public LicenseService(Settings settings, LicensesClientService clientService, LicensesManagerService managerService) {
         super(settings);
+        this.managerService = managerService;
         this.clientService = clientService;
         this.mode = Mode.LITE;
         this.expirationLoggers = Arrays.asList(
@@ -101,6 +105,13 @@ public class LicenseService extends AbstractLifecycleComponent<LicenseService> {
      */
     public Mode mode() {
         return mode;
+    }
+
+    /**
+     * @return all registered licenses
+     */
+    public List<License> licenses() {
+        return managerService.getLicenses();
     }
 
     class InternalListener implements LicensesClientService.Listener {

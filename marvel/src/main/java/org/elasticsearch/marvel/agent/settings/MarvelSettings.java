@@ -21,6 +21,8 @@ public class MarvelSettings extends AbstractComponent implements NodeSettingsSer
 
     private static final String PREFIX = MarvelPlugin.NAME + ".agent.";
 
+    public static final String MARVEL_DATA_INDEX_NAME = ".marvel-data";
+
     public static final String INTERVAL                     = PREFIX + "interval";
     public static final String STARTUP_DELAY                = PREFIX + "startup.delay";
     public static final String INDEX_STATS_TIMEOUT          = PREFIX + "index.stats.timeout";

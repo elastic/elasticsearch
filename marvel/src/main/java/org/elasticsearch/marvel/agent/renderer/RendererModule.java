@@ -11,11 +11,13 @@ import org.elasticsearch.marvel.agent.collector.cluster.ClusterStateCollector;
 import org.elasticsearch.marvel.agent.collector.cluster.ClusterStatsCollector;
 import org.elasticsearch.marvel.agent.collector.indices.IndexRecoveryCollector;
 import org.elasticsearch.marvel.agent.collector.indices.IndexStatsCollector;
+import org.elasticsearch.marvel.agent.collector.licenses.LicensesCollector;
 import org.elasticsearch.marvel.agent.collector.node.NodeStatsCollector;
 import org.elasticsearch.marvel.agent.renderer.cluster.ClusterStateRenderer;
 import org.elasticsearch.marvel.agent.renderer.cluster.ClusterStatsRenderer;
 import org.elasticsearch.marvel.agent.renderer.indices.IndexRecoveryRenderer;
 import org.elasticsearch.marvel.agent.renderer.indices.IndexStatsRenderer;
+import org.elasticsearch.marvel.agent.renderer.licenses.LicensesRenderer;
 import org.elasticsearch.marvel.agent.renderer.node.NodeStatsRenderer;
 
 import java.util.HashMap;
@@ -34,6 +36,9 @@ public class RendererModule extends AbstractModule {
         MapBinder<String, Renderer> mbinder = MapBinder.newMapBinder(binder(), String.class, Renderer.class);
 
         // Bind default renderers
+        bind(LicensesRenderer.class).asEagerSingleton();
+        mbinder.addBinding(LicensesCollector.TYPE).to(LicensesRenderer.class);
+
         bind(IndexStatsRenderer.class).asEagerSingleton();
         mbinder.addBinding(IndexStatsCollector.TYPE).to(IndexStatsRenderer.class);
 

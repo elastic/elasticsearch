@@ -195,7 +195,17 @@ public class HttpESExporter extends AbstractExporter<HttpESExporter> implements 
 
             // Builds the bulk action metadata line
             builder.startObject();
-            builder.startObject("index").field("_type", marvelDoc.type()).endObject();
+            builder.startObject("index");
+            if (marvelDoc.index() != null) {
+                builder.field("_index", marvelDoc.index());
+            }
+            if (marvelDoc.type() != null) {
+                builder.field("_type", marvelDoc.type());
+            }
+            if (marvelDoc.id() != null) {
+                builder.field("_id", marvelDoc.id());
+            }
+            builder.endObject();
             builder.endObject();
 
             // Adds action metadata line bulk separator

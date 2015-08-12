@@ -59,8 +59,7 @@ public class AllocationModuleTests extends ModuleTestCase {
         try {
             module.registerAllocationDecider(EnableAllocationDecider.class);
         } catch (IllegalArgumentException e) {
-            assertTrue(e.getMessage().contains("Cannot register AllocationDecider"));
-            assertTrue(e.getMessage().contains("twice"));
+            assertEquals(e.getMessage(), "Can't register the same [allocation_decider] more than once for [" + EnableAllocationDecider.class.getName() + "]");
         }
     }
 
@@ -82,14 +81,14 @@ public class AllocationModuleTests extends ModuleTestCase {
         try {
             module.registerShardAllocator(AllocationModule.BALANCED_ALLOCATOR, FakeShardsAllocator.class);
         } catch (IllegalArgumentException e) {
-            assertTrue(e.getMessage().contains("already registered"));
+            assertEquals(e.getMessage(), "Can't register the same [shards_allocator] more than once for [balanced]");
         }
     }
 
     public void testUnknownShardsAllocator() {
         Settings settings = Settings.builder().put(AllocationModule.SHARDS_ALLOCATOR_TYPE_KEY, "dne").build();
         AllocationModule module = new AllocationModule(settings);
-        assertBindingFailure(module, "Unknown ShardsAllocator");
+        assertBindingFailure(module, "Unknown [shards_allocator]");
     }
 
     public void testEvenShardsAllocatorBackcompat() {

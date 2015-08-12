@@ -151,11 +151,6 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
     }
     
     @Override
-    public String[] names() {
-        return new String[] {"phrase"};
-    }
-
-    @Override
     public SuggestContextParser getContextParser() {
         return new PhraseSuggestParser(this);
     }

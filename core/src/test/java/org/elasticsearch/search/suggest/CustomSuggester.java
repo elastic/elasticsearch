@@ -56,11 +56,6 @@ public class CustomSuggester extends Suggester<CustomSuggester.CustomSuggestions
     }
 
     @Override
-    public String[] names() {
-        return new String[] {"custom"};
-    }
-
-    @Override
     public SuggestContextParser getContextParser() {
         return new SuggestContextParser() {
             @Override

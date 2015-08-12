@@ -21,9 +21,9 @@ package org.elasticsearch.plugins;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsInfo;
+import org.elasticsearch.action.admin.cluster.node.stats.PluginsStat;
 import org.elasticsearch.bootstrap.Bootstrap;
 import org.elasticsearch.bootstrap.JarHell;
 import org.elasticsearch.common.Strings;
@@ -32,10 +32,13 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.inject.Provider;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.env.Environment;
 
 import java.io.Closeable;
@@ -46,15 +49,7 @@ import java.net.URLClassLoader;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 import static org.elasticsearch.common.io.FileSystemUtils.isAccessibleDirectory;
 
@@ -70,6 +65,12 @@ public class PluginsService extends AbstractComponent {
     private final PluginsInfo info;
 
     private final ImmutableMap<Plugin, List<OnModuleReference>> onModuleReferences;
+
+    /**
+     * Late binding for plugins stats services because PluginsService
+     * is not instanciated by Guice and we can't rely on usual injector.
+     */
+    private Provider<Set<PluginStatsService>> providers = null;
 
     static class OnModuleReference {
         public final Class<? extends Module> moduleClass;
@@ -170,6 +171,10 @@ public class PluginsService extends AbstractComponent {
             }
         }
         this.onModuleReferences = onModuleReferences.immutableMap();
+    }
+
+    public void setStatsServices(Provider<Set<PluginStatsService>> providers) {
+        this.providers = providers;
     }
 
     public ImmutableList<Tuple<PluginInfo, Plugin>> plugins() {
@@ -286,6 +291,37 @@ public class PluginsService extends AbstractComponent {
      */
     public PluginsInfo info() {
         return info;
+    }
+
+    /**
+     * Get custom stats about plugins (jvm plugins only)
+     */
+    public PluginsStat stats(String... customs) {
+        if (providers == null) {
+            logger.debug("no plugins stats services provider registered");
+            return null;
+        }
+
+        PluginsStat stats = new PluginsStat();
+        try {
+            Set<PluginStatsService> statsServices = providers.get();
+            if ((statsServices == null) || (statsServices.isEmpty())) {
+                logger.debug("no plugins stats services registered");
+                return null;
+            }
+
+            for (PluginStatsService statsService : statsServices) {
+                // Get the stats for a given plugin
+                for (PluginStat stat : statsService.stats()) {
+                    if (CollectionUtils.isEmpty(customs) || Regex.simpleMatch(customs, stat.getCategory())) {
+                        stats.add(stat);
+                    }
+                }
+            }
+        } catch (Exception e) {
+            logger.warn("exception when retrieving plugins stats", e);
+        }
+        return stats;
     }
     
     // a "bundle" is a group of plugins in a single classloader

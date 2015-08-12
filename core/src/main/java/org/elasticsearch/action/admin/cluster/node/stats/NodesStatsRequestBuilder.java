@@ -67,6 +67,16 @@ public class NodesStatsRequestBuilder extends NodesOperationRequestBuilder<Nodes
         return this;
     }
 
+    public NodesStatsRequestBuilder setPlugins(boolean plugins) {
+        request.plugins(plugins);
+        return this;
+    }
+
+    public NodesStatsRequestBuilder setCustom(String... customs) {
+        request.custom(customs);
+        return this;
+    }
+
     /**
      * Should the node indices stats be returned.
      */

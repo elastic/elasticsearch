@@ -300,6 +300,9 @@ public class XContentHelper {
 
     public static void copyCurrentStructure(XContentGenerator generator, XContentParser parser) throws IOException {
         XContentParser.Token token = parser.currentToken();
+        if (token == null) {
+            token = parser.nextToken();
+        }
 
         // Let's handle field-name separately first
         if (token == XContentParser.Token.FIELD_NAME) {

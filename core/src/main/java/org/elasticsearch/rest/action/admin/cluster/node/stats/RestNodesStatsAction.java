@@ -27,12 +27,14 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.*;
-import org.elasticsearch.rest.action.support.RestToXContentListener;
+import org.elasticsearch.rest.action.support.RestBuilderListener;
 
 import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestStatus.OK;
 
 
 /**
@@ -66,20 +68,21 @@ public class RestNodesStatsAction extends BaseRestHandler {
             nodesStatsRequest.indices(CommonStatsFlags.ALL);
         } else {
             nodesStatsRequest.clear();
-            nodesStatsRequest.os(metrics.contains("os"));
-            nodesStatsRequest.jvm(metrics.contains("jvm"));
-            nodesStatsRequest.threadPool(metrics.contains("thread_pool"));
-            nodesStatsRequest.network(metrics.contains("network"));
-            nodesStatsRequest.fs(metrics.contains("fs"));
-            nodesStatsRequest.transport(metrics.contains("transport"));
-            nodesStatsRequest.http(metrics.contains("http"));
-            nodesStatsRequest.indices(metrics.contains("indices"));
-            nodesStatsRequest.process(metrics.contains("process"));
-            nodesStatsRequest.breaker(metrics.contains("breaker"));
-            nodesStatsRequest.script(metrics.contains("script"));
+            nodesStatsRequest.os(metrics.remove("os"));
+            nodesStatsRequest.jvm(metrics.remove("jvm"));
+            nodesStatsRequest.threadPool(metrics.remove("thread_pool"));
+            nodesStatsRequest.network(metrics.remove("network"));
+            nodesStatsRequest.fs(metrics.remove("fs"));
+            nodesStatsRequest.transport(metrics.remove("transport"));
+            nodesStatsRequest.http(metrics.remove("http"));
+            nodesStatsRequest.indices(metrics.remove("indices"));
+            nodesStatsRequest.process(metrics.remove("process"));
+            nodesStatsRequest.breaker(metrics.remove("breaker"));
+            nodesStatsRequest.script(metrics.remove("script"));
+            nodesStatsRequest.plugins(metrics.remove("plugins"));
 
             // check for index specific metrics
-            if (metrics.contains("indices")) {
+            if (metrics.remove("indices")) {
                 Set<String> indexMetrics = Strings.splitStringByCommaToSet(request.param("indexMetric", "_all"));
                 if (indexMetrics.size() == 1 && indexMetrics.contains("_all")) {
                     nodesStatsRequest.indices(CommonStatsFlags.ALL);
@@ -90,6 +93,11 @@ public class RestNodesStatsAction extends BaseRestHandler {
                     }
                     nodesStatsRequest.indices(flags);
                 }
+            }
+
+            // assume that remaining metrics are for custom plugins stats
+            if (!metrics.isEmpty()) {
+                nodesStatsRequest.custom(metrics.toArray(new String[metrics.size()]));
             }
         }
 
@@ -106,6 +114,14 @@ public class RestNodesStatsAction extends BaseRestHandler {
             nodesStatsRequest.indices().types(request.paramAsStringArray("types", null));
         }
 
-        client.admin().cluster().nodesStats(nodesStatsRequest, new RestToXContentListener<NodesStatsResponse>(channel));
+        client.admin().cluster().nodesStats(nodesStatsRequest, new RestBuilderListener<NodesStatsResponse>(channel) {
+            @Override
+            public RestResponse buildResponse(NodesStatsResponse nodesStatsResponse, XContentBuilder builder) throws Exception {
+                builder.startObject();
+                nodesStatsResponse.toXContent(builder, request);
+                builder.endObject();
+                return new BytesRestResponse(OK, builder);
+            }
+        });
     }
 }

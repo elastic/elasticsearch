@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.cluster.node.stats;
 
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -42,6 +43,8 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
     private boolean http;
     private boolean breaker;
     private boolean script;
+    private boolean plugins;
+    private String[] custom;
 
     protected NodesStatsRequest() {
     }
@@ -69,6 +72,8 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         this.http = true;
         this.breaker = true;
         this.script = true;
+        this.plugins = true;
+        this.custom = Strings.EMPTY_ARRAY;
         return this;
     }
 
@@ -87,6 +92,8 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         this.http = false;
         this.breaker = false;
         this.script = false;
+        this.plugins = false;
+        this.custom = null;
         return this;
     }
 
@@ -252,6 +259,24 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         return this;
     }
 
+    public boolean plugins() {
+        return plugins || (custom != null && custom.length > 0);
+    }
+
+    public NodesStatsRequest plugins(boolean plugins) {
+        this.plugins = plugins;
+        return this;
+    }
+
+    public String[] custom() {
+        return custom;
+    }
+
+    public NodesStatsRequest custom(String... customs) {
+        this.custom = customs;
+        return this;
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
@@ -266,6 +291,9 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         http = in.readBoolean();
         breaker = in.readBoolean();
         script = in.readBoolean();
+        plugins = in.readBoolean();
+        custom = in.readStringArray();
+
     }
 
     @Override
@@ -282,6 +310,7 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         out.writeBoolean(http);
         out.writeBoolean(breaker);
         out.writeBoolean(script);
+        out.writeBoolean(plugins);
+        out.writeStringArrayNullable(custom);
     }
-
 }

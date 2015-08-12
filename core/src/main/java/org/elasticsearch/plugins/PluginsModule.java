@@ -20,14 +20,14 @@
 package org.elasticsearch.plugins;
 
 import com.google.common.collect.Lists;
-import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.inject.PreProcessModule;
-import org.elasticsearch.common.inject.SpawnModules;
+import org.elasticsearch.common.inject.*;
+import org.elasticsearch.common.inject.multibindings.Multibinder;
 import org.elasticsearch.common.settings.Settings;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.common.inject.Modules.createModule;
 
@@ -39,6 +39,8 @@ public class PluginsModule extends AbstractModule implements SpawnModules, PrePr
     private final Settings settings;
 
     private final PluginsService pluginsService;
+
+    private List<Class<? extends PluginStatsService>> statsServices = new ArrayList<>();
 
     public PluginsModule(Settings settings, PluginsService pluginsService) {
         this.settings = settings;
@@ -64,5 +66,25 @@ public class PluginsModule extends AbstractModule implements SpawnModules, PrePr
     @Override
     protected void configure() {
         bind(PluginsService.class).toInstance(pluginsService);
+
+        // Binds plugins statistic services
+        Multibinder<PluginStatsService> binder = Multibinder.newSetBinder(binder(), PluginStatsService.class);
+        for (Class<? extends PluginStatsService> clazz : statsServices) {
+            binder.addBinding().to(clazz);
+        }
+
+        // Creates a Guice provider for the set of plugin stats services
+        Provider<Set<PluginStatsService>> provider = binder().getProvider(Key.get(new TypeLiteral<Set<PluginStatsService>>() {}));
+        // So that the PluginsService will be able to call them in stats() method
+        pluginsService.setStatsServices(provider);
+    }
+
+    /**
+     * Registers a plugin's stats service
+     *
+     * @param pluginStatsService the plugin's stats service
+     */
+    public void registerStatsService(Class<? extends PluginStatsService> pluginStatsService) {
+        statsServices.add(pluginStatsService);
     }
 }

@@ -180,7 +180,7 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
                 null, null, null, null, null,
                 fsInfo,
                 null, null, null,
-                null);
+                null, null);
     }
 
     /**

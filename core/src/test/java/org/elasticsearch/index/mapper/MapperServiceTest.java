@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.test.ElasticsearchSingleNodeTest;
+import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
@@ -27,7 +27,7 @@ import org.junit.rules.ExpectedException;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.hasToString;
 
-public class MapperServiceTest extends ElasticsearchSingleNodeTest {
+public class MapperServiceTest extends ESSingleNodeTestCase {
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
 

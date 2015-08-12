@@ -24,6 +24,7 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -254,10 +255,16 @@ public class SimpleQueryStringBuilderTest extends BaseQueryTestCase<SimpleQueryS
         assertThat(queryBuilder.value(), equalTo(query));
         assertThat(queryBuilder.fields(), notNullValue());
         assertThat(queryBuilder.fields().size(), equalTo(0));
-        Query luceneQuery = queryBuilder.toQuery(createShardContext());
-        assertThat(luceneQuery, instanceOf(TermQuery.class));
-        TermQuery termQuery = (TermQuery) luceneQuery;
-        assertThat(termQuery.getTerm(), equalTo(new Term(MetaData.ALL, query)));
+        QueryShardContext shardContext = createShardContext();
+
+        // the remaining tests requires either a mapping that we register with types in base test setup
+        // no strict field resolution (version before V_1_4_0_Beta1)
+        if (getCurrentTypes().length > 0 || shardContext.indexQueryParserService().getIndexCreatedVersion().before(Version.V_1_4_0_Beta1)) {
+            Query luceneQuery = queryBuilder.toQuery(shardContext);
+            assertThat(luceneQuery, instanceOf(TermQuery.class));
+            TermQuery termQuery = (TermQuery) luceneQuery;
+            assertThat(termQuery.getTerm(), equalTo(new Term(MetaData.ALL, query)));
+        }
     }
 
     private static int shouldClauses(BooleanQuery query) {

@@ -1,4 +1,3 @@
-
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -68,7 +67,7 @@ public abstract class ModuleTestCase extends ESTestCase {
             fail("Expected exception from configuring module. Found these bindings:\n" + s);
         } catch (IllegalArgumentException e) {
             for (String msg : msgs) {
-                assertTrue(e.getMessage().contains(msg));
+                assertTrue(e.getMessage() + " didn't contain: " + msg, e.getMessage().contains(msg));
             }
         }
     }

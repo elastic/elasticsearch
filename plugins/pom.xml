@@ -283,6 +283,9 @@
                     <include>api/indices.refresh.json</include>
                     <include>api/nodes.info.json</include>
                     <include>api/count.json</include>
+                    <!-- used in repository plugin REST tests -->
+                    <include>api/snapshot.create_repository.json</include>
+                    <include>api/snapshot.get_repository.json</include>
                 </includes>
             </testResource>
             <!-- shared test resources like log4j.properties -->

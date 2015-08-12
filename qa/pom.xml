@@ -153,6 +153,11 @@
     <profiles>
         <profile>
             <id>vagrant</id>
+            <activation>
+                <property>
+                    <name>tests.vagrant</name>
+                </property>
+            </activation>
             <modules>
                 <module>vagrant</module>
             </modules>

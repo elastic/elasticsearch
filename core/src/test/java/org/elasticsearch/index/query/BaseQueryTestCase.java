@@ -31,6 +31,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
+import org.elasticsearch.common.inject.multibindings.Multibinder;
 import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
@@ -48,7 +49,7 @@ import org.elasticsearch.index.IndexNameModule;
 import org.elasticsearch.index.analysis.AnalysisModule;
 import org.elasticsearch.index.cache.IndexCacheModule;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.query.functionscore.FunctionScoreModule;
+import org.elasticsearch.index.query.functionscore.ScoreFunctionParser;
 import org.elasticsearch.index.query.support.QueryParsers;
 import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.index.similarity.SimilarityModule;
@@ -65,10 +66,19 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolModule;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
-import org.junit.*;
+import org.junit.After;
+import org.junit.AfterClass;
+import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.Test;
 
 import java.io.IOException;
-import static org.hamcrest.Matchers.*;
+
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public abstract class BaseQueryTestCase<QB extends AbstractQueryBuilder<QB>> extends ESTestCase {
 
@@ -118,10 +128,10 @@ public abstract class BaseQueryTestCase<QB extends AbstractQueryBuilder<QB>> ext
                 new AnalysisModule(settings, new IndicesAnalysisService(settings)),
                 new SimilarityModule(settings),
                 new IndexNameModule(index),
-                new FunctionScoreModule(),
                 new AbstractModule() {
                     @Override
                     protected void configure() {
+                        Multibinder.newSetBinder(binder(), ScoreFunctionParser.class);
                         bind(ClusterService.class).toProvider(Providers.of((ClusterService) null));
                         bind(CircuitBreakerService.class).to(NoneCircuitBreakerService.class);
                         bind(NamedWriteableRegistry.class).asEagerSingleton();

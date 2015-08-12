@@ -21,28 +21,42 @@ package org.elasticsearch.search.suggest;
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicParser;
+import org.elasticsearch.search.suggest.completion.CompletionSuggester;
+import org.elasticsearch.search.suggest.phrase.PhraseSuggester;
+import org.elasticsearch.search.suggest.term.TermSuggester;
 
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Set;
 
 /**
  *
  */
 public class Suggesters {
-    private final ImmutableMap<String, Suggester> parsers;
+    private final Map<String, Suggester> parsers;
 
     @Inject
-    public Suggesters(Set<Suggester> suggesters) {
-        MapBuilder<String, Suggester> builder = MapBuilder.newMapBuilder();
+    public Suggesters(Set<Suggester> suggesters, ScriptService scriptService) {
+        final Map<String, Suggester> map = new HashMap<>();
+        add(map, new PhraseSuggester(scriptService));
+        add(map, new TermSuggester());
+        add(map, new CompletionSuggester());
         for (Suggester suggester : suggesters) {
-            for (String type : suggester.names()) {
-                builder.put(type, suggester);
-            }
+           add(map, suggester);
         }
-        this.parsers = builder.immutableMap();
+        this.parsers = Collections.unmodifiableMap(map);
     }
 
     public Suggester get(String type) {
         return parsers.get(type);
     }
 
+    private void add(Map<String, Suggester> map, Suggester suggester) {
+        for (String type : suggester.names()) {
+            map.put(type, suggester);
+        }
+    }
 }

@@ -20,6 +20,7 @@
 package org.elasticsearch.search.highlight;
 
 import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.search.SearchModule;
 
 public class CustomHighlighterPlugin extends AbstractPlugin {
 
@@ -33,7 +34,7 @@ public class CustomHighlighterPlugin extends AbstractPlugin {
         return "Custom highlighter to test pluggable implementation";
     }
 
-    public void onModule(HighlightModule highlightModule) {
+    public void onModule(SearchModule highlightModule) {
         highlightModule.registerHighlighter(CustomHighlighter.class);
     }
 }

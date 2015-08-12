@@ -28,9 +28,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.functionscore.DecayFunction;
 import org.elasticsearch.index.query.functionscore.DecayFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.DecayFunctionParser;
-import org.elasticsearch.index.query.functionscore.FunctionScoreModule;
 import org.elasticsearch.plugins.AbstractPlugin;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
@@ -107,8 +107,8 @@ public class FunctionScorePluginIT extends ESIntegTestCase {
             return "Distance score plugin to test pluggable implementation";
         }
 
-        public void onModule(FunctionScoreModule scoreModule) {
-            scoreModule.registerParser(FunctionScorePluginIT.CustomDistanceScoreParser.class);
+        public void onModule(SearchModule scoreModule) {
+            scoreModule.registerFunctionScoreParser(FunctionScorePluginIT.CustomDistanceScoreParser.class);
         }
 
     }

@@ -24,6 +24,7 @@ import com.google.common.collect.Multimap;
 
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -208,7 +209,14 @@ public abstract class InternalTerms<A extends InternalTerms, B extends InternalT
                 }
             }
             if (b.docCount >= minDocCount) {
-                Terms.Bucket removed = ordered.insertWithOverflow(b);
+                Terms.Bucket removed = null;
+                try {
+                    removed = ordered.insertWithOverflow(b);
+                } catch (IncomparableTermBucketsException e) {
+                    throw new AggregationExecutionException("Merging/Reducing the aggregations failed because " +
+                                                             "the buckets differ in type and they " +
+                                                             "are incomparable", e);
+                }
                 if (removed != null) {
                     otherDocCount += removed.getDocCount();
                 }

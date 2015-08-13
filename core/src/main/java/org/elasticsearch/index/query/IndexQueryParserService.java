@@ -116,7 +116,9 @@ public class IndexQueryParserService extends AbstractIndexComponent {
         return this.queryStringLenient;
     }
 
-    public QueryParser queryParser(String name) {
+    //norelease we might want to get rid of this as it was temporarily introduced for our default doToQuery impl
+    //seems to be used only in tests
+    public QueryParser<? extends QueryBuilder<? extends QueryBuilder>> queryParser(String name) {
         return indicesQueriesRegistry.queryParsers().get(name);
     }
 
@@ -233,8 +235,7 @@ public class IndexQueryParserService extends AbstractIndexComponent {
     @Nullable
     public QueryBuilder parseInnerQueryBuilder(QueryParseContext parseContext) throws IOException {
         parseContext.parseFieldMatcher(parseFieldMatcher);
-        QueryBuilder query = parseContext.parseInnerQueryBuilder();
-        return query;
+        return parseContext.parseInnerQueryBuilder();
     }
 
     @Nullable

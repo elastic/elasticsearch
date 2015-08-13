@@ -244,9 +244,9 @@ public abstract class BaseQueryTestCase<QB extends AbstractQueryBuilder<QB>> ext
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             firstQuery.writeTo(output);
             try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
-                QueryBuilder<? extends QueryBuilder> prototype = queryParserService.queryParser(firstQuery.getWriteableName()).getBuilderPrototype();
                 @SuppressWarnings("unchecked")
-                QB secondQuery = (QB)prototype.readFrom(in);
+                QueryParser<QB> queryParser = (QueryParser<QB>)queryParserService.queryParser(firstQuery.getWriteableName());
+                QB secondQuery = queryParser.getBuilderPrototype().readFrom(in);
                 //query _name never should affect the result of toQuery, we randomly set it to make sure
                 if (randomBoolean()) {
                     secondQuery.queryName(secondQuery.queryName() == null ? randomAsciiOfLengthBetween(1, 30) : secondQuery.queryName() + randomAsciiOfLengthBetween(1, 10));
@@ -269,7 +269,8 @@ public abstract class BaseQueryTestCase<QB extends AbstractQueryBuilder<QB>> ext
 
     /**
      * Few queries allow you to set the boost and queryName but don't do anything with it. This method allows
-     * to disable boost and queryName related tests for those queries.
+     * to disable boost and queryName related tests for those queries. Those queries are easy to identify: their parsers
+     * don't parse `boost` and `_name` as they don't apply to the specific query e.g. filter query or wrapper query
      */
     protected boolean supportsBoostAndQueryName() {
         return true;
@@ -328,8 +329,7 @@ public abstract class BaseQueryTestCase<QB extends AbstractQueryBuilder<QB>> ext
      * @return a new {@link QueryParseContext} based on the base test index and queryParserService
      */
     protected static QueryParseContext createParseContext() {
-        QueryParseContext parseContext = createShardContext().parseContext();
-        return parseContext;
+        return createShardContext().parseContext();
     }
 
     protected static void assertQueryHeader(XContentParser parser, String expectedParserName) throws IOException {
@@ -410,7 +410,7 @@ public abstract class BaseQueryTestCase<QB extends AbstractQueryBuilder<QB>> ext
     protected static Tuple<String, Object> getRandomFieldNameAndValue() {
         // if no type is set then return random field name and value
         if (currentTypes == null || currentTypes.length == 0) {
-            return new Tuple(randomAsciiOfLengthBetween(1, 10), randomAsciiOfLengthBetween(1, 50));
+            return new Tuple<String, Object>(randomAsciiOfLengthBetween(1, 10), randomAsciiOfLengthBetween(1, 50));
         }
         // mapped fields
         String fieldName = randomFrom(mappedFieldNames);
@@ -437,7 +437,7 @@ public abstract class BaseQueryTestCase<QB extends AbstractQueryBuilder<QB>> ext
         if (randomBoolean()) {
             fieldName = randomAsciiOfLengthBetween(1, 10);
         }
-        return new Tuple(fieldName, value);
+        return new Tuple<>(fieldName, value);
     }
 
     protected static Fuzziness randomFuzziness(String fieldName) {

@@ -42,6 +42,15 @@ public class PopularityScoreScriptFactory implements NativeScriptFactory {
         return new PopularityScoreScript(fieldName);
     }
 
+    /**
+     * Indicates if document scores may be needed by the produced scripts.
+     *
+     * @return {@code true} if scores are needed.
+     */
+    @Override
+    public boolean needsScores() {
+        return true;
+    }
 
     /**
      * This script takes a numeric value from the field specified in the parameter field. And calculates boost

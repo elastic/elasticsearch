@@ -55,6 +55,16 @@ public class RandomSortScriptFactory implements NativeScriptFactory {
         }
     }
 
+    /**
+     * Indicates if document scores may be needed by the produced scripts.
+     *
+     * @return {@code true} if scores are needed.
+     */
+    @Override
+    public boolean needsScores() {
+        return false;
+    }
+
     private static class RandomSortScript extends AbstractLongSearchScript {
         private final Random random;
 
@@ -65,11 +75,6 @@ public class RandomSortScriptFactory implements NativeScriptFactory {
         @Override
         public long runAsLong() {
             return random.nextLong();
-        }
-
-        @Override
-        public void setScorer(Scorer scorer) {
-            // we are not using it - ignore
         }
     }
 
@@ -99,11 +104,6 @@ public class RandomSortScriptFactory implements NativeScriptFactory {
             } catch (NoSuchAlgorithmException ex) {
                 return -1;
             }
-        }
-
-        @Override
-        public void setScorer(Scorer scorer) {
-            // we are not using it - ignore
         }
     }
 }

@@ -43,11 +43,6 @@ public class TFIDFScoreScript extends AbstractSearchScript {
 
     final static public String SCRIPT_NAME = "tfidf_script_score";
 
-    @Override
-    public void setScorer(Scorer scorer) {
-        // ignore
-    }
-
     /**
      * Factory that is registered in
      * {@link org.elasticsearch.examples.nativescript.plugin.NativeScriptExamplesPlugin#onModule(org.elasticsearch.script.ScriptModule)}
@@ -65,6 +60,16 @@ public class TFIDFScoreScript extends AbstractSearchScript {
         @Override
         public ExecutableScript newScript(@Nullable Map<String, Object> params) {
             return new TFIDFScoreScript(params);
+        }
+
+        /**
+         * Indicates if document scores may be needed by the produced scripts.
+         *
+         * @return {@code true} if scores are needed.
+         */
+        @Override
+        public boolean needsScores() {
+            return false;
         }
     }
 

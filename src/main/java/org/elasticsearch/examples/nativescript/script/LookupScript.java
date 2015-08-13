@@ -106,6 +106,17 @@ public class LookupScript extends AbstractSearchScript {
             }
             return new LookupScript(node.client(), logger, cache, lookupIndex, lookupType, field);
         }
+
+        /**
+         * Indicates if document scores may be needed by the produced scripts.
+         *
+         * @return {@code true} if scores are needed.
+         */
+        @Override
+        public boolean needsScores() {
+            return false;
+        }
+
     }
 
     private final String lookupIndex;

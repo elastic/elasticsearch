@@ -49,11 +49,6 @@ public class LanguageModelScoreScript extends AbstractSearchScript {
 
     final static public String SCRIPT_NAME = "language_model_script_score";
 
-    @Override
-    public void setScorer(Scorer scorer) {
-        // ignore
-    }
-
     /**
      * Factory that is registered in
      * {@link org.elasticsearch.examples.nativescript.plugin.NativeScriptExamplesPlugin#onModule(org.elasticsearch.script.ScriptModule)}
@@ -72,6 +67,13 @@ public class LanguageModelScoreScript extends AbstractSearchScript {
         public ExecutableScript newScript(@Nullable Map<String, Object> params) {
             return new LanguageModelScoreScript(params);
         }
+
+
+        @Override
+        public boolean needsScores() {
+            return false;
+        }
+
     }
 
     /**

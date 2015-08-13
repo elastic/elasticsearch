@@ -47,11 +47,6 @@ public class CosineSimilarityScoreScript extends AbstractSearchScript {
 
     final static public String SCRIPT_NAME = "cosine_sim_script_score";
 
-    @Override
-    public void setScorer(Scorer scorer) {
-        // ignore
-    }
-
     /**
      * Factory that is registered in
      * {@link org.elasticsearch.examples.nativescript.plugin.NativeScriptExamplesPlugin#onModule(org.elasticsearch.script.ScriptModule)}
@@ -69,6 +64,16 @@ public class CosineSimilarityScoreScript extends AbstractSearchScript {
         @Override
         public ExecutableScript newScript(@Nullable Map<String, Object> params) throws ScriptException {
             return new CosineSimilarityScoreScript(params);
+        }
+
+        /**
+         * Indicates if document scores may be needed by the produced scripts.
+         *
+         * @return {@code true} if scores are needed.
+         */
+        @Override
+        public boolean needsScores() {
+            return false;
         }
     }
 

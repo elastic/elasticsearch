@@ -60,6 +60,17 @@ public class IsPrimeSearchScript extends AbstractSearchScript {
             int certainty = params == null ? 10 : XContentMapValues.nodeIntegerValue(params.get("certainty"), 10);
             return new IsPrimeSearchScript(fieldName, certainty);
         }
+
+        /**
+         * Indicates if document scores may be needed by the produced scripts.
+         *
+         * @return {@code true} if scores are needed.
+         */
+        @Override
+        public boolean needsScores() {
+            return false;
+        }
+
     }
 
     private final String fieldName;

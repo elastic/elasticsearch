@@ -64,6 +64,9 @@ public class MovAvgModelStreams {
      * @param stream The stream to register
      */
     public static synchronized void registerStream(Stream stream) {
+        if (STREAMS.containsKey(stream.getName())) {
+            throw new IllegalArgumentException("Can't register stream with name [" + stream.getName() + "] more than once");
+        }
         HashMap<String, Stream> map = new HashMap<>();
         map.putAll(STREAMS);
         map.put(stream.getName(), stream);

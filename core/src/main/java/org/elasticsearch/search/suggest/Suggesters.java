@@ -18,45 +18,46 @@
  */
 package org.elasticsearch.search.suggest;
 
-import com.google.common.collect.ImmutableMap;
-import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.common.inject.Binder;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.ExtensionPoint;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicParser;
 import org.elasticsearch.search.suggest.completion.CompletionSuggester;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggester;
 import org.elasticsearch.search.suggest.term.TermSuggester;
 
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 /**
  *
  */
-public class Suggesters {
+public final class Suggesters extends ExtensionPoint.MapExtensionPoint<Suggester> {
     private final Map<String, Suggester> parsers;
 
+    public Suggesters() {
+        this(Collections.EMPTY_MAP);
+    }
+
+    public Suggesters(Map<String, Suggester> suggesters) {
+        super("suggester", Suggester.class, new HashSet<>(Arrays.asList("phrase", "term", "completion")), Suggesters.class, SuggestParseElement.class, SuggestPhase.class);
+        this.parsers = Collections.unmodifiableMap(suggesters);
+    }
+
     @Inject
-    public Suggesters(Set<Suggester> suggesters, ScriptService scriptService) {
+    public Suggesters(Map<String, Suggester> suggesters, ScriptService scriptService) {
+        this(addBuildIns(suggesters, scriptService));
+    }
+
+    private static Map<String, Suggester> addBuildIns(Map<String, Suggester> suggesters, ScriptService scriptService) {
         final Map<String, Suggester> map = new HashMap<>();
-        add(map, new PhraseSuggester(scriptService));
-        add(map, new TermSuggester());
-        add(map, new CompletionSuggester());
-        for (Suggester suggester : suggesters) {
-           add(map, suggester);
-        }
-        this.parsers = Collections.unmodifiableMap(map);
+        map.put("phrase", new PhraseSuggester(scriptService));
+        map.put("term", new TermSuggester());
+        map.put("completion", new CompletionSuggester());
+        map.putAll(suggesters);
+        return map;
     }
 
     public Suggester get(String type) {
         return parsers.get(type);
-    }
-
-    private void add(Map<String, Suggester> map, Suggester suggester) {
-        for (String type : suggester.names()) {
-            map.put(type, suggester);
-        }
     }
 }

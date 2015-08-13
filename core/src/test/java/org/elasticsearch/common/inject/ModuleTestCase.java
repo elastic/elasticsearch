@@ -73,6 +73,37 @@ public abstract class ModuleTestCase extends ESTestCase {
     }
 
     /**
+     * Configures the module and checks a Map<String, Class> of the "to" class
+     * is bound to "theClas".
+     */
+    public void assertMapMultiBinding(Module module, Class to, Class theClass) {
+        List<Element> elements = Elements.getElements(module);
+        Set<Type> bindings = new HashSet<>();
+        boolean providerFound = false;
+        for (Element element : elements) {
+            if (element instanceof LinkedKeyBinding) {
+                LinkedKeyBinding binding = (LinkedKeyBinding)element;
+                if (to.equals(binding.getKey().getTypeLiteral().getType())) {
+                    bindings.add(binding.getLinkedKey().getTypeLiteral().getType());
+                }
+            } else if (element instanceof ProviderInstanceBinding) {
+                ProviderInstanceBinding binding = (ProviderInstanceBinding)element;
+                String setType = binding.getKey().getTypeLiteral().getType().toString();
+                if (setType.equals("java.util.Map<java.lang.String, " + to.getName() + ">")) {
+                    providerFound = true;
+                }
+            }
+        }
+
+        if (bindings.contains(theClass) == false) {
+            fail("Expected to find " + theClass.getName() + " as binding to " + to.getName() + ", found these classes:\n" + bindings);
+        }
+        assertTrue("Did not find provider for map of " + to.getName(), providerFound);
+    }
+
+
+
+    /**
      * Configures the module and checks a Set of the "to" class
      * is bound to "classes". There may be more classes bound
      * to "to" than just "classes".

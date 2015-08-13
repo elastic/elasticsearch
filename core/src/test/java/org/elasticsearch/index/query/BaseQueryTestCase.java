@@ -307,7 +307,7 @@ public abstract class BaseQueryTestCase<QB extends AbstractQueryBuilder<QB>> ext
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             testQuery.writeTo(output);
             try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
-                QueryBuilder<? extends QueryBuilder> prototype = queryParserService.queryParser(testQuery.getWriteableName()).getBuilderPrototype();
+                QueryBuilder<?> prototype = queryParserService.queryParser(testQuery.getWriteableName()).getBuilderPrototype();
                 QueryBuilder deserializedQuery = prototype.readFrom(in);
                 assertEquals(deserializedQuery, testQuery);
                 assertEquals(deserializedQuery.hashCode(), testQuery.hashCode());

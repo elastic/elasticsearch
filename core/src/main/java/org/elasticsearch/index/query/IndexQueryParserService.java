@@ -118,7 +118,7 @@ public class IndexQueryParserService extends AbstractIndexComponent {
 
     //norelease we might want to get rid of this as it was temporarily introduced for our default doToQuery impl
     //seems to be used only in tests
-    public QueryParser<? extends QueryBuilder<? extends QueryBuilder>> queryParser(String name) {
+    public QueryParser<?> queryParser(String name) {
         return indicesQueriesRegistry.queryParsers().get(name);
     }
 

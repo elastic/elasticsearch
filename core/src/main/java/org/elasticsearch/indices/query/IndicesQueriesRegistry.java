@@ -35,13 +35,13 @@ import java.util.Set;
 
 public class IndicesQueriesRegistry extends AbstractComponent {
 
-    private ImmutableMap<String, QueryParser<? extends QueryBuilder<? extends QueryBuilder>>> queryParsers;
+    private ImmutableMap<String, QueryParser<?>> queryParsers;
 
     @Inject
-    public IndicesQueriesRegistry(Settings settings, Set<QueryParser<? extends QueryBuilder<? extends QueryBuilder>>> injectedQueryParsers, NamedWriteableRegistry namedWriteableRegistry) {
+    public IndicesQueriesRegistry(Settings settings, Set<QueryParser<?>> injectedQueryParsers, NamedWriteableRegistry namedWriteableRegistry) {
         super(settings);
-        Map<String, QueryParser<? extends QueryBuilder<? extends QueryBuilder>>> queryParsers = Maps.newHashMap();
-        for (QueryParser<? extends QueryBuilder<? extends QueryBuilder>> queryParser : injectedQueryParsers) {
+        Map<String, QueryParser<?>> queryParsers = Maps.newHashMap();
+        for (QueryParser<?> queryParser : injectedQueryParsers) {
             for (String name : queryParser.names()) {
                 queryParsers.put(name, queryParser);
             }
@@ -56,7 +56,7 @@ public class IndicesQueriesRegistry extends AbstractComponent {
     /**
      * Returns all the registered query parsers
      */
-    public ImmutableMap<String, QueryParser<? extends QueryBuilder<? extends QueryBuilder>>> queryParsers() {
+    public ImmutableMap<String, QueryParser<?>> queryParsers() {
         return queryParsers;
     }
 }

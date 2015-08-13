@@ -50,15 +50,15 @@ import java.util.Set;
  * <code>cluster.routing.allocation.disk.watermark.low</code> is the low disk
  * watermark. New shards will not allocated to a node with usage higher than this,
  * although this watermark may be passed by allocating a shard. It defaults to
- * 0.85 (85.0%).
+ * 1gb.
  *
  * <code>cluster.routing.allocation.disk.watermark.high</code> is the high disk
  * watermark. If a node has usage higher than this, shards are not allowed to
  * remain on the node. In addition, if allocating a shard to a node causes the
  * node to pass this watermark, it will not be allowed. It defaults to
- * 0.90 (90.0%).
+ * 500mb.
  *
- * Both watermark settings are expressed in terms of used disk percentage, or
+ * Both watermark settings are expressed in terms of used disk percentage (like 90%), or
  * exact byte values for free space (like "500mb")
  *
  * <code>cluster.routing.allocation.disk.threshold_enabled</code> is used to
@@ -233,8 +233,8 @@ public class DiskThresholdDecider extends AllocationDecider {
     @Inject
     public DiskThresholdDecider(Settings settings, NodeSettingsService nodeSettingsService, ClusterInfoService infoService, Client client) {
         super(settings);
-        String lowWatermark = settings.get(CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK, "85%");
-        String highWatermark = settings.get(CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK, "90%");
+        String lowWatermark = settings.get(CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK, "1gb");
+        String highWatermark = settings.get(CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK, "500mb");
 
         if (!validWatermarkSetting(lowWatermark, CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK)) {
             throw new ElasticsearchParseException("unable to parse low watermark [{}]", lowWatermark);

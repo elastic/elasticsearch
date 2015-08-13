@@ -15,16 +15,16 @@ file or updated dynamically on a live cluster with the
 
 `cluster.routing.allocation.disk.watermark.low`::
 
-    Controls the low watermark for disk usage. It defaults to 85%, meaning ES will
-    not allocate new shards to nodes once they have more than 85% disk used. It
-    can also be set to an absolute byte value (like 500mb) to prevent ES from
+    Controls the low watermark for disk usage. It defaults to 1gb, meaning ES will
+    not allocate new shards to nodes once they have more than 1gb disk used. It
+    can also be set to an relative byte value (like 85%) to prevent ES from
     allocating shards if less than the configured amount of space is available.
 
 `cluster.routing.allocation.disk.watermark.high`::
 
-    Controls the high watermark. It defaults to 90%, meaning ES will attempt to
-    relocate shards to another node if the node disk usage rises above 90%. It can
-    also be set to an absolute byte value (similar to the low watermark) to
+    Controls the high watermark. It defaults to 500mb, meaning ES will attempt to
+    relocate shards to another node if the node disk usage rises above 500mb. It can
+    also be set to an relative byte value (like 90%) to
     relocate shards once less than the configured amount of space is available on
     the node.
 

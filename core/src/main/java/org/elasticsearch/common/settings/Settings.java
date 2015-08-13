@@ -1129,7 +1129,7 @@ public final class Settings implements ToXContent {
             }
             InputStream is = classLoader.getResourceAsStream(resourceName);
             if (is == null) {
-                return this;
+                throw new SettingsException("Failed to load settings from [" + resourceName + "]");
             }
 
             return loadFromStream(resourceName, is);

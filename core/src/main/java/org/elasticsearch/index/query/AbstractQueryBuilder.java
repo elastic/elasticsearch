@@ -195,7 +195,7 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder> exte
 
     @Override
     public final int hashCode() {
-        return 31 * Objects.hash(getClass(), queryName, boost) + doHashCode();
+        return Objects.hash(getClass(), queryName, boost, doHashCode());
     }
 
     //norelease to be made abstract once all queries are refactored

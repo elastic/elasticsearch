@@ -255,4 +255,16 @@ the new version of the document after update (use with care! with `force`
 there is no guarantee the document didn't change).Version types `external` &
 `external_gte` are not supported.
 
+[IMPORTANT]
+.External versioning (version types `external` & `external_gte`) cannot be used with the `update` API.
+==========================
 
+The safest current way to perform updates is having
+Elasticsearch in control control of the version number.  This
+guarantees it will be a positive integer incremented atomically for
+any `index`, `update`, or `delete` operation.  See (see
+<<index-versioning, versioning>>) and the section on
+https://www.elastic.co/guide/en/elasticsearch/guide/current/optimistic-concurrency-control.html[optimistic
+concurrency] of the definitive guide for more details.
+
+==========================

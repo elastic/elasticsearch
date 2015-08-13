@@ -73,12 +73,6 @@ public class AndQueryParser extends BaseQueryParser<AndQueryBuilder> {
                             QueryBuilder filter = parseContext.parseInnerFilterToQueryBuilder();
                             queries.add(filter);
                         }
-                    } else {
-                        queriesFound = true;
-                        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                            QueryBuilder filter = parseContext.parseInnerFilterToQueryBuilder();
-                            queries.add(filter);
-                        }
                     }
                 } else if (token.isValue()) {
                     if ("_name".equals(currentFieldName)) {

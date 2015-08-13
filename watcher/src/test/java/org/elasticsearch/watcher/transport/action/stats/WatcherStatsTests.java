@@ -11,7 +11,6 @@ import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.watcher.WatcherBuild;
 import org.elasticsearch.watcher.WatcherState;
-import org.elasticsearch.watcher.WatcherVersion;
 import org.elasticsearch.watcher.client.WatcherClient;
 import org.elasticsearch.watcher.condition.ConditionBuilders;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
@@ -50,7 +49,6 @@ public class WatcherStatsTests extends AbstractWatcherIntegrationTests {
         assertThat(response.getThreadPoolQueueSize(), is(0L));
         assertThat(response.getWatchesCount(), is(0L));
         assertThat(response.getThreadPoolMaxSize(), is(timeWarped() ? 1L : 0L));
-        assertThat(response.getVersion(), is(WatcherVersion.CURRENT));
         assertThat(response.getBuild(), is(WatcherBuild.CURRENT));
     }
 

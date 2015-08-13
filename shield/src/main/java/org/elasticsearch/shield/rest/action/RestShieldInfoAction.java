@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.shield.rest.action;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.inject.Inject;
@@ -14,7 +15,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.shield.ShieldBuild;
 import org.elasticsearch.shield.ShieldPlugin;
-import org.elasticsearch.shield.ShieldVersion;
 import org.elasticsearch.shield.license.LicenseService;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -58,12 +58,12 @@ public class RestShieldInfoAction extends BaseRestHandler {
         }
         builder.field("cluster_name", clusterName.value());
         builder.startObject("version")
-                .field("number", ShieldVersion.CURRENT.number())
+                .field("number", Version.CURRENT.number())
                 .field("build_hash", ShieldBuild.CURRENT.hash())
                 .field("build_timestamp", ShieldBuild.CURRENT.timestamp())
-                .field("build_snapshot", ShieldVersion.CURRENT.snapshot)
+                .field("build_snapshot", Version.CURRENT.snapshot)
                 .endObject();
-        builder.field("tagline", "You know, for security");
+        builder.field("tagline", "You Know, for Security");
         builder.endObject();
 
         channel.sendResponse(new BytesRestResponse(RestStatus.OK, builder));

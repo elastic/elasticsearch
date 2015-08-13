@@ -20,7 +20,6 @@ import org.elasticsearch.license.plugin.core.LicensesService;
 import org.elasticsearch.plugins.AbstractPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.watcher.WatcherVersion;
 import org.elasticsearch.watcher.actions.ActionStatus;
 import org.elasticsearch.watcher.history.HistoryStore;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
@@ -104,7 +103,7 @@ public class LicenseIntegrationTests extends AbstractWatcherIntegrationTests {
         assertThat(watcherClient().prepareDeleteWatch(watchName).get().isFound(), is(true));
 
         // watcher stats API should work
-        assertThat(watcherClient().prepareWatcherStats().get().getVersion(), is(WatcherVersion.CURRENT));
+        assertThat(watcherClient().prepareWatcherStats().get().getWatchesCount(), is(0L));
 
         // watcher service API should work
         WatcherServiceResponse serviceResponse = watcherClient().prepareWatchService().restart().get();
@@ -261,7 +260,7 @@ public class LicenseIntegrationTests extends AbstractWatcherIntegrationTests {
         assertThat(watcherClient().prepareDeleteWatch(watchName).get().isFound(), is(true));
 
         // watcher stats API should work
-        assertThat(watcherClient().prepareWatcherStats().get().getVersion(), is(WatcherVersion.CURRENT));
+        assertThat(watcherClient().prepareWatcherStats().get().getWatchesCount(), is(0L));
 
         // watcher service API should work
         assertThat(watcherClient().prepareWatchService().stop().get().isAcknowledged(), is(true));

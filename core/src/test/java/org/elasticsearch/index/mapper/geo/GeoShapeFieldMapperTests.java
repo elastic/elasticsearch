@@ -168,6 +168,7 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
                     .field("tree", "quadtree")
                     .field("tree_levels", "6")
                     .field("distance_error_pct", "0.5")
+                    .field("points_only", true)
                 .endObject().endObject()
                 .endObject().endObject().string();
 
@@ -181,6 +182,7 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(strategy.getDistErrPct(), equalTo(0.5));
         assertThat(strategy.getGrid(), instanceOf(QuadPrefixTree.class));
         assertThat(strategy.getGrid().getMaxLevels(), equalTo(6));
+        assertThat(strategy.isPointsOnly(), equalTo(true));
     }
     
     @Test
@@ -308,7 +310,28 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
             assertThat(strategy.getGrid().getMaxLevels(), equalTo(GeoUtils.quadTreeLevelsForPrecision(70d)+1)); 
         }
     }
-    
+
+    @Test
+    public void testPointsOnlyOption() throws IOException {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
+                .startObject("properties").startObject("location")
+                .field("type", "geo_shape")
+                .field("tree", "geohash")
+                .field("points_only", true)
+                .endObject().endObject()
+                .endObject().endObject().string();
+
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        FieldMapper fieldMapper = defaultMapper.mappers().getMapper("location");
+        assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
+
+        GeoShapeFieldMapper geoShapeFieldMapper = (GeoShapeFieldMapper) fieldMapper;
+        PrefixTreeStrategy strategy = geoShapeFieldMapper.fieldType().defaultStrategy();
+
+        assertThat(strategy.getGrid(), instanceOf(GeohashPrefixTree.class));
+        assertThat(strategy.isPointsOnly(), equalTo(true));
+    }
+
     @Test
     public void testLevelDefaults() throws IOException {
         DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();

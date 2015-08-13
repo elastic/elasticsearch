@@ -24,18 +24,6 @@
             <groupId>org.elasticsearch.distribution.shaded</groupId>
             <artifactId>elasticsearch</artifactId>
             <version>${elasticsearch.version}</version>
-            <exclusions>
-                <exclusion>
-                    <groupId>org.elasticsearch</groupId>
-                    <artifactId>elasticsearch</artifactId>
-                </exclusion>
-            </exclusions>
-        </dependency>
-        <dependency>
-            <groupId>org.elasticsearch</groupId>
-            <artifactId>elasticsearch-lucene</artifactId>
-            <version>${elasticsearch.version}</version>
-            <type>pom</type>
         </dependency>
         <dependency>
             <groupId>org.hamcrest</groupId>

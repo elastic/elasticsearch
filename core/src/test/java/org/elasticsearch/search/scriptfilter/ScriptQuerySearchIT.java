@@ -21,8 +21,7 @@ package org.elasticsearch.search.scriptfilter;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.cache.query.QueryCacheModule;
-import org.elasticsearch.index.cache.query.QueryCacheModule.QueryCacheSettings;
+import org.elasticsearch.index.cache.IndexCacheModule;
 import org.elasticsearch.index.cache.query.index.IndexQueryCache;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService.ScriptType;
@@ -50,8 +49,8 @@ public class ScriptQuerySearchIT extends ESIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.settingsBuilder().put(super.nodeSettings(nodeOrdinal))
                 // aggressive filter caching so that we can assert on the number of iterations of the script filters
-                .put(QueryCacheModule.QueryCacheSettings.QUERY_CACHE_TYPE, IndexQueryCache.class)
-                .put(QueryCacheSettings.QUERY_CACHE_EVERYTHING, true)
+                .put(IndexCacheModule.QUERY_CACHE_TYPE, IndexCacheModule.INDEX_QUERY_CACHE)
+                .put(IndexCacheModule.QUERY_CACHE_EVERYTHING, true)
                 .build();
     }
 

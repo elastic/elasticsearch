@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.test.cache.recycler;
+package org.elasticsearch.common.util;
 
 import com.carrotsearch.randomizedtesting.RandomizedContext;
 import com.carrotsearch.randomizedtesting.SeedUtils;
@@ -30,15 +30,8 @@ import org.apache.lucene.util.Accountables;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.util.BigArray;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.ByteArray;
-import org.elasticsearch.common.util.DoubleArray;
-import org.elasticsearch.common.util.FloatArray;
-import org.elasticsearch.common.util.IntArray;
-import org.elasticsearch.common.util.LongArray;
-import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.plugins.AbstractPlugin;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collection;

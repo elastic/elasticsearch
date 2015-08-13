@@ -29,7 +29,6 @@ import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.test.cache.recycler.MockBigArrays;
 import org.junit.Before;
 
 import java.lang.reflect.InvocationTargetException;

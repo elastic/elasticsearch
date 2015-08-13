@@ -20,14 +20,20 @@
 package org.elasticsearch.index.cache;
 
 import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.inject.Scopes;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.cache.bitset.BitsetFilterCacheModule;
-import org.elasticsearch.index.cache.query.QueryCacheModule;
+import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
+import org.elasticsearch.index.cache.query.QueryCache;
+import org.elasticsearch.index.cache.query.index.IndexQueryCache;
+import org.elasticsearch.index.cache.query.none.NoneQueryCache;
 
-/**
- *
- */
 public class IndexCacheModule extends AbstractModule {
+
+    public static final String INDEX_QUERY_CACHE = "index";
+    public static final String NONE_QUERY_CACHE = "none";
+    public static final String QUERY_CACHE_TYPE = "index.queries.cache.type";
+    // for test purposes only
+    public static final String QUERY_CACHE_EVERYTHING = "index.queries.cache.everything";
 
     private final Settings settings;
 
@@ -37,9 +43,17 @@ public class IndexCacheModule extends AbstractModule {
 
     @Override
     protected void configure() {
-        new QueryCacheModule(settings).configure(binder());
-        new BitsetFilterCacheModule(settings).configure(binder());
-
+        String queryCacheType = settings.get(QUERY_CACHE_TYPE, INDEX_QUERY_CACHE);
+        Class<? extends QueryCache> queryCacheImpl;
+        if (queryCacheType.equals(INDEX_QUERY_CACHE)) {
+            queryCacheImpl = IndexQueryCache.class;
+        } else if (queryCacheType.equals(NONE_QUERY_CACHE)) {
+            queryCacheImpl = NoneQueryCache.class;
+        } else {
+            throw new IllegalArgumentException("Unknown QueryCache type [" + queryCacheType + "]");
+        }
+        bind(QueryCache.class).to(queryCacheImpl).in(Scopes.SINGLETON);
+        bind(BitsetFilterCache.class).asEagerSingleton();
         bind(IndexCache.class).asEagerSingleton();
     }
 }

@@ -66,11 +66,6 @@ public final class TermSuggester extends Suggester<TermSuggestionContext> {
     }
 
     @Override
-    public String[] names() {
-        return new String[] {"term"};
-    }
-
-    @Override
     public SuggestContextParser getContextParser() {
         return new TermSuggestParser(this);
     }

@@ -48,11 +48,6 @@ public class PlainHighlighter implements Highlighter {
     private static final String CACHE_KEY = "highlight-plain";
 
     @Override
-    public String[] names() {
-        return new String[] { "plain", "highlighter" };
-    }
-
-    @Override
     public HighlightField highlight(HighlighterContext highlighterContext) {
         SearchContextHighlight.Field field = highlighterContext.field;
         SearchContext context = highlighterContext.context;

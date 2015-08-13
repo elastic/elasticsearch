@@ -33,8 +33,7 @@ public class SimpleIcuAnalysisTests extends ESTestCase {
     @Test
     public void testDefaultsIcuAnalysis() {
         Settings settings = settingsBuilder()
-                .put("path.home", createTempDir())
-                .loadFromClasspath("org/elasticsearch/index/analysis/phonetic-1.yml").build();
+                .put("path.home", createTempDir()).build();
         AnalysisService analysisService = createAnalysisService(settings);
 
         TokenizerFactory tokenizerFactory = analysisService.tokenizer("icu_tokenizer");

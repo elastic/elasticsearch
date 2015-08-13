@@ -35,6 +35,6 @@ public class CustomHighlighterPlugin extends AbstractPlugin {
     }
 
     public void onModule(SearchModule highlightModule) {
-        highlightModule.registerHighlighter(CustomHighlighter.class);
+        highlightModule.registerHighlighter("test-custom", CustomHighlighter.class);
     }
 }

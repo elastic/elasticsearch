@@ -8,6 +8,7 @@ package org.elasticsearch.marvel.agent.collector.indices;
 import com.google.common.collect.ImmutableList;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
@@ -50,6 +51,7 @@ public class IndexStatsCollector extends AbstractCollector<IndexStatsCollector> 
 
         IndicesStatsResponse indicesStats = client.admin().indices().prepareStats()
                 .setIndices(marvelSettings.indices())
+                .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                 .get(marvelSettings.indexStatsTimeout());
 
         long timestamp = System.currentTimeMillis();

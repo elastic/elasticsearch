@@ -33,19 +33,20 @@ import static org.hamcrest.Matchers.*;
 @ESIntegTestCase.ClusterScope(numDataNodes = 0)
 public class IndexRecoveryCollectorTests extends ESIntegTestCase {
 
-    private boolean activeOnly = false;
+    private final boolean activeOnly = false;
+    private final String indexName = "test";
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return settingsBuilder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put(MarvelSettingsService.INDEX_RECOVERY_ACTIVE_ONLY, activeOnly)
+                .put(MarvelSettingsService.INDICES, indexName)
                 .build();
     }
 
     @Test
     public void testIndexRecoveryCollector() throws Exception {
-        final String indexName = "test";
 
         logger.info("--> start first node");
         final String node1 = internalCluster().startNode();
@@ -58,7 +59,7 @@ public class IndexRecoveryCollectorTests extends ESIntegTestCase {
         assertNotNull(results);
         assertThat(results, is(empty()));
 
-        logger.info("--> create index on node: {}", node1);
+        logger.info("--> create index [{}] on node [{}]", indexName, node1);
         assertAcked(prepareCreate(indexName, 1, settingsBuilder().put(SETTING_NUMBER_OF_SHARDS, 3).put(SETTING_NUMBER_OF_REPLICAS, 1)));
 
         logger.info("--> indexing sample data");
@@ -66,8 +67,13 @@ public class IndexRecoveryCollectorTests extends ESIntegTestCase {
         for (int i = 0; i < numDocs; i++) {
             client().prepareIndex(indexName, "foo").setSource("value", randomInt()).get();
         }
-        flushAndRefresh(indexName);
+
+        logger.info("--> create a second index [other] that won't be part of stats collection", indexName, node1);
+        client().prepareIndex("other", "bar").setSource("value", randomInt()).get();
+
+        flushAndRefresh();
         assertHitCount(client().prepareCount(indexName).get(), numDocs);
+        assertHitCount(client().prepareCount("other").get(), 1L);
 
         logger.info("--> start second node");
         final String node2 = internalCluster().startNode();
@@ -109,6 +115,7 @@ public class IndexRecoveryCollectorTests extends ESIntegTestCase {
             assertThat(shardRecoveries.size(), greaterThan(0));
 
             for (ShardRecoveryResponse shardRecovery : shardRecoveries) {
+                assertThat(shardRecovery.getIndex(), equalTo(indexName));
                 assertThat(shardRecovery.recoveryState().getType(), anyOf(equalTo(RecoveryState.Type.RELOCATION), equalTo(RecoveryState.Type.STORE), equalTo(RecoveryState.Type.REPLICA)));
             }
         }

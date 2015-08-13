@@ -42,7 +42,7 @@ public final class RandomShardRoutingMutator {
                 break;
             case 1:
                 if (shardRouting.unassigned()) {
-                    shardRouting.initialize(randomFrom(nodes));
+                    shardRouting.initialize(randomFrom(nodes), -1);
                 }
                 break;
             case 2:

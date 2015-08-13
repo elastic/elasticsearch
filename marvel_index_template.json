@@ -25,6 +25,13 @@
         }
       }
     },
+    "marvel_licenses": {
+      "properties": {
+        "licenses": {
+          "type": "object"
+        }
+      }
+    },
     "marvel_index_stats": {
       "properties": {
         "index_stats": {

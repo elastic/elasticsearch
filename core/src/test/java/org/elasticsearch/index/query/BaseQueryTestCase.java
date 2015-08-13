@@ -256,14 +256,12 @@ public abstract class BaseQueryTestCase<QB extends AbstractQueryBuilder<QB>> ext
                 assertThat("two equivalent query builders lead to different lucene queries", secondLuceneQuery, equalTo(firstLuceneQuery));
 
                 //if the initial lucene query is null, changing its boost won't have any effect, we shouldn't test that
+                //few queries also don't support boost, their setter is a no-op
                 //otherwise makes sure that boost is taken into account in toQuery
-                if (firstLuceneQuery != null) {
+                if (firstLuceneQuery != null && supportsBoostAndQueryName()) {
                     secondQuery.boost(firstQuery.boost() + 1f + randomFloat());
-                    //some queries don't support boost, their setter is a no-op
-                    if (supportsBoostAndQueryName()) {
-                        Query thirdLuceneQuery = secondQuery.toQuery(context);
-                        assertThat("modifying the boost doesn't affect the corresponding lucene query", firstLuceneQuery, not(equalTo(thirdLuceneQuery)));
-                    }
+                    Query thirdLuceneQuery = secondQuery.toQuery(context);
+                    assertThat("modifying the boost doesn't affect the corresponding lucene query", firstLuceneQuery, not(equalTo(thirdLuceneQuery)));
                 }
             }
         }

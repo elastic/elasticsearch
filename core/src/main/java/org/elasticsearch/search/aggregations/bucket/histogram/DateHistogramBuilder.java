@@ -40,7 +40,6 @@ public class DateHistogramBuilder extends ValuesSourceAggregationBuilder<DateHis
     private String timeZone;
     private String format;
     private String offset;
-    private float factor = 1.0f;
 
     /**
      * Sole constructor.
@@ -97,15 +96,6 @@ public class DateHistogramBuilder extends ValuesSourceAggregationBuilder<DateHis
     public DateHistogramBuilder offset(String offset) {
        this.offset = offset;
        return this;
-    }
-
-    /**
-     * Set a factor to apply to values of the field, typically used if times
-     * are stored in seconds instead of milliseconds.
-     */
-    public DateHistogramBuilder factor(float factor) {
-        this.factor = factor;
-        return this;
     }
 
     /**
@@ -174,10 +164,6 @@ public class DateHistogramBuilder extends ValuesSourceAggregationBuilder<DateHis
 
         if (offset != null) {
             builder.field("offset", offset);
-        }
-
-        if (factor != 1.0f) {
-            builder.field("factor", factor);
         }
 
         if (format != null) {

@@ -21,6 +21,7 @@ package org.elasticsearch.index.engine;
 
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.search.IndexSearcher;
+import org.elasticsearch.search.internal.ContextIndexSearcher;
 
 /**
  * Extension point to add custom functionality at request time to the {@link DirectoryReader}
@@ -36,10 +37,11 @@ public interface IndexSearcherWrapper {
     DirectoryReader wrap(DirectoryReader reader);
 
     /**
-     * @param searcher The provided index searcher to be wrapped to add custom functionality
+     * @param searcher      The provided index searcher to be wrapped to add custom functionality
+     * @param engineConfig  The engine config to get the query cache and query cache policy from
      * @return a new index searcher wrapping the provided index searcher or if no wrapping was performed
      *         the provided index searcher
      */
-    IndexSearcher wrap(IndexSearcher searcher) throws EngineException;
+    ContextIndexSearcher wrap(ContextIndexSearcher searcher, EngineConfig engineConfig) throws EngineException;
 
 }

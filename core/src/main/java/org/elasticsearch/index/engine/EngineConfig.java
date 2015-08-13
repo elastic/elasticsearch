@@ -77,7 +77,7 @@ public final class EngineConfig {
     private final boolean forceNewTranslog;
     private final QueryCache queryCache;
     private final QueryCachingPolicy queryCachingPolicy;
-    private final IndexSearcherWrappingService wrappingService;
+    private final CreateContextIndexSearcherService wrappingService;
 
     /**
      * Index setting for index concurrency / number of threadstates in the indexwriter.
@@ -144,7 +144,7 @@ public final class EngineConfig {
                         Settings indexSettings, IndicesWarmer warmer, Store store, SnapshotDeletionPolicy deletionPolicy,
                         MergePolicy mergePolicy, MergeSchedulerConfig mergeSchedulerConfig, Analyzer analyzer,
                         Similarity similarity, CodecService codecService, Engine.FailedEngineListener failedEngineListener,
-                        TranslogRecoveryPerformer translogRecoveryPerformer, QueryCache queryCache, QueryCachingPolicy queryCachingPolicy, IndexSearcherWrappingService wrappingService, TranslogConfig translogConfig) {
+                        TranslogRecoveryPerformer translogRecoveryPerformer, QueryCache queryCache, QueryCachingPolicy queryCachingPolicy, CreateContextIndexSearcherService wrappingService, TranslogConfig translogConfig) {
         this.shardId = shardId;
         this.indexSettings = indexSettings;
         this.threadPool = threadPool;
@@ -423,7 +423,7 @@ public final class EngineConfig {
         return queryCachingPolicy;
     }
 
-    public IndexSearcherWrappingService getWrappingService() {
+    public CreateContextIndexSearcherService getWrappingService() {
         return wrappingService;
     }
 

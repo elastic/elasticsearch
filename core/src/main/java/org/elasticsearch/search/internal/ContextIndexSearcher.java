@@ -19,24 +19,20 @@
 
 package org.elasticsearch.search.internal;
 
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.index.TermContext;
 import org.apache.lucene.search.BooleanClause.Occur;
-import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.Collector;
-import org.apache.lucene.search.Explanation;
-import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MultiCollector;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TimeLimitingCollector;
-import org.apache.lucene.search.Weight;
+import org.apache.lucene.search.*;
+import org.apache.lucene.search.similarities.Similarity;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.MinimumScoreCollector;
 import org.elasticsearch.common.lucene.search.FilteredCollector;
-import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.search.SearchService;
-import org.elasticsearch.search.dfs.CachedDfSource;
+import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.internal.SearchContext.Lifetime;
 
 import java.io.IOException;
@@ -50,42 +46,66 @@ import java.util.Map;
  */
 public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
-    public static enum Stage {
+    public enum Stage {
         NA,
         MAIN_QUERY
     }
 
-    /** The wrapped {@link IndexSearcher}. The reason why we sometimes prefer delegating to this searcher instead of <tt>super</tt> is that
-     *  this instance may have more assertions, for example if it comes from MockInternalEngine which wraps the IndexSearcher into an
-     *  AssertingIndexSearcher. */
-    private final IndexSearcher in;
-
-    private final SearchContext searchContext;
-
-    private CachedDfSource dfSource;
-
+    private SearchContext searchContext;
+    private AggregatedDfs aggregatedDfs;
     private Map<Class<?>, Collector> queryCollectors;
-
     private Stage currentState = Stage.NA;
 
-    public ContextIndexSearcher(SearchContext searchContext, Engine.Searcher searcher) {
-        super(searcher.reader());
-        in = searcher.searcher();
-        this.searchContext = searchContext;
-        setSimilarity(searcher.searcher().getSimilarity(true));
+    private QueryCache queryCache;
+    private QueryCachingPolicy queryCachingPolicy;
+
+    // for testing:
+    public ContextIndexSearcher(IndexReader r) {
+        super(r);
+    }
+
+    public ContextIndexSearcher(IndexReader reader, Similarity similarity, QueryCache queryCache, QueryCachingPolicy queryCachingPolicy) {
+        super(reader);
+        setSimilarity(similarity);
+        setQueryCache(queryCache);
+        setQueryCachingPolicy(queryCachingPolicy);
     }
 
     @Override
     public void close() {
     }
 
-    public void dfSource(CachedDfSource dfSource) {
-        this.dfSource = dfSource;
+    public void setDfSource(AggregatedDfs aggregatedDfs) {
+        this.aggregatedDfs = aggregatedDfs;
+    }
+
+    public void setSearchContext(SearchContext searchContext) {
+        this.searchContext = searchContext;
+    }
+
+    @Override
+    public void setQueryCache(QueryCache queryCache) {
+        this.queryCache = queryCache;
+        super.setQueryCache(queryCache);
+    }
+
+    public QueryCache getQueryCache() {
+        return queryCache;
+    }
+
+    @Override
+    public void setQueryCachingPolicy(QueryCachingPolicy queryCachingPolicy) {
+        this.queryCachingPolicy = queryCachingPolicy;
+        super.setQueryCachingPolicy(queryCachingPolicy);
+    }
+
+    public QueryCachingPolicy getQueryCachingPolicy() {
+        return queryCachingPolicy;
     }
 
     /**
      * Adds a query level collector that runs at {@link Stage#MAIN_QUERY}. Note, supports
-     * {@link org.elasticsearch.common.lucene.search.XCollector} allowing for a callback
+     * {@link Collector} allowing for a callback
      * when collection is done.
      */
     public Map<Class<?>, Collector> queryCollectors() {
@@ -106,38 +126,36 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     @Override
     public Query rewrite(Query original) throws IOException {
-        if (original == searchContext.query() || original == searchContext.parsedQuery().query()) {
+        if (searchContext != null && (original == searchContext.query() || original == searchContext.parsedQuery().query())) {
             // optimize in case its the top level search query and we already rewrote it...
             if (searchContext.queryRewritten()) {
                 return searchContext.query();
             }
-            Query rewriteQuery = in.rewrite(original);
+            Query rewriteQuery = super.rewrite(original);
             searchContext.updateRewriteQuery(rewriteQuery);
             return rewriteQuery;
         } else {
-            return in.rewrite(original);
+            return super.rewrite(original);
         }
     }
 
     @Override
     public Weight createNormalizedWeight(Query query, boolean needsScores) throws IOException {
-        // TODO: needsScores
-        // can we avoid dfs stuff here if we dont need scores?
         try {
-            // if its the main query, use we have dfs data, only then do it
-            if (dfSource != null && (query == searchContext.query() || query == searchContext.parsedQuery().query())) {
-                return dfSource.createNormalizedWeight(query, needsScores);
-            }
-            return in.createNormalizedWeight(query, needsScores);
+            return super.createNormalizedWeight(query, needsScores);
         } catch (Throwable t) {
             searchContext.clearReleasables(Lifetime.COLLECTION);
             throw ExceptionsHelper.convertToElastic(t);
         }
     }
 
-
     @Override
     public void search(Query query, Collector collector) throws IOException {
+        if (searchContext == null) {
+            super.search(query, collector);
+            return;
+        }
+
         // Wrap the caller's collector with various wrappers e.g. those used to siphon
         // matches off for aggregation or to impose a time-limit on collection.
         final boolean timeoutSet = searchContext.timeoutInMillis() != SearchService.NO_TIMEOUT.millis();
@@ -176,6 +194,11 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     @Override
     public void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) throws IOException {
+        if (searchContext == null) {
+            super.search(leaves, weight, collector);
+            return;
+        }
+
         final boolean timeoutSet = searchContext.timeoutInMillis() != SearchService.NO_TIMEOUT.millis();
         final boolean terminateAfterSet = searchContext.terminateAfter() != SearchContext.DEFAULT_TERMINATE_AFTER;
         try {
@@ -202,6 +225,10 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     @Override
     public Explanation explain(Query query, int doc) throws IOException {
+        if (searchContext == null) {
+            return super.explain(query, doc);
+        }
+
         try {
             if (searchContext.aliasFilter() == null) {
                 return super.explain(query, doc);
@@ -213,5 +240,33 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         } finally {
             searchContext.clearReleasables(Lifetime.COLLECTION);
         }
+    }
+
+    @Override
+    public TermStatistics termStatistics(Term term, TermContext context) throws IOException {
+        if (searchContext == null || aggregatedDfs == null) {
+            return super.termStatistics(term, context);
+        }
+
+        TermStatistics termStatistics = aggregatedDfs.termStatistics().get(term);
+        if (termStatistics == null) {
+            // we don't have stats for this - this might be a must_not clauses etc. that doesn't allow extract terms on the query
+            return super.termStatistics(term, context);
+        }
+        return termStatistics;
+    }
+
+    @Override
+    public CollectionStatistics collectionStatistics(String field) throws IOException {
+        if (searchContext == null || aggregatedDfs == null) {
+            return super.collectionStatistics(field);
+        }
+
+        CollectionStatistics collectionStatistics = aggregatedDfs.fieldStatistics().get(field);
+        if (collectionStatistics == null) {
+            // we don't have stats for this - this might be a must_not clauses etc. that doesn't allow extract terms on the query
+            return super.collectionStatistics(field);
+        }
+        return collectionStatistics;
     }
 }

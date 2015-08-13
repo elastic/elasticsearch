@@ -103,6 +103,7 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.cache.recycler.MockBigArrays;
 import org.elasticsearch.test.cache.recycler.MockPageCacheRecycler;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
+import org.elasticsearch.test.engine.AssertingCreateContextIndexSearcherService;
 import org.elasticsearch.test.engine.MockEngineFactory;
 import org.elasticsearch.test.search.MockSearchService;
 import org.elasticsearch.test.store.MockFSIndexStore;
@@ -395,6 +396,7 @@ public final class InternalTestCluster extends TestCluster {
             builder.put(PageCacheRecyclerModule.CACHE_IMPL, MockPageCacheRecycler.class.getName());
             builder.put(BigArraysModule.IMPL, MockBigArrays.class.getName());
             builder.put(SearchModule.SEARCH_SERVICE_IMPL, MockSearchService.class.getName());
+            builder.put(IndexShardModule.WRAPPING_SERVICE_CLASS, AssertingCreateContextIndexSearcherService.class.getName());
         }
         if (isLocalTransportConfigured()) {
             builder.extendArray("plugin.types", AssertingLocalTransport.Plugin.class.getName());

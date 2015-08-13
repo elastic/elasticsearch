@@ -79,6 +79,7 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.index.translog.TranslogTests;
+import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -256,7 +257,7 @@ public class InternalEngineTests extends ESTestCase {
             public void onFailedEngine(ShardId shardId, String reason, @Nullable Throwable t) {
                 // we don't need to notify anybody in this test
             }
-        }, new TranslogHandler(shardId.index().getName()), IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), new IndexSearcherWrappingService(new HashSet<>(Arrays.asList(wrappers))), translogConfig);
+        }, new TranslogHandler(shardId.index().getName()), IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), new DefaultCreateContextIndexSearcherService(new HashSet<>(Arrays.asList(wrappers))), translogConfig);
         try {
             config.setCreate(Lucene.indexExists(store.directory()) == false);
         } catch (IOException e) {
@@ -510,7 +511,7 @@ public class InternalEngineTests extends ESTestCase {
             }
 
             @Override
-            public IndexSearcher wrap(IndexSearcher searcher) throws EngineException {
+            public ContextIndexSearcher wrap(ContextIndexSearcher searcher, EngineConfig engineConfig) throws EngineException {
                 counter.incrementAndGet();
                 return searcher;
             }
@@ -2017,7 +2018,7 @@ public class InternalEngineTests extends ESTestCase {
         EngineConfig brokenConfig = new EngineConfig(shardId, threadPool, config.getIndexingService(), config.getIndexSettings()
                 , null, store, createSnapshotDeletionPolicy(), newMergePolicy(), config.getMergeSchedulerConfig(),
                 config.getAnalyzer(), config.getSimilarity(), new CodecService(shardId.index()), config.getFailedEngineListener()
-        , config.getTranslogRecoveryPerformer(), IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), new IndexSearcherWrappingService(), translogConfig);
+        , config.getTranslogRecoveryPerformer(), IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), new DefaultCreateContextIndexSearcherService(), translogConfig);
 
         try {
             new InternalEngine(brokenConfig, false);

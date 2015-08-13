@@ -24,11 +24,7 @@ import org.elasticsearch.common.Classes;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.multibindings.Multibinder;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.cache.query.index.IndexQueryCache;
-import org.elasticsearch.index.engine.IndexSearcherWrapper;
-import org.elasticsearch.index.engine.IndexSearcherWrappingService;
-import org.elasticsearch.index.engine.EngineFactory;
-import org.elasticsearch.index.engine.InternalEngineFactory;
+import org.elasticsearch.index.engine.*;
 import org.elasticsearch.index.percolator.stats.ShardPercolateService;
 import org.elasticsearch.index.termvectors.ShardTermVectorsService;
 import org.elasticsearch.index.translog.TranslogService;
@@ -41,6 +37,7 @@ import org.elasticsearch.index.translog.TranslogService;
 public class IndexShardModule extends AbstractModule {
 
     public static final String ENGINE_FACTORY = "index.engine.factory";
+    public static final String WRAPPING_SERVICE_CLASS = "index.index_seache_.wrapping_class";
 
     private final ShardId shardId;
     private final Settings settings;
@@ -80,8 +77,13 @@ public class IndexShardModule extends AbstractModule {
         bind(StoreRecoveryService.class).asEagerSingleton();
         bind(ShardPercolateService.class).asEagerSingleton();
         bind(ShardTermVectorsService.class).asEagerSingleton();
-        bind(IndexSearcherWrappingService.class).asEagerSingleton();
-        // this injects an empty set in IndexSearcherWrappingService, otherwise guice can't construct IndexSearcherWrappingService
+        Class<? extends CreateContextIndexSearcherService> wrappingServiceClass = DefaultCreateContextIndexSearcherService.class;
+        String customWrappingServiceClass = settings.get(WRAPPING_SERVICE_CLASS);
+        if (customWrappingServiceClass != null) {
+            wrappingServiceClass = Classes.loadClass(getClass().getClassLoader(), customWrappingServiceClass);
+        }
+        bind(CreateContextIndexSearcherService.class).to(wrappingServiceClass);
+        // this injects an empty set in CreateContextIndexSearcherService, otherwise guice can't construct CreateContextIndexSearcherService
         Multibinder<IndexSearcherWrapper> multibinder
                 = Multibinder.newSetBinder(binder(), IndexSearcherWrapper.class);
     }

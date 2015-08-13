@@ -20,6 +20,7 @@ package org.elasticsearch.test;
 
 import com.carrotsearch.hppc.ObjectObjectAssociativeContainer;
 
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;

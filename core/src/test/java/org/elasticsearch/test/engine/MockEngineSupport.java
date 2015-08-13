@@ -22,7 +22,6 @@ import org.apache.lucene.index.AssertingDirectoryReader;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.search.AssertingIndexSearcher;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
@@ -126,19 +125,20 @@ public final class MockEngineSupport {
         }
     }
 
-    public AssertingIndexSearcher newSearcher(String source, IndexSearcher searcher, SearcherManager manager) throws EngineException {
+    public IndexSearcher newSearcher(String source, IndexSearcher searcher, SearcherManager manager) throws EngineException {
         IndexReader reader = searcher.getIndexReader();
-        IndexReader wrappedReader = reader;
         assert reader != null;
         if (reader instanceof DirectoryReader && mockContext.wrapReader) {
-            wrappedReader = wrapReader((DirectoryReader) reader);
+            DirectoryReader wrappedReader = wrapReader((DirectoryReader) reader);
+            // No need to wrap in AssertingIndexSearcher, this is already done in AssertingCreateContextIndexSearcherService
+            IndexSearcher indexSearcher =  new IndexSearcher(wrappedReader);
+            indexSearcher.setSimilarity(searcher.getSimilarity(true));
+            indexSearcher.setQueryCache(filterCache);
+            indexSearcher.setQueryCachingPolicy(filterCachingPolicy);
+            return indexSearcher;
+        } else {
+            return searcher;
         }
-        // this executes basic query checks and asserts that weights are normalized only once etc.
-        final AssertingIndexSearcher assertingIndexSearcher = new AssertingIndexSearcher(mockContext.random, wrappedReader);
-        assertingIndexSearcher.setSimilarity(searcher.getSimilarity(true));
-        assertingIndexSearcher.setQueryCache(filterCache);
-        assertingIndexSearcher.setQueryCachingPolicy(filterCachingPolicy);
-        return assertingIndexSearcher;
     }
 
     private DirectoryReader wrapReader(DirectoryReader reader) {
@@ -186,8 +186,7 @@ public final class MockEngineSupport {
     }
 
     public Engine.Searcher wrapSearcher(String source, Engine.Searcher engineSearcher, IndexSearcher searcher, SearcherManager manager) {
-        final AssertingIndexSearcher assertingIndexSearcher = newSearcher(source, searcher, manager);
-        assertingIndexSearcher.setSimilarity(searcher.getSimilarity(true));
+        final IndexSearcher assertingIndexSearcher = newSearcher(source, searcher, manager);
         // pass the original searcher to the super.newSearcher() method to make sure this is the searcher that will
         // be released later on. If we wrap an index reader here must not pass the wrapped version to the manager
         // on release otherwise the reader will be closed too early. - good news, stuff will fail all over the place if we don't get this right here

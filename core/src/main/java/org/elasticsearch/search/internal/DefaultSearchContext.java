@@ -149,7 +149,8 @@ public class DefaultSearchContext extends SearchContext {
         this.fetchResult = new FetchSearchResult(id, shardTarget);
         this.indexShard = indexShard;
         this.indexService = indexService;
-        this.searcher = new ContextIndexSearcher(this, engineSearcher);
+        this.searcher = (ContextIndexSearcher) engineSearcher.searcher();
+        this.searcher.setSearchContext(this);
         this.timeEstimateCounter = timeEstimateCounter;
         this.timeoutInMillis = timeout.millis();
     }

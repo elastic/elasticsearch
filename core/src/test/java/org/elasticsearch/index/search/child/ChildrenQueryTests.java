@@ -22,41 +22,19 @@ import com.carrotsearch.hppc.FloatArrayList;
 import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.hppc.ObjectObjectHashMap;
 import com.carrotsearch.randomizedtesting.generators.RandomInts;
-
 import org.apache.lucene.analysis.MockAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.DoubleField;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
-import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.LeafReader;
-import org.apache.lucene.index.PostingsEnum;
-import org.apache.lucene.index.RandomIndexWriter;
-import org.apache.lucene.index.SlowCompositeReaderWrapper;
-import org.apache.lucene.index.Term;
-import org.apache.lucene.index.Terms;
-import org.apache.lucene.index.TermsEnum;
-import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.LeafCollector;
-import org.apache.lucene.search.MultiCollector;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.QueryUtils;
-import org.apache.lucene.search.QueryWrapperFilter;
-import org.apache.lucene.search.ScoreDoc;
-import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.search.TopDocs;
-import org.apache.lucene.search.TopScoreDocCollector;
+import org.apache.lucene.index.*;
+import org.apache.lucene.search.*;
 import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.IdFieldMapper;
@@ -73,19 +51,9 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.util.Locale;
-import java.util.Map;
-import java.util.NavigableMap;
-import java.util.Random;
-import java.util.TreeMap;
+import java.util.*;
 
-import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
-import static org.elasticsearch.index.query.QueryBuilders.filteredQuery;
-import static org.elasticsearch.index.query.QueryBuilders.functionScoreQuery;
-import static org.elasticsearch.index.query.QueryBuilders.hasChildQuery;
-import static org.elasticsearch.index.query.QueryBuilders.notQuery;
-import static org.elasticsearch.index.query.QueryBuilders.termQuery;
-import static org.elasticsearch.index.query.QueryBuilders.typeQuery;
+import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
@@ -191,11 +159,8 @@ public class ChildrenQueryTests extends AbstractChildTestCase {
         indexWriter.commit();
 
         IndexReader indexReader = DirectoryReader.open(directory);
-        IndexSearcher searcher = new IndexSearcher(indexReader);
-        Engine.Searcher engineSearcher = new Engine.Searcher(
-                ChildrenQueryTests.class.getSimpleName(), searcher
-        );
-        ((TestSearchContext) SearchContext.current()).setSearcher(new ContextIndexSearcher(SearchContext.current(), engineSearcher));
+        ContextIndexSearcher searcher = new ContextIndexSearcher(indexReader);
+        ((TestSearchContext) SearchContext.current()).setSearcher(searcher);
 
         int max = numUniqueChildValues / 4;
         for (int i = 0; i < max; i++) {
@@ -220,11 +185,8 @@ public class ChildrenQueryTests extends AbstractChildTestCase {
 
                 indexReader.close();
                 indexReader = DirectoryReader.open(indexWriter.w, true);
-                searcher = new IndexSearcher(indexReader);
-                engineSearcher = new Engine.Searcher(
-                        ChildrenConstantScoreQueryTests.class.getSimpleName(), searcher
-                );
-                ((TestSearchContext) SearchContext.current()).setSearcher(new ContextIndexSearcher(SearchContext.current(), engineSearcher));
+                searcher = new ContextIndexSearcher(indexReader);
+                ((TestSearchContext) SearchContext.current()).setSearcher(searcher);
             }
 
             String childValue = childValues[random().nextInt(numUniqueChildValues)];
@@ -380,12 +342,10 @@ public class ChildrenQueryTests extends AbstractChildTestCase {
 
         writer.commit();
 
-        IndexReader reader = DirectoryReader.open(writer, true);
-        IndexSearcher searcher = new IndexSearcher(reader);
-
         // setup to read the parent/child map
-        Engine.Searcher engineSearcher = new Engine.Searcher(ChildrenQueryTests.class.getSimpleName(), searcher);
-        ((TestSearchContext)context).setSearcher(new ContextIndexSearcher(context, engineSearcher));
+        IndexReader reader = DirectoryReader.open(writer, true);
+        ContextIndexSearcher searcher = new ContextIndexSearcher(reader);
+        ((TestSearchContext) SearchContext.current()).setSearcher(searcher);
 
         // child query that returns the score as the value of "childScore" for each child document, with the parent's score determined by the score type
         QueryBuilder childQueryBuilder = functionScoreQuery(typeQuery("child")).add(new FieldValueFactorFunctionBuilder(CHILD_SCORE_NAME));

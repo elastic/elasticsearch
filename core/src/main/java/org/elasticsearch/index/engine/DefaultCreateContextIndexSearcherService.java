@@ -20,34 +20,28 @@
 package org.elasticsearch.index.engine;
 
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.index.engine.Engine.Searcher;
+import org.elasticsearch.search.internal.ContextIndexSearcher;
 
 import java.util.Set;
 
-/**
- * Service responsible for wrapping the {@link DirectoryReader} and {@link IndexSearcher} of a {@link Searcher} via the
- * configured {@link IndexSearcherWrapper} instance. This allows custom functionally to be added the {@link Searcher}
- * before being used to do an operation (search, get, field stats etc.)
- */
-// TODO: This needs extension point is a bit hacky now, because the IndexSearch from the engine can only be wrapped once,
-// if we allowed the IndexSearcher to be wrapped multiple times then a custom IndexSearcherWrapper needs have good
-// control over its location in the wrapping chain
-public final class IndexSearcherWrappingService {
+public class DefaultCreateContextIndexSearcherService implements CreateContextIndexSearcherService {
 
     private final IndexSearcherWrapper wrapper;
 
     // for unit tests:
-    IndexSearcherWrappingService() {
+    DefaultCreateContextIndexSearcherService() {
         this.wrapper = null;
     }
 
     @Inject
     // Use a Set parameter here, because constructor parameter can't be optional
     // and I prefer to keep the `wrapper` field final.
-    public IndexSearcherWrappingService(Set<IndexSearcherWrapper> wrappers) {
+    public DefaultCreateContextIndexSearcherService(Set<IndexSearcherWrapper> wrappers) {
         if (wrappers.size() > 1) {
             throw new IllegalStateException("wrapping of the index searcher by more than one wrappers is forbidden, found the following wrappers [" + wrappers + "]");
         }
@@ -64,31 +58,36 @@ public final class IndexSearcherWrappingService {
      *
      * This is invoked each time a {@link Searcher} is requested to do an operation. (for example search)
      */
-    public Searcher wrap(EngineConfig engineConfig, final Searcher engineSearcher) throws EngineException {
+    public Searcher wrap(EngineConfig engineConfig, final Searcher originalEngineSearcher) throws EngineException {
         if (wrapper == null) {
-            return engineSearcher;
+            ContextIndexSearcher indexSearcher = createContextIndexSearcher(engineConfig, originalEngineSearcher, originalEngineSearcher.reader());
+            return wrapEngineSearcher(engineConfig, indexSearcher, originalEngineSearcher);
         }
 
-        DirectoryReader reader = wrapper.wrap((DirectoryReader) engineSearcher.reader());
-        IndexSearcher innerIndexSearcher = new IndexSearcher(reader);
-        innerIndexSearcher.setQueryCache(engineConfig.getQueryCache());
-        innerIndexSearcher.setQueryCachingPolicy(engineConfig.getQueryCachingPolicy());
-        innerIndexSearcher.setSimilarity(engineConfig.getSimilarity());
+        DirectoryReader reader = wrapper.wrap((DirectoryReader) originalEngineSearcher.reader());
+        ContextIndexSearcher innerIndexSearcher = createContextIndexSearcher(engineConfig, originalEngineSearcher, reader);
         // TODO: Right now IndexSearcher isn't wrapper friendly, when it becomes wrapper friendly we should revise this extension point
         // For example if IndexSearcher#rewrite() is overwritten than also IndexSearcher#createNormalizedWeight needs to be overwritten
         // This needs to be fixed before we can allow the IndexSearcher from Engine to be wrapped multiple times
-        IndexSearcher indexSearcher = wrapper.wrap(innerIndexSearcher);
-        if (reader == engineSearcher.reader() && indexSearcher == innerIndexSearcher) {
-            return engineSearcher;
-        } else {
-            return new Engine.Searcher(engineSearcher.source(), indexSearcher) {
+        ContextIndexSearcher indexSearcher = wrapper.wrap(innerIndexSearcher, engineConfig);
+        return wrapEngineSearcher(engineConfig, indexSearcher, originalEngineSearcher);
+    }
 
-                @Override
-                public void close() throws ElasticsearchException {
-                    engineSearcher.close();
-                }
-            };
-        }
+    protected Searcher wrapEngineSearcher(EngineConfig engineConfig, ContextIndexSearcher indexSearcher, final Searcher originalEngineSearcher) {
+        return new Searcher(originalEngineSearcher.source(), indexSearcher) {
+
+            @Override
+            public void close() throws ElasticsearchException {
+                originalEngineSearcher.close();
+            }
+        };
+    }
+
+    private ContextIndexSearcher createContextIndexSearcher(EngineConfig engineConfig, Searcher engineSearcher, IndexReader reader) {
+        return new ContextIndexSearcher(
+                reader, engineSearcher.searcher().getSimilarity(true),
+                engineConfig.getQueryCache(), engineConfig.getQueryCachingPolicy()
+        );
     }
 
 }

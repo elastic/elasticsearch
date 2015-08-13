@@ -241,29 +241,22 @@ public abstract class BaseQueryTestCase<QB extends AbstractQueryBuilder<QB>> ext
         Query firstLuceneQuery = firstQuery.toQuery(context);
         assertLuceneQuery(firstQuery, firstLuceneQuery, context);
 
-        try (BytesStreamOutput output = new BytesStreamOutput()) {
-            firstQuery.writeTo(output);
-            try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
-                @SuppressWarnings("unchecked")
-                QueryParser<QB> queryParser = (QueryParser<QB>)queryParserService.queryParser(firstQuery.getWriteableName());
-                QB secondQuery = queryParser.getBuilderPrototype().readFrom(in);
-                //query _name never should affect the result of toQuery, we randomly set it to make sure
-                if (randomBoolean()) {
-                    secondQuery.queryName(secondQuery.queryName() == null ? randomAsciiOfLengthBetween(1, 30) : secondQuery.queryName() + randomAsciiOfLengthBetween(1, 10));
-                }
-                Query secondLuceneQuery = secondQuery.toQuery(context);
-                assertLuceneQuery(secondQuery, secondLuceneQuery, context);
-                assertThat("two equivalent query builders lead to different lucene queries", secondLuceneQuery, equalTo(firstLuceneQuery));
+        QB secondQuery = copyQuery(firstQuery);
+        //query _name never should affect the result of toQuery, we randomly set it to make sure
+        if (randomBoolean()) {
+            secondQuery.queryName(secondQuery.queryName() == null ? randomAsciiOfLengthBetween(1, 30) : secondQuery.queryName() + randomAsciiOfLengthBetween(1, 10));
+        }
+        Query secondLuceneQuery = secondQuery.toQuery(context);
+        assertLuceneQuery(secondQuery, secondLuceneQuery, context);
+        assertThat("two equivalent query builders lead to different lucene queries", secondLuceneQuery, equalTo(firstLuceneQuery));
 
-                //if the initial lucene query is null, changing its boost won't have any effect, we shouldn't test that
-                //few queries also don't support boost, their setter is a no-op
-                //otherwise makes sure that boost is taken into account in toQuery
-                if (firstLuceneQuery != null && supportsBoostAndQueryName()) {
-                    secondQuery.boost(firstQuery.boost() + 1f + randomFloat());
-                    Query thirdLuceneQuery = secondQuery.toQuery(context);
-                    assertThat("modifying the boost doesn't affect the corresponding lucene query", firstLuceneQuery, not(equalTo(thirdLuceneQuery)));
-                }
-            }
+        //if the initial lucene query is null, changing its boost won't have any effect, we shouldn't test that
+        //few queries also don't support boost e.g. wrapper query and filter query
+        //otherwise makes sure that boost is taken into account in toQuery
+        if (firstLuceneQuery != null && supportsBoostAndQueryName()) {
+            secondQuery.boost(firstQuery.boost() + 1f + randomFloat());
+            Query thirdLuceneQuery = secondQuery.toQuery(context);
+            assertThat("modifying the boost doesn't affect the corresponding lucene query", firstLuceneQuery, not(equalTo(thirdLuceneQuery)));
         }
     }
 
@@ -312,6 +305,51 @@ public abstract class BaseQueryTestCase<QB extends AbstractQueryBuilder<QB>> ext
                 assertEquals(deserializedQuery, testQuery);
                 assertEquals(deserializedQuery.hashCode(), testQuery.hashCode());
                 assertNotSame(deserializedQuery, testQuery);
+            }
+        }
+    }
+
+    @Test
+    public void testEqualsAndHashcode() throws IOException {
+        QB firstQuery = createTestQueryBuilder();
+        assertFalse("query is equal to null", firstQuery.equals(null));
+        assertFalse("query is equal to incompatible type", firstQuery.equals(""));
+        assertTrue("query is not equal to self", firstQuery.equals(firstQuery));
+        assertThat("same query's hashcode returns different values if called multiple times", firstQuery.hashCode(), equalTo(firstQuery.hashCode()));
+
+        QB secondQuery = copyQuery(firstQuery);
+        assertTrue("query is not equal to self", secondQuery.equals(secondQuery));
+        assertTrue("query is not equal to its copy", firstQuery.equals(secondQuery));
+        assertTrue("equals is not symmetric", secondQuery.equals(firstQuery));
+        assertThat("query copy's hashcode is different from original hashcode", secondQuery.hashCode(), equalTo(firstQuery.hashCode()));
+
+        QB thirdQuery = copyQuery(secondQuery);
+        assertTrue("query is not equal to self", thirdQuery.equals(thirdQuery));
+        assertTrue("query is not equal to its copy", secondQuery.equals(thirdQuery));
+        assertThat("query copy's hashcode is different from original hashcode", secondQuery.hashCode(), equalTo(thirdQuery.hashCode()));
+        assertTrue("equals is not transitive", firstQuery.equals(thirdQuery));
+        assertThat("query copy's hashcode is different from original hashcode", firstQuery.hashCode(), equalTo(thirdQuery.hashCode()));
+        assertTrue("equals is not symmetric", thirdQuery.equals(secondQuery));
+        assertTrue("equals is not symmetric", thirdQuery.equals(firstQuery));
+
+        if (randomBoolean()) {
+            secondQuery.queryName(secondQuery.queryName() == null ? randomAsciiOfLengthBetween(1, 30) : secondQuery.queryName() + randomAsciiOfLengthBetween(1, 10));
+        } else {
+            secondQuery.boost(firstQuery.boost() + 1f + randomFloat());
+        }
+        assertThat("different queries should not be equal", secondQuery, not(equalTo(firstQuery)));
+        assertThat("different queries should have different hashcode", secondQuery.hashCode(), not(equalTo(firstQuery.hashCode())));
+    }
+
+    //we use the streaming infra to create a copy of the query provided as argument
+    private QB copyQuery(QB query) throws IOException {
+        try (BytesStreamOutput output = new BytesStreamOutput()) {
+            query.writeTo(output);
+            try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
+                QueryBuilder<?> prototype = queryParserService.queryParser(query.getWriteableName()).getBuilderPrototype();
+                @SuppressWarnings("unchecked")
+                QB secondQuery = (QB)prototype.readFrom(in);
+                return secondQuery;
             }
         }
     }

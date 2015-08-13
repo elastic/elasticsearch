@@ -20,6 +20,7 @@
 package org.elasticsearch.index.percolator;
 
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
@@ -260,7 +261,9 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent imple
             try (Engine.Searcher searcher = shard.engine().acquireSearcher("percolator_load_queries")) {
                 Query query = new TermQuery(new Term(TypeFieldMapper.NAME, PercolatorService.TYPE_NAME));
                 QueriesLoaderCollector queryCollector = new QueriesLoaderCollector(PercolatorQueriesRegistry.this, logger, mapperService, indexFieldDataService);
-                searcher.searcher().search(query, queryCollector);
+                IndexSearcher indexSearcher = new IndexSearcher(searcher.reader());
+                indexSearcher.setQueryCache(null);
+                indexSearcher.search(query, queryCollector);
                 Map<BytesRef, Query> queries = queryCollector.queries();
                 for (Map.Entry<BytesRef, Query> entry : queries.entrySet()) {
                     Query previousQuery = percolateQueries.put(entry.getKey(), entry.getValue());

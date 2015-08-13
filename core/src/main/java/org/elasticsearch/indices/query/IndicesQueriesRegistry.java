@@ -38,7 +38,7 @@ public class IndicesQueriesRegistry extends AbstractComponent {
     private ImmutableMap<String, QueryParser<?>> queryParsers;
 
     @Inject
-    public IndicesQueriesRegistry(Settings settings, Set<QueryParser<?>> injectedQueryParsers, NamedWriteableRegistry namedWriteableRegistry) {
+    public IndicesQueriesRegistry(Settings settings, Set<QueryParser> injectedQueryParsers, NamedWriteableRegistry namedWriteableRegistry) {
         super(settings);
         Map<String, QueryParser<?>> queryParsers = Maps.newHashMap();
         for (QueryParser<?> queryParser : injectedQueryParsers) {

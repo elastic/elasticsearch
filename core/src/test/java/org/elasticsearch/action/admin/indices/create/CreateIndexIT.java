@@ -41,22 +41,6 @@ import static org.hamcrest.core.IsNull.notNullValue;
 public class CreateIndexIT extends ESIntegTestCase {
 
     @Test
-    public void testCreationDate_Given() {
-        prepareCreate("test").setSettings(Settings.builder().put(IndexMetaData.SETTING_CREATION_DATE, 4l)).get();
-        ClusterStateResponse response = client().admin().cluster().prepareState().get();
-        ClusterState state = response.getState();
-        assertThat(state, notNullValue());
-        MetaData metadata = state.getMetaData();
-        assertThat(metadata, notNullValue());
-        ImmutableOpenMap<String, IndexMetaData> indices = metadata.getIndices();
-        assertThat(indices, notNullValue());
-        assertThat(indices.size(), equalTo(1));
-        IndexMetaData index = indices.get("test");
-        assertThat(index, notNullValue());
-        assertThat(index.creationDate(), equalTo(4l));
-    }
-
-    @Test
     public void testCreationDate_Generated() {
         long timeBeforeRequest = System.currentTimeMillis();
         prepareCreate("test").get();

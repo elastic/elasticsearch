@@ -329,9 +329,10 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                         indexSettingsBuilder.put(SETTING_VERSION_CREATED, createdVersion);
                     }
 
-                    if (indexSettingsBuilder.get(SETTING_CREATION_DATE) == null) {
-                        indexSettingsBuilder.put(SETTING_CREATION_DATE, new DateTime(DateTimeZone.UTC).getMillis());
-                    }
+                    // removing it due to bug : https://github.com/elastic/elasticsearch/issues/12790
+                    // if (indexSettingsBuilder.get(SETTING_CREATION_DATE) == null) {
+                    indexSettingsBuilder.put(SETTING_CREATION_DATE, new DateTime(DateTimeZone.UTC).getMillis());
+                    //}
 
                     indexSettingsBuilder.put(SETTING_INDEX_UUID, Strings.randomBase64UUID());
 

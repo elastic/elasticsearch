@@ -31,6 +31,11 @@ Many APIs which support date values also support <<date-math,date math>>
 expressions, such as `now-1m/d` -- the current time, minus one month, rounded
 down to the nearest day.
 
+TIP: The `format` setting must have the same setting for fields of the same
+name in the same index.  Its value can be updated on existing fields using the
+<<indices-put-mapping,PUT mapping API>>.
+
+
 [[custom-date-formats]]
 ==== Custom date formats
 

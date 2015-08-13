@@ -173,7 +173,7 @@
           <arg value="-Des.discovery.zen.ping.unicast.enabled=@{es.unicast.enabled}"/>
           <arg value="-Des.discovery.zen.ping.unicast.hosts=@{es.unicast.hosts}"/>
           <arg value="-Des.path.repo=@{home}/repo"/>
-          <arg value="-Des.path.shared_data=@{home}/custom"/>
+          <arg value="-Des.path.shared_data=@{home}/../"/>
           <arg value="-Des.discovery.zen.ping.multicast.enabled=false"/>
           <arg value="-Des.script.inline=on"/>
           <arg value="-Des.script.indexed=on"/>

@@ -1,80 +1,195 @@
 [[indices-put-mapping]]
 == Put Mapping
 
-The put mapping API allows to register specific mapping definition for a
-specific type.
+The PUT mapping API allows you to add a new type to an existing index, or new
+fields to an existing type:
 
 [source,js]
 --------------------------------------------------
-$ curl -XPUT 'http://localhost:9200/twitter/_mapping/tweet' -d '
+PUT twitter <1>
 {
-    "tweet" : {
-        "properties" : {
-            "message" : {"type" : "string", "store" : true }
+  "mappings": {
+    "tweet": {
+      "properties": {
+        "message": {
+          "type": "string"
         }
+      }
     }
+  }
 }
-'
---------------------------------------------------
 
-The above example creates a mapping called `tweet` within the `twitter`
-index. The mapping simply defines that the `message` field should be
-stored (by default, fields are not stored, just indexed) so we can
-retrieve it later on using selective loading.
+PUT twitter/_mapping/user <2>
+{
+  "properties": {
+    "name": {
+      "type": "string"
+    }
+  }
+}
+
+PUT twitter/_mapping/tweet <3>
+{
+  "properties": {
+    "user_name": {
+      "type": "string"
+    }
+  }
+}
+--------------------------------------------------
+// AUTOSENSE
+<1> <<indices-create-index,Creates an index>> called `twitter` with the `message` field in the `tweet` <<mapping-type,mapping type>>.
+<2> Uses the PUT mapping API to add a new mapping type called `user`.
+<3> Uses the PUT mapping API to add a new field called `user_name` to the `tweet` mapping type.
 
 More information on how to define type mappings can be found in the
 <<mapping,mapping>> section.
 
 [float]
-[[merging-conflicts]]
-=== Merging & Conflicts
+=== Multi-index
 
-When an existing mapping already exists under the given type, the two
-mapping definitions, the one already defined, and the new ones are
-merged. If there are conflicts then the update will be rejected.
+The PUT mapping API can be applied to multiple indices with a single request.
+It has the following format:
 
-The definition of conflict is really dependent on the type merged, but
-in general, if a different core type is defined, it is considered as a
-conflict. New mapping definitions can be added to object types, and core
-type mappings can be upgraded by specifying multi fields on a core type.
+[source,js]
+--------------------------------------------------
+PUT /{index}/_mapping/{type}
+{ body }
+--------------------------------------------------
+
+* `{index}` accepts <<multi-index,multiple index names>> and wildcards.
+* `{type}` is the name of the type to update.
+* `{body}` contains the mapping changes that should be applied.
+
+
+[[updating-field-mappings]]
+[float]
+=== Updating field mappings
+
+In general, the mapping for existing fields cannot be updated.  There are some
+exceptions to this rule. For instance:
+
+* new <<properties>> can be added to <<object>> fields.
+* new <<multi-fields,multi-fields>> can be added to existing fields.
+* <<doc-values>> can be disabled, but not enabled.
+* the <<ignore-above>> parameter can be updated.
+
+For example:
+
+[source,js]
+-----------------------------------
+PUT my_index <1>
+{
+  "mappings": {
+    "user": {
+      "properties": {
+        "name": {
+          "properties": {
+            "first": {
+              "type": "string"
+            }
+          }
+        },
+        "user_id": {
+          "type": "string",
+          "index": "not_analyzed"
+        }
+      }
+    }
+  }
+}
+
+PUT my_index/mapping/user
+{
+  "properties": {
+    "name": {
+      "properties": {
+        "last": { <2>
+          "type": "string"
+        }
+      }
+    },
+    "user_id": {
+      "type": "string",
+      "index": "not_analyzed",
+      "ignore_above": 100 <3>
+    }
+  }
+}
+-----------------------------------
+// AUTOSENSE
+<1> Create an index with a `first` field under the `name` <<object>> field, and a `user_id` field.
+<2> Add a `last` field under the `name` object field.
+<3> Update the `ignore_above` setting from its default of 0.
+
+Each <<mapping-params,mapping parameter>> specifies whether or not its setting
+can be updated on an existing field.
 
 [float]
-[[put-mapping-multi-index]]
-=== Multi Index
+[[merging-conflicts]]
+=== Conflicts between fields in different types
 
-The put mapping API can be applied to more than one index with a single
-call, or even on `_all` the indices.
+Fields in the same index with the same name in two different types must have
+the same mapping, as they are backed by the same field internally.  Trying to
+<<updating-field-mappings,update a mapping parameter>> for a field which
+exists in more than one type will throw an exception, unless you specify the
+`update_all_types` parameter, in which case it will update that parameter
+across all fields with the same name in the same index.
+
+TIP: The only parameters which are exempt from this rule -- they can be set to
+different values on each field -- can be found in  <<field-conflicts>>.
+
+For example:
 
 [source,js]
---------------------------------------------------
-$ curl -XPUT 'http://localhost:9200/kimchy,elasticsearch/_mapping/tweet' -d '
+-----------------------------------
+PUT my_index
 {
-    "tweet" : {
-        "properties" : {
-            "message" : {"type" : "string", "store" : true }
+  "mappings": {
+    "type_one": {
+      "properties": {
+        "text": { <1>
+          "type": "string",
+          "analyzer": "standard"
         }
+      }
+    },
+    "type_two": {
+      "properties": {
+        "text": { <1>
+          "type": "string",
+          "analyzer": "standard"
+        }
+      }
     }
+  }
 }
-'
---------------------------------------------------
 
-All options:
+PUT my_index/_mapping/type_one <2>
+{
+  "properties": {
+    "text": {
+      "type": "string",
+      "analyzer": "standard",
+      "search_analyzer": "whitespace"
+    }
+  }
+}
 
-[source,js]
---------------------------------------------------
+PUT my_index/_mapping/type_one?update_all_types <3>
+{
+  "properties": {
+    "text": {
+      "type": "string",
+      "analyzer": "standard",
+      "search_analyzer": "whitespace"
+    }
+  }
+}
+-----------------------------------
+// AUTOSENSE
+<1> Create an index with two types, both of which contain a `text` field which have the same mapping.
+<2> Tring to update the `search_analyzer` just for `type_one` throws an exception like `"Merge failed with failures..."`.
+<3> Adding the `update_all_types` parameter updates the `text` field in `type_one` and `type_two`.
 
-PUT /{index}/_mapping/{type}
 
-
---------------------------------------------------
-
-
-where
-
-[horizontal]
-`{index}`:: `blank | * | _all | glob pattern | name1, name2, …`
-
-`{type}`:: Name of the type to add. Must be the name of the type defined in the body.
-
-
-Instead of `_mapping` you can also use the plural `_mappings`.

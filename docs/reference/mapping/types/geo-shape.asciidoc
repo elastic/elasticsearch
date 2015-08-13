@@ -62,6 +62,16 @@ outer ring vertices in counterclockwise order with inner ring(s) vertices (holes
 in clockwise order. Setting this parameter in the geo_shape mapping explicitly
 sets vertex order for the coordinate list of a geo_shape field but can be
 overridden in each individual GeoJSON document.
+
+|`points_only` |Setting this option to `true` (defaults to `false`) configures
+the `geo_shape` field type for point shapes only (NOTE: Multi-Points are not
+yet supported). This optimizes index and search performance for the `geohash` and
+`quadtree` when it is known that only points will be indexed. At present geo_shape
+queries can not be executed on `geo_point` field types. This option bridges the gap
+by improving point performance on a `geo_shape` field so that `geo_shape` queries are
+optimal on a point only field.
+
+
 |=======================================================================
 
 [float]

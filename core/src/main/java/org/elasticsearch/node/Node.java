@@ -44,7 +44,6 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
-import org.elasticsearch.common.util.BigArraysModule;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.DiscoveryService;
@@ -71,7 +70,6 @@ import org.elasticsearch.monitor.MonitorModule;
 import org.elasticsearch.monitor.MonitorService;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
-import org.elasticsearch.node.internal.NodeModule;
 import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.percolator.PercolatorModule;
 import org.elasticsearch.percolator.PercolatorService;
@@ -161,9 +159,7 @@ public class Node implements Releasable {
         try {
             ModulesBuilder modules = new ModulesBuilder();
             modules.add(new Version.Module(version));
-            modules.add(new PageCacheRecyclerModule(settings));
             modules.add(new CircuitBreakerModule(settings));
-            modules.add(new BigArraysModule(settings));
             modules.add(new PluginsModule(settings, pluginsService));
             modules.add(new SettingsModule(settings));
             modules.add(new NodeModule(this));

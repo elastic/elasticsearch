@@ -16,29 +16,17 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.elasticsearch.test.engine;
 
-package org.elasticsearch.node.internal;
-
+import org.apache.lucene.index.AssertingDirectoryReader;
+import org.apache.lucene.index.FilterDirectoryReader;
 import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.node.Node;
-import org.elasticsearch.node.service.NodeService;
-import org.elasticsearch.node.settings.NodeSettingsService;
 
-/**
- *
- */
-public class NodeModule extends AbstractModule {
-
-    private final Node node;
-
-    public NodeModule(Node node) {
-        this.node = node;
-    }
+public class MockEngineSupportModule extends AbstractModule {
+    public Class<? extends FilterDirectoryReader> wrapperImpl = AssertingDirectoryReader.class;
 
     @Override
     protected void configure() {
-        bind(Node.class).toInstance(node);
-        bind(NodeSettingsService.class).asEagerSingleton();
-        bind(NodeService.class).asEagerSingleton();
+        bind(Class.class).annotatedWith(MockEngineFactory.MockReaderType.class).toInstance(wrapperImpl);
     }
 }

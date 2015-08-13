@@ -20,28 +20,20 @@
 package org.elasticsearch.cluster.routing.allocation.decider;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
-import org.elasticsearch.action.admin.cluster.node.stats.TransportNodesStatsAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
-import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
-import org.elasticsearch.action.admin.indices.stats.TransportIndicesStatsAction;
 import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNode;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.monitor.fs.FsInfo;
-import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Test;
 
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CountDownLatch;
 
 import static com.google.common.collect.Lists.newArrayList;
 import static com.google.common.collect.Maps.newHashMap;
@@ -57,8 +49,8 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                        // Use the mock internal cluster info service, which has fake-able disk usages
-                .put(ClusterModule.CLUSTER_SERVICE_IMPL, MockInternalClusterInfoService.class.getName())
+                    // Use the mock internal cluster info service, which has fake-able disk usages
+                .extendArray("plugin.types", MockInternalClusterInfoService.Plugin.class.getName())
                         // Update more frequently
                 .put(InternalClusterInfoService.INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL, "1s")
                 .build();
@@ -183,50 +175,4 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
                 null);
     }
 
-    /**
-     * Fake ClusterInfoService class that allows updating the nodes stats disk
-     * usage with fake values
-     */
-    public static class MockInternalClusterInfoService extends InternalClusterInfoService {
-
-        private final ClusterName clusterName;
-        private volatile NodeStats[] stats = new NodeStats[3];
-
-        @Inject
-        public MockInternalClusterInfoService(Settings settings, NodeSettingsService nodeSettingsService,
-                                              TransportNodesStatsAction transportNodesStatsAction,
-                                              TransportIndicesStatsAction transportIndicesStatsAction,
-                                              ClusterService clusterService, ThreadPool threadPool) {
-            super(settings, nodeSettingsService, transportNodesStatsAction, transportIndicesStatsAction, clusterService, threadPool);
-            this.clusterName = ClusterName.clusterNameFromSettings(settings);
-            stats[0] = makeStats("node_t1", new DiskUsage("node_t1", "n1", 100, 100));
-            stats[1] = makeStats("node_t2", new DiskUsage("node_t2", "n2", 100, 100));
-            stats[2] = makeStats("node_t3", new DiskUsage("node_t3", "n3", 100, 100));
-        }
-
-        public void setN1Usage(String nodeName, DiskUsage newUsage) {
-            stats[0] = makeStats(nodeName, newUsage);
-        }
-
-        public void setN2Usage(String nodeName, DiskUsage newUsage) {
-            stats[1] = makeStats(nodeName, newUsage);
-        }
-
-        public void setN3Usage(String nodeName, DiskUsage newUsage) {
-            stats[2] = makeStats(nodeName, newUsage);
-        }
-
-        @Override
-        public CountDownLatch updateNodeStats(final ActionListener<NodesStatsResponse> listener) {
-            NodesStatsResponse response = new NodesStatsResponse(clusterName, stats);
-            listener.onResponse(response);
-            return new CountDownLatch(0);
-        }
-
-        @Override
-        public CountDownLatch updateIndicesStats(final ActionListener<IndicesStatsResponse> listener) {
-            // Not used, so noop
-            return new CountDownLatch(0);
-        }
-    }
 }

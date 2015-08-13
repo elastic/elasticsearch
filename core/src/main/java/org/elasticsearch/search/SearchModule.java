@@ -157,8 +157,6 @@ import java.util.List;
  */
 public class SearchModule extends AbstractModule {
 
-    public static final String SEARCH_SERVICE_IMPL = "search.service_impl";
-
     private final Settings settings;
     private final List<Class<? extends Aggregator.Parser>> aggParsers = Lists.newArrayList();
     private final List<Class<? extends PipelineAggregator.Parser>> pipelineAggParsers = Lists.newArrayList();
@@ -168,6 +166,9 @@ public class SearchModule extends AbstractModule {
     private final List<Class<? extends FetchSubPhase>> fetchSubPhases = Lists.newArrayList();
     private final List<Class<? extends SignificanceHeuristicParser>> heuristicParsers = Lists.newArrayList();
     private final List<Class<? extends MovAvgModel.AbstractModelParser>> modelParsers = Lists.newArrayList();
+
+    // pkg private so tests can mock
+    Class<? extends SearchService> searchServiceImpl = SearchService.class;
 
     public SearchModule(Settings settings) {
         this.settings = settings;
@@ -347,13 +348,10 @@ public class SearchModule extends AbstractModule {
         bind(SearchServiceTransportAction.class).asEagerSingleton();
         bind(MoreLikeThisFetchService.class).asEagerSingleton();
 
-        // search service -- testing only!
-        String impl = settings.get(SEARCH_SERVICE_IMPL);
-        if (impl == null) {
+        if (searchServiceImpl == SearchService.class) {
             bind(SearchService.class).asEagerSingleton();
         } else {
-            Class<? extends SearchService> implClass = Classes.loadClass(getClass().getClassLoader(), impl);
-            bind(SearchService.class).to(implClass).asEagerSingleton();
+            bind(SearchService.class).to(searchServiceImpl).asEagerSingleton();
         }
     }
 

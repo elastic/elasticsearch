@@ -40,11 +40,12 @@ import org.elasticsearch.index.translog.TranslogService;
  */
 public class IndexShardModule extends AbstractModule {
 
-    public static final String ENGINE_FACTORY = "index.engine.factory";
-
     private final ShardId shardId;
     private final Settings settings;
     private final boolean primary;
+
+    // pkg private so tests can mock
+    Class<? extends EngineFactory> engineFactoryImpl = InternalEngineFactory.class;
 
     public IndexShardModule(ShardId shardId, boolean primary, Settings settings) {
         this.settings = settings;
@@ -70,13 +71,7 @@ public class IndexShardModule extends AbstractModule {
             bind(TranslogService.class).asEagerSingleton();
         }
 
-        Class<? extends InternalEngineFactory> engineFactoryClass = InternalEngineFactory.class;
-        String customEngineFactory = settings.get(ENGINE_FACTORY);
-        if (customEngineFactory != null) {
-            // TODO: make this only useable from tests
-            engineFactoryClass = Classes.loadClass(getClass().getClassLoader(), customEngineFactory);
-        }
-        bind(EngineFactory.class).to(engineFactoryClass);
+        bind(EngineFactory.class).to(engineFactoryImpl);
         bind(StoreRecoveryService.class).asEagerSingleton();
         bind(ShardPercolateService.class).asEagerSingleton();
         bind(ShardTermVectorsService.class).asEagerSingleton();

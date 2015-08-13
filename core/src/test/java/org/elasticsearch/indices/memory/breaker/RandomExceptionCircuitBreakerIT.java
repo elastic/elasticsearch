@@ -35,9 +35,11 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
+import org.elasticsearch.plugins.AbstractPlugin;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.engine.MockEngineSupport;
+import org.elasticsearch.test.engine.MockEngineSupportModule;
 import org.elasticsearch.test.engine.ThrowingLeafReaderWrapper;
 import org.junit.Test;
 
@@ -105,7 +107,7 @@ public class RandomExceptionCircuitBreakerIT extends ESIntegTestCase {
 
         Settings.Builder settings = settingsBuilder()
                 .put(indexSettings())
-                .put(MockEngineSupport.READER_WRAPPER_TYPE, RandomExceptionDirectoryReaderWrapper.class.getName())
+                .extendArray("plugin.types", RandomExceptionDirectoryReaderWrapper.Plugin.class.getName())
                 .put(EXCEPTION_TOP_LEVEL_RATIO_KEY, topLevelRate)
                 .put(EXCEPTION_LOW_LEVEL_RATIO_KEY, lowLevelRate)
                 .put(MockEngineSupport.WRAP_READER_RATIO, 1.0d);
@@ -199,6 +201,21 @@ public class RandomExceptionCircuitBreakerIT extends ESIntegTestCase {
 
     // TODO: Generalize this class and add it as a utility
     public static class RandomExceptionDirectoryReaderWrapper extends MockEngineSupport.DirectoryReaderWrapper {
+
+        public static class Plugin extends AbstractPlugin {
+            @Override
+            public String name() {
+                return "random-exception-reader-wrapper";
+            }
+            @Override
+            public String description() {
+                return "a mock reader wrapper that throws random exceptions for testing";
+            }
+            public void onModule(MockEngineSupportModule module) {
+                module.wrapperImpl = RandomExceptionDirectoryReaderWrapper.class;
+            }
+        }
+
         private final Settings settings;
 
         static class ThrowingSubReaderWrapper extends SubReaderWrapper implements ThrowingLeafReaderWrapper.Thrower {

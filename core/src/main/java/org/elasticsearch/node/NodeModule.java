@@ -17,14 +17,29 @@
  * under the License.
  */
 
-package org.elasticsearch.cache.recycler;
+package org.elasticsearch.node;
 
+import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.node.Node;
+import org.elasticsearch.node.service.NodeService;
+import org.elasticsearch.node.settings.NodeSettingsService;
 
-public class PageCacheRecyclerModule extends AbstractModule {
+/**
+ *
+ */
+public class NodeModule extends AbstractModule {
+
+    private final Node node;
 
     // pkg private so tests can mock
     Class<? extends PageCacheRecycler> pageCacheRecyclerImpl = PageCacheRecycler.class;
+    Class<? extends BigArrays> bigArraysImpl = BigArrays.class;
+
+    public NodeModule(Node node) {
+        this.node = node;
+    }
 
     @Override
     protected void configure() {
@@ -33,5 +48,14 @@ public class PageCacheRecyclerModule extends AbstractModule {
         } else {
             bind(PageCacheRecycler.class).to(pageCacheRecyclerImpl).asEagerSingleton();
         }
+        if (bigArraysImpl == BigArrays.class) {
+            bind(BigArrays.class).asEagerSingleton();
+        } else {
+            bind(BigArrays.class).to(bigArraysImpl).asEagerSingleton();
+        }
+
+        bind(Node.class).toInstance(node);
+        bind(NodeSettingsService.class).asEagerSingleton();
+        bind(NodeService.class).asEagerSingleton();
     }
 }

@@ -16,21 +16,26 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.elasticsearch.node;
 
-package org.elasticsearch.index.cache.bitset;
+import org.elasticsearch.cache.recycler.MockPageCacheRecycler;
+import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.plugins.AbstractPlugin;
 
-import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.settings.Settings;
+public class NodeMocksPlugin extends AbstractPlugin {
 
-/**
- */
-public class BitsetFilterCacheModule extends AbstractModule {
-
-    public BitsetFilterCacheModule(Settings settings) {
+    @Override
+    public String name() {
+        return "node-mocks";
     }
 
     @Override
-    protected void configure() {
+    public String description() {
+        return "a plugin to setup mocks for node level classes";
+    }
 
+    public void onModule(NodeModule module) {
+        module.pageCacheRecyclerImpl = MockPageCacheRecycler.class;
+        module.bigArraysImpl = MockBigArrays.class;
     }
 }

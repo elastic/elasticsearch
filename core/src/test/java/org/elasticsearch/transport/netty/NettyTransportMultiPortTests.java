@@ -31,7 +31,7 @@ import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.cache.recycler.MockBigArrays;
+import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.test.junit.rule.RepeatOnExceptionRule;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BindTransportException;

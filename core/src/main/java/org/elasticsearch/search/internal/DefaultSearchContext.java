@@ -22,6 +22,7 @@ package org.elasticsearch.search.internal;
 import com.carrotsearch.hppc.ObjectObjectAssociativeContainer;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
+
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.Counter;
@@ -66,6 +67,7 @@ import org.elasticsearch.search.rescore.RescoreSearchContext;
 import org.elasticsearch.search.scan.ScanContext;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 
+import java.io.IOException;
 import java.util.*;
 
 /**
@@ -119,7 +121,6 @@ public class DefaultSearchContext extends SearchContext {
     private SuggestionSearchContext suggest;
     private List<RescoreSearchContext> rescore;
     private SearchLookup searchLookup;
-    private boolean queryRewritten;
     private volatile long keepAlive;
     private ScoreDoc lastEmittedDoc;
     private final long originNanoTime = System.nanoTime();
@@ -127,6 +128,7 @@ public class DefaultSearchContext extends SearchContext {
     private InnerHitsContext innerHitsContext;
 
     private final Map<String, FetchSubPhaseContext> subPhaseContexts = new HashMap<>();
+    private final Map<Class<?>, Collector> queryCollectors = new HashMap<>();
 
     public DefaultSearchContext(long id, ShardSearchRequest request, SearchShardTarget shardTarget,
                                 Engine.Searcher engineSearcher, IndexService indexService, IndexShard indexShard,
@@ -197,10 +199,15 @@ public class DefaultSearchContext extends SearchContext {
                 parsedQuery(new ParsedQuery(filtered, parsedQuery()));
             }
         }
+        try {
+            this.query = searcher().rewrite(this.query);
+        } catch (IOException e) {
+            throw new QueryPhaseExecutionException(this, "Failed to rewrite main query", e);
+        }
     }
 
     @Override
-    public Filter searchFilter(String[] types) {
+    public Query searchFilter(String[] types) {
         Query filter = mapperService().searchFilter(types);
         if (filter == null && aliasFilter == null) {
             return null;
@@ -212,7 +219,7 @@ public class DefaultSearchContext extends SearchContext {
         if (aliasFilter != null) {
             bq.add(aliasFilter, Occur.MUST);
         }
-        return new QueryWrapperFilter(bq);
+        return new ConstantScoreQuery(bq);
     }
 
     @Override
@@ -513,7 +520,6 @@ public class DefaultSearchContext extends SearchContext {
 
     @Override
     public SearchContext parsedQuery(ParsedQuery query) {
-        queryRewritten = false;
         this.originalQuery = query;
         this.query = query.query();
         return this;
@@ -525,29 +531,11 @@ public class DefaultSearchContext extends SearchContext {
     }
 
     /**
-     * The query to execute, might be rewritten.
+     * The query to execute, in its rewritten form.
      */
     @Override
     public Query query() {
         return this.query;
-    }
-
-    /**
-     * Has the query been rewritten already?
-     */
-    @Override
-    public boolean queryRewritten() {
-        return queryRewritten;
-    }
-
-    /**
-     * Rewrites the query and updates it. Only happens once.
-     */
-    @Override
-    public SearchContext updateRewriteQuery(Query rewriteQuery) {
-        query = rewriteQuery;
-        queryRewritten = true;
-        return this;
     }
 
     @Override
@@ -809,5 +797,10 @@ public class DefaultSearchContext extends SearchContext {
     @Override
     public void copyContextAndHeadersFrom(HasContextAndHeaders other) {
         request.copyContextAndHeadersFrom(other);
+    }
+
+    @Override
+    public Map<Class<?>, Collector> queryCollectors() {
+        return queryCollectors;
     }
 }

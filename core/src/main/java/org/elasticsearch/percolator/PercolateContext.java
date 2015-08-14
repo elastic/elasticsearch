@@ -20,9 +20,11 @@ package org.elasticsearch.percolator;
 
 import com.carrotsearch.hppc.ObjectObjectAssociativeContainer;
 import com.google.common.collect.ImmutableList;
+
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
@@ -32,7 +34,6 @@ import org.apache.lucene.util.Counter;
 import org.elasticsearch.action.percolate.PercolateShardRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.common.*;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.lease.Releasables;
@@ -111,13 +112,13 @@ public class PercolateContext extends SearchContext {
     private SearchLookup searchLookup;
     private ParsedQuery parsedQuery;
     private Query query;
-    private boolean queryRewritten;
     private Query percolateQuery;
     private FetchSubPhase.HitContext hitContext;
     private SearchContextAggregations aggregations;
     private QuerySearchResult querySearchResult;
     private Sort sort;
     private final Map<String, FetchSubPhaseContext> subPhaseContexts = new HashMap<>();
+    private final Map<Class<?>, Collector> queryCollectors = new HashMap<>();
 
     public PercolateContext(PercolateShardRequest request, SearchShardTarget searchShardTarget, IndexShard indexShard,
                             IndexService indexService, PageCacheRecycler pageCacheRecycler,
@@ -232,7 +233,6 @@ public class PercolateContext extends SearchContext {
     public SearchContext parsedQuery(ParsedQuery query) {
         this.parsedQuery = query;
         this.query = query.query();
-        this.queryRewritten = false;
         return this;
     }
 
@@ -244,18 +244,6 @@ public class PercolateContext extends SearchContext {
     @Override
     public Query query() {
         return query;
-    }
-
-    @Override
-    public boolean queryRewritten() {
-        return queryRewritten;
-    }
-
-    @Override
-    public SearchContext updateRewriteQuery(Query rewriteQuery) {
-        queryRewritten = true;
-        query = rewriteQuery;
-        return this;
     }
 
     @Override
@@ -767,5 +755,10 @@ public class PercolateContext extends SearchContext {
     @Override
     public void copyContextAndHeadersFrom(HasContextAndHeaders other) {
         assert false : "percolatecontext does not support contexts & headers";
+    }
+
+    @Override
+    public Map<Class<?>, Collector> queryCollectors() {
+        return queryCollectors;
     }
 }

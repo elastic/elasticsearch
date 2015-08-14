@@ -47,18 +47,23 @@ public class ScanContext {
 
     private volatile int docUpTo;
 
-    public TopDocs execute(SearchContext context) throws IOException {
-        return execute(context.searcher(), context.query(), context.size(), context.trackScores());
+    public ScanCollector collector(SearchContext context) {
+        return collector(context.size(), context.trackScores());
     }
 
-    TopDocs execute(IndexSearcher searcher, Query query, int size, boolean trackScores) throws IOException {
-        ScanCollector collector = new ScanCollector(size, trackScores);
-        Query q = Queries.filtered(query, new MinDocQuery(docUpTo));
-        searcher.search(q, collector);
-        return collector.topDocs();
+    /** Create a {@link ScanCollector} for the given page size. */
+    ScanCollector collector(int size, boolean trackScores) {
+        return new ScanCollector(size, trackScores);
     }
 
-    private class ScanCollector extends SimpleCollector {
+    /**
+     * Wrap the query so that it can skip directly to the right document.
+     */
+    public Query wrapQuery(Query query) {
+        return Queries.filtered(query, new MinDocQuery(docUpTo));
+    }
+
+    public class ScanCollector extends SimpleCollector {
 
         private final List<ScoreDoc> docs;
 
@@ -70,7 +75,7 @@ public class ScanContext {
 
         private int docBase;
 
-        ScanCollector(int size, boolean trackScores) {
+        private ScanCollector(int size, boolean trackScores) {
             this.trackScores = trackScores;
             this.docs = new ArrayList<>(size);
             this.size = size;

@@ -86,7 +86,7 @@ public class AggregationPhase implements SearchPhase {
                 if (!collectors.isEmpty()) {
                     final BucketCollector collector = BucketCollector.wrap(collectors);
                     collector.preCollection();
-                    context.searcher().queryCollectors().put(AggregationPhase.class, collector);
+                    context.queryCollectors().put(AggregationPhase.class, collector);
                 }
             } catch (IOException e) {
                 throw new AggregationInitializationException("Could not initialize aggregators", e);
@@ -162,7 +162,7 @@ public class AggregationPhase implements SearchPhase {
 
         // disable aggregations so that they don't run on next pages in case of scrolling
         context.aggregations(null);
-        context.searcher().queryCollectors().remove(AggregationPhase.class);
+        context.queryCollectors().remove(AggregationPhase.class);
     }
 
 }

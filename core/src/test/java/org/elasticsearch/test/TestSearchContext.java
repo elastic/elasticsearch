@@ -20,6 +20,7 @@ package org.elasticsearch.test;
 
 import com.carrotsearch.hppc.ObjectObjectAssociativeContainer;
 
+import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
@@ -74,6 +75,7 @@ public class TestSearchContext extends SearchContext {
     final IndexFieldDataService indexFieldDataService;
     final BitsetFilterCache fixedBitSetFilterCache;
     final ThreadPool threadPool;
+    final Map<Class<?>, Collector> queryCollectors = new HashMap<>();
 
     ContextIndexSearcher searcher;
     int size;
@@ -411,16 +413,6 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public boolean queryRewritten() {
-        return false;
-    }
-
-    @Override
-    public SearchContext updateRewriteQuery(Query rewriteQuery) {
-        return null;
-    }
-
-    @Override
     public int from() {
         return 0;
     }
@@ -667,4 +659,9 @@ public class TestSearchContext extends SearchContext {
 
     @Override
     public void copyContextAndHeadersFrom(HasContextAndHeaders other) {}
+
+    @Override
+    public Map<Class<?>, Collector> queryCollectors() {
+        return queryCollectors;
+    }
 }

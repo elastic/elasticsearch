@@ -31,8 +31,10 @@ import org.apache.lucene.search.QueryUtils;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.search.scan.ScanContext.MinDocQuery;
+import org.elasticsearch.search.scan.ScanContext.ScanCollector;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -69,6 +71,13 @@ public class ScanContextTests extends ESTestCase {
         dir.close();
     }
 
+    private static TopDocs execute(IndexSearcher searcher, ScanContext ctx, Query query, int pageSize, boolean trackScores) throws IOException {
+        query = ctx.wrapQuery(query);
+        ScanCollector collector = ctx.collector(pageSize, trackScores);
+        searcher.search(query, collector);
+        return collector.topDocs();
+    }
+
     public void testRandom() throws Exception {
         final int numDocs = randomIntBetween(10, 200);
         final Document doc1 = new Document();
@@ -93,10 +102,10 @@ public class ScanContextTests extends ESTestCase {
         final List<ScoreDoc> actual = new ArrayList<>();
         ScanContext context = new ScanContext();
         while (true) {
-            final ScoreDoc[] page = context.execute(searcher, query, pageSize, trackScores).scoreDocs;
+            final ScoreDoc[] page = execute(searcher,context, query, pageSize, trackScores).scoreDocs;
             assertTrue(page.length <= pageSize);
             if (page.length == 0) {
-                assertEquals(0, context.execute(searcher, query, pageSize, trackScores).scoreDocs.length);
+                assertEquals(0, execute(searcher, context, query, pageSize, trackScores).scoreDocs.length);
                 break;
             }
             actual.addAll(Arrays.asList(page));

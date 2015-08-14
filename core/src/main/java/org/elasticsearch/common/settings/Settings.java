@@ -81,7 +81,7 @@ public final class Settings implements ToXContent {
     private final ImmutableMap<String, String> forcedUnderscoreSettings;
     private transient ClassLoader classLoader;
 
-    Settings(Map<String, String> settings) {
+    Settings(Map<String, String> settings, ClassLoader classLoader) {
         // we use a sorted map for consistent serialization when using getAsMap()
         // TODO: use Collections.unmodifiableMap with a TreeMap
         this.settings = ImmutableSortedMap.copyOf(settings);
@@ -96,6 +96,7 @@ public final class Settings implements ToXContent {
             }
         }
         this.forcedUnderscoreSettings = forcedUnderscoreSettings == null ? ImmutableMap.<String, String>of() : ImmutableMap.copyOf(forcedUnderscoreSettings);
+        this.classLoader = classLoader;
     }
 
     /**
@@ -647,7 +648,7 @@ public final class Settings implements ToXContent {
         }
         Map<String, Settings> retVal = new LinkedHashMap<>();
         for (Map.Entry<String, Map<String, String>> entry : map.entrySet()) {
-            retVal.put(entry.getKey(), new Settings(Collections.unmodifiableMap(entry.getValue())));
+            retVal.put(entry.getKey(), new Settings(Collections.unmodifiableMap(entry.getValue()), classLoader));
         }
         return Collections.unmodifiableMap(retVal);
     }
@@ -1118,6 +1119,23 @@ public final class Settings implements ToXContent {
         }
 
         /**
+         * Loads settings from classpath that represents them using the
+         * {@link SettingsLoaderFactory#loaderFromSource(String)}.
+         */
+        public Builder loadFromClasspath(String resourceName) throws SettingsException {
+            ClassLoader classLoader = this.classLoader;
+            if (classLoader == null) {
+                classLoader = Classes.getDefaultClassLoader();
+            }
+            InputStream is = classLoader.getResourceAsStream(resourceName);
+            if (is == null) {
+                throw new SettingsException("Failed to load settings from [" + resourceName + "]");
+            }
+
+            return loadFromStream(resourceName, is);
+        }
+
+        /**
          * Sets the class loader associated with the settings built.
          */
         public Builder classLoader(ClassLoader classLoader) {
@@ -1252,7 +1270,7 @@ public final class Settings implements ToXContent {
          * set on this builder.
          */
         public Settings build() {
-            return new Settings(Collections.unmodifiableMap(map));
+            return new Settings(Collections.unmodifiableMap(map), classLoader);
         }
     }
 

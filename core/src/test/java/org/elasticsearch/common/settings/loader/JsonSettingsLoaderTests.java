@@ -34,9 +34,8 @@ public class JsonSettingsLoaderTests extends ESTestCase {
 
     @Test
     public void testSimpleJsonSettings() throws Exception {
-        String json = "org/elasticsearch/common/settings/loader/test-settings.json";
         Settings settings = settingsBuilder()
-                .loadFromStream(json, getClass().getResourceAsStream(json))
+                .loadFromClasspath("org/elasticsearch/common/settings/loader/test-settings.json")
                 .build();
 
         assertThat(settings.get("test1.value1"), equalTo("value1"));

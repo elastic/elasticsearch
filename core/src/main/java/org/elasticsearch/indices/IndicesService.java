@@ -300,6 +300,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         Settings indexSettings = settingsBuilder()
                 .put(this.settings)
                 .put(settings)
+                .classLoader(settings.getClassLoader())
                 .build();
 
         ModulesBuilder modules = new ModulesBuilder();

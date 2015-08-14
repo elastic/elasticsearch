@@ -79,21 +79,21 @@ public class ScriptModule extends AbstractModule {
         multibinder.addBinding().to(NativeScriptEngineService.class);
 
         try {
-            Class.forName("groovy.lang.GroovyClassLoader");
+            settings.getClassLoader().loadClass("groovy.lang.GroovyClassLoader");
             multibinder.addBinding().to(GroovyScriptEngineService.class).asEagerSingleton();
         } catch (Throwable t) {
             Loggers.getLogger(ScriptService.class, settings).debug("failed to load groovy", t);
         }
         
         try {
-            Class.forName("com.github.mustachejava.Mustache");
+            settings.getClassLoader().loadClass("com.github.mustachejava.Mustache");
             multibinder.addBinding().to(MustacheScriptEngineService.class).asEagerSingleton();
         } catch (Throwable t) {
             Loggers.getLogger(ScriptService.class, settings).debug("failed to load mustache", t);
         }
 
         try {
-            Class.forName("org.apache.lucene.expressions.Expression");
+            settings.getClassLoader().loadClass("org.apache.lucene.expressions.Expression");
             multibinder.addBinding().to(ExpressionScriptEngineService.class).asEagerSingleton();
         } catch (Throwable t) {
             Loggers.getLogger(ScriptService.class, settings).debug("failed to load lucene expressions", t);

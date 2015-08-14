@@ -16,11 +16,8 @@
 
 # Prepare a release
 #
-# This script prepares a new release by creating two commits
-#
-# First commit: Update the Version.java to remove the snapshot bit
-# First commit: Remove the -SNAPSHOT suffix in all pom.xml files
-# Second commit: Update Documentation flags
+# 1. Update the Version.java to remove the snapshot bit
+# 2. Remove the -SNAPSHOT suffix in all pom.xml files
 #
 # USAGE:
 #
@@ -128,35 +125,6 @@ def find_release_version():
         return match.group(1)
     raise RuntimeError('Could not find release version in branch')
 
-# Stages the given files for the next git commit
-def add_pending_files(*files):
-  for file in files:
-    if file:
-      # print("Adding file: %s" % (file))
-      run('git add %s' % (file))
-
-# Executes a git commit with 'release [version]' as the commit message
-def commit_release(release):
-  run('git commit -m "Release: Change version from %s-SNAPSHOT to %s"' % (release, release))
-
-def commit_feature_flags(release):
-    run('git commit -m "Update Documentation Feature Flags [%s]"' % release)
-
-# Walks the given directory path (defaults to 'docs')
-# and replaces all 'coming[$version]' tags with
-# 'added[$version]'. This method only accesses asciidoc files.
-def update_reference_docs(release_version, path='docs'):
-  pattern = 'coming[%s' % (release_version)
-  replacement = 'added[%s' % (release_version)
-  pending_files = []
-  def callback(line):
-    return line.replace(pattern, replacement)
-  for root, _, file_names in os.walk(path):
-    for file_name in fnmatch.filter(file_names, '*.asciidoc'):
-      full_path = os.path.join(root, file_name)
-      if process_file(full_path, callback):
-        pending_files.append(os.path.join(root, file_name))
-  return pending_files
 
 if __name__ == "__main__":
   release_version = find_release_version()
@@ -169,18 +137,9 @@ if __name__ == "__main__":
   remove_maven_snapshot(pom_files, release_version)
   remove_version_snapshot(VERSION_FILE, release_version)
 
-  pending_files = pom_files
-  pending_files.append(VERSION_FILE)
-  add_pending_files(*pending_files) # expects var args use * to expand
-  commit_release(release_version)
+  print('*** Done removing snapshot version. DO NOT COMMIT THIS, WHEN CREATING A RELEASE CANDIDATE.')
 
-  pending_files = update_reference_docs(release_version)
-  # split commits for docs and version to enable easy cherry-picking
-  if pending_files:
-    add_pending_files(*pending_files) # expects var args use * to expand
-    commit_feature_flags(release_version)
-  else:
-    print('WARNING: no documentation references updates for release %s' % (release_version))
-
-  print('*** Done removing snapshot version. Run git push manually.')
-
+  shortHash = subprocess.check_output('git log --pretty=format:"%h" -n 1', shell=True)
+  print('')
+  print('*** To create a release candidate run: ')
+  print('  mvn clean deploy -Prelease -DskipTests -Dgpg.keyname="$GPG_KEY_ID" -Dgpg.passphrase="$GPG_PASSPHRASE" -Dpackaging.rpm.rpmbuild=/usr/bin/rpmbuild -Delasticsearch.s3.repository=s3://download.elasticsearch.org/elasticsearch/staging/%s' % (shortHash.decode('utf-8')))

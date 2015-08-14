@@ -535,7 +535,7 @@ public class InternalEngineTests extends ESTestCase {
             }
 
             @Override
-            public IndexSearcher wrap(IndexSearcher searcher) throws EngineException {
+            public IndexSearcher wrap(EngineConfig engineConfig, IndexSearcher searcher) throws EngineException {
                 counter.incrementAndGet();
                 return searcher;
             }

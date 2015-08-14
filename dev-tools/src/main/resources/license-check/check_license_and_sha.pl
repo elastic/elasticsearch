@@ -19,6 +19,12 @@ die usage() unless $mode =~ /^--(check|update)$/;
 
 my $License_Dir = shift(@ARGV) || die usage();
 my $Source      = shift(@ARGV) || die usage();
+my $Ignore      = shift(@ARGV);
+my $ignore
+    = $Ignore
+    ? qr/${Ignore}[^\/]*$/
+    : qr/elasticsearch[^\/]*$/;
+
 $License_Dir = File::Spec->rel2abs($License_Dir) . '/';
 $Source      = File::Spec->rel2abs($Source);
 
@@ -29,8 +35,8 @@ die "License dir is not a directory: $License_Dir\n" . usage()
     unless -d $License_Dir;
 
 my %shas
-    = -f $Source ? jars_from_zip($Source)
-    : -d $Source ? jars_from_dir($Source)
+    = -f $Source ? jars_from_zip( $Source, $ignore )
+    : -d $Source ? jars_from_dir( $Source, $ignore )
     :   die "Source is neither a directory nor a zip file: $Source" . usage();
 
 $mode eq '--check'
@@ -194,25 +200,25 @@ sub get_sha_files {
 #===================================
 sub jars_from_zip {
 #===================================
-    my ($source) = @_;
+    my ( $source, $ignore ) = @_;
     my $temp_dir = File::Temp->newdir;
     my $dir_name = $temp_dir->dirname;
-    my $archive = Archive::Extract->new( archive => $source, type => 'zip' );
+    my $archive  = Archive::Extract->new( archive => $source, type => 'zip' );
     $archive->extract( to => $dir_name ) || die $archive->error;
     my @jars = map { File::Spec->rel2abs( $_, $dir_name ) }
-        grep { /\.jar$/ && !/elasticsearch[^\/]*$/ } @{ $archive->files };
+        grep { /\.jar$/ && !/$ignore/ } @{ $archive->files };
     return calculate_shas(@jars);
 }
 
 #===================================
 sub jars_from_dir {
 #===================================
-    my $source = shift;
+    my ( $source, $ignore ) = @_;
     my @jars;
     File::Find::find(
         {   wanted => sub {
                 push @jars, File::Spec->rel2abs( $_, $source )
-                    if /\.jar$/ && !/elasticsearch[^\/]*$/;
+                    if /\.jar$/ && !/$ignore/;
             },
             no_chdir => 1
         },
@@ -241,12 +247,14 @@ sub usage {
 USAGE:
 
     # check the sha1 and LICENSE files for each jar in the zip or directory
-    $0 --check  path/to/licenses/ path/to/package.zip
-    $0 --check  path/to/licenses/ path/to/dir/
+    $0 --check  path/to/licenses/ path/to/package.zip [prefix_to_ignore]
+    $0 --check  path/to/licenses/ path/to/dir/ [prefix_to_ignore]
 
     # updates the sha1s for each jar in the zip or directory
-    $0 --update path/to/licenses/ path/to/package.zip
-    $0 --update path/to/licenses/ path/to/dir/
+    $0 --update path/to/licenses/ path/to/package.zip [prefix_to_ignore]
+    $0 --update path/to/licenses/ path/to/dir/ [prefix_to_ignore]
+
+The optional prefix_to_ignore parameter defaults to "elasticsearch".
 
 USAGE
 

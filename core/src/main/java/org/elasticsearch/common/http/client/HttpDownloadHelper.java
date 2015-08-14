@@ -21,20 +21,25 @@ package org.elasticsearch.common.http.client;
 
 import com.google.common.base.Charsets;
 import com.google.common.base.Strings;
+import com.google.common.hash.Hashing;
 import org.apache.lucene.util.IOUtils;
-import org.elasticsearch.ElasticsearchTimeoutException;
-import org.elasticsearch.Version;
+import org.elasticsearch.*;
 import org.elasticsearch.common.Base64;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.ByteArray;
 
 import java.io.*;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLConnection;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.attribute.FileTime;
+import java.util.Arrays;
+import java.util.List;
+import java.util.concurrent.Callable;
 
 /**
  *
@@ -83,6 +88,81 @@ public class HttpDownloadHelper {
         return getThread.wasSuccessful();
     }
 
+    public interface Checksummer {
+        /** Return the hex string for the given byte array */
+        String checksum(byte[] filebytes);
+        /** Human-readable name for the checksum format */
+        String name();
+    }
+
+    /** Checksummer for SHA1 */
+    public static Checksummer SHA1_CHECKSUM = new Checksummer() {
+        @Override
+        public String checksum(byte[] filebytes) {
+            return Hashing.sha1().hashBytes(filebytes).toString();
+        }
+
+        @Override
+        public String name() {
+            return "SHA1";
+        }
+    };
+
+    /** Checksummer for MD5 */
+    public static Checksummer MD5_CHECKSUM = new Checksummer() {
+        @Override
+        public String checksum(byte[] filebytes) {
+            return Hashing.md5().hashBytes(filebytes).toString();
+        }
+
+        @Override
+        public String name() {
+            return "MD5";
+        }
+    };
+
+    /**
+     * Download the given checksum URL to the destination and check the checksum
+     * @param checksumURL URL for the checksum file
+     * @param originalFile original file to calculate checksum of
+     * @param checksumFile destination to download the checksum file to
+     * @param hashFunc class used to calculate the checksum of the file
+     * @return true if the checksum was validated, false if it did not exist
+     * @throws Exception if the checksum failed to match
+     */
+    public boolean downloadAndVerifyChecksum(URL checksumURL, Path originalFile, Path checksumFile,
+                                             @Nullable DownloadProgress progress,
+                                             TimeValue timeout, Checksummer hashFunc) throws Exception {
+        try {
+            if (download(checksumURL, checksumFile, progress, timeout)) {
+                byte[] fileBytes = Files.readAllBytes(originalFile);
+                List<String> checksumLines = Files.readAllLines(checksumFile);
+                if (checksumLines.size() != 1) {
+                    throw new ElasticsearchCorruptionException("invalid format for checksum file (" +
+                            hashFunc.name() + "), expected 1 line, got: " + checksumLines.size());
+                }
+                String checksumHex = checksumLines.get(0);
+                String fileHex = hashFunc.checksum(fileBytes);
+                if (fileHex.equals(checksumHex) == false) {
+                    throw new ElasticsearchCorruptionException("incorrect hash (" + hashFunc.name() +
+                            "), file hash: [" + fileHex + "], expected: [" + checksumHex + "]");
+                }
+                return true;
+            }
+        } catch (FileNotFoundException | NoSuchFileException e) {
+            // checksum file doesn't exist
+            return false;
+        } catch (IOException e) {
+            if (ExceptionsHelper.unwrapCause(e) instanceof FileNotFoundException) {
+                // checksum file didn't exist
+                return false;
+            }
+            throw e;
+        } finally {
+            IOUtils.deleteFilesIgnoringExceptions(checksumFile);
+        }
+        return false;
+    }
 
     /**
      * Interface implemented for reporting

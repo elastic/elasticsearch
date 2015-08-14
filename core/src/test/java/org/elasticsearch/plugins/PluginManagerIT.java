@@ -19,6 +19,7 @@
 package org.elasticsearch.plugins;
 
 import com.google.common.base.Charsets;
+import com.google.common.hash.Hashing;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
@@ -50,7 +51,10 @@ import org.junit.Test;
 import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLSocketFactory;
+import java.io.BufferedWriter;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.PrintStream;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.FileVisitResult;
@@ -73,8 +77,7 @@ import static org.elasticsearch.common.io.FileSystemUtilsTests.assertFileContent
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.plugins.PluginInfoTests.writeProperties;
 import static org.elasticsearch.test.ESIntegTestCase.Scope;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertDirectoryExists;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFileExists;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.*;
 import static org.jboss.netty.handler.codec.http.HttpVersion.HTTP_1_1;
 
@@ -105,7 +108,27 @@ public class PluginManagerIT extends ESIntegTestCase {
     public void clearPathHome() {
         System.clearProperty("es.default.path.home");
     }
-    
+
+    private void writeSha1(Path file, boolean corrupt) throws IOException {
+        String sha1Hex = Hashing.sha1().hashBytes(Files.readAllBytes(file)).toString();
+        try (BufferedWriter out = Files.newBufferedWriter(file.resolveSibling(file.getFileName() + ".sha1"), Charsets.UTF_8)) {
+            out.write(sha1Hex);
+            if (corrupt) {
+                out.write("bad");
+            }
+        }
+    }
+
+    private void writeMd5(Path file, boolean corrupt) throws IOException {
+        String md5Hex = Hashing.md5().hashBytes(Files.readAllBytes(file)).toString();
+        try (BufferedWriter out = Files.newBufferedWriter(file.resolveSibling(file.getFileName() + ".md5"), Charsets.UTF_8)) {
+            out.write(md5Hex);
+            if (corrupt) {
+                out.write("bad");
+            }
+        }
+    }
+
     /** creates a plugin .zip and returns the url for testing */
     private String createPlugin(final Path structure, String... properties) throws IOException {
         writeProperties(structure, properties);
@@ -120,9 +143,35 @@ public class PluginManagerIT extends ESIntegTestCase {
                 }
             });
         }
+        if (randomBoolean()) {
+            writeSha1(zip, false);
+        } else if (randomBoolean()) {
+            writeMd5(zip, false);
+        }
         return zip.toUri().toURL().toString();
     }
 
+    /** creates a plugin .zip and bad checksum file and returns the url for testing */
+    private String createPluginWithBadChecksum(final Path structure, String... properties) throws IOException {
+        writeProperties(structure, properties);
+        Path zip = createTempDir().resolve(structure.getFileName() + ".zip");
+        try (ZipOutputStream stream = new ZipOutputStream(Files.newOutputStream(zip))) {
+            Files.walkFileTree(structure, new SimpleFileVisitor<Path>() {
+                @Override
+                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                    stream.putNextEntry(new ZipEntry(structure.relativize(file).toString()));
+                    Files.copy(file, stream);
+                    return FileVisitResult.CONTINUE;
+                }
+            });
+        }
+        if (randomBoolean()) {
+            writeSha1(zip, true);
+        } else {
+            writeMd5(zip, true);
+        }
+        return zip.toUri().toURL().toString();
+    }
     @Test
     public void testThatPluginNameMustBeSupplied() throws IOException {
         Path pluginDir = createTempDir().resolve("fake-plugin");
@@ -342,15 +391,30 @@ public class PluginManagerIT extends ESIntegTestCase {
         Files.createDirectories(pluginDir.resolve("_site"));
         Files.createFile(pluginDir.resolve("_site").resolve("somefile"));
         String pluginUrl = createPlugin(pluginDir,
-            "description", "fake desc",
-            "version", "1.0",
-            "site", "true");
+                "description", "fake desc",
+                "version", "1.0",
+                "site", "true");
         assertStatusOk(String.format(Locale.ROOT, "install %s --url %s --verbose", pluginName, pluginUrl));
         assertThatPluginIsListed(pluginName);
         // We want to check that Plugin Manager moves content to _site
         assertFileExists(initialSettings.v2().pluginsFile().resolve(pluginName).resolve("_site"));
     }
 
+    @Test
+    public void testInstallPluginWithBadChecksum() throws IOException {
+        String pluginName = "fake-plugin";
+        Path pluginDir = createTempDir().resolve(pluginName);
+        Files.createDirectories(pluginDir.resolve("_site"));
+        Files.createFile(pluginDir.resolve("_site").resolve("somefile"));
+        String pluginUrl = createPluginWithBadChecksum(pluginDir,
+                "description", "fake desc",
+                "version", "1.0",
+                "site", "true");
+        assertStatus(String.format(Locale.ROOT, "install %s --url %s --verbose", pluginName, pluginUrl),
+                ExitStatus.IO_ERROR);
+        assertThatPluginIsNotListed(pluginName);
+        assertFileNotExists(initialSettings.v2().pluginsFile().resolve(pluginName).resolve("_site"));
+    }
 
     private void singlePluginInstallAndRemove(String pluginDescriptor, String pluginName, String pluginCoordinates) throws IOException {
         logger.info("--> trying to download and install [{}]", pluginDescriptor);
@@ -591,5 +655,12 @@ public class PluginManagerIT extends ESIntegTestCase {
         assertStatusOk("list");
         String message = String.format(Locale.ROOT, "Terminal output was: %s", terminal.getTerminalOutput());
         assertThat(message, terminal.getTerminalOutput(), hasItem(containsString(pluginName)));
+    }
+
+    private void assertThatPluginIsNotListed(String pluginName) {
+        terminal.getTerminalOutput().clear();
+        assertStatusOk("list");
+        String message = String.format(Locale.ROOT, "Terminal output was: %s", terminal.getTerminalOutput());
+        assertFalse(message, terminal.getTerminalOutput().contains(pluginName));
     }
 }

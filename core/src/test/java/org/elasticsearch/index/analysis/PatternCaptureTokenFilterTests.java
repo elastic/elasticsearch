@@ -41,10 +41,11 @@ public class PatternCaptureTokenFilterTests extends ESTokenStreamTestCase {
 
     @Test
     public void testPatternCaptureTokenFilter() throws Exception {
+        String json = "/org/elasticsearch/index/analysis/pattern_capture.json";
         Index index = new Index("test");
         Settings settings = settingsBuilder()
                 .put("path.home", createTempDir())
-                .loadFromClasspath("org/elasticsearch/index/analysis/pattern_capture.json")
+                .loadFromStream(json, getClass().getResourceAsStream(json))
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .build();
         Injector parentInjector = new ModulesBuilder().add(new SettingsModule(settings), new EnvironmentModule(new Environment(settings)), new IndicesAnalysisModule()).createInjector();

@@ -222,19 +222,4 @@ public class InternalSettingsPreparerTests extends ESTestCase {
         assertThat(settings.get("name"), is("prompted name 0"));
         assertThat(settings.get("node.name"), is("prompted name 0"));
     }
-
-    @Test
-    public void testPreserveSettingsClassloader() {
-        final ClassLoader classLoader = URLClassLoader.newInstance(new URL[0]);
-        Settings settings = settingsBuilder()
-                .put("foo", "bar")
-                .put("path.home", createTempDir())
-                .classLoader(classLoader)
-                .build();
-
-        Tuple<Settings, Environment> tuple = InternalSettingsPreparer.prepareSettings(settings, randomBoolean());
-
-        Settings preparedSettings = tuple.v1();
-        assertThat(preparedSettings.getClassLoaderIfSet(), is(classLoader));
-    }
 }

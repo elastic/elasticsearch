@@ -48,6 +48,7 @@
         <slf4j.version>1.6.2</slf4j.version>
         <log4j.version>1.2.17</log4j.version>
         <jacoco.version>0.7.2.201409121644</jacoco.version>
+        <elasticsearch.s3.repository>s3://download.elasticsearch.org/elasticsearch/staging/</elasticsearch.s3.repository>
 
         <!-- Build resources properties -->
         <elasticsearch.tools.directory>${project.build.directory}/dev-tools</elasticsearch.tools.directory>
@@ -1318,13 +1319,8 @@ org.eclipse.jdt.ui.text.custom_code_templates=<?xml version\="1.0" encoding\="UT
                 <repository>
                     <id>aws-release</id>
                     <name>AWS Release Repository</name>
-                    <url>s3://download.elasticsearch.org/elasticsearch/staging</url>
+                    <url>${elasticsearch.s3.repository}</url>
                 </repository>
-                <snapshotRepository>
-                    <id>aws-snapshot</id>
-                    <name>AWS Snapshot Repository</name>
-                    <url>s3://download.elasticsearch.org/elasticsearch/snapshot</url>
-                </snapshotRepository>
             </distributionManagement>
         </profile>
         <!-- license profile, to generate third party license file -->

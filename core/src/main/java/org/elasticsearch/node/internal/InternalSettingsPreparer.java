@@ -28,9 +28,13 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.cli.Terminal;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.FailedToResolveConfigException;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 
@@ -92,23 +96,23 @@ public class InternalSettingsPreparer {
                 // if its default, then load it, but also load form env
                 if (Strings.hasText(System.getProperty("es.default.config"))) {
                     loadFromEnv = true;
-                    settingsBuilder.loadFromUrl(environment.resolveConfig(System.getProperty("es.default.config")));
+                    settingsBuilder.loadFromPath(environment.configFile().resolve(System.getProperty("es.default.config")));
                 }
                 // if explicit, just load it and don't load from env
                 if (Strings.hasText(System.getProperty("es.config"))) {
                     loadFromEnv = false;
-                    settingsBuilder.loadFromUrl(environment.resolveConfig(System.getProperty("es.config")));
+                    settingsBuilder.loadFromPath(environment.configFile().resolve(System.getProperty("es.config")));
                 }
                 if (Strings.hasText(System.getProperty("elasticsearch.config"))) {
                     loadFromEnv = false;
-                    settingsBuilder.loadFromUrl(environment.resolveConfig(System.getProperty("elasticsearch.config")));
+                    settingsBuilder.loadFromPath(environment.configFile().resolve(System.getProperty("elasticsearch.config")));
                 }
             }
             if (loadFromEnv) {
                 for (String allowedSuffix : ALLOWED_SUFFIXES) {
                     try {
-                        settingsBuilder.loadFromUrl(environment.resolveConfig("elasticsearch" + allowedSuffix));
-                    } catch (FailedToResolveConfigException e) {
+                        settingsBuilder.loadFromPath(environment.configFile().resolve("elasticsearch" + allowedSuffix));
+                    } catch (SettingsException e) {
                         // ignore
                     }
                 }
@@ -154,16 +158,22 @@ public class InternalSettingsPreparer {
         // all settings placeholders have been resolved. resolve the value for the name setting by checking for name,
         // then looking for node.name, and finally generate one if needed
         if (settings.get("name") == null) {
-            final String name = settings.get("node.name");
+            String name = settings.get("node.name");
             if (name == null || name.isEmpty()) {
-                settings = settingsBuilder().put(settings)
-                        .put("name", Names.randomNodeName(environment.resolveConfig("names.txt")))
-                        .build();
-            } else {
-                settings = settingsBuilder().put(settings)
-                        .put("name", name)
-                        .build();
+                InputStream input;
+                Path namesPath = environment.configFile().resolve("names.txt");
+                if (Files.exists(namesPath)) {
+                    try {
+                        input = Files.newInputStream(namesPath);
+                    } catch (IOException e) {
+                        throw new RuntimeException("Failed to load custom names.txt from " + namesPath, e);
+                    }
+                } else {
+                    input = InternalSettingsPreparer.class.getResourceAsStream("/config/names.txt");
+                }
+                name = Names.randomNodeName(input);
             }
+            settings = settingsBuilder().put(settings).put("name", name).build();
         }
 
         environment = new Environment(settings);

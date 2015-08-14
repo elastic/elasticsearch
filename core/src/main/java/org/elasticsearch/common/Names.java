@@ -24,10 +24,13 @@ import org.elasticsearch.common.io.FileSystemUtils;
 
 import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 
 /**
@@ -35,23 +38,20 @@ import java.util.concurrent.ThreadLocalRandom;
  */
 public abstract class Names {
 
-    public static String randomNodeName(URL nodeNames) {
+    public static String randomNodeName(InputStream namesFile) {
         try {
-            int numberOfNames = 0;
-            try (BufferedReader reader = FileSystemUtils.newBufferedReader(nodeNames, Charsets.UTF_8)) {
-                while (reader.readLine() != null) {
-                    numberOfNames++;
+            List<String> names = new ArrayList<>();
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(namesFile, Charsets.UTF_8))) {
+                String name = reader.readLine();
+                while (name != null) {
+                    names.add(name);
+                    name = reader.readLine();
                 }
             }
-            try (BufferedReader reader = FileSystemUtils.newBufferedReader(nodeNames, Charsets.UTF_8)) {
-                int number = ((ThreadLocalRandom.current().nextInt(numberOfNames)) % numberOfNames);
-                for (int i = 0; i < number; i++) {
-                    reader.readLine();
-                }
-                return reader.readLine();
-            }
+            int index = ((ThreadLocalRandom.current().nextInt(names.size())) % names.size());
+            return names.get(index);
         } catch (IOException e) {
-            return null;
+            throw new RuntimeException("Could not read node names list", e);
         }
     }
 

@@ -43,11 +43,11 @@
                 },
                 "kuromoji_empty_user_dict" : {
                     "type":"kuromoji_tokenizer",
-                    "user_dictionary":"org/elasticsearch/index/analysis/empty_user_dict.txt"
+                    "user_dictionary":"empty_user_dict.txt"
                 },
                 "kuromoji_user_dict" : {
                     "type":"kuromoji_tokenizer",
-                    "user_dictionary":"org/elasticsearch/index/analysis/user_dict.txt"
+                    "user_dictionary":"user_dict.txt"
                 }
             },
             "analyzer" : {

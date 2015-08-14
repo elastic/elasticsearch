@@ -29,8 +29,11 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.io.InputStream;
 import java.net.URL;
 import java.net.URLClassLoader;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -73,11 +76,21 @@ public class InternalSettingsPreparerTests extends ESTestCase {
     }
 
     @Test
-    public void testAlternateConfigFileSuffixes() {
+    public void testAlternateConfigFileSuffixes() throws Exception {
+        InputStream yaml = getClass().getResourceAsStream("/config/elasticsearch.yaml");
+        InputStream json = getClass().getResourceAsStream("/config/elasticsearch.json");
+        InputStream properties = getClass().getResourceAsStream("/config/elasticsearch.properties");
+        Path home = createTempDir();
+        Path config = home.resolve("config");
+        Files.createDirectory(config);
+        Files.copy(yaml, config.resolve("elasticsearch.yaml"));
+        Files.copy(json, config.resolve("elasticsearch.json"));
+        Files.copy(properties, config.resolve("elasticsearch.properties"));
+
         // test that we can read config files with .yaml, .json, and .properties suffixes
         Tuple<Settings, Environment> tuple = InternalSettingsPreparer.prepareSettings(settingsBuilder()
                 .put("config.ignore_system_properties", true)
-                .put("path.home", createTempDir().toString())
+                .put("path.home", home)
                 .build(), true);
 
         assertThat(tuple.v1().get("yaml.config.exists"), equalTo("true"));

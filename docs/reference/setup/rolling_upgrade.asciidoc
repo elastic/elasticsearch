@@ -32,8 +32,6 @@ PUT /_cluster/settings
 
 ==== Step 2: Stop non-essential indexing and perform a synced flush (Optional)
 
-added[1.6.0,Synced flush is only supported in Elasticsearch 1.6.0 and above]
-
 You may happily continue indexing during the upgrade.  However, shard recovery
 will be much faster if you temporarily stop non-essential indexing and issue a
 <<indices-synced-flush, synced-flush>> request:

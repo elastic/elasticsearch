@@ -1,8 +1,6 @@
 [[query-dsl-limit-query]]
 === Limit Query
 
-deprecated[1.6.0, Use <<search-request-body,terminate_after>> instead]
-
 A limit query limits the number of documents (per shard) to execute on.
 For example:
 

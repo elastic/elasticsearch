@@ -39,7 +39,7 @@ public class AnalysisTestsHelper {
 
     public static AnalysisService createAnalysisServiceFromClassPath(Path baseDir, String resource) {
         Settings settings = Settings.settingsBuilder()
-                .loadFromClasspath(resource)
+                .loadFromStream(resource, AnalysisTestsHelper.class.getResourceAsStream(resource))
                 .put("path.home", baseDir.toString())
                 .build();
 

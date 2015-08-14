@@ -19,17 +19,7 @@
 
 package org.elasticsearch.common;
 
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.bootstrap.Elasticsearch;
-import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.settings.NoClassSettingsException;
-
 import java.lang.reflect.Modifier;
-import java.util.Arrays;
-import java.util.Iterator;
-import java.util.Locale;
-
-import static org.elasticsearch.common.Strings.toCamelCase;
 
 /**
  *
@@ -40,34 +30,6 @@ public class Classes {
      * The package separator character '.'
      */
     private static final char PACKAGE_SEPARATOR = '.';
-
-    /**
-     * Return the default ClassLoader to use: typically the thread context
-     * ClassLoader, if available; the ClassLoader that loaded the ClassUtils
-     * class will be used as fallback.
-     * <p/>
-     * <p>Call this method if you intend to use the thread context ClassLoader
-     * in a scenario where you absolutely need a non-null ClassLoader reference:
-     * for example, for class path resource loading (but not necessarily for
-     * <code>Class.forName</code>, which accepts a <code>null</code> ClassLoader
-     * reference as well).
-     *
-     * @return the default ClassLoader (never <code>null</code>)
-     * @see java.lang.Thread#getContextClassLoader()
-     */
-    public static ClassLoader getDefaultClassLoader() {
-        ClassLoader cl = null;
-        try {
-            cl = Thread.currentThread().getContextClassLoader();
-        } catch (Throwable ex) {
-            // Cannot access thread context ClassLoader - falling back to system class loader...
-        }
-        if (cl == null) {
-            // No thread context class loader -> use class loader of this class.
-            cl = Classes.class.getClassLoader();
-        }
-        return cl;
-    }
 
     /**
      * Determine the name of the package of the given class:
@@ -91,14 +53,6 @@ public class Classes {
     public static boolean isConcrete(Class<?> clazz) {
         int modifiers = clazz.getModifiers();
         return !clazz.isInterface() && !Modifier.isAbstract(modifiers);
-    }
-
-    public static <T> Class<? extends T> loadClass(ClassLoader classLoader, String className) {
-        try {
-            return (Class<? extends T>) classLoader.loadClass(className);
-        } catch (ClassNotFoundException|NoClassDefFoundError e) {
-            throw new ElasticsearchException("failed to load class [" + className + "]", e);
-        }
     }
 
     private Classes() {}

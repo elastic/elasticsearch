@@ -258,7 +258,7 @@ GET /_snapshot/my_backup/_all
 -----------------------------------
 // AUTOSENSE
 
-coming[2.0] A currently running snapshot can be retrieved using the following command:
+coming[2.0.0-beta1] A currently running snapshot can be retrieved using the following command:
 
 [source,sh]
 -----------------------------------

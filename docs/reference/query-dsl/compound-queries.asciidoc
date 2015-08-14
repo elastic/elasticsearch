@@ -47,11 +47,11 @@ Synonyms for the `bool` query.
 
 <<query-dsl-filtered-query,`filtered` query>>::
 
-Combine a query clause in query context with another in filter context. deprecated[2.0.0,Use the `bool` query instead]
+Combine a query clause in query context with another in filter context. deprecated[2.0.0-beta1,Use the `bool` query instead]
 
 <<query-dsl-limit-query,`limit` query>>::
 
-Limits the number of documents examined per shard. deprecated[1.6.0]
+Limits the number of documents examined per shard.
 
 
 include::constant-score-query.asciidoc[]

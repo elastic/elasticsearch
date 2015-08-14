@@ -13,7 +13,7 @@
   </parent>
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    <elasticsearch.s3.repository>s3://download.elasticsearch.org/elasticsearch/stageing/</elasticsearch.s3.repository>
+    <elasticsearch.s3.repository>s3://download.elasticsearch.org/elasticsearch/staging/</elasticsearch.s3.repository>
   </properties>
   <build>
     <plugins>

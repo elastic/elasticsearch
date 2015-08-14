@@ -23,6 +23,7 @@ import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterators;
 import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
@@ -433,7 +434,7 @@ public class PluginManager {
                 if (user == null) {
                     // TODO Update to https
                     if (!Strings.isNullOrEmpty(System.getProperty(PROPERTY_SUPPORT_STAGING_URLS))) {
-                        addUrl(urls, String.format(Locale.ROOT, "http://download.elastic.co/elasticsearch/staging/org/elasticsearch/plugin/%s/%s/%s-%s.zip", repo, version, repo, version));
+                        addUrl(urls, String.format(Locale.ROOT, "http://download.elastic.co/elasticsearch/staging/%s/org/elasticsearch/plugin/%s/%s/%s-%s.zip", Build.CURRENT.hashShort(), repo, version, repo, version));
                     }
                     addUrl(urls, String.format(Locale.ROOT, "http://download.elastic.co/elasticsearch/release/org/elasticsearch/plugin/%s/%s/%s-%s.zip", repo, version, repo, version));
                 } else {

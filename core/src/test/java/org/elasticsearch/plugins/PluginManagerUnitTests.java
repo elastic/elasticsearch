@@ -20,6 +20,7 @@
 package org.elasticsearch.plugins;
 
 import com.google.common.io.Files;
+import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -79,8 +80,8 @@ public class PluginManagerUnitTests extends ESTestCase {
         Iterator<URL> iterator = handle.urls().iterator();
 
         if (supportStagingUrls) {
-            String expectedStagingURL = String.format(Locale.ROOT, "http://download.elastic.co/elasticsearch/staging/org/elasticsearch/plugin/%s/%s/%s-%s.zip",
-                    pluginName, Version.CURRENT.number(), pluginName, Version.CURRENT.number());
+            String expectedStagingURL = String.format(Locale.ROOT, "http://download.elastic.co/elasticsearch/staging/%s/org/elasticsearch/plugin/%s/%s/%s-%s.zip",
+                    Build.CURRENT.hashShort(), pluginName, Version.CURRENT.number(), pluginName, Version.CURRENT.number());
             assertThat(iterator.next(), is(new URL(expectedStagingURL)));
         }
 
@@ -105,8 +106,8 @@ public class PluginManagerUnitTests extends ESTestCase {
         Iterator<URL> iterator = handle.urls().iterator();
 
         if (supportStagingUrls) {
-            String expectedStagingUrl = String.format(Locale.ROOT, "http://download.elastic.co/elasticsearch/staging/org/elasticsearch/plugin/%s/%s/%s-%s.zip",
-                    randomPluginName, Version.CURRENT.number(), randomPluginName, Version.CURRENT.number());
+            String expectedStagingUrl = String.format(Locale.ROOT, "http://download.elastic.co/elasticsearch/staging/%s/org/elasticsearch/plugin/%s/%s/%s-%s.zip",
+                    Build.CURRENT.hashShort(), randomPluginName, Version.CURRENT.number(), randomPluginName, Version.CURRENT.number());
             assertThat(iterator.next(), is(new URL(expectedStagingUrl)));
         }
 

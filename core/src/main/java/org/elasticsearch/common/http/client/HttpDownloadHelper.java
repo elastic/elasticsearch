@@ -90,6 +90,8 @@ public class HttpDownloadHelper {
     public interface Checksummer {
         /** Return the hex string for the given byte array */
         String checksum(byte[] filebytes);
+        /** Human-readable name for the checksum format */
+        String name();
     }
 
     /** Checksummer for SHA1 */
@@ -98,6 +100,11 @@ public class HttpDownloadHelper {
         public String checksum(byte[] filebytes) {
             return Hashing.sha1().hashBytes(filebytes).toString();
         }
+
+        @Override
+        public String name() {
+            return "SHA1";
+        }
     };
 
     /** Checksummer for MD5 */
@@ -105,6 +112,11 @@ public class HttpDownloadHelper {
         @Override
         public String checksum(byte[] filebytes) {
             return Hashing.md5().hashBytes(filebytes).toString();
+        }
+
+        @Override
+        public String name() {
+            return "MD5";
         }
     };
 
@@ -125,14 +137,14 @@ public class HttpDownloadHelper {
                 byte[] fileBytes = Files.readAllBytes(originalFile);
                 List<String> checksumLines = Files.readAllLines(checksumFile);
                 if (checksumLines.size() != 1) {
-                    throw new ElasticsearchCorruptionException("invalid format for checksum file, expected 1 line, got: " +
-                            checksumLines.size());
+                    throw new ElasticsearchCorruptionException("invalid format for checksum file (" +
+                            hashFunc.name() + "), expected 1 line, got: " + checksumLines.size());
                 }
                 String checksumHex = checksumLines.get(0);
                 String fileHex = hashFunc.checksum(fileBytes);
                 if (fileHex.equals(checksumHex) == false) {
-                    throw new ElasticsearchCorruptionException("incorrect hash, file hash: [" +
-                            fileHex + "], expected: [" + checksumHex + "]");
+                    throw new ElasticsearchCorruptionException("incorrect hash (" + hashFunc.name() +
+                            "), file hash: [" + fileHex + "], expected: [" + checksumHex + "]");
                 }
                 return true;
             }

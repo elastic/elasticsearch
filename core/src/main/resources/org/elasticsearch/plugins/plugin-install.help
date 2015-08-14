@@ -43,6 +43,7 @@ OFFICIAL PLUGINS
     - elasticsearch-delete-by-query
     - elasticsearch-lang-javascript
     - elasticsearch-lang-python
+    - elasticsearch-mapper-size
 
 
 OPTIONS

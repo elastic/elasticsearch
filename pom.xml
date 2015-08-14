@@ -22,6 +22,7 @@
         <elasticsearch.license.headerDefinition>${elasticsearch.tools.directory}/commercial-license-check/license_header_definition.xml</elasticsearch.license.headerDefinition>
         <assembly.attach>true</assembly.attach>
         <sources.attach>true</sources.attach>
+        <deploy.skip>false</deploy.skip>
     </properties>
 
     <scm>
@@ -121,6 +122,13 @@
                       <phase>none</phase>
                   </execution>
               </executions>
+          </plugin>
+          <plugin>
+              <groupId>org.apache.maven.plugins</groupId>
+              <artifactId>maven-deploy-plugin</artifactId>
+              <configuration>
+                  <skip>${deploy.skip}</skip>
+              </configuration>
           </plugin>
         </plugins>
       </pluginManagement>

@@ -323,4 +323,13 @@
         <module>shield-core-rest-tests</module>
         <module>smoke-test-watcher-with-shield</module>
     </modules>
+
+    <profiles>
+        <profile>
+            <id>deploy-public</id>
+            <properties>
+                <deploy.skip>true</deploy.skip>
+            </properties>
+        </profile>
+    </profiles>
 </project>

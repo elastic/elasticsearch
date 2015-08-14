@@ -22,6 +22,10 @@ import org.elasticsearch.examples.nativescript.script.PhraseScoreScript;
 import org.elasticsearch.examples.nativescript.script.TFIDFScoreScript;
 import org.elasticsearch.examples.nativescript.script.PopularityScoreScriptFactory;
 import org.elasticsearch.examples.nativescript.script.RandomSortScriptFactory;
+import org.elasticsearch.examples.nativescript.script.stockaggs.CombineScriptFactory;
+import org.elasticsearch.examples.nativescript.script.stockaggs.InitScriptFactory;
+import org.elasticsearch.examples.nativescript.script.stockaggs.MapScriptFactory;
+import org.elasticsearch.examples.nativescript.script.stockaggs.ReduceScriptFactory;
 import org.elasticsearch.plugins.AbstractPlugin;
 import org.elasticsearch.script.ScriptModule;
 
@@ -64,5 +68,10 @@ public class NativeScriptExamplesPlugin extends AbstractPlugin {
         module.registerScript(CosineSimilarityScoreScript.SCRIPT_NAME, CosineSimilarityScoreScript.Factory.class);
         module.registerScript(PhraseScoreScript.SCRIPT_NAME, PhraseScoreScript.Factory.class);
         module.registerScript(LanguageModelScoreScript.SCRIPT_NAME, LanguageModelScoreScript.Factory.class);
+        // Scripted Metric Aggregation Scripts
+        module.registerScript("stockaggs_init", InitScriptFactory.class);
+        module.registerScript("stockaggs_map", MapScriptFactory.class);
+        module.registerScript("stockaggs_combine", CombineScriptFactory.class);
+        module.registerScript("stockaggs_reduce", ReduceScriptFactory.class);
     }
 }

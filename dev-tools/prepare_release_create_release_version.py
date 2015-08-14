@@ -142,4 +142,6 @@ if __name__ == "__main__":
   shortHash = subprocess.check_output('git log --pretty=format:"%h" -n 1', shell=True)
   print('')
   print('*** To create a release candidate run: ')
-  print('  mvn clean deploy -Prelease -DskipTests -Dgpg.keyname="$GPG_KEY_ID" -Dgpg.passphrase="$GPG_PASSPHRASE" -Dpackaging.rpm.rpmbuild=/usr/bin/rpmbuild -Delasticsearch.s3.repository=s3://download.elasticsearch.org/elasticsearch/staging/%s' % (shortHash.decode('utf-8')))
+  print('  mvn clean deploy -Prelease -DskipTests -Dgpg.keyname="D88E42B4" -Dpackaging.rpm.rpmbuild=/usr/bin/rpmbuild -Delasticsearch.s3.repository=s3://download.elasticsearch.org/elasticsearch/staging/elasticsearch-%s-%s' % (release_version, shortHash.decode('utf-8')))
+  print('');
+  print('NOTE: this command will promt you several times for the GPG passphrase of the key you specified you can alternatively pass it via -Dgpg.passphrase=yourPassPhrase');

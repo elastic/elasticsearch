@@ -315,6 +315,7 @@
                                 <include>org/elasticsearch/search/MockSearchService.class</include>
                                 <include>org/elasticsearch/search/MockSearchService$*.class</include>
                                 <include>org/elasticsearch/cache/recycler/MockPageCacheRecycler.class</include>
+                                <include>org/elasticsearch/cache/recycler/MockPageCacheRecycler$*.class</include>
                                 <include>org/elasticsearch/common/util/MockBigArrays.class</include>
                                 <include>org/elasticsearch/common/util/MockBigArrays$*.class</include>
                                 <include>org/elasticsearch/node/NodeMocksPlugin.class</include>

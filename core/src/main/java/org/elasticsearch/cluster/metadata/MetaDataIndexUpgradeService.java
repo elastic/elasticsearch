@@ -20,6 +20,7 @@ package org.elasticsearch.cluster.metadata;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.lucene.analysis.Analyzer;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.routing.DjbHashFunction;
 import org.elasticsearch.cluster.routing.HashFunction;
@@ -78,7 +79,11 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
                     pre20HashFunction = DjbHashFunction.class;
                     break;
                 default:
-                    pre20HashFunction = Classes.loadClass(getClass().getClassLoader(), pre20HashFunctionName);
+                    try {
+                        pre20HashFunction = (Class<? extends HashFunction>) getClass().getClassLoader().loadClass(pre20HashFunctionName);
+                    } catch (ClassNotFoundException|NoClassDefFoundError e) {
+                        throw new ElasticsearchException("failed to load custom hash function [" + pre20HashFunctionName + "]", e);
+                    }
             }
         } else {
             pre20HashFunction = DjbHashFunction.class;

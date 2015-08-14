@@ -191,9 +191,10 @@ public class KuromojiAnalysisTests extends ESTestCase {
 
 
     public AnalysisService createAnalysisService() {
+        String json = "org/elasticsearch/index/analysis/kuromoji_analysis.json";
         Settings settings = Settings.settingsBuilder()
                 .put("path.home", createTempDir())
-                .loadFromClasspath("org/elasticsearch/index/analysis/kuromoji_analysis.json")
+                .loadFromStream(json, getClass().getResourceAsStream(json))
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .build();
 

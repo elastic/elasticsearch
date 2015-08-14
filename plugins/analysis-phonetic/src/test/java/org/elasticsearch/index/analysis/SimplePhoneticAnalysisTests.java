@@ -45,7 +45,8 @@ public class SimplePhoneticAnalysisTests extends ESTestCase {
 
     @Test
     public void testPhoneticTokenFilterFactory() {
-        Settings settings = settingsBuilder().loadFromClasspath("org/elasticsearch/index/analysis/phonetic-1.yml")
+        String yaml = "org/elasticsearch/index/analysis/phonetic-1.yml"
+        Settings settings = settingsBuilder().loadFromStream(yaml, getClass().getResourceAsStream(yaml))
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put("path.home", createTempDir())
                 .build();

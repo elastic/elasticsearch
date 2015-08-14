@@ -30,10 +30,6 @@ import java.lang.reflect.Constructor;
  */
 public class Modules {
 
-    public static Module createModule(String moduleClass, Settings settings) throws ClassNotFoundException {
-        return createModule((Class<? extends Module>) settings.getClassLoader().loadClass(moduleClass), settings);
-    }
-
     public static Module createModule(Class<? extends Module> moduleClass, @Nullable Settings settings) {
         Constructor<? extends Module> constructor;
         try {

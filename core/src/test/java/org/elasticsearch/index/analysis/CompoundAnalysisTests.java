@@ -115,16 +115,18 @@ public class CompoundAnalysisTests extends ESTestCase {
     }
 
     private Settings getJsonSettings() {
+        String json = "org/elasticsearch/index/analysis/test1.json";
         return settingsBuilder()
-                .loadFromClasspath("org/elasticsearch/index/analysis/test1.json")
+                .loadFromStream(json, getClass().getResourceAsStream(json))
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put("path.home", createTempDir().toString())
                 .build();
     }
 
     private Settings getYamlSettings() {
+        String yaml = "org/elasticsearch/index/analysis/test1.yml";
         return settingsBuilder()
-                .loadFromClasspath("org/elasticsearch/index/analysis/test1.yml")
+                .loadFromStream(yaml, getClass().getResourceAsStream(yaml))
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put("path.home", createTempDir().toString())
                 .build();

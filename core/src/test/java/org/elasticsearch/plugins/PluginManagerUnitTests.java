@@ -108,8 +108,8 @@ public class PluginManagerUnitTests extends ESTestCase {
         Iterator<URL> iterator = handle.urls().iterator();
 
         if (supportStagingUrls) {
-            String expectedStagingUrl = String.format(Locale.ROOT, "http://download.elastic.co/elasticsearch/staging/%s/org/elasticsearch/plugin/elasticsearch-%s/%s/elasticsearch-%s-%s.zip",
-                    Build.CURRENT.hashShort(), randomPluginName, Version.CURRENT.number(), randomPluginName, Version.CURRENT.number());
+            String expectedStagingUrl = String.format(Locale.ROOT, "http://download.elastic.co/elasticsearch/staging/elasticsearch-%s-%s/org/elasticsearch/plugin/elasticsearch-%s/%s/elasticsearch-%s-%s.zip",
+                    Version.CURRENT.number(), Build.CURRENT.hashShort(), randomPluginName, Version.CURRENT.number(), randomPluginName, Version.CURRENT.number());
             assertThat(iterator.next(), is(new URL(expectedStagingUrl)));
         }
 

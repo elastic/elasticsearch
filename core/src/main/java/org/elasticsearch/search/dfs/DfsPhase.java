@@ -57,10 +57,6 @@ public class DfsPhase implements SearchPhase {
     public void execute(SearchContext context) {
         final ObjectHashSet<Term> termsSet = new ObjectHashSet<>();
         try {
-            if (!context.queryRewritten()) {
-                context.updateRewriteQuery(context.searcher().rewrite(context.query()));
-            }
-
             context.searcher().createNormalizedWeight(context.query(), true).extractTerms(new DelegateSet(termsSet));
             for (RescoreSearchContext rescoreContext : context.rescore()) {
                 rescoreContext.rescorer().extractTerms(context, rescoreContext, new DelegateSet(termsSet));

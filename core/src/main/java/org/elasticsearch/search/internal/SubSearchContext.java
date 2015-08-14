@@ -207,11 +207,6 @@ public class SubSearchContext extends FilteredSearchContext {
     }
 
     @Override
-    public SearchContext updateRewriteQuery(Query rewriteQuery) {
-        throw new UnsupportedOperationException("Not supported");
-    }
-
-    @Override
     public int from() {
         return from;
     }

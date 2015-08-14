@@ -50,11 +50,6 @@ public class FastVectorHighlighter implements Highlighter {
     }
 
     @Override
-    public String[] names() {
-        return new String[]{"fvh", "fast-vector-highlighter"};
-    }
-
-    @Override
     public HighlightField highlight(HighlighterContext highlighterContext) {
         SearchContextHighlight.Field field = highlighterContext.field;
         SearchContext context = highlighterContext.context;

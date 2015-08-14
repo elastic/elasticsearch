@@ -36,6 +36,10 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
 
     private final Object values;
 
+    private String minimumShouldMatch;
+
+    private Boolean disableCoord;
+
     private String execution;
 
     private String lookupIndex;
@@ -43,7 +47,6 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
     private String lookupId;
     private String lookupRouting;
     private String lookupPath;
-    private Boolean lookupCache;
 
     /**
      * A filter for a field based on several terms matching on any of them.
@@ -133,7 +136,31 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
     }
 
     /**
+<<<<<<< HEAD
      * Sets the index name to lookup the terms from.
+=======
+     * Sets the minimum number of matches across the provided terms. Defaults to <tt>1</tt>.
+     * @deprecated use [bool] query instead
+     */
+    @Deprecated
+    public TermsQueryBuilder minimumShouldMatch(String minimumShouldMatch) {
+        this.minimumShouldMatch = minimumShouldMatch;
+        return this;
+    }
+
+    /**
+     * Disables <tt>Similarity#coord(int,int)</tt> in scoring. Defaults to <tt>false</tt>.
+     * @deprecated use [bool] query instead
+     */
+    @Deprecated
+    public TermsQueryBuilder disableCoord(boolean disableCoord) {
+        this.disableCoord = disableCoord;
+        return this;
+    }
+
+    /**
+     * Sets the filter name for the filter that can be used when searching for matched_filters per hit.
+>>>>>>> master
      */
     public TermsQueryBuilder lookupIndex(String lookupIndex) {
         this.lookupIndex = lookupIndex;
@@ -169,11 +196,6 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         return this;
     }
 
-    public TermsQueryBuilder lookupCache(boolean lookupCache) {
-        this.lookupCache = lookupCache;
-        return this;
-    }
-
     @Override
     public void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
@@ -187,9 +209,6 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
             if (lookupRouting != null) {
                 builder.field("routing", lookupRouting);
             }
-            if (lookupCache != null) {
-                builder.field("cache", lookupCache);
-            }
             builder.field("path", lookupPath);
             builder.endObject();
         } else {
@@ -199,7 +218,16 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
             builder.field("execution", execution);
         }
 
+        if (minimumShouldMatch != null) {
+            builder.field("minimum_should_match", minimumShouldMatch);
+        }
+
+        if (disableCoord != null) {
+            builder.field("disable_coord", disableCoord);
+        }
+
         printBoostAndQueryName(builder);
+
         builder.endObject();
     }
 

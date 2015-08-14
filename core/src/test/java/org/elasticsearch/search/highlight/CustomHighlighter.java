@@ -33,11 +33,6 @@ import java.util.Map;
 public class CustomHighlighter implements Highlighter {
 
     @Override
-    public String[] names() {
-        return new String[] { "test-custom" };
-    }
-
-    @Override
     public HighlightField highlight(HighlighterContext highlighterContext) {
         SearchContextHighlight.Field field = highlighterContext.field;
         CacheEntry cacheEntry = (CacheEntry) highlighterContext.hitContext.cache().get("test-custom");

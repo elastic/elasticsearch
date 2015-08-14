@@ -1,8 +1,6 @@
 [[java-query-dsl-limit-query]]
 ==== Limit Query
 
-deprecated[1.6.0, Use <<java-search-terminate-after,terminateAfter()>> instead]
-
 See {ref}/query-dsl-limit-query.html[Limit Query]
 
 [source,java]

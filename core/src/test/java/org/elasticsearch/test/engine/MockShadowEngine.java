@@ -19,6 +19,8 @@
 
 package org.elasticsearch.test.engine;
 
+import org.apache.lucene.index.AssertingDirectoryReader;
+import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.search.AssertingIndexSearcher;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.SearcherManager;
@@ -32,9 +34,9 @@ import java.util.Map;
 final class MockShadowEngine extends ShadowEngine {
     private final MockEngineSupport support;
 
-    MockShadowEngine(EngineConfig config) {
+    MockShadowEngine(EngineConfig config, Class<? extends FilterDirectoryReader> wrapper) {
         super(config);
-        this.support = new MockEngineSupport(config);
+        this.support = new MockEngineSupport(config, wrapper);
     }
 
     @Override

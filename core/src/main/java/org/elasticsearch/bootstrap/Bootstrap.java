@@ -192,7 +192,7 @@ public class Bootstrap {
     @SuppressForbidden(reason = "Exception#printStackTrace()")
     private static void setupLogging(Settings settings, Environment environment) {
         try {
-            settings.getClassLoader().loadClass("org.apache.log4j.Logger");
+            Class.forName("org.apache.log4j.Logger");
             LogConfigurator.configure(settings);
         } catch (ClassNotFoundException e) {
             // no log4j

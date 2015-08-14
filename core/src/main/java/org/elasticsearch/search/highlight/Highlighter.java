@@ -25,8 +25,6 @@ import org.elasticsearch.index.mapper.FieldMapper;
  */
 public interface Highlighter {
 
-    String[] names();
-
     HighlightField highlight(HighlighterContext highlighterContext);
 
     boolean canHighlight(FieldMapper fieldMapper);

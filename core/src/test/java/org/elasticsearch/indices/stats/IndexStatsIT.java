@@ -19,6 +19,7 @@
 
 package org.elasticsearch.indices.stats;
 
+import org.elasticsearch.index.cache.IndexCacheModule;
 import org.elasticsearch.index.shard.MergeSchedulerConfig;
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
 import org.apache.lucene.util.Version;
@@ -39,9 +40,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.cache.query.QueryCacheModule;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
-import org.elasticsearch.index.cache.query.QueryCacheModule.QueryCacheSettings;
 import org.elasticsearch.index.cache.query.index.IndexQueryCache;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.MergePolicyConfig;
@@ -79,8 +78,8 @@ public class IndexStatsIT extends ESIntegTestCase {
         //Filter/Query cache is cleaned periodically, default is 60s, so make sure it runs often. Thread.sleep for 60s is bad
         return Settings.settingsBuilder().put(super.nodeSettings(nodeOrdinal))
                 .put(IndicesRequestCache.INDICES_CACHE_REQUEST_CLEAN_INTERVAL, "1ms")
-                .put(QueryCacheSettings.QUERY_CACHE_EVERYTHING, true)
-                .put(QueryCacheModule.QueryCacheSettings.QUERY_CACHE_TYPE, IndexQueryCache.class)
+                .put(IndexCacheModule.QUERY_CACHE_EVERYTHING, true)
+                .put(IndexCacheModule.QUERY_CACHE_TYPE, IndexCacheModule.INDEX_QUERY_CACHE)
                 .build();
     }
 

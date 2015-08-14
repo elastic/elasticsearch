@@ -29,7 +29,7 @@ import java.io.StringReader;
 
 public class CJKFilterFactoryTests extends ESTokenStreamTestCase {
 
-    private static final String RESOURCE = "org/elasticsearch/index/analysis/cjk_analysis.json";
+    private static final String RESOURCE = "/org/elasticsearch/index/analysis/cjk_analysis.json";
 
     @Test
     public void testDefault() throws IOException {

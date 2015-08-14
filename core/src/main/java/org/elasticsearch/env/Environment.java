@@ -319,13 +319,14 @@ public class Environment {
             }
         }
         // try and load it from the classpath directly
-        URL resource = settings.getClassLoader().getResource(path);
+        // TODO: remove this, callers can look up their own config on classpath
+        URL resource = getClass().getClassLoader().getResource(path);
         if (resource != null) {
             return resource;
         }
         // try and load it from the classpath with config/ prefix
         if (!path.startsWith("config/")) {
-            resource = settings.getClassLoader().getResource("config/" + path);
+            resource = getClass().getClassLoader().getResource("config/" + path);
             if (resource != null) {
                 return resource;
             }

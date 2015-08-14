@@ -16,25 +16,34 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.elasticsearch.index.shard;
 
-package org.elasticsearch.search.highlight;
-
+import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.plugins.AbstractPlugin;
-import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.test.engine.MockEngineFactory;
+import org.elasticsearch.test.engine.MockEngineSupportModule;
 
-public class CustomHighlighterPlugin extends AbstractPlugin {
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
 
+// this must exist in the same package as IndexShardModule to allow access to setting the impl
+public class MockEngineFactoryPlugin extends AbstractPlugin {
     @Override
     public String name() {
-        return "test-plugin-custom-highlighter";
+        return "mock-engine-factory";
     }
-
     @Override
     public String description() {
-        return "Custom highlighter to test pluggable implementation";
+        return "a mock engine factory for testing";
     }
-
-    public void onModule(SearchModule highlightModule) {
-        highlightModule.registerHighlighter("test-custom", CustomHighlighter.class);
+    @Override
+    public Collection<Class<? extends Module>> indexModules() {
+        List<Class<? extends Module>> modules = new ArrayList<>();
+        modules.add(MockEngineSupportModule.class);
+        return modules;
+    }
+    public void onModule(IndexShardModule module) {
+        module.engineFactoryImpl = MockEngineFactory.class;
     }
 }

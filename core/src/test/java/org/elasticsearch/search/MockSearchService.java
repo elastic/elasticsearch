@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.test.search;
+package org.elasticsearch.search;
 
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.cluster.ClusterService;
@@ -28,6 +28,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.IndicesWarmer;
 import org.elasticsearch.indices.cache.request.IndicesRequestCache;
 import org.elasticsearch.node.settings.NodeSettingsService;
+import org.elasticsearch.plugins.AbstractPlugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.dfs.DfsPhase;
@@ -41,6 +42,20 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class MockSearchService extends SearchService {
+
+    public static class Plugin extends AbstractPlugin {
+        @Override
+        public String name() {
+            return "mock-search-service";
+        }
+        @Override
+        public String description() {
+            return "a mock search service for testing";
+        }
+        public void onModule(SearchModule module) {
+            module.searchServiceImpl = MockSearchService.class;
+        }
+    }
 
     private static final Map<SearchContext, Throwable> ACTIVE_SEARCH_CONTEXTS = new ConcurrentHashMap<>();
 

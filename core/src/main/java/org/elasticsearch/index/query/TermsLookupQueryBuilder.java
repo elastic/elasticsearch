@@ -34,5 +34,5 @@ public class TermsLookupQueryBuilder extends TermsQueryBuilder {
     @Override
     public String getWriteableName() {
         return TermsQueryBuilder.NAME;
-    }
+   }
 }

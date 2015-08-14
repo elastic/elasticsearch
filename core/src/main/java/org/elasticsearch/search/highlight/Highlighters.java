@@ -18,44 +18,74 @@
  */
 package org.elasticsearch.search.highlight;
 
-import com.google.common.collect.ImmutableMap;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.ExtensionPoint;
 
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 /**
- *
+ * An extensions point and registry for all the highlighters a node supports.
  */
-public class Highlighters {
+public class Highlighters extends ExtensionPoint.MapExtensionPoint<Highlighter> {
+
+    @Deprecated // remove in 3.0
+    private static final String FAST_VECTOR_HIGHLIGHTER = "fast-vector-highlighter";
+    private static final String FVH = "fvh";
+    @Deprecated // remove in 3.0
+    private static final String HIGHLIGHTER = "highlighter";
+    private static final String PLAIN = "plain";
+    @Deprecated // remove in 3.0
+    private static final String POSTINGS_HIGHLIGHTER = "postings-highlighter";
+    private static final String POSTINGS = "postings";
+
 
     private final Map<String, Highlighter> parsers;
+    private final DeprecationLogger deprecationLogger = new DeprecationLogger(ESLoggerFactory.getLogger(Highlighters.class.getName()));
+
+    public Highlighters(){
+        this(Collections.EMPTY_MAP);
+    }
+
+    private Highlighters(Map<String, Highlighter> parsers) {
+        super("highlighter", Highlighter.class, new HashSet<>(Arrays.asList(FVH, FAST_VECTOR_HIGHLIGHTER, PLAIN, HIGHLIGHTER, POSTINGS, POSTINGS_HIGHLIGHTER)),
+                Highlighters.class);
+        this.parsers = Collections.unmodifiableMap(parsers);
+    }
 
     @Inject
-    public Highlighters(Settings settings, Set<Highlighter> parsers) {
+    public Highlighters(Settings settings, Map<String, Highlighter> parsers) {
+        this(addBuiltIns(settings, parsers));
+    }
+
+    private static Map<String, Highlighter> addBuiltIns(Settings settings, Map<String, Highlighter> parsers) {
         // build in highlighers
         Map<String, Highlighter> map = new HashMap<>();
-        add(map, new FastVectorHighlighter(settings));
-        add(map, new PlainHighlighter());
-        add(map, new PostingsHighlighter());
-        for (Highlighter highlighter : parsers) {
-            add(map, highlighter);
-        }
-        this.parsers = Collections.unmodifiableMap(map);
+        map.put(FVH,  new FastVectorHighlighter(settings));
+        map.put(FAST_VECTOR_HIGHLIGHTER, map.get(FVH));
+        map.put(PLAIN, new PlainHighlighter());
+        map.put(HIGHLIGHTER, map.get(PLAIN));
+        map.put(POSTINGS, new PostingsHighlighter());
+        map.put(POSTINGS_HIGHLIGHTER, map.get(POSTINGS));
+        map.putAll(parsers);
+        return map;
     }
 
     public Highlighter get(String type) {
-        return parsers.get(type);
-    }
-
-    private void add(Map<String, Highlighter> map, Highlighter highlighter) {
-        for (String type : highlighter.names()) {
-            map.put(type, highlighter);
+        switch (type) {
+            case FAST_VECTOR_HIGHLIGHTER:
+                deprecationLogger.deprecated("highlighter key [{}] is deprecated and will be removed in 3.x use [{}] instead", FAST_VECTOR_HIGHLIGHTER, FVH);
+                break;
+            case HIGHLIGHTER:
+                deprecationLogger.deprecated("highlighter key [{}] is deprecated and will be removed in 3.x use [{}] instead", HIGHLIGHTER, PLAIN);
+                break;
+            case POSTINGS_HIGHLIGHTER:
+                deprecationLogger.deprecated("highlighter key [{}] is deprecated and will be removed in 3.x use [{}] instead", POSTINGS_HIGHLIGHTER, POSTINGS);
+                break;
         }
+        return parsers.get(type);
     }
 
 }

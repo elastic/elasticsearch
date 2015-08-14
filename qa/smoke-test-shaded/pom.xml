@@ -23,7 +23,7 @@
         <dependency>
             <groupId>org.elasticsearch.distribution.shaded</groupId>
             <artifactId>elasticsearch</artifactId>
-            <version>2.0.0-SNAPSHOT</version>
+            <version>${elasticsearch.version}</version>
         </dependency>
         <dependency>
             <groupId>org.hamcrest</groupId>

@@ -37,7 +37,7 @@ public class CustomSuggesterPlugin extends AbstractPlugin {
     }
 
     public void onModule(SearchModule searchModule) {
-        searchModule.registerSuggester(CustomSuggester.class);
+        searchModule.registerSuggester("custom", CustomSuggester.class);
     }
 
 }

@@ -46,25 +46,26 @@ import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.EsAbortPolicy;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.test.cache.recycler.MockBigArrays;
-import org.elasticsearch.test.cache.recycler.MockPageCacheRecycler;
+import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.cache.recycler.MockPageCacheRecycler;
 import org.elasticsearch.test.junit.listeners.AssertionErrorThreadDumpPrinter;
 import org.elasticsearch.test.junit.listeners.LoggingListener;
 import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
-import org.elasticsearch.test.search.MockSearchService;
+import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.*;
 import org.junit.rules.RuleChain;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
+import java.nio.file.DirectoryStream;
 import java.nio.file.FileSystem;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.Callable;
@@ -73,6 +74,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 import static com.google.common.collect.Lists.newArrayList;
+import static org.hamcrest.Matchers.equalTo;
 
 /**
  * Base testcase for randomized unit testing with Elasticsearch
@@ -581,4 +583,40 @@ public abstract class ESTestCase extends LuceneTestCase {
         return enabled;
     }
 
+    /**
+     * Asserts that there are no files in the specified path
+     */
+    public void assertPathHasBeenCleared(String path) throws Exception {
+        assertPathHasBeenCleared(PathUtils.get(path));
+    }
+
+    /**
+     * Asserts that there are no files in the specified path
+     */
+    public void assertPathHasBeenCleared(Path path) throws Exception {
+        logger.info("--> checking that [{}] has been cleared", path);
+        int count = 0;
+        StringBuilder sb = new StringBuilder();
+        sb.append("[");
+        if (Files.exists(path)) {
+            try (DirectoryStream<Path> stream = Files.newDirectoryStream(path)) {
+                for (Path file : stream) {
+                    // Skip files added by Lucene's ExtraFS
+                    if (file.getFileName().toString().startsWith("extra")) {
+                        continue;
+                    }
+                    logger.info("--> found file: [{}]", file.toAbsolutePath().toString());
+                    if (Files.isDirectory(file)) {
+                        assertPathHasBeenCleared(file);
+                    } else if (Files.isRegularFile(file)) {
+                        count++;
+                        sb.append(file.toAbsolutePath().toString());
+                        sb.append("\n");
+                    }
+                }
+            }
+        }
+        sb.append("]");
+        assertThat(count + " files exist that should have been cleaned:\n" + sb.toString(), count, equalTo(0));
+    }
 }

@@ -23,6 +23,7 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.Diffable;
@@ -251,7 +252,12 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
         if (hashFunction == null) {
             routingHashFunction = MURMUR3_HASH_FUNCTION;
         } else {
-            final Class<? extends HashFunction> hashFunctionClass = Classes.loadClass(getClass().getClassLoader(), hashFunction);
+            final Class<? extends HashFunction> hashFunctionClass;
+            try {
+                hashFunctionClass = Class.forName(hashFunction).asSubclass(HashFunction.class);
+            } catch (ClassNotFoundException|NoClassDefFoundError e) {
+                throw new ElasticsearchException("failed to load custom hash function [" + hashFunction + "]", e);
+            }
             try {
                 routingHashFunction = hashFunctionClass.newInstance();
             } catch (InstantiationException | IllegalAccessException e) {

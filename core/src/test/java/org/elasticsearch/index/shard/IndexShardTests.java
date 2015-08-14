@@ -20,9 +20,11 @@ package org.elasticsearch.index.shard;
 
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.store.LockObtainFailedException;
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -30,6 +32,7 @@ import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.index.IndexService;
@@ -48,6 +51,7 @@ import org.junit.Test;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
@@ -56,6 +60,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_VERSION_CREATED;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
@@ -433,5 +438,90 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         ensureGreen("test");
         response = client().prepareSearch("test").get();
         assertHitCount(response, 0l);
+    }
+
+    public void testIndexDirIsDeletedWhenShardRemoved() throws Exception {
+        Environment env = getInstanceFromNode(Environment.class);
+        Path idxPath = env.sharedDataFile().resolve(randomAsciiOfLength(10));
+        logger.info("--> idxPath: [{}]", idxPath);
+        Settings idxSettings = Settings.builder()
+                .put(IndexMetaData.SETTING_DATA_PATH, idxPath)
+                .build();
+        createIndex("test", idxSettings);
+        ensureGreen("test");
+        client().prepareIndex("test", "bar", "1").setSource("{}").setRefresh(true).get();
+        SearchResponse response = client().prepareSearch("test").get();
+        assertHitCount(response, 1l);
+        client().admin().indices().prepareDelete("test").get();
+        assertPathHasBeenCleared(idxPath);
+    }
+
+    public void testIndexCanChangeCustomDataPath() throws Exception {
+        Environment env = getInstanceFromNode(Environment.class);
+        Path idxPath = env.sharedDataFile().resolve(randomAsciiOfLength(10));
+        final String INDEX = "idx";
+        Path startDir = idxPath.resolve("start-" + randomAsciiOfLength(10));
+        Path endDir = idxPath.resolve("end-" + randomAsciiOfLength(10));
+        logger.info("--> start dir: [{}]", startDir.toAbsolutePath().toString());
+        logger.info("-->   end dir: [{}]", endDir.toAbsolutePath().toString());
+        // temp dirs are automatically created, but the end dir is what
+        // startDir is going to be renamed as, so it needs to be deleted
+        // otherwise we get all sorts of errors about the directory
+        // already existing
+        IOUtils.rm(endDir);
+
+        Settings sb = Settings.builder()
+                .put(IndexMetaData.SETTING_DATA_PATH, startDir.toAbsolutePath().toString())
+                .build();
+        Settings sb2 = Settings.builder()
+                .put(IndexMetaData.SETTING_DATA_PATH, endDir.toAbsolutePath().toString())
+                .build();
+
+        logger.info("--> creating an index with data_path [{}]", startDir.toAbsolutePath().toString());
+        createIndex(INDEX, sb);
+        ensureGreen(INDEX);
+        client().prepareIndex(INDEX, "bar", "1").setSource("{}").setRefresh(true).get();
+
+        SearchResponse resp = client().prepareSearch(INDEX).setQuery(matchAllQuery()).get();
+        assertThat("found the hit", resp.getHits().getTotalHits(), equalTo(1L));
+
+        logger.info("--> closing the index [{}]", INDEX);
+        client().admin().indices().prepareClose(INDEX).get();
+        logger.info("--> index closed, re-opening...");
+        client().admin().indices().prepareOpen(INDEX).get();
+        logger.info("--> index re-opened");
+        ensureGreen(INDEX);
+
+        resp = client().prepareSearch(INDEX).setQuery(matchAllQuery()).get();
+        assertThat("found the hit", resp.getHits().getTotalHits(), equalTo(1L));
+
+        // Now, try closing and changing the settings
+
+        logger.info("--> closing the index [{}]", INDEX);
+        client().admin().indices().prepareClose(INDEX).get();
+
+        logger.info("--> moving data on disk [{}] to [{}]", startDir.getFileName(), endDir.getFileName());
+        assert Files.exists(endDir) == false : "end directory should not exist!";
+        Files.move(startDir, endDir, StandardCopyOption.REPLACE_EXISTING);
+
+        logger.info("--> updating settings...");
+        client().admin().indices().prepareUpdateSettings(INDEX)
+                .setSettings(sb2)
+                .setIndicesOptions(IndicesOptions.fromOptions(true, false, true, true))
+                .get();
+
+        assert Files.exists(startDir) == false : "start dir shouldn't exist";
+
+        logger.info("--> settings updated and files moved, re-opening index");
+        client().admin().indices().prepareOpen(INDEX).get();
+        logger.info("--> index re-opened");
+        ensureGreen(INDEX);
+
+        resp = client().prepareSearch(INDEX).setQuery(matchAllQuery()).get();
+        assertThat("found the hit", resp.getHits().getTotalHits(), equalTo(1L));
+
+        assertAcked(client().admin().indices().prepareDelete(INDEX));
+        assertPathHasBeenCleared(startDir.toAbsolutePath().toString());
+        assertPathHasBeenCleared(endDir.toAbsolutePath().toString());
     }
 }

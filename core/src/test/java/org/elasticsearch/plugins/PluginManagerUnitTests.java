@@ -24,6 +24,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.After;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -33,7 +34,6 @@ import java.util.Iterator;
 import java.util.Locale;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
@@ -41,6 +41,11 @@ import static org.hamcrest.Matchers.is;
  *
  */
 public class PluginManagerUnitTests extends ESTestCase {
+
+    @After
+    public void cleanSystemProperty() {
+        System.clearProperty(PluginManager.PROPERTY_SUPPORT_STAGING_URLS);
+    }
 
     @Test
     public void testThatConfigDirectoryCanBeOutsideOfElasticsearchHomeDirectory() throws IOException {
@@ -66,19 +71,24 @@ public class PluginManagerUnitTests extends ESTestCase {
         String pluginName = randomAsciiOfLength(10);
         PluginManager.PluginHandle handle = PluginManager.PluginHandle.parse(pluginName);
 
-        assertThat(handle.urls(), hasSize(Version.CURRENT.snapshot() ? 2 : 1));
+        boolean supportStagingUrls = randomBoolean();
+        if (supportStagingUrls) {
+            System.setProperty(PluginManager.PROPERTY_SUPPORT_STAGING_URLS, "true");
+        }
 
         Iterator<URL> iterator = handle.urls().iterator();
 
-        if (Version.CURRENT.snapshot()) {
-            String expectedSnapshotUrl = String.format(Locale.ROOT, "http://download.elastic.co/elasticsearch/snapshot/org/elasticsearch/plugin/%s/%s-SNAPSHOT/%s-%s-SNAPSHOT.zip",
+        if (supportStagingUrls) {
+            String expectedStagingURL = String.format(Locale.ROOT, "http://download.elastic.co/elasticsearch/staging/org/elasticsearch/plugin/%s/%s/%s-%s.zip",
                     pluginName, Version.CURRENT.number(), pluginName, Version.CURRENT.number());
-            assertThat(iterator.next(), is(new URL(expectedSnapshotUrl)));
+            assertThat(iterator.next(), is(new URL(expectedStagingURL)));
         }
 
         URL expected = new URL("http", "download.elastic.co", "/elasticsearch/release/org/elasticsearch/plugin/" + pluginName + "/" + Version.CURRENT.number() + "/" +
-            pluginName + "-" + Version.CURRENT.number() + ".zip");
+        pluginName + "-" + Version.CURRENT.number() + ".zip");
         assertThat(iterator.next(), is(expected));
+
+        assertThat(iterator.hasNext(), is(false));
     }
 
     @Test
@@ -87,18 +97,24 @@ public class PluginManagerUnitTests extends ESTestCase {
         PluginManager.PluginHandle handle = PluginManager.PluginHandle.parse(randomPluginName);
         assertThat(handle.name, is(randomPluginName.replaceAll("^elasticsearch-", "")));
 
-        assertThat(handle.urls(), hasSize(Version.CURRENT.snapshot() ? 2 : 1));
+        boolean supportStagingUrls = randomBoolean();
+        if (supportStagingUrls) {
+            System.setProperty(PluginManager.PROPERTY_SUPPORT_STAGING_URLS, "true");
+        }
+
         Iterator<URL> iterator = handle.urls().iterator();
 
-        if (Version.CURRENT.snapshot()) {
-            String expectedSnapshotUrl = String.format(Locale.ROOT, "http://download.elastic.co/elasticsearch/snapshot/org/elasticsearch/plugin/%s/%s-SNAPSHOT/%s-%s-SNAPSHOT.zip",
+        if (supportStagingUrls) {
+            String expectedStagingUrl = String.format(Locale.ROOT, "http://download.elastic.co/elasticsearch/staging/org/elasticsearch/plugin/%s/%s/%s-%s.zip",
                     randomPluginName, Version.CURRENT.number(), randomPluginName, Version.CURRENT.number());
-            assertThat(iterator.next(), is(new URL(expectedSnapshotUrl)));
+            assertThat(iterator.next(), is(new URL(expectedStagingUrl)));
         }
 
         String releaseUrl = String.format(Locale.ROOT, "http://download.elastic.co/elasticsearch/release/org/elasticsearch/plugin/%s/%s/%s-%s.zip",
                 randomPluginName, Version.CURRENT.number(), randomPluginName, Version.CURRENT.number());
         assertThat(iterator.next(), is(new URL(releaseUrl)));
+
+        assertThat(iterator.hasNext(), is(false));
     }
 
     @Test

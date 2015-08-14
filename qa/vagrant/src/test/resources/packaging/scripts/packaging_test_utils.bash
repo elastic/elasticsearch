@@ -26,6 +26,9 @@
 # under the License.
 
 
+# Variables used by tests
+EXAMPLE_PLUGIN_ZIP=$(readlink -m elasticsearch-jvm-example-*.zip)
+
 # Checks if necessary commands are available to run the tests
 
 if [ ! -x /usr/bin/which ]; then
@@ -134,11 +137,17 @@ skip_not_zip() {
 }
 
 assert_file_exist() {
-    [ -e "$1" ]
+    local file="$1"
+    echo "Should exist: ${file}"
+    local file=$(readlink -m "${file}")
+    [ -e "$file" ]
 }
 
 assert_file_not_exist() {
-    [ ! -e "$1" ]
+    local file="$1"
+    echo "Should not exist: ${file}"
+    local file=$(readlink -m "${file}")
+    [ ! -e "$file" ]
 }
 
 assert_file() {

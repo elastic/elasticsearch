@@ -150,7 +150,7 @@ export TAR=/elasticsearch/distribution/tar/target/releases
 export RPM=/elasticsearch/distribution/rpm/target/releases
 export DEB=/elasticsearch/distribution/deb/target/releases
 export TESTROOT=/elasticsearch/qa/vagrant/target/testroot
-export BATS=/elasticsearch/qa/vagrant/src/test/resources/packaging/scripts/
+export BATS=/elasticsearch/qa/vagrant/src/test/resources/packaging/scripts
 VARS
   SHELL
 end

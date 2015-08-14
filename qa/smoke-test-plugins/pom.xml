@@ -12,7 +12,8 @@
   </parent>
 
   <!-- 
-    This test unzips elasticsearch, installs each plugin,
+    This is the parent pom for all tests that test if plugins can be loaded together.
+    The test unzips elasticsearch, installs each plugin,
     starts elasticsearch, verifies loaded plugin count.
 
     "expected plugin count" is computed from plugins/, 
@@ -20,17 +21,26 @@
  
     our yaml file uses property filtering to populate it.
   -->
-
+  <packaging>pom</packaging>
+  <inceptionYear>2015</inceptionYear>
   <artifactId>smoke-test-plugins</artifactId>
   <name>QA: Smoke Test Plugins</name>
-  <description>Loads up all of our plugins</description>
+  <description>Loads up all of our plugins and then can use different configs to test plugins with parameters</description>
+
+  <modules>
+    <module>custom-path</module>
+    <module>custom-config</module>
+    <module>custom-log</module>
+    <module>defaults</module>
+  </modules>
 
   <properties>
     <skip.unit.tests>true</skip.unit.tests>
-    <elasticsearch.integ.antfile>${project.basedir}/integration-tests.xml</elasticsearch.integ.antfile>
     <tests.rest.suite>smoke_test_plugins</tests.rest.suite>
     <tests.rest.load_packaged>false</tests.rest.load_packaged>
   </properties>
+
+
   <dependencies>
     <dependency>
       <groupId>org.elasticsearch</groupId>
@@ -212,6 +222,41 @@
   </dependencies>
 
   <build>
+    <!-- we add the rest resources here so we can reuse the rest tests for each of the plugin smoke tests -->
+    <testResources>
+      <!-- REST API specification and test suites -->
+      <testResource>
+        <directory>${path.to.rest.tests}</directory>
+        <filtering>true</filtering>
+        <targetPath>rest-api-spec</targetPath>
+        <includes>
+          <include>api/*.json</include>
+          <include>test/**/*.yaml</include>
+        </includes>
+      </testResource>
+      <!-- REST API specifications copied from main Elasticsearch specs
+                because they are required to execute the REST tests in here  -->
+      <testResource>
+        <directory>${elasticsearch.tools.directory}/rest-api-spec</directory>
+        <targetPath>rest-api-spec</targetPath>
+        <includes>
+          <!-- required by the test framework -->
+          <include>api/info.json</include>
+          <include>api/cluster.health.json</include>
+          <include>api/cluster.state.json</include>
+          <!-- used in plugin REST tests -->
+          <include>api/index.json</include>
+          <include>api/get.json</include>
+          <include>api/update.json</include>
+          <include>api/search.json</include>
+          <include>api/indices.analyze.json</include>
+          <include>api/indices.create.json</include>
+          <include>api/indices.refresh.json</include>
+          <include>api/nodes.info.json</include>
+          <include>api/count.json</include>
+        </includes>
+      </testResource>
+    </testResources>
     <plugins>
       <plugin>
          <groupId>org.apache.maven.plugins</groupId>
@@ -386,8 +431,13 @@
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-antrun-plugin</artifactId>
+        <!-- must skip for parent since this in only a template, we must later enable in child pom-->
+        <configuration>
+          <skip>true</skip>
+        </configuration>
         <executions>
           <execution>
+
             <id>count-expected-plugins</id>
             <phase>validate</phase>
             <goals>
@@ -395,7 +445,6 @@
             </goals>
             <configuration>
               <target>
-                <property name="plugins.dir" location="${project.basedir}/../../plugins"/>
                 <resourcecount property="expected.plugin.count">
                   <fileset dir="${plugins.dir}" includes="*/pom.xml"/>
                 </resourcecount>
@@ -413,6 +462,7 @@
             </goals>
             <configuration>
               <target>
+                <echo>starting external cluster...</echo>
                 <ant antfile="${elasticsearch.integ.antfile}" target="start-external-cluster-with-plugins">
                   <property name="tests.jvm.argline" value="${tests.jvm.argline}"/>
                   <property name="plugins.dir" value="${plugins.dir}"/>
@@ -431,7 +481,7 @@
             </goals>
             <configuration>
               <target>
-                <ant antfile="${elasticsearch.integ.antfile}" target="stop-external-cluster"/>
+                <ant antfile="${elasticsearch.integ.antfile}" target="stop-external-cluster-with-plugins"/>
               </target>
               <skip>${skip.integ.tests}</skip>
             </configuration>

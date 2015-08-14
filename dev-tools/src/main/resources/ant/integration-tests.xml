@@ -1,5 +1,6 @@
 <?xml version="1.0"?>
-<project name="elasticsearch-integration-tests">
+<project name="elasticsearch-integration-tests" xmlns:if="ant:if"
+         xmlns:unless="ant:unless">
   <!-- our pid file for easy cleanup -->
   <property name="integ.pidfile" location="${integ.scratch}/es.pid"/>
 
@@ -89,15 +90,20 @@
       <run-script script="@{home}/bin/plugin">
         <nested>
           <arg value="install"/>
+          <arg value="-Des.path.plugins=${path.plugins}" if:set="path.plugins"/>
+          <arg value="-Des.path.conf=${path.conf}" if:set="path.conf"/>
+          <arg value="-Des.path.logs=${path.logs}" if:set="path.logs"/>
           <arg value="${url}"/>
         </nested>
       </run-script>
+      <property if:set="path.plugins" name="plugins.installfolder" value="${path.plugins}"/>
+      <property unless:set="path.plugins" name="plugins.installfolder" value="@{home}/plugins"/>
 
       <fail message="did not find plugin installed as @{name}">
         <condition>
           <not>
             <resourceexists>
-              <file file="@{home}/plugins/@{name}"/>
+              <file file="${plugins.installfolder}/@{name}"/>
             </resourceexists>
           </not>
         </condition>
@@ -175,6 +181,9 @@
           <!-- Define a node attribute so we can test that it exists -->
           <arg value="-Des.node.testattr=test"/>
           <arg value="-Des.repositories.url.allowed_urls=http://snapshot.test*"/>
+          <arg value="-Des.path.plugins=${path.plugins}" if:set="path.plugins"/>
+          <arg value="-Des.path.conf=${path.conf}" if:set="path.conf"/>
+          <arg value="-Des.path.logs=${path.logs}" if:set="path.logs"/>
           <additional-args/>
         </nested>
       </run-script>

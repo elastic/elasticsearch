@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>org.elasticsearch.qa</groupId>
+    <artifactId>smoke-test-plugins</artifactId>
+    <version>2.1.0-SNAPSHOT</version>
+  </parent>
+
+  <!-- 
+    This test if all plugins can be loaded together and using a custom path.
+  -->
+  <artifactId>defaults</artifactId>
+  <name>QA: Smoke Test Plugins with defaults</name>
+  <description>Loads up all of our plugins and tries to install with default settings</description>
+  <properties>
+    <!-- set path to plugins and other resources. we could potentially do that in parent pom but that would be weird
+     because it would point to a folder which relative to parent pom path does not exist (we will never
+     notice though because ant execution of the script that needs this path is skipped anyway)-->
+    <plugins.dir>${project.basedir}/../../../plugins</plugins.dir>
+    <elasticsearch.integ.antfile>${project.basedir}/../integration-tests.xml</elasticsearch.integ.antfile>
+    <path.to.rest.tests>${project.basedir}/../rest-api-spec</path.to.rest.tests>
+  </properties>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-antrun-plugin</artifactId>
+        <configuration>
+          <!-- execution is skipped in parent, must enable it here-->
+          <skip>${skip.integ.tests}</skip>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+
+</project>

@@ -1,10 +1,155 @@
 <?xml version="1.0"?>
 <project name="smoke-test-plugins"
-         xmlns:ac="antlib:net.sf.antcontrib">
-
+         xmlns:ac="antlib:net.sf.antcontrib" xmlns:if="ant:if"
+         xmlns:unless="ant:unless">
   <import file="${elasticsearch.integ.antfile.default}"/>
 
+  <!-- runs an OS script and captures the output in a property property with the name result.property.
+  This may not spawn because then we cannot capture the output.
+  TODO: fold this together with run-script, figure out how conditionals work
+  we can currently not do that because sometimes we spawn (for example when elasticsearch starts)
+  and in this case we cannot pass the redirector to exec-->
+  <macrodef name="run-script-and-return-output">
+    <attribute name="script"/>
+    <attribute name="result.property"/>
+    <element name="nested" optional="true"/>
+    <sequential>
+      <!-- create a temp CWD, to enforce that commands don't rely on CWD -->
+      <local name="temp.cwd"/>
+      <tempfile property="temp.cwd" destDir="${integ.temp}"/>
+      <mkdir dir="${temp.cwd}"/>
+
+      <!-- print commands we run -->
+      <local name="script.base"/>
+      <basename file="@{script}" property="script.base"/>
+      <!-- crappy way to output, but we need it. make it nice later -->
+      <echoxml><exec script="${script.base}"><nested/></exec></echoxml>
+      <exec executable="cmd" osfamily="winnt" dir="${temp.cwd}" failonerror="true" spawn="false" taskname="${script.base}">
+        <redirector outputproperty="@{result.property}" alwayslog="true"/>
+        <arg value="/c"/>
+        <arg value="@{script}.bat"/>
+        <nested/>
+      </exec>
+
+      <exec executable="sh" osfamily="unix" dir="${temp.cwd}" failonerror="true" spawn="false" taskname="${script.base}">
+        <redirector outputproperty="@{result.property}" alwayslog="true"/>
+        <arg value="@{script}"/>
+        <nested/>
+      </exec>
+    </sequential>
+  </macrodef>
+
+  <!-- calls "plugin list" and stores the output of this command in the property plugin.list.output -->
+  <macrodef name="list-plugins">
+    <attribute name="home" default="${integ.scratch}/elasticsearch-${elasticsearch.version}"/>
+    <attribute name="script" default="@{home}/bin/plugin"/>
+    <sequential>
+      <echo>In listing plugins, running script next</echo>
+      <run-script-and-return-output script="@{home}/bin/plugin" result.property="plugin.list.output">
+        <nested>
+          <arg value="list"/>
+          <arg value="-Des.path.plugins=${path.plugins}" if:set="path.plugins"/>
+          <arg value="-Des.path.conf=${path.conf}" if:set="path.conf"/>
+          <arg value="-Des.path.logs=${path.logs}" if:set="path.logs"/>
+        </nested>
+      </run-script-and-return-output>
+    </sequential>
+  </macrodef>
+
+  <macrodef name="list-plugins-and-compare-to-expected">
+    <sequential>
+      <echo>listing plugins...</echo>
+      <!--list the plugins and get back plugin.list.output that contains what is written by plugin list to console-->
+      <list-plugins/>
+      <!-- count how many lines output contains. We assume one info line and then one line for each installed plugin, like this:
+
+      Installed plugins in /Users/britta/es/qa/smoke-test-plugins/custom-path/target/integ-tests/CUSTOM-PLUGIN-FOLDER:
+        - analysis-icu
+        - analysis-kuromoji
+        - analysis-phonetic
+       ...
+
+      -->
+      <resourcecount property="line.count" count="0" when="eq">
+        <tokens>
+          <concat>
+            <filterchain>
+              <tokenfilter>
+                <stringtokenizer delims="${line.separator}" />
+              </tokenfilter>
+            </filterchain>
+            <propertyresource name="plugin.list.output" />
+          </concat>
+        </tokens>
+      </resourcecount>
+      <!-- subtract the info line -->
+      <ac:math result="installed.plugin.count" operand1="${line.count}" operation="-" operand2="1" datatype="int"/>
+      <!-- check that this is the number we expect -->
+      <fail message="Expected ${expected.plugin.count} plugins to be listed but got ${installed.plugin.count}. output from list: ${plugin.list.output}">
+        <condition>
+          <not>
+            <equals arg1="${installed.plugin.count}" arg2="${expected.plugin.count}"/>
+          </not>
+        </condition>
+      </fail>
+    </sequential>
+  </macrodef>
+
+  <macrodef name="prepare-config-dir">
+    <attribute name="home" default="${integ.scratch}/elasticsearch-${elasticsearch.version}"/>
+    <sequential>
+      <echo>Preparing custom config dir ${path.conf}</echo>
+      <mkdir dir="${path.conf}"/>
+      <echo>Copy config from @{home}/config</echo>
+      <copy todir="${path.conf}">
+        <fileset dir="@{home}/config"/>
+      </copy>
+    </sequential>
+  </macrodef>
+
+  <!-- removes a plugin from elasticsearch -->
+  <macrodef name="remove-plugin">
+    <attribute name="home" default="${integ.scratch}/elasticsearch-${elasticsearch.version}"/>
+    <attribute name="name"/>
+    <sequential>
+      <property if:set="path.plugins" name="plugins.installfolder" value="${path.plugins}"/>
+      <property unless:set="path.plugins" name="plugins.installfolder" value="@{home}/plugins"/>
+      <!-- check plugin is there -->
+      <fail message="plugin @{name} not installed. cannot remove it">
+        <condition>
+          <not>
+            <available file="${plugins.installfolder}/@{name}" type="dir"/>
+          </not>
+        </condition>
+      </fail>
+      <!-- remove plugin -->
+      <run-script script="@{home}/bin/plugin">
+        <nested>
+          <arg value="remove"/>
+          <arg value="-Des.path.plugins=${path.plugins}" if:set="path.plugins"/>
+          <arg value="-Des.path.conf=${path.conf}" if:set="path.conf"/>
+          <arg value="@{name}"/>
+        </nested>
+      </run-script>
+      <fail message="failed to remove plugin installed as @{name}, folder still exists in ${plugins.installfolder}/@{name}">
+        <condition>
+          <available file="${plugins.installfolder}/@{name}" type="dir"/>
+        </condition>
+      </fail>
+    </sequential>
+  </macrodef>
+
+  <macrodef name="prepare-logs-dir">
+    <attribute name="home" default="${integ.scratch}/elasticsearch-${elasticsearch.version}"/>
+    <sequential>
+      <echo>Preparing custom log dir ${path.logs}</echo>
+      <mkdir dir="${path.logs}"/>
+    </sequential>
+  </macrodef>
+
   <target name="start-external-cluster-with-plugins" depends="setup-workspace" unless="${shouldskip}">
+    <prepare-config-dir if:set="path.conf"/>
+    <prepare-logs-dir if:set="path.logs"/>
     <fail message="Expected ${expected.plugin.count} dependencies, are plugins missing from this pom.xml?">
       <condition>
         <resourcecount count="${expected.plugin.count}" when="ne">
@@ -22,6 +167,84 @@
         <install-plugin name="${plugin.name}" file="@{file}"/>
       </sequential>
     </ac:for>
+    <list-plugins-and-compare-to-expected/>
     <startup-elasticsearch/>
+  </target>
+
+  <!--  Stops the node and then checks if configured folders for logs config and plugins was used correctly
+  and that plugins can be removed.-->
+  <target name="stop-external-cluster-with-plugins" unless="${shouldskip}">
+    <sequential>
+      <echo>Stopping external cluster...</echo>
+      <stop-node/>
+      <!-- check plugins used the configured config folder. currently only checks that config
+       folder contains more than two files (not only logging.yml and elasticsearch.yml)-->
+      <!-- get the default path if nothing was set -->
+      <property if:set="path.conf" name="plugins.config.folder" value="${path.conf}"/>
+      <property unless:set="path.conf" name="plugins.config.folder" value="${integ.scratch}/elasticsearch-${elasticsearch.version}/config"/>
+      <fail message="Expected config file to contain more files than just two. path is ${plugins.config.folder}">
+        <condition>
+          <resourcecount count="2" when="le">
+            <fileset dir="${plugins.config.folder}">
+            </fileset>
+          </resourcecount>
+        </condition>
+      </fail>
+
+      <!-- check that something was written in the logs folder -->
+      <!-- get the default path if nothing was set -->
+      <property if:set="path.logs" name="plugins.logs.folder" value="${path.logs}"/>
+      <property unless:set="path.logs" name="plugins.logs.folder" value="${integ.scratch}/elasticsearch-${elasticsearch.version}/logs"/>
+      <fail message="Expected logs dir to contain eight files. path is ${plugins.logs.folder}">
+        <condition>
+          <resourcecount count="8" when="ne">
+            <fileset dir="${plugins.logs.folder}">
+            </fileset>
+          </resourcecount>
+        </condition>
+      </fail>
+
+      <!-- check that number of plugins installed is still expected.We check by counting number of folders that
+      contain a plugin-descriptor.properties file-->
+      <!-- get the default path if nothing was set -->
+      <property if:set="path.plugins" name="plugins.installfolder" value="${path.plugins}"/>
+      <property unless:set="path.plugins" name="plugins.installfolder" value="${integ.scratch}/elasticsearch-${elasticsearch.version}/plugins"/>
+      <echo>Check expected number of plugins installed in ${plugins.installfolder}</echo>
+      <fail message="Expected ${expected.plugin.count} installed plugins in ${plugins.installfolder}">
+        <condition>
+          <resourcecount count="${expected.plugin.count}" when="ne" property="number.of.plugins">
+            <dirset dir="${plugins.installfolder}">
+              <exclude name="**/_site"/>
+              <exclude name="**/config"/>
+              <present targetdir="${plugins.installfolder}">
+                <mapper type="glob" from="*" to="*/plugin-descriptor.properties" />
+              </present>
+            </dirset>
+          </resourcecount>
+        </condition>
+      </fail>
+
+      <echo>Remove plugins...</echo>
+      <ac:for param="file">
+        <path>
+          <fileset dir="${integ.deps}/plugins"/>
+        </path>
+        <sequential>
+          <local name="plugin.name"/>
+          <convert-plugin-name file="@{file}" outputproperty="plugin.name"/>
+          <remove-plugin name="${plugin.name}"/>
+        </sequential>
+      </ac:for>
+
+      <!-- TODO: This actually fails. plugins don't remove their config when they are uninstalled. maybe they should? -->
+      <!--fail message="Expected config file to contain only two files. plugins have not removed their files maybe? path is ${plugins.config.folder}">
+        <condition>
+          <resourcecount count="2" when="ne">
+            <fileset dir="${plugins.config.folder}">
+            </fileset>
+          </resourcecount>
+        </condition>
+      </fail-->
+    </sequential>
   </target>
 </project>

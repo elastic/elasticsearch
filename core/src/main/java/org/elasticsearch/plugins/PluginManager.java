@@ -453,7 +453,7 @@ public class PluginManager {
         List<URL> urls() {
             List<URL> urls = new ArrayList<>();
             if (version != null) {
-                // Elasticsearch new download service uses groupId org.elasticsearch.plugins from 2.0.0
+                // Elasticsearch new download service uses groupId org.elasticsearch.plugin from 2.0.0
                 if (user == null) {
                     // TODO Update to https
                     if (!Strings.isNullOrEmpty(System.getProperty(PROPERTY_SUPPORT_STAGING_URLS))) {

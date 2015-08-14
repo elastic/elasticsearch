@@ -473,10 +473,8 @@ and in another window:
 ----------------------------------------------------
 vagrant up centos-7 && vagrant ssh centos-7
 cd $RPM
-sudo ES_CLEAN_BEFORE_TEST=true bats $BATS/*rpm*.bats
+sudo bats $BATS/*rpm*.bats
 ----------------------------------------------------
-
-At this point `ES_CLEAN_BEFORE_TEST=true` is required or tests fail spuriously.
 
 If you wanted to retest all the release artifacts on a single VM you could:
 -------------------------------------------------
@@ -486,7 +484,7 @@ mvn -amd -pl distribution install -DskipTests
 mvn -Dtests.vagrant -pl qa/vagrant pre-integration-test
 vagrant up trusty && vagrant ssh trusty
 cd $TESTROOT
-sudo ES_CLEAN_BEFORE_TEST=true bats $BATS/*.bats
+sudo bats $BATS/*.bats
 -------------------------------------------------
 
 == Coverage analysis

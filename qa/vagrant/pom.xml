@@ -18,7 +18,7 @@
     <!-- The documentation for how to run this is in ../../Vagrantfile -->
     <properties>
       <testScripts>*.bats</testScripts>
-      <testCommand>sudo ES_CLEAN_BEFORE_TEST=true bats $BATS/${testScripts}</testCommand>
+      <testCommand>sudo bats $BATS/${testScripts}</testCommand>
 
       <allDebBoxes>precise, trusty, vivid, wheezy, jessie</allDebBoxes>
       <allRpmBoxes>centos-6, centos-7, fedora-22, oel-7</allRpmBoxes>

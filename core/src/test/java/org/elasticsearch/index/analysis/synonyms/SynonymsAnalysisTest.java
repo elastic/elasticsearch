@@ -46,6 +46,9 @@ import org.hamcrest.MatcherAssert;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.equalTo;
@@ -59,10 +62,18 @@ public class SynonymsAnalysisTest extends ESTestCase {
 
     @Test
     public void testSynonymsAnalysis() throws IOException {
+        InputStream synonyms = getClass().getResourceAsStream("synonyms.txt");
+        InputStream synonymsWordnet = getClass().getResourceAsStream("synonyms_wordnet.txt");
+        Path home = createTempDir();
+        Path config = home.resolve("config");
+        Files.createDirectory(config);
+        Files.copy(synonyms, config.resolve("synonyms.txt"));
+        Files.copy(synonymsWordnet, config.resolve("synonyms_wordnet.txt"));
+
         String json = "/org/elasticsearch/index/analysis/synonyms/synonyms.json";
         Settings settings = settingsBuilder().
-                loadFromStream(json, getClass().getResourceAsStream(json))
-                .put("path.home", createTempDir().toString())
+            loadFromStream(json, getClass().getResourceAsStream(json))
+                .put("path.home", home)
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
 
         Index index = new Index("test");

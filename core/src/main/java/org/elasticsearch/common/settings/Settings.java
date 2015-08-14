@@ -1058,18 +1058,6 @@ public final class Settings implements ToXContent {
          * Loads settings from a url that represents them using the
          * {@link SettingsLoaderFactory#loaderFromSource(String)}.
          */
-        public Builder loadFromUrl(URL url) throws SettingsException {
-            try {
-                return loadFromStream(url.toExternalForm(), url.openStream());
-            } catch (IOException e) {
-                throw new SettingsException("Failed to open stream for url [" + url.toExternalForm() + "]", e);
-            }
-        }
-
-        /**
-         * Loads settings from a url that represents them using the
-         * {@link SettingsLoaderFactory#loaderFromSource(String)}.
-         */
         public Builder loadFromPath(Path path) throws SettingsException {
             try {
                 return loadFromStream(path.getFileName().toString(), Files.newInputStream(path));

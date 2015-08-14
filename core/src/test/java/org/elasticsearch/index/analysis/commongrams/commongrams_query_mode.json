@@ -23,7 +23,7 @@
                 "common_grams_file":{
                     "type":"common_grams",
                     "query_mode" : true,
-                    "common_words_path":"org/elasticsearch/index/analysis/commongrams/common_words.txt"
+                    "common_words_path":"common_words.txt"
                 }
             }
         }

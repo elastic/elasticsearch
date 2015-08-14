@@ -623,6 +623,7 @@
                             <tests.appendseed>${tests.appendseed}</tests.appendseed>
                             <tests.cluster>${tests.cluster}</tests.cluster>
                             <tests.iters>${tests.iters}</tests.iters>
+                            <tests.project>${project.groupId}:${project.artifactId}</tests.project>
                             <tests.maxfailures>${tests.maxfailures}</tests.maxfailures>
                             <tests.failfast>${tests.failfast}</tests.failfast>
                             <tests.class>${tests.class}</tests.class>

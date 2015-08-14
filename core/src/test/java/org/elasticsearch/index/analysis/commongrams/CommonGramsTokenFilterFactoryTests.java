@@ -226,7 +226,7 @@ public class CommonGramsTokenFilterFactoryTests extends ESTokenStreamTestCase {
         String json = "/org/elasticsearch/index/analysis/commongrams/commongrams_query_mode.json";
         Settings settings = Settings.settingsBuilder()
                 .loadFromStream(json, getClass().getResourceAsStream(json))
-            .put("path.home", createHome())
+                .put("path.home", createHome())
                 .build();
         {
             AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromSettings(settings);

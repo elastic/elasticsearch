@@ -34,7 +34,6 @@ public class TermsLookupQueryBuilder extends QueryBuilder {
     private String lookupId;
     private String lookupRouting;
     private String lookupPath;
-    private Boolean lookupCache;
 
     private String queryName;
 
@@ -87,11 +86,6 @@ public class TermsLookupQueryBuilder extends QueryBuilder {
         return this;
     }
 
-    public TermsLookupQueryBuilder lookupCache(boolean lookupCache) {
-        this.lookupCache = lookupCache;
-        return this;
-    }
-
     @Override
     public void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(TermsQueryParser.NAME);
@@ -104,9 +98,6 @@ public class TermsLookupQueryBuilder extends QueryBuilder {
         builder.field("id", lookupId);
         if (lookupRouting != null) {
             builder.field("routing", lookupRouting);
-        }
-        if (lookupCache != null) {
-            builder.field("cache", lookupCache);
         }
         builder.field("path", lookupPath);
         builder.endObject();

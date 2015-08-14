@@ -1,7 +1,7 @@
 [[search-aggregations-pipeline-avg-bucket-aggregation]]
 === Avg Bucket Aggregation
 
-coming[2.0.0]
+coming[2.0.0-beta1]
 
 experimental[]
 

@@ -104,7 +104,7 @@ curl -XGET 'http://localhost:9200/twitter/tweet/_validate/query?q=post_date:foo&
 }
 --------------------------------------------------
 
-coming[1.6] When the query is valid, the explanation defaults to the string
+When the query is valid, the explanation defaults to the string
 representation of that query. With `rewrite` set to `true`, the explanation
 is more detailed showing the actual Lucene query that will be executed.
 

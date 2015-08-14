@@ -34,6 +34,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.indices.IndexCreationException;
 import org.elasticsearch.indices.IndexTemplateAlreadyExistsException;
 import org.elasticsearch.indices.IndexTemplateMissingException;
 import org.elasticsearch.indices.InvalidIndexTemplateException;
@@ -50,12 +51,14 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
 
     private final ClusterService clusterService;
     private final AliasValidator aliasValidator;
+    private final MetaDataCreateIndexService metaDataCreateIndexService;
 
     @Inject
-    public MetaDataIndexTemplateService(Settings settings, ClusterService clusterService, AliasValidator aliasValidator) {
+    public MetaDataIndexTemplateService(Settings settings, ClusterService clusterService, MetaDataCreateIndexService metaDataCreateIndexService, AliasValidator aliasValidator) {
         super(settings);
         this.clusterService = clusterService;
         this.aliasValidator = aliasValidator;
+        this.metaDataCreateIndexService = metaDataCreateIndexService;
     }
 
     public void removeTemplates(final RemoveRequest request, final RemoveListener listener) {
@@ -205,6 +208,12 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
         }
         if (!Strings.validFileNameExcludingAstrix(request.template)) {
             throw new InvalidIndexTemplateException(request.name, "template must not container the following characters " + Strings.INVALID_FILENAME_CHARS);
+        }
+
+        try {
+            metaDataCreateIndexService.validateIndexSettings(request.name, request.settings);
+        } catch (IndexCreationException exception) {
+            throw new InvalidIndexTemplateException(request.name, exception.getDetailedMessage());
         }
 
         for (Alias alias : request.aliases) {

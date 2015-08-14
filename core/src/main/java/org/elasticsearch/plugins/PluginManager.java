@@ -435,9 +435,9 @@ public class PluginManager {
                 if (user == null) {
                     // TODO Update to https
                     if (!Strings.isNullOrEmpty(System.getProperty(PROPERTY_SUPPORT_STAGING_URLS))) {
-                        addUrl(urls, String.format(Locale.ROOT, "http://download.elastic.co/elasticsearch/staging/%s/org/elasticsearch/plugin/%s/%s/%s-%s.zip", Build.CURRENT.hashShort(), repo, version, repo, version));
+                        addUrl(urls, String.format(Locale.ROOT, "http://download.elastic.co/elasticsearch/staging/%s/org/elasticsearch/plugin/elasticsearch-%s/%s/elasticsearch-%s-%s.zip", Build.CURRENT.hashShort(), repo, version, repo, version));
                     }
-                    addUrl(urls, String.format(Locale.ROOT, "http://download.elastic.co/elasticsearch/release/org/elasticsearch/plugin/%s/%s/%s-%s.zip", repo, version, repo, version));
+                    addUrl(urls, String.format(Locale.ROOT, "http://download.elastic.co/elasticsearch/release/org/elasticsearch/plugin/elasticsearch-%s/%s/elasticsearch-%s-%s.zip", repo, version, repo, version));
                 } else {
                     // Elasticsearch old download service
                     // TODO Update to https

@@ -1216,6 +1216,7 @@ org.eclipse.jdt.ui.text.custom_code_templates=<?xml version\="1.0" encoding\="UT
                                         <arg value="--check"/>
                                         <arg value="${project.licenses.dir}"/>
                                         <arg value="${project.licenses.check_target}"/>
+                                        <arg value="${project.build.finalName}"/>
                                     </exec>
                                 </target>
                             </configuration>

@@ -51,6 +51,7 @@ public class TermsQueryParser implements QueryParser {
 
     public static final String NAME = "terms";
     private static final ParseField MIN_SHOULD_MATCH_FIELD = new ParseField("min_match", "min_should_match").withAllDeprecated("Use [bool] query instead");
+    private static final ParseField DISABLE_COORD_FIELD = new ParseField("disable_coord").withAllDeprecated("Use [bool] query instead");
     private Client client;
 
     @Deprecated
@@ -149,7 +150,7 @@ public class TermsQueryParser implements QueryParser {
                     minShouldMatch = parser.textOrNull();
                 } else if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
-                } else if (("disable_coord").equals(currentFieldName) || ("disableCoord").equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, DISABLE_COORD_FIELD)) {
                     disableCoord = parser.booleanValue();
                 } else if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();

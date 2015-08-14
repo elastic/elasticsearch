@@ -32,6 +32,10 @@ public class TermsQueryBuilder extends QueryBuilder implements BoostableQueryBui
 
     private final Object values;
 
+    private String minimumShouldMatch;
+
+    private Boolean disableCoord;
+
     private String queryName;
 
     private String execution;
@@ -126,6 +130,26 @@ public class TermsQueryBuilder extends QueryBuilder implements BoostableQueryBui
     }
 
     /**
+     * Sets the minimum number of matches across the provided terms. Defaults to <tt>1</tt>.
+     * @deprecated use [bool] query instead
+     */
+    @Deprecated
+    public TermsQueryBuilder minimumShouldMatch(String minimumShouldMatch) {
+        this.minimumShouldMatch = minimumShouldMatch;
+        return this;
+    }
+
+    /**
+     * Disables <tt>Similarity#coord(int,int)</tt> in scoring. Defaults to <tt>false</tt>.
+     * @deprecated use [bool] query instead
+     */
+    @Deprecated
+    public TermsQueryBuilder disableCoord(boolean disableCoord) {
+        this.disableCoord = disableCoord;
+        return this;
+    }
+
+    /**
      * Sets the filter name for the filter that can be used when searching for matched_filters per hit.
      */
     public TermsQueryBuilder queryName(String queryName) {
@@ -146,6 +170,14 @@ public class TermsQueryBuilder extends QueryBuilder implements BoostableQueryBui
 
         if (execution != null) {
             builder.field("execution", execution);
+        }
+
+        if (minimumShouldMatch != null) {
+            builder.field("minimum_should_match", minimumShouldMatch);
+        }
+
+        if (disableCoord != null) {
+            builder.field("disable_coord", disableCoord);
         }
 
         if (boost != -1) {

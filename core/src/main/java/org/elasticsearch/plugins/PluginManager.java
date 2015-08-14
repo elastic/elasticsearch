@@ -83,7 +83,8 @@ public class PluginManager {
                     "elasticsearch-cloud-gce",
                     "elasticsearch-delete-by-query",
                     "elasticsearch-lang-javascript",
-                    "elasticsearch-lang-python"
+                    "elasticsearch-lang-python",
+                    "elasticsearch-mapper-size"
             ).build();
 
     private final Environment environment;

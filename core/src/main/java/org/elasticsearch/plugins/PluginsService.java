@@ -95,7 +95,7 @@ public class PluginsService extends AbstractComponent {
         // this is a hack for what is between unit and integration tests...
         String[] defaultPluginsClasses = settings.getAsArray("plugin.types");
         for (String pluginClass : defaultPluginsClasses) {
-            Plugin plugin = loadPlugin(pluginClass, settings);
+            Plugin plugin = loadPlugin(pluginClass, settings, getClass().getClassLoader());
             PluginInfo pluginInfo = new PluginInfo(plugin.name(), plugin.description(), false, "NA", true, pluginClass, false);
             if (logger.isTraceEnabled()) {
                 logger.trace("plugin loaded from settings [{}]", pluginInfo);
@@ -347,7 +347,7 @@ public class PluginsService extends AbstractComponent {
             // pluginmanager does it, but we do it again, in case lusers mess with jar files manually
             try {
                 final List<URL> jars = new ArrayList<>();
-                ClassLoader parentLoader = settings.getClassLoader();
+                ClassLoader parentLoader = getClass().getClassLoader();
                 if (parentLoader instanceof URLClassLoader) {
                     for (URL url : ((URLClassLoader) parentLoader).getURLs()) {
                         jars.add(url);
@@ -360,16 +360,11 @@ public class PluginsService extends AbstractComponent {
             }
             
             // create a child to load the plugins in this bundle
-            ClassLoader loader = URLClassLoader.newInstance(bundle.urls.toArray(new URL[0]), settings.getClassLoader());
-            Settings settings = Settings.builder()
-                    .put(this.settings)
-                    .classLoader(loader)
-                    .build();
-
+            ClassLoader loader = URLClassLoader.newInstance(bundle.urls.toArray(new URL[0]), getClass().getClassLoader());
             for (PluginInfo pluginInfo : bundle.plugins) {
                 final Plugin plugin;
                 if (pluginInfo.isJvm()) {
-                    plugin = loadPlugin(pluginInfo.getClassname(), settings);
+                    plugin = loadPlugin(pluginInfo.getClassname(), settings, loader);
                 } else {
                     plugin = new SitePlugin(pluginInfo.getName(), pluginInfo.getDescription());
                 }
@@ -380,9 +375,9 @@ public class PluginsService extends AbstractComponent {
         return plugins.build();
     }
 
-    private Plugin loadPlugin(String className, Settings settings) {
+    private Plugin loadPlugin(String className, Settings settings, ClassLoader loader) {
         try {
-            Class<? extends Plugin> pluginClass = settings.getClassLoader().loadClass(className).asSubclass(Plugin.class);
+            Class<? extends Plugin> pluginClass = loader.loadClass(className).asSubclass(Plugin.class);
 
             try {
                 return pluginClass.getConstructor(Settings.class).newInstance(settings);

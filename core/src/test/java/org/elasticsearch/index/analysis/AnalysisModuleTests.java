@@ -79,7 +79,7 @@ public class AnalysisModuleTests extends ESTestCase {
     }
 
     private Settings loadFromClasspath(String path) {
-        return settingsBuilder().loadFromClasspath(path)
+        return settingsBuilder().loadFromStream(path, getClass().getResourceAsStream(path))
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put("path.home", createTempDir().toString())
                 .build();
@@ -88,13 +88,13 @@ public class AnalysisModuleTests extends ESTestCase {
 
     @Test
     public void testSimpleConfigurationJson() {
-        Settings settings = loadFromClasspath("org/elasticsearch/index/analysis/test1.json");
+        Settings settings = loadFromClasspath("/org/elasticsearch/index/analysis/test1.json");
         testSimpleConfiguration(settings);
     }
 
     @Test
     public void testSimpleConfigurationYaml() {
-        Settings settings = loadFromClasspath("org/elasticsearch/index/analysis/test1.yml");
+        Settings settings = loadFromClasspath("/org/elasticsearch/index/analysis/test1.yml");
         testSimpleConfiguration(settings);
     }
 
@@ -107,8 +107,9 @@ public class AnalysisModuleTests extends ESTestCase {
 
     @Test
     public void testVersionedAnalyzers() throws Exception {
+        String yaml = "/org/elasticsearch/index/analysis/test1.yml";
         Settings settings2 = settingsBuilder()
-                .loadFromClasspath("org/elasticsearch/index/analysis/test1.yml")
+                .loadFromStream(yaml, getClass().getResourceAsStream(yaml))
                 .put("path.home", createTempDir().toString())
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_0_90_0)
                 .build();

@@ -34,8 +34,9 @@ public class YamlSettingsLoaderTests extends ESTestCase {
 
     @Test
     public void testSimpleYamlSettings() throws Exception {
+        String yaml = "/org/elasticsearch/common/settings/loader/test-settings.yml";
         Settings settings = settingsBuilder()
-                .loadFromClasspath("org/elasticsearch/common/settings/loader/test-settings.yml")
+                .loadFromStream(yaml, getClass().getResourceAsStream(yaml))
                 .build();
 
         assertThat(settings.get("test1.value1"), equalTo("value1"));
@@ -52,28 +53,17 @@ public class YamlSettingsLoaderTests extends ESTestCase {
 
     @Test(expected = SettingsException.class)
     public void testIndentation() {
+        String yaml = "/org/elasticsearch/common/settings/loader/indentation-settings.yml";
         settingsBuilder()
-                .loadFromClasspath("org/elasticsearch/common/settings/loader/indentation-settings.yml")
-                .build();
+            .loadFromStream(yaml, getClass().getResourceAsStream(yaml))
+            .build();
     }
 
     @Test(expected = SettingsException.class)
     public void testIndentationWithExplicitDocumentStart() {
+        String yaml = "/org/elasticsearch/common/settings/loader/indentation-with-explicit-document-start-settings.yml";
         settingsBuilder()
-                .loadFromClasspath("org/elasticsearch/common/settings/loader/indentation-with-explicit-document-start-settings.yml")
+                .loadFromStream(yaml, getClass().getResourceAsStream(yaml))
                 .build();
-    }
-
-    
-    @Test
-    public void testYamlSettingsNoFile() throws Exception {
-        String invalidResourceName = "org/elasticsearch/common/settings/loader/no-test-settings.yml";
-        try {
-            Settings defaultSettings = settingsBuilder().loadFromClasspath(invalidResourceName).build();
-            fail("For a not exiting file an exception should be thrown.");
-        } catch (Exception e) {
-            assertTrue(e instanceof SettingsException);
-            assertThat(e.getMessage(), equalTo("Failed to load settings from [" + invalidResourceName + "]"));
-        }
     }
 }

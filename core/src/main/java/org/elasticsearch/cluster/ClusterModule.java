@@ -52,6 +52,9 @@ public class ClusterModule extends AbstractModule implements SpawnModules {
 
     private Set<Class<? extends IndexTemplateFilter>> indexTemplateFilters = new HashSet<>();
 
+    // pkg private so tests can mock
+    Class<? extends ClusterInfoService> clusterInfoServiceImpl = InternalClusterInfoService.class;
+
     public ClusterModule(Settings settings) {
         this.settings = settings;
     }
@@ -88,13 +91,7 @@ public class ClusterModule extends AbstractModule implements SpawnModules {
         bind(NodeIndexDeletedAction.class).asEagerSingleton();
         bind(NodeMappingRefreshAction.class).asEagerSingleton();
         bind(MappingUpdatedAction.class).asEagerSingleton();
-
-        String impl = settings.get(CLUSTER_SERVICE_IMPL);
-        Class<? extends ClusterInfoService> implClass = InternalClusterInfoService.class;
-        if (impl != null) {
-            implClass = Classes.loadClass(getClass().getClassLoader(), impl);
-        }
-        bind(ClusterInfoService.class).to(implClass).asEagerSingleton();
+        bind(ClusterInfoService.class).to(clusterInfoServiceImpl).asEagerSingleton();
 
         Multibinder<IndexTemplateFilter> mbinder = Multibinder.newSetBinder(binder(), IndexTemplateFilter.class);
         for (Class<? extends IndexTemplateFilter> indexTemplateFilter : indexTemplateFilters) {

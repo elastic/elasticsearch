@@ -152,7 +152,7 @@ public class ExceptionSerializationTests extends ESTestCase {
                     pkg.append(p.getFileName().toString()).append(".");
                 }
                 pkg.append(filename.substring(0, filename.length() - 6));
-                return Thread.currentThread().getContextClassLoader().loadClass(pkg.toString());
+                return getClass().getClassLoader().loadClass(pkg.toString());
             }
 
             @Override

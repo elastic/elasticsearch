@@ -1,7 +1,7 @@
 [[query-dsl-or-query]]
 === Or Query
 
-deprecated[2.0.0, Use the `bool` query instead]
+deprecated[2.0.0-beta1, Use the `bool` query instead]
 
 A query that matches documents using the `OR` boolean operator on other
 queries.

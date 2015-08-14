@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.test.engine;
 
+import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.SearcherManager;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -30,17 +31,19 @@ import java.io.IOException;
 final class MockInternalEngine extends InternalEngine {
     private MockEngineSupport support;
     private final boolean randomizeFlushOnClose;
+    private Class<? extends FilterDirectoryReader> wrapperClass;
 
-
-    MockInternalEngine(EngineConfig config, boolean skipInitialTranslogRecovery) throws EngineException {
+    MockInternalEngine(EngineConfig config, boolean skipInitialTranslogRecovery, Class<? extends FilterDirectoryReader> wrapper) throws EngineException {
         super(config, skipInitialTranslogRecovery);
         randomizeFlushOnClose = IndexMetaData.isOnSharedFilesystem(config.getIndexSettings()) == false;
+        wrapperClass = wrapper;
+
     }
 
     private synchronized MockEngineSupport support() {
         // lazy initialized since we need it already on super() ctor execution :(
         if (support == null) {
-            support = new MockEngineSupport(config());
+            support = new MockEngineSupport(config(), wrapperClass);
         }
         return support;
     }

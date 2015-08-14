@@ -56,6 +56,8 @@ import static org.elasticsearch.common.io.FileSystemUtils.moveFilesWithoutOverwr
  */
 public class PluginManager {
 
+    public static final String PROPERTY_SUPPORT_STAGING_URLS = "es.plugins.staging";
+
     public enum OutputMode {
         DEFAULT, SILENT, VERBOSE
     }
@@ -430,8 +432,8 @@ public class PluginManager {
                 // Elasticsearch new download service uses groupId org.elasticsearch.plugins from 2.0.0
                 if (user == null) {
                     // TODO Update to https
-                    if (Version.CURRENT.snapshot()) {
-                        addUrl(urls, String.format(Locale.ROOT, "http://download.elastic.co/elasticsearch/snapshot/org/elasticsearch/plugin/%s/%s-SNAPSHOT/%s-%s-SNAPSHOT.zip", repo, version, repo, version));
+                    if (!Strings.isNullOrEmpty(System.getProperty(PROPERTY_SUPPORT_STAGING_URLS))) {
+                        addUrl(urls, String.format(Locale.ROOT, "http://download.elastic.co/elasticsearch/staging/org/elasticsearch/plugin/%s/%s/%s-%s.zip", repo, version, repo, version));
                     }
                     addUrl(urls, String.format(Locale.ROOT, "http://download.elastic.co/elasticsearch/release/org/elasticsearch/plugin/%s/%s/%s-%s.zip", repo, version, repo, version));
                 } else {

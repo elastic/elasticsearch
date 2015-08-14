@@ -16,21 +16,17 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.elasticsearch.test.engine;
 
-package org.elasticsearch.index.cache.bitset;
-
+import org.apache.lucene.index.AssertingDirectoryReader;
+import org.apache.lucene.index.FilterDirectoryReader;
 import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.settings.Settings;
 
-/**
- */
-public class BitsetFilterCacheModule extends AbstractModule {
-
-    public BitsetFilterCacheModule(Settings settings) {
-    }
+public class MockEngineSupportModule extends AbstractModule {
+    public Class<? extends FilterDirectoryReader> wrapperImpl = AssertingDirectoryReader.class;
 
     @Override
     protected void configure() {
-        bind(BitsetFilterCache.class).asEagerSingleton();
+        bind(Class.class).annotatedWith(MockEngineFactory.MockReaderType.class).toInstance(wrapperImpl);
     }
 }

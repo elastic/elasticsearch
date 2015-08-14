@@ -51,7 +51,7 @@ Combine a query clause in query context with another in filter context. deprecat
 
 <<java-query-dsl-limit-query,`limit` query>>::
 
-Limits the number of documents examined per shard. deprecated[1.6.0]
+Limits the number of documents examined per shard.
 
 
 include::constant-score-query.asciidoc[]

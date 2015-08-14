@@ -17,15 +17,16 @@
  * under the License.
  */
 
-package org.elasticsearch.test.cache.recycler;
+package org.elasticsearch.cache.recycler;
 
 import com.google.common.base.Predicate;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
-import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.recycler.Recycler.V;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.node.NodeModule;
+import org.elasticsearch.plugins.AbstractPlugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.threadpool.ThreadPool;

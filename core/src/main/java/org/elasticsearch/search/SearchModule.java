@@ -155,8 +155,6 @@ import java.util.*;
  */
 public class SearchModule extends AbstractModule {
 
-    public static final String SEARCH_SERVICE_IMPL = "search.service_impl";
-
     private final Settings settings;
     private final Set<Class<? extends Aggregator.Parser>> aggParsers = new HashSet<>();
     private final Set<Class<? extends PipelineAggregator.Parser>> pipelineAggParsers = new HashSet<>();
@@ -166,6 +164,9 @@ public class SearchModule extends AbstractModule {
     private final Set<Class<? extends FetchSubPhase>> fetchSubPhases = new HashSet<>();
     private final Set<Class<? extends SignificanceHeuristicParser>> heuristicParsers = new HashSet<>();
     private final Set<Class<? extends MovAvgModel.AbstractModelParser>> modelParsers = new HashSet<>();
+
+    // pkg private so tests can mock
+    Class<? extends SearchService> searchServiceImpl = SearchService.class;
 
     public SearchModule(Settings settings) {
         this.settings = settings;
@@ -333,13 +334,11 @@ public class SearchModule extends AbstractModule {
         bind(FetchPhase.class).asEagerSingleton();
         bind(SearchServiceTransportAction.class).asEagerSingleton();
         bind(MoreLikeThisFetchService.class).asEagerSingleton();
-        // search service -- testing only!
-        String impl = settings.get(SEARCH_SERVICE_IMPL);
-        if (impl == null) {
+
+        if (searchServiceImpl == SearchService.class) {
             bind(SearchService.class).asEagerSingleton();
         } else {
-            Class<? extends SearchService> implClass = Classes.loadClass(getClass().getClassLoader(), impl);
-            bind(SearchService.class).to(implClass).asEagerSingleton();
+            bind(SearchService.class).to(searchServiceImpl).asEagerSingleton();
         }
     }
 

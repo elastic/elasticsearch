@@ -1318,7 +1318,7 @@ org.eclipse.jdt.ui.text.custom_code_templates=<?xml version\="1.0" encoding\="UT
                 <repository>
                     <id>aws-release</id>
                     <name>AWS Release Repository</name>
-                    <url>s3://download.elasticsearch.org/elasticsearch/release</url>
+                    <url>s3://download.elasticsearch.org/elasticsearch/staging</url>
                 </repository>
                 <snapshotRepository>
                     <id>aws-snapshot</id>

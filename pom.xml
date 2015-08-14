@@ -9,7 +9,7 @@
     <version>2.1.0-SNAPSHOT</version>
     <packaging>pom</packaging>
     <name>Elasticsearch Parent POM</name>
-    <description>Elasticsearch Parent POM</description>
+    <description>Parent POM</description>
     <inceptionYear>2009</inceptionYear>
 
     <parent>

@@ -259,7 +259,7 @@ shield.authc.realms:
 | `cache.max_users`                        | no         | 100000                                                     | Specified the maximum number of user entries that can live in the cache at a given time.
 | `cache.hash_algo`                        | no         | `ssha256`                                                  |(Expert Setting) Specifies the hashing algorithm that will be used for the in-memory cached user credentials (see <<ref-cache-hash-algo,Cache hash algorithms>> table for all possible values).
 |======
-NOTE: `user_dn_templates` is required to operate in user template mode and `user_search.base_dn` is required to operated in user search mode. Only one is required for a given realm configuration. For more information on the different modes, see <<ldap-realms, ldap realms>>.
+NOTE: `user_dn_templates` is required to operate in user template mode and `user_search.base_dn` is required to operated in user search mode. Only one is required for a given realm configuration. For more information on the different modes, see <<ldap, ldap realms>>.
 
 [[ref-ad-settings]]
 

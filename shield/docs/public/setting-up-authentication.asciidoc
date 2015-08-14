@@ -103,3 +103,6 @@ include::setting-up-authentication/configuring-ldap-realm.asciidoc[]
 include::setting-up-authentication/configuring-active-directory-realm.asciidoc[]
 
 include::setting-up-authentication/configuring-pki-realm.asciidoc[]
+
+include::setting-up-authentication/controlling-user-cache.asciidoc[]
+

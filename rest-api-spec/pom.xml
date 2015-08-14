@@ -13,6 +13,7 @@
   </parent>
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <elasticsearch.s3.repository>s3://download.elasticsearch.org/elasticsearch/stageing/</elasticsearch.s3.repository>
   </properties>
   <build>
     <plugins>
@@ -35,4 +36,40 @@
       </plugin>
     </plugins>
   </build>
+  <profiles>
+    <profile>
+      <id>release</id>
+      <build>
+        <!-- sign the artifacts with GPG -->
+        <plugins>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-gpg-plugin</artifactId>
+            <version>1.6</version>
+            <executions>
+              <execution>
+                <id>sign-artifacts</id>
+                <phase>verify</phase>
+                <goals>
+                  <goal>sign</goal>
+                </goals>
+                <configuration>
+                  <keyname>${gpg.keyname}</keyname>
+                  <passphrase>${gpg.passphrase}</passphrase>
+                  <defaultKeyring>${gpg.keyring}</defaultKeyring>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+      <distributionManagement>
+        <repository>
+          <id>aws-release</id>
+          <name>AWS Release Repository</name>
+          <url>${elasticsearch.s3.repository}</url>
+        </repository>
+      </distributionManagement>
+    </profile>
+  </profiles>
 </project>

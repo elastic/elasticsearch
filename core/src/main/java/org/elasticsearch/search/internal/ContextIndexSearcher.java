@@ -64,6 +64,16 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     }
 
     @Override
+    public Query rewrite(Query original) throws IOException {
+        try {
+            return in.rewrite(original);
+        } catch (Throwable t) {
+            searchContext.clearReleasables(Lifetime.COLLECTION);
+            throw ExceptionsHelper.convertToElastic(t);
+        }
+    }
+
+    @Override
     public Weight createNormalizedWeight(Query query, boolean needsScores) throws IOException {
         try {
             // if scores are needed and we have dfs data then use it

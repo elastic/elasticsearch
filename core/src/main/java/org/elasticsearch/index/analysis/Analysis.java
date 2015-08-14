@@ -58,7 +58,6 @@ import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.analysis.tr.TurkishAnalyzer;
 import org.apache.lucene.analysis.util.CharArraySet;
 import org.apache.lucene.util.Version;
-
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.FileSystemUtils;
@@ -71,8 +70,14 @@ import org.elasticsearch.index.settings.IndexSettings;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.Reader;
-import java.net.URL;
-import java.util.*;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 
 /**
  *
@@ -226,9 +231,9 @@ public class Analysis {
             }
         }
 
-        final URL wordListFile = env.resolveConfig(wordListPath);
+        final Path wordListFile = env.configFile().resolve(wordListPath);
 
-        try (BufferedReader reader = FileSystemUtils.newBufferedReader(wordListFile, Charsets.UTF_8)) {
+        try (BufferedReader reader = FileSystemUtils.newBufferedReader(wordListFile.toUri().toURL(), Charsets.UTF_8)) {
             return loadWordList(reader, "#");
         } catch (IOException ioe) {
             String message = String.format(Locale.ROOT, "IOException while reading %s_path: %s", settingPrefix, ioe.getMessage());
@@ -273,10 +278,10 @@ public class Analysis {
             return null;
         }
 
-        final URL fileUrl = env.resolveConfig(filePath);
+        final Path path = env.configFile().resolve(filePath);
 
         try {
-            return FileSystemUtils.newBufferedReader(fileUrl, Charsets.UTF_8);
+            return FileSystemUtils.newBufferedReader(path.toUri().toURL(), Charsets.UTF_8);
         } catch (IOException ioe) {
             String message = String.format(Locale.ROOT, "IOException while reading %s_path: %s", settingPrefix, ioe.getMessage());
             throw new IllegalArgumentException(message);

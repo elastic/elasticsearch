@@ -20,9 +20,9 @@
 package org.elasticsearch.cloud.aws;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.FailedToResolveConfigException;
+import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.plugin.cloud.aws.CloudAwsPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ThirdParty;
@@ -80,16 +80,14 @@ public abstract class AbstractAwsTest extends ESIntegTestCase {
                 .put("cloud.aws.test.write_failures", 0.1)
                 .put("cloud.aws.test.read_failures", 0.1);
 
-        Environment environment = new Environment(settings.build());
-
         // if explicit, just load it and don't load from env
         try {
             if (Strings.hasText(System.getProperty("tests.config"))) {
-                settings.loadFromUrl(environment.resolveConfig(System.getProperty("tests.config")));
+                settings.loadFromPath(PathUtils.get(System.getProperty("tests.config")));
             } else {
                 throw new IllegalStateException("to run integration tests, you need to set -Dtest.thirdparty=true and -Dtests.config=/path/to/elasticsearch.yml");
             }
-        } catch (FailedToResolveConfigException exception) {
+        } catch (SettingsException exception) {
             throw new IllegalStateException("your test configuration file is incorrect: " + System.getProperty("tests.config"), exception);
         }
         return settings.build();

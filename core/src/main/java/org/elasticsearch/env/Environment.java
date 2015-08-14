@@ -307,30 +307,4 @@ public class Environment {
     public FileStore getFileStore(Path path) throws IOException {
         return ESFileStore.getMatchingFileStore(path, fileStores);
     }
-
-    public URL resolveConfig(String path) throws FailedToResolveConfigException {
-        // first, try it as a path in the config directory
-        Path f = configFile.resolve(path);
-        if (Files.exists(f)) {
-            try {
-                return f.toUri().toURL();
-            } catch (MalformedURLException e) {
-                throw new FailedToResolveConfigException("Failed to resolve path [" + f + "]", e);
-            }
-        }
-        // try and load it from the classpath directly
-        // TODO: remove this, callers can look up their own config on classpath
-        URL resource = getClass().getClassLoader().getResource(path);
-        if (resource != null) {
-            return resource;
-        }
-        // try and load it from the classpath with config/ prefix
-        if (!path.startsWith("config/")) {
-            resource = getClass().getClassLoader().getResource("config/" + path);
-            if (resource != null) {
-                return resource;
-            }
-        }
-        throw new FailedToResolveConfigException("Failed to resolve config path [" + path + "], tried config path [" + f + "] and classpath");
-    }
 }

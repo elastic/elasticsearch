@@ -53,4 +53,3 @@ java.io.ObjectInputStream
 java.io.ObjectInput
 
 java.nio.file.Files#isHidden(java.nio.file.Path) @ Dependent on the operating system, use FileSystemUtils.isHidden instead
-java.nio.file.Files#readAllLines(java.nio.file.Path) @ Use Files.readAllLines(Path, Charset) instead

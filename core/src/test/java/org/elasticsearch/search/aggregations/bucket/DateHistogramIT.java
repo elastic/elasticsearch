@@ -1200,7 +1200,7 @@ public class DateHistogramIT extends ESIntegTestCase {
 
     /**
      * Test date histogram aggregation with hour interval, timezone shift and
-     * extended bounds
+     * extended bounds (see https://github.com/elastic/elasticsearch/issues/12278)
      */
     @Test
     public void singleValueField_WithExtendedBoundsTimezone() throws Exception {
@@ -1219,18 +1219,20 @@ public class DateHistogramIT extends ESIntegTestCase {
             }
         };
 
+        // we pick a random timezone offset of +12/-12 hours and insert two documents
+        // one at 00:00 in that time zone and one at 12:00
         List<IndexRequestBuilder> builders = new ArrayList<>();
         int timeZoneHourOffset = randomIntBetween(-12, 12);
         DateTimeZone timezone = DateTimeZone.forOffsetHours(timeZoneHourOffset);
         DateTime timeZoneStartToday = new DateTime(parser.parse("now/d", callable, false, timezone), DateTimeZone.UTC);
         DateTime timeZoneNoonToday = new DateTime(parser.parse("now/d+12h", callable, false, timezone), DateTimeZone.UTC);
-
         builders.add(indexDoc(index, timeZoneStartToday, 1));
         builders.add(indexDoc(index, timeZoneNoonToday, 2));
         indexRandom(true, builders);
         ensureSearchable(index);
 
         SearchResponse response = null;
+        // retrieve those docs with the same time zone and extended bounds
         response = client()
                 .prepareSearch(index)
                 .setQuery(QueryBuilders.rangeQuery("date").from("now/d").to("now/d").includeLower(true).includeUpper(true).timeZone(timezone.getID()))

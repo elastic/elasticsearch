@@ -81,6 +81,9 @@ public class ParseField {
     }
 
     boolean match(String currentFieldName, EnumSet<Flag> flags) {
+        if (currentFieldName == null) {
+            return false;
+        }
         if (allReplacedWith == null && (currentFieldName.equals(camelCaseName) || currentFieldName.equals(underscoreName))) {
             return true;
         }

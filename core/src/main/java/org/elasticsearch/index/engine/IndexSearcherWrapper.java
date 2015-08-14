@@ -36,10 +36,12 @@ public interface IndexSearcherWrapper {
     DirectoryReader wrap(DirectoryReader reader);
 
     /**
-     * @param searcher The provided index searcher to be wrapped to add custom functionality
+     * @param engineConfig  The engine config which can be used to get the query cache and query cache policy from
+     *                      when creating a new index searcher
+     * @param searcher      The provided index searcher to be wrapped to add custom functionality
      * @return a new index searcher wrapping the provided index searcher or if no wrapping was performed
      *         the provided index searcher
      */
-    IndexSearcher wrap(IndexSearcher searcher) throws EngineException;
+    IndexSearcher wrap(EngineConfig engineConfig, IndexSearcher searcher) throws EngineException;
 
 }

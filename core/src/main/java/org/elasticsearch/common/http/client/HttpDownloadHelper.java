@@ -136,7 +136,7 @@ public class HttpDownloadHelper {
         try {
             if (download(checksumURL, checksumFile, progress, timeout)) {
                 byte[] fileBytes = Files.readAllBytes(originalFile);
-                List<String> checksumLines = Files.readAllLines(checksumFile);
+                List<String> checksumLines = Files.readAllLines(checksumFile, Charsets.UTF_8);
                 if (checksumLines.size() != 1) {
                     throw new ElasticsearchCorruptionException("invalid format for checksum file (" +
                             hashFunc.name() + "), expected 1 line, got: " + checksumLines.size());

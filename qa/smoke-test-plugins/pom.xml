@@ -242,7 +242,7 @@
                  <!-- plugins -->
                  <artifactItem>
                    <groupId>org.elasticsearch.plugin</groupId>
-                   <artifactId>elasticsearch-analysis-kuromoji</artifactId>
+                   <artifactId>analysis-kuromoji</artifactId>
                    <version>${elasticsearch.version}</version>
                    <type>zip</type>
                    <overWrite>true</overWrite>
@@ -250,7 +250,7 @@
 
                  <artifactItem>
                    <groupId>org.elasticsearch.plugin</groupId>
-                   <artifactId>elasticsearch-analysis-smartcn</artifactId>
+                   <artifactId>analysis-smartcn</artifactId>
                    <version>${elasticsearch.version}</version>
                    <type>zip</type>
                    <overWrite>true</overWrite>
@@ -258,7 +258,7 @@
 
                  <artifactItem>
                    <groupId>org.elasticsearch.plugin</groupId>
-                   <artifactId>elasticsearch-analysis-stempel</artifactId>
+                   <artifactId>analysis-stempel</artifactId>
                    <version>${elasticsearch.version}</version>
                    <type>zip</type>
                    <overWrite>true</overWrite>
@@ -266,7 +266,7 @@
 
                  <artifactItem>
                    <groupId>org.elasticsearch.plugin</groupId>
-                   <artifactId>elasticsearch-analysis-phonetic</artifactId>
+                   <artifactId>analysis-phonetic</artifactId>
                    <version>${elasticsearch.version}</version>
                    <type>zip</type>
                    <overWrite>true</overWrite>
@@ -274,7 +274,7 @@
 
                  <artifactItem>
                    <groupId>org.elasticsearch.plugin</groupId>
-                   <artifactId>elasticsearch-analysis-icu</artifactId>
+                   <artifactId>analysis-icu</artifactId>
                    <version>${elasticsearch.version}</version>
                    <type>zip</type>
                    <overWrite>true</overWrite>
@@ -282,7 +282,7 @@
 
                  <artifactItem>
                    <groupId>org.elasticsearch.plugin</groupId>
-                   <artifactId>elasticsearch-cloud-gce</artifactId>
+                   <artifactId>cloud-gce</artifactId>
                    <version>${elasticsearch.version}</version>
                    <type>zip</type>
                    <overWrite>true</overWrite>
@@ -290,7 +290,7 @@
 
                  <artifactItem>
                    <groupId>org.elasticsearch.plugin</groupId>
-                   <artifactId>elasticsearch-cloud-azure</artifactId>
+                   <artifactId>cloud-azure</artifactId>
                    <version>${elasticsearch.version}</version>
                    <type>zip</type>
                    <overWrite>true</overWrite>
@@ -298,7 +298,7 @@
 
                  <artifactItem>
                    <groupId>org.elasticsearch.plugin</groupId>
-                   <artifactId>elasticsearch-cloud-aws</artifactId>
+                   <artifactId>cloud-aws</artifactId>
                    <version>${elasticsearch.version}</version>
                    <type>zip</type>
                    <overWrite>true</overWrite>
@@ -306,7 +306,7 @@
 
                  <artifactItem>
                    <groupId>org.elasticsearch.plugin</groupId>
-                   <artifactId>elasticsearch-delete-by-query</artifactId>
+                   <artifactId>delete-by-query</artifactId>
                    <version>${elasticsearch.version}</version>
                    <type>zip</type>
                    <overWrite>true</overWrite>
@@ -314,7 +314,7 @@
 
                  <artifactItem>
                    <groupId>org.elasticsearch.plugin</groupId>
-                   <artifactId>elasticsearch-lang-python</artifactId>
+                   <artifactId>lang-python</artifactId>
                    <version>${elasticsearch.version}</version>
                    <type>zip</type>
                    <overWrite>true</overWrite>
@@ -322,7 +322,7 @@
 
                  <artifactItem>
                    <groupId>org.elasticsearch.plugin</groupId>
-                   <artifactId>elasticsearch-lang-javascript</artifactId>
+                   <artifactId>lang-javascript</artifactId>
                    <version>${elasticsearch.version}</version>
                    <type>zip</type>
                    <overWrite>true</overWrite>
@@ -338,7 +338,7 @@
 
                  <artifactItem>
                    <groupId>org.elasticsearch.plugin</groupId>
-                   <artifactId>elasticsearch-mapper-size</artifactId>
+                   <artifactId>mapper-size</artifactId>
                    <version>${elasticsearch.version}</version>
                    <type>zip</type>
                    <overWrite>true</overWrite>
@@ -346,7 +346,7 @@
 
                  <artifactItem>
                    <groupId>org.elasticsearch.plugin</groupId>
-                   <artifactId>elasticsearch-site-example</artifactId>
+                   <artifactId>site-example</artifactId>
                    <version>${elasticsearch.version}</version>
                    <type>zip</type>
                    <overWrite>true</overWrite>
@@ -354,7 +354,7 @@
 
                  <artifactItem>
                    <groupId>org.elasticsearch.plugin</groupId>
-                   <artifactId>elasticsearch-jvm-example</artifactId>
+                   <artifactId>jvm-example</artifactId>
                    <version>${elasticsearch.version}</version>
                    <type>zip</type>
                    <overWrite>true</overWrite>

@@ -174,9 +174,8 @@ public class TransportExistsAction extends TransportBroadcastAction<ExistsReques
             }
             context.preProcess();
             try {
-                Lucene.EarlyTerminatingCollector existsCollector = Lucene.createExistsCollector();
-                Lucene.exists(context.searcher(), context.query(), existsCollector);
-                return new ShardExistsResponse(request.shardId(), existsCollector.exists());
+                boolean exists = Lucene.exists(context, context.query(), Lucene.createExistsCollector());
+                return new ShardExistsResponse(request.shardId(), exists);
             } catch (Exception e) {
                 throw new QueryPhaseExecutionException(context, "failed to execute exists", e);
             }

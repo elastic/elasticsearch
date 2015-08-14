@@ -22,16 +22,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.DocIdSet;
-import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.Explanation;
-import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.FilteredDocIdSetIterator;
-import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.Scorer;
-import org.apache.lucene.search.Weight;
+import org.apache.lucene.search.*;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.LongBitSet;
 import org.elasticsearch.common.lucene.IndexCacheableQuery;
@@ -92,10 +83,7 @@ public class ParentConstantScoreQuery extends IndexCacheableQuery {
         }
 
         ParentOrdsCollector collector = new ParentOrdsCollector(globalIfd, maxOrd, parentType);
-        IndexSearcher indexSearcher = new IndexSearcher(searcher.getIndexReader());
-        indexSearcher.setSimilarity(searcher.getSimilarity(true));
-        indexSearcher.setQueryCache(null);
-        indexSearcher.search(parentQuery, collector);
+        searcher.search(parentQuery, collector);
 
         if (collector.parentCount() == 0) {
             return new BooleanQuery().createWeight(searcher, needsScores);

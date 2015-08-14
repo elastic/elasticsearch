@@ -36,6 +36,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
@@ -284,8 +285,8 @@ public class TestSearchContext extends SearchContext {
         return searcher;
     }
 
-    public void setSearcher(ContextIndexSearcher searcher) {
-        this.searcher = searcher;
+    public void setSearcher(Engine.Searcher searcher) {
+        this.searcher = new ContextIndexSearcher(this, searcher);
     }
 
     @Override

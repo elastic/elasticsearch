@@ -218,7 +218,7 @@ public class PluginManager {
 
         // read and validate the plugin descriptor
         PluginInfo info = PluginInfo.readFromProperties(root);
-        terminal.println("%s", info);
+        terminal.println(VERBOSE, "%s", info);
 
         // check for jar hell before any copying
         if (info.isJvm()) {

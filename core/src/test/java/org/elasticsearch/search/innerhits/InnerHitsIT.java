@@ -171,6 +171,7 @@ public class InnerHitsIT extends ESIntegTestCase {
     }
 
     @Test
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/12905")
     public void testRandomNested() throws Exception {
         assertAcked(prepareCreate("idx").addMapping("type", "field1", "type=nested", "field2", "type=nested"));
         int numDocs = scaledRandomIntBetween(25, 100);

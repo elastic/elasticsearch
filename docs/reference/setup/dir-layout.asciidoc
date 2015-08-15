@@ -17,7 +17,9 @@ on the node. Can hold multiple locations. | {path.home}/data| path.data
 
 | plugins | Plugin files location. Each plugin will be contained in a subdirectory. | {path.home}/plugins | path.plugins
 
-| repo | Shared file system repository locations. Can hold multiple locations. A file system repository can be placed in to any subdirectory of any directory specified here. | empty | path.repo
+| repo | Shared file system repository locations. Can hold multiple locations. A file system repository can be placed in to any subdirectory of any directory specified here. d| Not configured | path.repo
+
+| script | Location of script files. | {path.conf}/scripts | path.script
 
 |=======================================================================
 
@@ -63,6 +65,11 @@ on the node. | /var/lib/elasticsearch/data | /var/lib/elasticsearch
 | logs | Log files location | /var/log/elasticsearch | /var/log/elasticsearch
 
 | plugins | Plugin files location. Each plugin will be contained in a subdirectory. | /usr/share/elasticsearch/plugins | /usr/share/elasticsearch/plugins
+
+| repo | Shared file system repository locations.  d| Not configured d| Not configured
+
+| script | Location of script files. | /etc/elasticsearch/scripts | /etc/elasticsearch/scripts
+
 |=======================================================================
 
 [float]
@@ -84,4 +91,9 @@ on the node | {extract.path}/data
 | logs | Log files location | {extract.path}/logs
 
 | plugins | Plugin files location. Each plugin will be contained in a subdirectory | {extract.path}/plugins
+
+| repo | Shared file system repository locations.  d| Not configured
+
+| script | Location of script files. | {extract.path}/config/scripts
+
 |=======================================================================

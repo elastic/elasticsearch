@@ -1,0 +1,65 @@
+= Elasticsearch Plugins and Integrations
+
+:ref: https://www.elastic.co/guide/en/elasticsearch/reference/master
+:guide: https://www.elastic.co/guide
+
+[[intro]]
+== Introduction to plugins
+
+Plugins are a way to enhance the core Elasticsearch functionality in a custom
+manner. They range from adding custom mapping types, custom analyzers, native
+scripts, custom discovery and more.
+
+There are three types of plugins:
+
+Java plugins::
+
+    These plugins contain only JAR files, and must be installed on every node
+    in the cluster.  After installation, each node must be restarted before
+    the plugin becomes visible.
+
+Site plugins::
++
+--
+
+These plugins contain static web content like Javascript, HTML, and CSS files,
+that can be served directly from Elasticsearch. Site plugins may only need to
+be installed on one node, and do not require a restart to become visible. The
+content of site plugins is accessible via a URL like:
+
+    http://yournode:9200/_plugin/[plugin name]
+
+--
+
+Mixed plugins::
+
+    Mixed plugins contain both JAR files and web content.
+
+For advice on writing your own plugin, see <<plugin-authors>>.
+
+include::plugin-script.asciidoc[]
+
+include::api.asciidoc[]
+
+include::alerting.asciidoc[]
+
+include::analysis.asciidoc[]
+
+include::discovery.asciidoc[]
+
+include::management.asciidoc[]
+
+include::mapper.asciidoc[]
+
+include::scripting.asciidoc[]
+
+include::security.asciidoc[]
+
+include::repository.asciidoc[]
+
+include::transport.asciidoc[]
+
+include::integrations.asciidoc[]
+
+include::authors.asciidoc[]
+

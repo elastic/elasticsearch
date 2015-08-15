@@ -1,0 +1,43 @@
+[[analysis-stempel]]
+=== Stempel Polish Analysis Plugin
+
+The Stempel Analysis plugin integrates Lucene's Stempel analysis
+module for Polish into elasticsearch.
+
+It provides high quality stemming for Polish, based on the
+http://www.egothor.org/[Egothor project].
+
+[[analysis-stempel-install]]
+[float]
+==== Installation
+
+This plugin can be installed using the plugin manager:
+
+[source,sh]
+----------------------------------------------------------------
+sudo bin/plugin install analysis-stempel
+----------------------------------------------------------------
+
+The plugin must be installed on every node in the cluster, and each node must
+be restarted after installation.
+
+[[analysis-stempel-remove]]
+[float]
+==== Removal
+
+The plugin can be removed with the following command:
+
+[source,sh]
+----------------------------------------------------------------
+sudo bin/plugin remove analysis-stempel
+----------------------------------------------------------------
+
+The node must be stopped before removing the plugin.
+
+[[analysis-stempel-tokenizer]]
+[float]
+==== `stempel` tokenizer and token filter
+
+The plugin provides the `polish` analyzer and `polish_stem` token filter,
+which are not configurable.
+

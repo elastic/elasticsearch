@@ -1,0 +1,103 @@
+import groovy.xml.NamespaceBuilder
+
+apply plugin: 'java'
+
+sourceCompatibility = '1.7'
+
+repositories {
+  mavenCentral()
+}
+
+//jvmExecutable = "${System.env.JAVA_HOME}" + File.separator + "bin" + File.separator + "java"
+
+def luceneVersion = '5.2.1'
+def jacksonVersion = '2.5.3'
+def log4jVersion = '1.2.17'
+def slf4jVersion = '1.6.2'
+
+dependencies {
+
+  // lucene
+  compile group: 'org.apache.lucene', name: 'lucene-core', version: luceneVersion
+  compile group: 'org.apache.lucene', name: 'lucene-backward-codecs', version: luceneVersion
+  compile group: 'org.apache.lucene', name: 'lucene-analyzers-common', version: luceneVersion
+  compile group: 'org.apache.lucene', name: 'lucene-queries', version: luceneVersion
+  compile group: 'org.apache.lucene', name: 'lucene-memory', version: luceneVersion
+  compile group: 'org.apache.lucene', name: 'lucene-highlighter', version: luceneVersion
+  compile group: 'org.apache.lucene', name: 'lucene-queryparser', version: luceneVersion
+  compile group: 'org.apache.lucene', name: 'lucene-suggest', version: luceneVersion
+  compile group: 'org.apache.lucene', name: 'lucene-join', version: luceneVersion
+  compile group: 'org.apache.lucene', name: 'lucene-spatial', version: luceneVersion
+  // TODO: make optional?
+  compile group: 'org.apache.lucene', name: 'lucene-expressions', version: luceneVersion
+
+  // TODO: make optional?
+  // lucene spatial
+  compile group: 'com.spatial4j', name: 'spatial4j', version: '0.4.1'
+  compile group: 'com.vividsolutions', name: 'jts', version: '1.13'
+  // needed for templating
+  compile group: 'com.github.spullara.mustache.java', name: 'compiler', version: '0.8.13'
+
+  // START: dependencies that might be shaded
+  compile group: 'com.google.guava', name: 'guava', version: '18.0'
+  compile group: 'com.carrotsearch', name: 'hppc', version: '0.7.1'
+  // joda 2.0 moved to using volatile fields for datetime
+  // When updating to a new version, make sure to update our copy of BaseDateTime
+  compile group: 'joda-time', name: 'joda-time', version: '2.8'
+  compile group: 'org.joda', name: 'joda-convert', version: '1.2'
+  compile group: 'com.fasterxml.jackson.core', name: 'jackson-core', version: jacksonVersion
+  compile group: 'com.fasterxml.jackson.dataformat', name: 'jackson-dataformat-smile', version: jacksonVersion
+  compile(group: 'com.fasterxml.jackson.dataformat', name: 'jackson-dataformat-yaml', version: jacksonVersion) {
+    exclude group: 'com.fasterxml.jackson.core', module: 'jackson-databind'
+  }
+  compile group: 'com.fasterxml.jackson.dataformat', name: 'jackson-dataformat-cbor', version: jacksonVersion
+  compile group: 'io.netty', name: 'netty', version: '3.10.3.Final'
+  compile group: 'com.ning', name: 'compress-lzf', version: '1.0.2'
+  compile group: 'com.tdunning', name: 't-digest', version: '3.0'
+  compile group: 'org.hdrhistogram', name: 'HdrHistogram', version: '2.1.6'
+  compile group: 'org.apache.commons', name: 'commons-lang3', version: '3.3.2'
+  compile group: 'commons-cli', name: 'commons-cli', version: '1.3.1'
+  // END: dependencies that might be shaded
+
+  // TODO: make optional?
+  compile group: 'org.codehaus.groovy', name: 'groovy-all', version: '2.4.4', classifier: 'indy'
+  compile group: 'log4j', name: 'log4j', version: log4jVersion
+  compile group: 'log4j', name: 'apache-log4j-extras', version: log4jVersion
+  compile group: 'org.slf4j', name: 'slf4j-api', version: slf4jVersion
+  compile group: 'net.java.dev.jna', name: 'jna', version: '4.1.0'
+  // remove this for java 8
+  compile group: 'com.twitter', name: 'jsr166e', version: '1.1.0'
+
+  testCompile group: 'junit', name: 'junit', version: '4.11'
+  testCompile group: 'com.carrotsearch.randomizedtesting', name: 'junit4-ant', version: '2.1.16'
+  testCompile group: 'org.apache.lucene', name: 'lucene-test-framework', version: luceneVersion
+  testCompile group: 'org.hamcrest', name: 'hamcrest-all', version: '1.3'
+  testCompile group: 'com.google.jimfs', name: 'jimfs', version: '1.0'
+  testCompile group: 'org.apache.httpcomponents', name: 'httpclient', version: '4.3.6'
+}
+
+task sourcesJar(type: Jar, dependsOn: classes) {
+    classifier = 'sources'
+    from sourceSets.main.java
+}
+
+task test(overwrite:true, dependsOn: testClasses) {
+  ant.taskdef(resource: 'com/carrotsearch/junit4/antlib.xml',
+              uri: 'junit4',
+              classpath: configurations.testCompile.asPath)
+  def junit4 = NamespaceBuilder.newInstance(ant, 'junit4')
+  junit4.pickseed(property: 'tests.seed')
+  println "Seed: " + ant.properties['tests.seed']
+  junit4.junit4(taskName: 'junit4') {
+    classpath {
+      pathElement(path: configurations.testCompile.asPath)
+    }
+    fileset(dir: sourceSets.test.output.classesDir) {
+      include(name:'**/*Tests.class')
+    }
+  }
+}
+
+artifacts {
+    archives sourcesJar
+}

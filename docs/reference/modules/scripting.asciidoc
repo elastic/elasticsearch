@@ -33,7 +33,7 @@ return a `long` value, the script should be rewritten as follows:
 -------------------------
 
 See https://issues.apache.org/jira/browse/GROOVY-4421[GROOVY-4421]
-and https://issues.apache.org/jira/browse/GROOVY-5185[GROVY-5185]
+and https://issues.apache.org/jira/browse/GROOVY-5185[GROOVY-5185]
 for more information.
 
 ====================================================

@@ -12,7 +12,7 @@
 
     <artifactId>elasticsearch-analysis-kuromoji</artifactId>
     <packaging>jar</packaging>
-    <name>Elasticsearch Japanese (kuromoji) Analysis plugin</name>
+    <name>Plugins: Analysis - Japanese (Kuromoji)</name>
     <description>The Japanese (kuromoji) Analysis plugin integrates Lucene kuromoji analysis module into elasticsearch.</description>
 
     <properties>

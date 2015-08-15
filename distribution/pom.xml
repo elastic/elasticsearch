@@ -12,7 +12,7 @@
     <groupId>org.elasticsearch.distribution</groupId>
     <artifactId>elasticsearch-distribution</artifactId>
     <packaging>pom</packaging>
-    <name>Elasticsearch Distribution</name>
+    <name>Distribution: Parent POM</name>
 
     <properties>
         <!-- Properties used for building RPM & DEB packages (see common/packaging.properties) -->

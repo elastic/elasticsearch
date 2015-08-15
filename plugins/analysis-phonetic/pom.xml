@@ -11,7 +11,7 @@
     </parent>
 
     <artifactId>elasticsearch-analysis-phonetic</artifactId>
-    <name>Elasticsearch Phonetic Analysis plugin</name>
+    <name>Plugins: Analysis - Phonetic</name>
     <description>The Phonetic Analysis plugin integrates phonetic token filter analysis with elasticsearch.</description>
 
     <properties>

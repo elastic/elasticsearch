@@ -11,7 +11,7 @@
     </parent>
 
     <artifactId>elasticsearch-cloud-aws</artifactId>
-    <name>Elasticsearch AWS cloud plugin</name>
+    <name>Plugins: Cloud - AWS</name>
     <description>The Amazon Web Service (AWS) Cloud plugin allows to use AWS API for the unicast discovery mechanism and add S3 repositories.</description>
 
     <properties>

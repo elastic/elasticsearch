@@ -11,7 +11,7 @@
 
     <groupId>org.elasticsearch.distribution.rpm</groupId>
     <artifactId>elasticsearch</artifactId>
-    <name>Elasticsearch RPM Distribution</name>
+    <name>Distribution: RPM</name>
     <packaging>rpm</packaging>
     <description>The RPM distribution of Elasticsearch</description>
 

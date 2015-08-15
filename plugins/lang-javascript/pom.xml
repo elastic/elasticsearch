@@ -11,7 +11,7 @@
     </parent>
 
     <artifactId>elasticsearch-lang-javascript</artifactId>
-    <name>Elasticsearch JavaScript language plugin</name>
+    <name>Plugins: Script - Javascript</name>
     <description>The JavaScript language plugin allows to have javascript as the language of scripts to execute.</description>
 
     <properties>

@@ -22,7 +22,7 @@ governing permissions and limitations under the License. -->
     </parent>
 
     <artifactId>elasticsearch-delete-by-query</artifactId>
-    <name>Elasticsearch Delete By Query plugin</name>
+    <name>Plugins: Delete By Query</name>
     <description>The Delete By Query plugin allows to delete documents in Elasticsearch with a single query.</description>
 
     <properties>

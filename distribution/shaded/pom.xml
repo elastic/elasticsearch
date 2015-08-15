@@ -11,7 +11,7 @@
 
     <groupId>org.elasticsearch.distribution.shaded</groupId>
     <artifactId>elasticsearch</artifactId>
-    <name>Elasticsearch Shaded Distribution</name>
+    <name>Distribution: Shaded</name>
 
     <dependencies>
         <dependency>

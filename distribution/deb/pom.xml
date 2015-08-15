@@ -11,7 +11,7 @@
 
     <groupId>org.elasticsearch.distribution.deb</groupId>
     <artifactId>elasticsearch</artifactId>
-    <name>Elasticsearch DEB Distribution</name>
+    <name>Distribution: DEB</name>
     <!--
         We should use deb packaging here because we don't want to publish any jar.
         But if you do this, then maven lifecycle does not execute any test (nor compile any test)

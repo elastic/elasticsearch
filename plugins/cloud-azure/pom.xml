@@ -22,7 +22,7 @@ governing permissions and limitations under the License. -->
     </parent>
 
     <artifactId>elasticsearch-cloud-azure</artifactId>
-    <name>Elasticsearch Azure cloud plugin</name>
+    <name>Plugins: Cloud - Azure</name>
     <description>The Azure Cloud plugin allows to use Azure API for the unicast discovery mechanism and add Azure storage repositories.</description>
 
     <properties>

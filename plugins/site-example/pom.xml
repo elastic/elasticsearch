@@ -11,7 +11,7 @@
     </parent>
 
     <artifactId>elasticsearch-site-example</artifactId>
-    <name>Elasticsearch Example site plugin</name>
+    <name>Plugins: Example - Site</name>
     <description>Demonstrates how to serve resources via elasticsearch.</description>
 
     <properties>

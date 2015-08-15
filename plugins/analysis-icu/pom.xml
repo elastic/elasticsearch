@@ -11,7 +11,7 @@
     </parent>
 
     <artifactId>elasticsearch-analysis-icu</artifactId>
-    <name>Elasticsearch ICU Analysis plugin</name>
+    <name>Plugins: Analysis - ICU</name>
     <description>The ICU Analysis plugin integrates Lucene ICU module into elasticsearch, adding ICU relates analysis components.</description>
 
     <properties>

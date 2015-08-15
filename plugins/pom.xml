@@ -9,7 +9,7 @@
     <artifactId>elasticsearch-plugin</artifactId>
     <version>2.1.0-SNAPSHOT</version>
     <packaging>pom</packaging>
-    <name>Elasticsearch Plugin POM</name>
+    <name>Plugins: Parent POM</name>
     <inceptionYear>2009</inceptionYear>
     <description>A parent project for Elasticsearch plugins</description>
 
@@ -433,10 +433,10 @@
         <module>cloud-gce</module>
         <module>cloud-azure</module>
         <module>cloud-aws</module>
-        <module>delete-by-query</module>
         <module>lang-python</module>
         <module>lang-javascript</module>
         <module>mapper-size</module>
+        <module>delete-by-query</module>
         <module>jvm-example</module>
         <module>site-example</module>
     </modules>

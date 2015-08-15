@@ -22,7 +22,7 @@ governing permissions and limitations under the License. -->
     </parent>
 
     <artifactId>elasticsearch-cloud-gce</artifactId>
-    <name>Elasticsearch Google Compute Engine cloud plugin</name>
+    <name>Plugins: Cloud - GCE</name>
     <description>The Google Compute Engine (GCE) Cloud plugin allows to use GCE API for the unicast discovery mechanism.</description>
 
     <properties>

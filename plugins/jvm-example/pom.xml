@@ -11,7 +11,7 @@
     </parent>
 
     <artifactId>elasticsearch-jvm-example</artifactId>
-    <name>Elasticsearch example JVM plugin</name>
+    <name>Plugins: Example - JVM</name>
     <description>Demonstrates all the pluggable Java entry points in Elasticsearch</description>
 
     <properties>

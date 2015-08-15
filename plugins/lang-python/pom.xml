@@ -11,7 +11,7 @@
     </parent>
 
     <artifactId>elasticsearch-lang-python</artifactId>
-    <name>Elasticsearch Python language plugin</name>
+    <name>Plugins: Script - Python</name>
     <description>The Python language plugin allows to have python as the language of scripts to execute.</description>
 
     <properties>

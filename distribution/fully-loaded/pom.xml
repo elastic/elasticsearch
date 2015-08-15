@@ -11,7 +11,7 @@
 
     <groupId>org.elasticsearch.distribution.fully-loaded</groupId>
     <artifactId>elasticsearch</artifactId>
-    <name>Elasticsearch with all optional dependencies</name>
+    <name>Distribution: With all optional dependencies</name>
     <packaging>pom</packaging>
 
     <dependencies>

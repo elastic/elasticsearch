@@ -1,0 +1,46 @@
+[[management]]
+== Management and Site Plugins
+
+Management and site plugins offer UIs for managing and interacting with
+Elasticsearch.
+
+[float]
+=== Core management plugins
+
+The core management plugins are:
+
+link:/products/marvel[Marvel]::
+
+Marvel is a management and monitoring product for Elasticsearch. Marvel
+aggregates cluster wide statistics and events and offers a single interface to
+view and analyze them. Marvel is free for development use but requires a
+license to run in production.
+
+https://github.com/elastic/elasticsearch-migration[Migration]::
+
+This plugin will help you to check whether you can upgrade directly to
+Elasticsearch version 2.x, or whether you need to make changes to your data
+before doing so. It will run on Elasticsearch versions 0.90.x to 1.x.
+
+[float]
+=== Community contributed management and site plugins
+
+A number of plugins have been contributed by our community:
+
+* https://github.com/lukas-vlcek/bigdesk[BigDesk Plugin] (by Lukáš Vlček)
+
+* https://github.com/spinscale/elasticsearch-graphite-plugin[Elasticsearch Graphite Plugin]:
+  Regularly updates a graphite host with indices stats and nodes stats (by Alexander Reelsen)
+
+* https://github.com/mobz/elasticsearch-head[Elasticsearch Head Plugin] (by Ben Birch)
+* https://github.com/royrusso/elasticsearch-HQ[Elasticsearch HQ] (by Roy Russo)
+* https://github.com/andrewvc/elastic-hammer[Hammer Plugin] (by Andrew Cholakian)
+* https://github.com/polyfractal/elasticsearch-inquisitor[Inquisitor Plugin] (by Zachary Tong)
+* https://github.com/lmenezes/elasticsearch-kopf[Kopf Plugin] (by lmenezes)
+
+These community plugins appear to have been abandoned:
+
+* https://github.com/karmi/elasticsearch-paramedic[Paramedic Plugin] (by Karel Minařík)
+* https://github.com/polyfractal/elasticsearch-segmentspy[SegmentSpy Plugin] (by Zachary Tong)
+* https://github.com/xyu/elasticsearch-whatson[Whatson Plugin] (by Xiao Yu)
+

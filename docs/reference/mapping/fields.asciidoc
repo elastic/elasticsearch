@@ -35,7 +35,7 @@ can be customised when a mapping type is created.
 {plugins}/mapper-size.html[`_size`]::
 
     The size of the `_source` field in bytes, provided by the
-    {plugins}/mapping-size.html[`mapper-size` plugin].
+    {plugins}/mapper-size.html[`mapper-size` plugin].
 
 [float]
 === Indexing meta-fields

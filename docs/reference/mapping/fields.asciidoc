@@ -90,8 +90,6 @@ include::fields/parent-field.asciidoc[]
 
 include::fields/routing-field.asciidoc[]
 
-include::fields/size-field.asciidoc[]
-
 include::fields/source-field.asciidoc[]
 
 include::fields/timestamp-field.asciidoc[]

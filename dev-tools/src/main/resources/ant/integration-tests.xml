@@ -32,8 +32,10 @@
       <echoxml><exec script="${script.base}"><nested/></exec></echoxml>
       <exec executable="cmd" osfamily="winnt" dir="${temp.cwd}" failonerror="${failonerror}" spawn="@{spawn}" taskname="${script.base}">
         <arg value="/c"/>
+        <arg value="&quot;"/>
         <arg value="@{script}.bat"/>
         <nested/>
+        <arg value="&quot;"/>
       </exec>
 
       <exec executable="sh" osfamily="unix" dir="${temp.cwd}" failonerror="${failonerror}" spawn="@{spawn}" taskname="${script.base}">

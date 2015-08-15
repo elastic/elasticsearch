@@ -1,0 +1,34 @@
+= Elasticsearch Plugins and Integrations
+
+== Available plugins
+
+IMPORTANT: This page is a place holder for the new plugins documentation
+coming with Elasticsearch 2.0.  The officially supported open source plugins
+in 2.0 have moved to the
+https://github.com/elastic/elasticsearch/tree/master/plugins[main Elasticsearch GitHub repository]
+
+[float]
+== Elasticsearch provided plugins
+
+The open-source plugins provided for Elasticsearch 1.x are:
+
+* https://github.com/elastic/elasticsearch-analysis-icu[elasticsearch-analysis-icu] - ICU analyzer
+* https://github.com/elastic/elasticsearch-analysis-kuromoji[elasticsearch-analysis-kuromoji] - Kurumoji Japanese Analyzer
+* https://github.com/elastic/elasticsearch-analysis-phonetic[elasticsearch-analysis-phonetic] - Phonetic Analyzer
+* https://github.com/elastic/elasticsearch-analysis-smartcn[elasticsearch-analysis-smartcn] - Smart Chinese Analyzer
+* https://github.com/elastic/elasticsearch-analysis-stempel[elasticsearch-analysis-stempel] - Stempel Polish Analyzer
+* https://github.com/elastic/elasticsearch-cloud-aws[elasticsearch-cloud-aws] - AWS Cloud Discovery and Repository
+* https://github.com/elastic/elasticsearch-cloud-azure[elasticsearch-cloud-azure] - Azure Cloud Discovery and Repository
+* https://github.com/elastic/elasticsearch-cloud-gce[elasticsearch-cloud-gce] - Google Compute Engine Cloud Discovery
+* https://github.com/elastic/elasticsearch-lang-js[elasticsearch-lang-js] - Javascript Support
+* https://github.com/elastic/elasticsearch-lang-js[elasticsearch-lang-js] - Python Support
+* https://github.com/elastic/elasticsearch-mapper-attachments[elasticsearch-mapper-attachments] - Tika support
+* https://github.com/elastic/elasticsearch-transport-memcached[elasticsearch-transport-memcached] - Memcached transport
+* https://github.com/elastic/elasticsearch-transport-thrift[elasticsearch-transport-thrift] - Thrift Transport
+* https://github.com/elastic/elasticsearch-transport-wares[elasticsearch-transport-wares] - WAR-ES Servlet Transport
+
+[float]
+== Community plugins
+
+The list of known community provided plugins can be found
+https://www.elastic.co/guide/en/elasticsearch/reference/1.7/modules-plugins.html#known-plugins[here].

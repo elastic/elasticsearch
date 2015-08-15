@@ -1,0 +1,14 @@
+<abstract>
+    <title>Please note:</title>
+    <simpara>
+        This page is a place holder for the new plugins documentation
+        coming with Elasticsearch 2.0.  The officially supported open source plugins
+        in 2.0 have moved to the
+        <ulink url="https://github.com/elastic/elasticsearch/tree/master/plugins">main Elasticsearch GitHub repository</ulink>.
+    </simpara>
+    <simpara>
+        The list of community contributed integrations are available as
+        part of the .
+        <ulink url="/guide/en/elasticsearch/plugins/master/integrations.html">new plugin documentation</ulink>.
+    </simpara>
+</abstract>

@@ -156,6 +156,12 @@ public class AggregationContext {
     }
 
     private ValuesSource.Numeric numericField(ValuesSourceConfig<?> config) throws IOException {
+
+        if (!(config.fieldContext.indexFieldData() instanceof IndexNumericFieldData)) {
+            throw new IllegalArgumentException("Expected numeric type on field [" + config.fieldContext.field() +
+                    "], but got [" + config.fieldContext.fieldType().typeName() + "]");
+        }
+
         ValuesSource.Numeric dataSource = new ValuesSource.Numeric.FieldData((IndexNumericFieldData) config.fieldContext.indexFieldData());
         if (config.script != null) {
             dataSource = new ValuesSource.Numeric.WithScript(dataSource, config.script);
@@ -184,6 +190,12 @@ public class AggregationContext {
     }
 
     private ValuesSource.GeoPoint geoPointField(ValuesSourceConfig<?> config) throws IOException {
+
+        if (!(config.fieldContext.indexFieldData() instanceof IndexGeoPointFieldData)) {
+            throw new IllegalArgumentException("Expected geo_point type on field [" + config.fieldContext.field() +
+                    "], but got [" + config.fieldContext.fieldType().typeName() + "]");
+        }
+
         return new ValuesSource.GeoPoint.Fielddata((IndexGeoPointFieldData) config.fieldContext.indexFieldData());
     }
 

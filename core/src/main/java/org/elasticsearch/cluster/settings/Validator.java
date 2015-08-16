@@ -21,6 +21,7 @@ package org.elasticsearch.cluster.settings;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Booleans;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 
 import static org.elasticsearch.common.unit.ByteSizeValue.parseBytesSizeValue;
@@ -220,6 +221,21 @@ public interface Validator {
         public String validate(String setting, String value) {
             try {
                 parseBytesSizeValue(value, setting);
+            } catch (ElasticsearchParseException ex) {
+                return ex.getMessage();
+            }
+            return null;
+        }
+    };
+
+    public static final Validator POSITIVE_BYTES_SIZE = new Validator() {
+        @Override
+        public String validate(String setting, String value) {
+            try {
+                ByteSizeValue byteSizeValue = parseBytesSizeValue(value, setting);
+                if (byteSizeValue.getBytes() <= 0) {
+                    return setting + " must be a positive byte size value";
+                }
             } catch (ElasticsearchParseException ex) {
                 return ex.getMessage();
             }

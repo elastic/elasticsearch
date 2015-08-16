@@ -29,7 +29,7 @@ import java.util.*;
 /**
  * An extensions point and registry for all the highlighters a node supports.
  */
-public class Highlighters extends ExtensionPoint.MapExtensionPoint<Highlighter> {
+public class Highlighters extends ExtensionPoint.ClassMap<Highlighter> {
 
     @Deprecated // remove in 3.0
     private static final String FAST_VECTOR_HIGHLIGHTER = "fast-vector-highlighter";

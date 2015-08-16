@@ -18,12 +18,15 @@
  */
 package org.elasticsearch.common.inject;
 
+import com.google.common.base.Predicate;
 import org.elasticsearch.common.inject.spi.Element;
 import org.elasticsearch.common.inject.spi.Elements;
+import org.elasticsearch.common.inject.spi.InstanceBinding;
 import org.elasticsearch.common.inject.spi.LinkedKeyBinding;
 import org.elasticsearch.common.inject.spi.ProviderInstanceBinding;
 import org.elasticsearch.test.ESTestCase;
 
+import java.lang.annotation.Annotation;
 import java.lang.reflect.Type;
 import java.util.HashSet;
 import java.util.List;
@@ -135,5 +138,27 @@ public abstract class ModuleTestCase extends ESTestCase {
         assertTrue("Did not find provider for set of " + to.getName(), providerFound);
     }
 
-    // TODO: add assert for map multibinding
+    public <T> void assertInstanceBinding(Module module, Class<T> to, Predicate<T> tester) {
+        assertInstanceBindingWithAnnotation(module, to, tester, null);
+    }
+
+    public <T> void assertInstanceBindingWithAnnotation(Module module, Class<T> to, Predicate<T> tester, Class<? extends Annotation> annotation) {
+        List<Element> elements = Elements.getElements(module);
+        for (Element element : elements) {
+            if (element instanceof InstanceBinding) {
+                InstanceBinding binding = (InstanceBinding) element;
+                if (to.equals(binding.getKey().getTypeLiteral().getType())) {
+                    if (annotation == null || annotation.equals(binding.getKey().getAnnotationType())) {
+                        assertTrue(tester.apply(to.cast(binding.getInstance())));
+                        return;
+                    }
+                }
+            }
+        }
+        StringBuilder s = new StringBuilder();
+        for (Element element : elements) {
+            s.append(element + "\n");
+        }
+        fail("Did not find any instance binding to " + to.getName() + ". Found these bindings:\n" + s);
+    }
 }

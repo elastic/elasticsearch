@@ -191,7 +191,7 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
             if (!dynamicSettings.hasDynamicSetting(setting.getKey())) {
                 removedSettings.add(setting.getKey());
             } else {
-                String error = dynamicSettings.validateDynamicSetting(setting.getKey(), setting.getValue());
+                String error = dynamicSettings.validateDynamicSetting(setting.getKey(), setting.getValue(), clusterService.state());
                 if (error != null) {
                     errors.add("[" + setting.getKey() + "] - " + error);
                 }

@@ -39,7 +39,7 @@ public abstract class ExtensionPoint<T> {
     /**
      * Creates a new extension point
      *
-     * @param name           the human readable underscore case name of the extension poing. This is used in error messages etc.
+     * @param name           the human readable underscore case name of the extension point. This is used in error messages etc.
      * @param extensionClass the base class that should be extended
      * @param singletons     a list of singletons to bind with this extension point - these are bound in {@link #bind(Binder)}
      */
@@ -55,9 +55,6 @@ public abstract class ExtensionPoint<T> {
      * @param binder the binder to use
      */
     public final void bind(Binder binder) {
-        if (singletons == null || singletons.length == 0) {
-            throw new IllegalStateException("Can't bind empty or null singletons");
-        }
         for (Class<?> c : singletons) {
             binder.bind(c).asEagerSingleton();
         }

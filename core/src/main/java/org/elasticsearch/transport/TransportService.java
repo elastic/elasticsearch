@@ -130,9 +130,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
 
     // These need to be optional as they don't exist in the context of a transport client
     @Inject(optional = true)
-    public void setDynamicSettings(NodeSettingsService nodeSettingsService, @ClusterDynamicSettings DynamicSettings dynamicSettings) {
-        dynamicSettings.addDynamicSettings(SETTING_TRACE_LOG_INCLUDE, SETTING_TRACE_LOG_INCLUDE + ".*");
-        dynamicSettings.addDynamicSettings(SETTING_TRACE_LOG_EXCLUDE, SETTING_TRACE_LOG_EXCLUDE + ".*");
+    public void setDynamicSettings(NodeSettingsService nodeSettingsService) {
         nodeSettingsService.addListener(settingsListener);
     }
 

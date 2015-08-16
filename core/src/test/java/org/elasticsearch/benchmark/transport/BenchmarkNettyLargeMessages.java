@@ -54,9 +54,6 @@ public class BenchmarkNettyLargeMessages {
                 .build();
 
         NetworkService networkService = new NetworkService(settings);
-        NodeSettingsService settingsService = new NodeSettingsService(settings);
-        DynamicSettings dynamicSettings = new DynamicSettings();
-
 
         final ThreadPool threadPool = new ThreadPool("BenchmarkNettyLargeMessages");
         final TransportService transportServiceServer = new TransportService(

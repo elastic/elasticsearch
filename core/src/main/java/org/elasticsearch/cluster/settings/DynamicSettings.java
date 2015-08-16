@@ -19,18 +19,39 @@
 
 package org.elasticsearch.cluster.settings;
 
-import com.google.common.collect.ImmutableMap;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.regex.Regex;
 
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 
 /**
+ * A container for setting names and validation methods for those settings.
  */
 public class DynamicSettings {
 
-    private ImmutableMap<String, Validator> dynamicSettings = ImmutableMap.of();
+    private final Map<String, Validator> dynamicSettings;
 
+    public static class Builder {
+        private Map<String, Validator> settings = new HashMap<>();
+
+        public void addSetting(String setting, Validator validator) {
+            Validator old = settings.put(setting, validator);
+            if (old != null) {
+                throw new IllegalArgumentException("Cannot register setting [" + setting + "] twice");
+            }
+        }
+
+        public DynamicSettings build() {
+            return new DynamicSettings(settings);
+        }
+    }
+
+    private DynamicSettings(Map<String, Validator> settings) {
+        this.dynamicSettings = Collections.unmodifiableMap(settings);
+    }
 
     public boolean isDynamicOrLoggingSetting(String key) {
         return hasDynamicSetting(key) || key.startsWith("logger.");
@@ -45,32 +66,12 @@ public class DynamicSettings {
         return false;
     }
 
-    public String validateDynamicSetting(String dynamicSetting, String value) {
+    public String validateDynamicSetting(String dynamicSetting, String value, ClusterState clusterState) {
         for (Map.Entry<String, Validator> setting : dynamicSettings.entrySet()) {
             if (Regex.simpleMatch(setting.getKey(), dynamicSetting)) {
-                return setting.getValue().validate(dynamicSetting, value);
+                return setting.getValue().validate(dynamicSetting, value, clusterState);
             }
         }
         return null;
     }
-
-    public synchronized void addDynamicSetting(String setting, Validator validator) {
-        MapBuilder<String, Validator> updatedSettings = MapBuilder.newMapBuilder(dynamicSettings);
-        updatedSettings.put(setting, validator);
-        dynamicSettings = updatedSettings.immutableMap();
-    }
-
-    public synchronized void addDynamicSetting(String setting) {
-        addDynamicSetting(setting, Validator.EMPTY);
-    }
-
-
-    public synchronized void addDynamicSettings(String... settings) {
-        MapBuilder<String, Validator> updatedSettings = MapBuilder.newMapBuilder(dynamicSettings);
-        for (String setting : settings) {
-            updatedSettings.put(setting, Validator.EMPTY);
-        }
-        dynamicSettings = updatedSettings.immutableMap();
-    }
-
 }

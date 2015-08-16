@@ -392,7 +392,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
                             Settings.Builder persistentSettings = Settings.settingsBuilder().put();
                             for (Map.Entry<String, String> entry : metaData.persistentSettings().getAsMap().entrySet()) {
                                 if (dynamicSettings.isDynamicOrLoggingSetting(entry.getKey())) {
-                                    String error = dynamicSettings.validateDynamicSetting(entry.getKey(), entry.getValue());
+                                    String error = dynamicSettings.validateDynamicSetting(entry.getKey(), entry.getValue(), clusterService.state());
                                     if (error == null) {
                                         persistentSettings.put(entry.getKey(), entry.getValue());
                                         changed = true;

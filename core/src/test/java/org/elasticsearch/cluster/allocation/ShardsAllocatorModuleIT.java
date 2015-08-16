@@ -19,7 +19,7 @@
 
 package org.elasticsearch.cluster.allocation;
 
-import org.elasticsearch.cluster.routing.allocation.AllocationModule;
+import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.common.settings.Settings;
@@ -40,10 +40,10 @@ public class ShardsAllocatorModuleIT extends ESIntegTestCase {
     }
 
     public void testLoadByShortKeyShardsAllocator() throws IOException {
-        Settings build = settingsBuilder().put(AllocationModule.SHARDS_ALLOCATOR_TYPE_KEY, "even_shard") // legacy just to make sure we don't barf
+        Settings build = settingsBuilder().put(ClusterModule.SHARDS_ALLOCATOR_TYPE_KEY, "even_shard") // legacy just to make sure we don't barf
                 .build();
         assertAllocatorInstance(build, BalancedShardsAllocator.class);
-        build = settingsBuilder().put(AllocationModule.SHARDS_ALLOCATOR_TYPE_KEY, AllocationModule.BALANCED_ALLOCATOR).build();
+        build = settingsBuilder().put(ClusterModule.SHARDS_ALLOCATOR_TYPE_KEY, ClusterModule.BALANCED_ALLOCATOR).build();
         assertAllocatorInstance(build, BalancedShardsAllocator.class);
     }
 

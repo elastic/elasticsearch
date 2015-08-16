@@ -226,8 +226,7 @@ public abstract class InternalTerms<A extends InternalTerms, B extends InternalT
                 }
             }
             if (b.docCount >= minDocCount) {
-                Terms.Bucket removed = null;
-                removed = ordered.insertWithOverflow(b);
+                Terms.Bucket removed = ordered.insertWithOverflow(b);
                 if (removed != null) {
                     otherDocCount += removed.getDocCount();
                 }

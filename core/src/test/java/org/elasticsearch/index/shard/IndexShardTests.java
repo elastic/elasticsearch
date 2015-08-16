@@ -306,7 +306,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         assertBusy(new Runnable() { // should be very very quick
             @Override
             public void run() {
-                IndexStats indexStats = client().admin().indices().prepareStats("test").get().getIndex("test");
+                IndexStats indexStats = client().admin().indices().prepareStats("test").clear().get().getIndex("test");
                 assertNotNull(indexStats.getShards()[0].getCommitStats().getUserData().get(Engine.SYNC_COMMIT_ID));
             }
         });

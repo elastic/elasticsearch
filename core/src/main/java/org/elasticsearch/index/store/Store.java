@@ -1487,7 +1487,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             try {
                 return new StoreStats(estimateSize(directory), directoryService.throttleTimeInNanos());
             } catch (IOException ex) {
-                throw new ElasticsearchException("failed to refresh store stats");
+                throw new ElasticsearchException("failed to refresh store stats", ex);
             }
         }
 

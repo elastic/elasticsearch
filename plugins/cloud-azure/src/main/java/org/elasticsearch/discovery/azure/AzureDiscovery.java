@@ -43,8 +43,8 @@ public class AzureDiscovery extends ZenDiscovery {
     @Inject
     public AzureDiscovery(Settings settings, ClusterName clusterName, ThreadPool threadPool, TransportService transportService,
                           ClusterService clusterService, NodeSettingsService nodeSettingsService, ZenPingService pingService,
-                          DiscoverySettings discoverySettings, ElectMasterService electMasterService, @ClusterDynamicSettings DynamicSettings dynamicSettings) {
+                          DiscoverySettings discoverySettings, ElectMasterService electMasterService) {
         super(settings, clusterName, threadPool, transportService, clusterService, nodeSettingsService,
-                pingService, electMasterService, discoverySettings, dynamicSettings);
+                pingService, electMasterService, discoverySettings);
     }
 }

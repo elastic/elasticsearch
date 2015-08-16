@@ -66,7 +66,7 @@ public interface Terms extends MultiBucketsAggregation {
 
         public abstract Number getKeyAsNumber();
 
-        abstract int compareTerm(Terms.Bucket other) throws IncomparableTermBucketsException;
+        abstract int compareTerm(Terms.Bucket other);
 
         public abstract long getDocCountError();
 

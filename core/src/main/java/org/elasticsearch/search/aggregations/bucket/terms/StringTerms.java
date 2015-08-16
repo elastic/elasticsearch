@@ -105,16 +105,7 @@ public class StringTerms extends InternalTerms<StringTerms, StringTerms.Bucket> 
 
         @Override
         int compareTerm(Terms.Bucket other) {
-            try {
-                return BytesRef.getUTF8SortedAsUnicodeComparator().compare(termBytes, ((Bucket) other).termBytes);
-            } catch (ClassCastException e) {
-                // used .getClass().getDeclaringClass() as InternalTerms Bucket is always an inner class
-                // as per the Terms interface.
-                throw new IncomparableTermBucketsException("The Buckets cannot be compared as one is of type " +
-                    other.getClass().getDeclaringClass().getSimpleName() +
-                    " and the other is of type " +
-                    this.getClass().getDeclaringClass().getSimpleName(), e);
-            }
+            return BytesRef.getUTF8SortedAsUnicodeComparator().compare(termBytes, ((Bucket) other).termBytes);
         }
 
         @Override

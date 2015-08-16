@@ -9,7 +9,7 @@
         <version>2.1.0-SNAPSHOT</version>
     </parent>
 
-    <artifactId>elasticsearch-distribution-tests</artifactId>
+    <artifactId>qa-vagrant</artifactId>
     <name>QA: Elasticsearch Vagrant Tests</name>
     <description>Tests the Elasticsearch distribution artifacts on virtual
       machines using vagrant and bats.</description>

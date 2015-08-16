@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.innerhits;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -48,6 +49,7 @@ import static org.hamcrest.Matchers.*;
 
 /**
  */
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/12905")
 public class InnerHitsIT extends ESIntegTestCase {
 
     @Test
@@ -171,7 +173,6 @@ public class InnerHitsIT extends ESIntegTestCase {
     }
 
     @Test
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/12905")
     public void testRandomNested() throws Exception {
         assertAcked(prepareCreate("idx").addMapping("type", "field1", "type=nested", "field2", "type=nested"));
         int numDocs = scaledRandomIntBetween(25, 100);

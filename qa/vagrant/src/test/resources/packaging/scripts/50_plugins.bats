@@ -63,15 +63,13 @@ install_package() {
     # Checks that plugin archive is available
     [ -e "$EXAMPLE_PLUGIN_ZIP" ]
 
-    # Install Shield
+    # Install jvm-example
     run /usr/share/elasticsearch/bin/plugin install jvm-example -u "file://$EXAMPLE_PLUGIN_ZIP"
     [ "$status" -eq 0 ]
 
-    # Checks that Shield is correctly installed
-    # TODO add bin to jvm-example
-    # assert_file_exist "/usr/share/elasticsearch/bin/shield"
-    # assert_file_exist "/usr/share/elasticsearch/bin/shield/esusers"
-    # assert_file_exist "/usr/share/elasticsearch/bin/shield/syskeygen"
+    # Checks that jvm-example is correctly installed
+    assert_file_exist "/usr/share/elasticsearch/bin/jvm-example"
+    assert_file_exist "/usr/share/elasticsearch/bin/jvm-example/test"
     assert_file_exist "/etc/elasticsearch/jvm-example"
     assert_file_exist "/etc/elasticsearch/jvm-example/example.yaml"
     assert_file_exist "/usr/share/elasticsearch/plugins/jvm-example"
@@ -83,8 +81,7 @@ install_package() {
     [ "$status" -eq 0 ]
 
     # Checks that the plugin is correctly removed
-    # TODO add bin to jvm-example
-    # assert_file_not_exist "/usr/share/elasticsearch/bin/shield"
+    assert_file_not_exist "/usr/share/elasticsearch/bin/jvm-example"
     assert_file_exist "/etc/elasticsearch/jvm-example"
     assert_file_exist "/etc/elasticsearch/jvm-example/example.yaml"
     assert_file_not_exist "/usr/share/elasticsearch/plugins/jvm-example"
@@ -113,15 +110,13 @@ install_package() {
     # Checks that plugin archive is available
     [ -e "$EXAMPLE_PLUGIN_ZIP" ]
 
-    # Install Shield
+    # Install jvm-example
     run /usr/share/elasticsearch/bin/plugin install jvm-example -u "file://$EXAMPLE_PLUGIN_ZIP"
     [ "$status" -eq 0 ]
 
-    # Checks that Shield is correctly installed
-    # TODO add bin to jvm-example
-    # assert_file_exist "/usr/share/elasticsearch/bin/shield"
-    # assert_file_exist "/usr/share/elasticsearch/bin/shield/esusers"
-    # assert_file_exist "/usr/share/elasticsearch/bin/shield/syskeygen"
+    # Checks that jvm-example is correctly installed
+    assert_file_exist "/usr/share/elasticsearch/bin/jvm-example"
+    assert_file_exist "/usr/share/elasticsearch/bin/jvm-example/test"
     assert_file_exist "/etc/elasticsearch/jvm-example"
     assert_file_exist "/etc/elasticsearch/jvm-example/example.yaml"
     assert_file_exist "$TEMP_PLUGINS_DIR/jvm-example"
@@ -134,8 +129,7 @@ install_package() {
     [ "$status" -eq 0 ]
 
     # Checks that the plugin is correctly removed
-    # TODO add bin to jvm-example
-    # assert_file_not_exist "/usr/share/elasticsearch/bin/shield"
+    assert_file_not_exist "/usr/share/elasticsearch/bin/jvm-example"
     assert_file_exist "/etc/elasticsearch/jvm-example"
     assert_file_exist "/etc/elasticsearch/jvm-example/example.yaml"
     assert_file_not_exist "$TEMP_PLUGINS_DIR/jvm-example"
@@ -178,15 +172,13 @@ install_package() {
     # Checks that plugin archive is available
     [ -e "$EXAMPLE_PLUGIN_ZIP" ]
 
-    # Install Shield
+    # Install jvm-exampel
     run /usr/share/elasticsearch/bin/plugin install jvm-example -u "file://$EXAMPLE_PLUGIN_ZIP"
     [ "$status" -eq 0 ]
 
-    # Checks that Shield is correctly installed
-    # TODO add bin to jvm-example
-    # assert_file_exist "/usr/share/elasticsearch/bin/shield"
-    # assert_file_exist "/usr/share/elasticsearch/bin/shield/esusers"
-    # assert_file_exist "/usr/share/elasticsearch/bin/shield/syskeygen"
+    # Checks that jvm-example is correctly installed
+    assert_file_exist "/usr/share/elasticsearch/bin/jvm-example"
+    assert_file_exist "/usr/share/elasticsearch/bin/jvm-example/test"
     assert_file_exist "$TEMP_CONFIG_DIR/jvm-example"
     assert_file_exist "$TEMP_CONFIG_DIR/jvm-example/example.yaml"
     assert_file_exist "/usr/share/elasticsearch/plugins/jvm-example"
@@ -194,15 +186,14 @@ install_package() {
     assert_file_exist "/usr/share/elasticsearch/plugins/jvm-example/elasticsearch-jvm-example-"*".jar"
 
     # Remove the plugin
-    run /usr/share/elasticsearch/bin/plugin remove elasticsearch/shield/latest
+    run /usr/share/elasticsearch/bin/plugin remove jvm-example
     [ "$status" -eq 0 ]
 
     # Checks that the plugin is correctly removed
-    # TODO add bin to jvm-example
-    # assert_file_not_exist "/usr/share/elasticsearch/bin/shield"
+    assert_file_not_exist "/usr/share/elasticsearch/bin/jvm-example"
     assert_file_exist "$TEMP_CONFIG_DIR/jvm-example"
     assert_file_exist "$TEMP_CONFIG_DIR/jvm-example/example.yaml"
-    assert_file_exist "/usr/share/elasticsearch/plugins/jvm-example"
+    assert_file_not_exist "/usr/share/elasticsearch/plugins/jvm-example"
 
     # Delete the custom plugins directory
     run rm -rf "$TEMP_CONFIG_DIR"
@@ -239,15 +230,13 @@ install_package() {
     # Checks that plugin archive is available
     [ -e "$EXAMPLE_PLUGIN_ZIP" ]
 
-    # Install Shield
+    # Install jvm-example
     run /usr/share/elasticsearch/bin/plugin install jvm-example -u "file://$EXAMPLE_PLUGIN_ZIP"
     [ "$status" -eq 0 ]
 
-    # Checks that Shield is correctly installed
-    # TODO add bin to jvm-example
-    # assert_file_exist "/usr/share/elasticsearch/bin/shield"
-    # assert_file_exist "/usr/share/elasticsearch/bin/shield/esusers"
-    # assert_file_exist "/usr/share/elasticsearch/bin/shield/syskeygen"
+    # Checks that jvm-example is correctly installed
+    assert_file_exist "/usr/share/elasticsearch/bin/jvm-example"
+    assert_file_exist "/usr/share/elasticsearch/bin/jvm-example/test"
     assert_file_exist "$TEMP_CONFIG_DIR/jvm-example"
     assert_file_exist "$TEMP_CONFIG_DIR/jvm-example/example.yaml"
     assert_file_exist "/usr/share/elasticsearch/plugins/jvm-example"
@@ -255,15 +244,14 @@ install_package() {
     assert_file_exist "/usr/share/elasticsearch/plugins/jvm-example/elasticsearch-jvm-example-"*".jar"
 
     # Remove the plugin
-    run /usr/share/elasticsearch/bin/plugin remove elasticsearch/shield/latest
+    run /usr/share/elasticsearch/bin/plugin remove jvm-example
     [ "$status" -eq 0 ]
 
     # Checks that the plugin is correctly removed
-    # TODO add bin to jvm-example
-    # assert_file_not_exist "/usr/share/elasticsearch/bin/shield"
+    assert_file_not_exist "/usr/share/elasticsearch/bin/jvm-example"
     assert_file_exist "$TEMP_CONFIG_DIR/jvm-example"
     assert_file_exist "$TEMP_CONFIG_DIR/jvm-example/example.yaml"
-    assert_file_not_exist "/usr/share/elasticsearch/plugins/shield"
+    assert_file_not_exist "/usr/share/elasticsearch/plugins/jvm-example"
 
     # Delete the custom plugins directory
     run rm -rf "$TEMP_CONFIG_DIR"

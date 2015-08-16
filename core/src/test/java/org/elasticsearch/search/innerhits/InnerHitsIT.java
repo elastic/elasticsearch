@@ -49,7 +49,6 @@ import static org.hamcrest.Matchers.*;
 
 /**
  */
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/12905")
 public class InnerHitsIT extends ESIntegTestCase {
 
     @Test

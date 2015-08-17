@@ -414,13 +414,13 @@ public class SearchPhaseController extends AbstractComponent {
         //Collect profile results
         InternalProfileShardResults profileResults = null;
         if (!queryResults.isEmpty()) {
-            //if (firstResult.profileResult() != null) {
+            if (firstResult.profileResult() != null) {
                 profileResults = new InternalProfileShardResults();
                 for (AtomicArray.Entry<? extends QuerySearchResultProvider> entry : queryResults) {
                     profileResults.addShardResult(entry.value.queryResult().shardTarget(), entry.value.queryResult().profileResult());
                 }
                 profileResults.finalizeTimings();
-            //}
+            }
         }
 
         if (aggregations != null) {

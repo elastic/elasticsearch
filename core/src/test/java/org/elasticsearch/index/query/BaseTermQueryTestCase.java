@@ -21,6 +21,9 @@ package org.elasticsearch.index.query;
 
 import org.junit.Test;
 
+import java.util.HashMap;
+import java.util.Map;
+
 import static org.hamcrest.Matchers.is;
 
 public abstract class BaseTermQueryTestCase<QB extends BaseTermQueryBuilder<QB>> extends BaseQueryTestCase<QB> {
@@ -87,5 +90,21 @@ public abstract class BaseTermQueryTestCase<QB extends BaseTermQueryBuilder<QB>>
         queryBuilder = createQueryBuilder("", null);
         assertNotNull(queryBuilder.validate());
         assertThat(queryBuilder.validate().validationErrors().size(), is(2));
+    }
+
+    @Override
+    protected Map<String, QB> getAlternateVersions() {
+        HashMap<String, QB> alternateVersions = new HashMap<>();
+        QB tempQuery = createTestQueryBuilder();
+        QB testQuery = createQueryBuilder(tempQuery.fieldName(), tempQuery.value());
+        boolean isString = testQuery.value() instanceof String;
+        String value = (isString ? "\"" : "") + testQuery.value() + (isString ? "\"" : "");
+        String contentString = "{\n" +
+                "    \"" + testQuery.getName() + "\" : {\n" +
+                "        \"" + testQuery.fieldName() + "\" : " + value + "\n" +
+                "    }\n" +
+                "}";
+        alternateVersions.put(contentString, testQuery);
+        return alternateVersions;
     }
 }

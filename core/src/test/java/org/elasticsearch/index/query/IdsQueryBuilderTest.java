@@ -29,6 +29,8 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
@@ -93,5 +95,36 @@ public class IdsQueryBuilderTest extends BaseQueryTestCase<IdsQueryBuilder> {
         } else {
             assertThat(query, instanceOf(TermsQuery.class));
         }
+    }
+
+    @Override
+    protected Map<String, IdsQueryBuilder> getAlternateVersions() {
+        Map<String, IdsQueryBuilder> alternateVersions = new HashMap<>();
+
+        IdsQueryBuilder tempQuery = createTestQueryBuilder();
+        if (tempQuery.types() != null && tempQuery.types().length > 0) {
+            String type = tempQuery.types()[0];
+            IdsQueryBuilder testQuery = new IdsQueryBuilder(type);
+
+            //single value type can also be called _type
+            String contentString1 = "{\n" +
+                        "    \"ids\" : {\n" +
+                        "        \"_type\" : \"" + type + "\",\n" +
+                        "        \"values\" : []\n" +
+                        "    }\n" +
+                        "}";
+            alternateVersions.put(contentString1, testQuery);
+
+            //array of types can also be called type rather than types
+            String contentString2 = "{\n" +
+                        "    \"ids\" : {\n" +
+                        "        \"type\" : [\"" + type + "\"],\n" +
+                        "        \"values\" : []\n" +
+                        "    }\n" +
+                        "}";
+            alternateVersions.put(contentString2, testQuery);
+        }
+
+        return alternateVersions;
     }
 }

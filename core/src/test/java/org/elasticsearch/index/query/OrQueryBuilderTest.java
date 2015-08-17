@@ -27,9 +27,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.List;
+import java.util.*;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
@@ -37,27 +35,6 @@ import static org.hamcrest.CoreMatchers.nullValue;
 
 @SuppressWarnings("deprecation")
 public class OrQueryBuilderTest extends BaseQueryTestCase<OrQueryBuilder> {
-
-/*
-    @Override
-    protected Query doCreateExpectedQuery(OrQueryBuilder queryBuilder, QueryCreationContext context) throws QueryCreationException, IOException {
-        if (queryBuilder.filters().isEmpty()) {
-            return null;
-        }
-        BooleanQuery query = new BooleanQuery();
-        for (QueryBuilder subQuery : queryBuilder.filters()) {
-            Query innerQuery = subQuery.toQuery(context);
-            // ignore queries that are null
-            if (innerQuery != null) {
-                query.add(innerQuery, Occur.SHOULD);
-            }
-        }
-        if (query.clauses().isEmpty()) {
-            return null;
-        }
-        return query;
-    }
-*/
 
     /**
      * @return an OrQueryBuilder with random limit between 0 and 20
@@ -107,6 +84,16 @@ public class OrQueryBuilderTest extends BaseQueryTestCase<OrQueryBuilder> {
     public void testNoInnerQueries() throws QueryShardException, IOException {
         OrQueryBuilder orQuery = new OrQueryBuilder();
         assertNull(orQuery.toQuery(createShardContext()));
+    }
+
+    @Override
+    protected Map<String, OrQueryBuilder> getAlternateVersions() {
+        Map<String, OrQueryBuilder> alternateVersions = new HashMap<>();
+        QueryBuilder innerQuery = createTestQueryBuilder().innerQueries().get(0);
+        OrQueryBuilder expectedQuery = new OrQueryBuilder(innerQuery);
+        String contentString =  "{ \"or\" : [ " + innerQuery + "] }";
+        alternateVersions.put(contentString, expectedQuery);
+        return alternateVersions;
     }
 
     @Test(expected=QueryParsingException.class)

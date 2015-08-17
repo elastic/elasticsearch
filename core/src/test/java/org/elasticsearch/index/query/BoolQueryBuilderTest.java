@@ -26,9 +26,7 @@ import org.apache.lucene.search.Query;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.List;
+import java.util.*;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
@@ -112,6 +110,39 @@ public class BoolQueryBuilderTest extends BaseQueryTestCase<BoolQueryBuilder> {
             }
         }
         return clauses;
+    }
+
+    @Override
+    protected Map<String, BoolQueryBuilder> getAlternateVersions() {
+        Map<String, BoolQueryBuilder> alternateVersions = new HashMap<>();
+        BoolQueryBuilder tempQueryBuilder = createTestQueryBuilder();
+        BoolQueryBuilder expectedQuery = new BoolQueryBuilder();
+        String contentString = "{\n" +
+                "    \"bool\" : {\n";
+        if (tempQueryBuilder.must().size() > 0) {
+            QueryBuilder must = tempQueryBuilder.must().get(0);
+            contentString += "must: " + must.toString() + ",";
+            expectedQuery.must(must);
+        }
+        if (tempQueryBuilder.mustNot().size() > 0) {
+            QueryBuilder mustNot = tempQueryBuilder.mustNot().get(0);
+            contentString += (randomBoolean() ? "must_not: " : "mustNot: ") + mustNot.toString() + ",";
+            expectedQuery.mustNot(mustNot);
+        }
+        if (tempQueryBuilder.should().size() > 0) {
+            QueryBuilder should = tempQueryBuilder.should().get(0);
+            contentString += "should: " + should.toString() + ",";
+            expectedQuery.should(should);
+        }
+        if (tempQueryBuilder.filter().size() > 0) {
+            QueryBuilder filter = tempQueryBuilder.filter().get(0);
+            contentString += "filter: " + filter.toString() + ",";
+            expectedQuery.filter(filter);
+        }
+        contentString = contentString.substring(0, contentString.length() - 1);
+        contentString += "    }    \n" + "}";
+        alternateVersions.put(contentString, expectedQuery);
+        return alternateVersions;
     }
 
     @Test

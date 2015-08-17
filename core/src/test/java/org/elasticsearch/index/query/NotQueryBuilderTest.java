@@ -28,6 +28,8 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
@@ -70,6 +72,30 @@ public class NotQueryBuilderTest extends BaseQueryTestCase<NotQueryBuilder> {
         context.reset(parser);
         assertQueryHeader(parser, NotQueryBuilder.NAME);
         context.queryParser(NotQueryBuilder.NAME).fromXContent(context);
+    }
+
+    @Override
+    protected Map<String, NotQueryBuilder> getAlternateVersions() {
+        Map<String, NotQueryBuilder> alternateVersions = new HashMap<>();
+
+        NotQueryBuilder testQuery1 = new NotQueryBuilder(createTestQueryBuilder().innerQuery());
+        String contentString1 = "{\n" +
+                "    \"not\" : {\n" +
+                "        \"filter\" : " + testQuery1.innerQuery().toString() + "\n" +
+                "    }\n" +
+                "}";
+        alternateVersions.put(contentString1, testQuery1);
+
+        QueryBuilder innerQuery = createTestQueryBuilder().innerQuery();
+        //not doesn't support empty query when query/filter element is not specified
+        if (innerQuery != EmptyQueryBuilder.PROTOTYPE) {
+            NotQueryBuilder testQuery2 = new NotQueryBuilder(innerQuery);
+            String contentString2 = "{\n" +
+                    "    \"not\" : " + testQuery2.innerQuery().toString() +  "\n}";
+            alternateVersions.put(contentString2, testQuery2);
+        }
+
+        return alternateVersions;
     }
 
     @Test

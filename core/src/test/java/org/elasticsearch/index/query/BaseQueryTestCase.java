@@ -41,6 +41,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.env.Environment;
@@ -71,6 +73,8 @@ import org.joda.time.DateTimeZone;
 import org.junit.*;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.*;
 
@@ -223,16 +227,32 @@ public abstract class BaseQueryTestCase<QB extends AbstractQueryBuilder<QB>> ext
     @Test
     public void testFromXContent() throws IOException {
         QB testQuery = createTestQueryBuilder();
-        QueryParseContext context = createParseContext();
-        String contentString = testQuery.toString();
-        XContentParser parser = XContentFactory.xContent(contentString).createParser(contentString);
-        context.reset(parser);
-        assertQueryHeader(parser, testQuery.getName());
+        assertParsedQuery(testQuery.toString(), testQuery);
+        for (Map.Entry<String, QB> alternateVersion : getAlternateVersions().entrySet()) {
+            assertParsedQuery(alternateVersion.getKey(), alternateVersion.getValue());
+        }
+    }
 
-        QueryBuilder newQuery = queryParserService.queryParser(testQuery.getName()).fromXContent(context);
-        assertNotSame(newQuery, testQuery);
-        assertEquals(testQuery, newQuery);
-        assertEquals(testQuery.hashCode(), newQuery.hashCode());
+    /**
+     * Returns alternate string representation of the query that need to be tested as they are never used as output
+     * of {@link QueryBuilder#toXContent(XContentBuilder, ToXContent.Params)}. By default there are no alternate versions.
+     */
+    protected Map<String, QB> getAlternateVersions() {
+        return Collections.emptyMap();
+    }
+
+    /**
+     * Parses the query provided as string argument and compares it with the expected result provided as argument as a {@link QueryBuilder}
+     */
+    protected void assertParsedQuery(String queryAsString, QueryBuilder<?> expectedQuery) throws IOException {
+        XContentParser parser = XContentFactory.xContent(queryAsString).createParser(queryAsString);
+        QueryParseContext context = createParseContext();
+        context.reset(parser);
+        assertQueryHeader(parser, expectedQuery.getName());
+        QueryBuilder newQuery = queryParser(expectedQuery).fromXContent(context);
+        assertNotSame(newQuery, expectedQuery);
+        assertEquals(expectedQuery, newQuery);
+        assertEquals(expectedQuery.hashCode(), newQuery.hashCode());
     }
 
     /**
@@ -307,7 +327,7 @@ public abstract class BaseQueryTestCase<QB extends AbstractQueryBuilder<QB>> ext
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             testQuery.writeTo(output);
             try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
-                QueryBuilder<?> prototype = queryParserService.queryParser(testQuery.getWriteableName()).getBuilderPrototype();
+                QueryBuilder<?> prototype = queryParser(testQuery).getBuilderPrototype();
                 QueryBuilder deserializedQuery = prototype.readFrom(in);
                 assertEquals(deserializedQuery, testQuery);
                 assertEquals(deserializedQuery.hashCode(), testQuery.hashCode());
@@ -348,12 +368,16 @@ public abstract class BaseQueryTestCase<QB extends AbstractQueryBuilder<QB>> ext
         assertThat("different queries should have different hashcode", secondQuery.hashCode(), not(equalTo(firstQuery.hashCode())));
     }
 
+    protected QueryParser<?> queryParser(QueryBuilder query) {
+        return queryParserService.queryParser(query.getName());
+    }
+
     //we use the streaming infra to create a copy of the query provided as argument
     private QB copyQuery(QB query) throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             query.writeTo(output);
             try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
-                QueryBuilder<?> prototype = queryParserService.queryParser(query.getWriteableName()).getBuilderPrototype();
+                QueryBuilder<?> prototype = queryParser(query).getBuilderPrototype();
                 @SuppressWarnings("unchecked")
                 QB secondQuery = (QB)prototype.readFrom(in);
                 return secondQuery;
@@ -381,7 +405,7 @@ public abstract class BaseQueryTestCase<QB extends AbstractQueryBuilder<QB>> ext
         assertThat(parser.nextToken(), is(XContentParser.Token.START_OBJECT));
         assertThat(parser.nextToken(), is(XContentParser.Token.FIELD_NAME));
         assertThat(parser.currentName(), is(expectedParserName));
-        assertThat(parser.nextToken(), is(XContentParser.Token.START_OBJECT));
+        assertThat(parser.nextToken(), either(is(XContentParser.Token.START_OBJECT)).or(is(XContentParser.Token.START_ARRAY)));
     }
 
     protected static void assertValidate(QueryBuilder queryBuilder, int totalExpectedErrors) {

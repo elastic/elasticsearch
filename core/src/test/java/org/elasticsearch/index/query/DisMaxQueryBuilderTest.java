@@ -27,7 +27,9 @@ import org.junit.Test;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.Iterator;
+import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
@@ -66,6 +68,21 @@ public class DisMaxQueryBuilderTest extends BaseQueryTestCase<DisMaxQueryBuilder
                 assertThat(disjunctionMaxQuery.getDisjuncts().get(i), equalTo(queryIterator.next()));
             }
         }
+    }
+
+    @Override
+    protected Map<String, DisMaxQueryBuilder> getAlternateVersions() {
+        Map<String, DisMaxQueryBuilder> alternateVersions = new HashMap<>();
+        QueryBuilder innerQuery = createTestQueryBuilder().innerQueries().get(0);
+        DisMaxQueryBuilder expectedQuery = new DisMaxQueryBuilder();
+        expectedQuery.add(innerQuery);
+        String contentString = "{\n" +
+                "    \"dis_max\" : {\n" +
+                "        \"queries\" : " + innerQuery.toString() +
+                "    }\n" +
+                "}";
+        alternateVersions.put(contentString, expectedQuery);
+        return alternateVersions;
     }
 
     /**

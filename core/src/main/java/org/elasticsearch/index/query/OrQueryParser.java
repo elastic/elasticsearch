@@ -75,14 +75,6 @@ public class OrQueryParser extends BaseQueryParser<OrQueryBuilder> {
                                 queries.add(filter);
                             }
                         }
-                    } else {
-                        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                            queriesFound = true;
-                            QueryBuilder filter = parseContext.parseInnerFilterToQueryBuilder();
-                            if (filter != null) {
-                                queries.add(filter);
-                            }
-                        }
                     }
                 } else if (token.isValue()) {
                     if ("_name".equals(currentFieldName)) {

@@ -92,6 +92,12 @@
                                     <version>${elasticsearch.version}</version>
                                     <type>deb</type>
                                 </artifactItem>
+                                <artifactItem>
+                                    <groupId>org.elasticsearch.plugin</groupId>
+                                    <artifactId>elasticsearch-jvm-example</artifactId>
+                                    <version>${elasticsearch.version}</version>
+                                    <type>zip</type>
+                                </artifactItem>
                             </artifactItems>
                         </configuration>
                     </execution>

@@ -23,6 +23,7 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.ParseFieldMatcher;
@@ -62,6 +63,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestSearchContext;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.cluster.TestClusterService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolModule;
 import org.joda.time.DateTime;
@@ -95,6 +97,10 @@ public abstract class BaseQueryTestCase<QB extends AbstractQueryBuilder<QB>> ext
     private static IndexQueryParserService queryParserService;
     private static Index index;
 
+    protected static Index getIndex() {
+        return index;
+    }
+
     private static String[] currentTypes;
 
     protected static String[] getCurrentTypes() {
@@ -109,30 +115,33 @@ public abstract class BaseQueryTestCase<QB extends AbstractQueryBuilder<QB>> ext
      */
     @BeforeClass
     public static void init() throws IOException {
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_1_0_0, Version.CURRENT);
         Settings settings = Settings.settingsBuilder()
                 .put("name", BaseQueryTestCase.class.toString())
                 .put("path.home", createTempDir())
-                .put(IndexMetaData.SETTING_VERSION_CREATED, VersionUtils.randomVersionBetween(random(),
-                        Version.V_1_0_0, Version.CURRENT))
                 .build();
-
-        index = new Index("test");
+        Settings indexSettings = Settings.settingsBuilder()
+                .put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
+        index = new Index(randomAsciiOfLengthBetween(1, 10));
+        final TestClusterService clusterService = new TestClusterService();
+        clusterService.setState(new ClusterState.Builder(clusterService.state()).metaData(new MetaData.Builder().put(
+                new IndexMetaData.Builder(index.name()).settings(indexSettings).numberOfShards(1).numberOfReplicas(0))));
         injector = new ModulesBuilder().add(
                 new EnvironmentModule(new Environment(settings)),
                 new SettingsModule(settings),
                 new ThreadPoolModule(new ThreadPool(settings)),
                 new IndicesQueriesModule(),
                 new ScriptModule(settings),
-                new IndexSettingsModule(index, settings),
-                new IndexCacheModule(settings),
-                new AnalysisModule(settings, new IndicesAnalysisService(settings)),
-                new SimilarityModule(settings),
+                new IndexSettingsModule(index, indexSettings),
+                new IndexCacheModule(indexSettings),
+                new AnalysisModule(indexSettings, new IndicesAnalysisService(indexSettings)),
+                new SimilarityModule(indexSettings),
                 new IndexNameModule(index),
                 new AbstractModule() {
                     @Override
                     protected void configure() {
                         Multibinder.newSetBinder(binder(), ScoreFunctionParser.class);
-                        bind(ClusterService.class).toProvider(Providers.of((ClusterService) null));
+                        bind(ClusterService.class).toProvider(Providers.of(clusterService));
                         bind(CircuitBreakerService.class).to(NoneCircuitBreakerService.class);
                         bind(NamedWriteableRegistry.class).asEagerSingleton();
                     }

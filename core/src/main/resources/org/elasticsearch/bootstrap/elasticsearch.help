@@ -8,7 +8,7 @@ SYNOPSIS
 
 DESCRIPTION
 
-    Start elasticsearch and manage plugins
+    Start an elasticsearch node
 
 COMMANDS
 

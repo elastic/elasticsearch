@@ -6,8 +6,6 @@
 package org.elasticsearch.marvel.agent.settings;
 
 import com.google.common.collect.ImmutableList;
-import org.elasticsearch.cluster.settings.ClusterDynamicSettings;
-import org.elasticsearch.cluster.settings.DynamicSettings;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -75,16 +73,8 @@ public class MarvelSettingsService extends AbstractComponent implements NodeSett
     }
 
     @Inject
-    public MarvelSettingsService(Settings clusterSettings, NodeSettingsService nodeSettingsService, @ClusterDynamicSettings DynamicSettings dynamicSettings) {
+    public MarvelSettingsService(Settings clusterSettings, NodeSettingsService nodeSettingsService) {
         this(clusterSettings);
-
-        logger.trace("registering dynamic marvel settings:");
-        for (MarvelSetting setting : settings) {
-            if (setting.isDynamic()) {
-                logger.trace("dynamic setting [{}] registered", setting.getName());
-                dynamicSettings.addDynamicSetting(setting.dynamicSettingName());
-            }
-        }
 
         logger.trace("registering the service as a node settings listener");
         nodeSettingsService.addListener(this);

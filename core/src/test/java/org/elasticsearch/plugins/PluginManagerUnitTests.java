@@ -62,7 +62,7 @@ public class PluginManagerUnitTests extends ESTestCase {
                 .build();
         Environment environment = new Environment(settings);
 
-        PluginManager.PluginHandle pluginHandle = new PluginManager.PluginHandle(pluginName, "version", "user", "repo");
+        PluginManager.PluginHandle pluginHandle = new PluginManager.PluginHandle(pluginName, "version", "user");
         String configDirPath = Files.simplifyPath(pluginHandle.configDir(environment).normalize().toString());
         String expectedDirPath = Files.simplifyPath(genericConfigFolder.resolve(pluginName).normalize().toString());
 

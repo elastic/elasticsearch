@@ -122,7 +122,7 @@ public class InternalProfileResult implements ProfileResult, Streamable, ToXCont
         queryType = in.readString();
         luceneDescription = in.readString();
         timings = new InternalProfileBreakdown();
-        nodeTime = in.readVLong();
+        nodeTime = in.readLong();
         globalTime = in.readVLong();
         timings.readFrom(in);
         int size = in.readVInt();
@@ -138,10 +138,10 @@ public class InternalProfileResult implements ProfileResult, Streamable, ToXCont
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(queryType);
         out.writeString(luceneDescription);
-        out.writeVLong(nodeTime);
+        out.writeLong(nodeTime);            // not Vlong because can be negative
         out.writeVLong(globalTime);
         timings.writeTo(out);
-        out.writeVLong(children.size());
+        out.writeVInt(children.size());
         for (InternalProfileResult child : children) {
             child.writeTo(out);
         }

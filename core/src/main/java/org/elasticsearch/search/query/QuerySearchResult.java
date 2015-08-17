@@ -30,6 +30,7 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorStreams;
 import org.elasticsearch.search.aggregations.pipeline.SiblingPipelineAggregator;
 import org.elasticsearch.search.profile.InternalProfileResult;
+import org.elasticsearch.search.profile.InternalProfileShardResults;
 import org.elasticsearch.search.suggest.Suggest;
 
 import java.io.IOException;
@@ -54,7 +55,7 @@ public class QuerySearchResult extends QuerySearchResultProvider {
     private Suggest suggest;
     private boolean searchTimedOut;
     private Boolean terminatedEarly = null;
-    private InternalProfileResult profileResults;
+    private InternalProfileResult profileResult;
 
     public QuerySearchResult() {
 
@@ -122,12 +123,12 @@ public class QuerySearchResult extends QuerySearchResultProvider {
         this.aggregations = aggregations;
     }
 
-    public InternalProfileResult profileResults() {
-        return profileResults;
+    public InternalProfileResult profileResult() {
+        return profileResult;
     }
 
-    public void profileResults(InternalProfileResult profileResults) {
-        this.profileResults = profileResults;
+    public void profileResult(InternalProfileResult profileResults) {
+        this.profileResult = profileResults;
     }
 
     public List<SiblingPipelineAggregator> pipelineAggregators() {
@@ -201,6 +202,11 @@ public class QuerySearchResult extends QuerySearchResultProvider {
         }
         searchTimedOut = in.readBoolean();
         terminatedEarly = in.readOptionalBoolean();
+
+        // nocommit TODO need version check here?
+        if (in.readBoolean()) {
+            profileResult = InternalProfileResult.readProfileResults(in);
+        }
     }
 
     @Override
@@ -239,5 +245,13 @@ public class QuerySearchResult extends QuerySearchResultProvider {
         }
         out.writeBoolean(searchTimedOut);
         out.writeOptionalBoolean(terminatedEarly);
+
+        // nocommit TODO need version check here?
+        if (profileResult == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            profileResult.writeTo(out);
+        }
     }
 }

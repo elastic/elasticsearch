@@ -342,7 +342,7 @@ public class QueryPhase implements SearchPhase {
             queryResult.topDocs(topDocsCallable.call());
 
             if (searchContext.profile()) {
-                searchContext.queryResult().profileResults(searchContext.queryProfiler().finalizeProfileResults());
+                searchContext.queryResult().profileResult(searchContext.queryProfiler().finalizeProfileResults());
             }
 
             return rescore;

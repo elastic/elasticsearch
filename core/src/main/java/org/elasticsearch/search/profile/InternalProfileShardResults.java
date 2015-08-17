@@ -1,7 +1,6 @@
 package org.elasticsearch.search.profile;
 
 
-import com.google.common.collect.Iterators;
 import com.google.common.collect.Maps;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;

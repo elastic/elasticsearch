@@ -70,7 +70,6 @@ public class PluginManagerUnitTests extends ESTestCase {
     }
 
     @Test
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/12934")
     public void testSimplifiedNaming() throws IOException {
         String pluginName = randomAsciiOfLength(10);
         PluginManager.PluginHandle handle = PluginManager.PluginHandle.parse(pluginName);

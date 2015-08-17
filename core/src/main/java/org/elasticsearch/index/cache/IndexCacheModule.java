@@ -20,8 +20,8 @@
 package org.elasticsearch.index.cache;
 
 import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.inject.Scopes;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.ExtensionPoint;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.cache.query.QueryCache;
 import org.elasticsearch.index.cache.query.index.IndexQueryCache;
@@ -35,24 +35,24 @@ public class IndexCacheModule extends AbstractModule {
     // for test purposes only
     public static final String QUERY_CACHE_EVERYTHING = "index.queries.cache.everything";
 
-    private final Settings settings;
+    private final Settings indexSettings;
+    private final ExtensionPoint.TypeExtensionPoint<QueryCache> queryCaches;
 
     public IndexCacheModule(Settings settings) {
-        this.settings = settings;
+        this.indexSettings = settings;
+        this.queryCaches = new ExtensionPoint.TypeExtensionPoint<>("query_cache", QueryCache.class);
+
+        registerQueryCache(INDEX_QUERY_CACHE, IndexQueryCache.class);
+        registerQueryCache(NONE_QUERY_CACHE, NoneQueryCache.class);
+    }
+
+    public void registerQueryCache(String name, Class<? extends QueryCache> clazz) {
+        queryCaches.registerExtension(name, clazz);
     }
 
     @Override
     protected void configure() {
-        String queryCacheType = settings.get(QUERY_CACHE_TYPE, INDEX_QUERY_CACHE);
-        Class<? extends QueryCache> queryCacheImpl;
-        if (queryCacheType.equals(INDEX_QUERY_CACHE)) {
-            queryCacheImpl = IndexQueryCache.class;
-        } else if (queryCacheType.equals(NONE_QUERY_CACHE)) {
-            queryCacheImpl = NoneQueryCache.class;
-        } else {
-            throw new IllegalArgumentException("Unknown QueryCache type [" + queryCacheType + "]");
-        }
-        bind(QueryCache.class).to(queryCacheImpl).in(Scopes.SINGLETON);
+        queryCaches.bindType(binder(), indexSettings, QUERY_CACHE_TYPE, INDEX_QUERY_CACHE);
         bind(BitsetFilterCache.class).asEagerSingleton();
         bind(IndexCache.class).asEagerSingleton();
     }

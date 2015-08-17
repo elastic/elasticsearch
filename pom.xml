@@ -9,7 +9,7 @@
     <artifactId>x-plugins</artifactId>
     <version>2.1.0-SNAPSHOT</version>
     <packaging>pom</packaging>
-    <name>Elasticsearch X-Plugins - Parent POM</name>
+    <name>X-Plugins: Parent POM</name>
 
     <parent>
         <groupId>org.elasticsearch.plugin</groupId>

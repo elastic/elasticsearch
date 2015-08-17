@@ -119,7 +119,7 @@ public class NodeService extends AbstractComponent {
     }
 
     public NodeInfo info(boolean settings, boolean os, boolean process, boolean jvm, boolean threadPool,
-                         boolean network, boolean transport, boolean http, boolean plugin) {
+                         boolean transport, boolean http, boolean plugin) {
         return new NodeInfo(version, Build.CURRENT, discovery.localNode(), serviceAttributes,
                 settings ? this.settings : null,
                 os ? monitorService.osService().info() : null,
@@ -149,7 +149,7 @@ public class NodeService extends AbstractComponent {
         );
     }
 
-    public NodeStats stats(CommonStatsFlags indices, boolean os, boolean process, boolean jvm, boolean threadPool, boolean network,
+    public NodeStats stats(CommonStatsFlags indices, boolean os, boolean process, boolean jvm, boolean threadPool,
                            boolean fs, boolean transport, boolean http, boolean circuitBreaker,
                            boolean script) {
         // for indices stats we want to include previous allocated shards stats as well (it will

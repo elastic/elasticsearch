@@ -129,8 +129,7 @@ public class InternalProfileResult implements ProfileResult, Streamable, ToXCont
         children = new ArrayList<>(size);
 
         for (int i = 0; i < size; i++) {
-            InternalProfileResult child = new InternalProfileResult();
-            child.readFrom(in);
+            children.add(InternalProfileResult.readProfileResults(in));
         }
     }
 

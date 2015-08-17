@@ -32,6 +32,6 @@ public class VersionCompatibilityTests extends ESTestCase {
          * Once es core supports merging cluster level custom metadata (licenses in our case), the tribe node will see some license coming from the tribe and everything will be ok.
          *
          */
-        assertThat("Remove workaround in LicenseService class when es core supports merging cluster level custom metadata", Version.CURRENT.onOrBefore(Version.V_2_0_0), is(true));
+        assertThat("Remove workaround in LicenseService class when es core supports merging cluster level custom metadata", Version.CURRENT.onOrBefore(Version.V_2_1_0), is(true));
     }
 }

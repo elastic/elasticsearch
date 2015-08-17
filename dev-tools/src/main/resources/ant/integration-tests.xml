@@ -124,7 +124,7 @@
       <waitfor maxwait="30" maxwaitunit="second"
                checkevery="500" checkeveryunit="millisecond"
                timeoutproperty="@{timeoutproperty}">
-        <http url="http://127.0.0.1:@{port}"/>
+        <http url="http://localhost:@{port}"/>
       </waitfor>
     </sequential>
   </macrodef>
@@ -138,7 +138,7 @@
       <waitfor maxwait="30" maxwaitunit="second"
                checkevery="500" checkeveryunit="millisecond"
                timeoutproperty="@{timeoutproperty}">
-        <http url="http://127.0.0.1:@{port}/_cluster/health?wait_for_nodes=2"/>
+        <http url="http://localhost:@{port}/_cluster/health?wait_for_nodes=2"/>
       </waitfor>
     </sequential>
   </macrodef>

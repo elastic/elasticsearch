@@ -42,6 +42,12 @@ public class WatcherModule extends AbstractModule implements SpawnModules {
     public static final String TRIGGERED_TEMPLATE_NAME = "triggered_watches";
     public static final String WATCHES_TEMPLATE_NAME = "watches";
 
+    public final static TemplateConfig[] TEMPLATE_CONFIGS = new TemplateConfig[]{
+            new TemplateConfig(TRIGGERED_TEMPLATE_NAME, "watcher.triggered_watches.index"),
+            new TemplateConfig(HISTORY_TEMPLATE_NAME, "watcher.history.index"),
+            new TemplateConfig(WATCHES_TEMPLATE_NAME, "watcher.watches.index")
+    };
+
     protected final Settings settings;
 
     public WatcherModule(Settings settings) {
@@ -79,9 +85,9 @@ public class WatcherModule extends AbstractModule implements SpawnModules {
         bind(WatcherIndexTemplateRegistry.class).asEagerSingleton();
         Multibinder<TemplateConfig> multibinder
                 = Multibinder.newSetBinder(binder(), TemplateConfig.class);
-        multibinder.addBinding().toInstance(new TemplateConfig(TRIGGERED_TEMPLATE_NAME, "watcher.triggered_watches.index"));
-        multibinder.addBinding().toInstance(new TemplateConfig(HISTORY_TEMPLATE_NAME, "watcher.history.index"));
-        multibinder.addBinding().toInstance(new TemplateConfig(WATCHES_TEMPLATE_NAME, "watcher.watches.index"));
+        for (TemplateConfig templateConfig : TEMPLATE_CONFIGS) {
+            multibinder.addBinding().toInstance(templateConfig);
+        }
     }
 
 }

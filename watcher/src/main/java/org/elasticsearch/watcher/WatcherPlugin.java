@@ -7,7 +7,9 @@ package org.elasticsearch.watcher;
 
 import com.google.common.collect.ImmutableList;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.settings.Validator;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.Settings;
@@ -16,6 +18,7 @@ import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.watcher.actions.email.service.InternalEmailService;
 import org.elasticsearch.watcher.history.HistoryModule;
 import org.elasticsearch.watcher.license.LicenseService;
+import org.elasticsearch.watcher.support.WatcherIndexTemplateRegistry.TemplateConfig;
 import org.elasticsearch.watcher.support.http.HttpClient;
 import org.elasticsearch.watcher.support.init.InitializingService;
 import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
@@ -93,6 +96,12 @@ public class WatcherPlugin extends AbstractPlugin {
 
     public void onModule(ScriptModule module) {
         module.registerScriptContext(ScriptServiceProxy.INSTANCE);
+    }
+
+    public void onModule(ClusterModule module) {
+        for (TemplateConfig templateConfig : WatcherModule.TEMPLATE_CONFIGS) {
+            module.registerClusterDynamicSetting(templateConfig.getDynamicSettingsPrefix(), Validator.EMPTY);
+        }
     }
 
     public static boolean watcherEnabled(Settings settings) {

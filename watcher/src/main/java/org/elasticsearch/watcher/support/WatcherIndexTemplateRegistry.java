@@ -14,8 +14,6 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.settings.ClusterDynamicSettings;
-import org.elasticsearch.cluster.settings.DynamicSettings;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -48,8 +46,7 @@ public class WatcherIndexTemplateRegistry extends AbstractComponent implements C
 
     @Inject
     public WatcherIndexTemplateRegistry(Settings settings, NodeSettingsService nodeSettingsService, ClusterService clusterService,
-                                        ThreadPool threadPool, ClientProxy client, Set<TemplateConfig> configs,
-                                        @ClusterDynamicSettings DynamicSettings dynamicSettings) {
+                                        ThreadPool threadPool, ClientProxy client, Set<TemplateConfig> configs) {
         super(settings);
         this.client = client;
         this.threadPool = threadPool;
@@ -62,7 +59,6 @@ public class WatcherIndexTemplateRegistry extends AbstractComponent implements C
         for (TemplateConfig indexTemplate : indexTemplates) {
             Settings customSettings = this.settings.getAsSettings(indexTemplate.getSettingsPrefix());
             customIndexSettings = customIndexSettingsBuilder.put(indexTemplate.getSettingsPrefix(), customSettings).build();
-            dynamicSettings.addDynamicSetting(indexTemplate.getDynamicSettingsPrefix());
         }
         customIndexSettings = customIndexSettingsBuilder.build();
     }

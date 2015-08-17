@@ -8,7 +8,8 @@ package org.elasticsearch.shield;
 import com.google.common.collect.ImmutableList;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.support.Headers;
-import org.elasticsearch.cluster.settings.ClusterDynamicSettingsModule;
+import org.elasticsearch.cluster.ClusterModule;
+import org.elasticsearch.cluster.settings.Validator;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.Settings;
@@ -83,8 +84,12 @@ public class ShieldPlugin extends AbstractPlugin {
         return settingsBuilder.build();
     }
 
-    public void onModule(ClusterDynamicSettingsModule clusterDynamicSettingsModule) {
-        clusterDynamicSettingsModule.addDynamicSettings("shield.transport.filter.*", "shield.http.filter.*", "transport.profiles.*", IPFilter.IP_FILTER_ENABLED_SETTING, IPFilter.IP_FILTER_ENABLED_HTTP_SETTING);
+    public void onModule(ClusterModule clusterDynamicSettingsModule) {
+        clusterDynamicSettingsModule.registerClusterDynamicSetting("shield.transport.filter.*", Validator.EMPTY);
+        clusterDynamicSettingsModule.registerClusterDynamicSetting("shield.http.filter.*", Validator.EMPTY);
+        clusterDynamicSettingsModule.registerClusterDynamicSetting("transport.profiles.*", Validator.EMPTY);
+        clusterDynamicSettingsModule.registerClusterDynamicSetting(IPFilter.IP_FILTER_ENABLED_SETTING, Validator.EMPTY);
+        clusterDynamicSettingsModule.registerClusterDynamicSetting(IPFilter.IP_FILTER_ENABLED_HTTP_SETTING, Validator.EMPTY);
     }
 
     private void addUserSettings(Settings.Builder settingsBuilder) {

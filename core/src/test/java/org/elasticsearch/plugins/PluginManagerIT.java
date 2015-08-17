@@ -52,9 +52,7 @@ import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLSocketFactory;
 import java.io.BufferedWriter;
-import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.PrintStream;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.FileVisitResult;
@@ -539,18 +537,19 @@ public class PluginManagerIT extends ESIntegTestCase {
 
     @Test
     public void testOfficialPluginName_ThrowsException() throws IOException {
-        PluginManager.checkForOfficialPlugins("elasticsearch-analysis-icu");
-        PluginManager.checkForOfficialPlugins("elasticsearch-analysis-kuromoji");
-        PluginManager.checkForOfficialPlugins("elasticsearch-analysis-phonetic");
-        PluginManager.checkForOfficialPlugins("elasticsearch-analysis-smartcn");
-        PluginManager.checkForOfficialPlugins("elasticsearch-analysis-stempel");
-        PluginManager.checkForOfficialPlugins("elasticsearch-cloud-aws");
-        PluginManager.checkForOfficialPlugins("elasticsearch-cloud-azure");
-        PluginManager.checkForOfficialPlugins("elasticsearch-cloud-gce");
-        PluginManager.checkForOfficialPlugins("elasticsearch-delete-by-query");
-        PluginManager.checkForOfficialPlugins("elasticsearch-lang-javascript");
-        PluginManager.checkForOfficialPlugins("elasticsearch-lang-python");
-        PluginManager.checkForOfficialPlugins("elasticsearch-mapper-murmur3");
+        PluginManager.checkForOfficialPlugins("analysis-icu");
+        PluginManager.checkForOfficialPlugins("analysis-kuromoji");
+        PluginManager.checkForOfficialPlugins("analysis-phonetic");
+        PluginManager.checkForOfficialPlugins("analysis-smartcn");
+        PluginManager.checkForOfficialPlugins("analysis-stempel");
+        PluginManager.checkForOfficialPlugins("cloud-aws");
+        PluginManager.checkForOfficialPlugins("cloud-azure");
+        PluginManager.checkForOfficialPlugins("cloud-gce");
+        PluginManager.checkForOfficialPlugins("delete-by-query");
+        PluginManager.checkForOfficialPlugins("lang-javascript");
+        PluginManager.checkForOfficialPlugins("lang-python");
+        PluginManager.checkForOfficialPlugins("mapper-murmur3");
+        PluginManager.checkForOfficialPlugins("mapper-size");
 
         try {
             PluginManager.checkForOfficialPlugins("elasticsearch-mapper-attachment");

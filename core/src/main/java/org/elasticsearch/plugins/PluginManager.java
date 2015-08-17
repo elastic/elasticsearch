@@ -75,19 +75,19 @@ public class PluginManager {
 
     static final ImmutableSet<String> OFFICIAL_PLUGINS = ImmutableSet.<String>builder()
             .add(
-                    "elasticsearch-analysis-icu",
-                    "elasticsearch-analysis-kuromoji",
-                    "elasticsearch-analysis-phonetic",
-                    "elasticsearch-analysis-smartcn",
-                    "elasticsearch-analysis-stempel",
-                    "elasticsearch-cloud-aws",
-                    "elasticsearch-cloud-azure",
-                    "elasticsearch-cloud-gce",
-                    "elasticsearch-delete-by-query",
-                    "elasticsearch-lang-javascript",
-                    "elasticsearch-lang-python",
-                    "elasticsearch-mapper-murmur3",
-                    "elasticsearch-mapper-size"
+                    "analysis-icu",
+                    "analysis-kuromoji",
+                    "analysis-phonetic",
+                    "analysis-smartcn",
+                    "analysis-stempel",
+                    "cloud-aws",
+                    "cloud-azure",
+                    "cloud-gce",
+                    "delete-by-query",
+                    "lang-javascript",
+                    "lang-python",
+                    "mapper-murmur3",
+                    "mapper-size"
             ).build();
 
     private final Environment environment;
@@ -457,9 +457,9 @@ public class PluginManager {
                 if (user == null) {
                     // TODO Update to https
                     if (!Strings.isNullOrEmpty(System.getProperty(PROPERTY_SUPPORT_STAGING_URLS))) {
-                        addUrl(urls, String.format(Locale.ROOT, "http://download.elastic.co/elasticsearch/staging/elasticsearch-%s-%s/org/elasticsearch/plugin/elasticsearch-%s/%s/elasticsearch-%s-%s.zip", version, Build.CURRENT.hashShort(), repo, version, repo, version));
+                        addUrl(urls, String.format(Locale.ROOT, "http://download.elastic.co/elasticsearch/staging/%s-%s/org/elasticsearch/plugin/%s/%s/%s-%s.zip", version, Build.CURRENT.hashShort(), repo, version, repo, version));
                     }
-                    addUrl(urls, String.format(Locale.ROOT, "http://download.elastic.co/elasticsearch/release/org/elasticsearch/plugin/elasticsearch-%s/%s/elasticsearch-%s-%s.zip", repo, version, repo, version));
+                    addUrl(urls, String.format(Locale.ROOT, "http://download.elastic.co/elasticsearch/release/org/elasticsearch/plugin/%s/%s/%s-%s.zip", repo, version, repo, version));
                 } else {
                     // Elasticsearch old download service
                     // TODO Update to https
@@ -526,20 +526,11 @@ public class PluginManager {
                 }
             }
 
-            String endname = repo;
-            if (repo.startsWith("elasticsearch-")) {
-                // remove elasticsearch- prefix
-                endname = repo.substring("elasticsearch-".length());
-            } else if (repo.startsWith("es-")) {
-                // remove es- prefix
-                endname = repo.substring("es-".length());
-            }
-
             if (isOfficialPlugin(repo, user, version)) {
-                return new PluginHandle(endname, Version.CURRENT.number(), null, repo);
+                return new PluginHandle(repo, Version.CURRENT.number(), null, repo);
             }
 
-            return new PluginHandle(endname, version, user, repo);
+            return new PluginHandle(repo, version, user, repo);
         }
 
         static boolean isOfficialPlugin(String repo, String user, String version) {

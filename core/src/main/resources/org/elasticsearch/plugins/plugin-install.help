@@ -22,7 +22,7 @@ DESCRIPTION
 
 EXAMPLES
 
-    plugin install elasticsearch-analysis-kuromoji
+    plugin install analysis-kuromoji
 
     plugin install elasticsearch/shield/latest
 
@@ -32,24 +32,24 @@ OFFICIAL PLUGINS
 
     The following plugins are officially supported and can be installed by just referring to their name
 
-    - elasticsearch-analysis-icu
-    - elasticsearch-analysis-kuromoji
-    - elasticsearch-analysis-phonetic
-    - elasticsearch-analysis-smartcn
-    - elasticsearch-analysis-stempel
-    - elasticsearch-cloud-aws
-    - elasticsearch-cloud-azure
-    - elasticsearch-cloud-gce
-    - elasticsearch-delete-by-query
-    - elasticsearch-lang-javascript
-    - elasticsearch-lang-python
-    - elasticsearch-mapper-murmur3
-    - elasticsearch-mapper-size
+    - analysis-icu
+    - analysis-kuromoji
+    - analysis-phonetic
+    - analysis-smartcn
+    - analysis-stempel
+    - cloud-aws
+    - cloud-azure
+    - cloud-gce
+    - delete-by-query
+    - lang-javascript
+    - lang-python
+    - mapper-murmur3
+    - mapper-size
 
 
 OPTIONS
 
-    -u,--url                     URL to retrive the plugin from
+    -u,--url                     URL to retrieve the plugin from
 
     -t,--timeout                 Timeout until the plugin download is abort
 

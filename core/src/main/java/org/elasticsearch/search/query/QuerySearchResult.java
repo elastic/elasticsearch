@@ -30,7 +30,6 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorStreams;
 import org.elasticsearch.search.aggregations.pipeline.SiblingPipelineAggregator;
 import org.elasticsearch.search.profile.InternalProfileResult;
-import org.elasticsearch.search.profile.InternalProfileShardResults;
 import org.elasticsearch.search.suggest.Suggest;
 
 import java.io.IOException;
@@ -205,7 +204,7 @@ public class QuerySearchResult extends QuerySearchResultProvider {
 
         // nocommit TODO need version check here?
         if (in.readBoolean()) {
-            profileResult = InternalProfileResult.readProfileResults(in);
+            profileResult = InternalProfileResult.readProfileResult(in);
         }
     }
 

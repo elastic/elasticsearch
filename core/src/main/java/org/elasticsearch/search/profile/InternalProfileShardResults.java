@@ -90,7 +90,7 @@ public class InternalProfileShardResults implements ProfileResults, Streamable, 
             SearchShardTarget target = new SearchShardTarget(null, null, 0); // nocommit Urgh...
             target.readFrom(in);
 
-            InternalProfileResult profileResults = InternalProfileResult.readProfileResults(in);
+            InternalProfileResult profileResults = InternalProfileResult.readProfileResult(in);
             results.put(target, profileResults);
         }
     }

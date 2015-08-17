@@ -106,7 +106,7 @@ public class InternalProfileResult implements ProfileResult, Streamable, ToXCont
         return nodeTime;
     }
 
-    public static InternalProfileResult readProfileResults(StreamInput in) throws IOException {
+    public static InternalProfileResult readProfileResult(StreamInput in) throws IOException {
         InternalProfileResult newResults = new InternalProfileResult();
         newResults.readFrom(in);
         return newResults;
@@ -129,7 +129,7 @@ public class InternalProfileResult implements ProfileResult, Streamable, ToXCont
         children = new ArrayList<>(size);
 
         for (int i = 0; i < size; i++) {
-            children.add(InternalProfileResult.readProfileResults(in));
+            children.add(InternalProfileResult.readProfileResult(in));
         }
     }
 

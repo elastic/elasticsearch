@@ -117,6 +117,8 @@ if __name__ == "__main__":
 
   ensure_checkout_is_clean()
 
+  run('cd dev-tools && mvn versions:set -DnewVersion=%s -DgenerateBackupPoms=false' % (release_version))
+  run('cd rest-api-spec && mvn versions:set -DnewVersion=%s -DgenerateBackupPoms=false' % (release_version))
   run('mvn versions:set -DnewVersion=%s -DgenerateBackupPoms=false' % (release_version))
 
   remove_version_snapshot(VERSION_FILE, release_version)
@@ -132,10 +134,11 @@ if __name__ == "__main__":
   print('  1. Remove all _remote.repositories: find %s -name _remote.repositories -exec rm {} \;' % (localRepoElasticsearch))
   print('  2. Rename all maven metadata files: for i in $(find %s -name "maven-metadata-local.xml*") ; do mv "$i" "${i/-local/}" ; done' % (localRepoElasticsearch))
   print('  3. Sync %s into S3 bucket' % (localRepoElasticsearch))
-  print ('    s3cmd sync %s s3://download.elasticsearch.org/elasticsearch/staging/elasticsearch-%s-%s/maven/org/elasticsearch' % (localRepoElasticsearch, release_version, shortHash))
+  print ('    s3cmd sync %s s3://download.elasticsearch.org/elasticsearch/staging/elasticsearch-%s-%s/maven/org/' % (localRepoElasticsearch, release_version, shortHash))
   print('  4. Create repositories: ')
   print ('    export S3_BUCKET_SYNC_TO="download.elasticsearch.org/elasticsearch/staging/elasticsearch-%s-%s/repos"' % (release_version, shortHash))
   print ('    export S3_BUCKET_SYNC_FROM="$S3_BUCKET_SYNC_TO"')
   print('     dev-tools/build_repositories.sh %s' % (release_version))
   print('')
   print('NOTE: the above mvn command will promt you several times for the GPG passphrase of the key you specified you can alternatively pass it via -Dgpg.passphrase=yourPassPhrase')
+  print('NOTE: Running s3cmd might require you to create a config file with your credentials, if the s3cmd does not support suppliying them via the command line!')

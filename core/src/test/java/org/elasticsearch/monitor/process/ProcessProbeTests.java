@@ -19,6 +19,7 @@
 
 package org.elasticsearch.monitor.process;
 
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.bootstrap.Bootstrap;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
@@ -43,14 +44,29 @@ public class ProcessProbeTests extends ESTestCase {
     public void testProcessStats() {
         ProcessStats stats = probe.processStats();
         assertNotNull(stats);
+        assertThat(stats.getTimestamp(), greaterThan(0L));
+
+        if (Constants.WINDOWS) {
+            // Open/Max files descriptors are not supported on Windows platforms
+            assertThat(stats.getOpenFileDescriptors(), equalTo(-1L));
+            assertThat(stats.getMaxFileDescriptors(), equalTo(-1L));
+        } else {
+            assertThat(stats.getOpenFileDescriptors(), greaterThan(0L));
+            assertThat(stats.getMaxFileDescriptors(), greaterThan(0L));
+        }
 
         ProcessStats.Cpu cpu = stats.getCpu();
         assertNotNull(cpu);
-        assertThat(cpu.getPercent(), greaterThanOrEqualTo((short) 0));
-        assertThat(cpu.total, anyOf(equalTo(-1L), greaterThan(0L)));
+
+        // CPU percent can be negative if the system recent cpu usage is not available
+        assertThat(cpu.getPercent(), anyOf(lessThan((short) 0), allOf(greaterThanOrEqualTo((short) 0), lessThanOrEqualTo((short) 100))));
+
+        // CPU time can return -1 if the the platform does not support this operation, let's see which platforms fail
+        assertThat(cpu.total, greaterThan(0L));
 
         ProcessStats.Mem mem = stats.getMem();
         assertNotNull(mem);
-        assertThat(mem.totalVirtual, anyOf(equalTo(-1L), greaterThan(0L)));
+        // Commited total virtual memory can return -1 if not supported, let's see which platforms fail
+        assertThat(mem.totalVirtual, greaterThan(0L));
     }
 }

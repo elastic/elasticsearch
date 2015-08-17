@@ -69,7 +69,6 @@ public class RestNodesStatsAction extends BaseRestHandler {
             nodesStatsRequest.os(metrics.contains("os"));
             nodesStatsRequest.jvm(metrics.contains("jvm"));
             nodesStatsRequest.threadPool(metrics.contains("thread_pool"));
-            nodesStatsRequest.network(metrics.contains("network"));
             nodesStatsRequest.fs(metrics.contains("fs"));
             nodesStatsRequest.transport(metrics.contains("transport"));
             nodesStatsRequest.http(metrics.contains("http"));

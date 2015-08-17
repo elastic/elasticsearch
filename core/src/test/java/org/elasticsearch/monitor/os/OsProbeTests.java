@@ -45,18 +45,34 @@ public class OsProbeTests extends ESTestCase {
         OsStats stats = probe.osStats();
         assertNotNull(stats);
         assertThat(stats.getTimestamp(), greaterThan(0L));
-        assertThat(stats.getLoadAverage(), anyOf(equalTo((double) -1), greaterThanOrEqualTo((double) 0)));
+        if (Constants.WINDOWS) {
+            // Load average is always -1 on Windows platforms
+            assertThat(stats.getLoadAverage(), equalTo((double) -1));
+        } else {
+            // Load average can be negative if not available or not computed yet, otherwise it should be >= 0
+            assertThat(stats.getLoadAverage(), anyOf(lessThan((double) 0), greaterThanOrEqualTo((double) 0)));
+        }
 
         assertNotNull(stats.getMem());
-        assertThat(stats.getMem().getTotal().bytes(), anyOf(equalTo(-1L), greaterThan(0L)));
-        assertThat(stats.getMem().getFree().bytes(), anyOf(equalTo(-1L), greaterThan(0L)));
+        assertThat(stats.getMem().getTotal().bytes(), greaterThan(0L));
+        assertThat(stats.getMem().getFree().bytes(), greaterThan(0L));
         assertThat(stats.getMem().getFreePercent(), allOf(greaterThanOrEqualTo((short) 0), lessThanOrEqualTo((short) 100)));
-        assertThat(stats.getMem().getUsed().bytes(), anyOf(equalTo(-1L), greaterThanOrEqualTo(0L)));
+        assertThat(stats.getMem().getUsed().bytes(), greaterThan(0L));
         assertThat(stats.getMem().getUsedPercent(), allOf(greaterThanOrEqualTo((short) 0), lessThanOrEqualTo((short) 100)));
 
         assertNotNull(stats.getSwap());
-        assertThat(stats.getSwap().getTotal().bytes(), anyOf(equalTo(-1L), greaterThanOrEqualTo(0L)));
-        assertThat(stats.getSwap().getFree().bytes(), anyOf(equalTo(-1L), greaterThanOrEqualTo(0L)));
-        assertThat(stats.getSwap().getUsed().bytes(), anyOf(equalTo(-1L), greaterThanOrEqualTo(0L)));
+        assertNotNull(stats.getSwap().getTotal());
+
+        long total = stats.getSwap().getTotal().bytes();
+        if (total > 0) {
+            assertThat(stats.getSwap().getTotal().bytes(), greaterThan(0L));
+            assertThat(stats.getSwap().getFree().bytes(), greaterThan(0L));
+            assertThat(stats.getSwap().getUsed().bytes(), greaterThanOrEqualTo(0L));
+        } else {
+            // On platforms with no swap
+            assertThat(stats.getSwap().getTotal().bytes(), equalTo(0L));
+            assertThat(stats.getSwap().getFree().bytes(), equalTo(0L));
+            assertThat(stats.getSwap().getUsed().bytes(), equalTo(0L));
+        }
     }
 }

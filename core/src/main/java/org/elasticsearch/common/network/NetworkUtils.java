@@ -54,9 +54,9 @@ public abstract class NetworkUtils {
     static final boolean PREFER_V4 = Boolean.parseBoolean(System.getProperty("java.net.preferIPv4Stack", "true")); 
     
     /** Sorts an address by preference. This way code like publishing can just pick the first one */
-    private static int sortKey(InetAddress address) {
+    static int sortKey(InetAddress address, boolean prefer_v4) {
         int key = address.getAddress().length;
-        if (PREFER_V4 == false) {
+        if (prefer_v4 == false) {
             key = -key;
         }
         
@@ -88,7 +88,7 @@ public abstract class NetworkUtils {
         Collections.sort(list, new Comparator<InetAddress>() {
             @Override
             public int compare(InetAddress left, InetAddress right) {
-                int cmp = Integer.compare(sortKey(left), sortKey(right));
+                int cmp = Integer.compare(sortKey(left, PREFER_V4), sortKey(right, PREFER_V4));
                 if (cmp == 0) {
                     cmp = new BytesRef(left.getAddress()).compareTo(new BytesRef(right.getAddress()));
                 }

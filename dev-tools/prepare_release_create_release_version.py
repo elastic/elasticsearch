@@ -84,17 +84,6 @@ def process_file(file_path, line_callback):
     os.remove(abs_path)
     return False
 
-# Moves the pom.xml file from a snapshot to a release
-def remove_maven_snapshot(poms, release):
-  for pom in poms:
-    if pom:
-      #print('Replacing SNAPSHOT version in file %s' % (pom))
-      pattern = '<version>%s-SNAPSHOT</version>' % (release)
-      replacement = '<version>%s</version>' % (release)
-      def callback(line):
-        return line.replace(pattern, replacement)
-      process_file(pom, callback)
-
 # Moves the Version.java file from a snapshot to a release
 def remove_version_snapshot(version_file, release):
   # 1.0.0.Beta1 -> 1_0_0_Beta1
@@ -107,11 +96,6 @@ def remove_version_snapshot(version_file, release):
   processed = process_file(version_file, callback)
   if not processed:
     raise RuntimeError('failed to remove snapshot version for %s' % (release))
-
-# finds all the pom files that do have a -SNAPSHOT version
-def find_pom_files_with_snapshots():
-  files = subprocess.check_output('find . -name pom.xml -exec grep -l "<version>.*-SNAPSHOT</version>" {} ";"', shell=True)
-  return files.decode('utf-8').split('\n')
 
 # Checks the pom.xml for the release version.
 # This method fails if the pom file has no SNAPSHOT version set ie.
@@ -132,9 +116,9 @@ if __name__ == "__main__":
   print('*** Preparing release version: [%s]' % release_version)
 
   ensure_checkout_is_clean()
-  pom_files = find_pom_files_with_snapshots()
 
-  remove_maven_snapshot(pom_files, release_version)
+  run('mvn versions:set -DnewVersion=%s -DgenerateBackupPoms=false' % (release_version))
+
   remove_version_snapshot(VERSION_FILE, release_version)
 
   print('*** Done removing snapshot version. DO NOT COMMIT THIS, WHEN CREATING A RELEASE CANDIDATE.')

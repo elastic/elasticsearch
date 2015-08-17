@@ -131,13 +131,16 @@ public abstract class ExtensionPoint {
          * the settings object.
          *
          * @param binder       the binder to use
-         * @param settings     the settings to look up the key to find the implemetation to bind
+         * @param settings     the settings to look up the key to find the implementation to bind
          * @param settingsKey  the key to use with the settings
-         * @param defaultValue the default value if they settings doesn't contain the key
+         * @param defaultValue the default value if the settings do not contain the key, or null if there is no default
          * @return the actual bound type key
          */
         public String bindType(Binder binder, Settings settings, String settingsKey, String defaultValue) {
             final String type = settings.get(settingsKey, defaultValue);
+            if (type == null) {
+                throw new IllegalArgumentException("Missing setting [" + settingsKey + "]");
+            }
             final Class<? extends T> instance = getExtension(type);
             if (instance == null) {
                 throw new IllegalArgumentException("Unknown [" + this.name + "] type [" + type + "]");

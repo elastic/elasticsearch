@@ -26,16 +26,18 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.azure.AzureDiscovery;
+import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardRepository;
 import org.elasticsearch.index.store.IndexStoreModule;
 import org.elasticsearch.index.store.smbmmapfs.SmbMmapFsIndexStore;
 import org.elasticsearch.index.store.smbsimplefs.SmbSimpleFsIndexStore;
 import org.elasticsearch.plugins.AbstractPlugin;
 import org.elasticsearch.repositories.RepositoriesModule;
 import org.elasticsearch.repositories.azure.AzureRepository;
-import org.elasticsearch.repositories.azure.AzureRepositoryModule;
 
 import java.util.ArrayList;
 import java.util.Collection;
+
+import static org.elasticsearch.cloud.azure.AzureModule.isSnapshotReady;
 
 import static org.elasticsearch.cloud.azure.AzureModule.isSnapshotReady;
 
@@ -71,11 +73,9 @@ public class CloudAzurePlugin extends AbstractPlugin {
         return modules;
     }
 
-    @Override
-    public void processModule(Module module) {
-        if (isSnapshotReady(settings, logger)
-                && module instanceof RepositoriesModule) {
-            ((RepositoriesModule)module).registerRepository(AzureRepository.TYPE, AzureRepositoryModule.class);
+    public void onModule(RepositoriesModule module) {
+        if (isSnapshotReady(settings, logger)) {
+            module.registerRepository(AzureRepository.TYPE, AzureRepository.class, BlobStoreIndexShardRepository.class);
         }
     }
 

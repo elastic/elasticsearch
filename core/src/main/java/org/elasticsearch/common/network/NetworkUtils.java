@@ -220,9 +220,4 @@ public abstract class NetworkUtils {
         }
         return list.toArray(new InetAddress[list.size()]);
     }
-    
-    // nocommit
-    public static void main(String args[]) throws Exception {
-        System.out.println(Arrays.toString(filterIPV6(getFirstNonLoopbackAddresses())));
-    }
 }

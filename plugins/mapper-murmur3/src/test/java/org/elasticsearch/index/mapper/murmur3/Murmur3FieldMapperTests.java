@@ -17,9 +17,11 @@
  * under the License.
  */
 
-package org.elasticsearch.index.mapper.core;
+package org.elasticsearch.index.mapper.murmur3;
 
+import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
@@ -28,8 +30,11 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.junit.Before;
+
+import java.util.Arrays;
 
 public class Murmur3FieldMapperTests extends ESSingleNodeTestCase {
 
@@ -40,6 +45,22 @@ public class Murmur3FieldMapperTests extends ESSingleNodeTestCase {
     public void before() {
         indexService = createIndex("test");
         parser = indexService.mapperService().documentMapperParser();
+        parser.putTypeParser(Murmur3FieldMapper.CONTENT_TYPE, new Murmur3FieldMapper.TypeParser());
+    }
+
+    public void testDefaults() throws Exception {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties").startObject("field")
+                    .field("type", "murmur3")
+                .endObject().endObject().endObject().endObject().string();
+        DocumentMapper mapper = parser.parse(mapping);
+        ParsedDocument parsedDoc = mapper.parse("test", "type", "1", XContentFactory.jsonBuilder().startObject().field("field", "value").endObject().bytes());
+        IndexableField[] fields = parsedDoc.rootDoc().getFields("field");
+        assertNotNull(fields);
+        assertEquals(Arrays.toString(fields), 1, fields.length);
+        IndexableField field = fields[0];
+        assertEquals(IndexOptions.NONE, field.fieldType().indexOptions());
+        assertEquals(DocValuesType.SORTED_NUMERIC, field.fieldType().docValuesType());
     }
 
     public void testDocValuesSettingNotAllowed() throws Exception {
@@ -100,6 +121,7 @@ public class Murmur3FieldMapperTests extends ESSingleNodeTestCase {
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
         indexService = createIndex("test_bwc", settings);
         parser = indexService.mapperService().documentMapperParser();
+        parser.putTypeParser(Murmur3FieldMapper.CONTENT_TYPE, new Murmur3FieldMapper.TypeParser());
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("properties").startObject("field")
                 .field("type", "murmur3")
@@ -115,6 +137,7 @@ public class Murmur3FieldMapperTests extends ESSingleNodeTestCase {
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
         indexService = createIndex("test_bwc", settings);
         parser = indexService.mapperService().documentMapperParser();
+        parser.putTypeParser(Murmur3FieldMapper.CONTENT_TYPE, new Murmur3FieldMapper.TypeParser());
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("properties").startObject("field")
             .field("type", "murmur3")

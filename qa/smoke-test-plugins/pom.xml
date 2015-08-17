@@ -335,6 +335,14 @@
 
                  <artifactItem>
                    <groupId>org.elasticsearch.plugin</groupId>
+                   <artifactId>elasticsearch-mapper-murmur3</artifactId>
+                   <version>${elasticsearch.version}</version>
+                   <type>zip</type>
+                   <overWrite>true</overWrite>
+                 </artifactItem>
+
+                 <artifactItem>
+                   <groupId>org.elasticsearch.plugin</groupId>
                    <artifactId>elasticsearch-mapper-size</artifactId>
                    <version>${elasticsearch.version}</version>
                    <type>zip</type>

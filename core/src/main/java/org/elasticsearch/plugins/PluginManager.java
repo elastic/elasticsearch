@@ -86,6 +86,7 @@ public class PluginManager {
                     "elasticsearch-delete-by-query",
                     "elasticsearch-lang-javascript",
                     "elasticsearch-lang-python",
+                    "elasticsearch-mapper-murmur3",
                     "elasticsearch-mapper-size"
             ).build();
 

@@ -17,9 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.index.mapper.core;
+package org.elasticsearch.index.mapper.murmur3;
 
 import org.apache.lucene.document.Field;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
@@ -31,12 +32,13 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.core.LongFieldMapper;
+import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.index.mapper.MapperBuilders.murmur3Field;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseNumberField;
 
 public class Murmur3FieldMapper extends LongFieldMapper {
@@ -45,6 +47,9 @@ public class Murmur3FieldMapper extends LongFieldMapper {
 
     public static class Defaults extends LongFieldMapper.Defaults {
         public static final MappedFieldType FIELD_TYPE = new Murmur3FieldType();
+        static {
+            FIELD_TYPE.freeze();
+        }
     }
 
     public static class Builder extends NumberFieldMapper.Builder<Builder, Murmur3FieldMapper> {
@@ -66,6 +71,17 @@ public class Murmur3FieldMapper extends LongFieldMapper {
         }
 
         @Override
+        protected void setupFieldType(BuilderContext context) {
+            super.setupFieldType(context);
+            if (context.indexCreatedVersion().onOrAfter(Version.V_2_0_0)) {
+                fieldType.setIndexOptions(IndexOptions.NONE);
+                defaultFieldType.setIndexOptions(IndexOptions.NONE);
+                fieldType.setHasDocValues(true);
+                defaultFieldType.setHasDocValues(true);
+            }
+        }
+
+        @Override
         protected NamedAnalyzer makeNumberAnalyzer(int precisionStep) {
             return NumericLongAnalyzer.buildNamedAnalyzer(precisionStep);
         }
@@ -80,7 +96,7 @@ public class Murmur3FieldMapper extends LongFieldMapper {
         @Override
         @SuppressWarnings("unchecked")
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            Builder builder = murmur3Field(name);
+            Builder builder = new Builder(name);
 
             // tweaking these settings is no longer allowed, the entire purpose of murmur3 fields is to store a hash
             if (parserContext.indexVersionCreated().onOrAfter(Version.V_2_0_0_beta1)) {
@@ -90,6 +106,10 @@ public class Murmur3FieldMapper extends LongFieldMapper {
                 if (node.get("index") != null) {
                     throw new MapperParsingException("Setting [index] cannot be modified for field [" + name + "]");
                 }
+            }
+
+            if (parserContext.indexVersionCreated().before(Version.V_2_0_0)) {
+                builder.indexOptions(IndexOptions.DOCS);
             }
 
             parseNumberField(builder, name, node, parserContext);
@@ -104,7 +124,8 @@ public class Murmur3FieldMapper extends LongFieldMapper {
 
     // this only exists so a check can be done to match the field type to using murmur3 hashing...
     public static class Murmur3FieldType extends LongFieldMapper.LongFieldType {
-        public Murmur3FieldType() {}
+        public Murmur3FieldType() {
+        }
 
         protected Murmur3FieldType(Murmur3FieldType ref) {
             super(ref);

@@ -1,0 +1,479 @@
+[[cloud-gce]]
+=== GCE Cloud Plugin
+
+The Google Compute Engine Cloud plugin uses the GCE API for unicast discovery.
+
+[[cloud-gce-install]]
+[float]
+==== Installation
+
+This plugin can be installed using the plugin manager:
+
+[source,sh]
+----------------------------------------------------------------
+sudo bin/plugin install cloud-gce
+----------------------------------------------------------------
+
+The plugin must be installed on every node in the cluster, and each node must
+be restarted after installation.
+
+[[cloud-gce-remove]]
+[float]
+==== Removal
+
+The plugin can be removed with the following command:
+
+[source,sh]
+----------------------------------------------------------------
+sudo bin/plugin remove cloud-gce
+----------------------------------------------------------------
+
+The node must be stopped before removing the plugin.
+
+[[cloud-gce-usage-discovery]]
+==== GCE Virtual Machine Discovery
+
+Google Compute Engine VM discovery allows to use the google APIs to perform automatic discovery (similar to multicast
+in non hostile multicast environments). Here is a simple sample configuration:
+
+[source,yaml]
+--------------------------------------------------
+cloud:
+  gce:
+      project_id: <your-google-project-id>
+      zone: <your-zone>
+discovery:
+      type: gce
+--------------------------------------------------
+
+[[cloud-gce-usage-discovery-short]]
+===== How to start (short story)
+
+* Create Google Compute Engine instance (with compute rw permissions)
+* Install Elasticsearch
+* Install Google Compute Engine Cloud plugin
+* Modify `elasticsearch.yml` file
+* Start Elasticsearch
+
+[[cloud-gce-usage-discovery-long]]
+==== Setting up GCE Discovery
+
+
+[[cloud-gce-usage-discovery-long-prerequisites]]
+===== Prerequisites
+
+Before starting, you need:
+
+* Your project ID, e.g. `es-cloud`. Get it from https://code.google.com/apis/console/[Google API Console].
+* To install https://developers.google.com/cloud/sdk/[Google Cloud SDK]
+
+If you did not set it yet, you can define your default project you will work on:
+
+[source,sh]
+--------------------------------------------------
+gcloud config set project es-cloud
+--------------------------------------------------
+
+[[cloud-gce-usage-discovery-long-first-instance]]
+===== Creating your first instance
+
+
+[source,sh]
+--------------------------------------------------
+gcutil addinstance myesnode1 \
+       --service_account_scope=compute-rw,storage-full \
+       --persistent_boot_disk
+--------------------------------------------------
+
+Then follow these steps:
+
+* You will be asked to open a link in your browser. Login and allow access to listed services.
+* You will get back a verification code. Copy and paste it in your terminal.
+* You should see an `Authentication successful.` message.
+* Choose your zone, e.g. `europe-west1-a`.
+* Choose your compute instance size, e.g. `f1-micro`.
+* Choose your OS, e.g. `projects/debian-cloud/global/images/debian-7-wheezy-v20140606`.
+* You may be asked to create a ssh key. Follow the instructions to create one.
+
+When done, a report like this one should appears:
+
+[source,text]
+--------------------------------------------------
+Table of resources:
+
++-----------+--------------+-------+---------+--------------+----------------+----------------+----------------+---------+----------------+
+|   name    | machine-type | image | network |  network-ip  |  external-ip   |     disks      |      zone      | status  | status-message |
++-----------+--------------+-------+---------+--------------+----------------+----------------+----------------+---------+----------------+
+| myesnode1 | f1-micro     |       | default | 10.240.20.57 | 192.158.29.199 | boot-myesnode1 | europe-west1-a | RUNNING |                |
++-----------+--------------+-------+---------+--------------+----------------+----------------+----------------+---------+----------------+
+--------------------------------------------------
+
+You can now connect to your instance:
+
+[source,sh]
+--------------------------------------------------
+# Connect using google cloud SDK
+gcloud compute ssh myesnode1 --zone europe-west1-a
+
+# Or using SSH with external IP address
+ssh -i ~/.ssh/google_compute_engine 192.158.29.199
+--------------------------------------------------
+
+[IMPORTANT]
+.Service Account Permissions
+==============================================
+
+It's important when creating an instance that the correct permissions are set. At a minimum, you must ensure you have:
+
+[source,text]
+--------------------------------------------------
+service_account_scope=compute-rw
+--------------------------------------------------
+
+Failing to set this will result in unauthorized messages when starting Elasticsearch.
+See [Machine Permissions](#machine-permissions).
+==============================================
+
+
+Once connected, install Elasticsearch:
+
+[source,sh]
+--------------------------------------------------
+sudo apt-get update
+
+# Download Elasticsearch
+wget https://download.elasticsearch.org/elasticsearch/elasticsearch/elasticsearch-2.0.0.deb
+
+# Prepare Java installation
+sudo apt-get install java7-runtime-headless
+
+# Prepare Elasticsearch installation
+sudo dpkg -i elasticsearch-2.0.0.deb
+--------------------------------------------------
+
+[[cloud-gce-usage-discovery-long-install-plugin]]
+===== Install elasticsearch cloud gce plugin
+
+Install the plugin:
+
+[source,sh]
+--------------------------------------------------
+# Use Plugin Manager to install it
+sudo bin/plugin install cloud-gce
+--------------------------------------------------
+
+Open the `elasticsearch.yml` file:
+
+[source,sh]
+--------------------------------------------------
+sudo vi /etc/elasticsearch/elasticsearch.yml
+--------------------------------------------------
+
+And add the following lines:
+
+[source,yaml]
+--------------------------------------------------
+cloud:
+  gce:
+      project_id: es-cloud
+      zone: europe-west1-a
+discovery:
+      type: gce
+--------------------------------------------------
+
+
+Start elasticsearch:
+
+[source,sh]
+--------------------------------------------------
+sudo /etc/init.d/elasticsearch start
+--------------------------------------------------
+
+If anything goes wrong, you should check logs:
+
+[source,sh]
+--------------------------------------------------
+tail -f /var/log/elasticsearch/elasticsearch.log
+--------------------------------------------------
+
+If needed, you can change log level to `TRACE` by opening `logging.yml`:
+
+[source,sh]
+--------------------------------------------------
+sudo vi /etc/elasticsearch/logging.yml
+--------------------------------------------------
+
+and adding the following line:
+
+[source,yaml]
+--------------------------------------------------
+# discovery
+discovery.gce: TRACE
+--------------------------------------------------
+
+
+
+[[cloud-gce-usage-discovery-cloning]]
+==== Cloning your existing machine
+
+In order to build a cluster on many nodes, you can clone your configured instance to new nodes.
+You won't have to reinstall everything!
+
+First create an image of your running instance and upload it to Google Cloud Storage:
+
+[source,sh]
+--------------------------------------------------
+# Create an image of yur current instance
+sudo /usr/bin/gcimagebundle -d /dev/sda -o /tmp/
+
+# An image has been created in `/tmp` directory:
+ls /tmp
+e4686d7f5bf904a924ae0cfeb58d0827c6d5b966.image.tar.gz
+
+# Upload your image to Google Cloud Storage:
+# Create a bucket to hold your image, let's say `esimage`:
+gsutil mb gs://esimage
+
+# Copy your image to this bucket:
+gsutil cp /tmp/e4686d7f5bf904a924ae0cfeb58d0827c6d5b966.image.tar.gz gs://esimage
+
+# Then add your image to images collection:
+gcutil addimage elasticsearch-1-2-1 gs://esimage/e4686d7f5bf904a924ae0cfeb58d0827c6d5b966.image.tar.gz
+
+# If the previous command did not work for you, logout from your instance
+# and launch the same command from your local machine.
+--------------------------------------------------
+
+[[cloud-gce-usage-discovery-start-new-instances]]
+===== Start new instances
+
+As you have now an image, you can create as many instances as you need:
+
+[source,sh]
+--------------------------------------------------
+# Just change node name (here myesnode2)
+gcutil addinstance --image=elasticsearch-1-2-1 myesnode2
+
+# If you want to provide all details directly, you can use:
+gcutil addinstance --image=elasticsearch-1-2-1 \
+       --kernel=projects/google/global/kernels/gce-v20130603 myesnode2 \
+       --zone europe-west1-a --machine_type f1-micro --service_account_scope=compute-rw \
+       --persistent_boot_disk
+--------------------------------------------------
+
+[[cloud-gce-usage-discovery-remove-instance]]
+===== Remove an instance (aka shut it down)
+
+You can use https://cloud.google.com/console[Google Cloud Console] or CLI to manage your instances:
+
+[source,sh]
+--------------------------------------------------
+# Stopping and removing instances
+gcutil deleteinstance myesnode1 myesnode2 \
+       --zone=europe-west1-a
+
+# Consider removing disk as well if you don't need them anymore
+gcutil deletedisk boot-myesnode1 boot-myesnode2  \
+       --zone=europe-west1-a
+--------------------------------------------------
+
+[[cloud-gce-usage-discovery-zones]]
+==== Using GCE zones
+
+`cloud.gce.zone` helps to retrieve instances running in a given zone. It should be one of the
+https://developers.google.com/compute/docs/zones#available[GCE supported zones].
+
+The GCE discovery can support multi zones although you need to be aware of network latency between zones.
+To enable discovery across more than one zone, just enter add your zone list to `cloud.gce.zone` setting:
+
+[source,yaml]
+--------------------------------------------------
+cloud:
+  gce:
+      project_id: <your-google-project-id>
+      zone: ["<your-zone1>", "<your-zone2>"]
+discovery:
+      type: gce
+--------------------------------------------------
+
+
+
+[[cloud-gce-usage-discovery-tags]]
+==== Filtering by tags
+
+The GCE discovery can also filter machines to include in the cluster based on tags using `discovery.gce.tags` settings.
+For example, setting `discovery.gce.tags` to `dev` will only filter instances having a tag set to `dev`. Several tags
+set will require all of those tags to be set for the instance to be included.
+
+One practical use for tag filtering is when an GCE cluster contains many nodes that are not running
+elasticsearch. In this case (particularly with high ping_timeout values) there is a risk that a new node's discovery
+phase will end before it has found the cluster (which will result in it declaring itself master of a new cluster
+with the same name - highly undesirable). Adding tag on elasticsearch GCE nodes and then filtering by that
+tag will resolve this issue.
+
+Add your tag when building the new instance:
+
+[source,sh]
+--------------------------------------------------
+gcutil --project=es-cloud addinstance myesnode1 \
+       --service_account_scope=compute-rw \
+       --persistent_boot_disk \
+       --tags=elasticsearch,dev
+--------------------------------------------------
+
+Then, define it in `elasticsearch.yml`:
+
+[source,yaml]
+--------------------------------------------------
+cloud:
+  gce:
+      project_id: es-cloud
+      zone: europe-west1-a
+discovery:
+      type: gce
+      gce:
+            tags: elasticsearch, dev
+--------------------------------------------------
+
+[[cloud-gce-usage-discovery-port]]
+==== Changing default transport port
+
+By default, elasticsearch GCE plugin assumes that you run elasticsearch on 9300 default port.
+But you can specify the port value elasticsearch is meant to use using google compute engine metadata `es_port`:
+
+[[cloud-gce-usage-discovery-port-create]]
+===== When creating instance
+
+Add `--metadata=es_port:9301` option:
+
+[source,sh]
+--------------------------------------------------
+# when creating first instance
+gcutil addinstance myesnode1 \
+       --service_account_scope=compute-rw,storage-full \
+       --persistent_boot_disk \
+       --metadata=es_port:9301
+
+# when creating an instance from an image
+gcutil addinstance --image=elasticsearch-1-0-0-RC1 \
+       --kernel=projects/google/global/kernels/gce-v20130603 myesnode2 \
+       --zone europe-west1-a --machine_type f1-micro --service_account_scope=compute-rw \
+       --persistent_boot_disk --metadata=es_port:9301
+--------------------------------------------------
+
+[[cloud-gce-usage-discovery-port-run]]
+===== On a running instance
+
+[source,sh]
+--------------------------------------------------
+# Get metadata fingerprint
+gcutil getinstance myesnode1 --zone=europe-west1-a
++------------------------+---------------------+
+|        property        | value               |
++------------------------+---------------------+
+| metadata               |                     |
+| fingerprint            | 42WmSpB8rSM=        |
++------------------------+---------------------+
+
+# Use that fingerprint
+gcutil setinstancemetadata myesnode1 \
+       --zone=europe-west1-a \
+       --metadata=es_port:9301 \
+       --fingerprint=42WmSpB8rSM=
+--------------------------------------------------
+
+
+[[cloud-gce-usage-discovery-tips]]
+==== GCE Tips
+
+[[cloud-gce-usage-discovery-tips-projectid]]
+===== Store project id locally
+
+If you don't want to repeat the project id each time, you can save it in `~/.gcutil.flags` file using:
+
+[source,sh]
+--------------------------------------------------
+gcutil getproject --project=es-cloud --cache_flag_values
+--------------------------------------------------
+
+`~/.gcutil.flags` file now contains:
+
+[source,text]
+--------------------------------------------------
+--project=es-cloud
+--------------------------------------------------
+
+[[cloud-gce-usage-discovery-tips-permissions]]
+===== Machine Permissions
+
+If you have created a machine without the correct permissions, you will see `403 unauthorized` error messages. The only
+way to alter these permissions is to delete the instance (NOT THE DISK). Then create another with the correct permissions.
+
+Creating machines with gcutil::
++
+--
+Ensure the following flags are set:
+
+[source,text]
+--------------------------------------------------
+--service_account_scope=compute-rw
+--------------------------------------------------
+--
+
+Creating with console (web)::
++
+--
+When creating an instance using the web portal, click _Show advanced options_.
+
+At the bottom of the page, under `PROJECT ACCESS`, choose `>> Compute >> Read Write`.
+--
+
+Creating with knife google::
++
+--
+Set the service account scopes when creating the machine:
+
+[source,sh]
+--------------------------------------------------
+knife google server create www1 \
+    -m n1-standard-1 \
+    -I debian-7-wheezy-v20131120 \
+    -Z us-central1-a \
+    -i ~/.ssh/id_rsa \
+    -x jdoe \
+    --gce-service-account-scopes https://www.googleapis.com/auth/compute.full_control
+--------------------------------------------------
+
+Or, you may use the alias:
+
+[source,sh]
+--------------------------------------------------
+    --gce-service-account-scopes compute-rw
+--------------------------------------------------
+--
+
+[[cloud-gce-usage-discovery-testing]]
+==== Testing GCE
+
+Integrations tests in this plugin require working GCE configuration and
+therefore disabled by default. To enable tests prepare a config file
+elasticsearch.yml with the following content:
+
+[source,yaml]
+--------------------------------------------------
+cloud:
+  gce:
+      project_id: es-cloud
+      zone: europe-west1-a
+discovery:
+      type: gce
+--------------------------------------------------
+
+Replaces `project_id` and `zone` with your settings.
+
+To run test:
+
+[source,sh]
+--------------------------------------------------
+mvn -Dtests.gce=true -Dtests.config=/path/to/config/file/elasticsearch.yml clean test
+--------------------------------------------------

@@ -293,7 +293,7 @@ public class RecoverySourceHandler {
                             store.incRef();
                             final StoreFileMetaData md = recoverySourceMetadata.get(name);
                             try (final IndexInput indexInput = store.directory().openInput(name, IOContext.READONCE)) {
-                                final int BUFFER_SIZE = (int) recoverySettings.fileChunkSize().bytes();
+                                final int BUFFER_SIZE = (int) Math.max(1, recoverySettings.fileChunkSize().bytes()); // at least one!
                                 final byte[] buf = new byte[BUFFER_SIZE];
                                 boolean shouldCompressRequest = recoverySettings.compress();
                                 if (CompressorFactory.isCompressed(indexInput)) {

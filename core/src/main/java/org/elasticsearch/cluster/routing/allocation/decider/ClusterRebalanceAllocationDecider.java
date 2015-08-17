@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.routing.allocation.decider;
 
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.settings.Validator;
@@ -52,7 +53,7 @@ public class ClusterRebalanceAllocationDecider extends AllocationDecider {
     public static final String CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE = "cluster.routing.allocation.allow_rebalance";
     public static final Validator ALLOCATION_ALLOW_REBALANCE_VALIDATOR = new Validator() {
         @Override
-        public String validate(String setting, String value) {
+        public String validate(String setting, String value, ClusterState clusterState) {
             try {
                 ClusterRebalanceType.parseString(value);
                 return null;

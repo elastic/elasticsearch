@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.innerhits;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -122,6 +123,7 @@ public class InnerHitsIT extends ESIntegTestCase {
             assertNoFailures(response);
             assertHitCount(response, 1);
             assertSearchHit(response, 1, hasId("2"));
+            assertThat(response.getHits().getAt(0).getShard(), notNullValue());
             assertThat(response.getHits().getAt(0).getInnerHits().size(), equalTo(1));
             SearchHits innerHits = response.getHits().getAt(0).getInnerHits().get("comment");
             assertThat(innerHits.totalHits(), equalTo(3l));
@@ -223,6 +225,7 @@ public class InnerHitsIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getHits().length, equalTo(numDocs));
         for (int i = 0; i < numDocs; i++) {
             SearchHit searchHit = searchResponse.getHits().getAt(i);
+            assertThat(searchHit.getShard(), notNullValue());
             SearchHits inner = searchHit.getInnerHits().get("a");
             assertThat(inner.totalHits(), equalTo((long) field1InnerObjects[i]));
             for (int j = 0; j < field1InnerObjects[i] && j < size; j++) {
@@ -275,6 +278,7 @@ public class InnerHitsIT extends ESIntegTestCase {
             assertNoFailures(response);
             assertHitCount(response, 1);
             assertSearchHit(response, 1, hasId("1"));
+            assertThat(response.getHits().getAt(0).getShard(), notNullValue());
 
             assertThat(response.getHits().getAt(0).getInnerHits().size(), equalTo(1));
             SearchHits innerHits = response.getHits().getAt(0).getInnerHits().get("comment");
@@ -411,6 +415,7 @@ public class InnerHitsIT extends ESIntegTestCase {
             SearchHit searchHit = searchResponse.getHits().getAt(parent);
             assertThat(searchHit.getType(), equalTo("parent"));
             assertThat(searchHit.getId(), equalTo(String.format(Locale.ENGLISH, "%03d", parent)));
+            assertThat(searchHit.getShard(), notNullValue());
 
             SearchHits inner = searchHit.getInnerHits().get("a");
             assertThat(inner.totalHits(), equalTo((long) child1InnerObjects[parent]));

@@ -22,7 +22,7 @@ package org.elasticsearch.index.analysis;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.FailedToResolveConfigException;
+import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.test.ESTokenStreamTestCase;
 import org.junit.Assert;
 import org.junit.Test;
@@ -72,7 +72,7 @@ public class KeepFilterFactoryTests extends ESTokenStreamTestCase {
             AnalysisTestsHelper.createAnalysisServiceFromSettings(settings);
             fail("expected an exception due to non existent keep_words_path");
         } catch (Throwable e) {
-            assertThat(e.getCause(), instanceOf(FailedToResolveConfigException.class));
+            assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
         }
 
         settings = Settings.settingsBuilder().put(settings)

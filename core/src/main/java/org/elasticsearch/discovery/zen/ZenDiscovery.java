@@ -150,7 +150,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     public ZenDiscovery(Settings settings, ClusterName clusterName, ThreadPool threadPool,
                         TransportService transportService, final ClusterService clusterService, NodeSettingsService nodeSettingsService,
                         ZenPingService pingService, ElectMasterService electMasterService,
-                        DiscoverySettings discoverySettings, @ClusterDynamicSettings DynamicSettings dynamicSettings) {
+                        DiscoverySettings discoverySettings) {
         super(settings);
         this.clusterName = clusterName;
         this.clusterService = clusterService;
@@ -198,24 +198,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         this.joinThreadControl = new JoinThreadControl(threadPool);
 
         transportService.registerRequestHandler(DISCOVERY_REJOIN_ACTION_NAME, RejoinClusterRequest.class, ThreadPool.Names.SAME, new RejoinClusterRequestHandler());
-
-        dynamicSettings.addDynamicSetting(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, new Validator() {
-            @Override
-            public String validate(String setting, String value) {
-                int intValue;
-                try {
-                    intValue = Integer.parseInt(value);
-                } catch (NumberFormatException ex) {
-                    return "cannot parse value [" + value + "] as an integer";
-                }
-                int masterNodes = clusterService.state().nodes().masterNodes().size();
-                if (intValue > masterNodes) {
-                    return "cannot set " + ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES + " to more than the current master nodes count [" + masterNodes + "]";
-                }
-                return null;
-            }
-        });
-
     }
 
     @Override

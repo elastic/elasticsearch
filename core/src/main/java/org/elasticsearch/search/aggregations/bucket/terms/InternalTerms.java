@@ -24,6 +24,7 @@ import com.google.common.collect.Multimap;
 
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -170,8 +171,25 @@ public abstract class InternalTerms<A extends InternalTerms, B extends InternalT
         Multimap<Object, InternalTerms.Bucket> buckets = ArrayListMultimap.create();
         long sumDocCountError = 0;
         long otherDocCount = 0;
+        InternalTerms<A, B> referenceTerms = null;
         for (InternalAggregation aggregation : aggregations) {
             InternalTerms<A, B> terms = (InternalTerms<A, B>) aggregation;
+            if (referenceTerms == null && !terms.getClass().equals(UnmappedTerms.class)) {
+                referenceTerms = (InternalTerms<A, B>) aggregation;
+            }
+            if (referenceTerms != null &&
+                    !referenceTerms.getClass().equals(terms.getClass()) &&
+                    !terms.getClass().equals(UnmappedTerms.class)) {
+                // control gets into this loop when the same field name against which the query is executed
+                // is of different types in different indices.
+                throw new AggregationExecutionException("Merging/Reducing the aggregations failed " +
+                                                        "when computing the aggregation [ Name: " +
+                                                        referenceTerms.getName() + ", Type: " +
+                                                        referenceTerms.type() + " ]" + " because: " +
+                                                        "the field you gave in the aggregation query " +
+                                                        "existed as two different types " +
+                                                        "in two different indices");
+            }
             otherDocCount += terms.getSumOfOtherDocCounts();
             final long thisAggDocCountError;
             if (terms.buckets.size() < this.shardSize || this.order == InternalOrder.TERM_ASC || this.order == InternalOrder.TERM_DESC) {

@@ -186,7 +186,7 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<Valid
 
             valid = true;
             if (request.explain()) {
-                explanation = searchContext.query().toString();
+                explanation = searchContext.parsedQuery().query().toString();
             }
             if (request.rewrite()) {
                 explanation = getRewrittenQuery(searcher.searcher(), searchContext.query());

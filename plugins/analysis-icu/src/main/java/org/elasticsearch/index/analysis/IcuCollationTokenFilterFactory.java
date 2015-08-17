@@ -28,7 +28,6 @@ import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.FailedToResolveConfigException;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.settings.IndexSettings;
 
@@ -61,7 +60,7 @@ public class IcuCollationTokenFilterFactory extends AbstractTokenFilterFactory {
             Exception failureToResolve = null;
             try {
                 rules = Streams.copyToString(Files.newBufferedReader(environment.configFile().resolve(rules), Charset.forName("UTF-8")));
-            } catch (FailedToResolveConfigException | IOException | SecurityException e) {
+            } catch (IOException | SecurityException e) {
                 failureToResolve = e;
             }
             try {

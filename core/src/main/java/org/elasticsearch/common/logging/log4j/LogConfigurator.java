@@ -21,17 +21,19 @@ package org.elasticsearch.common.logging.log4j;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-
 import org.apache.log4j.PropertyConfigurator;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.FailedToResolveConfigException;
 
 import java.io.IOException;
-import java.net.MalformedURLException;
-import java.nio.file.*;
+import java.nio.file.FileVisitOption;
+import java.nio.file.FileVisitResult;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.EnumSet;
 import java.util.List;
@@ -143,8 +145,8 @@ public class LogConfigurator {
 
     public static void loadConfig(Path file, Settings.Builder settingsBuilder) {
         try {
-            settingsBuilder.loadFromUrl(file.toUri().toURL());
-        } catch (FailedToResolveConfigException | NoClassDefFoundError | MalformedURLException e) {
+            settingsBuilder.loadFromPath(file);
+        } catch (SettingsException | NoClassDefFoundError e) {
             // ignore
         }
     }

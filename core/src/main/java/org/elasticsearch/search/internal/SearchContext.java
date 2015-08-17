@@ -21,6 +21,8 @@ package org.elasticsearch.search.internal;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.MultimapBuilder;
+
+import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
@@ -65,6 +67,7 @@ import org.elasticsearch.search.suggest.SuggestionSearchContext;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public abstract class SearchContext implements Releasable, HasContextAndHeaders {
@@ -257,16 +260,6 @@ public abstract class SearchContext implements Releasable, HasContextAndHeaders 
      */
     public abstract Query query();
 
-    /**
-     * Has the query been rewritten already?
-     */
-    public abstract boolean queryRewritten();
-
-    /**
-     * Rewrites the query and updates it. Only happens once.
-     */
-    public abstract SearchContext updateRewriteQuery(Query rewriteQuery);
-
     public abstract int from();
 
     public abstract SearchContext from(int from);
@@ -358,6 +351,9 @@ public abstract class SearchContext implements Releasable, HasContextAndHeaders 
     public abstract ObjectMapper getObjectMapper(String name);
 
     public abstract Counter timeEstimateCounter();
+
+    /** Return a view of the additional query collectors that should be run for this context. */
+    public abstract Map<Class<?>, Collector> queryCollectors();
 
     /**
      * The life time of an object that is used during search execution.

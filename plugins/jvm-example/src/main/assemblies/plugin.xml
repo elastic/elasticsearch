@@ -17,6 +17,10 @@
             <directory>src/main/config</directory>
             <outputDirectory>config</outputDirectory>
         </fileSet>
+        <fileSet>
+            <directory>src/main/bin</directory>
+            <outputDirectory>bin</outputDirectory>
+        </fileSet>
     </fileSets>
     <dependencySets>
         <dependencySet>

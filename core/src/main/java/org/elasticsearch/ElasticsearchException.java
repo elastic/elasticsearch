@@ -496,7 +496,6 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
                 org.elasticsearch.http.HttpException.class,
                 org.elasticsearch.index.shard.IndexShardNotRecoveringException.class,
                 org.elasticsearch.indices.IndexPrimaryShardNotAllocatedException.class,
-                org.elasticsearch.env.FailedToResolveConfigException.class,
                 org.elasticsearch.action.UnavailableShardsException.class,
                 org.elasticsearch.transport.ActionNotFoundTransportException.class,
                 org.elasticsearch.index.shard.TranslogRecoveryPerformer.BatchOperationException.class,

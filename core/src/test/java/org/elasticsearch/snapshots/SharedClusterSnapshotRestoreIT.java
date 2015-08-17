@@ -996,6 +996,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
     }
 
     @Test
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/12855")
     public void renameOnRestoreTest() throws Exception {
         Client client = client();
 

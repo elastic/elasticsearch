@@ -78,9 +78,13 @@ public class ReproduceInfoPrinter extends RunListener {
 
         final StringBuilder b = new StringBuilder();
         if (inVerifyPhase()) {
-            b.append("REPRODUCE WITH: mvn verify -Pdev -Dskip.unit.tests");
+            b.append("REPRODUCE WITH: mvn verify -Pdev -Dskip.unit.tests" );
         } else {
             b.append("REPRODUCE WITH: mvn test -Pdev");
+        }
+        String project = System.getProperty("tests.project");
+        if (project != null) {
+            b.append(" -pl " + project);
         }
         MavenMessageBuilder mavenMessageBuilder = new MavenMessageBuilder(b);
         mavenMessageBuilder.appendAllOpts(failure.getDescription());

@@ -21,24 +21,42 @@ package org.elasticsearch.search.query;
 
 import com.google.common.collect.ImmutableMap;
 
+import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.FieldDoc;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MultiCollector;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.TimeLimitingCollector;
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.TopDocsCollector;
+import org.apache.lucene.search.TopFieldCollector;
+import org.apache.lucene.search.TopScoreDocCollector;
+import org.apache.lucene.search.TotalHitCountCollector;
+import org.apache.lucene.search.Weight;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.MinimumScoreCollector;
+import org.elasticsearch.common.lucene.search.FilteredCollector;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchPhase;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.AggregationPhase;
-import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.SearchContext.Lifetime;
 import org.elasticsearch.search.rescore.RescorePhase;
 import org.elasticsearch.search.rescore.RescoreSearchContext;
+import org.elasticsearch.search.scan.ScanContext.ScanCollector;
 import org.elasticsearch.search.sort.SortParseElement;
 import org.elasticsearch.search.sort.TrackScoresParseElement;
 import org.elasticsearch.search.suggest.SuggestPhase;
 
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Callable;
 
 /**
  *
@@ -97,66 +115,133 @@ public class QueryPhase implements SearchPhase {
 
         searchContext.queryResult().searchTimedOut(false);
 
-        searchContext.searcher().inStage(ContextIndexSearcher.Stage.MAIN_QUERY);
         boolean rescore = false;
         try {
             searchContext.queryResult().from(searchContext.from());
             searchContext.queryResult().size(searchContext.size());
 
+            final IndexSearcher searcher = searchContext.searcher();
             Query query = searchContext.query();
 
-            final TopDocs topDocs;
-            int numDocs = searchContext.from() + searchContext.size();
+            final int totalNumDocs = searcher.getIndexReader().numDocs();
+            int numDocs = Math.min(searchContext.from() + searchContext.size(), totalNumDocs);
+
+            Collector collector;
+            final Callable<TopDocs> topDocsCallable;
 
             if (searchContext.size() == 0) { // no matter what the value of from is
-                topDocs = new TopDocs(searchContext.searcher().count(query), Lucene.EMPTY_SCORE_DOCS, 0);
+                final TotalHitCountCollector totalHitCountCollector = new TotalHitCountCollector();
+                collector = totalHitCountCollector;
+                topDocsCallable = new Callable<TopDocs>() {
+                    @Override
+                    public TopDocs call() throws Exception {
+                        return new TopDocs(totalHitCountCollector.getTotalHits(), Lucene.EMPTY_SCORE_DOCS, 0);
+                    }
+                };
             } else if (searchContext.searchType() == SearchType.SCAN) {
-                topDocs = searchContext.scanContext().execute(searchContext);
+                query = searchContext.scanContext().wrapQuery(query);
+                final ScanCollector scanCollector = searchContext.scanContext().collector(searchContext);
+                collector = scanCollector;
+                topDocsCallable = new Callable<TopDocs>() {
+                    @Override
+                    public TopDocs call() throws Exception {
+                        return scanCollector.topDocs();
+                    }
+                };
             } else {
                 // Perhaps have a dedicated scroll phase?
+                final TopDocsCollector<?> topDocsCollector;
+                ScoreDoc lastEmittedDoc;
                 if (searchContext.request().scroll() != null) {
-                    numDocs = searchContext.size();
-                    ScoreDoc lastEmittedDoc = searchContext.lastEmittedDoc();
-                    if (searchContext.sort() != null) {
-                        topDocs = searchContext.searcher().searchAfter(
-                                lastEmittedDoc, query, null, numDocs, searchContext.sort(),
-                                searchContext.trackScores(), searchContext.trackScores()
-                        );
-                    } else {
-                        rescore = !searchContext.rescore().isEmpty();
-                        for (RescoreSearchContext rescoreContext : searchContext.rescore()) {
-                            numDocs = Math.max(rescoreContext.window(), numDocs);
-                        }
-                        topDocs = searchContext.searcher().searchAfter(lastEmittedDoc, query, numDocs);
-                    }
-
-                    int size = topDocs.scoreDocs.length;
-                    if (size > 0) {
-                        // In the case of *QUERY_AND_FETCH we don't get back to shards telling them which least
-                        // relevant docs got emitted as hit, we can simply mark the last doc as last emitted
-                        if (searchContext.searchType() == SearchType.QUERY_AND_FETCH ||
-                                searchContext.searchType() == SearchType.DFS_QUERY_AND_FETCH) {
-                            searchContext.lastEmittedDoc(topDocs.scoreDocs[size - 1]);
-                        }
-                    }
+                    numDocs = Math.min(searchContext.size(), totalNumDocs);
+                    lastEmittedDoc = searchContext.lastEmittedDoc();
                 } else {
-                    if (searchContext.sort() != null) {
-                        topDocs = searchContext.searcher().search(query, null, numDocs, searchContext.sort(),
-                                searchContext.trackScores(), searchContext.trackScores());
-                    } else {
-                        rescore = !searchContext.rescore().isEmpty();
-                        for (RescoreSearchContext rescoreContext : searchContext.rescore()) {
-                            numDocs = Math.max(rescoreContext.window(), numDocs);
-                        }
-                        topDocs = searchContext.searcher().search(query, numDocs);
+                    lastEmittedDoc = null;
+                }
+                if (totalNumDocs == 0) {
+                    // top collectors don't like a size of 0
+                    numDocs = 1;
+                }
+                assert numDocs > 0;
+                if (searchContext.sort() != null) {
+                    topDocsCollector = TopFieldCollector.create(searchContext.sort(), numDocs,
+                            (FieldDoc) lastEmittedDoc, true, searchContext.trackScores(), searchContext.trackScores());
+                } else {
+                    rescore = !searchContext.rescore().isEmpty();
+                    for (RescoreSearchContext rescoreContext : searchContext.rescore()) {
+                        numDocs = Math.max(rescoreContext.window(), numDocs);
+                    }
+                    topDocsCollector = TopScoreDocCollector.create(numDocs, lastEmittedDoc);
+                }
+                collector = topDocsCollector;
+                topDocsCallable = new Callable<TopDocs>() {
+                    @Override
+                    public TopDocs call() throws Exception {
+                        return topDocsCollector.topDocs();
+                    }
+                };
+            }
+
+            final boolean terminateAfterSet = searchContext.terminateAfter() != SearchContext.DEFAULT_TERMINATE_AFTER;
+            if (terminateAfterSet) {
+                // throws Lucene.EarlyTerminationException when given count is reached
+                collector = Lucene.wrapCountBasedEarlyTerminatingCollector(collector, searchContext.terminateAfter());
+            }
+
+            if (searchContext.parsedPostFilter() != null) {
+                // this will only get applied to the actual search collector and not
+                // to any scoped collectors, also, it will only be applied to the main collector
+                // since that is where the filter should only work
+                final Weight filterWeight = searcher.createNormalizedWeight(searchContext.parsedPostFilter().query(), false);
+                collector = new FilteredCollector(collector, filterWeight);
+            }
+
+            // plug in additional collectors, like aggregations
+            List<Collector> allCollectors = new ArrayList<>();
+            allCollectors.add(collector);
+            allCollectors.addAll(searchContext.queryCollectors().values());
+            collector = MultiCollector.wrap(allCollectors);
+
+            // apply the minimum score after multi collector so we filter aggs as well
+            if (searchContext.minimumScore() != null) {
+                collector = new MinimumScoreCollector(collector, searchContext.minimumScore());
+            }
+
+            final boolean timeoutSet = searchContext.timeoutInMillis() != SearchService.NO_TIMEOUT.millis();
+            if (timeoutSet) {
+                // TODO: change to use our own counter that uses the scheduler in ThreadPool
+                // throws TimeLimitingCollector.TimeExceededException when timeout has reached
+                collector = Lucene.wrapTimeLimitingCollector(collector, searchContext.timeEstimateCounter(), searchContext.timeoutInMillis());
+            }
+
+            try {
+                searcher.search(query, collector);
+            } catch (TimeLimitingCollector.TimeExceededException e) {
+                assert timeoutSet : "TimeExceededException thrown even though timeout wasn't set";
+                searchContext.queryResult().searchTimedOut(true);
+            } catch (Lucene.EarlyTerminationException e) {
+                assert terminateAfterSet : "EarlyTerminationException thrown even though terminateAfter wasn't set";
+                searchContext.queryResult().terminatedEarly(true);
+            }
+            if (terminateAfterSet && searchContext.queryResult().terminatedEarly() == null) {
+                searchContext.queryResult().terminatedEarly(false);
+            }
+
+            final TopDocs topDocs = topDocsCallable.call();
+            if (searchContext.request().scroll() != null) {
+                int size = topDocs.scoreDocs.length;
+                if (size > 0) {
+                    // In the case of *QUERY_AND_FETCH we don't get back to shards telling them which least
+                    // relevant docs got emitted as hit, we can simply mark the last doc as last emitted
+                    if (searchContext.searchType() == SearchType.QUERY_AND_FETCH ||
+                            searchContext.searchType() == SearchType.DFS_QUERY_AND_FETCH) {
+                        searchContext.lastEmittedDoc(topDocs.scoreDocs[size - 1]);
                     }
                 }
             }
             searchContext.queryResult().topDocs(topDocs);
         } catch (Throwable e) {
             throw new QueryPhaseExecutionException(searchContext, "Failed to execute main query", e);
-        } finally {
-            searchContext.searcher().finishStage(ContextIndexSearcher.Stage.MAIN_QUERY);
         }
         if (rescore) { // only if we do a regular search
             rescorePhase.execute(searchContext);

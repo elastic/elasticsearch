@@ -31,21 +31,18 @@ import java.util.*;
  * all extensions by a single name and ensures that extensions are not registered
  * more than once.
  */
-public abstract class ExtensionPoint<T> {
+public abstract class ExtensionPoint {
     protected final String name;
-    protected final Class<T> extensionClass;
     protected final Class<?>[] singletons;
 
     /**
      * Creates a new extension point
      *
      * @param name           the human readable underscore case name of the extension point. This is used in error messages etc.
-     * @param extensionClass the base class that should be extended
      * @param singletons     a list of singletons to bind with this extension point - these are bound in {@link #bind(Binder)}
      */
-    public ExtensionPoint(String name, Class<T> extensionClass, Class<?>... singletons) {
+    public ExtensionPoint(String name, Class<?>... singletons) {
         this.name = name;
-        this.extensionClass = extensionClass;
         this.singletons = singletons;
     }
 
@@ -62,29 +59,30 @@ public abstract class ExtensionPoint<T> {
     }
 
     /**
-     * Subclasses can bind their type, map or set exentions here.
+     * Subclasses can bind their type, map or set extensions here.
      */
     protected abstract void bindExtensions(Binder binder);
 
     /**
      * A map based extension point which allows to register keyed implementations ie. parsers or some kind of strategies.
      */
-    public static class MapExtensionPoint<T> extends ExtensionPoint<T> {
+    public static class ClassMap<T> extends ExtensionPoint {
+        protected final Class<T> extensionClass;
         private final Map<String, Class<? extends T>> extensions = new HashMap<>();
         private final Set<String> reservedKeys;
 
         /**
-         * Creates a new {@link org.elasticsearch.common.util.ExtensionPoint.MapExtensionPoint}
+         * Creates a new {@link ClassMap}
          *
          * @param name           the human readable underscore case name of the extension poing. This is used in error messages etc.
          * @param extensionClass the base class that should be extended
          * @param singletons     a list of singletons to bind with this extension point - these are bound in {@link #bind(Binder)}
          * @param reservedKeys   a set of reserved keys by internal implementations
          */
-        public MapExtensionPoint(String name, Class<T> extensionClass, Set<String> reservedKeys, Class<?>... singletons) {
-            super(name, extensionClass, singletons);
+        public ClassMap(String name, Class<T> extensionClass, Set<String> reservedKeys, Class<?>... singletons) {
+            super(name, singletons);
+            this.extensionClass = extensionClass;
             this.reservedKeys = reservedKeys;
-
         }
 
         /**
@@ -118,13 +116,13 @@ public abstract class ExtensionPoint<T> {
     }
 
     /**
-     * A Type extension point which basically allows to registerd keyed extensions like {@link org.elasticsearch.common.util.ExtensionPoint.MapExtensionPoint}
+     * A Type extension point which basically allows to registerd keyed extensions like {@link ClassMap}
      * but doesn't instantiate and bind all the registered key value pairs but instead replace a singleton based on a given setting via {@link #bindType(Binder, Settings, String, String)}
      * Note: {@link #bind(Binder)} is not supported by this class
      */
-    public static final class TypeExtensionPoint<T> extends MapExtensionPoint<T> {
+    public static final class SelectedType<T> extends ClassMap<T> {
 
-        public TypeExtensionPoint(String name, Class<T> extensionClass) {
+        public SelectedType(String name, Class<T> extensionClass) {
             super(name, extensionClass, Collections.EMPTY_SET);
         }
 
@@ -153,18 +151,20 @@ public abstract class ExtensionPoint<T> {
     /**
      * A set based extension point which allows to register extended classes that might be used to chain additional functionality etc.
      */
-    public final static class SetExtensionPoint<T> extends ExtensionPoint<T> {
+    public final static class ClassSet<T> extends ExtensionPoint {
+        protected final Class<T> extensionClass;
         private final Set<Class<? extends T>> extensions = new HashSet<>();
 
         /**
-         * Creates a new {@link org.elasticsearch.common.util.ExtensionPoint.SetExtensionPoint}
+         * Creates a new {@link ClassSet}
          *
          * @param name           the human readable underscore case name of the extension poing. This is used in error messages etc.
          * @param extensionClass the base class that should be extended
          * @param singletons     a list of singletons to bind with this extension point - these are bound in {@link #bind(Binder)}
          */
-        public SetExtensionPoint(String name, Class<T> extensionClass, Class<?>... singletons) {
-            super(name, extensionClass, singletons);
+        public ClassSet(String name, Class<T> extensionClass, Class<?>... singletons) {
+            super(name, singletons);
+            this.extensionClass = extensionClass;
         }
 
         /**
@@ -185,6 +185,48 @@ public abstract class ExtensionPoint<T> {
             Multibinder<T> allocationMultibinder = Multibinder.newSetBinder(binder, extensionClass);
             for (Class<? extends T> clazz : extensions) {
                 allocationMultibinder.addBinding().to(clazz);
+            }
+        }
+    }
+
+    /**
+     * A an instance of a map, mapping one instance value to another. Both key and value are instances, not classes
+     * like with other extension points.
+     */
+    public final static class InstanceMap<K, V> extends ExtensionPoint {
+        private final Map<K, V> map = new HashMap<>();
+        private final Class<K> keyType;
+        private final Class<V> valueType;
+
+        /**
+         * Creates a new {@link ClassSet}
+         *
+         * @param name           the human readable underscore case name of the extension point. This is used in error messages.
+         * @param singletons     a list of singletons to bind with this extension point - these are bound in {@link #bind(Binder)}
+         */
+        public InstanceMap(String name, Class<K> keyType, Class<V> valueType, Class<?>... singletons) {
+            super(name, singletons);
+            this.keyType = keyType;
+            this.valueType = valueType;
+        }
+
+        /**
+         * Registers a mapping from {@param key} to {@param value}
+         *
+         * @throws IllegalArgumentException iff the key is already registered
+         */
+        public final void registerExtension(K key, V value) {
+            V old = map.put(key, value);
+            if (old != null) {
+                throw new IllegalArgumentException("Cannot register [" + this.name + "] with key [" + key + "] to [" + value + "], already registered to [" + old + "]");
+            }
+        }
+
+        @Override
+        protected void bindExtensions(Binder binder) {
+            MapBinder<K, V> mapBinder = MapBinder.newMapBinder(binder, keyType, valueType);
+            for (Map.Entry<K, V> entry : map.entrySet()) {
+                mapBinder.addBinding(entry.getKey()).toInstance(entry.getValue());
             }
         }
     }

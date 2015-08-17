@@ -35,13 +35,6 @@
         </configuration>
       </plugin>
     </plugins>
-    <extensions>
-      <extension>
-        <groupId>org.springframework.build</groupId>
-        <artifactId>aws-maven</artifactId>
-        <version>5.0.0.RELEASE</version>
-      </extension>
-    </extensions>
   </build>
   <profiles>
     <profile>
@@ -70,13 +63,6 @@
           </plugin>
         </plugins>
       </build>
-      <distributionManagement>
-        <repository>
-          <id>aws-release</id>
-          <name>AWS Release Repository</name>
-          <url>${elasticsearch.s3.repository}</url>
-        </repository>
-      </distributionManagement>
     </profile>
   </profiles>
 </project>

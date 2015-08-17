@@ -39,6 +39,8 @@ import java.util.Arrays;
 import java.util.List;
 
 import static org.elasticsearch.search.profile.RandomQueryGenerator.randomQueryBuilder;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 
 @ElasticsearchIntegrationTest.ClusterScope(scope=ElasticsearchIntegrationTest.Scope.TEST)
@@ -126,7 +128,7 @@ public class QueryProfilerTests extends ElasticsearchIntegrationTest {
 
     @Test
     /**
-     * This test verifies that the output is reasonable (timing is equal, etc) for a simple, non-nested query
+     * This test verifies that the output is reasonable for a simple, non-nested query
      */
     public void testSimpleMatch() throws Exception {
         createIndex("test");
@@ -149,13 +151,18 @@ public class QueryProfilerTests extends ElasticsearchIntegrationTest {
         assertNotNull(p);
 
         for (ProfileResult result : p.asCollection()) {
-            assertNotNull(result.getLuceneDescription());
+            assertEquals(result.getQueryName(), "TermQuery");
+            assertEquals(result.getLuceneDescription(), "field1:one");
+            assertThat(result.getRelativeTime(), greaterThan(0.0));
+            assertThat(result.getTime(), greaterThan(0L));
+            assertNotNull(result.getTimeBreakdown());
+            assertEquals(result.getProfiledChildren().size(), 0);
         }
     }
 
     @Test
     /**
-     * This test verifies that the output is reasonable (non-zero times, etc) for a nested query
+     * This test verifies that the output is reasonable for a nested query
      */
     public void testBool() throws Exception {
         createIndex("test");
@@ -175,31 +182,40 @@ public class QueryProfilerTests extends ElasticsearchIntegrationTest {
         QueryBuilder q = QueryBuilders.boolQuery().must(QueryBuilders.matchQuery("field1", "one")).must(QueryBuilders.matchQuery("field1", "two"));
 
         SearchResponse resp = client().prepareSearch().setQuery(q).setProfile(true).execute().actionGet();
-        /*
-        Profile p = resp.getProfile();
 
+        ProfileResults p = resp.getProfileResults();
         assertNotNull(p);
-        assertEquals(p.getComponents().size(), 2);
-        assertEquals(p.getClassName(), "BooleanQuery");
-        assertEquals(p.getLuceneDetails(), "+field1:one +field1:two");
-        //assertEquals(p.time(), p.totalTime());
-        //assertTrue(p.time() > 0);
+
+        for (ProfileResult result : p.asCollection()) {
+            assertEquals(result.getQueryName(), "BooleanQuery");
+            assertEquals(result.getLuceneDescription(), "+field1:one +field1:two");
+            assertThat(result.getRelativeTime(), greaterThan(0.0));
+            assertThat(result.getTime(), greaterThan(0L));
+            assertNotNull(result.getTimeBreakdown());
+            assertEquals(result.getProfiledChildren().size(), 2);
+
+            // Check the children
+            List<ProfileResult> children = result.getProfiledChildren();
+            assertEquals(children.size(), 2);
+
+            ProfileResult childProfile = children.get(0);
+            assertEquals(childProfile.getQueryName(), "TermQuery");
+            assertEquals(childProfile.getLuceneDescription(), "field1:one");
+            assertThat(childProfile.getRelativeTime(), greaterThan(0.0));
+            assertThat(childProfile.getTime(), greaterThan(0L));
+            assertNotNull(childProfile.getTimeBreakdown());
+            assertEquals(childProfile.getProfiledChildren().size(), 0);
+
+            childProfile = children.get(1);
+            assertEquals(childProfile.getQueryName(), "TermQuery");
+            assertEquals(childProfile.getLuceneDescription(), "field1:two");
+            assertThat(childProfile.getRelativeTime(), greaterThan(0.0));
+            assertThat(childProfile.getTime(), greaterThan(0L));
+            assertNotNull(childProfile.getTimeBreakdown());
+            assertEquals(childProfile.getProfiledChildren().size(), 0);
+        }
 
 
-        Profile first = p.getComponents().get(0);
-        assertEquals(first.getComponents().size(), 0);
-        assertEquals(first.getClassName(), "TermQuery");
-        assertEquals(first.getLuceneDetails(), "field1:one");
-        assertEquals(first.totalTime(), p.totalTime());
-        //assertTrue(first.time() < first.totalTime());
-
-        Profile second = p.getComponents().get(1);
-        assertEquals(second.getComponents().size(), 0);
-        assertEquals(second.getClassName(), "TermQuery");
-        assertEquals(second.getLuceneDetails(), "field1:two");
-        assertEquals(second.totalTime(), p.totalTime());
-        //assertTrue(second.time() < first.totalTime());
-        */
     }
 
     @Test

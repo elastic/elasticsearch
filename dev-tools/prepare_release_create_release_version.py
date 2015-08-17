@@ -124,7 +124,7 @@ if __name__ == "__main__":
   print('*** Done removing snapshot version. DO NOT COMMIT THIS, WHEN CREATING A RELEASE CANDIDATE.')
 
   shortHash = subprocess.check_output('git log --pretty=format:"%h" -n 1', shell=True).decode('utf-8')
-  localRepo = '/tmp/elasticsearch-%s-%s', % (release_version, shortHash)
+  localRepo = '/tmp/elasticsearch-%s-%s' % (release_version, shortHash)
   localRepoElasticsearch = localRepo + '/org/elasticsearch'
   print('')
   print('*** To create a release candidate run: ')

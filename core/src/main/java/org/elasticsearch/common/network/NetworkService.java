@@ -38,7 +38,8 @@ import java.util.concurrent.TimeUnit;
  */
 public class NetworkService extends AbstractComponent {
 
-    public static final String LOCAL = "#local#";
+    /** By default, we bind to loopback interfaces */
+    public static final String DEFAULT_NETWORK_HOST = "_local_";
 
     private static final String GLOBAL_NETWORK_HOST_SETTING = "network.host";
     private static final String GLOBAL_NETWORK_BINDHOST_SETTING = "network.bind_host";
@@ -68,12 +69,12 @@ public class NetworkService extends AbstractComponent {
         /**
          * Resolves the default value if possible. If not, return <tt>null</tt>.
          */
-        InetAddress resolveDefault();
+        InetAddress[] resolveDefault();
 
         /**
          * Resolves a custom value handling, return <tt>null</tt> if can't handle it.
          */
-        InetAddress resolveIfPossible(String value);
+        InetAddress[] resolveIfPossible(String value);
     }
 
     private final List<CustomNameResolver> customNameResolvers = new CopyOnWriteArrayList<>();
@@ -91,59 +92,58 @@ public class NetworkService extends AbstractComponent {
         customNameResolvers.add(customNameResolver);
     }
 
-
     public InetAddress[] resolveBindHostAddress(String bindHost) throws IOException {
-        return resolveBindHostAddress(bindHost, "_local_");
-    }
-
-    private InetAddress[] resolveBindHostAddress(String bindHost, String defaultValue2) throws IOException {
-        /** TODO: move this leniency out */
+        // first check settings
         if (bindHost == null) {
             bindHost = settings.get(GLOBAL_NETWORK_BINDHOST_SETTING, settings.get(GLOBAL_NETWORK_HOST_SETTING));
         }
+        // next check any registered custom resolvers
         if (bindHost == null) {
-            bindHost = defaultValue2;
+            for (CustomNameResolver customNameResolver : customNameResolvers) {
+                InetAddress addresses[] = customNameResolver.resolveDefault();
+                if (addresses != null) {
+                    return addresses;
+                }
+            }
+        }
+        // finally, fill with our default
+        if (bindHost == null) {
+            bindHost = DEFAULT_NETWORK_HOST;
         }
         return resolveInetAddress(bindHost);
     }
 
     // TODO: needs to be InetAddress[]
     public InetAddress resolvePublishHostAddress(String publishHost) throws IOException {
-        InetAddress address = resolvePublishHostAddress(publishHost, "_local_");
-        return address;
-    }
-
-    private InetAddress resolvePublishHostAddress(String publishHost, String defaultValue2) throws IOException {
-        /** TODO: move this leniency out */
+        // first check settings
         if (publishHost == null) {
             publishHost = settings.get(GLOBAL_NETWORK_PUBLISHHOST_SETTING, settings.get(GLOBAL_NETWORK_HOST_SETTING));
         }
+        // next check any registered custom resolvers
         if (publishHost == null) {
-            publishHost = defaultValue2;
+            for (CustomNameResolver customNameResolver : customNameResolvers) {
+                InetAddress addresses[] = customNameResolver.resolveDefault();
+                if (addresses != null) {
+                    return addresses[0];
+                }
+            }
+        }
+        // finally, fill with our default
+        if (publishHost == null) {
+            publishHost = DEFAULT_NETWORK_HOST;
         }
         // TODO: allow publishing multiple addresses
         return resolveInetAddress(publishHost)[0];
     }
 
     private InetAddress[] resolveInetAddress(String host) throws UnknownHostException, IOException {
-        if (host == null) {
-            // TODO: what is this null host business????
-            for (CustomNameResolver customNameResolver : customNameResolvers) {
-                InetAddress inetAddress = customNameResolver.resolveDefault();
-                if (inetAddress != null) {
-                    // TODO: change CustomNameResolver to return array.
-                    return new InetAddress[] { inetAddress };
-                }
-            }
-            return null;
-        }
         if ((host.startsWith("#") && host.endsWith("#")) || (host.startsWith("_") && host.endsWith("_"))) {
             host = host.substring(1, host.length() - 1);
+            // allow custom resolvers to have special names
             for (CustomNameResolver customNameResolver : customNameResolvers) {
-                InetAddress inetAddress = customNameResolver.resolveIfPossible(host);
-                if (inetAddress != null) {
-                    // TODO: change CustomNameResolver to return array.
-                    return new InetAddress[] { inetAddress };
+                InetAddress addresses[] = customNameResolver.resolveIfPossible(host);
+                if (addresses != null) {
+                    return addresses;
                 }
             }
             switch (host) {

@@ -41,6 +41,16 @@ can install the plugin with:
 The `_shutdown` API has been removed without a replacement. Nodes should be
 managed via the operating system and the provided start/stop scripts.
 
+==== `murmur3` is now a plugin
+
+The `murmur3` field, which indexes hashes of the field values, has been moved
+out of core and is available as a plugin. It can be installed as:
+
+[source,sh]
+------------------
+./bin/plugin install mapper-murmur3
+------------------
+
 ==== `_size` is now a plugin
 
 The `_size` meta-data field, which indexes the size in bytes of the original

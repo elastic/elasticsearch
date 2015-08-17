@@ -147,7 +147,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
     protected final ConcurrentMap<DiscoveryNode, NodeChannels> connectedNodes = newConcurrentMap();
     protected final Map<String, ServerBootstrap> serverBootstraps = newConcurrentMap();
     protected final Map<String, List<Channel>> serverChannels = newConcurrentMap();
-    protected final Map<String, BoundTransportAddress> profileBoundAddresses = newConcurrentMap();
+    protected final ConcurrentMap<String, BoundTransportAddress> profileBoundAddresses = newConcurrentMap();
     protected volatile TransportServiceAdapter transportServiceAdapter;
     protected volatile BoundTransportAddress boundAddress;
     protected final KeyedLock<String> connectionLock = new KeyedLock<>();

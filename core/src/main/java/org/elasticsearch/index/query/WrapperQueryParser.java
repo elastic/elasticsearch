@@ -19,7 +19,9 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.Query;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -27,7 +29,7 @@ import java.io.IOException;
 /**
  * Query parser for JSON Queries.
  */
-public class WrapperQueryParser extends BaseQueryParser {
+public class WrapperQueryParser extends BaseQueryParserTemp {
 
     @Inject
     public WrapperQueryParser() {
@@ -39,7 +41,8 @@ public class WrapperQueryParser extends BaseQueryParser {
     }
 
     @Override
-    public QueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
+    public Query parse(QueryShardContext context) throws IOException, QueryParsingException {
+        QueryParseContext parseContext = context.parseContext();
         XContentParser parser = parseContext.parser();
 
         XContentParser.Token token = parser.nextToken();
@@ -52,14 +55,15 @@ public class WrapperQueryParser extends BaseQueryParser {
         }
         parser.nextToken();
 
-        byte[] source = parser.binaryValue();
-
-        parser.nextToken();
-
-        if (source == null) {
-            throw new QueryParsingException(parseContext, "wrapper query has no [query] specified");
+        byte[] querySource = parser.binaryValue();
+        try (XContentParser qSourceParser = XContentFactory.xContent(querySource).createParser(querySource)) {
+            final QueryShardContext contextCopy = new QueryShardContext(context.index(), context.indexQueryParserService());
+            contextCopy.reset(qSourceParser);
+            Query result = contextCopy.parseContext().parseInnerQuery();
+            parser.nextToken();
+            context.combineNamedQueries(contextCopy);
+            return result;
         }
-        return new WrapperQueryBuilder(source);
     }
 
     @Override

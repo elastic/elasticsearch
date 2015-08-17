@@ -20,16 +20,11 @@
 package org.elasticsearch.index.query;
 
 import com.google.common.base.Charsets;
-import org.apache.lucene.search.Query;
+
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.Arrays;
 
 /**
  * A Query builder which allows building a query given JSON string or binary data provided as input. This is useful when you want
@@ -49,20 +44,26 @@ public class WrapperQueryBuilder extends AbstractQueryBuilder<WrapperQueryBuilde
 
     public static final String NAME = "wrapper";
     private final byte[] source;
-    static final WrapperQueryBuilder PROTOTYPE = new WrapperQueryBuilder((byte[]) null);
+    private final int offset;
+    private final int length;
+    static final WrapperQueryBuilder PROTOTYPE = new WrapperQueryBuilder(null, -1, -1);
 
     /**
      * Creates a query builder given a query provided as a string
      */
     public WrapperQueryBuilder(String source) {
         this.source = source.getBytes(Charsets.UTF_8);
+        this.offset = 0;
+        this.length = this.source.length;
     }
 
     /**
      * Creates a query builder given a query provided as a bytes array
      */
-    public WrapperQueryBuilder(byte[] source) {
+    public WrapperQueryBuilder(byte[] source, int offset, int length) {
         this.source = source;
+        this.offset = offset;
+        this.length = length;
     }
 
     /**
@@ -70,65 +71,19 @@ public class WrapperQueryBuilder extends AbstractQueryBuilder<WrapperQueryBuilde
      */
     public WrapperQueryBuilder(BytesReference source) {
         this.source = source.array();
-    }
-
-    public byte[] source() {
-        return this.source;
-    }
-
-    @Override
-    public String getName() {
-        return NAME;
+        this.offset = source.arrayOffset();
+        this.length = source.length();
     }
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
-        builder.field("query", source);
+        builder.field("query", source, offset, length);
         builder.endObject();
     }
 
     @Override
     public String getWriteableName() {
         return NAME;
-    }
-
-    @Override
-    protected Query doToQuery(QueryShardContext context) throws IOException {
-        try (XContentParser qSourceParser = XContentFactory.xContent(source).createParser(source)) {
-            final QueryParseContext parseContext = new QueryParseContext(context);
-            parseContext.reset(qSourceParser);
-            QueryBuilder queryBuilder = parseContext.parseInnerQueryBuilder();
-            return queryBuilder.toQuery(context);
-        }
-    }
-
-    @Override
-    public QueryValidationException validate() {
-        QueryValidationException validationException = null;
-        if (this.source == null || this.source.length == 0) {
-            validationException = addValidationError("query source text cannot be null or empty", validationException);
-        }
-        return validationException;
-    }
-
-    @Override
-    protected WrapperQueryBuilder doReadFrom(StreamInput in) throws IOException {
-        return new WrapperQueryBuilder(in.readByteArray());
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeByteArray(this.source);
-    }
-
-    @Override
-    protected int doHashCode() {
-        return Arrays.hashCode(source);
-    }
-
-    @Override
-    protected boolean doEquals(WrapperQueryBuilder other) {
-        return Arrays.equals(source, other.source);   // otherwise we compare pointers
     }
 }

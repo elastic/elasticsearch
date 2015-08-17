@@ -53,12 +53,6 @@ Removed the setter `queryName(String queryName)` since this field is not support
 in this type of query. Use `FQueryFilterBuilder.queryName(String queryName)` instead 
 when in need to wrap a named query as a filter.
 
-==== WrapperQueryBuilder
-
-Removed `wrapperQueryBuilder(byte[] source, int offset, int length)`. Instead simply
-use  `wrapperQueryBuilder(byte[] source)`. Updated the static factory methods in
-QueryBuilders accordingly.
-
 ==== Operator
 
 Removed the enums called `Operator` from `MatchQueryBuilder`, `QueryStringQueryBuilder`,

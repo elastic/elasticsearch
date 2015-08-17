@@ -19,12 +19,12 @@ User=${packaging.elasticsearch.user}
 Group=${packaging.elasticsearch.group}
 
 ExecStart=${packaging.elasticsearch.bin.dir}/elasticsearch \
-                                                -Des.pidfile=$PID_DIR/elasticsearch.pid \
-                                                -Des.default.path.home=$ES_HOME \
-                                                -Des.default.path.logs=$LOG_DIR \
-                                                -Des.default.path.data=$DATA_DIR \
-                                                -Des.default.config=$CONF_FILE \
-                                                -Des.default.path.conf=$CONF_DIR
+                                                -Des.pidfile=${PID_DIR}/elasticsearch.pid \
+                                                -Des.default.path.home=${ES_HOME} \
+                                                -Des.default.path.logs=${LOG_DIR} \
+                                                -Des.default.path.data=${DATA_DIR} \
+                                                -Des.default.config=${CONF_FILE} \
+                                                -Des.default.path.conf=${CONF_DIR}
 
 # Connects standard output to /dev/null
 StandardOutput=null

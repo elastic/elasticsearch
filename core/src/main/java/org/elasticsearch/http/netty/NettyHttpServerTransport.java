@@ -245,7 +245,8 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
         // Bind and start to accept incoming connections.
         InetAddress hostAddressX;
         try {
-            hostAddressX = networkService.resolveBindHostAddress(bindHost);
+            // nocommit: loop here, lets get transport working first
+            hostAddressX = networkService.resolveBindHostAddress(bindHost)[0];
         } catch (IOException e) {
             throw new BindHttpException("Failed to resolve host [" + bindHost + "]", e);
         }

@@ -28,11 +28,8 @@ import org.elasticsearch.common.unit.TimeValue;
 
 import java.io.IOException;
 import java.net.InetAddress;
-import java.net.NetworkInterface;
 import java.net.UnknownHostException;
-import java.util.Collection;
 import java.util.List;
-import java.util.Locale;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 
@@ -95,99 +92,86 @@ public class NetworkService extends AbstractComponent {
     }
 
 
-    public InetAddress resolveBindHostAddress(String bindHost) throws IOException {
-        return resolveBindHostAddress(bindHost, InetAddress.getLoopbackAddress().getHostAddress());
+    public InetAddress[] resolveBindHostAddress(String bindHost) throws IOException {
+        return resolveBindHostAddress(bindHost, "_local_");
     }
 
-    public InetAddress resolveBindHostAddress(String bindHost, String defaultValue2) throws IOException {
-        return resolveInetAddress(bindHost, settings.get(GLOBAL_NETWORK_BINDHOST_SETTING, settings.get(GLOBAL_NETWORK_HOST_SETTING)), defaultValue2);
-    }
-
-    public InetAddress resolvePublishHostAddress(String publishHost) throws IOException {
-        InetAddress address = resolvePublishHostAddress(publishHost,
-                InetAddress.getLoopbackAddress().getHostAddress());
-        // verify that its not a local address
-        if (address == null || address.isAnyLocalAddress()) {
-            address = NetworkUtils.getFirstNonLoopbackAddress(NetworkUtils.StackType.IPv4);
-            if (address == null) {
-                address = NetworkUtils.getFirstNonLoopbackAddress(NetworkUtils.getIpStackType());
-                if (address == null) {
-                    address = NetworkUtils.getLocalAddress();
-                    if (address == null) {
-                        return NetworkUtils.getLocalhost(NetworkUtils.StackType.IPv4);
-                    }
-                }
-            }
+    private InetAddress[] resolveBindHostAddress(String bindHost, String defaultValue2) throws IOException {
+        /** TODO: move this leniency out */
+        if (bindHost == null) {
+            bindHost = settings.get(GLOBAL_NETWORK_BINDHOST_SETTING, settings.get(GLOBAL_NETWORK_HOST_SETTING));
         }
+        if (bindHost == null) {
+            bindHost = defaultValue2;
+        }
+        return resolveInetAddress(bindHost);
+    }
+
+    // TODO: needs to be InetAddress[]
+    public InetAddress resolvePublishHostAddress(String publishHost) throws IOException {
+        InetAddress address = resolvePublishHostAddress(publishHost, "_local_");
         return address;
     }
 
-    public InetAddress resolvePublishHostAddress(String publishHost, String defaultValue2) throws IOException {
-        return resolveInetAddress(publishHost, settings.get(GLOBAL_NETWORK_PUBLISHHOST_SETTING, settings.get(GLOBAL_NETWORK_HOST_SETTING)), defaultValue2);
+    private InetAddress resolvePublishHostAddress(String publishHost, String defaultValue2) throws IOException {
+        /** TODO: move this leniency out */
+        if (publishHost == null) {
+            publishHost = settings.get(GLOBAL_NETWORK_PUBLISHHOST_SETTING, settings.get(GLOBAL_NETWORK_HOST_SETTING));
+        }
+        if (publishHost == null) {
+            publishHost = defaultValue2;
+        }
+        // TODO: allow publishing multiple addresses
+        return resolveInetAddress(publishHost)[0];
     }
 
-    public InetAddress resolveInetAddress(String host, String defaultValue1, String defaultValue2) throws UnknownHostException, IOException {
+    private InetAddress[] resolveInetAddress(String host) throws UnknownHostException, IOException {
         if (host == null) {
-            host = defaultValue1;
-        }
-        if (host == null) {
-            host = defaultValue2;
-        }
-        if (host == null) {
+            // TODO: what is this null host business????
             for (CustomNameResolver customNameResolver : customNameResolvers) {
                 InetAddress inetAddress = customNameResolver.resolveDefault();
                 if (inetAddress != null) {
-                    return inetAddress;
+                    // TODO: change CustomNameResolver to return array.
+                    return new InetAddress[] { inetAddress };
                 }
             }
             return null;
         }
-        String origHost = host;
         if ((host.startsWith("#") && host.endsWith("#")) || (host.startsWith("_") && host.endsWith("_"))) {
             host = host.substring(1, host.length() - 1);
-
             for (CustomNameResolver customNameResolver : customNameResolvers) {
                 InetAddress inetAddress = customNameResolver.resolveIfPossible(host);
                 if (inetAddress != null) {
-                    return inetAddress;
+                    // TODO: change CustomNameResolver to return array.
+                    return new InetAddress[] { inetAddress };
                 }
             }
-
-            if (host.equals("local")) {
-                return NetworkUtils.getLocalAddress();
-            } else if (host.startsWith("non_loopback")) {
-                if (host.toLowerCase(Locale.ROOT).endsWith(":ipv4")) {
-                    return NetworkUtils.getFirstNonLoopbackAddress(NetworkUtils.StackType.IPv4);
-                } else if (host.toLowerCase(Locale.ROOT).endsWith(":ipv6")) {
-                    return NetworkUtils.getFirstNonLoopbackAddress(NetworkUtils.StackType.IPv6);
-                } else {
-                    return NetworkUtils.getFirstNonLoopbackAddress(NetworkUtils.getIpStackType());
-                }
-            } else {
-                NetworkUtils.StackType stackType = NetworkUtils.getIpStackType();
-                if (host.toLowerCase(Locale.ROOT).endsWith(":ipv4")) {
-                    stackType = NetworkUtils.StackType.IPv4;
-                    host = host.substring(0, host.length() - 5);
-                } else if (host.toLowerCase(Locale.ROOT).endsWith(":ipv6")) {
-                    stackType = NetworkUtils.StackType.IPv6;
-                    host = host.substring(0, host.length() - 5);
-                }
-                Collection<NetworkInterface> allInterfs = NetworkUtils.getAllAvailableInterfaces();
-                for (NetworkInterface ni : allInterfs) {
-                    if (!ni.isUp()) {
-                        continue;
+            switch (host) {
+                case "local":
+                    return NetworkUtils.getLoopbackAddresses();
+                case "local:ipv4":
+                    return NetworkUtils.filterIPV4(NetworkUtils.getLoopbackAddresses());
+                case "local:ipv6":
+                    return NetworkUtils.filterIPV6(NetworkUtils.getLoopbackAddresses());
+                case "non_loopback":
+                    return NetworkUtils.getFirstNonLoopbackAddresses();
+                case "non_loopback:ipv4":
+                    return NetworkUtils.filterIPV4(NetworkUtils.getFirstNonLoopbackAddresses());
+                case "non_loopback:ipv6":
+                    return NetworkUtils.filterIPV6(NetworkUtils.getFirstNonLoopbackAddresses());
+                default:
+                    /* an interface specification */
+                    if (host.endsWith(":ipv4")) {
+                        host = host.substring(0, host.length() - 5);
+                        return NetworkUtils.filterIPV4(NetworkUtils.getAddressesForInterface(host));
+                    } else if (host.endsWith(":ipv6")) {
+                        host = host.substring(0, host.length() - 5);
+                        return NetworkUtils.filterIPV6(NetworkUtils.getAddressesForInterface(host));
+                    } else {
+                        return NetworkUtils.getAddressesForInterface(host);
                     }
-                    if (host.equals(ni.getName()) || host.equals(ni.getDisplayName())) {
-                        if (ni.isLoopback()) {
-                            return NetworkUtils.getFirstAddress(ni, stackType);
-                        } else {
-                            return NetworkUtils.getFirstNonLoopbackAddress(ni, stackType);
-                        }
-                    }
-                }
             }
-            throw new IOException("Failed to find network interface for [" + origHost + "]");
         }
-        return InetAddress.getByName(host);
+        return NetworkUtils.getAllByName(host);
     }
 }

@@ -36,11 +36,11 @@ public class IndexCacheModule extends AbstractModule {
     public static final String QUERY_CACHE_EVERYTHING = "index.queries.cache.everything";
 
     private final Settings indexSettings;
-    private final ExtensionPoint.TypeExtensionPoint<QueryCache> queryCaches;
+    private final ExtensionPoint.SelectedType<QueryCache> queryCaches;
 
     public IndexCacheModule(Settings settings) {
         this.indexSettings = settings;
-        this.queryCaches = new ExtensionPoint.TypeExtensionPoint<>("query_cache", QueryCache.class);
+        this.queryCaches = new ExtensionPoint.SelectedType<>("query_cache", QueryCache.class);
 
         registerQueryCache(INDEX_QUERY_CACHE, IndexQueryCache.class);
         registerQueryCache(NONE_QUERY_CACHE, NoneQueryCache.class);

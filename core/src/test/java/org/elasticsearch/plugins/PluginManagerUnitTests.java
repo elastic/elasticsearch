@@ -83,14 +83,14 @@ public class PluginManagerUnitTests extends ESTestCase {
         Iterator<URL> iterator = handle.urls().iterator();
 
         if (supportStagingUrls) {
-            String expectedStagingURL = String.format(Locale.ROOT, "http://download.elastic.co/elasticsearch/staging/%s/org/elasticsearch/plugin/elasticsearch-%s/%s/elasticsearch-%s-%s.zip",
-                    Build.CURRENT.hashShort(), pluginName, Version.CURRENT.number(), pluginName, Version.CURRENT.number());
-            assertThat(iterator.next(), is(new URL(expectedStagingURL)));
+            String expectedStagingURL = String.format(Locale.ROOT, "http://download.elastic.co/elasticsearch/staging/elasticsearch-%s-%s/org/elasticsearch/plugin/elasticsearch-%s/%s/elasticsearch-%s-%s.zip",
+                    Version.CURRENT.number(), Build.CURRENT.hashShort(), pluginName, Version.CURRENT.number(), pluginName, Version.CURRENT.number());
+            assertThat(iterator.next().toExternalForm(), is(expectedStagingURL));
         }
 
         URL expected = new URL("http", "download.elastic.co", "/elasticsearch/release/org/elasticsearch/plugin/elasticsearch-" + pluginName + "/" + Version.CURRENT.number() + "/elasticsearch-" +
                 pluginName + "-" + Version.CURRENT.number() + ".zip");
-        assertThat(iterator.next(), is(expected));
+        assertThat(iterator.next().toExternalForm(), is(expected.toExternalForm()));
 
         assertThat(iterator.hasNext(), is(false));
     }
@@ -111,12 +111,12 @@ public class PluginManagerUnitTests extends ESTestCase {
         if (supportStagingUrls) {
             String expectedStagingUrl = String.format(Locale.ROOT, "http://download.elastic.co/elasticsearch/staging/elasticsearch-%s-%s/org/elasticsearch/plugin/elasticsearch-%s/%s/elasticsearch-%s-%s.zip",
                     Version.CURRENT.number(), Build.CURRENT.hashShort(), randomPluginName, Version.CURRENT.number(), randomPluginName, Version.CURRENT.number());
-            assertThat(iterator.next(), is(new URL(expectedStagingUrl)));
+            assertThat(iterator.next().toExternalForm(), is(expectedStagingUrl));
         }
 
         String releaseUrl = String.format(Locale.ROOT, "http://download.elastic.co/elasticsearch/release/org/elasticsearch/plugin/elasticsearch-%s/%s/elasticsearch-%s-%s.zip",
                 randomPluginName, Version.CURRENT.number(), randomPluginName, Version.CURRENT.number());
-        assertThat(iterator.next(), is(new URL(releaseUrl)));
+        assertThat(iterator.next().toExternalForm(), is(releaseUrl));
 
         assertThat(iterator.hasNext(), is(false));
     }
@@ -129,8 +129,7 @@ public class PluginManagerUnitTests extends ESTestCase {
         PluginManager.PluginHandle handle = PluginManager.PluginHandle.parse(user + "/" + pluginName);
         assertThat(handle.name, is(randomName));
         assertThat(handle.urls(), hasSize(1));
-        URL expected = new URL("https", "github.com", "/" + user + "/" + pluginName + "/" + "archive/master.zip");
-        assertThat(handle.urls().get(0), is(expected));
+        assertThat(handle.urls().get(0).toExternalForm(), is(new URL("https", "github.com", "/" + user + "/" + pluginName + "/" + "archive/master.zip").toExternalForm()));
     }
 
     @Test

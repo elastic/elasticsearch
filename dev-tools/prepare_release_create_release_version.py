@@ -123,9 +123,19 @@ if __name__ == "__main__":
 
   print('*** Done removing snapshot version. DO NOT COMMIT THIS, WHEN CREATING A RELEASE CANDIDATE.')
 
-  shortHash = subprocess.check_output('git log --pretty=format:"%h" -n 1', shell=True)
+  shortHash = subprocess.check_output('git log --pretty=format:"%h" -n 1', shell=True).decode('utf-8')
+  localRepo = '/tmp/elasticsearch-%s-%s', % (release_version, shortHash)
+  localRepoElasticsearch = localRepo + '/org/elasticsearch'
   print('')
   print('*** To create a release candidate run: ')
-  print('  mvn clean deploy -Prelease -DskipTests -Dgpg.keyname="D88E42B4" -Dpackaging.rpm.rpmbuild=/usr/bin/rpmbuild -Delasticsearch.s3.repository=s3://download.elasticsearch.org/elasticsearch/staging/elasticsearch-%s-%s' % (release_version, shortHash.decode('utf-8')))
-  print('');
-  print('NOTE: this command will promt you several times for the GPG passphrase of the key you specified you can alternatively pass it via -Dgpg.passphrase=yourPassPhrase');
+  print('  mvn clean install deploy -Prelease -DskipTests -Dgpg.keyname="D88E42B4" -Dpackaging.rpm.rpmbuild=/usr/bin/rpmbuild -Drpm.sign=true -Dmaven.repo.local=%s -Dno.commit.pattern="\\bno(n|)commit\\b" -Dforbidden.test.signatures=""' % (localRepo))
+  print('  1. Remove all _remote.repositories: find %s -name _remote.repositories -exec rm {} \;' % (localRepoElasticsearch))
+  print('  2. Rename all maven metadata files: for i in $(find %s -name "maven-metadata-local.xml*") ; do mv "$i" "${i/-local/}" ; done' % (localRepoElasticsearch))
+  print('  3. Sync %s into S3 bucket' % (localRepoElasticsearch))
+  print ('    s3cmd sync %s s3://download.elasticsearch.org/elasticsearch/staging/elasticsearch-%s-%s/maven/org/elasticsearch' % (localRepoElasticsearch, release_version, shortHash))
+  print('  4. Create repositories: ')
+  print ('    export S3_BUCKET_SYNC_TO="download.elasticsearch.org/elasticsearch/staging/elasticsearch-%s-%s/repos"' % (release_version, shortHash))
+  print ('    export S3_BUCKET_SYNC_FROM="$S3_BUCKET_SYNC_TO"')
+  print('     dev-tools/build_repositories.sh %s' % (release_version))
+  print('')
+  print('NOTE: the above mvn command will promt you several times for the GPG passphrase of the key you specified you can alternatively pass it via -Dgpg.passphrase=yourPassPhrase')

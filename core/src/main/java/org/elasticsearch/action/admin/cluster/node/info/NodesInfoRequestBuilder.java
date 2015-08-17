@@ -88,14 +88,6 @@ public class NodesInfoRequestBuilder extends NodesOperationRequestBuilder<NodesI
     }
 
     /**
-     * Should the node Network info be returned.
-     */
-    public NodesInfoRequestBuilder setNetwork(boolean network) {
-        request.network(network);
-        return this;
-    }
-
-    /**
      * Should the node Transport info be returned.
      */
     public NodesInfoRequestBuilder setTransport(boolean transport) {

@@ -42,7 +42,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 public class RestNodesInfoAction extends BaseRestHandler {
 
     private final SettingsFilter settingsFilter;
-    private final static Set<String> ALLOWED_METRICS = Sets.newHashSet("http", "jvm", "network", "os", "plugins", "process", "settings", "thread_pool", "transport");
+    private final static Set<String> ALLOWED_METRICS = Sets.newHashSet("http", "jvm", "os", "plugins", "process", "settings", "thread_pool", "transport");
 
     @Inject
     public RestNodesInfoAction(Settings settings, RestController controller, Client client, SettingsFilter settingsFilter) {
@@ -91,7 +91,6 @@ public class RestNodesInfoAction extends BaseRestHandler {
             nodesInfoRequest.process(metrics.contains("process"));
             nodesInfoRequest.jvm(metrics.contains("jvm"));
             nodesInfoRequest.threadPool(metrics.contains("thread_pool"));
-            nodesInfoRequest.network(metrics.contains("network"));
             nodesInfoRequest.transport(metrics.contains("transport"));
             nodesInfoRequest.http(metrics.contains("http"));
             nodesInfoRequest.plugins(metrics.contains("plugins"));

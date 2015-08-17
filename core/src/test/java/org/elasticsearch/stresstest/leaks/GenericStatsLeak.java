@@ -32,7 +32,6 @@ public class GenericStatsLeak {
         Node node = NodeBuilder.nodeBuilder().settings(Settings.settingsBuilder()
                 .put("monitor.os.refresh_interval", 0)
                 .put("monitor.process.refresh_interval", 0)
-                .put("monitor.network.refresh_interval", 0)
         ).node();
 
         JvmService jvmService = node.injector().getInstance(JvmService.class);

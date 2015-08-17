@@ -108,14 +108,6 @@ public class NodesStatsRequestBuilder extends NodesOperationRequestBuilder<Nodes
     }
 
     /**
-     * Should the node Network stats be returned.
-     */
-    public NodesStatsRequestBuilder setNetwork(boolean network) {
-        request.network(network);
-        return this;
-    }
-
-    /**
      * Should the node file system stats be returned.
      */
     public NodesStatsRequestBuilder setFs(boolean fs) {

@@ -64,7 +64,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.repositories.RepositoriesService;
-import org.elasticsearch.snapshots.mockstore.MockRepositoryModule;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 

@@ -34,7 +34,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
-import org.elasticsearch.snapshots.mockstore.MockRepositoryPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.io.IOException;
@@ -57,7 +56,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return settingsBuilder().put(super.nodeSettings(nodeOrdinal))
-            .extendArray("plugin.types", MockRepositoryPlugin.class.getName()).build();
+            .extendArray("plugin.types", MockRepository.Plugin.class.getName()).build();
     }
 
     public static long getFailureCount(String repository) {

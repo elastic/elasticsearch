@@ -43,19 +43,19 @@
   <dependencies>
     <dependency>
       <groupId>org.elasticsearch.plugin</groupId>
-      <artifactId>elasticsearch-shield</artifactId>
+      <artifactId>shield</artifactId>
       <version>${elasticsearch.version}</version>
       <scope>test</scope>
     </dependency>
     <dependency>
       <groupId>org.elasticsearch.plugin</groupId>
-      <artifactId>elasticsearch-watcher</artifactId>
+      <artifactId>watcher</artifactId>
       <version>${project.version}</version>
       <scope>test</scope>
     </dependency>
     <dependency>
       <groupId>org.elasticsearch.plugin</groupId>
-      <artifactId>elasticsearch-license</artifactId>
+      <artifactId>license</artifactId>
       <version>${project.version}</version>
       <scope>test</scope>
     </dependency>
@@ -126,7 +126,7 @@
                  <!-- commercial plugins -->
                  <artifactItem>
                    <groupId>org.elasticsearch.plugin</groupId>
-                   <artifactId>elasticsearch-license</artifactId>
+                   <artifactId>license</artifactId>
                    <version>${elasticsearch.version}</version>
                    <type>zip</type>
                    <overWrite>true</overWrite>
@@ -134,7 +134,7 @@
 
                  <artifactItem>
                    <groupId>org.elasticsearch.plugin</groupId>
-                   <artifactId>elasticsearch-watcher</artifactId>
+                   <artifactId>watcher</artifactId>
                    <version>${elasticsearch.version}</version>
                    <type>zip</type>
                    <overWrite>true</overWrite>
@@ -142,7 +142,7 @@
 
                  <artifactItem>
                    <groupId>org.elasticsearch.plugin</groupId>
-                   <artifactId>elasticsearch-shield</artifactId>
+                   <artifactId>shield</artifactId>
                    <version>${elasticsearch.version}</version>
                    <type>zip</type>
                    <overWrite>true</overWrite>

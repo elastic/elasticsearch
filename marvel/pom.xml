@@ -5,8 +5,8 @@
 
     <modelVersion>4.0.0</modelVersion>
 
-    <artifactId>elasticsearch-marvel</artifactId>
-    <name>Elasticsearch X-Plugins - Marvel</name>
+    <artifactId>marvel</artifactId>
+    <name>X-Plugins: Marvel</name>
     <description>Elasticsearch Marvel</description>
 
     <parent>
@@ -28,7 +28,7 @@
 
         <dependency>
             <groupId>org.elasticsearch.plugin</groupId>
-            <artifactId>elasticsearch-license</artifactId>
+            <artifactId>license</artifactId>
             <version>${project.version}</version>
             <scope>provided</scope>
         </dependency>

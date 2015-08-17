@@ -5,8 +5,8 @@
 
     <modelVersion>4.0.0</modelVersion>
 
-    <artifactId>elasticsearch-shield</artifactId>
-    <name>Elasticsearch X-Plugins - Shield</name>
+    <artifactId>shield</artifactId>
+    <name>X-Plugins: Shield</name>
     <description>Elasticsearch Shield (security)</description>
 
     <parent>
@@ -45,7 +45,7 @@
         <!-- real dependencies -->
         <dependency>
             <groupId>org.elasticsearch.plugin</groupId>
-            <artifactId>elasticsearch-license</artifactId>
+            <artifactId>license</artifactId>
             <version>${elasticsearch.version}</version>
             <scope>provided</scope>
         </dependency>
@@ -98,7 +98,7 @@
                             <artifactItems combine.children="append">
                                 <artifactItem>
                                     <groupId>org.elasticsearch.plugin</groupId>
-                                    <artifactId>elasticsearch-license</artifactId>
+                                    <artifactId>license</artifactId>
                                     <version>${project.version}</version>
                                     <type>zip</type>
                                     <overWrite>true</overWrite>

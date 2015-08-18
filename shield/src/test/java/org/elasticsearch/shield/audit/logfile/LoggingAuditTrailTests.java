@@ -490,7 +490,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         }
         TransportAddress address = message.remoteAddress();
         if (address == null) {
-            assertThat(text, equalTo("origin_type=[local_node], origin_address=[" + NetworkUtils.getLocalHostAddress("_local") + "]"));
+            assertThat(text, equalTo("origin_type=[local_node], origin_address=[" + NetworkUtils.getLocalHost().getHostAddress() + "]"));
             return;
         }
 

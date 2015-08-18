@@ -239,8 +239,8 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail {
      */
     public void start(boolean master) {
         if (state.compareAndSet(State.INITIALIZED, State.STARTING)) {
-            this.nodeHostName = NetworkUtils.getLocalHostName("n/a");
-            this.nodeHostAddress = NetworkUtils.getLocalHostAddress("n/a");
+            this.nodeHostName = NetworkUtils.getLocalHost().getHostName();
+            this.nodeHostAddress = NetworkUtils.getLocalHost().getHostAddress();
 
             if (client == null) {
                 initializeClient();
@@ -559,7 +559,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail {
 
         // the call was originated locally on this node
         builder.field(Field.ORIGIN_TYPE, "local_node");
-        builder.field(Field.ORIGIN_ADDRESS, NetworkUtils.getLocalHostAddress("_local"));
+        builder.field(Field.ORIGIN_ADDRESS, NetworkUtils.getLocalHost().getHostAddress());
         return builder;
     }
 

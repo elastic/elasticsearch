@@ -265,7 +265,7 @@ public class LoggingAuditTrail implements AuditTrail {
 
         // the call was originated locally on this node
         return builder.append("origin_type=[local_node], origin_address=[")
-                .append(NetworkUtils.getLocalHostAddress("_local"))
+                .append(NetworkUtils.getLocalHost().getHostAddress())
                 .append("]")
                 .toString();
     }
@@ -273,13 +273,13 @@ public class LoggingAuditTrail implements AuditTrail {
     static String resolvePrefix(Settings settings) {
         StringBuilder builder = new StringBuilder();
         if (settings.getAsBoolean("shield.audit.logfile.prefix.emit_node_host_address", false)) {
-            String address = NetworkUtils.getLocalHostAddress(null);
+            String address = NetworkUtils.getLocalHost().getHostAddress();
             if (address != null) {
                 builder.append("[").append(address).append("] ");
             }
         }
         if (settings.getAsBoolean("shield.audit.logfile.prefix.emit_node_host_name", false)) {
-            String hostName = NetworkUtils.getLocalHostName(null);
+            String hostName = NetworkUtils.getLocalHost().getHostAddress();
             if (hostName != null) {
                 builder.append("[").append(hostName).append("] ");
             }

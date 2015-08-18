@@ -46,7 +46,7 @@ public class IPFilterNettyUpstreamHandlerTests extends ESTestCase {
         boolean isHttpEnabled = randomBoolean();
 
         Transport transport = mock(Transport.class);
-        InetSocketTransportAddress address = new InetSocketTransportAddress(NetworkUtils.getLocalAddress(), 9300);
+        InetSocketTransportAddress address = new InetSocketTransportAddress(NetworkUtils.getLocalHost().getHostAddress(), 9300);
         when(transport.boundAddress()).thenReturn(new BoundTransportAddress(address, address));
         when(transport.lifecycleState()).thenReturn(Lifecycle.State.STARTED);
 
@@ -55,7 +55,7 @@ public class IPFilterNettyUpstreamHandlerTests extends ESTestCase {
 
         if (isHttpEnabled) {
             HttpServerTransport httpTransport = mock(HttpServerTransport.class);
-            InetSocketTransportAddress httpAddress = new InetSocketTransportAddress(NetworkUtils.getLocalAddress(), 9200);
+            InetSocketTransportAddress httpAddress = new InetSocketTransportAddress(NetworkUtils.getLocalHost().getHostAddress(), 9200);
             when(httpTransport.boundAddress()).thenReturn(new BoundTransportAddress(httpAddress, httpAddress));
             when(httpTransport.lifecycleState()).thenReturn(Lifecycle.State.STARTED);
             ipFilter.setHttpServerTransport(httpTransport);

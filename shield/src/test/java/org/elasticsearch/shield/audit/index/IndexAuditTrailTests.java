@@ -587,8 +587,8 @@ public class IndexAuditTrailTests extends ShieldIntegTestCase {
         DateTime dateTime = ISODateTimeFormat.dateTimeParser().withZoneUTC().parseDateTime((String) hit.field("@timestamp").getValue());
         assertThat(dateTime.isBefore(DateTime.now(DateTimeZone.UTC)), is(true));
 
-        assertThat(NetworkUtils.getLocalHostName("n/a"), equalTo(hit.field("node_host_name").getValue()));
-        assertThat(NetworkUtils.getLocalHostAddress("n/a"), equalTo(hit.field("node_host_address").getValue()));
+        assertThat(NetworkUtils.getLocalHost().getHostName(), equalTo(hit.field("node_host_name").getValue()));
+        assertThat(NetworkUtils.getLocalHost().getHostAddress(), equalTo(hit.field("node_host_address").getValue()));
 
         assertEquals(layer, hit.field("layer").getValue());
         assertEquals(type, hit.field("event_type").getValue());

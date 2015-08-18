@@ -138,7 +138,7 @@ public class DiscoveryNode implements Streamable, ToXContent {
      * @param version    the version of the node.
      */
     public DiscoveryNode(String nodeName, String nodeId, TransportAddress address, Map<String, String> attributes, Version version) {
-        this(nodeName, nodeId, NetworkUtils.getLocalHost().getHostName(), NetworkUtils.getLocalHost().getHostAddress(), address, attributes, version);
+        this(nodeName, nodeId, address.getHost(), address.getAddress(), address, attributes, version);
     }
 
     /**

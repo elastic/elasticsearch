@@ -108,6 +108,7 @@ import org.junit.Assert;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -504,7 +505,6 @@ public final class InternalTestCluster extends TestCluster {
     public static String clusterName(String prefix, long clusterSeed) {
         StringBuilder builder = new StringBuilder(prefix);
         final int childVM = RandomizedTest.systemPropertyAsInt(SysGlobals.CHILDVM_SYSPROP_JVM_ID, 0);
-        builder.append('-').append(NetworkUtils.getLocalHost().getHostName());
         builder.append("-CHILD_VM=[").append(childVM).append(']');
         builder.append("-CLUSTER_SEED=[").append(clusterSeed).append(']');
         // if multiple maven task run on a single host we better have an identifier that doesn't rely on input params

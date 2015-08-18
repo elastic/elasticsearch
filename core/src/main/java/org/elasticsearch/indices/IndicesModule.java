@@ -24,7 +24,6 @@ import org.elasticsearch.action.update.UpdateHelper;
 import org.elasticsearch.cluster.metadata.MetaDataIndexUpgradeService;
 import org.elasticsearch.common.geo.ShapesAvailability;
 import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.inject.multibindings.MapBinder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.ExtensionPoint;
 import org.elasticsearch.index.query.*;
@@ -38,16 +37,13 @@ import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCacheListener;
 import org.elasticsearch.indices.flush.SyncedFlushService;
 import org.elasticsearch.indices.memory.IndexingMemoryController;
+import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.RecoverySource;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData;
 import org.elasticsearch.indices.ttl.IndicesTTLService;
-
-import java.security.cert.Extension;
-import java.util.HashMap;
-import java.util.Map;
 
 /**
  * Configures classes and services that are shared by indices on each node.
@@ -159,6 +155,7 @@ public class IndicesModule extends AbstractModule {
 
     protected void bindQueryParsersExtension() {
         queryParsers.bind(binder());
+        bind(IndicesQueriesRegistry.class).asEagerSingleton();
     }
 
     protected void bindHunspellExtension() {

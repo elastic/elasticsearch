@@ -6,6 +6,7 @@
 package org.elasticsearch.marvel.agent.collector.indices;
 
 import com.google.common.collect.ImmutableSet;
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.block.ClusterBlock;
@@ -22,6 +23,7 @@ import java.util.Iterator;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.*;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/470")
 public class IndexStatsCollectorTests extends ESSingleNodeTestCase {
 
     @Test

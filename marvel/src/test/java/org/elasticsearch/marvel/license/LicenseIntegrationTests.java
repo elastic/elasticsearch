@@ -18,13 +18,14 @@ import org.elasticsearch.license.plugin.core.LicensesClientService;
 import org.elasticsearch.license.plugin.core.LicensesService;
 import org.elasticsearch.marvel.MarvelPlugin;
 import org.elasticsearch.marvel.mode.Mode;
-import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
@@ -71,7 +72,7 @@ public class LicenseIntegrationTests extends ESIntegTestCase {
         }
     }
 
-    public static class MockLicensePlugin extends AbstractPlugin {
+    public static class MockLicensePlugin extends Plugin {
 
         public static final String NAME = "internal-test-licensing";
 
@@ -86,8 +87,8 @@ public class LicenseIntegrationTests extends ESIntegTestCase {
         }
 
         @Override
-        public Collection<Class<? extends Module>> modules() {
-            return ImmutableSet.<Class<? extends Module>>of(InternalLicenseModule.class);
+        public Collection<Module> nodeModules() {
+            return Collections.<Module>singletonList(new InternalLicenseModule());
         }
     }
 

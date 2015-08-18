@@ -21,7 +21,6 @@ import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.core.License;
 import org.elasticsearch.license.plugin.core.LicensesClientService;
-import org.elasticsearch.plugins.AbstractPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.shield.license.LicenseService;
@@ -31,6 +30,7 @@ import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -181,7 +181,7 @@ public class LicensingTests extends ShieldIntegTestCase {
         }
     }
 
-    public static class InternalLicensePlugin extends AbstractPlugin {
+    public static class InternalLicensePlugin extends Plugin {
 
         public static final String NAME = "internal-licensing";
 
@@ -196,8 +196,8 @@ public class LicensingTests extends ShieldIntegTestCase {
         }
 
         @Override
-        public Collection<Class<? extends Module>> modules() {
-            return ImmutableSet.<Class<? extends Module>>of(InternalLicenseModule.class);
+        public Collection<Module> nodeModules() {
+            return Collections.<Module>singletonList(new InternalLicenseModule());
         }
     }
 

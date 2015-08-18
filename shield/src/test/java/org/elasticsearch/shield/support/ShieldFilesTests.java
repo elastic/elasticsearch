@@ -9,6 +9,7 @@ import com.google.common.base.Charsets;
 import com.google.common.collect.Sets;
 import com.google.common.jimfs.Configuration;
 import com.google.common.jimfs.Jimfs;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
@@ -21,9 +22,15 @@ import java.nio.file.attribute.PosixFilePermission;
 import java.util.Locale;
 import java.util.Set;
 
-import static java.nio.file.attribute.PosixFilePermission.*;
+import static java.nio.file.attribute.PosixFilePermission.GROUP_EXECUTE;
+import static java.nio.file.attribute.PosixFilePermission.OTHERS_EXECUTE;
+import static java.nio.file.attribute.PosixFilePermission.OWNER_EXECUTE;
+import static java.nio.file.attribute.PosixFilePermission.OWNER_READ;
+import static java.nio.file.attribute.PosixFilePermission.OWNER_WRITE;
 import static org.elasticsearch.shield.support.ShieldFiles.openAtomicMoveWriter;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 
 public class ShieldFilesTests extends ESTestCase {
 
@@ -32,7 +39,7 @@ public class ShieldFilesTests extends ESTestCase {
         Path path = createTempFile();
 
         // no posix file permissions, nothing to test, done here
-        boolean supportsPosixPermissions = Files.getFileStore(path).supportsFileAttributeView(PosixFileAttributeView.class);
+        boolean supportsPosixPermissions = Environment.getFileStore(path).supportsFileAttributeView(PosixFileAttributeView.class);
         assumeTrue("Ignoring because posix file attributes are not supported", supportsPosixPermissions);
 
         Files.write(path, "foo".getBytes(Charsets.UTF_8));

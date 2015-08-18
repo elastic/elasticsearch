@@ -19,12 +19,13 @@ import org.elasticsearch.marvel.agent.exporter.HttpESExporter;
 import org.elasticsearch.marvel.agent.settings.MarvelSetting;
 import org.elasticsearch.marvel.agent.settings.MarvelSettings;
 import org.elasticsearch.marvel.license.LicenseService;
-import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.tribe.TribeService;
 
 import java.util.Collection;
+import java.util.Collections;
 
-public class MarvelPlugin extends AbstractPlugin {
+public class MarvelPlugin extends Plugin {
 
     private static final ESLogger logger = Loggers.getLogger(MarvelPlugin.class);
 
@@ -52,15 +53,15 @@ public class MarvelPlugin extends AbstractPlugin {
     }
 
     @Override
-    public Collection<Class<? extends Module>> modules() {
+    public Collection<Module> nodeModules() {
         if (!enabled) {
-            return ImmutableList.of();
+            return Collections.emptyList();
         }
-        return ImmutableList.<Class<? extends Module>>of(MarvelModule.class);
+        return Collections.<Module>singletonList(new MarvelModule());
     }
 
     @Override
-    public Collection<Class<? extends LifecycleComponent>> services() {
+    public Collection<Class<? extends LifecycleComponent>> nodeServices() {
         if (!enabled) {
             return ImmutableList.of();
         }

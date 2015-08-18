@@ -13,7 +13,7 @@ import org.elasticsearch.cluster.settings.Validator;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.watcher.actions.email.service.InternalEmailService;
 import org.elasticsearch.watcher.history.HistoryModule;
@@ -25,10 +25,11 @@ import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
 import org.elasticsearch.watcher.support.validation.WatcherSettingsValidation;
 
 import java.util.Collection;
+import java.util.Collections;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 
-public class WatcherPlugin extends AbstractPlugin {
+public class WatcherPlugin extends Plugin {
 
     public static final String NAME = "watcher";
     public static final String ENABLED_SETTING = NAME + ".enabled";
@@ -37,8 +38,8 @@ public class WatcherPlugin extends AbstractPlugin {
         MetaData.registerPrototype(WatcherMetaData.TYPE, WatcherMetaData.PROTO);
     }
 
-    private final Settings settings;
-    private final boolean transportClient;
+    protected final Settings settings;
+    protected final boolean transportClient;
     protected final boolean enabled;
 
     public WatcherPlugin(Settings settings) {
@@ -56,18 +57,18 @@ public class WatcherPlugin extends AbstractPlugin {
     }
 
     @Override
-    public Collection<Class<? extends Module>> modules() {
+    public Collection<Module> nodeModules() {
         if (!enabled) {
             return ImmutableList.of();
         }
         return transportClient ?
-                ImmutableList.<Class<? extends Module>>of(TransportClientWatcherModule.class) :
-                ImmutableList.<Class<? extends Module>>of(WatcherModule.class);
+                Collections.<Module>singletonList(new TransportClientWatcherModule()) :
+                Collections.<Module>singletonList(new WatcherModule(settings));
     }
 
 
     @Override
-    public Collection<Class<? extends LifecycleComponent>> services() {
+    public Collection<Class<? extends LifecycleComponent>> nodeServices() {
         if (!enabled || transportClient) {
             return ImmutableList.of();
         }

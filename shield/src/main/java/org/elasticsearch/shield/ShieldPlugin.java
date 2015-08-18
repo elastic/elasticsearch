@@ -14,7 +14,7 @@ import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.shield.authc.Realms;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
@@ -25,12 +25,13 @@ import org.elasticsearch.shield.transport.filter.IPFilter;
 
 import java.nio.file.Path;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Map;
 
 /**
  *
  */
-public class ShieldPlugin extends AbstractPlugin {
+public class ShieldPlugin extends Plugin {
 
     public static final String NAME = "shield";
 
@@ -57,14 +58,14 @@ public class ShieldPlugin extends AbstractPlugin {
     }
 
     @Override
-    public Collection<Class<? extends Module>> modules() {
+    public Collection<Module> nodeModules() {
         return enabled ?
-                ImmutableList.<Class<? extends Module>>of(ShieldModule.class) :
-                ImmutableList.<Class<? extends Module>>of(ShieldDisabledModule.class);
+                Collections.<Module>singletonList(new ShieldModule(settings)) :
+                Collections.<Module>singletonList(new ShieldDisabledModule(settings));
     }
 
     @Override
-    public Collection<Class<? extends LifecycleComponent>> services() {
+    public Collection<Class<? extends LifecycleComponent>> nodeServices() {
         ImmutableList.Builder<Class<? extends LifecycleComponent>> builder = ImmutableList.builder();
         if (enabled && !clientMode) {
             builder.add(LicenseService.class).add(InternalCryptoService.class).add(FileRolesStore.class).add(Realms.class).add(IPFilter.class);

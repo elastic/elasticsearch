@@ -14,7 +14,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
@@ -113,7 +113,7 @@ public class ActionErrorIntegrationTests extends AbstractWatcherIntegrationTests
 
 
 
-    public static class ErrorActionPlugin extends AbstractPlugin {
+    public static class ErrorActionPlugin extends Plugin {
 
         public ErrorActionPlugin() {
         }

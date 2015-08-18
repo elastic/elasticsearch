@@ -10,8 +10,6 @@ import org.junit.Test;
 
 import java.util.Arrays;
 
-import static org.apache.commons.lang3.ArrayUtils.add;
-import static org.apache.commons.lang3.ArrayUtils.addAll;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -28,13 +26,27 @@ public class ValidationTests extends ESTestCase {
 
     private static final char[] numbers = { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9' };
 
-    private static final char[] allowedFirstChars = add(alphabet, '_');
+    private static final char[] allowedFirstChars = concat(alphabet, new char[]{'_'});
 
-    private static final char[] allowedSubsequent = addAll(addAll(alphabet, numbers), new char[] { '_', '@', '-', '$', '.' });
+    private static final char[] allowedSubsequent = concat(alphabet, numbers, new char[]{'_', '@', '-', '$', '.'});
 
     static {
         Arrays.sort(allowedFirstChars);
         Arrays.sort(allowedSubsequent);
+    }
+
+    static char[] concat(char[]... arrays) {
+        int length = 0;
+        for (char[] array : arrays) {
+            length += array.length;
+        }
+        char[] newArray = new char[length];
+        int i = 0;
+        for (char[] array : arrays) {
+            System.arraycopy(array, 0, newArray, i, array.length);
+            i += array.length;
+        }
+        return newArray;
     }
 
     @Test
@@ -102,7 +114,7 @@ public class ValidationTests extends ESTestCase {
         for (int i = 0; i < subsequent.length; i++) {
             subsequent[i] = allowedSubsequent[randomIntBetween(0, allowedSubsequent.length - 1)];
         }
-        return addAll(new char[] { first }, subsequent);
+        return concat(new char[]{first}, subsequent);
     }
 
     private static char[] generateInvalidName(int length) {
@@ -122,7 +134,7 @@ public class ValidationTests extends ESTestCase {
             for (int i = 0; i < subsequent.length; i++) {
                 subsequent[i] = allowedSubsequent[randomIntBetween(0, allowedSubsequent.length - 1)];
             }
-            return addAll(new char[] { first }, subsequent);
+            return concat(new char[]{first}, subsequent);
         }
 
         // invalid name due to charaters not allowed within the name itself
@@ -139,7 +151,7 @@ public class ValidationTests extends ESTestCase {
             }
             subsequent[i] = c;
         }
-        return addAll(new char[] { first }, subsequent);
+        return concat(new char[]{first}, subsequent);
     }
 
 

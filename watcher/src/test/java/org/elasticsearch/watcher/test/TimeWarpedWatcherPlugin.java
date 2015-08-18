@@ -24,6 +24,7 @@ import org.elasticsearch.watcher.trigger.manual.ManualTriggerEngine;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
@@ -40,11 +41,11 @@ public class TimeWarpedWatcherPlugin extends WatcherPlugin {
     }
 
     @Override
-    public Collection<Class<? extends Module>> modules() {
+    public Collection<Module> nodeModules() {
         if (!enabled) {
-            return super.modules();
+            return super.nodeModules();
         }
-        return ImmutableList.<Class<? extends Module>>of(WatcherModule.class);
+        return Collections.<Module>singletonList(new WatcherModule(settings));
     }
 
     /**

@@ -98,7 +98,7 @@ public class SystemKeyTool extends CliTool {
                 return ExitStatus.IO_ERROR;
             }
 
-            boolean supportsPosixPermissions = Files.getFileStore(path).supportsFileAttributeView(PosixFileAttributeView.class);
+            boolean supportsPosixPermissions = Environment.getFileStore(path).supportsFileAttributeView(PosixFileAttributeView.class);
             if (supportsPosixPermissions) {
                 try {
                     Files.setPosixFilePermissions(path, PERMISSION_OWNER_READ_WRITE);

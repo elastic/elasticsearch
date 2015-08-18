@@ -51,12 +51,12 @@ public abstract class NetworkUtils {
      * @deprecated transition mechanism only
      */
     @Deprecated
-    static final boolean PREFER_V4 = Boolean.parseBoolean(System.getProperty("java.net.preferIPv4Stack", "true")); 
+    static final boolean PREFER_V6 = Boolean.parseBoolean(System.getProperty("java.net.preferIPv6Addresses", "false"));
     
     /** Sorts an address by preference. This way code like publishing can just pick the first one */
-    static int sortKey(InetAddress address, boolean prefer_v4) {
+    static int sortKey(InetAddress address, boolean prefer_v6) {
         int key = address.getAddress().length;
-        if (prefer_v4 == false) {
+        if (prefer_v6) {
             key = -key;
         }
         
@@ -88,7 +88,7 @@ public abstract class NetworkUtils {
         Collections.sort(list, new Comparator<InetAddress>() {
             @Override
             public int compare(InetAddress left, InetAddress right) {
-                int cmp = Integer.compare(sortKey(left, PREFER_V4), sortKey(right, PREFER_V4));
+                int cmp = Integer.compare(sortKey(left, PREFER_V6), sortKey(right, PREFER_V6));
                 if (cmp == 0) {
                     cmp = new BytesRef(left.getAddress()).compareTo(new BytesRef(right.getAddress()));
                 }

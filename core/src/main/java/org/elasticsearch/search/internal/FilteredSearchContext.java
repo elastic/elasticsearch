@@ -620,6 +620,11 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
+    public Map<Class<?>, Collector> queryCollectors() {
+        return in.queryCollectors();
+    }
+
+    @Override
     public InternalProfiler queryProfiler() {
         throw new UnsupportedOperationException();
     }
@@ -633,5 +638,4 @@ public abstract class FilteredSearchContext extends SearchContext {
     public boolean profile() {
         throw new UnsupportedOperationException();
     }
-
 }

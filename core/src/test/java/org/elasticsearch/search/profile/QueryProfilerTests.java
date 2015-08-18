@@ -21,7 +21,6 @@ package org.elasticsearch.search.profile;
 
 
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
 
 
 import org.apache.lucene.util.English;
@@ -33,18 +32,18 @@ import org.elasticsearch.action.search.SearchType;
 
 import org.elasticsearch.index.query.*;
 
+import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
 import java.util.Arrays;
 import java.util.List;
 
 import static org.elasticsearch.search.profile.RandomQueryGenerator.randomQueryBuilder;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
 
-@ElasticsearchIntegrationTest.ClusterScope(scope=ElasticsearchIntegrationTest.Scope.TEST)
-public class QueryProfilerTests extends ElasticsearchIntegrationTest {
+@ESIntegTestCase.ClusterScope(scope=ESIntegTestCase.Scope.TEST)
+public class QueryProfilerTests extends ESIntegTestCase {
 
 
     @Test

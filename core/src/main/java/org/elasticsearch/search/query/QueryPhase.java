@@ -44,8 +44,6 @@ import org.elasticsearch.search.SearchPhase;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.AggregationPhase;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.profile.InternalProfileResults;
-import org.elasticsearch.search.internal.SearchContext.Lifetime;
 import org.elasticsearch.search.rescore.RescorePhase;
 import org.elasticsearch.search.rescore.RescoreSearchContext;
 import org.elasticsearch.search.scan.ScanContext.ScanCollector;
@@ -53,7 +51,6 @@ import org.elasticsearch.search.sort.SortParseElement;
 import org.elasticsearch.search.sort.TrackScoresParseElement;
 import org.elasticsearch.search.suggest.SuggestPhase;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;

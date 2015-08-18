@@ -312,10 +312,23 @@ public abstract class SearchContext extends DelegatingHasContextAndHeaders imple
 
     public abstract FetchSearchResult fetchResult();
 
+    /**
+     * Sets if this search context should be profiled or not
+     * @param profile True if the search should be profiled
+     */
     public abstract void profile(boolean profile);
 
+    /**
+     * Returns if this search context is being profiled
+     */
     public abstract boolean profile();
 
+    /**
+     * Returns the query profiler, which is used to store timings across the
+     * search context
+     *
+     * @return The query profiler
+     */
     public abstract InternalProfiler queryProfiler();
 
     /**

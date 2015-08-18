@@ -91,7 +91,7 @@ public class DefaultSearchContext extends SearchContext {
     private final BigArrays bigArrays;
     private final IndexShard indexShard;
     private final IndexService indexService;
-    private ContextIndexSearcher searcher;
+    private final ContextIndexSearcher searcher;
     private final DfsSearchResult dfsResult;
     private final QuerySearchResult queryResult;
     private final FetchSearchResult fetchResult;
@@ -726,11 +726,24 @@ public class DefaultSearchContext extends SearchContext {
         return queryCollectors;
     }
 
+    /**
+     * Returns if this search context is being profiled
+     */
     @Override
     public boolean profile() {
         return searcher.profile();
     }
 
+    /**
+     * Sets if this search context should be profiled.  This is needed
+     * because we only find out about profiling from the request, which is parsed after
+     * the searcher is built.  This prevents us from using a wrapper-style "ProfileIndexSearcher".
+     *
+     * Instead, once we determine the query needs to be profiled, we go back and tell the ContextIndexSearcher
+     * that it needs to profile before the query is run.
+     *
+     * @param profile True if the query should be profiled
+     */
     @Override
     public void profile(boolean profile) {
         searcher.profile(profile);
@@ -740,6 +753,12 @@ public class DefaultSearchContext extends SearchContext {
         }
     }
 
+    /**
+     * Returns the query profiler, which is used to store timings across the
+     * search context
+     *
+     * @return The query Profiler
+     */
     @Override
     public InternalProfiler queryProfiler() {
         return internalProfiler;

@@ -1,3 +1,22 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 package org.elasticsearch.search.profile;
 
 
@@ -16,6 +35,15 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
+/**
+ * This class is the internal representation of a profiled query, corresponding
+ * to a single node in the query tree.  It is built after the query has finished executing
+ * and is merely a structured representation, rather than the entity that collects the timing
+ * profile (see InternalProfiler for that)
+ *
+ * Each InternalProfileResult has a List of InternalProfileResults, which will contain
+ * "children" queries if applicable
+ */
 public class InternalProfileResult implements ProfileResult, Streamable, ToXContent {
 
     private static final ParseField QUERY_TYPE = new ParseField("query_type");
@@ -50,14 +78,32 @@ public class InternalProfileResult implements ProfileResult, Streamable, ToXCont
 
     }
 
+    /**
+     * Add a child profile result to this node
+     * @param child The child to add
+     */
     public void addChild(InternalProfileResult child) {
         children.add(child);
     }
 
+    /**
+     * Retrieve a list of all profiled children at this node
+     * @return List of profiled children
+     */
     public ArrayList<InternalProfileResult> getChildren() {
         return children;
     }
 
+    /**
+     * Sets the global time for the entire query (across all shards).  This is
+     * set retroactively on the coordinating node after all times have been aggregated,
+     * and is used to calculate the global relative time.
+     *
+     * Internally this calls setGlobalTime() recursively on all children to spread
+     * the time through the entire tre
+     *
+     * @param globalTime The global time to execute across all shards
+     */
     public void setGlobalTime(long globalTime) {
         this.globalTime = globalTime;
         for (InternalProfileResult child : children) {
@@ -65,6 +111,10 @@ public class InternalProfileResult implements ProfileResult, Streamable, ToXCont
         }
     }
 
+    /**
+     * Returns the total time spent at this node inclusive of children times
+     * @return Total node time
+     */
     public long calculateNodeTime() {
         if (nodeTime != -1) {
             return nodeTime;
@@ -106,6 +156,9 @@ public class InternalProfileResult implements ProfileResult, Streamable, ToXCont
         return nodeTime;
     }
 
+    /**
+     * Static helper to read an InternalProfileResult off the stream
+     */
     public static InternalProfileResult readProfileResult(StreamInput in) throws IOException {
         InternalProfileResult newResults = new InternalProfileResult();
         newResults.readFrom(in);

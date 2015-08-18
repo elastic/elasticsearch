@@ -20,6 +20,7 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
@@ -162,7 +163,13 @@ public class SearchResponse extends ActionResponse implements StatusToXContent {
         this.scrollId = scrollId;
     }
 
-    public ProfileResults getProfileResults() {
+    /**
+     * If profiling was enabled, this returns an object containing the profile results from
+     * each shard.  If profiling was not enabled, this will return null
+     *
+     * @return The profile results or null
+     */
+    public @Nullable ProfileResults getProfileResults() {
         return internalResponse.profile();
     }
 

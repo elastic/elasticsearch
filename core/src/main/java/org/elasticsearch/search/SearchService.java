@@ -672,6 +672,8 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             queryPhase.preProcess(context);
             fetchPhase.preProcess(context);
 
+            // Since we find out about profiling after building the IndexSearcher, we have to
+            // go back and inform it that profiling is required
             if (context.request().profile()) {
                 context.profile(true);
             }

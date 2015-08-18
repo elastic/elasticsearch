@@ -29,6 +29,8 @@ public class StringsTests extends ESTestCase {
         assertEquals("fooBar", Strings.toCamelCase("foo_bar"));
         assertEquals("fooBarFooBar", Strings.toCamelCase("foo_bar_foo_bar"));
         assertEquals("fooBar", Strings.toCamelCase("foo_bar_"));
+        assertEquals("_foo", Strings.toCamelCase("_foo"));
+        assertEquals("_fooBar", Strings.toCamelCase("_foo_bar_"));
     }
 
     public void testSubstring() {

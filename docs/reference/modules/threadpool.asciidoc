@@ -9,33 +9,18 @@ of discarded.
 
 There are several thread pools, but the important ones include:
 
-`index`::
-    For index/delete operations. Defaults to `fixed`
+`write`::
+    For index/delete/bulk/refresh/flush operations. Defaults to `fixed`
     with a size of `# of available processors`,
     queue_size of `200`.
 
-`search`::
-    For count/search operations. Defaults to `fixed`
+`read`::
+    For count/search/suggest/percolate operations. Defaults to `fixed`
     with a size of `int((# of available_processors * 3) / 2) + 1`,
     queue_size of `1000`.
 
-`suggest`::
-    For suggest operations. Defaults to `fixed`
-    with a size of `# of available processors`,
-    queue_size of `1000`.
-
 `get`::
-    For get operations. Defaults to `fixed`
-    with a size of `# of available processors`,
-    queue_size of `1000`.
-
-`bulk`::
-    For bulk operations. Defaults to `fixed`
-    with a size of `# of available processors`,
-    queue_size of `50`.
-
-`percolate`::
-    For percolate operations. Defaults to `fixed`
+    For get operations only. Defaults to `fixed`
     with a size of `# of available processors`,
     queue_size of `1000`.
 
@@ -43,17 +28,9 @@ There are several thread pools, but the important ones include:
     For snapshot/restore operations. Defaults to `scaling` with a
     keep-alive of `5m` and a size of `min(5, (# of available processors)/2)`.
 
-`warmer`::
-    For segment warm-up operations. Defaults to `scaling` with a
-    keep-alive of `5m` and a size of `min(5, (# of available processors)/2)`.
-
-`refresh`::
-    For refresh operations. Defaults to `scaling` with a
-    keep-alive of `5m` and a size of `min(10, (# of available processors)/2)`.
-
 `listener`::
     Mainly for java client executing of action when listener threaded is set to true.
-    Default size of `(# of available processors)/2`, max at 10.
+    Default size of `min(10, (# of available processors)/2)`.
 
 Changing a specific thread pool can be done by setting its type and
 specific type parameters, for example, changing the `index` thread pool
@@ -62,7 +39,7 @@ to have more threads:
 [source,js]
 --------------------------------------------------
 threadpool:
-    index:
+    write:
         type: fixed
         size: 30
 --------------------------------------------------
@@ -110,7 +87,7 @@ full, it will abort the request.
 [source,js]
 --------------------------------------------------
 threadpool:
-    index:
+    write:
         type: fixed
         size: 30
         queue_size: 1000
@@ -129,7 +106,7 @@ around in the thread pool without it doing any work.
 [source,js]
 --------------------------------------------------
 threadpool:
-    warmer:
+    snapshot:
         type: scaling
         size: 8
         keep_alive: 2m

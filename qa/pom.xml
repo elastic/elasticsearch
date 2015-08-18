@@ -14,7 +14,7 @@
 
     <parent>
         <groupId>org.elasticsearch</groupId>
-        <artifactId>elasticsearch-parent</artifactId>
+        <artifactId>parent</artifactId>
         <version>2.0.0-beta1-SNAPSHOT</version>
     </parent>
 

@@ -108,14 +108,10 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     private Weight doCreateNormalizedWeight(Query query, boolean needsScores, boolean useDFS) throws IOException {
 
+        // NOTE: DFS won't work!
         if (profile) {
-            //searchContext.queryProfiler().pushQuery(query);
-            Weight weight = super.createNormalizedWeight(query, needsScores);    // nocommit Had to use super!  kosher?
-            //searchContext.queryProfiler().pollLast();
-            return weight;
-            //return new ProfileQuery.ProfileWeight(query, weight, searchContext.queryProfiler());
+            return super.createNormalizedWeight(query, needsScores);    // nocommit Had to use super!  kosher?
         }
-
 
         return useDFS ? dfSource.createNormalizedWeight(query, needsScores) : in.createNormalizedWeight(query, needsScores);
     }

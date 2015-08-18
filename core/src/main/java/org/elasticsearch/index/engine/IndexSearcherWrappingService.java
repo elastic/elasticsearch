@@ -77,7 +77,7 @@ public final class IndexSearcherWrappingService {
         // TODO: Right now IndexSearcher isn't wrapper friendly, when it becomes wrapper friendly we should revise this extension point
         // For example if IndexSearcher#rewrite() is overwritten than also IndexSearcher#createNormalizedWeight needs to be overwritten
         // This needs to be fixed before we can allow the IndexSearcher from Engine to be wrapped multiple times
-        IndexSearcher indexSearcher = wrapper.wrap(innerIndexSearcher);
+        IndexSearcher indexSearcher = wrapper.wrap(engineConfig, innerIndexSearcher);
         if (reader == engineSearcher.reader() && indexSearcher == innerIndexSearcher) {
             return engineSearcher;
         } else {

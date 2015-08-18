@@ -6,16 +6,16 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>org.elasticsearch.plugin</groupId>
-    <artifactId>elasticsearch-plugin</artifactId>
+    <artifactId>plugins</artifactId>
     <version>2.1.0-SNAPSHOT</version>
     <packaging>pom</packaging>
-    <name>Elasticsearch Plugin POM</name>
+    <name>Plugin: Parent POM</name>
     <inceptionYear>2009</inceptionYear>
     <description>A parent project for Elasticsearch plugins</description>
 
     <parent>
         <groupId>org.elasticsearch</groupId>
-        <artifactId>elasticsearch-parent</artifactId>
+        <artifactId>parent</artifactId>
         <version>2.1.0-SNAPSHOT</version>
     </parent>
 
@@ -414,7 +414,7 @@
                                 <parallelism>1</parallelism>
                                 <systemProperties>
                                     <!-- use external cluster -->
-                                    <tests.cluster>127.0.0.1:${integ.transport.port}</tests.cluster>
+                                    <tests.cluster>localhost:${integ.transport.port}</tests.cluster>
                                 </systemProperties>
                             </configuration>
                         </execution>
@@ -436,6 +436,7 @@
         <module>delete-by-query</module>
         <module>lang-python</module>
         <module>lang-javascript</module>
+        <module>mapper-murmur3</module>
         <module>mapper-size</module>
         <module>jvm-example</module>
         <module>site-example</module>

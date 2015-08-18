@@ -38,7 +38,7 @@ respond to. It provides the following settings with the
 |`ttl` |The ttl of the multicast message. Defaults to `3`.
 
 |`address` |The address to bind to, defaults to `null` which means it
-will bind to all available network interfaces.
+will bind `network.bind_host`
 
 |`enabled` |Whether multicast ping discovery is enabled. Defaults to `true`.
 |=======================================================================

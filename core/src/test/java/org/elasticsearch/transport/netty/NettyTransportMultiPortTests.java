@@ -136,29 +136,6 @@ public class NettyTransportMultiPortTests extends ESTestCase {
     }
 
     @Test
-    public void testThatBindingOnDifferentHostsWorks() throws Exception {
-        int[] ports = getRandomPorts(2);
-        InetAddress firstNonLoopbackAddress = NetworkUtils.getFirstNonLoopbackAddress(NetworkUtils.StackType.IPv4);
-        assumeTrue("No IP-v4 non-loopback address available - are you on a plane?", firstNonLoopbackAddress != null);
-        Settings settings = settingsBuilder()
-                .put("network.host", "127.0.0.1")
-                .put("transport.tcp.port", ports[0])
-                .put("transport.profiles.default.bind_host", "127.0.0.1")
-                .put("transport.profiles.client1.bind_host", firstNonLoopbackAddress.getHostAddress())
-                .put("transport.profiles.client1.port", ports[1])
-                .build();
-
-        ThreadPool threadPool = new ThreadPool("tst");
-        try (NettyTransport ignored = startNettyTransport(settings, threadPool)) {
-            assertPortIsBound("127.0.0.1", ports[0]);
-            assertPortIsBound(firstNonLoopbackAddress.getHostAddress(), ports[1]);
-            assertConnectionRefused(ports[1]);
-        } finally {
-            terminate(threadPool);
-        }
-    }
-
-    @Test
     public void testThatProfileWithoutValidNameIsIgnored() throws Exception {
         int[] ports = getRandomPorts(3);
 

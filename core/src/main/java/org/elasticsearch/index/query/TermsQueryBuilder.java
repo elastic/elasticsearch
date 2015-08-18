@@ -38,8 +38,6 @@ public class TermsQueryBuilder extends QueryBuilder implements BoostableQueryBui
 
     private String queryName;
 
-    private String execution;
-
     private float boost = -1;
 
     /**
@@ -119,17 +117,6 @@ public class TermsQueryBuilder extends QueryBuilder implements BoostableQueryBui
     }
 
     /**
-     * Sets the execution mode for the terms filter. Cane be either "plain", "bool"
-     * "and". Defaults to "plain".
-     * @deprecated elasticsearch now makes better decisions on its own
-     */
-    @Deprecated
-    public TermsQueryBuilder execution(String execution) {
-        this.execution = execution;
-        return this;
-    }
-
-    /**
      * Sets the minimum number of matches across the provided terms. Defaults to <tt>1</tt>.
      * @deprecated use [bool] query instead
      */
@@ -167,10 +154,6 @@ public class TermsQueryBuilder extends QueryBuilder implements BoostableQueryBui
     public void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(TermsQueryParser.NAME);
         builder.field(name, values);
-
-        if (execution != null) {
-            builder.field("execution", execution);
-        }
 
         if (minimumShouldMatch != null) {
             builder.field("minimum_should_match", minimumShouldMatch);

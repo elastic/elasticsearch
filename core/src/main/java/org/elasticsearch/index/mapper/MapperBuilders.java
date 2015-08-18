@@ -84,10 +84,6 @@ public final class MapperBuilders {
         return new LongFieldMapper.Builder(name);
     }
 
-    public static Murmur3FieldMapper.Builder murmur3Field(String name) {
-        return new Murmur3FieldMapper.Builder(name);
-    }
-
     public static FloatFieldMapper.Builder floatField(String name) {
         return new FloatFieldMapper.Builder(name);
     }

@@ -45,6 +45,21 @@ public class DummyTransportAddress implements TransportAddress {
     }
 
     @Override
+    public String getHost() {
+        return "dummy";
+    }
+
+    @Override
+    public String getAddress() {
+        return "0.0.0.0"; // see https://en.wikipedia.org/wiki/0.0.0.0
+    }
+
+    @Override
+    public int getPort() {
+        return 42;
+    }
+
+    @Override
     public DummyTransportAddress readFrom(StreamInput in) throws IOException {
         return INSTANCE;
     }

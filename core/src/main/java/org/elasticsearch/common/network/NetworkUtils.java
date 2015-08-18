@@ -127,17 +127,6 @@ public abstract class NetworkUtils {
         return Constants.WINDOWS ? false : true;
     }
     
-    /** Returns localhost, or if its misconfigured, falls back to loopback. Use with caution!!!! */
-    // TODO: can we remove this?
-    public static InetAddress getLocalHost() {
-        try {
-            return InetAddress.getLocalHost();
-        } catch (UnknownHostException e) {
-            logger.warn("failed to resolve local host, fallback to loopback", e);
-            return InetAddress.getLoopbackAddress();
-        }
-    }
-    
     /** Returns addresses for all loopback interfaces that are up. */
     public static InetAddress[] getLoopbackAddresses() throws SocketException {
         List<InetAddress> list = new ArrayList<>();

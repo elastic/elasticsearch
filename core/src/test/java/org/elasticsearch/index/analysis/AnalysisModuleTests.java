@@ -54,9 +54,7 @@ import java.nio.file.Path;
 import java.util.Set;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.*;
 
 /**
  *
@@ -249,7 +247,7 @@ public class AnalysisModuleTests extends ESTestCase {
             fail("This should fail with IllegalArgumentException because the analyzers name starts with _");
         } catch (ProvisionException e) {
             assertTrue(e.getCause() instanceof IllegalArgumentException);
-            assertThat(e.getCause().getMessage(), equalTo("analyzer name must not start with '_'. got \"_invalid_name\""));
+            assertThat(e.getCause().getMessage(), either(equalTo("analyzer name must not start with '_'. got \"_invalid_name\"")).or(equalTo("analyzer name must not start with '_'. got \"_invalidName\"")));
         }
     }
 

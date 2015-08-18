@@ -40,6 +40,7 @@ public class RangeQueryParser implements QueryParser {
 
     public static final String NAME = "range";
     private static final ParseField FIELDDATA_FIELD = new ParseField("fielddata").withAllDeprecated("[no replacement]");
+    private static final ParseField NAME_FIELD = new ParseField("_name").withAllDeprecated("query name is not supported in short version of range query");
 
     @Inject
     public RangeQueryParser() {
@@ -109,7 +110,7 @@ public class RangeQueryParser implements QueryParser {
                     }
                 }
             } else if (token.isValue()) {
-                if ("_name".equals(currentFieldName)) {
+                if (parseContext.parseFieldMatcher().match(currentFieldName, NAME_FIELD)) {
                     queryName = parser.text();
                 } else if (parseContext.parseFieldMatcher().match(currentFieldName, FIELDDATA_FIELD)) {
                     // ignore

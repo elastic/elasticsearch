@@ -21,6 +21,7 @@ package org.elasticsearch.hadoop.hdfs.blobstore;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.Locale;
 
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.Path;
@@ -30,7 +31,8 @@ import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
-import org.elasticsearch.common.collect.ImmutableMap;
+
+import com.google.common.collect.ImmutableMap;
 
 public class HdfsBlobContainer extends AbstractBlobContainer {
 
@@ -53,10 +55,16 @@ public class HdfsBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public boolean deleteBlob(String blobName) throws IOException {
-        return blobStore.fileSystemFactory().getFileSystem().delete(new Path(path, blobName), true);
+    public void deleteBlob(String blobName) throws IOException {
+        blobStore.fileSystemFactory().getFileSystem().delete(new Path(path, blobName), true);
     }
 
+    @Override
+    public void move(String sourceBlobName, String targetBlobName) throws IOException {
+        if (!blobStore.fileSystemFactory().getFileSystem().rename(new Path(path, sourceBlobName), new Path(path, targetBlobName))) {
+            throw new IOException(String.format(Locale.ROOT, "can not move blob from [%s] to [%s]", sourceBlobName, targetBlobName));
+        }
+    }
 
     @Override
     public InputStream openInput(String blobName) throws IOException {

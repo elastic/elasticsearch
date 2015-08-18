@@ -29,15 +29,15 @@ import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRes
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.plugin.hadoop.hdfs.HdfsPlugin;
 import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.repositories.RepositoryVerificationException;
 import org.elasticsearch.snapshots.SnapshotState;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
-import org.elasticsearch.test.store.MockDirectoryHelper;
+import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.test.ESIntegTestCase.Scope;
+import org.elasticsearch.test.store.MockFSDirectoryService;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Ignore;
@@ -46,15 +46,17 @@ import org.junit.Test;
 import static org.hamcrest.Matchers.*;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 2)
-public class HdfsSnapshotRestoreTest extends ElasticsearchIntegrationTest {
+public class HdfsSnapshotRestoreTest extends ESIntegTestCase {
+
 
     @Override
-    public Settings indexSettings() {
+    protected Settings nodeSettings(int ordinal) {
         // During restore we frequently restore index to exactly the same state it was before, that might cause the same
         // checksum file to be written twice during restore operation
-        return ImmutableSettings.builder().put(super.indexSettings())
-                .put(MockDirectoryHelper.RANDOM_PREVENT_DOUBLE_WRITE, false)
-                .put(MockDirectoryHelper.RANDOM_NO_DELETE_OPEN_FILE, false)
+        return Settings.builder().put(super.indexSettings())
+                .put(MockFSDirectoryService.RANDOM_PREVENT_DOUBLE_WRITE, false)
+                .put(MockFSDirectoryService.RANDOM_NO_DELETE_OPEN_FILE, false)
+                .put("plugin.types", HdfsPlugin.class.getName())
                 .build();
     }
 
@@ -70,7 +72,7 @@ public class HdfsSnapshotRestoreTest extends ElasticsearchIntegrationTest {
     @After
     public final void wipeAfter() throws Exception {
         wipeRepositories();
-        //cleanRepositoryFiles(path);
+        cleanRepositoryFiles(path);
     }
 
     @Test
@@ -80,13 +82,13 @@ public class HdfsSnapshotRestoreTest extends ElasticsearchIntegrationTest {
 
         PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
                 .setType("hdfs")
-                .setSettings(ImmutableSettings.settingsBuilder()
-                .put("uri", "file://./")
-                .put("path", path)
-                .put("conf", "additional-cfg.xml, conf-2.xml")
-                .put("chunk_size", randomIntBetween(100, 1000))
-                .put("compress", randomBoolean())
-                ).get();
+                .setSettings(Settings.settingsBuilder()
+                        .put("uri", "file://./")
+                        .put("path", path)
+                        .put("conf", "additional-cfg.xml, conf-2.xml")
+                        .put("chunk_size", randomIntBetween(100, 1000) + "k")
+                        .put("compress", randomBoolean())
+                        ).get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
 
         createIndex("test-idx-1", "test-idx-2", "test-idx-3");
@@ -162,12 +164,12 @@ public class HdfsSnapshotRestoreTest extends ElasticsearchIntegrationTest {
 
         PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
                 .setType("hdfs")
-                .setSettings(ImmutableSettings.settingsBuilder()
-                .put("uri", "file://./")
-                .put("path", path + "a@b$c#11:22")
-                .put("chunk_size", randomIntBetween(100, 1000))
-                .put("compress", randomBoolean())
-                ).get();
+                .setSettings(Settings.settingsBuilder()
+                        .put("uri", "file://./")
+                        .put("path", path + "a@b$c#11:22")
+                        .put("chunk_size", randomIntBetween(100, 1000) + "k")
+                        .put("compress", randomBoolean())
+                        ).get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
 
         createIndex("test-idx-1", "test-idx-2", "test-idx-3");

@@ -1,9 +1,9 @@
 # Hadoop HDFS Snapshot/Restore plugin
 
-`elasticsearch-repository-hdfs` plugin allows Elasticsearch 1.4 to use `hdfs` file-system as a repository for [snapshot/restore](http://www.elasticsearch.org/guide/en/elasticsearch/reference/master/modules-snapshots.html). See [this blog](http://www.elasticsearch.org/blog/introducing-snapshot-restore/) entry for a quick introduction to snapshot/restore.
+`elasticsearch-repository-hdfs` plugin allows Elasticsearch 2.0 to use `hdfs` file-system as a repository for [snapshot/restore](http://www.elasticsearch.org/guide/en/elasticsearch/reference/master/modules-snapshots.html). See [this blog](http://www.elasticsearch.org/blog/introducing-snapshot-restore/) entry for a quick introduction to snapshot/restore.
 
 ## Requirements
-- Elasticsearch (version *1.4* or higher). For Elasticsearch *1.0*-*1.3* use the 2.0.x version of the plugin.
+- Elasticsearch (version *2.0* or higher).
 - HDFS accessible file-system (from the Elasticsearch classpath)
 
 ## Flavors
@@ -17,7 +17,7 @@ The `hadoop2` version contains the plugin jar plus the Hadoop 2.x (Yarn) depende
 The `light` version contains just the plugin jar, without any Hadoop dependencies.
 
 ### What version to use?
-It depends on whether you have Hadoop installed on your nodes or not. If you do, then we recommend exposing Hadoop to the Elasticsearch classpath (typically through an environment variable such as +ES_CLASSPATH+ - see the Elasticsearch [reference](http://www.elasticsearch.org/guide/en/elasticsearch/reference/1.x/setup-configuration.html) for more info) and using the `light` version.
+It depends on whether you have Hadoop installed on your nodes or not. If you do, then we recommend exposing Hadoop to the Elasticsearch classpath (typically through an environment variable such as +ES_CLASSPATH+ - see the Elasticsearch [reference](https://www.elastic.co/guide/en/elasticsearch/reference/2.0/setup-configuration.html) for more info) and using the `light` version.
 This guarantees the existing libraries and configuration are being picked up by the plugin.
 If you do not have Hadoop installed, then select either the default version (for Hadoop stable/1.x) or, if you are using Hadoop 2, the `hadoop2` version.
 
@@ -72,7 +72,7 @@ repositories
     conf_location: "extra-cfg.xml"  # optional - Hadoop configuration XML to be loaded (use commas for multi values)
     conf.<key> : "<value>"          # optional - 'inlined' key=value added to the Hadoop configuration
     concurrent_streams: 5           # optional - the number of concurrent streams (defaults to 5)
-    compress: "false"               # optional - whether to compress the data or not (default)
+    compress: "false"               # optional - whether to compress the metadata or not (default)
     chunk_size: "10mb"              # optional - chunk size (disabled by default)
 ```
 
@@ -85,7 +85,7 @@ Any HDFS-compatible file-systems (like Amazon `s3://` or Google `gs://`) can be 
 Otherwise, the plugin will only read the _default_, vanilla configuration of Hadoop and will not be able to recognized the plugged in file-system.
 
 ## Feedback / Q&A
-We're interested in your feedback! You can find us on the User [mailing list](https://groups.google.com/forum/?fromgroups#!forum/elasticsearch) - please append `[Hadoop]` to the post subject to filter it out. For more details, see the [community](http://www.elasticsearch.org/community/) page.
+We're interested in your feedback! You can find us on the [forum](https://discuss.elastic.co) - please use the Hadoop channel. For more details, see the [community](http://www.elasticsearch.org/community/) page.
 
 ## License
 This project is released under version 2.0 of the [Apache License](http://www.apache.org/licenses/LICENSE-2.0)

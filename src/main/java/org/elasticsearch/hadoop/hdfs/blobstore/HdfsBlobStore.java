@@ -31,19 +31,20 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.repositories.hdfs.FileSystemFactory;
+import org.elasticsearch.threadpool.ThreadPool;
 
 public class HdfsBlobStore extends AbstractComponent implements BlobStore {
 
     private final FileSystemFactory ffs;
     private final Path rootHdfsPath;
-    private final Executor executor;
+    private final ThreadPool threadPool;
     private final int bufferSizeInBytes;
 
-    public HdfsBlobStore(Settings settings, FileSystemFactory ffs, Path path, Executor executor) throws IOException {
+    public HdfsBlobStore(Settings settings, FileSystemFactory ffs, Path path, ThreadPool threadPool) throws IOException {
         super(settings);
         this.ffs = ffs;
         this.rootHdfsPath = path;
-        this.executor = executor;
+        this.threadPool = threadPool;
 
         this.bufferSizeInBytes = (int) settings.getAsBytesSize("buffer_size", new ByteSizeValue(100, ByteSizeUnit.KB)).bytes();
 
@@ -68,7 +69,7 @@ public class HdfsBlobStore extends AbstractComponent implements BlobStore {
     }
 
     public Executor executor() {
-        return executor;
+        return threadPool.executor(ThreadPool.Names.SNAPSHOT);
     }
 
     public int bufferSizeInBytes() {

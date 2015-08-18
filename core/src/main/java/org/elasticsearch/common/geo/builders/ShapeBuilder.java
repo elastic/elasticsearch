@@ -26,9 +26,8 @@ import com.spatial4j.core.shape.jts.JtsGeometry;
 import com.vividsolutions.jts.geom.Coordinate;
 import com.vividsolutions.jts.geom.Geometry;
 import com.vividsolutions.jts.geom.GeometryFactory;
-import org.apache.commons.lang3.tuple.Pair;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.Explicit;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.unit.DistanceUnit.Distance;
@@ -487,7 +486,7 @@ public abstract class ShapeBuilder implements ToXContent {
             return top;
         }
 
-        private static final Pair range(Coordinate[] points, int offset, int length) {
+        private static final double[] range(Coordinate[] points, int offset, int length) {
             double minX = points[0].x;
             double maxX = points[0].x;
             double minY = points[0].y;
@@ -507,7 +506,7 @@ public abstract class ShapeBuilder implements ToXContent {
                     maxY = points[offset + i].y;
                 }
             }
-            return Pair.of(Pair.of(minX, maxX), Pair.of(minY, maxY));
+            return new double[] {minX, maxX, minY, maxY};
         }
 
         /**
@@ -585,8 +584,8 @@ public abstract class ShapeBuilder implements ToXContent {
             // and convert to a right handed system
 
             // compute the bounding box and calculate range
-            Pair<Pair, Pair> range = range(points, offset, length);
-            final double rng = (Double)range.getLeft().getRight() - (Double)range.getLeft().getLeft();
+            double[] range = range(points, offset, length);
+            final double rng = range[1] - range[0];
             // translate the points if the following is true
             //   1.  shell orientation is cw and range is greater than a hemisphere (180 degrees) but not spanning 2 hemispheres 
             //       (translation would result in a collapsed poly)

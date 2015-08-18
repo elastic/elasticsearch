@@ -210,7 +210,7 @@ public class PluginsService extends AbstractComponent {
                 String oldPlugin = foundSettings.put(setting, plugin.v1().getName());
                 if (oldPlugin != null) {
                     throw new IllegalArgumentException("Cannot have additional setting [" + setting + "] " +
-                        "in plugin " + plugin.v1().getName() + ", already added in plugin " + oldPlugin);
+                        "in plugin [" + plugin.v1().getName() + "], already added in plugin [" + oldPlugin + "]");
                 }
             }
             builder.put(settings);

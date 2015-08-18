@@ -78,8 +78,8 @@ public class PluginsServiceTests extends ESTestCase {
         } catch (IllegalArgumentException e) {
             String msg = e.getMessage();
             assertTrue(msg, msg.contains("Cannot have additional setting [foo.bar]"));
-            assertTrue(msg, msg.contains("plugin additional-settings1"));
-            assertTrue(msg, msg.contains("plugin additional-settings2"));
+            assertTrue(msg, msg.contains("plugin [additional-settings1]"));
+            assertTrue(msg, msg.contains("plugin [additional-settings2]"));
         }
     }
 }

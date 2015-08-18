@@ -15,12 +15,6 @@ The delete by query plugin adds support for deleting all of the documents
 replacement for the problematic _delete-by-query_ functionality which has been
 removed from Elasticsearch core.
 
-https://github.com/elasticsearch/elasticsearch-mapper-attachments[Mapper Attachments Type plugin]::
-
-Integrates http://lucene.apache.org/tika/[Apache Tika] to provide a new field
-type `attachment` to allow indexing of documents such as PDFs and Microsoft
-Word.
-
 [float]
 === Community contributed API extension plugins
 

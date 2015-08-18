@@ -27,6 +27,7 @@ import org.elasticsearch.cloud.azure.management.AzureComputeSettingsFilter;
 import org.elasticsearch.cloud.azure.storage.AzureStorageService;
 import org.elasticsearch.cloud.azure.storage.AzureStorageService.Storage;
 import org.elasticsearch.cloud.azure.storage.AzureStorageServiceImpl;
+import org.elasticsearch.cloud.azure.storage.AzureStorageSettingsFilter;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Inject;
@@ -73,6 +74,7 @@ public class AzureModule extends AbstractModule {
     @Override
     protected void configure() {
         logger.debug("starting azure services");
+        bind(AzureStorageSettingsFilter.class).asEagerSingleton();
         bind(AzureComputeSettingsFilter.class).asEagerSingleton();
 
         // If we have set discovery to azure, let's start the azure compute service

@@ -36,7 +36,7 @@
     <skip.unit.tests>true</skip.unit.tests>
     <elasticsearch.integ.antfile>${project.basedir}/integration-tests.xml</elasticsearch.integ.antfile>
     <tests.rest.load_packaged>false</tests.rest.load_packaged>
-    <xplugins.list>elasticsearch-license,elasticsearch-shield,elasticsearch-watcher</xplugins.list>
+    <xplugins.list>license,shield,watcher</xplugins.list>
     <tests.rest.blacklist>hijack/10_basic/*</tests.rest.blacklist>
   </properties>
 

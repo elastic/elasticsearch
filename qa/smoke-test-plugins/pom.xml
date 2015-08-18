@@ -25,7 +25,7 @@
     <elasticsearch.integ.antfile>${project.basedir}/integration-tests.xml</elasticsearch.integ.antfile>
     <tests.rest.suite>smoke_test_plugins</tests.rest.suite>
     <tests.rest.load_packaged>false</tests.rest.load_packaged>
-    <xplugins.list>elasticsearch-license,elasticsearch-marvel,elasticsearch-shield,elasticsearch-watcher</xplugins.list>
+    <xplugins.list>license,marvel,shield,watcher</xplugins.list>
   </properties>
 
   <dependencies>

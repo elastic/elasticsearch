@@ -22,7 +22,7 @@
             <useProjectArtifact>true</useProjectArtifact>
             <useTransitiveDependencies>false</useTransitiveDependencies>
             <includes>
-                <include>org.elasticsearch.plugin:elasticsearch-shield</include>
+                <include>org.elasticsearch.plugin:shield</include>
                 <include>dk.brics.automaton:automaton</include>
                 <include>com.unboundid:unboundid-ldapsdk</include>
             </includes>

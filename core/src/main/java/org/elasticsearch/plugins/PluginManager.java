@@ -112,7 +112,7 @@ public class PluginManager {
             Files.createDirectory(environment.pluginsFile());
         }
 
-        if (!Files.isWritable(environment.pluginsFile())) {
+        if (!Environment.isWritable(environment.pluginsFile())) {
             throw new IOException("plugin directory " + environment.pluginsFile() + " is read only");
         }
 

@@ -550,6 +550,7 @@ public class PluginManagerIT extends ESIntegTestCase {
         PluginManager.checkForOfficialPlugins("elasticsearch-delete-by-query");
         PluginManager.checkForOfficialPlugins("elasticsearch-lang-javascript");
         PluginManager.checkForOfficialPlugins("elasticsearch-lang-python");
+        PluginManager.checkForOfficialPlugins("elasticsearch-mapper-murmur3");
 
         try {
             PluginManager.checkForOfficialPlugins("elasticsearch-mapper-attachment");

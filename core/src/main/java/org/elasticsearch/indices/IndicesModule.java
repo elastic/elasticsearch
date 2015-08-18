@@ -37,6 +37,7 @@ import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCacheListener;
 import org.elasticsearch.indices.flush.SyncedFlushService;
 import org.elasticsearch.indices.memory.IndexingMemoryController;
+import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.RecoverySource;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
@@ -154,6 +155,7 @@ public class IndicesModule extends AbstractModule {
 
     protected void bindQueryParsersExtension() {
         queryParsers.bind(binder());
+        bind(IndicesQueriesRegistry.class).asEagerSingleton();
     }
 
     protected void bindHunspellExtension() {

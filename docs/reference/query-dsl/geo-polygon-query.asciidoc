@@ -39,6 +39,7 @@ standard -180:180 / -90:90 coordinate system. (default is `false`).
 
 |`ignore_malformed` |Set to `true` to accept geo points with invalid latitude or
 longitude (default is `false`).
+|=======================================================================
 
 [float]
 ==== Allowed Formats

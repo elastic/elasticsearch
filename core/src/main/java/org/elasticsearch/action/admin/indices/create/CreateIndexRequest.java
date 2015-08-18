@@ -376,6 +376,35 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
     }
 
     /**
+     * To filter the parameters in settings that are not be used
+     * by elasticsearch users but only allowed for internal usage.
+     */
+    private Map<String, Object> filterBannedSettings(Map<String, Object> value) {
+        // banning version.created as it is just an internal settings
+        // we should remove it from both within index and outside index
+        // as api allows settings encapsulated within index and outside it.
+        if (value.get("version") != null) {
+            filterCreatedParam((Map<String, Object>) value.get("version"));
+        }
+        if (value.get("index") != null) {
+            Map<String, Object> index = (Map<String, Object>)value.get("index");
+            if (index.get("version") != null) {
+                filterCreatedParam((Map<String, Object>) index.get("version"));
+            }
+        }
+        return value;
+    }
+
+    /**
+     * To filter "created" param from the input settings.
+     */
+    private void filterCreatedParam(Map<String, Object> value) {
+        if (value.get("created") != null) {
+            value.remove("created");
+        }
+    }
+
+    /**
      * Sets the settings and mappings as a single source.
      */
     @SuppressWarnings("unchecked")
@@ -385,7 +414,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
             String name = entry.getKey();
             if (name.equals("settings")) {
                 found = true;
-                settings((Map<String, Object>) entry.getValue());
+                settings(filterBannedSettings((Map<String, Object>) entry.getValue()));
             } else if (name.equals("mappings")) {
                 found = true;
                 Map<String, Object> mappings = (Map<String, Object>) entry.getValue();

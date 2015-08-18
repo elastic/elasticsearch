@@ -28,6 +28,7 @@ import org.elasticsearch.search.profile.InternalProfileBreakdown;
 import org.elasticsearch.search.query.InternalProfiler;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Set;
 
 
@@ -232,6 +233,16 @@ public class ProfileQuery extends Query {
         @Override
         public Weight getWeight() {
             return profileWeight;
+        }
+
+        @Override
+        public Collection<ChildScorer> getChildren() {
+            return scorer.getChildren();
+        }
+
+        @Override
+        public TwoPhaseIterator asTwoPhaseIterator() {
+            return scorer.asTwoPhaseIterator();
         }
     }
 

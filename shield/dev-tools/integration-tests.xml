@@ -20,7 +20,7 @@
   <target name="start-external-cluster-with-plugin" depends="setup-workspace">
     <local name="home"/>
     <property name="home" location="${integ.scratch}/elasticsearch-${elasticsearch.version}"/>
-    <install-plugin name="elasticsearch-license" file="${integ.deps}/elasticsearch-license-${project.version}.zip" />
+    <install-plugin name="license" file="${integ.deps}/license-${project.version}.zip" />
     <install-plugin name="${project.artifactId}" file="${project.build.directory}/releases/${project.artifactId}-${project.version}.zip"/>
     <run-script script="${home}/bin/shield/esusers">
       <nested>

@@ -29,6 +29,7 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.apache.lucene.util.BitSet;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoDistance.FixedSourceDistance;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -42,7 +43,6 @@ import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.query.support.NestedInnerQueryParseSupport;
@@ -73,8 +73,9 @@ public class GeoDistanceSortParser implements SortParser {
         MultiValueMode sortMode = null;
         NestedInnerQueryParseSupport nestedHelper = null;
 
-        boolean normalizeLon = true;
-        boolean normalizeLat = true;
+        final boolean indexCreatedBeforeV2_0 = context.queryParserService().getIndexCreatedVersion().before(Version.V_2_0_0);
+        boolean coerce = false;
+        boolean ignoreMalformed = false;
 
         XContentParser.Token token;
         String currentName = parser.currentName();
@@ -107,9 +108,13 @@ public class GeoDistanceSortParser implements SortParser {
                     unit = DistanceUnit.fromString(parser.text());
                 } else if (currentName.equals("distance_type") || currentName.equals("distanceType")) {
                     geoDistance = GeoDistance.fromString(parser.text());
-                } else if ("normalize".equals(currentName)) {
-                    normalizeLat = parser.booleanValue();
-                    normalizeLon = parser.booleanValue();
+                } else if ("coerce".equals(currentName) || (indexCreatedBeforeV2_0 && "normalize".equals(currentName))) {
+                    coerce = parser.booleanValue();
+                    if (coerce == true) {
+                        ignoreMalformed = true;
+                    }
+                } else if ("ignore_malformed".equals(currentName) && coerce == false) {
+                    ignoreMalformed = parser.booleanValue();
                 } else if ("sort_mode".equals(currentName) || "sortMode".equals(currentName) || "mode".equals(currentName)) {
                     sortMode = MultiValueMode.fromString(parser.text());
                 } else if ("nested_path".equals(currentName) || "nestedPath".equals(currentName)) {
@@ -126,9 +131,21 @@ public class GeoDistanceSortParser implements SortParser {
             }
         }
 
-        if (normalizeLat || normalizeLon) {
+        // validation was not available prior to 2.x, so to support bwc percolation queries we only ignore_malformed on 2.x created indexes
+        if (!indexCreatedBeforeV2_0 && !ignoreMalformed) {
             for (GeoPoint point : geoPoints) {
-                GeoUtils.normalizePoint(point, normalizeLat, normalizeLon);
+                if (point.lat() > 90.0 || point.lat() < -90.0) {
+                    throw new ElasticsearchParseException("illegal latitude value [{}] for [GeoDistanceSort]", point.lat());
+                }
+                if (point.lon() > 180.0 || point.lon() < -180) {
+                    throw new ElasticsearchParseException("illegal longitude value [{}] for [GeoDistanceSort]", point.lon());
+                }
+            }
+        }
+
+        if (coerce) {
+            for (GeoPoint point : geoPoints) {
+                GeoUtils.normalizePoint(point, coerce, coerce);
             }
         }
 

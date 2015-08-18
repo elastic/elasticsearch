@@ -574,7 +574,8 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
                 "type",
                 jsonBuilder().startObject().startObject("type").startObject("properties").startObject("test").field("type", "string")
                         .endObject().startObject("date").field("type", "date").endObject().startObject("num").field("type", "double")
-                        .endObject().startObject("geo").field("type", "geo_point").endObject().endObject().endObject().endObject()));
+                        .endObject().startObject("geo").field("type", "geo_point").field("coerce", true).endObject().endObject()
+                        .endObject().endObject()));
         ensureYellow();
         int numDocs = 200;
         List<IndexRequestBuilder> indexBuilders = new ArrayList<>();

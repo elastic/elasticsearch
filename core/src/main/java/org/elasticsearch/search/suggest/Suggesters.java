@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.suggest;
 
-import org.elasticsearch.common.inject.Binder;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.ExtensionPoint;
 import org.elasticsearch.script.ScriptService;
@@ -31,7 +30,7 @@ import java.util.*;
 /**
  *
  */
-public final class Suggesters extends ExtensionPoint.MapExtensionPoint<Suggester> {
+public final class Suggesters extends ExtensionPoint.ClassMap<Suggester> {
     private final Map<String, Suggester> parsers;
 
     public Suggesters() {

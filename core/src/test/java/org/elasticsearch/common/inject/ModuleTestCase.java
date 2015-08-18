@@ -24,12 +24,15 @@ import org.elasticsearch.common.inject.spi.Elements;
 import org.elasticsearch.common.inject.spi.InstanceBinding;
 import org.elasticsearch.common.inject.spi.LinkedKeyBinding;
 import org.elasticsearch.common.inject.spi.ProviderInstanceBinding;
+import org.elasticsearch.common.inject.spi.ProviderLookup;
 import org.elasticsearch.test.ESTestCase;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Type;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -77,7 +80,7 @@ public abstract class ModuleTestCase extends ESTestCase {
 
     /**
      * Configures the module and checks a Map<String, Class> of the "to" class
-     * is bound to "theClas".
+     * is bound to "theClass".
      */
     public void assertMapMultiBinding(Module module, Class to, Class theClass) {
         List<Element> elements = Elements.getElements(module);
@@ -138,10 +141,18 @@ public abstract class ModuleTestCase extends ESTestCase {
         assertTrue("Did not find provider for set of " + to.getName(), providerFound);
     }
 
+    /**
+     * Configures the module, and ensures an instance is bound to the "to" class, and the
+     * provided tester returns true on the instance.
+     */
     public <T> void assertInstanceBinding(Module module, Class<T> to, Predicate<T> tester) {
         assertInstanceBindingWithAnnotation(module, to, tester, null);
     }
 
+    /**
+     * Like {@link #assertInstanceBinding(Module, Class, Predicate)}, but filters the
+     * classes checked by the given annotation.
+     */
     public <T> void assertInstanceBindingWithAnnotation(Module module, Class<T> to, Predicate<T> tester, Class<? extends Annotation> annotation) {
         List<Element> elements = Elements.getElements(module);
         for (Element element : elements) {
@@ -160,5 +171,40 @@ public abstract class ModuleTestCase extends ESTestCase {
             s.append(element + "\n");
         }
         fail("Did not find any instance binding to " + to.getName() + ". Found these bindings:\n" + s);
+    }
+
+    /**
+     * Configures the module, and ensures a map exists between the "keyType" and "valueType",
+     * and that all of the "expected" values are bound.
+     */
+    @SuppressWarnings("unchecked")
+    public <K,V> void assertMapInstanceBinding(Module module, Class<K> keyType, Class<V> valueType, Map<K,V> expected) throws Exception {
+        // this method is insane because java type erasure makes it incredibly difficult...
+        Map<K,Key> keys = new HashMap<>();
+        Map<Key,V> values = new HashMap<>();
+        List<Element> elements = Elements.getElements(module);
+        for (Element element : elements) {
+            if (element instanceof InstanceBinding) {
+                InstanceBinding binding = (InstanceBinding) element;
+                if (binding.getKey().getRawType().equals(valueType)) {
+                    values.put(binding.getKey(), (V)binding.getInstance());
+                } else if (binding.getInstance() instanceof Map.Entry) {
+                    Map.Entry entry = (Map.Entry)binding.getInstance();
+                    Object key = entry.getKey();
+                    Object providerValue = entry.getValue();
+                    if (key.getClass().equals(keyType) && providerValue instanceof ProviderLookup.ProviderImpl) {
+                        ProviderLookup.ProviderImpl provider = (ProviderLookup.ProviderImpl)providerValue;
+                        keys.put((K)key, provider.getKey());
+                    }
+                }
+            }
+        }
+        for (Map.Entry<K, V> entry : expected.entrySet()) {
+            Key valueKey = keys.get(entry.getKey());
+            assertNotNull("Could not find binding for key [" + entry.getKey() + "], found these keys:\n" + keys.keySet(), valueKey);
+            V value = values.get(valueKey);
+            assertNotNull("Could not find value for instance key [" + valueKey + "], found these bindings:\n" + elements);
+            assertEquals(entry.getValue(), value);
+        }
     }
 }

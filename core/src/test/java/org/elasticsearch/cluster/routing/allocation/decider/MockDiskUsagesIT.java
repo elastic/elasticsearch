@@ -51,7 +51,7 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                     // Use the mock internal cluster info service, which has fake-able disk usages
-                .extendArray("plugin.types", MockInternalClusterInfoService.Plugin.class.getName())
+                .extendArray("plugin.types", MockInternalClusterInfoService.TestPlugin.class.getName())
                         // Update more frequently
                 .put(InternalClusterInfoService.INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL, "1s")
                 .build();

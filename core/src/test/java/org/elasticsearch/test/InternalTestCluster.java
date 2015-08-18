@@ -384,14 +384,14 @@ public final class InternalTestCluster extends TestCluster {
                 .put(SETTING_CLUSTER_NODE_SEED, seed);
         if (ENABLE_MOCK_MODULES && usually(random)) {
             builder.extendArray("plugin.types",
-                MockTransportService.Plugin.class.getName(),
-                MockFSIndexStore.Plugin.class.getName(),
+                MockTransportService.TestPlugin.class.getName(),
+                MockFSIndexStore.TestPlugin.class.getName(),
                 NodeMocksPlugin.class.getName(),
                 MockEngineFactoryPlugin.class.getName(),
-                MockSearchService.Plugin.class.getName());
+                MockSearchService.TestPlugin.class.getName());
         }
         if (isLocalTransportConfigured()) {
-            builder.extendArray("plugin.types", AssertingLocalTransport.Plugin.class.getName());
+            builder.extendArray("plugin.types", AssertingLocalTransport.TestPlugin.class.getName());
         } else {
             builder.put(Transport.TransportSettings.TRANSPORT_TCP_COMPRESS, rarely(random));
         }

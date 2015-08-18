@@ -28,9 +28,8 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.IndicesWarmer;
 import org.elasticsearch.indices.cache.request.IndicesRequestCache;
 import org.elasticsearch.node.settings.NodeSettingsService;
-import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.dfs.DfsPhase;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.internal.SearchContext;
@@ -43,7 +42,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class MockSearchService extends SearchService {
 
-    public static class Plugin extends AbstractPlugin {
+    public static class TestPlugin extends Plugin {
         @Override
         public String name() {
             return "mock-search-service";

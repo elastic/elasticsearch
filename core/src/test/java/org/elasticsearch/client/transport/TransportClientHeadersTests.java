@@ -35,9 +35,17 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.*;
+import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportModule;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportRequestOptions;
+import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportResponseHandler;
+import org.elasticsearch.transport.TransportService;
 import org.junit.Test;
 
 import java.util.concurrent.CountDownLatch;
@@ -58,7 +66,7 @@ public class TransportClientHeadersTests extends AbstractClientHeadersTests {
         TransportClient client = TransportClient.builder().settings(Settings.builder()
                 .put("client.transport.sniff", false)
                 .put("node.name", "transport_client_" + this.getTestName())
-                .put("plugin.types", InternalTransportService.Plugin.class.getName())
+                .put("plugin.types", InternalTransportService.TestPlugin.class.getName())
                 .put(headersSettings)
                 .build()).build();
 
@@ -73,7 +81,7 @@ public class TransportClientHeadersTests extends AbstractClientHeadersTests {
                 .put("cluster.name", "cluster1")
                 .put("node.name", "transport_client_" + this.getTestName() + "_1")
             .put("client.transport.nodes_sampler_interval", "1s")
-            .put("plugin.types", InternalTransportService.Plugin.class.getName())
+            .put("plugin.types", InternalTransportService.TestPlugin.class.getName())
                 .put(HEADER_SETTINGS)
                 .put("path.home", createTempDir().toString())
                 .build()).build();
@@ -96,7 +104,7 @@ public class TransportClientHeadersTests extends AbstractClientHeadersTests {
 
     public static class InternalTransportService extends TransportService {
 
-        public static class Plugin extends AbstractPlugin {
+        public static class TestPlugin extends Plugin {
             @Override
             public String name() {
                 return "mock-transport-service";

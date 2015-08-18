@@ -73,7 +73,7 @@ public class PluggableTransportModuleIT extends ESIntegTestCase {
         assertThat("Expected send request counter to be greather than zero", countAfterRequest, is(greaterThan(countBeforeRequest)));
     }
 
-    public static class CountingSentRequestsPlugin extends AbstractPlugin {
+    public static class CountingSentRequestsPlugin extends Plugin {
         @Override
         public String name() {
             return "counting-pipelines-plugin";

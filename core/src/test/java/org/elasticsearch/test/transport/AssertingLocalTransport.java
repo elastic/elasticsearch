@@ -24,12 +24,17 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.*;
+import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportModule;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportRequestOptions;
+import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.local.LocalTransport;
 
 import java.io.IOException;
@@ -37,7 +42,7 @@ import java.util.Random;
 
 public class AssertingLocalTransport extends LocalTransport {
 
-    public static class Plugin extends AbstractPlugin {
+    public static class TestPlugin extends Plugin {
         @Override
         public String name() {
             return "asserting-local-transport";

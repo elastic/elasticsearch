@@ -19,10 +19,10 @@
 
 package org.elasticsearch.search.functionscore;
 
-import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptModule;
 
-public class ExplainableScriptPlugin extends AbstractPlugin {
+public class ExplainableScriptPlugin extends Plugin {
 
     public ExplainableScriptPlugin() {}
     @Override

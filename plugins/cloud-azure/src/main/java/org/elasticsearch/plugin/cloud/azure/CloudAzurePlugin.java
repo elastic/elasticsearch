@@ -30,19 +30,20 @@ import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardRepository
 import org.elasticsearch.index.store.IndexStoreModule;
 import org.elasticsearch.index.store.smbmmapfs.SmbMmapFsIndexStore;
 import org.elasticsearch.index.store.smbsimplefs.SmbSimpleFsIndexStore;
-import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesModule;
 import org.elasticsearch.repositories.azure.AzureRepository;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 
 import static org.elasticsearch.cloud.azure.AzureModule.isSnapshotReady;
 
 /**
  *
  */
-public class CloudAzurePlugin extends AbstractPlugin {
+public class CloudAzurePlugin extends Plugin {
 
     private final Settings settings;
     protected final ESLogger logger = Loggers.getLogger(CloudAzurePlugin.class);
@@ -63,10 +64,10 @@ public class CloudAzurePlugin extends AbstractPlugin {
     }
 
     @Override
-    public Collection<Class<? extends Module>> modules() {
-        Collection<Class<? extends Module>> modules = new ArrayList<>();
+    public Collection<Module> nodeModules() {
+        List<Module> modules = new ArrayList<>();
         if (AzureModule.isCloudReady(settings)) {
-            modules.add(AzureModule.class);
+            modules.add(new AzureModule(settings));
         }
         return modules;
     }

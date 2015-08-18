@@ -20,28 +20,17 @@
 package org.elasticsearch.plugin.example;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.inject.multibindings.Multibinder;
-import org.elasticsearch.common.inject.name.Names;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
-import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.plugins.AbstractPlugin;
-import org.elasticsearch.rest.action.cat.AbstractCatAction;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Collection;
-
-import static org.elasticsearch.common.io.Streams.copyToString;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.nio.file.Files.newBufferedReader;
+import static org.elasticsearch.common.io.Streams.copyToString;
 
 /**
  * Example configuration.

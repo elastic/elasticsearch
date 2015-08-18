@@ -23,7 +23,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -152,7 +152,7 @@ public class ScriptFieldIT extends ESIntegTestCase {
         }
     }
 
-    public static class CustomScriptPlugin extends AbstractPlugin {
+    public static class CustomScriptPlugin extends Plugin {
 
         @Override
         public String name() {

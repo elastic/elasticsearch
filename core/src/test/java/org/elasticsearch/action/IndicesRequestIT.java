@@ -89,7 +89,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.action.SearchServiceTransportAction;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -144,7 +144,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.settingsBuilder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .extendArray("plugin.types", InterceptingTransportService.Plugin.class.getName())
+                .extendArray("plugin.types", InterceptingTransportService.TestPlugin.class.getName())
                 .build();
     }
 
@@ -844,7 +844,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
 
     public static class InterceptingTransportService extends TransportService {
 
-        public static class Plugin extends AbstractPlugin {
+        public static class TestPlugin extends Plugin {
             @Override
             public String name() {
                 return "intercepting-transport-service";

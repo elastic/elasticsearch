@@ -66,7 +66,7 @@ public class CorruptedTranslogIT extends ESIntegTestCase {
                 // we really need local GW here since this also checks for corruption etc.
                 // and we need to make sure primaries are not just trashed if we don't have replicas
                 .put(super.nodeSettings(nodeOrdinal))
-                .extendArray("plugin.types", MockTransportService.Plugin.class.getName()).build();
+                .extendArray("plugin.types", MockTransportService.TestPlugin.class.getName()).build();
     }
 
     @Test

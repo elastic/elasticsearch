@@ -20,12 +20,13 @@
 package org.elasticsearch.plugin.mapper;
 
 import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.plugins.Plugin;
 
 import java.util.Collection;
 import java.util.Collections;
 
-public class MapperMurmur3Plugin extends AbstractPlugin {
+public class MapperMurmur3Plugin extends Plugin {
 
     @Override
     public String name() {
@@ -38,8 +39,8 @@ public class MapperMurmur3Plugin extends AbstractPlugin {
     }
 
     @Override
-    public Collection<Class<? extends Module>> indexModules() {
-        return Collections.<Class<? extends Module>>singleton(MapperMurmur3IndexModule.class);
+    public Collection<Module> indexModules(Settings settings) {
+        return Collections.<Module>singletonList(new MapperMurmur3IndexModule());
     }
 
 }

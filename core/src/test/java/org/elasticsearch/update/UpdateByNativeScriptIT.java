@@ -19,10 +19,9 @@
 package org.elasticsearch.update;
 
 import com.google.common.collect.Maps;
-
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.AbstractExecutableScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.NativeScriptEngineService;
@@ -50,7 +49,7 @@ public class UpdateByNativeScriptIT extends ESIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.settingsBuilder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .extendArray("plugin.types", CustomNativeScriptFactory.Plugin.class.getName())
+                .extendArray("plugin.types", CustomNativeScriptFactory.TestPlugin.class.getName())
                 .build();
     }
 
@@ -72,7 +71,7 @@ public class UpdateByNativeScriptIT extends ESIntegTestCase {
     }
 
     public static class CustomNativeScriptFactory implements NativeScriptFactory {
-        public static class Plugin extends AbstractPlugin {
+        public static class TestPlugin extends Plugin {
             @Override
             public String name() {
                 return "mock-native-script";

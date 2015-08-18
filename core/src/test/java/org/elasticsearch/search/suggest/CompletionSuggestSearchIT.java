@@ -686,9 +686,10 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
     @Test
     public void testThatStatsAreWorking() throws Exception {
         String otherField = "testOtherField";
-
-        createIndex(INDEX);
-
+        client().admin().indices().prepareCreate(INDEX)
+                .setSettings(Settings.settingsBuilder().put("index.number_of_replicas", 0).put("index.number_of_shards", 2))
+                .execute().actionGet();
+        ensureGreen();
         PutMappingResponse putMappingResponse = client().admin().indices().preparePutMapping(INDEX).setType(TYPE).setSource(jsonBuilder().startObject()
                 .startObject(TYPE).startObject("properties")
                 .startObject(FIELD)
@@ -710,7 +711,6 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         // load the fst index into ram
         client().prepareSuggest(INDEX).addSuggestion(SuggestBuilders.completionSuggestion("foo").field(FIELD).prefix("f")).get();
         client().prepareSuggest(INDEX).addSuggestion(SuggestBuilders.completionSuggestion("foo").field(otherField).prefix("f")).get();
-        refresh();
 
         // Get all stats
         IndicesStatsResponse indicesStatsResponse = client().admin().indices().prepareStats(INDEX).setIndices(INDEX).setCompletion(true).get();

@@ -20,7 +20,6 @@
 package org.elasticsearch.snapshots.mockstore;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.SnapshotId;
@@ -37,7 +36,6 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.snapshots.IndexShardRepository;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardRepository;
-import org.elasticsearch.plugins.AbstractPlugin;
 import org.elasticsearch.repositories.RepositoriesModule;
 import org.elasticsearch.repositories.RepositoryName;
 import org.elasticsearch.repositories.RepositorySettings;
@@ -50,8 +48,6 @@ import java.io.UnsupportedEncodingException;
 import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -64,7 +60,7 @@ import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 
 public class MockRepository extends FsRepository {
 
-    public static class Plugin extends AbstractPlugin {
+    public static class Plugin extends org.elasticsearch.plugins.Plugin {
 
         @Override
         public String name() {
@@ -81,10 +77,8 @@ public class MockRepository extends FsRepository {
         }
 
         @Override
-        public Collection<Class<? extends Module>> modules() {
-            Collection<Class<? extends Module>> modules = new ArrayList<>();
-            modules.add(SettingsFilteringModule.class);
-            return modules;
+        public Collection<Module> nodeModules() {
+            return Collections.<Module>singletonList(new SettingsFilteringModule());
         }
 
         public static class SettingsFilteringModule extends AbstractModule {

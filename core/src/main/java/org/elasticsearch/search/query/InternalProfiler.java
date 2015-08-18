@@ -106,6 +106,12 @@ public class InternalProfiler {
      * @param rewritten     The rewritten query
      */
     public void reconcileRewrite(Query original, Query rewritten) {
+
+        // If the original and rewritten are identical, no need to reconcile
+        if (original.equals(rewritten)) {
+            return;
+        }
+
         InternalProfileBreakdown originalTimings = timings.get(original);
 
         InternalProfileBreakdown rewrittenTimings = timings.get(rewritten);

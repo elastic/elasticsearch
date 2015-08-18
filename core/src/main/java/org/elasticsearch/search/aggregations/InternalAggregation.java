@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.search.aggregations;
 
+import org.elasticsearch.common.DelegatingHasContextAndHeaders;
+import org.elasticsearch.common.HasContextAndHeaders;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -90,12 +92,13 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, St
         }
     }
 
-    public static class ReduceContext {
+    public static class ReduceContext extends DelegatingHasContextAndHeaders {
 
         private final BigArrays bigArrays;
         private ScriptService scriptService;
 
-        public ReduceContext(BigArrays bigArrays, ScriptService scriptService) {
+        public ReduceContext(BigArrays bigArrays, ScriptService scriptService, HasContextAndHeaders headersContext) {
+            super(headersContext);
             this.bigArrays = bigArrays;
             this.scriptService = scriptService;
         }

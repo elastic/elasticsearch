@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.suggest.completion;
 
+import org.elasticsearch.common.HasContextAndHeaders;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -49,13 +50,14 @@ public class CompletionSuggestParser implements SuggestContextParser {
     }
 
     @Override
-    public SuggestionSearchContext.SuggestionContext parse(XContentParser parser, MapperService mapperService, IndexQueryParserService queryParserService) throws IOException {
+    public SuggestionSearchContext.SuggestionContext parse(XContentParser parser, MapperService mapperService,
+            IndexQueryParserService queryParserService, HasContextAndHeaders headersContext) throws IOException {
         XContentParser.Token token;
         String fieldName = null;
         CompletionSuggestionContext suggestion = new CompletionSuggestionContext(completionSuggester);
-        
+
         XContentParser contextParser = null;
-        
+
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 fieldName = parser.currentName();
@@ -90,7 +92,7 @@ public class CompletionSuggestParser implements SuggestContextParser {
                     // Copy the current structure. We will parse, once the mapping is provided
                     XContentBuilder builder = XContentFactory.contentBuilder(parser.contentType());
                     builder.copyCurrentStructure(parser);
-                    BytesReference bytes = builder.bytes();               
+                    BytesReference bytes = builder.bytes();
                     contextParser = parser.contentType().xContent().createParser(bytes);
                 } else {
                     throw new IllegalArgumentException("suggester [completion] doesn't support field [" + fieldName + "]");
@@ -99,7 +101,7 @@ public class CompletionSuggestParser implements SuggestContextParser {
                 throw new IllegalArgumentException("suggester[completion]  doesn't support field [" + fieldName + "]");
             }
         }
-        
+
         suggestion.fieldType((CompletionFieldMapper.CompletionFieldType) mapperService.smartNameFieldType(suggestion.getField()));
 
         CompletionFieldMapper.CompletionFieldType fieldType = suggestion.fieldType();

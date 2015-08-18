@@ -38,8 +38,8 @@ public class MapperSizePlugin extends AbstractPlugin {
     }
 
     @Override
-    public Collection<Class<? extends Module>> indexModules() {
-        return Collections.<Class<? extends Module>>singleton(MapperSizeIndexModule.class);
+    public Collection<Module> indexModules() {
+        return Collections.<Module>singletonList(new MapperSizeIndexModule());
     }
 
 }

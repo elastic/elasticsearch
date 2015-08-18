@@ -20,12 +20,21 @@
 package org.elasticsearch.plugin.analysis.kuromoji;
 
 import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.index.analysis.*;
+import org.elasticsearch.index.analysis.AnalysisModule;
+import org.elasticsearch.index.analysis.JapaneseStopTokenFilterFactory;
+import org.elasticsearch.index.analysis.KuromojiAnalyzerProvider;
+import org.elasticsearch.index.analysis.KuromojiBaseFormFilterFactory;
+import org.elasticsearch.index.analysis.KuromojiIterationMarkCharFilterFactory;
+import org.elasticsearch.index.analysis.KuromojiKatakanaStemmerFactory;
+import org.elasticsearch.index.analysis.KuromojiPartOfSpeechFilterFactory;
+import org.elasticsearch.index.analysis.KuromojiReadingFormFilterFactory;
+import org.elasticsearch.index.analysis.KuromojiTokenizerFactory;
 import org.elasticsearch.indices.analysis.KuromojiIndicesAnalysisModule;
 import org.elasticsearch.plugins.AbstractPlugin;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 
 /**
  *
@@ -43,10 +52,8 @@ public class AnalysisKuromojiPlugin extends AbstractPlugin {
     }
 
     @Override
-    public Collection<Class<? extends Module>> modules() {
-        Collection<Class<? extends Module>> classes = new ArrayList<>();
-        classes.add(KuromojiIndicesAnalysisModule.class);
-        return classes;
+    public Collection<Module> nodeModules() {
+        return Collections.<Module>singletonList(new KuromojiIndicesAnalysisModule());
     }
 
     public void onModule(AnalysisModule module) {

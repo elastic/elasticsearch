@@ -19,20 +19,16 @@
 
 package org.elasticsearch.plugins;
 
-import com.google.common.collect.ImmutableList;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.Settings;
 
 import java.io.Closeable;
 import java.util.Collection;
+import java.util.Collections;
 
 /**
- * A base class for a plugin.
- * <p/>
- * A plugin can be dynamically injected with {@link Module} by implementing <tt>onModule(AnyModule)</tt> method
- * removing the need to override {@link #processModule(org.elasticsearch.common.inject.Module)} and check using
- * instanceof.
+ * A base class for a plugin which returns no services or modules.
  */
 public abstract class AbstractPlugin implements Plugin {
 
@@ -40,40 +36,24 @@ public abstract class AbstractPlugin implements Plugin {
      * Defaults to return an empty list.
      */
     @Override
-    public Collection<Class<? extends Module>> modules() {
-        return ImmutableList.of();
+    public Collection<Module> nodeModules() {
+        return Collections.emptyList();
     }
 
     /**
      * Defaults to return an empty list.
      */
     @Override
-    public Collection<Module> modules(Settings settings) {
-        return ImmutableList.of();
+    public Collection<Class<? extends LifecycleComponent>> nodeServices() {
+        return Collections.emptyList();
     }
 
     /**
      * Defaults to return an empty list.
      */
     @Override
-    public Collection<Class<? extends LifecycleComponent>> services() {
-        return ImmutableList.of();
-    }
-
-    /**
-     * Defaults to return an empty list.
-     */
-    @Override
-    public Collection<Class<? extends Module>> indexModules() {
-        return ImmutableList.of();
-    }
-
-    /**
-     * Defaults to return an empty list.
-     */
-    @Override
-    public Collection<Module> indexModules(Settings settings) {
-        return ImmutableList.of();
+    public Collection<Module> indexModules() {
+        return Collections.emptyList();
     }
 
     /**
@@ -81,23 +61,15 @@ public abstract class AbstractPlugin implements Plugin {
      */
     @Override
     public Collection<Class<? extends Closeable>> indexServices() {
-        return ImmutableList.of();
+        return Collections.emptyList();
     }
 
     /**
      * Defaults to return an empty list.
      */
     @Override
-    public Collection<Class<? extends Module>> shardModules() {
-        return ImmutableList.of();
-    }
-
-    /**
-     * Defaults to return an empty list.
-     */
-    @Override
-    public Collection<Module> shardModules(Settings settings) {
-        return ImmutableList.of();
+    public Collection<Module> shardModules() {
+        return Collections.emptyList();
     }
 
     /**
@@ -105,12 +77,7 @@ public abstract class AbstractPlugin implements Plugin {
      */
     @Override
     public Collection<Class<? extends Closeable>> shardServices() {
-        return ImmutableList.of();
-    }
-
-    @Override
-    public void processModule(Module module) {
-        // nothing to do here
+        return Collections.emptyList();
     }
 
     @Override

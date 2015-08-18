@@ -31,6 +31,7 @@ import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.junit.Test;
 
 import java.util.Collection;
+import java.util.Collections;
 
 import static com.google.common.collect.Lists.newArrayList;
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
@@ -67,10 +68,8 @@ public class SettingsFilteringIT extends ESIntegTestCase {
         }
 
         @Override
-        public Collection<Class<? extends Module>> indexModules() {
-            Collection<Class<? extends Module>> modules = newArrayList();
-            modules.add(SettingsFilteringModule.class);
-            return modules;
+        public Collection<Module> indexModules() {
+            return Collections.<Module>singletonList(new SettingsFilteringModule());
         }
     }
 

@@ -27,6 +27,7 @@ import org.elasticsearch.plugins.AbstractPlugin;
 import org.elasticsearch.repositories.RepositoriesModule;
 
 import java.util.Collection;
+import java.util.Collections;
 
 import static com.google.common.collect.Lists.newArrayList;
 
@@ -47,10 +48,8 @@ public class MockRepositoryPlugin extends AbstractPlugin {
     }
 
     @Override
-    public Collection<Class<? extends Module>> modules() {
-        Collection<Class<? extends Module>> modules = newArrayList();
-        modules.add(SettingsFilteringModule.class);
-        return modules;
+    public Collection<Module> nodeModules() {
+        return Collections.<Module>singletonList(new SettingsFilteringModule());
     }
 
     public static class SettingsFilteringModule extends AbstractModule {

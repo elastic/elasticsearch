@@ -378,10 +378,8 @@ public class ContextAndHeaderTransportIT extends ESIntegTestCase {
         }
 
         @Override
-        public Collection<Class<? extends Module>> modules() {
-            Collection<Class<? extends Module>> classes = new ArrayList<>();
-            classes.add(ActionLoggingModule.class);
-            return classes;
+        public Collection<Module> nodeModules() {
+            return Collections.<Module>singletonList(new ActionLoggingModule());
         }
     }
 

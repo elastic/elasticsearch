@@ -43,10 +43,8 @@ public class AnalysisStempelPlugin extends AbstractPlugin {
     }
 
     @Override
-    public Collection<Class<? extends Module>> modules() {
-        Collection<Class<? extends Module>> classes = new ArrayList<>();
-        classes.add(PolishIndicesAnalysisModule.class);
-        return classes;
+    public Collection<Module> nodeModules() {
+        return Collections.<Module>singletonList(new PolishIndicesAnalysisModule());
     }
 
     public void onModule(AnalysisModule module) {

@@ -23,30 +23,23 @@ import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.plugins.AbstractPlugin;
 
 import java.util.Collection;
+import java.util.Collections;
 
 import static com.google.common.collect.Lists.newArrayList;
 
 public class ExternalMapperPlugin extends AbstractPlugin {
-    /**
-     * The name of the plugin.
-     */
     @Override
     public String name() {
         return "external-mappers";
     }
 
-    /**
-     * The description of the plugin.
-     */
     @Override
     public String description() {
         return "External Mappers Plugin";
     }
 
     @Override
-    public Collection<Class<? extends Module>> indexModules() {
-        Collection<Class<? extends Module>> modules = newArrayList();
-        modules.add(ExternalIndexModule.class);
-        return modules;
+    public Collection<Module> indexModules() {
+        return Collections.<Module>singletonList(new ExternalIndexModule());
     }
 }

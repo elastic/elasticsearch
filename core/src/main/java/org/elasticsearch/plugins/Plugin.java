@@ -29,9 +29,8 @@ import java.util.Collection;
 /**
  * An extension point allowing to plug in custom functionality.
  * <p/>
- * A plugin can be dynamically injected with {@link Module} by implementing <tt>onModule(AnyModule)</tt> method
- * removing the need to override {@link #processModule(org.elasticsearch.common.inject.Module)} and check using
- * instanceof.
+ * A plugin can be register custom extensions to builtin behavior by implementing <tt>onModule(AnyModule)</tt>,
+ * and registering the extension with the given module.
  */
 public interface Plugin {
 
@@ -46,31 +45,19 @@ public interface Plugin {
     String description();
 
     /**
-     * Node level modules (classes, will automatically be created).
+     * Node level modules.
      */
-    Collection<Class<? extends Module>> modules();
-
-    /**
-     * Node level modules (instances)
-     *
-     * @param settings The node level settings.
-     */
-    Collection<? extends Module> modules(Settings settings);
+    Collection<Module> nodeModules();
 
     /**
      * Node level services that will be automatically started/stopped/closed.
      */
-    Collection<Class<? extends LifecycleComponent>> services();
+    Collection<Class<? extends LifecycleComponent>> nodeServices();
 
     /**
      * Per index modules.
      */
-    Collection<Class<? extends Module>> indexModules();
-
-    /**
-     * Per index modules.
-     */
-    Collection<? extends Module> indexModules(Settings settings);
+    Collection<Module> indexModules();
 
     /**
      * Per index services that will be automatically closed.
@@ -80,23 +67,12 @@ public interface Plugin {
     /**
      * Per index shard module.
      */
-    Collection<Class<? extends Module>> shardModules();
-
-    /**
-     * Per index shard module.
-     */
-    Collection<? extends Module> shardModules(Settings settings);
+    Collection<Module> shardModules();
 
     /**
      * Per index shard service that will be automatically closed.
      */
     Collection<Class<? extends Closeable>> shardServices();
-
-    /**
-     * Process a specific module. Note, its simpler to implement a custom <tt>onModule(AnyModule module)</tt>
-     * method, which will be automatically be called by the relevant type.
-     */
-    void processModule(Module module);
 
     /**
      * Additional node settings loaded by the plugin. Note that settings that are explicit in the nodes settings can't be

@@ -1005,7 +1005,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
         }
 
         @Override
-        public Collection<Class<? extends LifecycleComponent>> services() {
+        public Collection<Class<? extends LifecycleComponent>> nodeServices() {
             List<Class<? extends LifecycleComponent>> services = new ArrayList<>(1);
             services.add(MasterAwareService.class);
             return services;

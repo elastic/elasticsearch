@@ -19,12 +19,12 @@
 
 package org.elasticsearch.indices.analysis;
 
-import com.google.common.collect.ImmutableList;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.index.analysis.AnalysisModule;
 import org.elasticsearch.plugins.AbstractPlugin;
 
 import java.util.Collection;
+import java.util.Collections;
 
 public class DummyAnalysisPlugin extends AbstractPlugin {
     /**
@@ -44,8 +44,8 @@ public class DummyAnalysisPlugin extends AbstractPlugin {
     }
 
     @Override
-    public Collection<Class<? extends Module>> modules() {
-        return ImmutableList.<Class<? extends Module>>of(DummyIndicesAnalysisModule.class);
+    public Collection<Module> nodeModules() {
+        return Collections.<Module>singletonList(new DummyIndicesAnalysisModule());
     }
 
     public void onModule(AnalysisModule module) {

@@ -36,6 +36,7 @@ import org.elasticsearch.repositories.azure.AzureRepositoryModule;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 
 import static org.elasticsearch.cloud.azure.AzureModule.isSnapshotReady;
 
@@ -63,20 +64,16 @@ public class CloudAzurePlugin extends AbstractPlugin {
     }
 
     @Override
-    public Collection<Class<? extends Module>> modules() {
-        Collection<Class<? extends Module>> modules = new ArrayList<>();
+    public Collection<Module> nodeModules() {
+        List<Module> modules = new ArrayList<>();
         if (AzureModule.isCloudReady(settings)) {
-            modules.add(AzureModule.class);
+            modules.add(new AzureModule(settings));
         }
         return modules;
     }
 
-    @Override
-    public void processModule(Module module) {
-        if (isSnapshotReady(settings, logger)
-                && module instanceof RepositoriesModule) {
-            ((RepositoriesModule)module).registerRepository(AzureRepository.TYPE, AzureRepositoryModule.class);
-        }
+    public void onModule(RepositoriesModule module) {
+        module.registerRepository(AzureRepository.TYPE, AzureRepositoryModule.class);
     }
 
     public void onModule(DiscoveryModule discoveryModule) {

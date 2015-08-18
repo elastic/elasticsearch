@@ -19,16 +19,8 @@
 
 package org.elasticsearch.plugins;
 
-import org.elasticsearch.common.component.LifecycleComponent;
-import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.settings.Settings;
-
-import java.io.Closeable;
-import java.util.Collection;
-import java.util.Collections;
-
 /** A site-only plugin, just serves resources */
-final class SitePlugin implements Plugin {
+final class SitePlugin extends AbstractPlugin {
     final String name;
     final String description;
     
@@ -45,59 +37,5 @@ final class SitePlugin implements Plugin {
     @Override
     public String description() {
         return description;
-    }
-
-    @Override
-    public Collection<Class<? extends Module>> modules() {
-        return Collections.emptyList();
-    }
-
-    @Override
-    public Collection<? extends Module> modules(Settings settings) {
-        return Collections.emptyList();
-    }
-
-    @Override
-    public Collection<Class<? extends LifecycleComponent>> services() {
-        return Collections.emptyList();
-    }
-
-    @Override
-    public Collection<Class<? extends Module>> indexModules() {
-        return Collections.emptyList();
-    }
-
-    @Override
-    public Collection<? extends Module> indexModules(Settings settings) {
-        return Collections.emptyList();
-    }
-
-    @Override
-    public Collection<Class<? extends Closeable>> indexServices() {
-        return Collections.emptyList();
-    }
-
-    @Override
-    public Collection<Class<? extends Module>> shardModules() {
-        return Collections.emptyList();
-    }
-
-    @Override
-    public Collection<? extends Module> shardModules(Settings settings) {
-        return Collections.emptyList();
-    }
-
-    @Override
-    public Collection<Class<? extends Closeable>> shardServices() {
-        return Collections.emptyList();
-    }
-
-    @Override
-    public void processModule(Module module) {
-    }
-
-    @Override
-    public Settings additionalSettings() {
-        return Settings.EMPTY;
     }
 }

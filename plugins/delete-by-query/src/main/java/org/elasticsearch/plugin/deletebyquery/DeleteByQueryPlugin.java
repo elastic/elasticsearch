@@ -20,11 +20,10 @@
 package org.elasticsearch.plugin.deletebyquery;
 
 import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.AbstractPlugin;
 
-import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 
 public class DeleteByQueryPlugin extends AbstractPlugin {
 
@@ -41,7 +40,7 @@ public class DeleteByQueryPlugin extends AbstractPlugin {
     }
 
     @Override
-    public Collection<Module> modules(Settings settings) {
-        return Arrays.asList((Module) new DeleteByQueryModule());
+    public Collection<Module> nodeModules() {
+        return Collections.<Module>singletonList(new DeleteByQueryModule());
     }
 }

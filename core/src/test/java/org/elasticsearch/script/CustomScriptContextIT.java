@@ -128,14 +128,10 @@ public class CustomScriptContextIT extends ESIntegTestCase {
             return "Custom script context plugin";
         }
 
-        @Override
-        public void processModule(Module module) {
-            if (module instanceof ScriptModule) {
-                ScriptModule scriptModule = (ScriptModule) module;
-                scriptModule.registerScriptContext(new ScriptContext.Plugin(PLUGIN_NAME, "custom_op"));
-                scriptModule.registerScriptContext(new ScriptContext.Plugin(PLUGIN_NAME, "custom_exp_disabled_op"));
-                scriptModule.registerScriptContext(new ScriptContext.Plugin(PLUGIN_NAME, "custom_globally_disabled_op"));
-            }
+        public void onModule(ScriptModule scriptModule) {
+            scriptModule.registerScriptContext(new ScriptContext.Plugin(PLUGIN_NAME, "custom_op"));
+            scriptModule.registerScriptContext(new ScriptContext.Plugin(PLUGIN_NAME, "custom_exp_disabled_op"));
+            scriptModule.registerScriptContext(new ScriptContext.Plugin(PLUGIN_NAME, "custom_globally_disabled_op"));
         }
     }
 }

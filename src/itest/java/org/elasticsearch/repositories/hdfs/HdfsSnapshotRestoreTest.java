@@ -53,7 +53,8 @@ public class HdfsSnapshotRestoreTest extends ESIntegTestCase {
     protected Settings nodeSettings(int ordinal) {
         // During restore we frequently restore index to exactly the same state it was before, that might cause the same
         // checksum file to be written twice during restore operation
-        return Settings.builder().put(super.indexSettings())
+        return Settings.builder().put(super.nodeSettings(ordinal))
+                .put("path.home", createTempDir())
                 .put(MockFSDirectoryService.RANDOM_PREVENT_DOUBLE_WRITE, false)
                 .put(MockFSDirectoryService.RANDOM_NO_DELETE_OPEN_FILE, false)
                 .put("plugin.types", HdfsPlugin.class.getName())

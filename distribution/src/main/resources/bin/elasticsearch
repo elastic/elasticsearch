@@ -47,7 +47,7 @@
 # hasn't been done, we assume that this is not a packaged version and the
 # user has forgotten to run Maven to create a package.
 IS_PACKAGED_VERSION='${project.parent.artifactId}'
-if [ "$IS_PACKAGED_VERSION" != "elasticsearch-distribution" ]; then
+if [ "$IS_PACKAGED_VERSION" != "distributions" ]; then
     cat >&2 << EOF
 Error: You must build the project with Maven or download a pre-built package
 before you can run Elasticsearch. See 'Building from Source' in README.textile

@@ -17,12 +17,12 @@ governing permissions and limitations under the License. -->
 
     <parent>
         <groupId>org.elasticsearch.plugin</groupId>
-        <artifactId>elasticsearch-plugin</artifactId>
+        <artifactId>plugins</artifactId>
         <version>2.1.0-SNAPSHOT</version>
     </parent>
 
-    <artifactId>elasticsearch-mapper-size</artifactId>
-    <name>Elasticsearch Mapper size plugin</name>
+    <artifactId>mapper-size</artifactId>
+    <name>Plugin: Mapper: Size</name>
     <description>The Mapper Size plugin allows document to record their uncompressed size at index time.</description>
 
     <properties>

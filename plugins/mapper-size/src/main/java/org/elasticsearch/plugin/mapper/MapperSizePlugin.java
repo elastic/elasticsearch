@@ -20,12 +20,13 @@
 package org.elasticsearch.plugin.mapper;
 
 import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.plugins.Plugin;
 
 import java.util.Collection;
 import java.util.Collections;
 
-public class MapperSizePlugin extends AbstractPlugin {
+public class MapperSizePlugin extends Plugin {
 
     @Override
     public String name() {
@@ -38,7 +39,7 @@ public class MapperSizePlugin extends AbstractPlugin {
     }
 
     @Override
-    public Collection<Module> indexModules() {
+    public Collection<Module> indexModules(Settings indexSettings) {
         return Collections.<Module>singletonList(new MapperSizeIndexModule());
     }
 

@@ -41,7 +41,7 @@ public class IndexPluginsModule extends AbstractModule implements SpawnModules, 
 
     @Override
     public Iterable<? extends Module> spawnModules() {
-        return pluginsService.indexModules();
+        return pluginsService.indexModules(settings);
     }
 
     @Override

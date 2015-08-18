@@ -26,7 +26,7 @@ import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.ec2.Ec2Discovery;
-import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesModule;
 import org.elasticsearch.repositories.s3.S3Repository;
 import org.elasticsearch.repositories.s3.S3RepositoryModule;
@@ -37,7 +37,7 @@ import java.util.Collection;
 /**
  *
  */
-public class CloudAwsPlugin extends AbstractPlugin {
+public class CloudAwsPlugin extends Plugin {
 
     private final Settings settings;
 

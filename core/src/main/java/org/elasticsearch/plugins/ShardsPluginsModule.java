@@ -41,7 +41,7 @@ public class ShardsPluginsModule extends AbstractModule implements SpawnModules,
 
     @Override
     public Iterable<? extends Module> spawnModules() {
-        return pluginsService.shardModules();
+        return pluginsService.shardModules(settings);
     }
 
     @Override

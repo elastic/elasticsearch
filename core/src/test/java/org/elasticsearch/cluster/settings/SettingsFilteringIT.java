@@ -25,7 +25,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
-import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.junit.Test;
@@ -50,7 +50,7 @@ public class SettingsFilteringIT extends ESIntegTestCase {
                 .build();
     }
 
-    public static class SettingsFilteringPlugin extends AbstractPlugin {
+    public static class SettingsFilteringPlugin extends Plugin {
         /**
          * The name of the plugin.
          */
@@ -68,7 +68,7 @@ public class SettingsFilteringIT extends ESIntegTestCase {
         }
 
         @Override
-        public Collection<Module> indexModules() {
+        public Collection<Module> indexModules(Settings indexSettings) {
             return Collections.<Module>singletonList(new SettingsFilteringModule());
         }
     }

@@ -20,14 +20,13 @@
 package org.elasticsearch.index.mapper.externalvalues;
 
 import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.plugins.Plugin;
 
 import java.util.Collection;
 import java.util.Collections;
 
-import static com.google.common.collect.Lists.newArrayList;
-
-public class ExternalMapperPlugin extends AbstractPlugin {
+public class ExternalMapperPlugin extends Plugin {
     @Override
     public String name() {
         return "external-mappers";
@@ -39,7 +38,7 @@ public class ExternalMapperPlugin extends AbstractPlugin {
     }
 
     @Override
-    public Collection<Module> indexModules() {
+    public Collection<Module> indexModules(Settings indexSettings) {
         return Collections.<Module>singletonList(new ExternalIndexModule());
     }
 }

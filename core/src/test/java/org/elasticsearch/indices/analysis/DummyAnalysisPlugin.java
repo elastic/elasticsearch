@@ -21,12 +21,12 @@ package org.elasticsearch.indices.analysis;
 
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.index.analysis.AnalysisModule;
-import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.plugins.Plugin;
 
 import java.util.Collection;
 import java.util.Collections;
 
-public class DummyAnalysisPlugin extends AbstractPlugin {
+public class DummyAnalysisPlugin extends Plugin {
     /**
      * The name of the plugin.
      */

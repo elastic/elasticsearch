@@ -36,7 +36,7 @@ import java.util.Collections;
 /**
  * Example of a plugin.
  */
-public class JvmExamplePlugin implements Plugin {
+public class JvmExamplePlugin extends Plugin {
 
     private final Settings settings;
 
@@ -66,7 +66,7 @@ public class JvmExamplePlugin implements Plugin {
     }
 
     @Override
-    public Collection<Module> indexModules() {
+    public Collection<Module> indexModules(Settings indexSettings) {
         return Collections.emptyList();
     }
 
@@ -76,7 +76,7 @@ public class JvmExamplePlugin implements Plugin {
     }
 
     @Override
-    public Collection<Module> shardModules() {
+    public Collection<Module> shardModules(Settings indexSettings) {
         return Collections.emptyList();
     }
 

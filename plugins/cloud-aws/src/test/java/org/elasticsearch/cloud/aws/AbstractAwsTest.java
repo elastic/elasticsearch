@@ -75,7 +75,7 @@ public abstract class AbstractAwsTest extends ESIntegTestCase {
                 Settings.Builder settings = Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put("path.home", createTempDir())
-                .extendArray("plugin.types", CloudAwsPlugin.class.getName(), TestAwsS3Service.Plugin.class.getName())
+                .extendArray("plugin.types", CloudAwsPlugin.class.getName(), TestAwsS3Service.TestPlugin.class.getName())
                 .put("cloud.aws.test.random", randomInt())
                 .put("cloud.aws.test.write_failures", 0.1)
                 .put("cloud.aws.test.read_failures", 0.1);

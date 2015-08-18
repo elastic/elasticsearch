@@ -23,16 +23,15 @@ import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.index.analysis.AnalysisModule;
 import org.elasticsearch.index.analysis.SmartChineseAnalysisBinderProcessor;
 import org.elasticsearch.indices.analysis.smartcn.SmartChineseIndicesAnalysisModule;
-import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.plugins.Plugin;
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 
 /**
  *
  */
-public class AnalysisSmartChinesePlugin extends AbstractPlugin {
+public class AnalysisSmartChinesePlugin extends Plugin {
 
     @Override
     public String name() {

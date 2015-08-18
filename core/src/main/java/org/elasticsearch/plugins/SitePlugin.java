@@ -20,7 +20,7 @@
 package org.elasticsearch.plugins;
 
 /** A site-only plugin, just serves resources */
-final class SitePlugin extends AbstractPlugin {
+final class SitePlugin extends Plugin {
     final String name;
     final String description;
     

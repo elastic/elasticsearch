@@ -25,7 +25,7 @@ import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.gce.GceDiscovery;
-import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.plugins.Plugin;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -34,7 +34,7 @@ import java.util.List;
 /**
  *
  */
-public class CloudGcePlugin extends AbstractPlugin {
+public class CloudGcePlugin extends Plugin {
 
     private final Settings settings;
 

@@ -47,7 +47,6 @@ import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -224,10 +223,10 @@ public class PluginsService extends AbstractComponent {
         return services;
     }
 
-    public Collection<Module> indexModules() {
+    public Collection<Module> indexModules(Settings indexSettings) {
         List<Module> modules = new ArrayList<>();
         for (Tuple<PluginInfo, Plugin> plugin : plugins) {
-            modules.addAll(plugin.v2().indexModules());
+            modules.addAll(plugin.v2().indexModules(indexSettings));
         }
         return modules;
     }
@@ -240,10 +239,10 @@ public class PluginsService extends AbstractComponent {
         return services;
     }
 
-    public Collection<Module> shardModules() {
+    public Collection<Module> shardModules(Settings indexSettings) {
         List<Module> modules = new ArrayList<>();
         for (Tuple<PluginInfo, Plugin> plugin : plugins) {
-            modules.addAll(plugin.v2().shardModules());
+            modules.addAll(plugin.v2().shardModules(indexSettings));
         }
         return modules;
     }

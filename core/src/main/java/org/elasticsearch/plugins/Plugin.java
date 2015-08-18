@@ -25,6 +25,7 @@ import org.elasticsearch.common.settings.Settings;
 
 import java.io.Closeable;
 import java.util.Collection;
+import java.util.Collections;
 
 /**
  * An extension point allowing to plug in custom functionality.
@@ -32,51 +33,65 @@ import java.util.Collection;
  * A plugin can be register custom extensions to builtin behavior by implementing <tt>onModule(AnyModule)</tt>,
  * and registering the extension with the given module.
  */
-public interface Plugin {
+public abstract class Plugin {
 
     /**
      * The name of the plugin.
      */
-    String name();
+    public abstract String name();
 
     /**
      * The description of the plugin.
      */
-    String description();
+    public abstract String description();
 
     /**
      * Node level modules.
      */
-    Collection<Module> nodeModules();
+    public Collection<Module> nodeModules() {
+        return Collections.emptyList();
+    }
 
     /**
      * Node level services that will be automatically started/stopped/closed.
      */
-    Collection<Class<? extends LifecycleComponent>> nodeServices();
+    public Collection<Class<? extends LifecycleComponent>> nodeServices() {
+        return Collections.emptyList();
+    }
 
     /**
      * Per index modules.
      */
-    Collection<Module> indexModules();
+    public Collection<Module> indexModules(Settings indexSettings) {
+        return Collections.emptyList();
+    }
 
     /**
      * Per index services that will be automatically closed.
      */
-    Collection<Class<? extends Closeable>> indexServices();
+    public Collection<Class<? extends Closeable>> indexServices() {
+        return Collections.emptyList();
+    }
 
     /**
      * Per index shard module.
      */
-    Collection<Module> shardModules();
+    public Collection<Module> shardModules(Settings indexSettings) {
+        return Collections.emptyList();
+    }
 
     /**
      * Per index shard service that will be automatically closed.
      */
-    Collection<Class<? extends Closeable>> shardServices();
+    public Collection<Class<? extends Closeable>> shardServices() {
+        return Collections.emptyList();
+    }
 
     /**
      * Additional node settings loaded by the plugin. Note that settings that are explicit in the nodes settings can't be
      * overwritten with the additional settings. These settings added if they don't exist.
      */
-    Settings additionalSettings();
+    public Settings additionalSettings() {
+        return Settings.Builder.EMPTY_SETTINGS;
+    }
 }

@@ -19,7 +19,8 @@
 package org.elasticsearch.index.shard;
 
 import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.engine.MockEngineFactory;
 import org.elasticsearch.test.engine.MockEngineSupportModule;
 
@@ -27,7 +28,7 @@ import java.util.Collection;
 import java.util.Collections;
 
 // this must exist in the same package as IndexShardModule to allow access to setting the impl
-public class MockEngineFactoryPlugin extends AbstractPlugin {
+public class MockEngineFactoryPlugin extends Plugin {
     @Override
     public String name() {
         return "mock-engine-factory";
@@ -37,7 +38,7 @@ public class MockEngineFactoryPlugin extends AbstractPlugin {
         return "a mock engine factory for testing";
     }
     @Override
-    public Collection<Module> indexModules() {
+    public Collection<Module> indexModules(Settings indexSettings) {
         return Collections.<Module>singletonList(new MockEngineSupportModule());
     }
     public void onModule(IndexShardModule module) {

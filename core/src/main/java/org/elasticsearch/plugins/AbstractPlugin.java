@@ -30,59 +30,6 @@ import java.util.Collections;
 /**
  * A base class for a plugin which returns no services or modules.
  */
-public abstract class AbstractPlugin implements Plugin {
-
-    /**
-     * Defaults to return an empty list.
-     */
-    @Override
-    public Collection<Module> nodeModules() {
-        return Collections.emptyList();
-    }
-
-    /**
-     * Defaults to return an empty list.
-     */
-    @Override
-    public Collection<Class<? extends LifecycleComponent>> nodeServices() {
-        return Collections.emptyList();
-    }
-
-    /**
-     * Defaults to return an empty list.
-     */
-    @Override
-    public Collection<Module> indexModules() {
-        return Collections.emptyList();
-    }
-
-    /**
-     * Defaults to return an empty list.
-     */
-    @Override
-    public Collection<Class<? extends Closeable>> indexServices() {
-        return Collections.emptyList();
-    }
-
-    /**
-     * Defaults to return an empty list.
-     */
-    @Override
-    public Collection<Module> shardModules() {
-        return Collections.emptyList();
-    }
-
-    /**
-     * Defaults to return an empty list.
-     */
-    @Override
-    public Collection<Class<? extends Closeable>> shardServices() {
-        return Collections.emptyList();
-    }
-
-    @Override
-    public Settings additionalSettings() {
-        return Settings.Builder.EMPTY_SETTINGS;
-    }
+public abstract class AbstractPlugin extends Plugin {
 
 }

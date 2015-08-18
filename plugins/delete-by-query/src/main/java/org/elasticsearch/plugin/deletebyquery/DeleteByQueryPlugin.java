@@ -20,12 +20,12 @@
 package org.elasticsearch.plugin.deletebyquery;
 
 import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.plugins.Plugin;
 
 import java.util.Collection;
 import java.util.Collections;
 
-public class DeleteByQueryPlugin extends AbstractPlugin {
+public class DeleteByQueryPlugin extends Plugin {
 
     public static final String NAME = "delete-by-query";
 

@@ -29,7 +29,7 @@ import org.elasticsearch.discovery.azure.AzureDiscovery;
 import org.elasticsearch.index.store.IndexStoreModule;
 import org.elasticsearch.index.store.smbmmapfs.SmbMmapFsIndexStore;
 import org.elasticsearch.index.store.smbsimplefs.SmbSimpleFsIndexStore;
-import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesModule;
 import org.elasticsearch.repositories.azure.AzureRepository;
 import org.elasticsearch.repositories.azure.AzureRepositoryModule;
@@ -38,12 +38,10 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
-import static org.elasticsearch.cloud.azure.AzureModule.isSnapshotReady;
-
 /**
  *
  */
-public class CloudAzurePlugin extends AbstractPlugin {
+public class CloudAzurePlugin extends Plugin {
 
     private final Settings settings;
     protected final ESLogger logger = Loggers.getLogger(CloudAzurePlugin.class);

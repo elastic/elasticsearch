@@ -23,14 +23,15 @@ import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.index.analysis.AnalysisModule;
 import org.elasticsearch.index.analysis.pl.PolishAnalysisBinderProcessor;
 import org.elasticsearch.indices.analysis.pl.PolishIndicesAnalysisModule;
-import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.plugins.Plugin;
 
-import java.util.*;
+import java.util.Collection;
+import java.util.Collections;
 
 /**
  *
  */
-public class AnalysisStempelPlugin extends AbstractPlugin {
+public class AnalysisStempelPlugin extends Plugin {
 
     @Override
     public String name() {

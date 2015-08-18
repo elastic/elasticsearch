@@ -30,16 +30,15 @@ import org.elasticsearch.index.analysis.KuromojiPartOfSpeechFilterFactory;
 import org.elasticsearch.index.analysis.KuromojiReadingFormFilterFactory;
 import org.elasticsearch.index.analysis.KuromojiTokenizerFactory;
 import org.elasticsearch.indices.analysis.KuromojiIndicesAnalysisModule;
-import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.plugins.Plugin;
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 
 /**
  *
  */
-public class AnalysisKuromojiPlugin extends AbstractPlugin {
+public class AnalysisKuromojiPlugin extends Plugin {
 
     @Override
     public String name() {

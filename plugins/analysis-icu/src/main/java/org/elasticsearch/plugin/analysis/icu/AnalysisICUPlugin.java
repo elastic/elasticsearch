@@ -23,16 +23,15 @@ import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.index.analysis.AnalysisModule;
 import org.elasticsearch.index.analysis.IcuAnalysisBinderProcessor;
 import org.elasticsearch.indices.analysis.IcuIndicesAnalysisModule;
-import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.plugins.Plugin;
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 
 /**
  *
  */
-public class AnalysisICUPlugin extends AbstractPlugin {
+public class AnalysisICUPlugin extends Plugin {
 
     @Override
     public String name() {

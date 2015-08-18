@@ -23,15 +23,13 @@ import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.SettingsFilter;
-import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesModule;
 
 import java.util.Collection;
 import java.util.Collections;
 
-import static com.google.common.collect.Lists.newArrayList;
-
-public class MockRepositoryPlugin extends AbstractPlugin {
+public class MockRepositoryPlugin extends Plugin {
 
     @Override
     public String name() {

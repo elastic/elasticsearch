@@ -20,10 +20,8 @@
 package org.elasticsearch.script;
 
 import com.google.common.collect.ImmutableSet;
-
-import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.expression.ExpressionScriptEngineService;
 import org.elasticsearch.script.groovy.GroovyScriptEngineService;
 import org.elasticsearch.script.mustache.MustacheScriptEngineService;
@@ -117,7 +115,7 @@ public class CustomScriptContextIT extends ESIntegTestCase {
         }
     }
 
-    public static class CustomScriptContextPlugin extends AbstractPlugin {
+    public static class CustomScriptContextPlugin extends Plugin {
         @Override
         public String name() {
             return "custom_script_context_plugin";

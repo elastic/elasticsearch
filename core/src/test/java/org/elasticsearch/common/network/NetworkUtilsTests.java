@@ -34,8 +34,8 @@ public class NetworkUtilsTests extends ESTestCase {
     public void testSortKey() throws Exception {
         InetAddress localhostv4 = InetAddress.getByName("127.0.0.1");
         InetAddress localhostv6 = InetAddress.getByName("::1");
-        assertTrue(NetworkUtils.sortKey(localhostv4, true) < NetworkUtils.sortKey(localhostv6, true));
-        assertTrue(NetworkUtils.sortKey(localhostv6, false) < NetworkUtils.sortKey(localhostv4, false));
+        assertTrue(NetworkUtils.sortKey(localhostv4, false) < NetworkUtils.sortKey(localhostv6, false));
+        assertTrue(NetworkUtils.sortKey(localhostv6, true) < NetworkUtils.sortKey(localhostv4, true));
     }
     
     /**

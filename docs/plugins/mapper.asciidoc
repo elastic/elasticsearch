@@ -14,5 +14,10 @@ The mapper-size plugin provides the `_size` meta field which, when enabled,
 indexes the size in bytes of the original
 {ref}/mapping-source-field.html[`_source`] field.
 
-include::mapper-size.asciidoc[]
+<<mapper-murmur3>>::
 
+The mapper-murmur3 plugin allows hashes to be computed at index-time and stored
+in the index for later use with the `cardinality` aggregation.
+
+include::mapper-size.asciidoc[]
+include::mapper-murmur3.asciidoc[]

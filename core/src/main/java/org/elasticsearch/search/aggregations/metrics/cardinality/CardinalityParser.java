@@ -21,11 +21,9 @@ package org.elasticsearch.search.aggregations.metrics.cardinality;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.core.Murmur3FieldMapper;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceParser;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -35,6 +33,7 @@ import java.io.IOException;
 public class CardinalityParser implements Aggregator.Parser {
 
     private static final ParseField PRECISION_THRESHOLD = new ParseField("precision_threshold");
+    private static final ParseField REHASH = new ParseField("rehash").withAllDeprecated("no replacement - values will always be rehashed");
 
     @Override
     public String type() {
@@ -44,10 +43,9 @@ public class CardinalityParser implements Aggregator.Parser {
     @Override
     public AggregatorFactory parse(String name, XContentParser parser, SearchContext context) throws IOException {
 
-        ValuesSourceParser vsParser = ValuesSourceParser.any(name, InternalCardinality.TYPE, context).formattable(false).build();
+        ValuesSourceParser<?> vsParser = ValuesSourceParser.any(name, InternalCardinality.TYPE, context).formattable(false).build();
 
         long precisionThreshold = -1;
-        Boolean rehash = null;
 
         XContentParser.Token token;
         String currentFieldName = null;
@@ -57,8 +55,8 @@ public class CardinalityParser implements Aggregator.Parser {
             } else if (vsParser.token(currentFieldName, token, parser)) {
                 continue;
             } else if (token.isValue()) {
-                if ("rehash".equals(currentFieldName)) {
-                    rehash = parser.booleanValue();
+                if (context.parseFieldMatcher().match(currentFieldName, REHASH)) {
+                    // ignore
                 } else if (context.parseFieldMatcher().match(currentFieldName, PRECISION_THRESHOLD)) {
                     precisionThreshold = parser.longValue();
                 } else {
@@ -70,15 +68,7 @@ public class CardinalityParser implements Aggregator.Parser {
             }
         }
 
-        ValuesSourceConfig<?> config = vsParser.config();
-
-        if (rehash == null && config.fieldContext() != null && config.fieldContext().fieldType() instanceof Murmur3FieldMapper.Murmur3FieldType) {
-            rehash = false;
-        } else if (rehash == null) {
-            rehash = true;
-        }
-
-        return new CardinalityAggregatorFactory(name, config, precisionThreshold, rehash);
+        return new CardinalityAggregatorFactory(name, vsParser.config(), precisionThreshold);
 
     }
 

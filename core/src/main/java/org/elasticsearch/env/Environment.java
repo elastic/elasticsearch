@@ -318,7 +318,7 @@ public class Environment {
      * Note this will set the file modification time (to its already-set value)
      * to test access.
      */
-    @SuppressForbidden(reason = "works around the bug")
+    @SuppressForbidden(reason = "works around https://bugs.openjdk.java.net/browse/JDK-8034057")
     public static boolean isWritable(Path path) throws IOException {
         boolean v = Files.isWritable(path);
         if (v || Constants.WINDOWS == false) {

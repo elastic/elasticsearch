@@ -120,7 +120,7 @@ class ESFileStore extends FileStore {
      * remove this code and just use getFileStore for windows on java 9
      * works around https://bugs.openjdk.java.net/browse/JDK-8034057
      */
-    @SuppressForbidden(reason = "works around the bugs")
+    @SuppressForbidden(reason = "works around https://bugs.openjdk.java.net/browse/JDK-8034057")
     static FileStore getFileStoreWindows(Path path, FileStore fileStores[]) throws IOException {
         assert Constants.WINDOWS;
         
@@ -137,7 +137,7 @@ class ESFileStore extends FileStore {
                     throw new RuntimeException("root isn't a drive letter: " + root);
                 }
                 driveLetter = Character.toLowerCase(root.charAt(0));
-                if (!Character.isAlphabetic(driveLetter) || root.charAt(1) != ':') {
+                if (Character.isAlphabetic(driveLetter) == false || root.charAt(1) != ':') {
                     throw new RuntimeException("root isn't a drive letter: " + root);
                 }
             } catch (Throwable checkFailed) {

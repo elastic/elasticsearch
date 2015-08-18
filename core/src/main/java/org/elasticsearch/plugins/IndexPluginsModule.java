@@ -19,17 +19,11 @@
 
 package org.elasticsearch.plugins;
 
-import com.google.common.collect.Lists;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.PreProcessModule;
 import org.elasticsearch.common.inject.SpawnModules;
 import org.elasticsearch.common.settings.Settings;
-
-import java.util.Collection;
-import java.util.List;
-
-import static org.elasticsearch.common.inject.Modules.createModule;
 
 /**
  *
@@ -47,13 +41,7 @@ public class IndexPluginsModule extends AbstractModule implements SpawnModules, 
 
     @Override
     public Iterable<? extends Module> spawnModules() {
-        List<Module> modules = Lists.newArrayList();
-        Collection<Class<? extends Module>> modulesClasses = pluginsService.indexModules();
-        for (Class<? extends Module> moduleClass : modulesClasses) {
-            modules.add(createModule(moduleClass, settings));
-        }
-        modules.addAll(pluginsService.indexModules(settings));
-        return modules;
+        return pluginsService.indexModules(settings);
     }
 
     @Override

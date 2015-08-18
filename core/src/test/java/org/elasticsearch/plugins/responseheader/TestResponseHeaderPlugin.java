@@ -19,10 +19,10 @@
 
 package org.elasticsearch.plugins.responseheader;
 
-import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestModule;
 
-public class TestResponseHeaderPlugin extends AbstractPlugin {
+public class TestResponseHeaderPlugin extends Plugin {
 
     @Override
     public String name() {

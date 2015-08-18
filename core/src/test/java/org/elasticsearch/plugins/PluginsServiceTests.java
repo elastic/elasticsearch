@@ -25,7 +25,7 @@ import org.elasticsearch.index.store.IndexStoreModule;
 import org.elasticsearch.test.ESTestCase;
 
 public class PluginsServiceTests extends ESTestCase {
-    public static class AdditionalSettingsPlugin1 extends AbstractPlugin {
+    public static class AdditionalSettingsPlugin1 extends Plugin {
         @Override
         public String name() {
             return "additional-settings1";
@@ -39,7 +39,7 @@ public class PluginsServiceTests extends ESTestCase {
             return Settings.builder().put("foo.bar", "1").put(IndexStoreModule.STORE_TYPE, IndexStoreModule.Type.MMAPFS.getSettingsKey()).build();
         }
     }
-    public static class AdditionalSettingsPlugin2 extends AbstractPlugin {
+    public static class AdditionalSettingsPlugin2 extends Plugin {
         @Override
         public String name() {
             return "additional-settings2";

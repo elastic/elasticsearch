@@ -18,13 +18,13 @@
  */
 package org.elasticsearch.search.suggest;
 
-import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchModule;
 
 /**
  *
  */
-public class CustomSuggesterPlugin extends AbstractPlugin {
+public class CustomSuggesterPlugin extends Plugin {
 
     @Override
     public String name() {

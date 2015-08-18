@@ -33,7 +33,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ActionNotFoundTransportException;
@@ -67,7 +67,7 @@ public class NettyTransportIT extends ESIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         return settingsBuilder().put(super.nodeSettings(nodeOrdinal))
                 .put("node.mode", "network")
-                .extendArray("plugin.types", ExceptionThrowingNettyTransport.Plugin.class.getName()).build();
+                .extendArray("plugin.types", ExceptionThrowingNettyTransport.TestPlugin.class.getName()).build();
     }
 
     @Test
@@ -87,7 +87,7 @@ public class NettyTransportIT extends ESIntegTestCase {
 
     public static final class ExceptionThrowingNettyTransport extends NettyTransport {
 
-        public static class Plugin extends AbstractPlugin {
+        public static class TestPlugin extends Plugin {
             @Override
             public String name() {
                 return "exception-throwing-netty-transport";

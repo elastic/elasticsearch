@@ -29,16 +29,21 @@ import org.elasticsearch.index.snapshots.IndexShardRepository;
  */
 public class RepositoryTypesRegistry {
     // invariant: repositories and shardRepositories have the same keyset
-    private final ExtensionPoint.TypeExtensionPoint<Repository> repositoryTypes =
-        new ExtensionPoint.TypeExtensionPoint<>("repository", Repository.class);
-    private final ExtensionPoint.TypeExtensionPoint<IndexShardRepository> shardRepositoryTypes =
-        new ExtensionPoint.TypeExtensionPoint<>("index_repository", IndexShardRepository.class);
+    private final ExtensionPoint.SelectedType<Repository> repositoryTypes =
+        new ExtensionPoint.SelectedType<>("repository", Repository.class);
+    private final ExtensionPoint.SelectedType<IndexShardRepository> shardRepositoryTypes =
+        new ExtensionPoint.SelectedType<>("index_repository", IndexShardRepository.class);
 
+    /** Adds a new repository type to the registry, bound to the given implementation classes. */
     public void registerRepository(String name, Class<? extends Repository> repositoryType, Class<? extends IndexShardRepository> shardRepositoryType) {
         repositoryTypes.registerExtension(name, repositoryType);
         shardRepositoryTypes.registerExtension(name, shardRepositoryType);
     }
 
+    /**
+     * Looks up the given type and binds the implementation into the given binder.
+     * Throws an {@link IllegalArgumentException} if the given type does not exist.
+     */
     public void bindType(Binder binder, String type) {
         Settings settings = Settings.builder().put("type", type).build();
         repositoryTypes.bindType(binder, settings, "type", null);

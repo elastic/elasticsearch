@@ -230,7 +230,7 @@ public class Node implements Releasable {
         // hack around dependency injection problem (for now...)
         injector.getInstance(Discovery.class).setRoutingService(injector.getInstance(RoutingService.class));
 
-        for (Class<? extends LifecycleComponent> plugin : pluginsService.services()) {
+        for (Class<? extends LifecycleComponent> plugin : pluginsService.nodeServices()) {
             injector.getInstance(plugin).start();
         }
 
@@ -297,7 +297,7 @@ public class Node implements Releasable {
         injector.getInstance(RestController.class).stop();
         injector.getInstance(TransportService.class).stop();
 
-        for (Class<? extends LifecycleComponent> plugin : pluginsService.services()) {
+        for (Class<? extends LifecycleComponent> plugin : pluginsService.nodeServices()) {
             injector.getInstance(plugin).stop();
         }
         // we should stop this last since it waits for resources to get released
@@ -364,7 +364,7 @@ public class Node implements Releasable {
         stopWatch.stop().start("percolator_service");
         injector.getInstance(PercolatorService.class).close();
 
-        for (Class<? extends LifecycleComponent> plugin : pluginsService.services()) {
+        for (Class<? extends LifecycleComponent> plugin : pluginsService.nodeServices()) {
             stopWatch.stop().start("plugin(" + plugin.getName() + ")");
             injector.getInstance(plugin).close();
         }

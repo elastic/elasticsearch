@@ -35,11 +35,14 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.store.Store;
-import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.transport.*;
+import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportRequestOptions;
+import org.elasticsearch.transport.TransportService;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
@@ -64,7 +67,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class ClusterInfoServiceIT extends ESIntegTestCase {
 
-    public static class Plugin extends AbstractPlugin {
+    public static class TestPlugin extends Plugin {
 
         @Override
         public String name() {
@@ -143,7 +146,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
         return Settings.builder()
                 // manual collection or upon cluster forming.
                 .put(InternalClusterInfoService.INTERNAL_CLUSTER_INFO_TIMEOUT, "1s")
-                .putArray("plugin.types", Plugin.class.getName(), MockTransportService.Plugin.class.getName())
+                .putArray("plugin.types", TestPlugin.class.getName(), MockTransportService.TestPlugin.class.getName())
                 .build();
     }
 

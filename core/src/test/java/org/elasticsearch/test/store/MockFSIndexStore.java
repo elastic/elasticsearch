@@ -28,11 +28,11 @@ import org.elasticsearch.index.store.DirectoryService;
 import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.store.IndexStoreModule;
 import org.elasticsearch.indices.store.IndicesStore;
-import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.plugins.Plugin;
 
 public class MockFSIndexStore extends IndexStore {
 
-    public static class Plugin extends AbstractPlugin {
+    public static class TestPlugin extends Plugin {
         @Override
         public String name() {
             return "mock-index-store";

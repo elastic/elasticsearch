@@ -19,14 +19,14 @@
 
 package org.elasticsearch.plugin.javascript;
 
-import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.javascript.JavaScriptScriptEngineService;
 
 /**
  *
  */
-public class JavaScriptPlugin extends AbstractPlugin {
+public class JavaScriptPlugin extends Plugin {
 
     @Override
     public String name() {

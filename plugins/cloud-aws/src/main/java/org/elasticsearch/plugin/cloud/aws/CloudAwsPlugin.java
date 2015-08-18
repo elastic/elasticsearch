@@ -27,7 +27,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.ec2.Ec2Discovery;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardRepository;
-import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesModule;
 import org.elasticsearch.repositories.s3.S3Repository;
 
@@ -37,7 +37,7 @@ import java.util.Collection;
 /**
  *
  */
-public class CloudAwsPlugin extends AbstractPlugin {
+public class CloudAwsPlugin extends Plugin {
 
     private final Settings settings;
 
@@ -56,7 +56,7 @@ public class CloudAwsPlugin extends AbstractPlugin {
     }
 
     @Override
-    public Collection<Module> modules(Settings settings) {
+    public Collection<Module> nodeModules() {
         Collection<Module> modules = new ArrayList<>();
         if (settings.getAsBoolean("cloud.enabled", true)) {
             modules.add(new AwsModule());
@@ -65,7 +65,7 @@ public class CloudAwsPlugin extends AbstractPlugin {
     }
 
     @Override
-    public Collection<Class<? extends LifecycleComponent>> services() {
+    public Collection<Class<? extends LifecycleComponent>> nodeServices() {
         Collection<Class<? extends LifecycleComponent>> services = new ArrayList<>();
         if (settings.getAsBoolean("cloud.enabled", true)) {
             services.add(AwsModule.getS3ServiceImpl());

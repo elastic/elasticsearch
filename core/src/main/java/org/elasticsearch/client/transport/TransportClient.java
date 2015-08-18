@@ -260,7 +260,7 @@ public class TransportClient extends AbstractClient {
             // ignore, might not be bounded
         }
 
-        for (Class<? extends LifecycleComponent> plugin : injector.getInstance(PluginsService.class).services()) {
+        for (Class<? extends LifecycleComponent> plugin : injector.getInstance(PluginsService.class).nodeServices()) {
             injector.getInstance(plugin).close();
         }
         try {

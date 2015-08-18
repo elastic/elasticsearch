@@ -416,7 +416,7 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
         Path dataPath = createTempDir();
         Settings nodeSettings = Settings.builder()
                 .put("node.add_id_to_custom_path", false)
-                .put("plugin.types", MockTransportService.Plugin.class.getName())
+                .put("plugin.types", MockTransportService.TestPlugin.class.getName())
                 .put("path.shared_data", dataPath)
                 .build();
 

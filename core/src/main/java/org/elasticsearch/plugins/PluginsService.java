@@ -202,9 +202,18 @@ public class PluginsService extends AbstractComponent {
     }
 
     public Settings updatedSettings() {
+        Map<String, String> foundSettings = new HashMap<>();
         final Settings.Builder builder = Settings.settingsBuilder();
         for (Tuple<PluginInfo, Plugin> plugin : plugins) {
-            builder.put(plugin.v2().additionalSettings());
+            Settings settings = plugin.v2().additionalSettings();
+            for (String setting : settings.getAsMap().keySet()) {
+                String oldPlugin = foundSettings.put(setting, plugin.v1().getName());
+                if (oldPlugin != null) {
+                    throw new IllegalArgumentException("Cannot have additional setting [" + setting + "] " +
+                        "in plugin " + plugin.v1().getName() + ", already added in plugin " + oldPlugin);
+                }
+            }
+            builder.put(settings);
         }
         return builder.put(this.settings).build();
     }

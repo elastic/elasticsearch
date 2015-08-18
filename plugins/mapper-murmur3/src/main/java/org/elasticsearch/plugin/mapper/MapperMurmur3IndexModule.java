@@ -17,26 +17,15 @@
  * under the License.
  */
 
-package org.elasticsearch.snapshots.mockstore;
+package org.elasticsearch.plugin.mapper;
 
 import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.index.snapshots.IndexShardRepository;
-import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardRepository;
-import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.index.mapper.murmur3.RegisterMurmur3FieldMapper;
 
-/**
- */
-public class MockRepositoryModule extends AbstractModule {
-
-    public MockRepositoryModule() {
-        super();
-    }
+public class MapperMurmur3IndexModule extends AbstractModule {
 
     @Override
     protected void configure() {
-        bind(Repository.class).to(MockRepository.class).asEagerSingleton();
-        bind(IndexShardRepository.class).to(BlobStoreIndexShardRepository.class).asEagerSingleton();
+        bind(RegisterMurmur3FieldMapper.class).asEagerSingleton();
     }
-
 }
-

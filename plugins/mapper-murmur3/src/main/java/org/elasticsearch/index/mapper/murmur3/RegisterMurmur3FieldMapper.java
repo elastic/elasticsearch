@@ -17,30 +17,20 @@
  * under the License.
  */
 
-package org.elasticsearch.repositories.fs;
+package org.elasticsearch.index.mapper.murmur3;
 
-import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.index.snapshots.IndexShardRepository;
-import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardRepository;
-import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.AbstractIndexComponent;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.mapper.MapperService;
 
-/**
- * File system repository module
- */
-public class FsRepositoryModule extends AbstractModule {
+public class RegisterMurmur3FieldMapper extends AbstractIndexComponent {
 
-    public FsRepositoryModule() {
-        super();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    protected void configure() {
-        bind(Repository.class).to(FsRepository.class).asEagerSingleton();
-        bind(IndexShardRepository.class).to(BlobStoreIndexShardRepository.class).asEagerSingleton();
+    @Inject
+    public RegisterMurmur3FieldMapper(Index index, Settings indexSettings, MapperService mapperService) {
+        super(index, indexSettings);
+        mapperService.documentMapperParser().putTypeParser(Murmur3FieldMapper.CONTENT_TYPE, new Murmur3FieldMapper.TypeParser());
     }
 
 }
-

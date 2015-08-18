@@ -259,8 +259,8 @@ The following settings are supported:
 
 `base_path`::
 
-    Specifies the path within bucket to repository data. Defaults to root
-    directory.
+    Specifies the path within bucket to repository data. Defaults to
+    value of `repositories.s3.base_path` or to root directory if not set.
 
 `access_key`::
 

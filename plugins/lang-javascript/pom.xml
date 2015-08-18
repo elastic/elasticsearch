@@ -6,12 +6,12 @@
 
     <parent>
         <groupId>org.elasticsearch.plugin</groupId>
-        <artifactId>elasticsearch-plugin</artifactId>
+        <artifactId>plugins</artifactId>
         <version>2.1.0-SNAPSHOT</version>
     </parent>
 
-    <artifactId>elasticsearch-lang-javascript</artifactId>
-    <name>Elasticsearch JavaScript language plugin</name>
+    <artifactId>lang-javascript</artifactId>
+    <name>Plugin: Language: JavaScript</name>
     <description>The JavaScript language plugin allows to have javascript as the language of scripts to execute.</description>
 
     <properties>

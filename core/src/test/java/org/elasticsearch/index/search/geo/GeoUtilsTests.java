@@ -339,34 +339,28 @@ public class GeoUtilsTests extends ESTestCase {
     @Test
     public void testNormalizePoint_outsideNormalRange_withOptions() {
         for (int i = 0; i < 100; i++) {
-            boolean normLat = randomBoolean();
-            boolean normLon = randomBoolean();
+            boolean normalize = randomBoolean();
             double normalisedLat = (randomDouble() * 180.0) - 90.0;
             double normalisedLon = (randomDouble() * 360.0) - 180.0;
-            int shiftLat = randomIntBetween(1, 10000);
-            int shiftLon = randomIntBetween(1, 10000);
-            double testLat = normalisedLat + (180.0 * shiftLat);
-            double testLon = normalisedLon + (360.0 * shiftLon);
+            int shift = randomIntBetween(1, 10000);
+            double testLat = normalisedLat + (180.0 * shift);
+            double testLon = normalisedLon + (360.0 * shift);
 
             double expectedLat;
             double expectedLon;
-            if (normLat) {
-                expectedLat = normalisedLat * (shiftLat % 2 == 0 ? 1 : -1);
-            } else {
-                expectedLat = testLat;
-            }
-            if (normLon) {
-                expectedLon = normalisedLon + ((normLat && shiftLat % 2 == 1) ? 180 : 0);
+            if (normalize) {
+                expectedLat = normalisedLat * (shift % 2 == 0 ? 1 : -1);
+                expectedLon = normalisedLon + ((shift % 2 == 1) ? 180 : 0);
                 if (expectedLon > 180.0) {
                     expectedLon -= 360;
                 }
             } else {
-                double shiftValue = normalisedLon > 0 ? -180 : 180;
-                expectedLon = testLon + ((normLat && shiftLat % 2 == 1) ? shiftValue : 0);
+                expectedLat = testLat;
+                expectedLon = testLon;
             }
             GeoPoint testPoint = new GeoPoint(testLat, testLon);
             GeoPoint expectedPoint = new GeoPoint(expectedLat, expectedLon);
-            GeoUtils.normalizePoint(testPoint, normLat, normLon);
+            GeoUtils.normalizePoint(testPoint, normalize, normalize);
             assertThat("Unexpected Latitude", testPoint.lat(), closeTo(expectedPoint.lat(), MAX_ACCEPTABLE_ERROR));
             assertThat("Unexpected Longitude", testPoint.lon(), closeTo(expectedPoint.lon(), MAX_ACCEPTABLE_ERROR));
         }

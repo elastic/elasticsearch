@@ -17,30 +17,26 @@
  * under the License.
  */
 
-package org.elasticsearch.repositories.uri;
+package org.elasticsearch.index.mapper.murmur3;
 
-import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.index.snapshots.IndexShardRepository;
-import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardRepository;
-import org.elasticsearch.repositories.Repository;
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-/**
- * URL repository module
- */
-public class URLRepositoryModule extends AbstractModule {
+import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.test.rest.RestTestCandidate;
+import org.elasticsearch.test.rest.parser.RestTestParseException;
 
-    public URLRepositoryModule() {
-        super();
+import java.io.IOException;
+
+public class MapperMurmur3RestIT extends ESRestTestCase {
+
+    public MapperMurmur3RestIT(@Name("yaml") RestTestCandidate testCandidate) {
+        super(testCandidate);
     }
 
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    protected void configure() {
-        bind(Repository.class).to(URLRepository.class).asEagerSingleton();
-        bind(IndexShardRepository.class).to(BlobStoreIndexShardRepository.class).asEagerSingleton();
+    @ParametersFactory
+    public static Iterable<Object[]> parameters() throws IOException, RestTestParseException {
+        return createParameters(0, 1);
     }
-
 }
 

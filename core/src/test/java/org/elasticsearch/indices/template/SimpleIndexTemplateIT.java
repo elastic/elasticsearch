@@ -344,7 +344,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
                 .addAlias(new Alias("templated_alias-{index}"))
                 .addAlias(new Alias("filtered_alias").filter("{\"type\":{\"value\":\"type2\"}}"))
                 .addAlias(new Alias("complex_filtered_alias")
-                        .filter(QueryBuilders.termsQuery("_type",  "typeX", "typeY", "typeZ").execution("bool")))
+                        .filter(QueryBuilders.termsQuery("_type",  "typeX", "typeY", "typeZ")))
                 .get();
 
         assertAcked(prepareCreate("test_index").addMapping("type1").addMapping("type2").addMapping("typeX").addMapping("typeY").addMapping("typeZ"));

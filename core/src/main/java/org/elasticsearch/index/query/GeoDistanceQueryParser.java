@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -28,7 +29,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
 import org.elasticsearch.index.search.geo.GeoDistanceRangeQuery;
@@ -71,8 +71,9 @@ public class GeoDistanceQueryParser implements QueryParser {
         DistanceUnit unit = DistanceUnit.DEFAULT;
         GeoDistance geoDistance = GeoDistance.DEFAULT;
         String optimizeBbox = "memory";
-        boolean normalizeLon = true;
-        boolean normalizeLat = true;
+        final boolean indexCreatedBeforeV2_0 = parseContext.indexVersionCreated().before(Version.V_2_0_0);
+        boolean coerce = false;
+        boolean ignoreMalformed = false;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
@@ -125,14 +126,32 @@ public class GeoDistanceQueryParser implements QueryParser {
                     queryName = parser.text();
                 } else if ("optimize_bbox".equals(currentFieldName) || "optimizeBbox".equals(currentFieldName)) {
                     optimizeBbox = parser.textOrNull();
-                } else if ("normalize".equals(currentFieldName)) {
-                    normalizeLat = parser.booleanValue();
-                    normalizeLon = parser.booleanValue();
+                } else if ("coerce".equals(currentFieldName) || (indexCreatedBeforeV2_0 && "normalize".equals(currentFieldName))) {
+                    coerce = parser.booleanValue();
+                    if (coerce == true) {
+                        ignoreMalformed = true;
+                    }
+                } else if ("ignore_malformed".equals(currentFieldName) && coerce == false) {
+                    ignoreMalformed = parser.booleanValue();
                 } else {
                     point.resetFromString(parser.text());
                     fieldName = currentFieldName;
                 }
             }
+        }
+
+        // validation was not available prior to 2.x, so to support bwc percolation queries we only ignore_malformed on 2.x created indexes
+        if (!indexCreatedBeforeV2_0 && !ignoreMalformed) {
+            if (point.lat() > 90.0 || point.lat() < -90.0) {
+                throw new QueryParsingException(parseContext, "illegal latitude value [{}] for [{}]", point.lat(), NAME);
+            }
+            if (point.lon() > 180.0 || point.lon() < -180) {
+                throw new QueryParsingException(parseContext, "illegal longitude value [{}] for [{}]", point.lon(), NAME);
+            }
+        }
+
+        if (coerce) {
+            GeoUtils.normalizePoint(point, coerce, coerce);
         }
 
         if (vDistance == null) {
@@ -143,10 +162,6 @@ public class GeoDistanceQueryParser implements QueryParser {
             distance = DistanceUnit.parse((String) vDistance, unit, DistanceUnit.DEFAULT);
         }
         distance = geoDistance.normalize(distance, DistanceUnit.DEFAULT);
-
-        if (normalizeLat || normalizeLon) {
-            GeoUtils.normalizePoint(point, normalizeLat, normalizeLon);
-        }
 
         MappedFieldType fieldType = parseContext.fieldMapper(fieldName);
         if (fieldType == null) {

@@ -21,6 +21,7 @@ package org.elasticsearch.cluster.node;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
@@ -33,6 +34,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.util.Map;
 
 import static org.elasticsearch.common.transport.TransportAddressSerializers.addressToStream;
@@ -136,7 +138,7 @@ public class DiscoveryNode implements Streamable, ToXContent {
      * @param version    the version of the node.
      */
     public DiscoveryNode(String nodeName, String nodeId, TransportAddress address, Map<String, String> attributes, Version version) {
-        this(nodeName, nodeId, NetworkUtils.getLocalHostName(""), NetworkUtils.getLocalHostAddress(""), address, attributes, version);
+        this(nodeName, nodeId, address.getHost(), address.getAddress(), address, attributes, version);
     }
 
     /**

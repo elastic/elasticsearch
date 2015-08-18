@@ -24,7 +24,6 @@ import com.carrotsearch.hppc.IntSet;
 import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.ListenableFuture;
-
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
@@ -41,8 +40,8 @@ import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ProcessedClusterStateUpdateTask;
-import org.elasticsearch.cluster.metadata.MetaData.Custom;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.MetaData.Custom;
 import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.Nullable;
@@ -64,11 +63,9 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.admin.cluster.repositories.get.RestGetRepositoriesAction;
 import org.elasticsearch.rest.action.admin.cluster.state.RestClusterStateAction;
-import org.elasticsearch.snapshots.mockstore.MockRepositoryModule;
-import org.elasticsearch.snapshots.mockstore.MockRepositoryPlugin;
+import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.rest.FakeRestRequest;
-import org.junit.Ignore;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -88,7 +85,15 @@ import static org.elasticsearch.test.ESIntegTestCase.Scope;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  */
@@ -615,7 +620,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
     @Test
     public void registrationFailureTest() {
         logger.info("--> start first node");
-        internalCluster().startNode(settingsBuilder().put("plugin.types", MockRepositoryPlugin.class.getName()));
+        internalCluster().startNode(settingsBuilder().put("plugin.types", MockRepository.Plugin.class.getName()));
         logger.info("--> start second node");
         // Make sure the first node is elected as master
         internalCluster().startNode(settingsBuilder().put("node.master", false));
@@ -634,7 +639,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
 
     @Test
     public void testThatSensitiveRepositorySettingsAreNotExposed() throws Exception {
-        Settings nodeSettings = settingsBuilder().put("plugin.types", MockRepositoryPlugin.class.getName()).build();
+        Settings nodeSettings = settingsBuilder().put("plugin.types", MockRepository.Plugin.class.getName()).build();
         logger.info("--> start two nodes");
         internalCluster().startNodesAsync(2, nodeSettings).get();
         // Register mock repositories

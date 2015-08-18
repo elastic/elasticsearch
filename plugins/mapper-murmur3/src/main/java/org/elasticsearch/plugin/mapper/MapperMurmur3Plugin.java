@@ -17,29 +17,29 @@
  * under the License.
  */
 
-package org.elasticsearch.repositories.s3;
+package org.elasticsearch.plugin.mapper;
 
-import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.index.snapshots.IndexShardRepository;
-import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardRepository;
-import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.plugins.AbstractPlugin;
 
-/**
- * S3 repository module
- */
-public class S3RepositoryModule extends AbstractModule {
+import java.util.Collection;
+import java.util.Collections;
 
-    public S3RepositoryModule() {
-        super();
-    }
+public class MapperMurmur3Plugin extends AbstractPlugin {
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
-    protected void configure() {
-        bind(Repository.class).to(S3Repository.class).asEagerSingleton();
-        bind(IndexShardRepository.class).to(BlobStoreIndexShardRepository.class).asEagerSingleton();
+    public String name() {
+        return "mapper-murmur3";
     }
-}
 
+    @Override
+    public String description() {
+        return "A mapper that allows to precompute murmur3 hashes of values at index-time and store them in the index";
+    }
+
+    @Override
+    public Collection<Class<? extends Module>> indexModules() {
+        return Collections.<Class<? extends Module>>singleton(MapperMurmur3IndexModule.class);
+    }
+
+}

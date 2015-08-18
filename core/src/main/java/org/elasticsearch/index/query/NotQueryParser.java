@@ -68,10 +68,6 @@ public class NotQueryParser implements QueryParser {
                     // its the filter, and the name is the field
                     query = parseContext.parseInnerFilter(currentFieldName);
                 }
-            } else if (token == XContentParser.Token.START_ARRAY) {
-                queryFound = true;
-                // its the filter, and the name is the field
-                query = parseContext.parseInnerFilter(currentFieldName);
             } else if (token.isValue()) {
                 if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();

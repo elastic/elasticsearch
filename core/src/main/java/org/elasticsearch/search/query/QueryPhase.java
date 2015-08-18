@@ -36,8 +36,6 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.AggregationPhase;
 import org.elasticsearch.search.internal.ScrollContext;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.profile.InternalProfileResults;
-import org.elasticsearch.search.internal.SearchContext.Lifetime;
 import org.elasticsearch.search.rescore.RescorePhase;
 import org.elasticsearch.search.rescore.RescoreSearchContext;
 import org.elasticsearch.search.scan.ScanContext.ScanCollector;

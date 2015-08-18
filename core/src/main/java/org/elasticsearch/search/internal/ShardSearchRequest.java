@@ -64,8 +64,15 @@ public interface ShardSearchRequest extends HasContextAndHeaders {
 
     Scroll scroll();
 
+    /**
+     * Sets if this shard search needs to be profiled or not
+     * @param profile True if the shard should be profiled
+     */
     void profile(boolean profile);
 
+    /**
+     * Returns if this shard search is being profiled or not
+     */
     boolean profile();
 
 

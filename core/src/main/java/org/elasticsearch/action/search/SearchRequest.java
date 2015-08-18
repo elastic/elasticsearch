@@ -544,11 +544,22 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
         return this.requestCache;
     }
 
+    /**
+     * Sets if this query should be profiled or not
+     *
+     * @param profile True if the query should be profiled
+     * @return
+     */
     public SearchRequest profile(boolean profile) {
         this.profile = profile;
         return this;
     }
 
+    /**
+     * Returns if profiling is enabled for this query
+     *
+     * @return
+     */
     public boolean profile() {
         return this.profile;
     }

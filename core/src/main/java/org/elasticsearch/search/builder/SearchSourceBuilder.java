@@ -482,18 +482,17 @@ public class SearchSourceBuilder extends ToXContentToBytes {
         return this;
     }
 
-    /*
+    /**
      * Should the query be profiled. Defaults to <tt>False</tt>
      */
     public SearchSourceBuilder profile(Boolean profile) {
         this.profile = profile;
         return this;
     }
+
     /**
-     * Indicates whether the response should contain the stored _source for every hit
-     *
-     * @param fetch
-     * @return
+     * Indicates whether the response should contain the stored _source for
+     * every hit
      */
     public SearchSourceBuilder fetchSource(boolean fetch) {
         if (this.fetchSourceContext == null) {

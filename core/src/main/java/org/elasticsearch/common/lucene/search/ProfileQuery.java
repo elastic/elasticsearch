@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.lucene.search;
 
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
@@ -33,92 +32,20 @@ import java.util.Set;
 
 
 /**
- * This class times the execution of the subquery that it wraps.  Timing includes:
- *  - ProfileQuery.createWeight
- *
- *  - ProfileWeight.getValueForNormalization
- *  - ProfileWeight.normalize
- *
- *  - ProfileScorer.advance
- *  - ProfileScorer.nextDoc
- *  - ProfileScorer.score
- *
- *  A ProfileQuery maintains it's own timing independent of the rest of the query.
- *  It must be later aggregated together using Profile.collapse
+ * A wrapper abstract class, whose only purpose is to organize
+ * useful components like ProfileWeight and ProfileScorer
  */
-public class ProfileQuery extends Query {
+public abstract class ProfileQuery {
 
-    Query subQuery;
-
-    public ProfileQuery(Query subQuery) {
-        setSubQuery(subQuery);
-    }
-
-    public void setSubQuery(Query subQuery) {
-        this.subQuery = subQuery;
-    }
-
-    /** Create a shallow copy of us -- used in rewriting if necessary
-     * @return a copy of us (but reuse, don't copy, our subqueries) */
-    @Override
-    public Query clone() {
-        ProfileQuery p = (ProfileQuery)super.clone();
-        p.subQuery = this.subQuery;
-        return p;
-    }
-
-
-    public String toString(String field) {
-        StringBuilder sb = new StringBuilder();
-
-        // Currently only outputting the subquery's string.  This makes the ProfileQuery "invisible"
-        // in explains/analyze, but makes the output much nicer for profiling
-        sb.append(subQuery.toString(field));
-        return sb.toString();
-    }
-
-    @Override
-    public void setBoost(float b) {
-        subQuery.setBoost(b);
-    }
-
-    @Override
-    public float getBoost() {
-        return subQuery.getBoost();
-    }
-
-    @Override
-    public Query rewrite(IndexReader reader) throws IOException {
-        return subQuery.rewrite(reader);
-    }
-
-    @Override
-    public Weight createWeight(IndexSearcher searcher, boolean needsScores) throws IOException {
-        return subQuery.createWeight(searcher, needsScores);
-    }
-
-    public boolean equals(Object o) {
-        if (this == o) {
-            return true;
-        }
-
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-
-        ProfileQuery other = (ProfileQuery) o;
-        return this.subQuery.equals(other.subQuery)
-                && Float.floatToIntBits(this.getBoost()) == Float.floatToIntBits(other.getBoost());
-    }
-
-    public int hashCode() {
-        final int prime = 31;
-        int result = prime * 19;
-        result = prime * result + this.subQuery.hashCode();
-        result = prime * result + Float.floatToIntBits(getBoost());
-        return result;
-    }
-
+    /**
+     * ProfileWeight wraps the query's weight and performs timing on:
+     *  - scorer()
+     *  - bulkScorer()
+     *  - normalize()
+     *
+     * The rest of the methods are delegated to the wrapped weight directly
+     * without timing.
+     */
     public static class ProfileWeight extends Weight {
 
         final Weight subQueryWeight;
@@ -179,8 +106,14 @@ public class ProfileQuery extends Query {
     }
 
 
-
-
+    /**
+     * ProfileScorer wraps the query's scorer and performs timing on:
+     *  - score()
+     *
+     * The rest of the methods are delegated to the wrapped scorer directly
+     * without any timing.  Notably, docID(), advance() and nextDoc() are
+     * not timed since those are called recursively and will inflate timings
+     */
     public static class ProfileScorer extends Scorer {
 
         private final Scorer scorer;
@@ -246,6 +179,11 @@ public class ProfileQuery extends Query {
         }
     }
 
+    /**
+     * ProfileBulkScorer wraps the query's bulk scorer and performs timing on:
+     *  - score()
+     *  - cost()
+     */
     static class ProfileBulkScorer extends BulkScorer {
 
         private final InternalProfiler profiler;

@@ -20,6 +20,7 @@
 package org.elasticsearch.search.query;
 
 import org.apache.lucene.search.TopDocs;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -122,10 +123,18 @@ public class QuerySearchResult extends QuerySearchResultProvider {
         this.aggregations = aggregations;
     }
 
-    public InternalProfileResult profileResult() {
+    /**
+     * Returns the profiled results for this search, or null if it was not profiled
+     * @return The profiled results, or null
+     */
+    public @Nullable InternalProfileResult profileResult() {
         return profileResult;
     }
 
+    /**
+     * Sets the finalized profiling results for this query
+     * @param profileResults The finalized profile
+     */
     public void profileResult(InternalProfileResult profileResults) {
         this.profileResult = profileResults;
     }

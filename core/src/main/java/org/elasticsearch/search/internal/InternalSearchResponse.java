@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.internal;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -89,7 +90,13 @@ public class InternalSearchResponse implements Streamable, ToXContent {
         return suggest;
     }
 
-    public ProfileResults profile() {
+    /**
+     * Returns the profile results for this search response (including all shards), or
+     * null if profiling was not enabled
+     *
+     * @return Profile results or null
+     */
+    public @Nullable ProfileResults profile() {
         return profileResults;
     }
 

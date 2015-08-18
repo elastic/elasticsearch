@@ -19,8 +19,3 @@
   - is_false:  timed_out
   - gte:       { number_of_nodes:         2 }
   - gte:       { number_of_data_nodes:    2 }
-  - gt:        { active_primary_shards:   0 }
-  - gt:        { active_shards:           0 }
-  - gte:       { relocating_shards:       0 }
-  - match:     { initializing_shards:     0 }
-  - gte:       { number_of_pending_tasks: 0 }

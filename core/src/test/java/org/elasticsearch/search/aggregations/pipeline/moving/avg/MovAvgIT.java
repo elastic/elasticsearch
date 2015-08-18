@@ -49,6 +49,7 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.min;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.range;
 import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilders.derivative;
 import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilders.movingAvg;
+import static org.elasticsearch.test.hamcrest.DoubleMatcher.nearlyEqual;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.core.IsNull.notNullValue;
@@ -1342,31 +1343,7 @@ public class MovAvgIT extends ESIntegTestCase {
         }
     }
 
-    /**
-     * Better floating point comparisons courtesy of https://github.com/brazzy/floating-point-gui.de
-     *
-     * Snippet adapted to use doubles instead of floats
-     *
-     * @param a
-     * @param b
-     * @param epsilon
-     * @return
-     */
-    private static boolean nearlyEqual(double a, double b, double epsilon) {
-        final double absA = Math.abs(a);
-        final double absB = Math.abs(b);
-        final double diff = Math.abs(a - b);
 
-        if (a == b) { // shortcut, handles infinities
-            return true;
-        } else if (a == 0 || b == 0 || diff < Double.MIN_NORMAL) {
-            // a or b is zero or both are extremely close to it
-            // relative error is less meaningful here
-            return diff < (epsilon * Double.MIN_NORMAL);
-        } else { // use relative error
-            return diff / Math.min((absA + absB), Double.MAX_VALUE) < epsilon;
-        }
-    }
 
     private MovAvgModelBuilder randomModelBuilder() {
         return randomModelBuilder(0);

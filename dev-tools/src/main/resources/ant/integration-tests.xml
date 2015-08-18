@@ -229,9 +229,14 @@
       <echo>Shutting down external node PID ${integ.pid}</echo>
       <!-- verify with jps that this actually is the correct pid.
       See if we can find the line "pid org.elasticsearch.bootstrap.Elasticsearch" in the output of jps -l.-->
-      <exec executable="jps">
+      <local name="jps.pidline"/>
+      <local name="jps.executable"/>
+      <local name="environment"/>
+      <property environment="environment"/>
+      <property name="jps.executable" location="${environment.JAVA_HOME}/bin/jps"/>
+      <exec executable="${jps.executable}" failonerror="true">
         <arg value="-l"/>
-        <redirector outputproperty="jps.pid.line">
+        <redirector outputproperty="jps.pidline">
           <outputfilterchain>
             <linecontains>
               <contains value="${integ.pid} org.elasticsearch.bootstrap.Elasticsearch"/>
@@ -243,9 +248,7 @@
           message="pid file at @{es.pidfile} is ${integ.pid} but jps -l did not report any process with org.elasticsearch.bootstrap.Elasticsearch and this pid.
           Did you run mvn clean? Maybe an old pid file is still lying around.">
         <condition>
-          <not>
-            <isset property="jps.pid.line"/>
-          </not>
+          <equals arg1="${jps.pidline}" arg2=""/>
         </condition>
       </fail>
 

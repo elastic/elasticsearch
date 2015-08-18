@@ -39,6 +39,8 @@ import java.util.Arrays;
 import java.util.List;
 
 import static org.elasticsearch.search.profile.RandomQueryGenerator.randomQueryBuilder;
+import static org.elasticsearch.test.hamcrest.DoubleMatcher.nearlyEqual;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
 
@@ -111,15 +113,27 @@ public class QueryProfilerTests extends ESIntegTestCase {
             SearchResponse vanilla = client().prepareSearch().setQuery(q).setProfile(false).setSearchType(SearchType.QUERY_THEN_FETCH).execute().actionGet();
             SearchResponse profile = client().prepareSearch().setQuery(q).setProfile(true).setSearchType(SearchType.QUERY_THEN_FETCH).execute().actionGet();
 
-            assertTrue("Profile maxScore of [" + profile.getHits().getMaxScore() + "] does not match Vanilla maxScore [" + vanilla.getHits().getMaxScore() + "]", vanilla.getHits().getMaxScore() == profile.getHits().getMaxScore());
-            assertTrue("Profile totalHits of [" + profile.getHits().totalHits() + "] does not match Vanilla totalHist [" + vanilla.getHits().totalHits() + "]", Float.compare(vanilla.getHits().getTotalHits(), profile.getHits().getTotalHits()) == 0);
+            float vanillaMaxScore = vanilla.getHits().getMaxScore();
+            float profileMaxScore = profile.getHits().getMaxScore();
+            if (Float.isNaN(vanillaMaxScore)) {
+                assertTrue("Vanilla maxScore is NaN but Profile is not [" + profileMaxScore + "]",
+                        Float.isNaN(profileMaxScore));
+            } else {
+                assertTrue("Profile maxScore of [" + profileMaxScore + "] is not close to Vanilla maxScore [" + vanillaMaxScore + "]",
+                        nearlyEqual(vanillaMaxScore, profileMaxScore, 0.001));
+            }
+
+            assertThat("Profile totalHits of [" + profile.getHits().totalHits() + "] is not close to Vanilla totalHist [" + vanilla.getHits().totalHits() + "]",
+                    vanilla.getHits().getTotalHits(), equalTo(profile.getHits().getTotalHits()));
 
             SearchHit[] vanillaHits = vanilla.getHits().getHits();
             SearchHit[] profileHits = profile.getHits().getHits();
 
             for (int j = 0; j < vanillaHits.length; j++) {
-                assertTrue("Profile hit #" + j + " has a different ID from Vanilla", vanillaHits[j].getId().equals(profileHits[j].getId()));
-                assertTrue("Profile hit #" + j + " has a different score from Vanilla", Float.compare(vanillaHits[j].getScore(),profileHits[j].getScore()) == 0);
+                assertThat("Profile hit #" + j + " has a different ID from Vanilla",
+                        vanillaHits[j].getId(), equalTo(profileHits[j].getId()));
+                assertTrue("Profile hit #" + j + "'s score [" + profileHits[j].getScore() + "] is not close to Vanilla [" + vanillaHits[j].getScore() + "]",
+                        nearlyEqual(vanillaHits[j].getScore(), profileHits[j].getScore(), 0.001));
             }
 
         }

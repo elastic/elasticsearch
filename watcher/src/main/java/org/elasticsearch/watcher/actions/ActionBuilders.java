@@ -7,6 +7,7 @@ package org.elasticsearch.watcher.actions;
 
 import org.elasticsearch.watcher.actions.email.EmailAction;
 import org.elasticsearch.watcher.actions.email.service.EmailTemplate;
+import org.elasticsearch.watcher.actions.hipchat.HipChatAction;
 import org.elasticsearch.watcher.actions.index.IndexAction;
 import org.elasticsearch.watcher.actions.logging.LoggingAction;
 import org.elasticsearch.watcher.actions.webhook.WebhookAction;
@@ -53,4 +54,27 @@ public final class ActionBuilders {
         return LoggingAction.builder(text);
     }
 
+    public static HipChatAction.Builder hipchatAction(String message) {
+        return hipchatAction(Template.inline(message));
+    }
+
+    public static HipChatAction.Builder hipchatAction(String account, String body) {
+        return hipchatAction(account, Template.inline(body));
+    }
+
+    public static HipChatAction.Builder hipchatAction(Template.Builder body) {
+        return hipchatAction(body.build());
+    }
+
+    public static HipChatAction.Builder hipchatAction(String account, Template.Builder body) {
+        return hipchatAction(account, body.build());
+    }
+
+    public static HipChatAction.Builder hipchatAction(Template body) {
+        return hipchatAction(null, body);
+    }
+
+    public static HipChatAction.Builder hipchatAction(String account, Template body) {
+        return HipChatAction.builder(account, body);
+    }
 }

@@ -8,11 +8,6 @@ package org.elasticsearch.watcher.support.xcontent;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.compress.CompressedStreamInput;
-import org.elasticsearch.common.compress.Compressor;
-import org.elasticsearch.common.compress.CompressorFactory;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -36,6 +31,29 @@ public class WatcherXContentUtils {
         } catch (IOException e) {
             throw new ElasticsearchParseException("Failed to parse content to map", e);
         }
+    }
+
+    public static String[] readStringArray(XContentParser parser, boolean allowNull) throws IOException {
+        if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
+            if (allowNull) {
+                return null;
+            }
+            throw new ElasticsearchParseException("could not parse [{}] field. expected a string array but found null value instead", parser.currentName());
+        }
+        if (parser.currentToken() != XContentParser.Token.START_ARRAY) {
+            throw new ElasticsearchParseException("could not parse [{}] field. expected a string array but found [{}] value instead", parser.currentName(), parser.currentToken());
+        }
+
+        List<String> list = new ArrayList<>();
+        XContentParser.Token token;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+            if (token == XContentParser.Token.VALUE_STRING) {
+                list.add(parser.text());
+            } else {
+                throw new ElasticsearchParseException("could not parse [{}] field. expected a string array but one of the value in the array is [{}]", parser.currentName(), token);
+            }
+        }
+        return list.toArray(new String[list.size()]);
     }
 
     // TODO open this up in core

@@ -79,13 +79,15 @@ public class InternalEmailService extends AbstractLifecycleComponent<InternalEma
         Settings.Builder builder = Settings.builder();
         String prefix = "watcher.actions.email.service";
         for (String setting : settings.getAsMap().keySet()) {
-            if (setting.startsWith("watcher.actions.email.service")) {
+            if (setting.startsWith(prefix)) {
                 builder.put(setting.substring(prefix.length()+1), settings.get(setting));
             }
         }
-        for (String setting : nodeSettings.getAsMap().keySet()) {
-            if (setting.startsWith("watcher.actions.email.service")) {
-                builder.put(setting.substring(prefix.length()+1), settings.get(setting));
+        if (nodeSettings != settings) { // if it's the same settings, no point in re-applying it
+            for (String setting : nodeSettings.getAsMap().keySet()) {
+                if (setting.startsWith(prefix)) {
+                    builder.put(setting.substring(prefix.length() + 1), nodeSettings.get(setting));
+                }
             }
         }
         accounts = createAccounts(builder.build(), logger);

@@ -20,6 +20,7 @@ import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.shield.authz.AuthorizationModule;
 import org.elasticsearch.watcher.actions.WatcherActionModule;
 import org.elasticsearch.watcher.actions.email.service.InternalEmailService;
+import org.elasticsearch.watcher.actions.hipchat.service.InternalHipChatService;
 import org.elasticsearch.watcher.client.WatcherClientModule;
 import org.elasticsearch.watcher.condition.ConditionModule;
 import org.elasticsearch.watcher.execution.ExecutionModule;
@@ -27,15 +28,7 @@ import org.elasticsearch.watcher.history.HistoryModule;
 import org.elasticsearch.watcher.input.InputModule;
 import org.elasticsearch.watcher.license.LicenseModule;
 import org.elasticsearch.watcher.license.LicenseService;
-import org.elasticsearch.watcher.rest.action.RestAckWatchAction;
-import org.elasticsearch.watcher.rest.action.RestDeleteWatchAction;
-import org.elasticsearch.watcher.rest.action.RestExecuteWatchAction;
-import org.elasticsearch.watcher.rest.action.RestGetWatchAction;
-import org.elasticsearch.watcher.rest.action.RestHijackOperationAction;
-import org.elasticsearch.watcher.rest.action.RestPutWatchAction;
-import org.elasticsearch.watcher.rest.action.RestWatchServiceAction;
-import org.elasticsearch.watcher.rest.action.RestWatcherInfoAction;
-import org.elasticsearch.watcher.rest.action.RestWatcherStatsAction;
+import org.elasticsearch.watcher.rest.action.*;
 import org.elasticsearch.watcher.shield.ShieldIntegration;
 import org.elasticsearch.watcher.shield.WatcherShieldModule;
 import org.elasticsearch.watcher.shield.WatcherUserHolder;
@@ -142,6 +135,7 @@ public class WatcherPlugin extends Plugin {
             InitializingService.class,
             LicenseService.class,
             InternalEmailService.class,
+            InternalHipChatService.class,
             HttpClient.class,
             WatcherSettingsValidation.class);
     }

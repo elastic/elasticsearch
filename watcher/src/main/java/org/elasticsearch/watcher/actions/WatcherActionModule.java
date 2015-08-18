@@ -12,6 +12,10 @@ import org.elasticsearch.watcher.actions.email.EmailActionFactory;
 import org.elasticsearch.watcher.actions.email.service.EmailService;
 import org.elasticsearch.watcher.actions.email.service.HtmlSanitizer;
 import org.elasticsearch.watcher.actions.email.service.InternalEmailService;
+import org.elasticsearch.watcher.actions.hipchat.HipChatAction;
+import org.elasticsearch.watcher.actions.hipchat.HipChatActionFactory;
+import org.elasticsearch.watcher.actions.hipchat.service.HipChatService;
+import org.elasticsearch.watcher.actions.hipchat.service.InternalHipChatService;
 import org.elasticsearch.watcher.actions.index.IndexAction;
 import org.elasticsearch.watcher.actions.index.IndexActionFactory;
 import org.elasticsearch.watcher.actions.logging.LoggingAction;
@@ -28,6 +32,14 @@ public class WatcherActionModule extends AbstractModule {
 
     private final Map<String, Class<? extends ActionFactory>> parsers = new HashMap<>();
 
+    public WatcherActionModule() {
+        registerAction(EmailAction.TYPE, EmailActionFactory.class);
+        registerAction(WebhookAction.TYPE, WebhookActionFactory.class);
+        registerAction(IndexAction.TYPE, IndexActionFactory.class);
+        registerAction(LoggingAction.TYPE, LoggingActionFactory.class);
+        registerAction(HipChatAction.TYPE, HipChatActionFactory.class);
+    }
+
     public void registerAction(String type, Class<? extends ActionFactory> parserType) {
         parsers.put(type, parserType);
     }
@@ -36,27 +48,17 @@ public class WatcherActionModule extends AbstractModule {
     protected void configure() {
 
         MapBinder<String, ActionFactory> parsersBinder = MapBinder.newMapBinder(binder(), String.class, ActionFactory.class);
-
-        bind(EmailActionFactory.class).asEagerSingleton();
-        parsersBinder.addBinding(EmailAction.TYPE).to(EmailActionFactory.class);
-
-        bind(WebhookActionFactory.class).asEagerSingleton();
-        parsersBinder.addBinding(WebhookAction.TYPE).to(WebhookActionFactory.class);
-
-        bind(IndexActionFactory.class).asEagerSingleton();
-        parsersBinder.addBinding(IndexAction.TYPE).to(IndexActionFactory.class);
-
-        bind(LoggingActionFactory.class).asEagerSingleton();
-        parsersBinder.addBinding(LoggingAction.TYPE).to(LoggingActionFactory.class);
-
         for (Map.Entry<String, Class<? extends ActionFactory>> entry : parsers.entrySet()) {
             bind(entry.getValue()).asEagerSingleton();
             parsersBinder.addBinding(entry.getKey()).to(entry.getValue());
         }
 
         bind(ActionRegistry.class).asEagerSingleton();
+
         bind(HtmlSanitizer.class).asEagerSingleton();
         bind(EmailService.class).to(InternalEmailService.class).asEagerSingleton();
+
+        bind(HipChatService.class).to(InternalHipChatService.class).asEagerSingleton();
     }
 
 

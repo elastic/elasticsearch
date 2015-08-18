@@ -233,7 +233,7 @@ public class LicensingTests extends ShieldIntegTestCase {
         }
 
         @Override
-        public void register(String s, LicensesClientService.TrialLicenseOptions trialLicenseOptions, Collection<LicensesClientService.ExpirationCallback> collection, Listener listener) {
+        public void register(String s, LicensesClientService.TrialLicenseOptions trialLicenseOptions, Collection<LicensesClientService.ExpirationCallback> collection, AcknowledgementCallback acknowledgementCallback, Listener listener) {
             listeners.add(listener);
             enable();
         }

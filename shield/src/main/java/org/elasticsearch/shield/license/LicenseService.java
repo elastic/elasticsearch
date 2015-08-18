@@ -87,7 +87,7 @@ public class LicenseService extends AbstractLifecycleComponent<LicenseService> {
     @Override
     protected void doStart() throws ElasticsearchException {
         if (settings.getGroups("tribe", true).isEmpty()) {
-            licensesClientService.register(FEATURE_NAME, TRIAL_LICENSE_OPTIONS, expirationLoggers, new InternalListener());
+            licensesClientService.register(FEATURE_NAME, TRIAL_LICENSE_OPTIONS, expirationLoggers, null, new InternalListener());
         } else {
             //TODO currently we disable licensing on tribe node. remove this once es core supports merging cluster
             new InternalListener().onEnabled(null);

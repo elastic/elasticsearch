@@ -84,7 +84,7 @@ public class LicenseService extends AbstractLifecycleComponent<LicenseService> {
 
     @Override
     protected void doStart() throws ElasticsearchException {
-        clientService.register(FEATURE_NAME, TRIAL_LICENSE_OPTIONS, expirationLoggers, new InternalListener(this));
+        clientService.register(FEATURE_NAME, TRIAL_LICENSE_OPTIONS, expirationLoggers, null, new InternalListener(this));
     }
 
     @Override

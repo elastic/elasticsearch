@@ -317,7 +317,7 @@ public class LicenseIntegrationTests extends AbstractWatcherIntegrationTests {
         }
 
         @Override
-        public void register(String s, LicensesService.TrialLicenseOptions trialLicenseOptions, Collection<LicensesService.ExpirationCallback> collection, Listener listener) {
+        public void register(String s, LicensesService.TrialLicenseOptions trialLicenseOptions, Collection<LicensesService.ExpirationCallback> collection, AcknowledgementCallback acknowledgementCallback, Listener listener) {
             listeners.add(listener);
             enable();
         }

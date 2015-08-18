@@ -54,10 +54,10 @@ import org.elasticsearch.index.query.functionscore.ScoreFunctionParser;
 import org.elasticsearch.index.query.support.QueryParsers;
 import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.index.similarity.SimilarityModule;
+import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.indices.query.IndicesQueriesModule;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESTestCase;
@@ -68,19 +68,11 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolModule;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
-import org.junit.After;
-import org.junit.AfterClass;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.Test;
+import org.junit.*;
 
 import java.io.IOException;
 
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.*;
 
 public abstract class BaseQueryTestCase<QB extends AbstractQueryBuilder<QB>> extends ESTestCase {
 
@@ -130,7 +122,13 @@ public abstract class BaseQueryTestCase<QB extends AbstractQueryBuilder<QB>> ext
                 new EnvironmentModule(new Environment(settings)),
                 new SettingsModule(settings),
                 new ThreadPoolModule(new ThreadPool(settings)),
-                new IndicesQueriesModule(),
+                new IndicesModule(settings) {
+                    @Override
+                    public void configure() {
+                        // skip services
+                        bindQueryParsersExtension();
+                    }
+                },
                 new ScriptModule(settings),
                 new IndexSettingsModule(index, indexSettings),
                 new IndexCacheModule(indexSettings),

@@ -21,6 +21,7 @@ package org.elasticsearch.index.query;
 
 import com.google.common.collect.Lists;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.inject.Inject;
@@ -68,10 +69,10 @@ public class GeoPolygonQueryParser extends BaseQueryParserTemp {
 
         List<GeoPoint> shell = Lists.newArrayList();
 
-        boolean normalizeLon = true;
-        boolean normalizeLat = true;
-
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
+        final boolean indexCreatedBeforeV2_0 = parseContext.shardContext().indexVersionCreated().before(Version.V_2_0_0);
+        boolean coerce = false;
+        boolean ignoreMalformed = false;
         String queryName = null;
         String currentFieldName = null;
         XContentParser.Token token;
@@ -109,9 +110,13 @@ public class GeoPolygonQueryParser extends BaseQueryParserTemp {
                     queryName = parser.text();
                 } else if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
-                } else if ("normalize".equals(currentFieldName)) {
-                    normalizeLat = parser.booleanValue();
-                    normalizeLon = parser.booleanValue();
+                } else if ("coerce".equals(currentFieldName) || (indexCreatedBeforeV2_0 && "normalize".equals(currentFieldName))) {
+                    coerce = parser.booleanValue();
+                    if (coerce == true) {
+                        ignoreMalformed = true;
+                    }
+                } else if ("ignore_malformed".equals(currentFieldName) && coerce == false) {
+                    ignoreMalformed = parser.booleanValue();
                 } else {
                     throw new QueryParsingException(parseContext, "[geo_polygon] query does not support [" + currentFieldName + "]");
                 }
@@ -135,9 +140,21 @@ public class GeoPolygonQueryParser extends BaseQueryParserTemp {
             }
         }
 
-        if (normalizeLat || normalizeLon) {
+        // validation was not available prior to 2.x, so to support bwc percolation queries we only ignore_malformed on 2.x created indexes
+        if (!indexCreatedBeforeV2_0 && !ignoreMalformed) {
             for (GeoPoint point : shell) {
-                GeoUtils.normalizePoint(point, normalizeLat, normalizeLon);
+                if (point.lat() > 90.0 || point.lat() < -90.0) {
+                    throw new QueryParsingException(parseContext, "illegal latitude value [{}] for [{}]", point.lat(), GeoPolygonQueryBuilder.NAME);
+                }
+                if (point.lon() > 180.0 || point.lon() < -180) {
+                    throw new QueryParsingException(parseContext, "illegal longitude value [{}] for [{}]", point.lon(), GeoPolygonQueryBuilder.NAME);
+                }
+            }
+        }
+
+        if (coerce) {
+            for (GeoPoint point : shell) {
+                GeoUtils.normalizePoint(point, coerce, coerce);
             }
         }
 

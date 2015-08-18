@@ -84,17 +84,6 @@ def process_file(file_path, line_callback):
     os.remove(abs_path)
     return False
 
-# Moves the pom.xml file from a snapshot to a release
-def remove_maven_snapshot(poms, release):
-  for pom in poms:
-    if pom:
-      #print('Replacing SNAPSHOT version in file %s' % (pom))
-      pattern = '<version>%s-SNAPSHOT</version>' % (release)
-      replacement = '<version>%s</version>' % (release)
-      def callback(line):
-        return line.replace(pattern, replacement)
-      process_file(pom, callback)
-
 # Moves the Version.java file from a snapshot to a release
 def remove_version_snapshot(version_file, release):
   # 1.0.0.Beta1 -> 1_0_0_Beta1
@@ -107,11 +96,6 @@ def remove_version_snapshot(version_file, release):
   processed = process_file(version_file, callback)
   if not processed:
     raise RuntimeError('failed to remove snapshot version for %s' % (release))
-
-# finds all the pom files that do have a -SNAPSHOT version
-def find_pom_files_with_snapshots():
-  files = subprocess.check_output('find . -name pom.xml -exec grep -l "<version>.*-SNAPSHOT</version>" {} ";"', shell=True)
-  return files.decode('utf-8').split('\n')
 
 # Checks the pom.xml for the release version.
 # This method fails if the pom file has no SNAPSHOT version set ie.
@@ -132,14 +116,29 @@ if __name__ == "__main__":
   print('*** Preparing release version: [%s]' % release_version)
 
   ensure_checkout_is_clean()
-  pom_files = find_pom_files_with_snapshots()
 
-  remove_maven_snapshot(pom_files, release_version)
+  run('cd dev-tools && mvn versions:set -DnewVersion=%s -DgenerateBackupPoms=false' % (release_version))
+  run('cd rest-api-spec && mvn versions:set -DnewVersion=%s -DgenerateBackupPoms=false' % (release_version))
+  run('mvn versions:set -DnewVersion=%s -DgenerateBackupPoms=false' % (release_version))
+
   remove_version_snapshot(VERSION_FILE, release_version)
 
   print('*** Done removing snapshot version. DO NOT COMMIT THIS, WHEN CREATING A RELEASE CANDIDATE.')
 
-  shortHash = subprocess.check_output('git log --pretty=format:"%h" -n 1', shell=True)
+  shortHash = subprocess.check_output('git log --pretty=format:"%h" -n 1', shell=True).decode('utf-8')
+  localRepo = '/tmp/elasticsearch-%s-%s' % (release_version, shortHash)
+  localRepoElasticsearch = localRepo + '/org/elasticsearch'
   print('')
   print('*** To create a release candidate run: ')
-  print('  mvn clean deploy -Prelease -DskipTests -Dgpg.keyname="$GPG_KEY_ID" -Dgpg.passphrase="$GPG_PASSPHRASE" -Dpackaging.rpm.rpmbuild=/usr/bin/rpmbuild -Delasticsearch.s3.repository=s3://download.elasticsearch.org/elasticsearch/staging/%s' % (shortHash.decode('utf-8')))
+  print('  mvn clean install deploy -Prelease -DskipTests -Dgpg.keyname="D88E42B4" -Dpackaging.rpm.rpmbuild=/usr/bin/rpmbuild -Drpm.sign=true -Dmaven.repo.local=%s -Dno.commit.pattern="\\bno(n|)commit\\b" -Dforbidden.test.signatures=""' % (localRepo))
+  print('  1. Remove all _remote.repositories: find %s -name _remote.repositories -exec rm {} \;' % (localRepoElasticsearch))
+  print('  2. Rename all maven metadata files: for i in $(find %s -name "maven-metadata-local.xml*") ; do mv "$i" "${i/-local/}" ; done' % (localRepoElasticsearch))
+  print('  3. Sync %s into S3 bucket' % (localRepoElasticsearch))
+  print ('    s3cmd sync %s s3://download.elasticsearch.org/elasticsearch/staging/elasticsearch-%s-%s/maven/org/' % (localRepoElasticsearch, release_version, shortHash))
+  print('  4. Create repositories: ')
+  print ('    export S3_BUCKET_SYNC_TO="download.elasticsearch.org/elasticsearch/staging/elasticsearch-%s-%s/repos"' % (release_version, shortHash))
+  print ('    export S3_BUCKET_SYNC_FROM="$S3_BUCKET_SYNC_TO"')
+  print('     dev-tools/build_repositories.sh %s' % (release_version))
+  print('')
+  print('NOTE: the above mvn command will promt you several times for the GPG passphrase of the key you specified you can alternatively pass it via -Dgpg.passphrase=yourPassPhrase')
+  print('NOTE: Running s3cmd might require you to create a config file with your credentials, if the s3cmd does not support suppliying them via the command line!')

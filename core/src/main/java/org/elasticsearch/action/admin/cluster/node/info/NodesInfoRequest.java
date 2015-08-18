@@ -35,7 +35,6 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
     private boolean process = true;
     private boolean jvm = true;
     private boolean threadPool = true;
-    private boolean network = true;
     private boolean transport = true;
     private boolean http = true;
     private boolean plugins = true;
@@ -60,7 +59,6 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
         process = false;
         jvm = false;
         threadPool = false;
-        network = false;
         transport = false;
         http = false;
         plugins = false;
@@ -76,7 +74,6 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
         process = true;
         jvm = true;
         threadPool = true;
-        network = true;
         transport = true;
         http = true;
         plugins = true;
@@ -159,21 +156,6 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
     }
 
     /**
-     * Should the node Network be returned.
-     */
-    public boolean network() {
-        return this.network;
-    }
-
-    /**
-     * Should the node Network be returned.
-     */
-    public NodesInfoRequest network(boolean network) {
-        this.network = network;
-        return this;
-    }
-
-    /**
      * Should the node Transport be returned.
      */
     public boolean transport() {
@@ -228,7 +210,6 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
         process = in.readBoolean();
         jvm = in.readBoolean();
         threadPool = in.readBoolean();
-        network = in.readBoolean();
         transport = in.readBoolean();
         http = in.readBoolean();
         plugins = in.readBoolean();
@@ -242,7 +223,6 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
         out.writeBoolean(process);
         out.writeBoolean(jvm);
         out.writeBoolean(threadPool);
-        out.writeBoolean(network);
         out.writeBoolean(transport);
         out.writeBoolean(http);
         out.writeBoolean(plugins);

@@ -19,8 +19,6 @@
 
 package org.elasticsearch.common.geo;
 
-import org.elasticsearch.common.Classes;
-
 /**
  */
 public class ShapesAvailability {
@@ -48,8 +46,5 @@ public class ShapesAvailability {
         JTS_AVAILABLE = xJTS_AVAILABLE;
     }
 
-
-    private ShapesAvailability() {
-
-    }
+    private ShapesAvailability() {}
 }

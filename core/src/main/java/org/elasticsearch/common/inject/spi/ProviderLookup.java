@@ -34,6 +34,31 @@ import static com.google.common.base.Preconditions.checkState;
  * @since 2.0
  */
 public final class ProviderLookup<T> implements Element {
+
+    // NOTE: this class is not part of guice and was added so the provder lookup's key can be acessible for tests
+    public static class ProviderImpl<T> implements Provider<T> {
+        private ProviderLookup<T> lookup;
+
+        private ProviderImpl(ProviderLookup<T> lookup) {
+            this.lookup = lookup;
+        }
+
+        @Override
+        public T get() {
+            checkState(lookup.delegate != null,
+                "This Provider cannot be used until the Injector has been created.");
+            return lookup.delegate.get();
+        }
+
+        @Override
+        public String toString() {
+            return "Provider<" + lookup.key.getTypeLiteral() + ">";
+        }
+
+        public Key<T> getKey() {
+            return lookup.getKey();
+        }
+    }
     private final Object source;
     private final Key<T> key;
     private Provider<T> delegate;
@@ -86,18 +111,6 @@ public final class ProviderLookup<T> implements Element {
      * IllegalStateException} if you try to use it beforehand.
      */
     public Provider<T> getProvider() {
-        return new Provider<T>() {
-            @Override
-            public T get() {
-                checkState(delegate != null,
-                        "This Provider cannot be used until the Injector has been created.");
-                return delegate.get();
-            }
-
-            @Override
-            public String toString() {
-                return "Provider<" + key.getTypeLiteral() + ">";
-            }
-        };
+        return new ProviderImpl<>(this);
     }
 }

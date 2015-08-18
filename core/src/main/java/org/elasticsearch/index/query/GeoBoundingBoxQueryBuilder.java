@@ -42,6 +42,8 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
     private double[] box = {Double.NaN, Double.NaN, Double.NaN, Double.NaN};
 
     private String type;
+    private Boolean coerce;
+    private Boolean ignoreMalformed;
 
     static final GeoBoundingBoxQueryBuilder PROTOTYPE = new GeoBoundingBoxQueryBuilder(null);
 
@@ -129,6 +131,16 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
         return topRight(GeoHashUtils.decode(geohash));
     }
 
+    public GeoBoundingBoxQueryBuilder coerce(boolean coerce) {
+        this.coerce = coerce;
+        return this;
+    }
+
+    public GeoBoundingBoxQueryBuilder ignoreMalformed(boolean ignoreMalformed) {
+        this.ignoreMalformed = ignoreMalformed;
+        return this;
+    }
+
     /**
      * Sets the type of executing of the geo bounding box. Can be either `memory` or `indexed`. Defaults
      * to `memory`.
@@ -160,6 +172,12 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
 
         if (type != null) {
             builder.field("type", type);
+        }
+        if (coerce != null) {
+            builder.field("coerce", coerce);
+        }
+        if (ignoreMalformed != null) {
+            builder.field("ignore_malformed", ignoreMalformed);
         }
 
         printBoostAndQueryName(builder);

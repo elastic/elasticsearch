@@ -60,7 +60,7 @@ public class QueryParseContext {
         this.parser = jp;
     }
 
-    //norelease this is still used in BaseQueryParserTemp and FunctionScoreQueryParse, remove if not needed there anymore
+    //norelease this is still used in BaseQueryParserTemp and FunctionScoreQueryParser, remove if not needed there anymore
     @Deprecated
     public QueryShardContext shardContext() {
         return this.shardContext;

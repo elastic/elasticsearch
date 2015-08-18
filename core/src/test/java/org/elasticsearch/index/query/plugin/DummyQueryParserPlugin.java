@@ -23,12 +23,10 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Weight;
-import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.*;
-import org.elasticsearch.indices.query.IndicesQueriesModule;
+import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.plugins.AbstractPlugin;
 
 import java.io.IOException;
@@ -45,16 +43,8 @@ public class DummyQueryParserPlugin extends AbstractPlugin {
         return "dummy query";
     }
 
-    @Override
-    public void processModule(Module module) {
-        if (module instanceof IndicesQueriesModule) {
-            IndicesQueriesModule indicesQueriesModule = (IndicesQueriesModule) module;
-            indicesQueriesModule.addQuery(DummyQueryParser.class);
-        }
-    }
-
-    public Settings settings() {
-        return Settings.EMPTY;
+    public void onModule(IndicesModule module) {
+        module.registerQueryParser(DummyQueryParser.class);
     }
 
     public static class DummyQueryBuilder extends AbstractQueryBuilder<DummyQueryBuilder> {

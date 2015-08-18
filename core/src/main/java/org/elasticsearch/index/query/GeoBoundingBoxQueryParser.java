@@ -21,6 +21,7 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.inject.Inject;
@@ -82,7 +83,9 @@ public class GeoBoundingBoxQueryParser extends BaseQueryParserTemp {
         String queryName = null;
         String currentFieldName = null;
         XContentParser.Token token;
-        boolean normalize = true;
+        final boolean indexCreatedBeforeV2_0 = parseContext.shardContext().indexVersionCreated().before(Version.V_2_0_0);
+        boolean coerce = false;
+        boolean ignoreMalformed = false;
 
         GeoPoint sparse = new GeoPoint();
 
@@ -140,10 +143,15 @@ public class GeoBoundingBoxQueryParser extends BaseQueryParserTemp {
                     queryName = parser.text();
                 } else if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
-                } else if ("normalize".equals(currentFieldName)) {
-                    normalize = parser.booleanValue();
+                } else if ("coerce".equals(currentFieldName) || (indexCreatedBeforeV2_0 && "normalize".equals(currentFieldName))) {
+                    coerce = parser.booleanValue();
+                    if (coerce) {
+                        ignoreMalformed = true;
+                    }
                 } else if ("type".equals(currentFieldName)) {
                     type = parser.text();
+                } else if ("ignore_malformed".equals(currentFieldName) && coerce == false) {
+                    ignoreMalformed = parser.booleanValue();
                 } else {
                     throw new QueryParsingException(parseContext, "failed to parse [{}] query. unexpected field [{}]", NAME, currentFieldName);
                 }
@@ -153,8 +161,24 @@ public class GeoBoundingBoxQueryParser extends BaseQueryParserTemp {
         final GeoPoint topLeft = sparse.reset(top, left);  //just keep the object
         final GeoPoint bottomRight = new GeoPoint(bottom, right);
 
-        if (normalize) {
-            // Special case: if the difference bettween the left and right is 360 and the right is greater than the left, we are asking for
+        // validation was not available prior to 2.x, so to support bwc percolation queries we only ignore_malformed on 2.x created indexes
+        if (!indexCreatedBeforeV2_0 && !ignoreMalformed) {
+            if (topLeft.lat() > 90.0 || topLeft.lat() < -90.0) {
+                throw new QueryParsingException(parseContext, "illegal latitude value [{}] for [{}]", topLeft.lat(), NAME);
+            }
+            if (topLeft.lon() > 180.0 || topLeft.lon() < -180) {
+                throw new QueryParsingException(parseContext, "illegal longitude value [{}] for [{}]", topLeft.lon(), NAME);
+            }
+            if (bottomRight.lat() > 90.0 || bottomRight.lat() < -90.0) {
+                throw new QueryParsingException(parseContext, "illegal latitude value [{}] for [{}]", bottomRight.lat(), NAME);
+            }
+            if (bottomRight.lon() > 180.0 || bottomRight.lon() < -180) {
+                throw new QueryParsingException(parseContext, "illegal longitude value [{}] for [{}]", bottomRight.lon(), NAME);
+            }
+        }
+
+        if (coerce) {
+            // Special case: if the difference between the left and right is 360 and the right is greater than the left, we are asking for
             // the complete longitude range so need to set longitude to the complete longditude range
             boolean completeLonRange = ((right - left) % 360 == 0 && right > left);
             GeoUtils.normalizePoint(topLeft, true, !completeLonRange);

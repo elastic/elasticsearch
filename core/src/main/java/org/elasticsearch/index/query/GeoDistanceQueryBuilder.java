@@ -46,6 +46,10 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
 
     static final GeoDistanceQueryBuilder PROTOTYPE = new GeoDistanceQueryBuilder(null);
 
+    private Boolean coerce;
+
+    private Boolean ignoreMalformed;
+
     public GeoDistanceQueryBuilder(String name) {
         this.name = name;
     }
@@ -91,6 +95,16 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
         return this;
     }
 
+    public GeoDistanceQueryBuilder coerce(boolean coerce) {
+        this.coerce = coerce;
+        return this;
+    }
+
+    public GeoDistanceQueryBuilder ignoreMalformed(boolean ignoreMalformed) {
+        this.ignoreMalformed = ignoreMalformed;
+        return this;
+    }
+
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
@@ -105,6 +119,12 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
         }
         if (optimizeBbox != null) {
             builder.field("optimize_bbox", optimizeBbox);
+        }
+        if (coerce != null) {
+            builder.field("coerce", coerce);
+        }
+        if (ignoreMalformed != null) {
+            builder.field("ignore_malformed", ignoreMalformed);
         }
         printBoostAndQueryName(builder);
         builder.endObject();

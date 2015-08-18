@@ -28,6 +28,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParsingException;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 
@@ -57,7 +58,7 @@ public class PercentageScore extends SignificanceHeuristic {
 
     /**
      * Indicates the significance of a term in a sample by determining what percentage
-     * of all occurrences of a term are found in the sample. 
+     * of all occurrences of a term are found in the sample.
      */
     @Override
     public double getScore(long subsetFreq, long subsetSize, long supersetFreq, long supersetSize) {
@@ -65,7 +66,7 @@ public class PercentageScore extends SignificanceHeuristic {
         if (supersetFreq == 0) {
             // avoid a divide by zero issue
             return 0;
-        }        
+        }
         return (double) subsetFreq / (double) supersetFreq;
    }
 
@@ -77,7 +78,8 @@ public class PercentageScore extends SignificanceHeuristic {
     public static class PercentageScoreParser implements SignificanceHeuristicParser {
 
         @Override
-        public SignificanceHeuristic parse(XContentParser parser, ParseFieldMatcher parseFieldMatcher) throws IOException, QueryParsingException {
+        public SignificanceHeuristic parse(XContentParser parser, ParseFieldMatcher parseFieldMatcher, SearchContext context)
+                throws IOException, QueryParsingException {
             // move to the closing bracket
             if (!parser.nextToken().equals(XContentParser.Token.END_OBJECT)) {
                 throw new ElasticsearchParseException("failed to parse [percentage] significance heuristic. expected an empty object, but got [{}] instead", parser.currentToken());

@@ -75,7 +75,8 @@ public class TransportSearchCountAction extends TransportSearchTypeAction {
         @Override
         protected void moveToSecondPhase() throws Exception {
             // no need to sort, since we know we have no hits back
-            final InternalSearchResponse internalResponse = searchPhaseController.merge(SearchPhaseController.EMPTY_DOCS, firstResults, (AtomicArray<? extends FetchSearchResultProvider>) AtomicArray.empty());
+            final InternalSearchResponse internalResponse = searchPhaseController.merge(SearchPhaseController.EMPTY_DOCS, firstResults,
+                    (AtomicArray<? extends FetchSearchResultProvider>) AtomicArray.empty(), request);
             String scrollId = null;
             if (request.scroll() != null) {
                 scrollId = buildScrollId(request.searchType(), firstResults, null);

@@ -246,7 +246,7 @@ public class UpdateHelper extends AbstractComponent {
     private Map<String, Object> executeScript(UpdateRequest request, Map<String, Object> ctx) {
         try {
             if (scriptService != null) {
-                ExecutableScript script = scriptService.executable(request.script, ScriptContext.Standard.UPDATE);
+                ExecutableScript script = scriptService.executable(request.script, ScriptContext.Standard.UPDATE, request);
                 script.setNextVar("ctx", ctx);
                 script.run();
                 // we need to unwrap the ctx...

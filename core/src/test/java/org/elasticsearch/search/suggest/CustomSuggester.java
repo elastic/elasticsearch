@@ -20,6 +20,7 @@ package org.elasticsearch.search.suggest;
 
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.util.CharsRefBuilder;
+import org.elasticsearch.common.HasContextAndHeaders;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MapperService;
@@ -59,7 +60,8 @@ public class CustomSuggester extends Suggester<CustomSuggester.CustomSuggestions
     public SuggestContextParser getContextParser() {
         return new SuggestContextParser() {
             @Override
-            public SuggestionSearchContext.SuggestionContext parse(XContentParser parser, MapperService mapperService, IndexQueryParserService queryParserService) throws IOException {
+            public SuggestionSearchContext.SuggestionContext parse(XContentParser parser, MapperService mapperService,
+                    IndexQueryParserService queryParserService, HasContextAndHeaders headersContext) throws IOException {
                 Map<String, Object> options = parser.map();
                 CustomSuggestionsContext suggestionContext = new CustomSuggestionsContext(CustomSuggester.this, options);
                 suggestionContext.setField((String) options.get("field"));

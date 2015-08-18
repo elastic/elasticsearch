@@ -23,6 +23,7 @@ import com.carrotsearch.hppc.ObjectHashSet;
 import com.carrotsearch.hppc.ObjectSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.google.common.collect.ImmutableMap;
+
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
@@ -85,10 +86,23 @@ import org.elasticsearch.script.mustache.MustacheScriptEngineService;
 import org.elasticsearch.search.dfs.CachedDfSource;
 import org.elasticsearch.search.dfs.DfsPhase;
 import org.elasticsearch.search.dfs.DfsSearchResult;
-import org.elasticsearch.search.fetch.*;
-import org.elasticsearch.search.internal.*;
+import org.elasticsearch.search.fetch.FetchPhase;
+import org.elasticsearch.search.fetch.FetchSearchResult;
+import org.elasticsearch.search.fetch.QueryFetchSearchResult;
+import org.elasticsearch.search.fetch.ScrollQueryFetchSearchResult;
+import org.elasticsearch.search.fetch.ShardFetchRequest;
+import org.elasticsearch.search.internal.DefaultSearchContext;
+import org.elasticsearch.search.internal.InternalScrollSearchRequest;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.SearchContext.Lifetime;
-import org.elasticsearch.search.query.*;
+import org.elasticsearch.search.internal.ShardSearchLocalRequest;
+import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.search.query.QueryPhase;
+import org.elasticsearch.search.query.QueryPhaseExecutionException;
+import org.elasticsearch.search.query.QuerySearchRequest;
+import org.elasticsearch.search.query.QuerySearchResult;
+import org.elasticsearch.search.query.QuerySearchResultProvider;
+import org.elasticsearch.search.query.ScrollQuerySearchResult;
 import org.elasticsearch.search.warmer.IndexWarmersMetaData;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -744,7 +758,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
 
         BytesReference processedQuery;
         if (request.template() != null) {
-            ExecutableScript executable = this.scriptService.executable(request.template(), ScriptContext.Standard.SEARCH);
+            ExecutableScript executable = this.scriptService.executable(request.template(), ScriptContext.Standard.SEARCH, searchContext);
             processedQuery = (BytesReference) executable.run();
         } else {
             if (!hasLength(request.templateSource())) {
@@ -761,7 +775,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                     //Try to double parse for nested template id/file
                     parser = null;
                     try {
-                        ExecutableScript executable = this.scriptService.executable(template, ScriptContext.Standard.SEARCH);
+                        ExecutableScript executable = this.scriptService.executable(template, ScriptContext.Standard.SEARCH, searchContext);
                         processedQuery = (BytesReference) executable.run();
                         parser = XContentFactory.xContent(processedQuery).createParser(processedQuery);
                     } catch (ElasticsearchParseException epe) {
@@ -769,7 +783,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                         //for backwards compatibility and keep going
                         template = new Template(template.getScript(), ScriptService.ScriptType.FILE, MustacheScriptEngineService.NAME,
                                 null, template.getParams());
-                        ExecutableScript executable = this.scriptService.executable(template, ScriptContext.Standard.SEARCH);
+                        ExecutableScript executable = this.scriptService.executable(template, ScriptContext.Standard.SEARCH, searchContext);
                         processedQuery = (BytesReference) executable.run();
                     }
                     if (parser != null) {
@@ -779,7 +793,8 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                                 //An inner template referring to a filename or id
                                 template = new Template(innerTemplate.getScript(), innerTemplate.getType(),
                                         MustacheScriptEngineService.NAME, null, template.getParams());
-                                ExecutableScript executable = this.scriptService.executable(template, ScriptContext.Standard.SEARCH);
+                                ExecutableScript executable = this.scriptService.executable(template, ScriptContext.Standard.SEARCH,
+                                        searchContext);
                                 processedQuery = (BytesReference) executable.run();
                             }
                         } catch (ScriptParseException e) {
@@ -787,7 +802,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                         }
                     }
                 } else {
-                    ExecutableScript executable = this.scriptService.executable(template, ScriptContext.Standard.SEARCH);
+                    ExecutableScript executable = this.scriptService.executable(template, ScriptContext.Standard.SEARCH, searchContext);
                     processedQuery = (BytesReference) executable.run();
                 }
             } catch (IOException e) {

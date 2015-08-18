@@ -19,16 +19,22 @@
 
 package org.elasticsearch.search.internal;
 
-import com.carrotsearch.hppc.ObjectObjectAssociativeContainer;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
+
 import org.apache.lucene.search.BooleanClause.Occur;
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryWrapperFilter;
+import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.Sort;
 import org.apache.lucene.util.Counter;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
-import org.elasticsearch.common.*;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.function.BoostScoreFunction;
@@ -66,7 +72,11 @@ import org.elasticsearch.search.rescore.RescoreSearchContext;
 import org.elasticsearch.search.scan.ScanContext;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
  *
@@ -134,7 +144,7 @@ public class DefaultSearchContext extends SearchContext {
                                 BigArrays bigArrays, Counter timeEstimateCounter, ParseFieldMatcher parseFieldMatcher,
                                 TimeValue timeout
     ) {
-        super(parseFieldMatcher);
+        super(parseFieldMatcher, request);
         this.id = id;
         this.request = request;
         this.searchType = request.searchType();
@@ -734,80 +744,5 @@ public class DefaultSearchContext extends SearchContext {
     @Override
     public InnerHitsContext innerHits() {
         return innerHitsContext;
-    }
-
-    @Override
-    public <V> V putInContext(Object key, Object value) {
-        return request.putInContext(key, value);
-    }
-
-    @Override
-    public void putAllInContext(ObjectObjectAssociativeContainer<Object, Object> map) {
-        request.putAllInContext(map);
-    }
-
-    @Override
-    public <V> V getFromContext(Object key) {
-        return request.getFromContext(key);
-    }
-
-    @Override
-    public <V> V getFromContext(Object key, V defaultValue) {
-        return request.getFromContext(key, defaultValue);
-    }
-
-    @Override
-    public boolean hasInContext(Object key) {
-        return request.hasInContext(key);
-    }
-
-    @Override
-    public int contextSize() {
-        return request.contextSize();
-    }
-
-    @Override
-    public boolean isContextEmpty() {
-        return request.isContextEmpty();
-    }
-
-    @Override
-    public ImmutableOpenMap<Object, Object> getContext() {
-        return request.getContext();
-    }
-
-    @Override
-    public void copyContextFrom(HasContext other) {
-        request.copyContextFrom(other);
-    }
-
-    @Override
-    public <V> void putHeader(String key, V value) {
-        request.putHeader(key, value);
-    }
-
-    @Override
-    public <V> V getHeader(String key) {
-        return request.getHeader(key);
-    }
-
-    @Override
-    public boolean hasHeader(String key) {
-        return request.hasHeader(key);
-    }
-
-    @Override
-    public Set<String> getHeaders() {
-        return request.getHeaders();
-    }
-
-    @Override
-    public void copyHeadersFrom(HasHeaders from) {
-        request.copyHeadersFrom(from);
-    }
-
-    @Override
-    public void copyContextAndHeadersFrom(HasContextAndHeaders other) {
-        request.copyContextAndHeadersFrom(other);
     }
 }

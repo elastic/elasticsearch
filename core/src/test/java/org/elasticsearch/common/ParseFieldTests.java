@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.common;
 
-import org.apache.commons.lang3.ArrayUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
@@ -77,7 +76,10 @@ public class ParseFieldTests extends ESTestCase {
         String[] deprecated = new String[]{"text", "same_as_text"};
         String[] allValues = values;
         if (withDeprecatedNames) {
-            allValues = ArrayUtils.addAll(values, deprecated);
+            String[] newArray = new String[allValues.length + deprecated.length];
+            System.arraycopy(allValues, 0, newArray, 0, allValues.length);
+            System.arraycopy(deprecated, 0, newArray, allValues.length, deprecated.length);
+            allValues = newArray;
         }
 
         ParseField field = new ParseField(randomFrom(values));

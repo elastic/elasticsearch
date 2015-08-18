@@ -34,11 +34,16 @@ public class RepositoryTypesRegistry {
     private final ExtensionPoint.TypeExtensionPoint<IndexShardRepository> shardRepositoryTypes =
         new ExtensionPoint.TypeExtensionPoint<>("index_repository", IndexShardRepository.class);
 
+    /** Adds a new repository type to the registry, bound to the given implementation classes. */
     public void registerRepository(String name, Class<? extends Repository> repositoryType, Class<? extends IndexShardRepository> shardRepositoryType) {
         repositoryTypes.registerExtension(name, repositoryType);
         shardRepositoryTypes.registerExtension(name, shardRepositoryType);
     }
 
+    /**
+     * Looks up the given type and binds the implementation into the given binder.
+     * Throws an {@link IllegalArgumentException} if the given type does not exist.
+     */
     public void bindType(Binder binder, String type) {
         Settings settings = Settings.builder().put("type", type).build();
         repositoryTypes.bindType(binder, settings, "type", null);

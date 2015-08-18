@@ -246,7 +246,7 @@ public class PluginManager {
             } catch (IOException e) {
                 throw new IOException("Could not move [" + binFile + "] to [" + toLocation + "]", e);
             }
-            if (Files.getFileStore(toLocation).supportsFileAttributeView(PosixFileAttributeView.class)) {
+            if (Environment.getFileStore(toLocation).supportsFileAttributeView(PosixFileAttributeView.class)) {
                 // add read and execute permissions to existing perms, so execution will work.
                 // read should generally be set already, but set it anyway: don't rely on umask...
                 final Set<PosixFilePermission> executePerms = new HashSet<>();

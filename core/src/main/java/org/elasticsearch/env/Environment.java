@@ -304,7 +304,7 @@ public class Environment {
      *   <li>Exception handling has the same semantics as {@link Files#getFileStore(Path)}.
      * </ul>
      */
-    public FileStore getFileStore(Path path) throws IOException {
+    public static FileStore getFileStore(Path path) throws IOException {
         return ESFileStore.getMatchingFileStore(path, fileStores);
     }
 }

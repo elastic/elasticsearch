@@ -73,7 +73,7 @@ public class Murmur3FieldMapper extends LongFieldMapper {
         @Override
         protected void setupFieldType(BuilderContext context) {
             super.setupFieldType(context);
-            if (context.indexCreatedVersion().onOrAfter(Version.V_2_0_0)) {
+            if (context.indexCreatedVersion().onOrAfter(Version.V_2_0_0_beta1)) {
                 fieldType.setIndexOptions(IndexOptions.NONE);
                 defaultFieldType.setIndexOptions(IndexOptions.NONE);
                 fieldType.setHasDocValues(true);
@@ -108,7 +108,7 @@ public class Murmur3FieldMapper extends LongFieldMapper {
                 }
             }
 
-            if (parserContext.indexVersionCreated().before(Version.V_2_0_0)) {
+            if (parserContext.indexVersionCreated().before(Version.V_2_0_0_beta1)) {
                 builder.indexOptions(IndexOptions.DOCS);
             }
 

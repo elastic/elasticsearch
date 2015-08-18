@@ -13,7 +13,7 @@ import org.elasticsearch.common.inject.Provider;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.DiscoveryService;
 import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
-import org.elasticsearch.marvel.agent.settings.MarvelSettingsService;
+import org.elasticsearch.marvel.agent.settings.MarvelSettings;
 import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
@@ -57,7 +57,7 @@ public class NodeStatsCollectorTests extends ESIntegTestCase {
         return new NodeStatsCollector(internalCluster().getInstance(Settings.class, nodeId),
                 internalCluster().getInstance(ClusterService.class, nodeId),
                 internalCluster().getInstance(ClusterName.class, nodeId),
-                internalCluster().getInstance(MarvelSettingsService.class, nodeId),
+                internalCluster().getInstance(MarvelSettings.class, nodeId),
                 internalCluster().getInstance(NodeService.class, nodeId),
                 internalCluster().getInstance(DiscoveryService.class, nodeId),
                 new Provider<DiskThresholdDecider>() {

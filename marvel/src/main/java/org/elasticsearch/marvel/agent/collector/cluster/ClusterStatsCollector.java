@@ -14,7 +14,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.marvel.agent.collector.AbstractCollector;
 import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
-import org.elasticsearch.marvel.agent.settings.MarvelSettingsService;
+import org.elasticsearch.marvel.agent.settings.MarvelSettings;
 
 import java.util.Collection;
 
@@ -33,7 +33,7 @@ public class ClusterStatsCollector extends AbstractCollector<ClusterStatsCollect
 
     @Inject
     public ClusterStatsCollector(Settings settings, ClusterService clusterService,
-                                 ClusterName clusterName, MarvelSettingsService marvelSettings, Client client) {
+                                 ClusterName clusterName, MarvelSettings marvelSettings, Client client) {
         super(settings, NAME, clusterService, clusterName, marvelSettings);
         this.client = client;
     }

@@ -16,7 +16,8 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.marvel.agent.AgentService;
 import org.elasticsearch.marvel.agent.exporter.HttpESExporter;
-import org.elasticsearch.marvel.agent.settings.MarvelSettingsService;
+import org.elasticsearch.marvel.agent.settings.MarvelSetting;
+import org.elasticsearch.marvel.agent.settings.MarvelSettings;
 import org.elasticsearch.marvel.license.LicenseService;
 import org.elasticsearch.plugins.AbstractPlugin;
 import org.elasticsearch.tribe.TribeService;
@@ -81,21 +82,16 @@ public class MarvelPlugin extends AbstractPlugin {
     }
 
     public void onModule(ClusterModule module) {
-        // AgentService
-        module.registerClusterDynamicSetting(AgentService.SETTINGS_INTERVAL, Validator.EMPTY);
-        module.registerClusterDynamicSetting(AgentService.SETTINGS_STATS_TIMEOUT, Validator.EMPTY);
         // HttpESExporter
         module.registerClusterDynamicSetting(HttpESExporter.SETTINGS_HOSTS, Validator.EMPTY);
         module.registerClusterDynamicSetting(HttpESExporter.SETTINGS_HOSTS + ".*", Validator.EMPTY);
         module.registerClusterDynamicSetting(HttpESExporter.SETTINGS_TIMEOUT, Validator.EMPTY);
         module.registerClusterDynamicSetting(HttpESExporter.SETTINGS_READ_TIMEOUT, Validator.EMPTY);
         module.registerClusterDynamicSetting(HttpESExporter.SETTINGS_SSL_HOSTNAME_VERIFICATION, Validator.EMPTY);
+
         // MarvelSettingsService
-        module.registerClusterDynamicSetting(MarvelSettingsService.CLUSTER_STATE_TIMEOUT, Validator.EMPTY);
-        module.registerClusterDynamicSetting(MarvelSettingsService.CLUSTER_STATS_TIMEOUT, Validator.EMPTY);
-        module.registerClusterDynamicSetting(MarvelSettingsService.INDEX_RECOVERY_ACTIVE_ONLY, Validator.EMPTY);
-        module.registerClusterDynamicSetting(MarvelSettingsService.INDEX_RECOVERY_TIMEOUT, Validator.EMPTY);
-        module.registerClusterDynamicSetting(MarvelSettingsService.INDICES, Validator.EMPTY);
-        module.registerClusterDynamicSetting(MarvelSettingsService.INDEX_STATS_TIMEOUT, Validator.EMPTY);
+        for (MarvelSetting setting : MarvelSettings.dynamicSettings()) {
+            module.registerClusterDynamicSetting(setting.dynamicSettingName(), setting.dynamicValidator());
+        }
     }
 }

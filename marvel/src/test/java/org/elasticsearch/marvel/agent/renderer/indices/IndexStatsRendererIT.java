@@ -12,8 +12,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.license.plugin.LicensePlugin;
 import org.elasticsearch.marvel.MarvelPlugin;
-import org.elasticsearch.marvel.agent.AgentService;
 import org.elasticsearch.marvel.agent.collector.indices.IndexStatsCollector;
+import org.elasticsearch.marvel.agent.settings.MarvelSettings;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -33,7 +33,9 @@ public class IndexStatsRendererIT extends ESIntegTestCase {
                 .put(super.nodeSettings(nodeOrdinal))
                 .put("plugin.types", MarvelPlugin.class.getName() + "," + LicensePlugin.class.getName())
                 .put(Node.HTTP_ENABLED, true)
-                .put(AgentService.SETTINGS_INTERVAL, "200ms")
+                .put(MarvelSettings.STARTUP_DELAY, "1s")
+                .put(MarvelSettings.INTERVAL, "30s")
+                .put(MarvelSettings.COLLECTORS, IndexStatsCollector.NAME)
                 .build();
     }
 

@@ -20,7 +20,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.DiscoveryService;
 import org.elasticsearch.marvel.agent.collector.AbstractCollector;
 import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
-import org.elasticsearch.marvel.agent.settings.MarvelSettingsService;
+import org.elasticsearch.marvel.agent.settings.MarvelSettings;
 import org.elasticsearch.node.service.NodeService;
 
 import java.util.Collection;
@@ -45,7 +45,7 @@ public class NodeStatsCollector extends AbstractCollector<NodeStatsCollector> {
 
     @Inject
     public NodeStatsCollector(Settings settings, ClusterService clusterService, ClusterName clusterName,
-                              MarvelSettingsService marvelSettings,
+                              MarvelSettings marvelSettings,
                               NodeService nodeService, DiscoveryService discoveryService,
                               Provider<DiskThresholdDecider> diskThresholdDeciderProvider) {
         super(settings, NAME, clusterService, clusterName, marvelSettings);

@@ -13,7 +13,7 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
-import org.elasticsearch.marvel.agent.settings.MarvelSettingsService;
+import org.elasticsearch.marvel.agent.settings.MarvelSettings;
 
 import java.util.Collection;
 
@@ -23,11 +23,11 @@ public abstract class AbstractCollector<T> extends AbstractLifecycleComponent<T>
 
     protected final ClusterService clusterService;
     protected final ClusterName clusterName;
-    protected final MarvelSettingsService marvelSettings;
+    protected final MarvelSettings marvelSettings;
 
     @Inject
     public AbstractCollector(Settings settings, String name, ClusterService clusterService,
-                             ClusterName clusterName, MarvelSettingsService marvelSettings) {
+                             ClusterName clusterName, MarvelSettings marvelSettings) {
         super(settings);
         this.name = name;
         this.clusterService = clusterService;

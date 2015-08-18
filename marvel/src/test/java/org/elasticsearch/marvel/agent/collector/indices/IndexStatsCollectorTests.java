@@ -12,7 +12,7 @@ import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
-import org.elasticsearch.marvel.agent.settings.MarvelSettingsService;
+import org.elasticsearch.marvel.agent.settings.MarvelSettings;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.junit.Test;
 
@@ -128,7 +128,7 @@ public class IndexStatsCollectorTests extends ESSingleNodeTestCase {
         return new IndexStatsCollector(getInstanceFromNode(Settings.class),
                 getInstanceFromNode(ClusterService.class),
                 getInstanceFromNode(ClusterName.class),
-                getInstanceFromNode(MarvelSettingsService.class),
+                getInstanceFromNode(MarvelSettings.class),
                 client());
     }
 

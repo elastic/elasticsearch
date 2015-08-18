@@ -13,7 +13,7 @@ import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
-import org.elasticsearch.marvel.agent.settings.MarvelSettingsService;
+import org.elasticsearch.marvel.agent.settings.MarvelSettings;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
@@ -40,8 +40,8 @@ public class IndexRecoveryCollectorTests extends ESIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         return settingsBuilder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put(MarvelSettingsService.INDEX_RECOVERY_ACTIVE_ONLY, activeOnly)
-                .put(MarvelSettingsService.INDICES, indexName)
+                .put(MarvelSettings.INDEX_RECOVERY_ACTIVE_ONLY, activeOnly)
+                .put(MarvelSettings.INDICES, indexName)
                 .build();
     }
 
@@ -80,8 +80,8 @@ public class IndexRecoveryCollectorTests extends ESIntegTestCase {
         waitForNoBlocksOnNode(node2);
         waitForRelocation();
 
-        for (MarvelSettingsService marvelSettingsService : internalCluster().getInstances(MarvelSettingsService.class)) {
-            assertThat(marvelSettingsService.recoveryActiveOnly(), equalTo(activeOnly));
+        for (MarvelSettings marvelSettings : internalCluster().getInstances(MarvelSettings.class)) {
+            assertThat(marvelSettings.recoveryActiveOnly(), equalTo(activeOnly));
         }
 
         logger.info("--> collect index recovery data");
@@ -125,7 +125,7 @@ public class IndexRecoveryCollectorTests extends ESIntegTestCase {
         return new IndexRecoveryCollector(internalCluster().getInstance(Settings.class),
                 internalCluster().getInstance(ClusterService.class),
                 internalCluster().getInstance(ClusterName.class),
-                internalCluster().getInstance(MarvelSettingsService.class),
+                internalCluster().getInstance(MarvelSettings.class),
                 client());
     }
 

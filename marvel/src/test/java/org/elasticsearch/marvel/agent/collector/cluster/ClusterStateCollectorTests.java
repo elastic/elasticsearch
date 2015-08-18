@@ -11,7 +11,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
-import org.elasticsearch.marvel.agent.settings.MarvelSettingsService;
+import org.elasticsearch.marvel.agent.settings.MarvelSettings;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.junit.Test;
 
@@ -121,7 +121,7 @@ public class ClusterStateCollectorTests extends ESSingleNodeTestCase {
         return new ClusterStateCollector(getInstanceFromNode(Settings.class),
                 getInstanceFromNode(ClusterService.class),
                 getInstanceFromNode(ClusterName.class),
-                getInstanceFromNode(MarvelSettingsService.class),
+                getInstanceFromNode(MarvelSettings.class),
                 client());
     }
 }

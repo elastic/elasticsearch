@@ -11,6 +11,6 @@ public class MarvelSettingsModule extends AbstractModule {
 
     @Override
     protected void configure() {
-        bind(MarvelSettingsService.class).asEagerSingleton();
+        bind(MarvelSettings.class).asEagerSingleton();
     }
 }

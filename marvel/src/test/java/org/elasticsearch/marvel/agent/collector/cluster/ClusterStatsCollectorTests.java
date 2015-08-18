@@ -9,7 +9,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
-import org.elasticsearch.marvel.agent.settings.MarvelSettingsService;
+import org.elasticsearch.marvel.agent.settings.MarvelSettings;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
@@ -43,7 +43,7 @@ public class ClusterStatsCollectorTests extends ESIntegTestCase {
         return new ClusterStatsCollector(internalCluster().getInstance(Settings.class),
                 internalCluster().getInstance(ClusterService.class),
                 internalCluster().getInstance(ClusterName.class),
-                internalCluster().getInstance(MarvelSettingsService.class),
+                internalCluster().getInstance(MarvelSettings.class),
                 client());
     }
 }

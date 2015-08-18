@@ -157,6 +157,14 @@
       <attribute name="jvm.args" default="${tests.jvm.argline}"/>
       <element name="additional-args" optional="true"/>
     <sequential>
+      <!-- make sure no elasticsearch instance is currently running and listening on the port we need -->
+      <fail message="This test expects port @{es.http.port} to be free but an elasticsearch instance is already running and listening on that port.
+      Maybe the last test run did not manage to shut down the node correctly?
+      You must kill it before tests can run.">
+        <condition>
+          <socket server="localhost" port="@{es.http.port}"></socket>
+        </condition>
+      </fail>
       <!-- run bin/elasticsearch with args -->
       <echo>Starting up external cluster...</echo>
 

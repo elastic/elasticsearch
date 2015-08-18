@@ -23,7 +23,6 @@ import com.carrotsearch.hppc.ObjectObjectAssociativeContainer;
 
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.util.Counter;
 import org.elasticsearch.action.search.SearchType;
@@ -42,7 +41,6 @@ import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.dfs.DfsSearchResult;
@@ -154,13 +152,13 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public Scroll scroll() {
-        return in.scroll();
+    public ScrollContext scrollContext() {
+        return in.scrollContext();
     }
 
     @Override
-    public SearchContext scroll(Scroll scroll) {
-        return in.scroll(scroll);
+    public SearchContext scrollContext(ScrollContext scroll) {
+        return in.scrollContext(scroll);
     }
 
     @Override
@@ -481,16 +479,6 @@ public abstract class FilteredSearchContext extends SearchContext {
     @Override
     public void keepAlive(long keepAlive) {
         in.keepAlive(keepAlive);
-    }
-
-    @Override
-    public void lastEmittedDoc(ScoreDoc doc) {
-        in.lastEmittedDoc(doc);
-    }
-
-    @Override
-    public ScoreDoc lastEmittedDoc() {
-        return in.lastEmittedDoc();
     }
 
     @Override

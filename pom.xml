@@ -86,7 +86,7 @@
             <configuration>
               <!-- include x-dev-tools resources bundle -->
               <resourceBundles combine.children="append">
-                <resourceBundle>org.elasticsearch:elasticsearch-x-dev-tools:${elasticsearch.version}</resourceBundle>
+                <resourceBundle>org.elasticsearch:x-dev-tools:${elasticsearch.version}</resourceBundle>
               </resourceBundles>
             </configuration>
           </plugin>

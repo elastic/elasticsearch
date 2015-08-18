@@ -22,10 +22,10 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
@@ -36,6 +36,9 @@ import java.io.IOException;
 public class TermQueryParser implements QueryParser {
 
     public static final String NAME = "term";
+
+    private static final ParseField NAME_FIELD = new ParseField("_name").withAllDeprecated("query name is not supported in short version of term query");
+    private static final ParseField BOOST_FIELD = new ParseField("boost").withAllDeprecated("boost is not supported in short version of term query");
 
     @Inject
     public TermQueryParser() {
@@ -85,9 +88,9 @@ public class TermQueryParser implements QueryParser {
                     }
                 }
             } else if (token.isValue()) {
-                if ("_name".equals(currentFieldName)) {
+                if (parseContext.parseFieldMatcher().match(currentFieldName, NAME_FIELD)) {
                     queryName = parser.text();
-                } else if ("boost".equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, BOOST_FIELD)) {
                     boost = parser.floatValue();
                 } else {
                     if (fieldName != null) {

@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.shield.transport.netty;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ShieldIntegTestCase;
@@ -16,6 +17,7 @@ import java.nio.file.Path;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.CoreMatchers.is;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/468")
 public class IPHostnameVerificationTests extends ShieldIntegTestCase {
 
     Path keystore;

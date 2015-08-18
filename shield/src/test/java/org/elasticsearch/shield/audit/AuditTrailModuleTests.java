@@ -5,12 +5,17 @@
  */
 package org.elasticsearch.shield.audit;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.inject.Guice;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
+import org.elasticsearch.indices.breaker.CircuitBreakerModule;
 import org.elasticsearch.shield.audit.logfile.LoggingAuditTrail;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.threadpool.ThreadPoolModule;
+import org.elasticsearch.transport.TransportModule;
 import org.junit.Test;
 
 import static org.hamcrest.Matchers.*;
@@ -46,13 +51,18 @@ public class AuditTrailModuleTests extends ESTestCase {
                 .put("shield.audit.enabled", true)
                 .put("client.type", "node")
                 .build();
-        Injector injector = Guice.createInjector(new SettingsModule(settings), new AuditTrailModule(settings));
-        AuditTrail auditTrail = injector.getInstance(AuditTrail.class);
-        assertThat(auditTrail, instanceOf(AuditTrailService.class));
-        AuditTrailService service = (AuditTrailService) auditTrail;
-        assertThat(service.auditTrails, notNullValue());
-        assertThat(service.auditTrails.length, is(1));
-        assertThat(service.auditTrails[0], instanceOf(LoggingAuditTrail.class));
+        ThreadPool pool = new ThreadPool("testLogFile");
+        try {
+            Injector injector = Guice.createInjector(new SettingsModule(settings), new AuditTrailModule(settings), new TransportModule(settings), new CircuitBreakerModule(settings), new ThreadPoolModule(pool), new Version.Module(Version.CURRENT));
+            AuditTrail auditTrail = injector.getInstance(AuditTrail.class);
+            assertThat(auditTrail, instanceOf(AuditTrailService.class));
+            AuditTrailService service = (AuditTrailService) auditTrail;
+            assertThat(service.auditTrails, notNullValue());
+            assertThat(service.auditTrails.length, is(1));
+            assertThat(service.auditTrails[0], instanceOf(LoggingAuditTrail.class));
+        } finally {
+            pool.shutdown();
+        }
     }
 
     @Test

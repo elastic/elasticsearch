@@ -51,10 +51,8 @@ public class TermsQueryParser extends BaseQueryParserTemp {
 
     private static final ParseField MIN_SHOULD_MATCH_FIELD = new ParseField("min_match", "min_should_match").withAllDeprecated("Use [bool] query instead");
     private static final ParseField DISABLE_COORD_FIELD = new ParseField("disable_coord").withAllDeprecated("Use [bool] query instead");
+    private static final ParseField EXECUTION_FIELD = new ParseField("execution").withAllDeprecated("execution is deprecated and has no effect");
     private Client client;
-
-    @Deprecated
-    public static final String EXECUTION_KEY = "execution";
 
     @Inject
     public TermsQueryParser() {
@@ -141,7 +139,7 @@ public class TermsQueryParser extends BaseQueryParserTemp {
                     throw new QueryParsingException(parseContext, "[terms] query lookup element requires specifying the path");
                 }
             } else if (token.isValue()) {
-                if (EXECUTION_KEY.equals(currentFieldName)) {
+                if (parseContext.parseFieldMatcher().match(currentFieldName, EXECUTION_FIELD)) {
                     // ignore
                 } else if (parseContext.parseFieldMatcher().match(currentFieldName, MIN_SHOULD_MATCH_FIELD)) {
                     if (minShouldMatch != null) {

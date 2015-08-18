@@ -74,3 +74,7 @@ The following deprecated methods have been removed:
 The redundant BytesQueryBuilder has been removed in favour of the
 WrapperQueryBuilder internally.
 
+==== TermsQueryBuilder execution removed
+
+The `TermsQueryBuilder#execution` method has been removed as it has no effect, it is ignored by the
+ corresponding parser.

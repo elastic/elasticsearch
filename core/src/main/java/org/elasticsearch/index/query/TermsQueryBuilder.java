@@ -40,8 +40,6 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
 
     private Boolean disableCoord;
 
-    private String execution;
-
     private String lookupIndex;
     private String lookupType;
     private String lookupId;
@@ -125,20 +123,6 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
     }
 
     /**
-     * Sets the execution mode for the terms filter. Cane be either "plain", "bool"
-     * "and". Defaults to "plain".
-     * @deprecated elasticsearch now makes better decisions on its own
-     */
-    @Deprecated
-    public TermsQueryBuilder execution(String execution) {
-        this.execution = execution;
-        return this;
-    }
-
-    /**
-<<<<<<< HEAD
-     * Sets the index name to lookup the terms from.
-=======
      * Sets the minimum number of matches across the provided terms. Defaults to <tt>1</tt>.
      * @deprecated use [bool] query instead
      */
@@ -159,8 +143,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
     }
 
     /**
-     * Sets the filter name for the filter that can be used when searching for matched_filters per hit.
->>>>>>> master
+     * Sets the index name to lookup the terms from.
      */
     public TermsQueryBuilder lookupIndex(String lookupIndex) {
         this.lookupIndex = lookupIndex;
@@ -214,10 +197,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         } else {
             builder.field(name, values);
         }
-        if (execution != null) {
-            builder.field("execution", execution);
-        }
-
+        
         if (minimumShouldMatch != null) {
             builder.field("minimum_should_match", minimumShouldMatch);
         }

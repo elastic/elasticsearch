@@ -26,10 +26,12 @@ import org.elasticsearch.common.io.PathUtils;
 
 import java.io.IOException;
 import java.nio.file.FileStore;
+import java.nio.file.FileSystemException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.FileAttributeView;
 import java.nio.file.attribute.FileStoreAttributeView;
+import java.util.Arrays;
 
 /** 
  * Implementation of FileStore that supports
@@ -73,13 +75,16 @@ class ESFileStore extends FileStore {
         }
     }
     
-    /** Files.getFileStore(Path) useless here!  Don't complain, just try it yourself. */
-    static FileStore getMatchingFileStore(Path path, FileStore fileStores[]) throws IOException {
-        FileStore store = Files.getFileStore(path);
-        
+    /** 
+     * Files.getFileStore(Path) useless here!  Don't complain, just try it yourself. 
+     */
+    @SuppressForbidden(reason = "works around the bugs")
+    static FileStore getMatchingFileStore(Path path, FileStore fileStores[]) throws IOException {       
         if (Constants.WINDOWS) {
-            return store; // be defensive, don't even try to do anything fancy.
+            return getFileStoreWindows(path, fileStores);
         }
+        
+        FileStore store = Files.getFileStore(path);
 
         try {
             String mount = getMountPointLinux(store);
@@ -109,6 +114,57 @@ class ESFileStore extends FileStore {
 
         // fall back to crappy one we got from Files.getFileStore
         return store;    
+    }
+    
+    /** 
+     * remove this code and just use getFileStore for windows on java 9
+     * works around https://bugs.openjdk.java.net/browse/JDK-8034057
+     */
+    @SuppressForbidden(reason = "works around https://bugs.openjdk.java.net/browse/JDK-8034057")
+    static FileStore getFileStoreWindows(Path path, FileStore fileStores[]) throws IOException {
+        assert Constants.WINDOWS;
+        
+        try {
+            return Files.getFileStore(path);
+        } catch (FileSystemException possibleBug) {
+            final char driveLetter;
+            // look for a drive letter to see if its the SUBST bug,
+            // it might be some other type of path, like a windows share
+            // if something goes wrong, we just deliver the original exception
+            try {
+                String root = path.toRealPath().getRoot().toString();
+                if (root.length() < 2) {
+                    throw new RuntimeException("root isn't a drive letter: " + root);
+                }
+                driveLetter = Character.toLowerCase(root.charAt(0));
+                if (Character.isAlphabetic(driveLetter) == false || root.charAt(1) != ':') {
+                    throw new RuntimeException("root isn't a drive letter: " + root);
+                }
+            } catch (Throwable checkFailed) {
+                // something went wrong, 
+                possibleBug.addSuppressed(checkFailed);
+                throw possibleBug;
+            }
+            
+            // we have a drive letter: the hack begins!!!!!!!!
+            try {
+                // we have no choice but to parse toString of all stores and find the matching drive letter
+                for (FileStore store : fileStores) {
+                    String toString = store.toString();
+                    int length = toString.length();
+                    if (length > 3 && toString.endsWith(":)") && toString.charAt(length - 4) == '(') {
+                        if (Character.toLowerCase(toString.charAt(length - 3)) == driveLetter) {
+                            return store;
+                        }
+                    }
+                }
+                throw new RuntimeException("no filestores matched");
+            } catch (Throwable weTried) {
+                IOException newException = new IOException("Unable to retrieve filestore for '" + path + "', tried matching against " + Arrays.toString(fileStores), weTried);
+                newException.addSuppressed(possibleBug);
+                throw newException;
+            }
+        }
     }
 
     @Override

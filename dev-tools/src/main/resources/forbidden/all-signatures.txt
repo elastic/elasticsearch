@@ -56,3 +56,6 @@ java.io.ObjectInputStream
 java.io.ObjectInput
 
 java.nio.file.Files#isHidden(java.nio.file.Path) @ Dependent on the operating system, use FileSystemUtils.isHidden instead
+
+java.nio.file.Files#getFileStore(java.nio.file.Path) @ Use Environment.getFileStore() instead, impacted by JDK-8034057
+java.nio.file.Files#isWritable(java.nio.file.Path) @ Use Environment.isWritable() instead, impacted by JDK-8034057

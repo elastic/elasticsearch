@@ -112,7 +112,7 @@ public class PluginManager {
             Files.createDirectory(environment.pluginsFile());
         }
 
-        if (!Files.isWritable(environment.pluginsFile())) {
+        if (!Environment.isWritable(environment.pluginsFile())) {
             throw new IOException("plugin directory " + environment.pluginsFile() + " is read only");
         }
 
@@ -246,7 +246,7 @@ public class PluginManager {
             } catch (IOException e) {
                 throw new IOException("Could not move [" + binFile + "] to [" + toLocation + "]", e);
             }
-            if (Files.getFileStore(toLocation).supportsFileAttributeView(PosixFileAttributeView.class)) {
+            if (Environment.getFileStore(toLocation).supportsFileAttributeView(PosixFileAttributeView.class)) {
                 // add read and execute permissions to existing perms, so execution will work.
                 // read should generally be set already, but set it anyway: don't rely on umask...
                 final Set<PosixFilePermission> executePerms = new HashSet<>();

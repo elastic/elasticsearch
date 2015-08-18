@@ -5,7 +5,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>org.elasticsearch</groupId>
-    <artifactId>elasticsearch-parent</artifactId>
+    <artifactId>parent</artifactId>
     <version>2.1.0-SNAPSHOT</version>
     <packaging>pom</packaging>
     <name>Elasticsearch: Parent POM</name>
@@ -27,9 +27,9 @@
     </licenses>
 
     <scm>
-        <connection>scm:git:git@github.com:elasticsearch/elasticsearch-parent.git</connection>
-        <developerConnection>scm:git:git@github.com:elasticsearch/elasticsearch-parent.git</developerConnection>
-        <url>http://github.com/elasticsearch/elasticsearch-parent</url>
+        <connection>scm:git:git@github.com:elastic/elasticsearch.git</connection>
+        <developerConnection>scm:git:git@github.com:elastic/elasticsearch.git</developerConnection>
+        <url>http://github.com/elastic/elasticsearch</url>
     </scm>
 
     <properties>

@@ -5,11 +5,11 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>org.elasticsearch</groupId>
-    <artifactId>elasticsearch-parent</artifactId>
+    <artifactId>parent</artifactId>
     <version>2.1.0-SNAPSHOT</version>
     <packaging>pom</packaging>
-    <name>Elasticsearch Parent POM</name>
-    <description>Elasticsearch Parent POM</description>
+    <name>Elasticsearch: Parent POM</name>
+    <description>Parent POM</description>
     <inceptionYear>2009</inceptionYear>
 
     <parent>
@@ -27,9 +27,9 @@
     </licenses>
 
     <scm>
-        <connection>scm:git:git@github.com:elasticsearch/elasticsearch-parent.git</connection>
-        <developerConnection>scm:git:git@github.com:elasticsearch/elasticsearch-parent.git</developerConnection>
-        <url>http://github.com/elasticsearch/elasticsearch-parent</url>
+        <connection>scm:git:git@github.com:elastic/elasticsearch.git</connection>
+        <developerConnection>scm:git:git@github.com:elastic/elasticsearch.git</developerConnection>
+        <url>http://github.com/elastic/elasticsearch</url>
     </scm>
 
     <properties>
@@ -143,7 +143,7 @@
         <dependencies>
             <dependency>
                 <groupId>org.elasticsearch</groupId>
-                <artifactId>elasticsearch-dev-tools</artifactId>
+                <artifactId>dev-tools</artifactId>
                 <version>${elasticsearch.version}</version>
             </dependency>
 
@@ -797,8 +797,8 @@
                     <version>1.5</version>
                     <configuration>
                         <resourceBundles>
-                            <resourceBundle>org.elasticsearch:elasticsearch-dev-tools:${elasticsearch.version}</resourceBundle>
-                            <resourceBundle>org.elasticsearch:elasticsearch-rest-api-spec:${elasticsearch.version}</resourceBundle>
+                            <resourceBundle>org.elasticsearch:dev-tools:${elasticsearch.version}</resourceBundle>
+                            <resourceBundle>org.elasticsearch:rest-api-spec:${elasticsearch.version}</resourceBundle>
                         </resourceBundles>
                         <outputDirectory>${elasticsearch.tools.directory}</outputDirectory>
                         <!-- don't include dev-tools in artifacts -->
@@ -1216,6 +1216,7 @@ org.eclipse.jdt.ui.text.custom_code_templates=<?xml version\="1.0" encoding\="UT
                                         <arg value="--check"/>
                                         <arg value="${project.licenses.dir}"/>
                                         <arg value="${project.licenses.check_target}"/>
+                                        <arg value="${project.build.finalName}"/>
                                     </exec>
                                 </target>
                             </configuration>
@@ -1262,13 +1263,6 @@ org.eclipse.jdt.ui.text.custom_code_templates=<?xml version\="1.0" encoding\="UT
                 </plugin>
             </plugins>
         </pluginManagement>
-        <extensions>
-            <extension>
-                <groupId>org.springframework.build</groupId>
-                <artifactId>aws-maven</artifactId>
-                <version>5.0.0.RELEASE</version>
-            </extension>
-        </extensions>
     </build>
     <profiles>
         <profile>
@@ -1316,13 +1310,6 @@ org.eclipse.jdt.ui.text.custom_code_templates=<?xml version\="1.0" encoding\="UT
                     </plugin>
                 </plugins>
             </build>
-            <distributionManagement>
-                <repository>
-                    <id>aws-release</id>
-                    <name>AWS Release Repository</name>
-                    <url>${elasticsearch.s3.repository}</url>
-                </repository>
-            </distributionManagement>
         </profile>
         <!-- license profile, to generate third party license file -->
         <profile>

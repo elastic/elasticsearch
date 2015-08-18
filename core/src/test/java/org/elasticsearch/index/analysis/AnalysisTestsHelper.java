@@ -30,7 +30,7 @@ import org.elasticsearch.env.EnvironmentModule;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNameModule;
 import org.elasticsearch.index.settings.IndexSettingsModule;
-import org.elasticsearch.indices.analysis.IndicesAnalysisModule;
+import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 
 import java.nio.file.Path;
@@ -52,8 +52,15 @@ public class AnalysisTestsHelper {
         if (settings.get(IndexMetaData.SETTING_VERSION_CREATED) == null) {
             settings = Settings.builder().put(settings).put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
         }
+        IndicesModule indicesModule = new IndicesModule(settings) {
+            @Override
+            public void configure() {
+                // skip services
+                bindHunspellExtension();
+            }
+        };
         Injector parentInjector = new ModulesBuilder().add(new SettingsModule(settings),
-                new EnvironmentModule(new Environment(settings)), new IndicesAnalysisModule()).createInjector();
+                new EnvironmentModule(new Environment(settings)), indicesModule).createInjector();
 
         AnalysisModule analysisModule = new AnalysisModule(settings,
                 parentInjector.getInstance(IndicesAnalysisService.class));

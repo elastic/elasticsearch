@@ -47,6 +47,8 @@ public class GeoDistanceSortBuilder extends SortBuilder {
     private String sortMode;
     private QueryBuilder nestedFilter;
     private String nestedPath;
+    private Boolean coerce;
+    private Boolean ignoreMalformed;
 
     /**
      * Constructs a new distance based sort on a geo point like field.
@@ -146,6 +148,16 @@ public class GeoDistanceSortBuilder extends SortBuilder {
         return this;
     }
 
+    public GeoDistanceSortBuilder coerce(boolean coerce) {
+        this.coerce = coerce;
+        return this;
+    }
+
+    public GeoDistanceSortBuilder ignoreMalformed(boolean ignoreMalformed) {
+        this.ignoreMalformed = ignoreMalformed;
+        return this;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("_geo_distance");
@@ -180,6 +192,12 @@ public class GeoDistanceSortBuilder extends SortBuilder {
         }
         if (nestedFilter != null) {
             builder.field("nested_filter", nestedFilter, params);
+        }
+        if (coerce != null) {
+            builder.field("coerce", coerce);
+        }
+        if (ignoreMalformed != null) {
+            builder.field("ignore_malformed", ignoreMalformed);
         }
 
         builder.endObject();

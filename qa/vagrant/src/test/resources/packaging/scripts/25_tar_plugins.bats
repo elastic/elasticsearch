@@ -35,23 +35,12 @@ load packaging_test_utils
 setup() {
     # Cleans everything for every test execution
     clean_before_test
-
-    # Download Shield
-    SHIELD_ZIP="$PWD/shield.zip"
-
-    if [ "$BATS_TEST_NUMBER" -eq 1 ]; then
-        if [ ! -e "$SHIELD_ZIP" ]; then
-            wget --quiet -O "$SHIELD_ZIP" "http://download.elasticsearch.org/elasticsearch/shield/shield-latest.zip"
-        fi
-    fi
 }
 
 ##################################
 # Install plugins with a tar archive
 ##################################
-@test "[TAR] install shield plugin" {
-    skip "awaits public release of shield for 2.0"
-
+@test "[TAR] install jvm-example plugin" {
     # Install the archive
     install_archive
 
@@ -59,40 +48,35 @@ setup() {
     verify_archive_installation
 
     # Checks that plugin archive is available
-    [ -e "$SHIELD_ZIP" ]
+    [ -e "$EXAMPLE_PLUGIN_ZIP" ]
 
-    # Install Shield
-    run /tmp/elasticsearch/bin/plugin install elasticsearch/shield/latest -u "file://$SHIELD_ZIP"
+    # Install jvm-example
+    run /tmp/elasticsearch/bin/plugin install jvm-example -u "file://$EXAMPLE_PLUGIN_ZIP"
     [ "$status" -eq 0 ]
 
-    # Checks that Shield is correctly installed
-    assert_file_exist "/tmp/elasticsearch/bin/shield"
-    assert_file_exist "/tmp/elasticsearch/bin/shield/esusers"
-    assert_file_exist "/tmp/elasticsearch/bin/shield/syskeygen"
-    assert_file_exist "/tmp/elasticsearch/config/shield"
-    assert_file_exist "/tmp/elasticsearch/config/shield/role_mapping.yml"
-    assert_file_exist "/tmp/elasticsearch/config/shield/roles.yml"
-    assert_file_exist "/tmp/elasticsearch/config/shield/users"
-    assert_file_exist "/tmp/elasticsearch/config/shield/users_roles"
-    assert_file_exist "/tmp/elasticsearch/plugins/shield"
+    # Checks that the plugin is correctly installed
+    assert_file_exist "/tmp/elasticsearch/bin/jvm-example"
+    assert_file_exist "/tmp/elasticsearch/bin/jvm-example/test"
+    assert_file_exist "/tmp/elasticsearch/config/jvm-example"
+    assert_file_exist "/tmp/elasticsearch/config/jvm-example/example.yaml"
+    assert_file_exist "/tmp/elasticsearch/plugins/jvm-example"
+    assert_file_exist "/tmp/elasticsearch/plugins/jvm-example/plugin-descriptor.properties"
+    assert_file_exist "/tmp/elasticsearch/plugins/jvm-example/elasticsearch-jvm-example-"*".jar"
+    echo "Running jvm-example's bin script...."
+    /tmp/elasticsearch/bin/jvm-example/test | grep test
 
     # Remove the plugin
-    run /tmp/elasticsearch/bin/plugin remove elasticsearch/shield/latest
+    run /tmp/elasticsearch/bin/plugin remove jvm-example
     [ "$status" -eq 0 ]
 
     # Checks that the plugin is correctly removed
-    assert_file_not_exist "/tmp/elasticsearch/bin/shield"
-    assert_file_exist "/tmp/elasticsearch/config/shield"
-    assert_file_exist "/tmp/elasticsearch/config/shield/role_mapping.yml"
-    assert_file_exist "/tmp/elasticsearch/config/shield/roles.yml"
-    assert_file_exist "/tmp/elasticsearch/config/shield/users"
-    assert_file_exist "/tmp/elasticsearch/config/shield/users_roles"
-    assert_file_not_exist "/tmp/elasticsearch/plugins/shield"
+    assert_file_not_exist "/tmp/elasticsearch/bin/jvm-example"
+    assert_file_exist "/tmp/elasticsearch/config/jvm-example"
+    assert_file_exist "/tmp/elasticsearch/config/jvm-example/example.yaml"
+    assert_file_not_exist "/tmp/elasticsearch/plugins/jvm-example"
 }
 
-@test "[TAR] install shield plugin with a custom path.plugins" {
-    skip "awaits public release of shield for 2.0"
-
+@test "[TAR] install jvm-example plugin with a custom path.plugins" {
     # Install the archive
     install_archive
 
@@ -109,44 +93,37 @@ setup() {
     [ "$status" -eq 0 ]
 
     # Checks that plugin archive is available
-    [ -e "$SHIELD_ZIP" ]
+    [ -e "$EXAMPLE_PLUGIN_ZIP" ]
 
-    # Install Shield
-    run /tmp/elasticsearch/bin/plugin install elasticsearch/shield/latest -u "file://$SHIELD_ZIP"
+    # Install jvm-example
+    run /tmp/elasticsearch/bin/plugin install jvm-example -u "file://$EXAMPLE_PLUGIN_ZIP"
     [ "$status" -eq 0 ]
 
-    # Checks that Shield is correctly installed
-    assert_file_exist "/tmp/elasticsearch/bin/shield"
-    assert_file_exist "/tmp/elasticsearch/bin/shield/esusers"
-    assert_file_exist "/tmp/elasticsearch/bin/shield/syskeygen"
-    assert_file_exist "/tmp/elasticsearch/config/shield"
-    assert_file_exist "/tmp/elasticsearch/config/shield/role_mapping.yml"
-    assert_file_exist "/tmp/elasticsearch/config/shield/roles.yml"
-    assert_file_exist "/tmp/elasticsearch/config/shield/users"
-    assert_file_exist "/tmp/elasticsearch/config/shield/users_roles"
-    assert_file_exist "$TEMP_PLUGINS_DIR/shield"
+    # Checks that the plugin is correctly installed
+    assert_file_exist "/tmp/elasticsearch/bin/jvm-example"
+    assert_file_exist "/tmp/elasticsearch/bin/jvm-example/test"
+    assert_file_exist "/tmp/elasticsearch/config/jvm-example"
+    assert_file_exist "/tmp/elasticsearch/config/jvm-example/example.yaml"
+    assert_file_exist "$TEMP_PLUGINS_DIR/jvm-example"
+    assert_file_exist "$TEMP_PLUGINS_DIR/jvm-example/plugin-descriptor.properties"
+    assert_file_exist "$TEMP_PLUGINS_DIR/jvm-example/elasticsearch-jvm-example-"*".jar"
 
     # Remove the plugin
-    run /tmp/elasticsearch/bin/plugin remove elasticsearch/shield/latest
+    run /tmp/elasticsearch/bin/plugin remove jvm-example
     [ "$status" -eq 0 ]
 
     # Checks that the plugin is correctly removed
-    assert_file_not_exist "/tmp/elasticsearch/bin/shield"
-    assert_file_exist "/tmp/elasticsearch/config/shield"
-    assert_file_exist "/tmp/elasticsearch/config/shield/role_mapping.yml"
-    assert_file_exist "/tmp/elasticsearch/config/shield/roles.yml"
-    assert_file_exist "/tmp/elasticsearch/config/shield/users"
-    assert_file_exist "/tmp/elasticsearch/config/shield/users_roles"
-    assert_file_not_exist "$TEMP_PLUGINS_DIR/shield"
+    assert_file_not_exist "/tmp/elasticsearch/bin/jvm-example"
+    assert_file_exist "/tmp/elasticsearch/config/jvm-example"
+    assert_file_exist "/tmp/elasticsearch/config/jvm-example/example.yaml"
+    assert_file_not_exist "$TEMP_PLUGINS_DIR/jvm-example"
 
     # Delete the custom plugins directory
     run rm -rf "$TEMP_PLUGINS_DIR"
     [ "$status" -eq 0 ]
 }
 
-@test "[TAR] install shield plugin with a custom CONFIG_DIR" {
-    skip "awaits public release of shield for 2.0"
-
+@test "[TAR] install jvm-example plugin with a custom CONFIG_DIR" {
     # Install the archive
     install_archive
 
@@ -166,44 +143,37 @@ setup() {
     assert_file_exist "$TEMP_CONFIG_DIR/elasticsearch.yml"
 
     # Checks that plugin archive is available
-    [ -e "$SHIELD_ZIP" ]
+    [ -e "$EXAMPLE_PLUGIN_ZIP" ]
 
-    # Install Shield with the CONF_DIR environment variable
-    run env "CONF_DIR=$TEMP_CONFIG_DIR" /tmp/elasticsearch/bin/plugin install "elasticsearch/shield/latest" -u "file://$SHIELD_ZIP"
+    # Install jvm-example with the CONF_DIR environment variable
+    run env "CONF_DIR=$TEMP_CONFIG_DIR" /tmp/elasticsearch/bin/plugin install jvm-example -u "file://$EXAMPLE_PLUGIN_ZIP"
     [ "$status" -eq 0 ]
 
-    # Checks that Shield is correctly installed
-    assert_file_exist "/tmp/elasticsearch/bin/shield"
-    assert_file_exist "/tmp/elasticsearch/bin/shield/esusers"
-    assert_file_exist "/tmp/elasticsearch/bin/shield/syskeygen"
-    assert_file_exist "$TEMP_CONFIG_DIR/shield"
-    assert_file_exist "$TEMP_CONFIG_DIR/shield/role_mapping.yml"
-    assert_file_exist "$TEMP_CONFIG_DIR/shield/roles.yml"
-    assert_file_exist "$TEMP_CONFIG_DIR/shield/users"
-    assert_file_exist "$TEMP_CONFIG_DIR/shield/users_roles"
-    assert_file_exist "/tmp/elasticsearch/plugins/shield"
+    # Checks that jvm-example is correctly installed
+    assert_file_exist "/tmp/elasticsearch/bin/jvm-example"
+    assert_file_exist "/tmp/elasticsearch/bin/jvm-example/test"
+    assert_file_exist "$TEMP_CONFIG_DIR/jvm-example"
+    assert_file_exist "$TEMP_CONFIG_DIR/jvm-example/example.yaml"
+    assert_file_exist "/tmp/elasticsearch/plugins/jvm-example"
+    assert_file_exist "/tmp/elasticsearch/plugins/jvm-example/plugin-descriptor.properties"
+    assert_file_exist "/tmp/elasticsearch/plugins/jvm-example/elasticsearch-jvm-example-"*".jar"
 
     # Remove the plugin
-    run /tmp/elasticsearch/bin/plugin remove elasticsearch/shield/latest
+    run /tmp/elasticsearch/bin/plugin remove jvm-example
     [ "$status" -eq 0 ]
 
     # Checks that the plugin is correctly removed
-    assert_file_not_exist "/tmp/elasticsearch/bin/shield"
-    assert_file_exist "$TEMP_CONFIG_DIR/shield"
-    assert_file_exist "$TEMP_CONFIG_DIR/shield/role_mapping.yml"
-    assert_file_exist "$TEMP_CONFIG_DIR/shield/roles.yml"
-    assert_file_exist "$TEMP_CONFIG_DIR/shield/users"
-    assert_file_exist "$TEMP_CONFIG_DIR/shield/users_roles"
-    assert_file_not_exist "/tmp/elasticsearch/plugins/shield"
+    assert_file_not_exist "/tmp/elasticsearch/bin/jvm-example"
+    assert_file_exist "$TEMP_CONFIG_DIR/jvm-example"
+    assert_file_exist "$TEMP_CONFIG_DIR/jvm-example/example.yaml"
+    assert_file_not_exist "/tmp/elasticsearch/plugins/jvm-example"
 
     # Delete the custom plugins directory
     run rm -rf "$TEMP_CONFIG_DIR"
     [ "$status" -eq 0 ]
 }
 
-@test "[TAR] install shield plugin with a custom ES_JAVA_OPTS" {
-    skip "awaits public release of shield for 2.0"
-
+@test "[TAR] install jvm-example plugin with a custom ES_JAVA_OPTS" {
     # Install the archive
     install_archive
 
@@ -227,44 +197,37 @@ setup() {
     [ "$status" -eq 0 ]
 
     # Checks that plugin archive is available
-    [ -e "$SHIELD_ZIP" ]
+    [ -e "$EXAMPLE_PLUGIN_ZIP" ]
 
-    # Install Shield
-    run /tmp/elasticsearch/bin/plugin install elasticsearch/shield/latest -u "file://$SHIELD_ZIP"
+    # Install jvm-example
+    run /tmp/elasticsearch/bin/plugin install jvm-example -u "file://$EXAMPLE_PLUGIN_ZIP"
     [ "$status" -eq 0 ]
 
-    # Checks that Shield is correctly installed
-    assert_file_exist "/tmp/elasticsearch/bin/shield"
-    assert_file_exist "/tmp/elasticsearch/bin/shield/esusers"
-    assert_file_exist "/tmp/elasticsearch/bin/shield/syskeygen"
-    assert_file_exist "$TEMP_CONFIG_DIR/shield"
-    assert_file_exist "$TEMP_CONFIG_DIR/shield/role_mapping.yml"
-    assert_file_exist "$TEMP_CONFIG_DIR/shield/roles.yml"
-    assert_file_exist "$TEMP_CONFIG_DIR/shield/users"
-    assert_file_exist "$TEMP_CONFIG_DIR/shield/users_roles"
-    assert_file_exist "/tmp/elasticsearch/plugins/shield"
+    # Checks that jvm-example is correctly installed
+    assert_file_exist "/tmp/elasticsearch/bin/jvm-example"
+    assert_file_exist "/tmp/elasticsearch/bin/jvm-example/test"
+    assert_file_exist "$TEMP_CONFIG_DIR/jvm-example"
+    assert_file_exist "$TEMP_CONFIG_DIR/jvm-example/example.yaml"
+    assert_file_exist "/tmp/elasticsearch/plugins/jvm-example"
+    assert_file_exist "/tmp/elasticsearch/plugins/jvm-example/plugin-descriptor.properties"
+    assert_file_exist "/tmp/elasticsearch/plugins/jvm-example/elasticsearch-jvm-example-"*".jar"
 
     # Remove the plugin
-    run /tmp/elasticsearch/bin/plugin remove elasticsearch/shield/latest
+    run /tmp/elasticsearch/bin/plugin remove jvm-example
     [ "$status" -eq 0 ]
 
     # Checks that the plugin is correctly removed
-    assert_file_not_exist "/tmp/elasticsearch/bin/shield"
-    assert_file_exist "$TEMP_CONFIG_DIR/shield"
-    assert_file_exist "$TEMP_CONFIG_DIR/shield/role_mapping.yml"
-    assert_file_exist "$TEMP_CONFIG_DIR/shield/roles.yml"
-    assert_file_exist "$TEMP_CONFIG_DIR/shield/users"
-    assert_file_exist "$TEMP_CONFIG_DIR/shield/users_roles"
-    assert_file_not_exist "/tmp/elasticsearch/plugins/shield"
+    assert_file_not_exist "/tmp/elasticsearch/bin/jvm-example"
+    assert_file_exist "$TEMP_CONFIG_DIR/jvm-example"
+    assert_file_exist "$TEMP_CONFIG_DIR/jvm-example/example.yaml"
+    assert_file_not_exist "/tmp/elasticsearch/plugins/jvm-example"
 
     # Delete the custom plugins directory
     run rm -rf "$TEMP_CONFIG_DIR"
     [ "$status" -eq 0 ]
 }
 
-@test "[TAR] install shield plugin to elasticsearch directory with a space" {
-    skip "awaits public release of shield for 2.0"
-
+@test "[TAR] install jvm-example plugin to elasticsearch directory with a space" {
     export ES_DIR="/tmp/elastic search"
 
     # Install the archive
@@ -278,44 +241,37 @@ setup() {
     mv /tmp/elasticsearch "$ES_DIR"
 
     # Checks that plugin archive is available
-    [ -e "$SHIELD_ZIP" ]
+    [ -e "$EXAMPLE_PLUGIN_ZIP" ]
 
-    # Install Shield
-    run "$ES_DIR/bin/plugin" install elasticsearch/shield/latest -u "file://$SHIELD_ZIP"
+    # Install jvm-example
+    run "$ES_DIR/bin/plugin" install jvm-example -u "file://$EXAMPLE_PLUGIN_ZIP"
     [ "$status" -eq 0 ]
 
-    # Checks that Shield is correctly installed
-    assert_file_exist "$ES_DIR/bin/shield"
-    assert_file_exist "$ES_DIR/bin/shield/esusers"
-    assert_file_exist "$ES_DIR/bin/shield/syskeygen"
-    assert_file_exist "$ES_DIR/config/shield"
-    assert_file_exist "$ES_DIR/config/shield/role_mapping.yml"
-    assert_file_exist "$ES_DIR/config/shield/roles.yml"
-    assert_file_exist "$ES_DIR/config/shield/users"
-    assert_file_exist "$ES_DIR/config/shield/users_roles"
-    assert_file_exist "$ES_DIR/plugins/shield"
+    # Checks that jvm-example is correctly installed
+    assert_file_exist "$ES_DIR/bin/jvm-example"
+    assert_file_exist "$ES_DIR/bin/jvm-example/test"
+    assert_file_exist "$ES_DIR/config/jvm-example"
+    assert_file_exist "$ES_DIR/config/jvm-example/example.yaml"
+    assert_file_exist "$ES_DIR/plugins/jvm-example"
+    assert_file_exist "$ES_DIR/plugins/jvm-example/plugin-descriptor.properties"
+    assert_file_exist "$ES_DIR/plugins/jvm-example/elasticsearch-jvm-example-"*".jar"
 
     # Remove the plugin
-    run "$ES_DIR/bin/plugin" remove elasticsearch/shield/latest
+    run "$ES_DIR/bin/plugin" remove jvm-example
     [ "$status" -eq 0 ]
 
     # Checks that the plugin is correctly removed
-    assert_file_not_exist "$ES_DIR/bin/shield"
-    assert_file_exist "$ES_DIR/config/shield"
-    assert_file_exist "$ES_DIR/config/shield/role_mapping.yml"
-    assert_file_exist "$ES_DIR/config/shield/roles.yml"
-    assert_file_exist "$ES_DIR/config/shield/users"
-    assert_file_exist "$ES_DIR/config/shield/users_roles"
-    assert_file_not_exist "$ES_DIR/plugins/shield"
+    assert_file_not_exist "$ES_DIR/bin/jvm-example"
+    assert_file_exist "$ES_DIR/config/jvm-example"
+    assert_file_exist "$ES_DIR/config/jvm-example/example.yaml"
+    assert_file_not_exist "$ES_DIR/plugins/jvm-example"
 
     #Cleanup our temporary Elasticsearch installation
     rm -rf "$ES_DIR"
 }
 
-@test "[TAR] install shield plugin from a directory with a space" {
-    skip "awaits public release of shield for 2.0"
-
-    export SHIELD_ZIP_WITH_SPACE="/tmp/plugins with space/shield.zip"
+@test "[TAR] install jvm-example plugin from a directory with a space" {
+    export EXAMPLE_PLUGIN_ZIP_WITH_SPACE="/tmp/plugins with space/jvm-example.zip"
 
     # Install the archive
     install_archive
@@ -324,41 +280,36 @@ setup() {
     verify_archive_installation
 
     # Checks that plugin archive is available
-    [ -e "$SHIELD_ZIP" ]
+    [ -e "$EXAMPLE_PLUGIN_ZIP" ]
 
-    # Copy the shield plugin to a directory with a space in it
-    rm -f "$SHIELD_ZIP_WITH_SPACE"
-    mkdir -p "$(dirname "$SHIELD_ZIP_WITH_SPACE")"
-    cp $SHIELD_ZIP "$SHIELD_ZIP_WITH_SPACE"
+    # Copy the jvm-example plugin to a directory with a space in it
+    rm -f "$EXAMPLE_PLUGIN_ZIP_WITH_SPACE"
+    mkdir -p "$(dirname "$EXAMPLE_PLUGIN_ZIP_WITH_SPACE")"
+    cp $EXAMPLE_PLUGIN_ZIP "$EXAMPLE_PLUGIN_ZIP_WITH_SPACE"
 
-    # Install Shield
-    run /tmp/elasticsearch/bin/plugin install elasticsearch/shield/latest -u "file://$SHIELD_ZIP_WITH_SPACE"
+    # Install jvm-example
+    run /tmp/elasticsearch/bin/plugin install jvm-example -u "file://$EXAMPLE_PLUGIN_ZIP_WITH_SPACE"
     [ "$status" -eq 0 ]
 
-    # Checks that Shield is correctly installed
-    assert_file_exist "/tmp/elasticsearch/bin/shield"
-    assert_file_exist "/tmp/elasticsearch/bin/shield/esusers"
-    assert_file_exist "/tmp/elasticsearch/bin/shield/syskeygen"
-    assert_file_exist "/tmp/elasticsearch/config/shield"
-    assert_file_exist "/tmp/elasticsearch/config/shield/role_mapping.yml"
-    assert_file_exist "/tmp/elasticsearch/config/shield/roles.yml"
-    assert_file_exist "/tmp/elasticsearch/config/shield/users"
-    assert_file_exist "/tmp/elasticsearch/config/shield/users_roles"
-    assert_file_exist "/tmp/elasticsearch/plugins/shield"
+    # Checks that the plugin is correctly installed
+    assert_file_exist "/tmp/elasticsearch/bin/jvm-example"
+    assert_file_exist "/tmp/elasticsearch/bin/jvm-example/test"
+    assert_file_exist "/tmp/elasticsearch/config/jvm-example"
+    assert_file_exist "/tmp/elasticsearch/config/jvm-example/example.yaml"
+    assert_file_exist "/tmp/elasticsearch/plugins/jvm-example"
+    assert_file_exist "/tmp/elasticsearch/plugins/jvm-example/plugin-descriptor.properties"
+    assert_file_exist "/tmp/elasticsearch/plugins/jvm-example/elasticsearch-jvm-example-"*".jar"
 
     # Remove the plugin
-    run /tmp/elasticsearch/bin/plugin remove elasticsearch/shield/latest
+    run /tmp/elasticsearch/bin/plugin remove jvm-example
     [ "$status" -eq 0 ]
 
     # Checks that the plugin is correctly removed
-    assert_file_not_exist "/tmp/elasticsearch/bin/shield"
-    assert_file_exist "/tmp/elasticsearch/config/shield"
-    assert_file_exist "/tmp/elasticsearch/config/shield/role_mapping.yml"
-    assert_file_exist "/tmp/elasticsearch/config/shield/roles.yml"
-    assert_file_exist "/tmp/elasticsearch/config/shield/users"
-    assert_file_exist "/tmp/elasticsearch/config/shield/users_roles"
-    assert_file_not_exist "/tmp/elasticsearch/plugins/shield"
+    assert_file_not_exist "/tmp/elasticsearch/bin/jvm-example"
+    assert_file_exist "/tmp/elasticsearch/config/jvm-example"
+    assert_file_exist "/tmp/elasticsearch/config/jvm-example/example.yaml"
+    assert_file_not_exist "/tmp/elasticsearch/plugins/jvm-example"
 
     #Cleanup our plugin directory with a space
-    rm -rf "$SHIELD_ZIP_WITH_SPACE"
+    rm -rf "$EXAMPLE_PLUGIN_ZIP_WITH_SPACE"
 }

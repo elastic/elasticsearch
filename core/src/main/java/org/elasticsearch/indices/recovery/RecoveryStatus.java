@@ -226,6 +226,9 @@ public class RecoveryStatus extends AbstractRefCounted {
     public IndexOutput openAndPutIndexOutput(String fileName, StoreFileMetaData metaData, Store store) throws IOException {
         ensureRefCount();
         String tempFileName = getTempNameForFile(fileName);
+        if (tempFileNames.containsKey(tempFileName)) {
+            throw new IllegalStateException("output for file [" + fileName + "] has already been created");
+        }
         // add first, before it's created
         tempFileNames.put(tempFileName, fileName);
         IndexOutput indexOutput = store.createVerifyingOutput(tempFileName, metaData, IOContext.DEFAULT);

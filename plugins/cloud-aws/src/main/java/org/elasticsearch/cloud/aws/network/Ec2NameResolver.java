@@ -93,7 +93,7 @@ public class Ec2NameResolver extends AbstractComponent implements CustomNameReso
      * @throws IOException if ec2 meta-data cannot be obtained.
      * @see CustomNameResolver#resolveIfPossible(String)
      */
-    public InetAddress resolve(Ec2HostnameType type, boolean warnOnFailure) {
+    public InetAddress[] resolve(Ec2HostnameType type, boolean warnOnFailure) {
         URLConnection urlConnection = null;
         InputStream in = null;
         try {
@@ -109,7 +109,8 @@ public class Ec2NameResolver extends AbstractComponent implements CustomNameReso
                 logger.error("no ec2 metadata returned from {}", url);
                 return null;
             }
-            return InetAddress.getByName(metadataResult);
+            // only one address: because we explicitly ask for only one via the Ec2HostnameType
+            return new InetAddress[] { InetAddress.getByName(metadataResult) };
         } catch (IOException e) {
             if (warnOnFailure) {
                 logger.warn("failed to get metadata for [" + type.configName + "]: " + ExceptionsHelper.detailedMessage(e));
@@ -123,13 +124,13 @@ public class Ec2NameResolver extends AbstractComponent implements CustomNameReso
     }
 
     @Override
-    public InetAddress resolveDefault() {
+    public InetAddress[] resolveDefault() {
         return null; // using this, one has to explicitly specify _ec2_ in network setting
 //        return resolve(Ec2HostnameType.DEFAULT, false);
     }
 
     @Override
-    public InetAddress resolveIfPossible(String value) {
+    public InetAddress[] resolveIfPossible(String value) {
         for (Ec2HostnameType type : Ec2HostnameType.values()) {
             if (type.configName.equals(value)) {
                 return resolve(type, true);

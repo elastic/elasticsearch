@@ -5,14 +5,14 @@
     <modelVersion>4.0.0</modelVersion>
     <parent>
         <groupId>org.elasticsearch</groupId>
-        <artifactId>elasticsearch-parent</artifactId>
+        <artifactId>parent</artifactId>
         <version>2.1.0-SNAPSHOT</version>
     </parent>
 
     <groupId>org.elasticsearch.distribution</groupId>
-    <artifactId>elasticsearch-distribution</artifactId>
+    <artifactId>distributions</artifactId>
     <packaging>pom</packaging>
-    <name>Elasticsearch Distribution</name>
+    <name>Distribution: Parent POM</name>
 
     <properties>
         <!-- Properties used for building RPM & DEB packages (see common/packaging.properties) -->
@@ -153,7 +153,7 @@
                                 <parallelism>1</parallelism>
                                 <systemProperties>
                                     <!-- use external cluster -->
-                                    <tests.cluster>127.0.0.1:${integ.transport.port}</tests.cluster>
+                                    <tests.cluster>localhost:${integ.transport.port}</tests.cluster>
                                 </systemProperties>
                             </configuration>
                         </execution>

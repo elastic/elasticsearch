@@ -125,9 +125,9 @@ public class ClusterModule extends AbstractModule {
     private final Settings settings;
     private final DynamicSettings.Builder clusterDynamicSettings = new DynamicSettings.Builder();
     private final DynamicSettings.Builder indexDynamicSettings = new DynamicSettings.Builder();
-    private final ExtensionPoint.TypeExtensionPoint<ShardsAllocator> shardsAllocators = new ExtensionPoint.TypeExtensionPoint<>("shards_allocator", ShardsAllocator.class);
-    private final ExtensionPoint.SetExtensionPoint<AllocationDecider> allocationDeciders = new ExtensionPoint.SetExtensionPoint<>("allocation_decider", AllocationDecider.class, AllocationDeciders.class);
-    private final ExtensionPoint.SetExtensionPoint<IndexTemplateFilter> indexTemplateFilters = new ExtensionPoint.SetExtensionPoint<>("index_template_filter", IndexTemplateFilter.class);
+    private final ExtensionPoint.SelectedType<ShardsAllocator> shardsAllocators = new ExtensionPoint.SelectedType<>("shards_allocator", ShardsAllocator.class);
+    private final ExtensionPoint.ClassSet<AllocationDecider> allocationDeciders = new ExtensionPoint.ClassSet<>("allocation_decider", AllocationDecider.class, AllocationDeciders.class);
+    private final ExtensionPoint.ClassSet<IndexTemplateFilter> indexTemplateFilters = new ExtensionPoint.ClassSet<>("index_template_filter", IndexTemplateFilter.class);
 
     // pkg private so tests can mock
     Class<? extends ClusterInfoService> clusterInfoServiceImpl = InternalClusterInfoService.class;
@@ -168,7 +168,7 @@ public class ClusterModule extends AbstractModule {
         registerClusterDynamicSetting(IndicesTTLService.INDICES_TTL_INTERVAL, Validator.TIME);
         registerClusterDynamicSetting(MappingUpdatedAction.INDICES_MAPPING_DYNAMIC_TIMEOUT, Validator.TIME);
         registerClusterDynamicSetting(MetaData.SETTING_READ_ONLY, Validator.EMPTY);
-        registerClusterDynamicSetting(RecoverySettings.INDICES_RECOVERY_FILE_CHUNK_SIZE, Validator.BYTES_SIZE);
+        registerClusterDynamicSetting(RecoverySettings.INDICES_RECOVERY_FILE_CHUNK_SIZE, Validator.POSITIVE_BYTES_SIZE);
         registerClusterDynamicSetting(RecoverySettings.INDICES_RECOVERY_TRANSLOG_OPS, Validator.INTEGER);
         registerClusterDynamicSetting(RecoverySettings.INDICES_RECOVERY_TRANSLOG_SIZE, Validator.BYTES_SIZE);
         registerClusterDynamicSetting(RecoverySettings.INDICES_RECOVERY_COMPRESS, Validator.EMPTY);

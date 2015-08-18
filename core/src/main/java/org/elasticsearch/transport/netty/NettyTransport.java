@@ -146,8 +146,8 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
     // node id to actual channel
     protected final ConcurrentMap<DiscoveryNode, NodeChannels> connectedNodes = newConcurrentMap();
     protected final Map<String, ServerBootstrap> serverBootstraps = newConcurrentMap();
-    protected final Map<String, Channel> serverChannels = newConcurrentMap();
-    protected final Map<String, BoundTransportAddress> profileBoundAddresses = newConcurrentMap();
+    protected final Map<String, List<Channel>> serverChannels = newConcurrentMap();
+    protected final ConcurrentMap<String, BoundTransportAddress> profileBoundAddresses = newConcurrentMap();
     protected volatile TransportServiceAdapter transportServiceAdapter;
     protected volatile BoundTransportAddress boundAddress;
     protected final KeyedLock<String> connectionLock = new KeyedLock<>();
@@ -286,7 +286,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
                     bindServerBootstrap(name, mergedSettings);
                 }
 
-                InetSocketAddress boundAddress = (InetSocketAddress) serverChannels.get(DEFAULT_PROFILE).getLocalAddress();
+                InetSocketAddress boundAddress = (InetSocketAddress) serverChannels.get(DEFAULT_PROFILE).get(0).getLocalAddress();
                 int publishPort = settings.getAsInt("transport.netty.publish_port", settings.getAsInt("transport.publish_port", boundAddress.getPort()));
                 String publishHost = settings.get("transport.netty.publish_host", settings.get("transport.publish_host", settings.get("transport.host")));
                 InetSocketAddress publishAddress = createPublishAddress(publishHost, publishPort);
@@ -397,23 +397,38 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
 
     private void bindServerBootstrap(final String name, final Settings settings) {
         // Bind and start to accept incoming connections.
-        InetAddress hostAddressX;
+        InetAddress hostAddresses[];
         String bindHost = settings.get("bind_host");
         try {
-            hostAddressX = networkService.resolveBindHostAddress(bindHost);
+            hostAddresses = networkService.resolveBindHostAddress(bindHost);
         } catch (IOException e) {
             throw new BindTransportException("Failed to resolve host [" + bindHost + "]", e);
         }
-        final InetAddress hostAddress = hostAddressX;
+        for (InetAddress hostAddress : hostAddresses) {
+            bindServerBootstrap(name, hostAddress, settings);
+        }
+    }
+        
+    private void bindServerBootstrap(final String name, final InetAddress hostAddress, Settings settings) {
 
         String port = settings.get("port");
         PortsRange portsRange = new PortsRange(port);
         final AtomicReference<Exception> lastException = new AtomicReference<>();
+        final AtomicReference<SocketAddress> boundSocket = new AtomicReference<>();
         boolean success = portsRange.iterate(new PortsRange.PortCallback() {
             @Override
             public boolean onPortNumber(int portNumber) {
                 try {
-                    serverChannels.put(name, serverBootstraps.get(name).bind(new InetSocketAddress(hostAddress, portNumber)));
+                    Channel channel = serverBootstraps.get(name).bind(new InetSocketAddress(hostAddress, portNumber));
+                    synchronized (serverChannels) {
+                        List<Channel> list = serverChannels.get(name);
+                        if (list == null) {
+                            list = new ArrayList<>();
+                            serverChannels.put(name, list);
+                        }
+                        list.add(channel);
+                        boundSocket.set(channel.getLocalAddress());
+                    }
                 } catch (Exception e) {
                     lastException.set(e);
                     return false;
@@ -426,14 +441,15 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         }
 
         if (!DEFAULT_PROFILE.equals(name)) {
-            InetSocketAddress boundAddress = (InetSocketAddress) serverChannels.get(name).getLocalAddress();
+            InetSocketAddress boundAddress = (InetSocketAddress) boundSocket.get();
             int publishPort = settings.getAsInt("publish_port", boundAddress.getPort());
             String publishHost = settings.get("publish_host", boundAddress.getHostString());
             InetSocketAddress publishAddress = createPublishAddress(publishHost, publishPort);
-            profileBoundAddresses.put(name, new BoundTransportAddress(new InetSocketTransportAddress(boundAddress), new InetSocketTransportAddress(publishAddress)));
+            // TODO: support real multihoming with publishing. Today we use putIfAbsent so only the prioritized address is published
+            profileBoundAddresses.putIfAbsent(name, new BoundTransportAddress(new InetSocketTransportAddress(boundAddress), new InetSocketTransportAddress(publishAddress)));
         }
 
-        logger.debug("Bound profile [{}] to address [{}]", name, serverChannels.get(name).getLocalAddress());
+        logger.info("Bound profile [{}] to address [{}]", name, boundSocket.get());
     }
 
     private void createServerBootstrap(String name, Settings settings) {
@@ -500,15 +516,17 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
                         nodeChannels.close();
                     }
 
-                    Iterator<Map.Entry<String, Channel>> serverChannelIterator = serverChannels.entrySet().iterator();
+                    Iterator<Map.Entry<String, List<Channel>>> serverChannelIterator = serverChannels.entrySet().iterator();
                     while (serverChannelIterator.hasNext()) {
-                        Map.Entry<String, Channel> serverChannelEntry = serverChannelIterator.next();
+                        Map.Entry<String, List<Channel>> serverChannelEntry = serverChannelIterator.next();
                         String name = serverChannelEntry.getKey();
-                        Channel serverChannel = serverChannelEntry.getValue();
-                        try {
-                            serverChannel.close().awaitUninterruptibly();
-                        } catch (Throwable t) {
-                            logger.debug("Error closing serverChannel for profile [{}]", t, name);
+                        List<Channel> serverChannels = serverChannelEntry.getValue();
+                        for (Channel serverChannel : serverChannels) {
+                            try {
+                                serverChannel.close().awaitUninterruptibly();
+                            } catch (Throwable t) {
+                                logger.debug("Error closing serverChannel for profile [{}]", t, name);
+                            }
                         }
                         serverChannelIterator.remove();
                     }

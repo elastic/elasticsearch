@@ -27,7 +27,7 @@
 
 
 # Variables used by tests
-EXAMPLE_PLUGIN_ZIP=$(readlink -m elasticsearch-jvm-example-*.zip)
+EXAMPLE_PLUGIN_ZIP=$(readlink -m jvm-example-*.zip)
 
 # Checks if necessary commands are available to run the tests
 

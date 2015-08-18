@@ -93,21 +93,11 @@
         </nested>
       </run-script>
 
-      <!-- check that plugin was installed into correct place -->
-      <local name="longname"/>
-      <property name="longname" value="@{name}"/>
-      <local name="shortname"/>
-      <filter-property src="longname" dest="shortname">
-        <chain>
-          <replaceregex pattern="^elasticsearch-" replace=""/>
-        </chain>
-      </filter-property>
-
-      <fail message="did not find plugin installed as ${shortname}">
+      <fail message="did not find plugin installed as @{name}">
         <condition>
           <not>
             <resourceexists>
-              <file file="@{home}/plugins/${shortname}"/>
+              <file file="@{home}/plugins/@{name}"/>
             </resourceexists>
           </not>
         </condition>
@@ -203,8 +193,8 @@
   </macrodef>
 
   <!-- Takes a plugin zip file and return the plugin name. For instance
-       'elasticsearch-analysis-icu-2.0.0.zip' would return
-       'elasticsearch-analysis-icu'. -->
+       'analysis-icu-2.0.0.zip' would return
+       'analysis-icu'. -->
   <macrodef name="convert-plugin-name">
       <attribute name="file"/>
       <attribute name="outputproperty"/>
@@ -213,7 +203,6 @@
       <basename file="@{file}" property="file.base"/>
       <filter-property src="file.base" dest="@{outputproperty}">
         <chain>
-          <replaceregex pattern="^elasticsearch-" replace=""/>
           <replacestring from="-${elasticsearch.version}.zip" to=""/>
         </chain>
       </filter-property>

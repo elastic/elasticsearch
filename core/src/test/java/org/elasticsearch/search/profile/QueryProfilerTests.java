@@ -21,17 +21,11 @@ package org.elasticsearch.search.profile;
 
 
 import org.elasticsearch.search.SearchHit;
-
-
 import org.apache.lucene.util.English;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
-
-
 import org.elasticsearch.index.query.*;
-
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
@@ -48,10 +42,12 @@ import static org.hamcrest.Matchers.greaterThan;
 public class QueryProfilerTests extends ESIntegTestCase {
 
 
-    @Test
+
     /**
-     * This test simply checks to make sure nothing crashes.  Unsure how best to validate the Profile response...
+     * This test simply checks to make sure nothing crashes.  Test indexes 100-150 documents,
+     * constructs 20-100 random queries and tries to profile them
      */
+    @Test
     public void testProfileQuery() throws Exception {
         createIndex("test");
         ensureGreen();
@@ -82,10 +78,12 @@ public class QueryProfilerTests extends ESIntegTestCase {
         }
     }
 
-    @Test
     /**
-     * This test simply checks to make sure nothing crashes.  Unsure how best to validate the Profile response...
+     * This test generates 1-10 random queries and executes a profiled and non-profiled
+     * search for each query.  It then does some basic sanity checking of score and hits
+     * to make sure the profiling doesn't interfere with the hits being returned
      */
+    @Test
     public void testProfileMatchesRegular() throws Exception {
         createIndex("test");
         ensureGreen();
@@ -139,10 +137,10 @@ public class QueryProfilerTests extends ESIntegTestCase {
         }
     }
 
-    @Test
     /**
      * This test verifies that the output is reasonable for a simple, non-nested query
      */
+    @Test
     public void testSimpleMatch() throws Exception {
         createIndex("test");
         int numDocs = randomIntBetween(100, 150);
@@ -173,10 +171,10 @@ public class QueryProfilerTests extends ESIntegTestCase {
         }
     }
 
-    @Test
     /**
      * This test verifies that the output is reasonable for a nested query
      */
+    @Test
     public void testBool() throws Exception {
         createIndex("test");
         ensureGreen();
@@ -231,6 +229,11 @@ public class QueryProfilerTests extends ESIntegTestCase {
 
     }
 
+    /**
+     * Tests a boolean query with no children clauses
+     *
+     * @throws Exception
+     */
     @Test
     public void testEmptyBool() throws Exception {
         createIndex("test");
@@ -258,6 +261,13 @@ public class QueryProfilerTests extends ESIntegTestCase {
 
     }
 
+    /**
+     * Tests a series of three nested boolean queries with a single "leaf" match query.
+     * The rewrite process will "collapse" this down to a single bool, so this tests to make sure
+     * nothing catastrophic happens during that fairly substantial rewrite
+     *
+     * @throws Exception
+     */
     @Test
     public void testCollapsingBool() throws Exception {
         createIndex("test");

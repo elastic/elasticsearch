@@ -21,9 +21,11 @@ package org.elasticsearch.search.aggregations.bucket;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.joda.DateMathParser;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
@@ -42,6 +44,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
@@ -558,7 +561,7 @@ public class DateHistogramIT extends ESIntegTestCase {
         assertThat(bucket.getDocCount(), equalTo(3l));
     }
 
-    
+
 
     /*
     [ Jan 2, Feb 3]
@@ -904,7 +907,7 @@ public class DateHistogramIT extends ESIntegTestCase {
         assertThat(bucket.getDocCount(), equalTo(3l));
     }
 
-    
+
 
       /*
     [ Jan 2, Feb 3]
@@ -1195,6 +1198,70 @@ public class DateHistogramIT extends ESIntegTestCase {
         }
     }
 
+    /**
+     * Test date histogram aggregation with hour interval, timezone shift and
+     * extended bounds (see https://github.com/elastic/elasticsearch/issues/12278)
+     */
+    @Test
+    public void singleValueField_WithExtendedBoundsTimezone() throws Exception {
+
+        String index = "test12278";
+        prepareCreate(index)
+                .setSettings(Settings.builder().put(indexSettings()).put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
+                .execute().actionGet();
+
+        DateMathParser parser = new DateMathParser(Joda.getStrictStandardDateFormatter());
+
+        final Callable<Long> callable = new Callable<Long>() {
+            @Override
+            public Long call() throws Exception {
+                return System.currentTimeMillis();
+            }
+        };
+
+        // we pick a random timezone offset of +12/-12 hours and insert two documents
+        // one at 00:00 in that time zone and one at 12:00
+        List<IndexRequestBuilder> builders = new ArrayList<>();
+        int timeZoneHourOffset = randomIntBetween(-12, 12);
+        DateTimeZone timezone = DateTimeZone.forOffsetHours(timeZoneHourOffset);
+        DateTime timeZoneStartToday = new DateTime(parser.parse("now/d", callable, false, timezone), DateTimeZone.UTC);
+        DateTime timeZoneNoonToday = new DateTime(parser.parse("now/d+12h", callable, false, timezone), DateTimeZone.UTC);
+        builders.add(indexDoc(index, timeZoneStartToday, 1));
+        builders.add(indexDoc(index, timeZoneNoonToday, 2));
+        indexRandom(true, builders);
+        ensureSearchable(index);
+
+        SearchResponse response = null;
+        // retrieve those docs with the same time zone and extended bounds
+        response = client()
+                .prepareSearch(index)
+                .setQuery(QueryBuilders.rangeQuery("date").from("now/d").to("now/d").includeLower(true).includeUpper(true).timeZone(timezone.getID()))
+                .addAggregation(
+                        dateHistogram("histo").field("date").interval(DateHistogramInterval.hours(1)).timeZone(timezone.getID()).minDocCount(0)
+                                .extendedBounds("now/d", "now/d+23h")
+                                ).execute().actionGet();
+        assertSearchResponse(response);
+
+        assertThat("Expected 24 buckets for one day aggregation with hourly interval", response.getHits().totalHits(), equalTo(2l));
+
+        Histogram histo = response.getAggregations().get("histo");
+        assertThat(histo, notNullValue());
+        assertThat(histo.getName(), equalTo("histo"));
+        List<? extends Bucket> buckets = histo.getBuckets();
+        assertThat(buckets.size(), equalTo(24));
+
+        for (int i = 0; i < buckets.size(); i++) {
+            Histogram.Bucket bucket = buckets.get(i);
+            assertThat(bucket, notNullValue());
+            assertThat("Bucket " + i +" had wrong key", (DateTime) bucket.getKey(), equalTo(new DateTime(timeZoneStartToday.getMillis() + (i * 60 * 60 * 1000), DateTimeZone.UTC)));
+            if (i == 0 || i == 12) {
+                assertThat(bucket.getDocCount(), equalTo(1l));
+            } else {
+                assertThat(bucket.getDocCount(), equalTo(0l));
+            }
+        }
+    }
+
     @Test
     public void singleValue_WithMultipleDateFormatsFromMapping() throws Exception {
 
@@ -1233,7 +1300,7 @@ public class DateHistogramIT extends ESIntegTestCase {
                 .execute().actionGet();
 
         assertSearchResponse(response);
-        
+
         DateTimeZone tz = DateTimeZone.forID("+01:00");
 
         Histogram histo = response.getAggregations().get("histo");

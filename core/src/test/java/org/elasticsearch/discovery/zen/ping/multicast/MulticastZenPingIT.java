@@ -50,6 +50,7 @@ public class MulticastZenPingIT extends ESTestCase {
         Settings.Builder builder = Settings.builder().put(settings);
         builder.put("discovery.zen.ping.multicast.group", "224.2.3." + randomIntBetween(0, 255));
         builder.put("discovery.zen.ping.multicast.port", randomIntBetween(55000, 56000));
+        builder.put("discovery.zen.ping.multicast.enabled", true);
         if (randomBoolean()) {
             builder.put("discovery.zen.ping.multicast.shared", randomBoolean());
         }

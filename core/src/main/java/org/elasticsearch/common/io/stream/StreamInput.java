@@ -542,6 +542,8 @@ public abstract class StreamInput extends InputStream {
                     return (T) readStackTrace(new IllegalStateException(readOptionalString(), readThrowable()), this);
                 case 17:
                     return (T) readStackTrace(new LockObtainFailedException(readOptionalString(), readThrowable()), this);
+                case 18:
+                    return (T) readStackTrace(new InterruptedException(readOptionalString()), this);
                 default:
                     assert false : "no such exception for id: " + key;
             }

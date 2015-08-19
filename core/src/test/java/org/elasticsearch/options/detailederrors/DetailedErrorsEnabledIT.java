@@ -32,6 +32,7 @@ import org.elasticsearch.test.rest.client.http.HttpResponse;
 import org.junit.Test;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 
 /**
  * Tests that by default the error_trace parameter can be used to show stacktraces
@@ -59,6 +60,16 @@ public class DetailedErrorsEnabledIT extends ESIntegTestCase {
                 .execute();
 
         assertThat(response.getHeaders().get("Content-Type"), containsString("application/json"));
-        assertThat(response.getBody(), containsString("\"error_trace\":{\"message\":\"Validation Failed"));
+        assertThat(response.getBody(), containsString("\"stack_trace\":\"[Validation Failed: 1: index / indices is missing;]; nested: ActionRequestValidationException[Validation Failed: 1:"));
+
+        // Make the HTTP request
+        response = new HttpRequestBuilder(HttpClients.createDefault())
+                .httpTransport(internalCluster().getDataNodeInstance(HttpServerTransport.class))
+                .path("/")
+                .method(HttpDeleteWithEntity.METHOD_NAME)
+                .execute();
+
+        assertThat(response.getHeaders().get("Content-Type"), containsString("application/json"));
+        assertThat(response.getBody(), not(containsString("\"stack_trace\":\"[Validation Failed: 1: index / indices is missing;]; nested: ActionRequestValidationException[Validation Failed: 1:")));
     }
 }

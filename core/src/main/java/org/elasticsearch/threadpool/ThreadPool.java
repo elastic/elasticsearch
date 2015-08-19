@@ -77,12 +77,14 @@ public class ThreadPool extends AbstractComponent {
         // or geo shapes, so we need to keep get in its own thread pool
         // to avoid dead locks
         public static final String GET = "get";
+        // not an alias to WRITE in order to prevent heavy bulk requests from
+        // delaying lightweight create/index/delete operations
+        public static final String INDEX = "index";
 
         // Aliases
         public static final String SEARCH = READ;
         public static final String SUGGEST = READ;
         public static final String PERCOLATE = READ;
-        public static final String INDEX = WRITE;
         public static final String BULK = WRITE;
         public static final String FLUSH = WRITE;
         public static final String REFRESH = WRITE;
@@ -96,7 +98,6 @@ public class ThreadPool extends AbstractComponent {
             builder.put("suggest", SUGGEST);
             builder.put("percolate", PERCOLATE);
             builder.put("warmer", REFRESH);
-            builder.put("index", INDEX);
             builder.put("bulk", BULK);
             builder.put("flush", FLUSH);
             builder.put("refresh", REFRESH);
@@ -137,7 +138,8 @@ public class ThreadPool extends AbstractComponent {
         int halfProcMaxAt10 = Math.min(((availableProcessors + 1) / 2), 10);
         defaultExecutorTypeSettings = ImmutableMap.<String, Settings>builder()
                 .put(Names.GENERIC, settingsBuilder().put("type", "cached").put("keep_alive", "30s").build())
-                .put(Names.WRITE, settingsBuilder().put("type", "fixed").put("size", availableProcessors).put("queue_size", 200).build())
+                .put(Names.WRITE, settingsBuilder().put("type", "fixed").put("size", availableProcessors).put("queue_size", 50).build())
+                .put(Names.INDEX, settingsBuilder().put("type", "fixed").put("size", availableProcessors).put("queue_size", 200).build())
                 .put(Names.READ, settingsBuilder().put("type", "fixed").put("size", ((availableProcessors * 3) / 2) + 1).put("queue_size", 1000).build())
                 .put(Names.GET, settingsBuilder().put("type", "fixed").put("size", availableProcessors).put("queue_size", 1000).build())
                 .put(Names.MANAGEMENT, settingsBuilder().put("type", "scaling").put("keep_alive", "5m").put("size", 5).build())

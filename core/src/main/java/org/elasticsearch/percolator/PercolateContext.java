@@ -19,7 +19,6 @@
 package org.elasticsearch.percolator;
 
 import com.carrotsearch.hppc.ObjectObjectAssociativeContainer;
-import com.google.common.collect.ImmutableList;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
@@ -156,7 +155,7 @@ public class PercolateContext extends SearchContext {
 
         Map<String, SearchHitField> fields = new HashMap<>();
         for (IndexableField field : parsedDocument.rootDoc().getFields()) {
-            fields.put(field.name(), new InternalSearchHitField(field.name(), ImmutableList.of()));
+            fields.put(field.name(), new InternalSearchHitField(field.name(), Collections.emptyList()));
         }
         hitContext().reset(
                 new InternalSearchHit(0, "unknown", new StringText(parsedDocument.type()), fields),

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.store;
 
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 import org.apache.lucene.codecs.CodecUtil;
@@ -1005,9 +1004,9 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
          * NOTE: this diff will not contain the <tt>segments.gen</tt> file. This file is omitted on recovery.
          */
         public RecoveryDiff recoveryDiff(MetadataSnapshot recoveryTargetSnapshot) {
-            final ImmutableList.Builder<StoreFileMetaData> identical = ImmutableList.builder();
-            final ImmutableList.Builder<StoreFileMetaData> different = ImmutableList.builder();
-            final ImmutableList.Builder<StoreFileMetaData> missing = ImmutableList.builder();
+            final List<StoreFileMetaData> identical = new ArrayList<>();
+            final List<StoreFileMetaData> different = new ArrayList<>();
+            final List<StoreFileMetaData> missing = new ArrayList<>();
             final Map<String, List<StoreFileMetaData>> perSegment = new HashMap<>();
             final List<StoreFileMetaData> perCommitStoreFiles = new ArrayList<>();
 
@@ -1053,7 +1052,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                     different.addAll(identicalFiles);
                 }
             }
-            RecoveryDiff recoveryDiff = new RecoveryDiff(identical.build(), different.build(), missing.build());
+            RecoveryDiff recoveryDiff = new RecoveryDiff(Collections.unmodifiableList(identical), Collections.unmodifiableList(different), Collections.unmodifiableList(missing));
             assert recoveryDiff.size() == this.metadata.size() - (metadata.containsKey(IndexFileNames.OLD_SEGMENTS_GEN) ? 1 : 0)
                     : "some files are missing recoveryDiff size: [" + recoveryDiff.size() + "] metadata size: [" + this.metadata.size() + "] contains  segments.gen: [" + metadata.containsKey(IndexFileNames.OLD_SEGMENTS_GEN) + "]";
             return recoveryDiff;

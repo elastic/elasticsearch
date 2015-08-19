@@ -19,7 +19,6 @@
 
 package org.elasticsearch.cluster;
 
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.cluster.ClusterState.Custom;
 import org.elasticsearch.cluster.metadata.SnapshotId;
@@ -30,6 +29,9 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -42,14 +44,14 @@ public class RestoreInProgress extends AbstractDiffable<Custom> implements Custo
 
     public static final RestoreInProgress PROTO = new RestoreInProgress();
 
-    private final ImmutableList<Entry> entries;
+    private final List<Entry> entries;
 
     /**
      * Constructs new restore metadata
      *
      * @param entries list of currently running restore processes
      */
-    public RestoreInProgress(ImmutableList<Entry> entries) {
+    public RestoreInProgress(List<Entry> entries) {
         this.entries = entries;
     }
 
@@ -59,7 +61,7 @@ public class RestoreInProgress extends AbstractDiffable<Custom> implements Custo
      * @param entries list of currently running restore processes
      */
     public RestoreInProgress(Entry... entries) {
-        this.entries = ImmutableList.copyOf(entries);
+        this.entries = Arrays.asList(entries);
     }
 
     /**
@@ -111,7 +113,7 @@ public class RestoreInProgress extends AbstractDiffable<Custom> implements Custo
         private final State state;
         private final SnapshotId snapshotId;
         private final ImmutableMap<ShardId, ShardRestoreStatus> shards;
-        private final ImmutableList<String> indices;
+        private final List<String> indices;
 
         /**
          * Creates new restore metadata
@@ -121,7 +123,7 @@ public class RestoreInProgress extends AbstractDiffable<Custom> implements Custo
          * @param indices    list of indices being restored
          * @param shards     list of shards being restored and thier current restore status
          */
-        public Entry(SnapshotId snapshotId, State state, ImmutableList<String> indices, ImmutableMap<ShardId, ShardRestoreStatus> shards) {
+        public Entry(SnapshotId snapshotId, State state, List<String> indices, ImmutableMap<ShardId, ShardRestoreStatus> shards) {
             this.snapshotId = snapshotId;
             this.state = state;
             this.indices = indices;
@@ -164,7 +166,7 @@ public class RestoreInProgress extends AbstractDiffable<Custom> implements Custo
          *
          * @return list of indices
          */
-        public ImmutableList<String> indices() {
+        public List<String> indices() {
             return indices;
         }
 
@@ -413,7 +415,7 @@ public class RestoreInProgress extends AbstractDiffable<Custom> implements Custo
             SnapshotId snapshotId = SnapshotId.readSnapshotId(in);
             State state = State.fromValue(in.readByte());
             int indices = in.readVInt();
-            ImmutableList.Builder<String> indexBuilder = ImmutableList.builder();
+            List<String> indexBuilder = new ArrayList<>();
             for (int j = 0; j < indices; j++) {
                 indexBuilder.add(in.readString());
             }
@@ -424,7 +426,7 @@ public class RestoreInProgress extends AbstractDiffable<Custom> implements Custo
                 ShardRestoreStatus shardState = ShardRestoreStatus.readShardRestoreStatus(in);
                 builder.put(shardId, shardState);
             }
-            entries[i] = new Entry(snapshotId, state, indexBuilder.build(), builder.build());
+            entries[i] = new Entry(snapshotId, state, Collections.unmodifiableList(indexBuilder), builder.build());
         }
         return new RestoreInProgress(entries);
     }

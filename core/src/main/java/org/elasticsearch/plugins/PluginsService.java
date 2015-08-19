@@ -19,7 +19,6 @@
 
 package org.elasticsearch.plugins;
 
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 
 import org.elasticsearch.ElasticsearchException;
@@ -65,7 +64,7 @@ public class PluginsService extends AbstractComponent {
     /**
      * We keep around a list of plugins
      */
-    private final ImmutableList<Tuple<PluginInfo, Plugin>> plugins;
+    private final List<Tuple<PluginInfo, Plugin>> plugins;
     private final PluginsInfo info;
 
     private final ImmutableMap<Plugin, List<OnModuleReference>> onModuleReferences;
@@ -88,7 +87,7 @@ public class PluginsService extends AbstractComponent {
     public PluginsService(Settings settings, Environment environment) {
         super(settings);
 
-        ImmutableList.Builder<Tuple<PluginInfo, Plugin>> tupleBuilder = ImmutableList.builder();
+        List<Tuple<PluginInfo, Plugin>> tupleBuilder = new ArrayList<>();
 
         // first we load specified plugins via 'plugin.types' settings parameter.
         // this is a hack for what is between unit and integration tests...
@@ -110,7 +109,7 @@ public class PluginsService extends AbstractComponent {
           throw new IllegalStateException(ex);
         }
 
-        plugins = tupleBuilder.build();
+        plugins = Collections.unmodifiableList(tupleBuilder);
         info = new PluginsInfo();
         for (Tuple<PluginInfo, Plugin> tuple : plugins) {
             info.add(tuple.v1());
@@ -171,7 +170,7 @@ public class PluginsService extends AbstractComponent {
         this.onModuleReferences = onModuleReferences.immutableMap();
     }
 
-    public ImmutableList<Tuple<PluginInfo, Plugin>> plugins() {
+    public List<Tuple<PluginInfo, Plugin>> plugins() {
         return plugins;
     }
 
@@ -323,7 +322,7 @@ public class PluginsService extends AbstractComponent {
     }
 
     private List<Tuple<PluginInfo,Plugin>> loadBundles(List<Bundle> bundles) {
-        ImmutableList.Builder<Tuple<PluginInfo, Plugin>> plugins = ImmutableList.builder();
+        List<Tuple<PluginInfo, Plugin>> plugins = new ArrayList<>();
 
         for (Bundle bundle : bundles) {
             // jar-hell check the bundle against the parent classloader
@@ -355,7 +354,7 @@ public class PluginsService extends AbstractComponent {
             }
         }
 
-        return plugins.build();
+        return Collections.unmodifiableList(plugins);
     }
 
     private Plugin loadPlugin(String className, Settings settings, ClassLoader loader) {

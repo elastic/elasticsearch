@@ -19,7 +19,6 @@
 package org.elasticsearch.rest.action.admin.indices.warmer.get;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import com.google.common.collect.ImmutableList;
 import org.elasticsearch.action.admin.indices.warmer.get.GetWarmersRequest;
 import org.elasticsearch.action.admin.indices.warmer.get.GetWarmersResponse;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -31,6 +30,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
 import org.elasticsearch.search.warmer.IndexWarmersMetaData;
+
+import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestStatus.OK;
@@ -68,7 +69,7 @@ public class RestGetWarmerAction extends BaseRestHandler {
                 }
 
                 builder.startObject();
-                for (ObjectObjectCursor<String, ImmutableList<IndexWarmersMetaData.Entry>> entry : response.warmers()) {
+                for (ObjectObjectCursor<String, List<IndexWarmersMetaData.Entry>> entry : response.warmers()) {
                     builder.startObject(entry.key, XContentBuilder.FieldCaseConversion.NONE);
                     builder.startObject(IndexWarmersMetaData.TYPE, XContentBuilder.FieldCaseConversion.NONE);
                     for (IndexWarmersMetaData.Entry warmerEntry : entry.value) {

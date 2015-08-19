@@ -64,7 +64,7 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadAction<Get
     @Override
     protected void masterOperation(GetAliasesRequest request, ClusterState state, ActionListener<GetAliasesResponse> listener) {
         String[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, request);
-        @SuppressWarnings("unchecked") // ImmutableList to List results incompatible type
+        @SuppressWarnings("unchecked")
                 ImmutableOpenMap<String, List<AliasMetaData>> result = (ImmutableOpenMap) state.metaData().findAliases(request.aliases(), concreteIndices);
         listener.onResponse(new GetAliasesResponse(result));
     }

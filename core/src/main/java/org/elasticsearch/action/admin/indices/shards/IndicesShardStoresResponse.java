@@ -21,7 +21,6 @@ package org.elasticsearch.action.admin.indices.shards;
 
 import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import com.google.common.collect.ImmutableList;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ShardOperationFailedException;
@@ -38,6 +37,7 @@ import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.action.admin.indices.shards.IndicesShardStoresResponse.StoreStatus.*;
@@ -258,15 +258,15 @@ public class IndicesShardStoresResponse extends ActionResponse implements ToXCon
     }
 
     private ImmutableOpenMap<String, ImmutableOpenIntMap<List<StoreStatus>>> storeStatuses;
-    private ImmutableList<Failure> failures;
+    private List<Failure> failures;
 
-    public IndicesShardStoresResponse(ImmutableOpenMap<String, ImmutableOpenIntMap<List<StoreStatus>>> storeStatuses, ImmutableList<Failure> failures) {
+    public IndicesShardStoresResponse(ImmutableOpenMap<String, ImmutableOpenIntMap<List<StoreStatus>>> storeStatuses, List<Failure> failures) {
         this.storeStatuses = storeStatuses;
         this.failures = failures;
     }
 
     IndicesShardStoresResponse() {
-        this(ImmutableOpenMap.<String, ImmutableOpenIntMap<List<StoreStatus>>>of(), ImmutableList.<Failure>of());
+        this(ImmutableOpenMap.<String, ImmutableOpenIntMap<List<StoreStatus>>>of(), Collections.<Failure>emptyList());
     }
 
     /**
@@ -281,7 +281,7 @@ public class IndicesShardStoresResponse extends ActionResponse implements ToXCon
      * Returns node {@link Failure}s encountered
      * while executing the request
      */
-    public ImmutableList<Failure> getFailures() {
+    public List<Failure> getFailures() {
         return failures;
     }
 
@@ -306,12 +306,12 @@ public class IndicesShardStoresResponse extends ActionResponse implements ToXCon
             storeStatusesBuilder.put(index, shardEntries.build());
         }
         int numFailure = in.readVInt();
-        ImmutableList.Builder<Failure> failureBuilder = ImmutableList.builder();
+        List<Failure> failureBuilder = new ArrayList<>();
         for (int i = 0; i < numFailure; i++) {
             failureBuilder.add(Failure.readFailure(in));
         }
         storeStatuses = storeStatusesBuilder.build();
-        failures = failureBuilder.build();
+        failures = Collections.unmodifiableList(failureBuilder);
     }
 
     @Override

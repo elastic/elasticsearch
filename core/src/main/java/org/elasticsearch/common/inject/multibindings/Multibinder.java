@@ -16,7 +16,6 @@
 
 package org.elasticsearch.common.inject.multibindings;
 
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import org.elasticsearch.common.inject.*;
@@ -320,6 +319,6 @@ public abstract class Multibinder<T> {
 
         NullPointerException npe = new NullPointerException(name);
         throw new ConfigurationException(ImmutableSet.of(
-                new Message(ImmutableList.of(), npe.toString(), npe)));
+                new Message(Collections.emptyList(), npe.toString(), npe)));
     }
 }

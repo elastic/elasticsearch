@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.internal;
 
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
@@ -39,6 +38,7 @@ import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rescore.RescoreSearchContext;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -243,7 +243,7 @@ public class SubSearchContext extends FilteredSearchContext {
 
     @Override
     public void emptyFieldNames() {
-        this.fieldNames = ImmutableList.of();
+        this.fieldNames = Collections.emptyList();
     }
 
     @Override

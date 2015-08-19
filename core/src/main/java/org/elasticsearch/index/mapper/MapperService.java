@@ -22,7 +22,6 @@ package org.elasticsearch.index.mapper;
 import com.carrotsearch.hppc.ObjectHashSet;
 import com.google.common.base.Function;
 import com.google.common.base.Predicate;
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterators;
@@ -68,6 +67,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -527,7 +527,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     public Collection<String> simpleMatchToIndexNames(String pattern) {
         if (Regex.isSimpleMatchPattern(pattern) == false) {
             // no wildcards
-            return ImmutableList.of(pattern);
+            return Collections.singletonList(pattern);
         }
         return fieldTypes.simpleMatchToIndexNames(pattern);
     }

@@ -16,7 +16,6 @@
 
 package org.elasticsearch.common.inject.internal;
 
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
@@ -28,6 +27,7 @@ import org.elasticsearch.common.inject.spi.Element;
 import org.elasticsearch.common.inject.spi.ElementVisitor;
 import org.elasticsearch.common.inject.spi.PrivateElements;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -53,7 +53,7 @@ public final class PrivateElementsImpl implements PrivateElements {
     /**
      * lazily instantiated
      */
-    private ImmutableList<Element> elements;
+    private List<Element> elements;
 
     /**
      * lazily instantiated
@@ -73,7 +73,7 @@ public final class PrivateElementsImpl implements PrivateElements {
     @Override
     public List<Element> getElements() {
         if (elements == null) {
-            elements = ImmutableList.copyOf(elementsMutable);
+            elements = Collections.unmodifiableList(elementsMutable);
             elementsMutable = null;
         }
 

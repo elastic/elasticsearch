@@ -20,7 +20,6 @@
 package org.elasticsearch.transport.netty;
 
 import com.google.common.base.Charsets;
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
@@ -896,13 +895,15 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
             }
         } catch (RuntimeException e) {
             // clean the futures
-            for (ChannelFuture future : ImmutableList.<ChannelFuture>builder().add(connectRecovery).add(connectBulk).add(connectReg).add(connectState).add(connectPing).build()) {
-                future.cancel();
-                if (future.getChannel() != null && future.getChannel().isOpen()) {
-                    try {
-                        future.getChannel().close();
-                    } catch (Exception e1) {
-                        // ignore
+            for (ChannelFuture[] futures : Arrays.asList(connectRecovery, connectBulk, connectReg, connectState, connectPing)) {
+                for (ChannelFuture future : futures) {
+                    future.cancel();
+                    if (future.getChannel() != null && future.getChannel().isOpen()) {
+                        try {
+                            future.getChannel().close();
+                        } catch (Exception e1) {
+                            // ignore
+                        }
                     }
                 }
             }
@@ -1079,7 +1080,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
 
     public static class NodeChannels {
 
-        ImmutableList<Channel> allChannels = ImmutableList.of();
+        List<Channel> allChannels = Collections.emptyList();
         private Channel[] recovery;
         private final AtomicInteger recoveryCounter = new AtomicInteger();
         private Channel[] bulk;
@@ -1100,7 +1101,13 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         }
 
         public void start() {
-            this.allChannels = ImmutableList.<Channel>builder().add(recovery).add(bulk).add(reg).add(state).add(ping).build();
+            List<Channel> newAllChannels = new ArrayList<>();
+            newAllChannels.addAll(Arrays.asList(recovery));
+            newAllChannels.addAll(Arrays.asList(bulk));
+            newAllChannels.addAll(Arrays.asList(reg));
+            newAllChannels.addAll(Arrays.asList(state));
+            newAllChannels.addAll(Arrays.asList(ping));
+            this.allChannels = Collections.unmodifiableList(allChannels);
         }
 
         public boolean hasChannel(Channel channel) {

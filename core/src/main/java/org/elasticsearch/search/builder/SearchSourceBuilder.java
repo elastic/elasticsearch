@@ -21,7 +21,6 @@ package org.elasticsearch.search.builder;
 
 import com.carrotsearch.hppc.ObjectFloatHashMap;
 import com.google.common.base.Charsets;
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 
 import org.elasticsearch.ElasticsearchGenerationException;
@@ -539,7 +538,7 @@ public class SearchSourceBuilder extends ToXContentToBytes {
      * per field.
      */
     public SearchSourceBuilder noFields() {
-        this.fieldNames = ImmutableList.of();
+        this.fieldNames = Collections.emptyList();
         return this;
     }
 

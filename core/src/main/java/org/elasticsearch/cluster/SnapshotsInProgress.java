@@ -19,7 +19,6 @@
 
 package org.elasticsearch.cluster;
 
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.cluster.ClusterState.Custom;
 import org.elasticsearch.cluster.metadata.SnapshotId;
@@ -31,7 +30,10 @@ import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -67,11 +69,11 @@ public class SnapshotsInProgress extends AbstractDiffable<Custom> implements Cus
         private final SnapshotId snapshotId;
         private final boolean includeGlobalState;
         private final ImmutableMap<ShardId, ShardSnapshotStatus> shards;
-        private final ImmutableList<String> indices;
-        private final ImmutableMap<String, ImmutableList<ShardId>> waitingIndices;
+        private final List<String> indices;
+        private final ImmutableMap<String, List<ShardId>> waitingIndices;
         private final long startTime;
 
-        public Entry(SnapshotId snapshotId, boolean includeGlobalState, State state, ImmutableList<String> indices, long startTime, ImmutableMap<ShardId, ShardSnapshotStatus> shards) {
+        public Entry(SnapshotId snapshotId, boolean includeGlobalState, State state, List<String> indices, long startTime, ImmutableMap<ShardId, ShardSnapshotStatus> shards) {
             this.state = state;
             this.snapshotId = snapshotId;
             this.includeGlobalState = includeGlobalState;
@@ -106,11 +108,11 @@ public class SnapshotsInProgress extends AbstractDiffable<Custom> implements Cus
             return state;
         }
 
-        public ImmutableList<String> indices() {
+        public List<String> indices() {
             return indices;
         }
 
-        public ImmutableMap<String, ImmutableList<ShardId>> waitingIndices() {
+        public ImmutableMap<String, List<ShardId>> waitingIndices() {
             return waitingIndices;
         }
 
@@ -152,22 +154,22 @@ public class SnapshotsInProgress extends AbstractDiffable<Custom> implements Cus
             return result;
         }
 
-        private ImmutableMap<String, ImmutableList<ShardId>> findWaitingIndices(ImmutableMap<ShardId, ShardSnapshotStatus> shards) {
-            Map<String, ImmutableList.Builder<ShardId>> waitingIndicesMap = newHashMap();
+        private ImmutableMap<String, List<ShardId>> findWaitingIndices(ImmutableMap<ShardId, ShardSnapshotStatus> shards) {
+            Map<String, List<ShardId>> waitingIndicesMap = newHashMap();
             for (ImmutableMap.Entry<ShardId, ShardSnapshotStatus> entry : shards.entrySet()) {
                 if (entry.getValue().state() == State.WAITING) {
-                    ImmutableList.Builder<ShardId> waitingShards = waitingIndicesMap.get(entry.getKey().getIndex());
+                    List<ShardId> waitingShards = waitingIndicesMap.get(entry.getKey().getIndex());
                     if (waitingShards == null) {
-                        waitingShards = ImmutableList.builder();
+                        waitingShards = new ArrayList<>();
                         waitingIndicesMap.put(entry.getKey().getIndex(), waitingShards);
                     }
                     waitingShards.add(entry.getKey());
                 }
             }
             if (!waitingIndicesMap.isEmpty()) {
-                ImmutableMap.Builder<String, ImmutableList<ShardId>> waitingIndicesBuilder = ImmutableMap.builder();
-                for (Map.Entry<String, ImmutableList.Builder<ShardId>> entry : waitingIndicesMap.entrySet()) {
-                    waitingIndicesBuilder.put(entry.getKey(), entry.getValue().build());
+                ImmutableMap.Builder<String, List<ShardId>> waitingIndicesBuilder = ImmutableMap.builder();
+                for (Map.Entry<String, List<ShardId>> entry : waitingIndicesMap.entrySet()) {
+                    waitingIndicesBuilder.put(entry.getKey(), Collections.unmodifiableList(entry.getValue()));
                 }
                 return waitingIndicesBuilder.build();
             } else {
@@ -324,15 +326,15 @@ public class SnapshotsInProgress extends AbstractDiffable<Custom> implements Cus
         }
     }
 
-    private final ImmutableList<Entry> entries;
+    private final List<Entry> entries;
 
 
-    public SnapshotsInProgress(ImmutableList<Entry> entries) {
+    public SnapshotsInProgress(List<Entry> entries) {
         this.entries = entries;
     }
 
     public SnapshotsInProgress(Entry... entries) {
-        this.entries = ImmutableList.copyOf(entries);
+        this.entries = Arrays.asList(entries);
     }
 
     public List<Entry> entries() {
@@ -361,7 +363,7 @@ public class SnapshotsInProgress extends AbstractDiffable<Custom> implements Cus
             boolean includeGlobalState = in.readBoolean();
             State state = State.fromValue(in.readByte());
             int indices = in.readVInt();
-            ImmutableList.Builder<String> indexBuilder = ImmutableList.builder();
+            List<String> indexBuilder = new ArrayList<>();
             for (int j = 0; j < indices; j++) {
                 indexBuilder.add(in.readString());
             }
@@ -374,7 +376,7 @@ public class SnapshotsInProgress extends AbstractDiffable<Custom> implements Cus
                 State shardState = State.fromValue(in.readByte());
                 builder.put(shardId, new ShardSnapshotStatus(nodeId, shardState));
             }
-            entries[i] = new Entry(snapshotId, includeGlobalState, state, indexBuilder.build(), startTime, builder.build());
+            entries[i] = new Entry(snapshotId, includeGlobalState, state, Collections.unmodifiableList(indexBuilder), startTime, builder.build());
         }
         return new SnapshotsInProgress(entries);
     }

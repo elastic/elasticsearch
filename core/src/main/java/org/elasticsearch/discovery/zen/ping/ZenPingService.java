@@ -19,7 +19,6 @@
 
 package org.elasticsearch.discovery.zen.ping;
 
-import com.google.common.collect.ImmutableList;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.Nullable;
@@ -36,6 +35,9 @@ import org.elasticsearch.discovery.zen.ping.unicast.UnicastZenPing;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -46,23 +48,23 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 public class ZenPingService extends AbstractLifecycleComponent<ZenPing> implements ZenPing {
 
-    private volatile ImmutableList<? extends ZenPing> zenPings = ImmutableList.of();
+    private volatile List<? extends ZenPing> zenPings = Collections.emptyList();
 
     @Inject
     public ZenPingService(Settings settings, ThreadPool threadPool, TransportService transportService, ClusterName clusterName, NetworkService networkService,
                           Version version, ElectMasterService electMasterService, @Nullable Set<UnicastHostsProvider> unicastHostsProviders) {
         super(settings);
-        ImmutableList.Builder<ZenPing> zenPingsBuilder = ImmutableList.builder();
+        List<ZenPing> zenPingsBuilder = new ArrayList<>();
         if (this.settings.getAsBoolean("discovery.zen.ping.multicast.enabled", true)) {
             zenPingsBuilder.add(new MulticastZenPing(settings, threadPool, transportService, clusterName, networkService, version));
         }
         // always add the unicast hosts, so it will be able to receive unicast requests even when working in multicast
         zenPingsBuilder.add(new UnicastZenPing(settings, threadPool, transportService, clusterName, version, electMasterService, unicastHostsProviders));
 
-        this.zenPings = zenPingsBuilder.build();
+        this.zenPings = Collections.unmodifiableList(zenPingsBuilder);
     }
 
-    public ImmutableList<? extends ZenPing> zenPings() {
+    public List<? extends ZenPing> zenPings() {
         return this.zenPings;
     }
 
@@ -118,7 +120,7 @@ public class ZenPingService extends AbstractLifecycleComponent<ZenPing> implemen
 
     @Override
     public void ping(PingListener listener, TimeValue timeout) {
-        ImmutableList<? extends ZenPing> zenPings = this.zenPings;
+        List<? extends ZenPing> zenPings = this.zenPings;
         CompoundPingListener compoundPingListener = new CompoundPingListener(listener, zenPings);
         for (ZenPing zenPing : zenPings) {
             try {
@@ -138,7 +140,7 @@ public class ZenPingService extends AbstractLifecycleComponent<ZenPing> implemen
 
         private PingCollection responses = new PingCollection();
 
-        private CompoundPingListener(PingListener listener, ImmutableList<? extends ZenPing> zenPings) {
+        private CompoundPingListener(PingListener listener, List<? extends ZenPing> zenPings) {
             this.listener = listener;
             this.counter = new AtomicInteger(zenPings.size());
         }

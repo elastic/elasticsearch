@@ -19,7 +19,6 @@
 package org.elasticsearch.search.aggregations;
 
 import com.google.common.base.Function;
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Lists;
@@ -37,6 +36,7 @@ import org.elasticsearch.search.aggregations.support.AggregationPath;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -57,7 +57,7 @@ public class InternalAggregations implements Aggregations, ToXContent, Streamabl
         }
     };
 
-    private List<InternalAggregation> aggregations = ImmutableList.of();
+    private List<InternalAggregation> aggregations = Collections.emptyList();
 
     private Map<String, InternalAggregation> aggregationsAsMap;
 
@@ -212,7 +212,7 @@ public class InternalAggregations implements Aggregations, ToXContent, Streamabl
     public void readFrom(StreamInput in) throws IOException {
         int size = in.readVInt();
         if (size == 0) {
-            aggregations = ImmutableList.of();
+            aggregations = Collections.emptyList();
             aggregationsAsMap = ImmutableMap.of();
         } else {
             aggregations = Lists.newArrayListWithCapacity(size);

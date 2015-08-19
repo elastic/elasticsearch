@@ -20,7 +20,6 @@
 package org.elasticsearch.client.transport;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import org.elasticsearch.ExceptionsHelper;
@@ -73,12 +72,12 @@ public class TransportClientNodesService extends AbstractComponent {
     private final Headers headers;
 
     // nodes that are added to be discovered
-    private volatile ImmutableList<DiscoveryNode> listedNodes = ImmutableList.of();
+    private volatile List<DiscoveryNode> listedNodes = Collections.emptyList();
 
     private final Object mutex = new Object();
 
-    private volatile List<DiscoveryNode> nodes = ImmutableList.of();
-    private volatile List<DiscoveryNode> filteredNodes = ImmutableList.of();
+    private volatile List<DiscoveryNode> nodes = Collections.emptyList();
+    private volatile List<DiscoveryNode> filteredNodes = Collections.emptyList();
 
     private final AtomicInteger tempNodeIdGenerator = new AtomicInteger();
 
@@ -119,11 +118,11 @@ public class TransportClientNodesService extends AbstractComponent {
     }
 
     public List<TransportAddress> transportAddresses() {
-        ImmutableList.Builder<TransportAddress> lstBuilder = ImmutableList.builder();
+        List<TransportAddress> lstBuilder = new ArrayList<>();
         for (DiscoveryNode listedNode : listedNodes) {
             lstBuilder.add(listedNode.address());
         }
-        return lstBuilder.build();
+        return Collections.unmodifiableList(lstBuilder);
     }
 
     public List<DiscoveryNode> connectedNodes() {
@@ -160,14 +159,14 @@ public class TransportClientNodesService extends AbstractComponent {
             if (filtered.isEmpty()) {
                 return this;
             }
-            ImmutableList.Builder<DiscoveryNode> builder = ImmutableList.builder();
+            List<DiscoveryNode> builder = new ArrayList<>();
             builder.addAll(listedNodes());
             for (TransportAddress transportAddress : filtered) {
                 DiscoveryNode node = new DiscoveryNode("#transport#-" + tempNodeIdGenerator.incrementAndGet(), transportAddress, minCompatibilityVersion);
                 logger.debug("adding address [{}]", node);
                 builder.add(node);
             }
-            listedNodes = builder.build();
+            listedNodes = Collections.unmodifiableList(builder);
             nodesSampler.sample();
         }
         return this;
@@ -178,7 +177,7 @@ public class TransportClientNodesService extends AbstractComponent {
             if (closed) {
                 throw new IllegalStateException("transport client is closed, can't remove an address");
             }
-            ImmutableList.Builder<DiscoveryNode> builder = ImmutableList.builder();
+            List<DiscoveryNode> builder = new ArrayList<>();
             for (DiscoveryNode otherNode : listedNodes) {
                 if (!otherNode.address().equals(transportAddress)) {
                     builder.add(otherNode);
@@ -186,7 +185,7 @@ public class TransportClientNodesService extends AbstractComponent {
                     logger.debug("removing address [{}]", otherNode);
                 }
             }
-            listedNodes = builder.build();
+            listedNodes = Collections.unmodifiableList(builder);
             nodesSampler.sample();
         }
         return this;
@@ -261,7 +260,7 @@ public class TransportClientNodesService extends AbstractComponent {
             for (DiscoveryNode listedNode : listedNodes) {
                 transportService.disconnectFromNode(listedNode);
             }
-            nodes = ImmutableList.of();
+            nodes = Collections.emptyList();
         }
     }
 
@@ -311,7 +310,7 @@ public class TransportClientNodesService extends AbstractComponent {
                 }
             }
 
-            return new ImmutableList.Builder<DiscoveryNode>().addAll(nodes).build();
+            return Collections.unmodifiableList(new ArrayList<>(nodes));
         }
 
     }
@@ -376,7 +375,7 @@ public class TransportClientNodesService extends AbstractComponent {
             }
 
             nodes = validateNewNodes(newNodes);
-            filteredNodes = ImmutableList.copyOf(newFilteredNodes);
+            filteredNodes = Collections.unmodifiableList(new ArrayList<>(newFilteredNodes));
         }
     }
 
@@ -476,7 +475,7 @@ public class TransportClientNodesService extends AbstractComponent {
             }
 
             nodes = validateNewNodes(newNodes);
-            filteredNodes = ImmutableList.copyOf(newFilteredNodes);
+            filteredNodes = Collections.unmodifiableList(new ArrayList<>(newFilteredNodes));
         }
     }
 

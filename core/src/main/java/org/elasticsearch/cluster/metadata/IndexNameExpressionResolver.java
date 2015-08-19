@@ -20,7 +20,6 @@
 package org.elasticsearch.cluster.metadata;
 
 import com.google.common.base.Predicate;
-import com.google.common.collect.ImmutableList;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -50,13 +49,13 @@ import static com.google.common.collect.Maps.newHashMap;
 
 public class IndexNameExpressionResolver extends AbstractComponent {
 
-    private final ImmutableList<ExpressionResolver> expressionResolvers;
+    private final List<ExpressionResolver> expressionResolvers;
     private final DateMathExpressionResolver dateMathExpressionResolver;
 
     @Inject
     public IndexNameExpressionResolver(Settings settings) {
         super(settings);
-        expressionResolvers = ImmutableList.of(
+        expressionResolvers = Arrays.asList(
                 dateMathExpressionResolver = new DateMathExpressionResolver(settings),
                 new WildcardExpressionResolver()
         );

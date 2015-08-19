@@ -20,13 +20,13 @@
 package org.elasticsearch.cluster;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -86,7 +86,7 @@ public class ClusterChangedEvent {
             return Arrays.asList(state.metaData().indices().keys().toArray(String.class));
         }
         if (!metaDataChanged()) {
-            return ImmutableList.of();
+            return Collections.emptyList();
         }
         List<String> created = null;
         for (ObjectCursor<String> cursor : state.metaData().indices().keys()) {
@@ -98,7 +98,7 @@ public class ClusterChangedEvent {
                 created.add(index);
             }
         }
-        return created == null ? ImmutableList.<String>of() : created;
+        return created == null ? Collections.<String>emptyList() : created;
     }
 
     /**
@@ -116,10 +116,10 @@ public class ClusterChangedEvent {
         // See discussion on https://github.com/elastic/elasticsearch/pull/9952 and
         // https://github.com/elastic/elasticsearch/issues/11665
         if (hasNewMaster() || previousState == null) {
-            return ImmutableList.of();
+            return Collections.emptyList();
         }
         if (!metaDataChanged()) {
-            return ImmutableList.of();
+            return Collections.emptyList();
         }
         List<String> deleted = null;
         for (ObjectCursor<String> cursor : previousState.metaData().indices().keys()) {
@@ -131,7 +131,7 @@ public class ClusterChangedEvent {
                 deleted.add(index);
             }
         }
-        return deleted == null ? ImmutableList.<String>of() : deleted;
+        return deleted == null ? Collections.<String>emptyList() : deleted;
     }
 
     public boolean metaDataChanged() {

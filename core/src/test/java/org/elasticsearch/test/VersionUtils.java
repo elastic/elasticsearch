@@ -19,7 +19,6 @@
 
 package org.elasticsearch.test;
 
-import com.google.common.collect.ImmutableList;
 import org.elasticsearch.Version;
 
 import java.lang.reflect.Field;
@@ -53,11 +52,11 @@ public class VersionUtils {
         }
         List<Integer> idList = new ArrayList<>(ids);
         Collections.sort(idList);
-        ImmutableList.Builder<Version> version = ImmutableList.builder();
+        List<Version> version = new ArrayList<>();
         for (Integer integer : idList) {
             version.add(Version.fromId(integer));
         }
-        SORTED_VERSIONS = version.build();
+        SORTED_VERSIONS = Collections.unmodifiableList(version);
     }
 
     /** Returns immutable list of all known versions. */

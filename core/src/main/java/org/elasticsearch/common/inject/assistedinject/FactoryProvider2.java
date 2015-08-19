@@ -16,7 +16,6 @@
 
 package org.elasticsearch.common.inject.assistedinject;
 
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
@@ -31,6 +30,7 @@ import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 import static com.google.common.base.Preconditions.checkState;
@@ -81,7 +81,7 @@ final class FactoryProvider2<F> implements InvocationHandler, Provider<F> {
      */
     private final Key<?> producedType;
     private final ImmutableMap<Method, Key<?>> returnTypesByMethod;
-    private final ImmutableMap<Method, ImmutableList<Key<?>>> paramTypes;
+    private final ImmutableMap<Method, List<Key<?>>> paramTypes;
 
     /**
      * the hosting injector, or null if we haven't been initialized yet
@@ -108,7 +108,7 @@ final class FactoryProvider2<F> implements InvocationHandler, Provider<F> {
 
         try {
             ImmutableMap.Builder<Method, Key<?>> returnTypesBuilder = ImmutableMap.builder();
-            ImmutableMap.Builder<Method, ImmutableList<Key<?>>> paramTypesBuilder
+            ImmutableMap.Builder<Method, List<Key<?>>> paramTypesBuilder
                     = ImmutableMap.builder();
             // TODO: also grab methods from superinterfaces
             for (Method method : factoryRawType.getMethods()) {
@@ -123,7 +123,7 @@ final class FactoryProvider2<F> implements InvocationHandler, Provider<F> {
                     Key<?> paramKey = getKey(param, method, paramAnnotations[p++], errors);
                     keys.add(assistKey(method, paramKey, errors));
                 }
-                paramTypesBuilder.put(method, ImmutableList.copyOf(keys));
+                paramTypesBuilder.put(method, Collections.unmodifiableList(keys));
             }
             returnTypesByMethod = returnTypesBuilder.build();
             paramTypes = paramTypesBuilder.build();
@@ -165,8 +165,8 @@ final class FactoryProvider2<F> implements InvocationHandler, Provider<F> {
     @Inject
     void initialize(Injector injector) {
         if (this.injector != null) {
-            throw new ConfigurationException(ImmutableList.of(new Message(FactoryProvider2.class,
-                    "Factories.create() factories may only be used in one Injector!")));
+            throw new ConfigurationException(Collections.singletonList(new Message(FactoryProvider2.class,
+                "Factories.create() factories may only be used in one Injector!")));
         }
 
         this.injector = injector;

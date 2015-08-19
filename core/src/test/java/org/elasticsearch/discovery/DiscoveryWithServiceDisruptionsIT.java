@@ -286,8 +286,10 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
 
         NetworkPartition networkPartition = addRandomPartition();
 
-        final String isolatedNode = networkPartition.getMinoritySide().get(0);
-        final String nonIsolatedNode = networkPartition.getMajoritySide().get(0);
+        assertEquals(1, networkPartition.getMinoritySide().size());
+        final String isolatedNode = networkPartition.getMinoritySide().iterator().next();
+        assertEquals(2, networkPartition.getMajoritySide().size());
+        final String nonIsolatedNode = networkPartition.getMajoritySide().iterator().next();
 
         // Simulate a network issue between the unlucky node and the rest of the cluster.
         networkPartition.startDisrupting();
@@ -364,7 +366,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         NetworkPartition networkPartition = addRandomIsolation(isolatedNode);
         networkPartition.startDisrupting();
 
-        String nonIsolatedNode = networkPartition.getMajoritySide().get(0);
+        String nonIsolatedNode = networkPartition.getMajoritySide().iterator().next();
 
         // make sure cluster reforms
         ensureStableCluster(2, nonIsolatedNode);

@@ -22,7 +22,6 @@ import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.hppc.IntSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
@@ -271,7 +270,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
                         }
 
                         shards = shardsBuilder.build();
-                        RestoreInProgress.Entry restoreEntry = new RestoreInProgress.Entry(snapshotId, RestoreInProgress.State.INIT, ImmutableList.copyOf(renamedIndices.keySet()), shards);
+                        RestoreInProgress.Entry restoreEntry = new RestoreInProgress.Entry(snapshotId, RestoreInProgress.State.INIT, Collections.unmodifiableList(new ArrayList<>(renamedIndices.keySet())), shards);
                         builder.putCustom(RestoreInProgress.TYPE, new RestoreInProgress(restoreEntry));
                     } else {
                         shards = ImmutableMap.of();
@@ -284,7 +283,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
 
                     if (completed(shards)) {
                         // We don't have any indices to restore - we are done
-                        restoreInfo = new RestoreInfo(request.name(), ImmutableList.copyOf(renamedIndices.keySet()),
+                        restoreInfo = new RestoreInfo(request.name(), Collections.unmodifiableList(new ArrayList<>(renamedIndices.keySet())),
                                 shards.size(), shards.size() - failedShards(shards));
                     }
 

@@ -105,8 +105,8 @@ public class BytesRestResponseTests extends ESTestCase {
         BytesRestResponse response = new BytesRestResponse(channel, t);
         String text = response.content().toUtf8();
         assertThat(text, containsString("\"type\":\"throwable\",\"reason\":\"an error occurred reading data\""));
-        assertThat(text, containsString("{\"type\":\"file_not_found_exception\",\"reason\":\"/foo/bar\"}"));
-        assertThat(text, containsString("\"error_trace\":{\"message\":\"an error occurred reading data\""));
+        assertThat(text, containsString("{\"type\":\"file_not_found_exception\""));
+        assertThat(text, containsString("\"stack_trace\":\"[an error occurred reading data]"));
     }
 
     public void testGuessRootCause() throws IOException {
@@ -176,7 +176,6 @@ public class BytesRestResponseTests extends ESTestCase {
 
         DetailedExceptionRestChannel(RestRequest request) {
             super(request, true);
-            request.params().put(ElasticsearchException.REST_EXCEPTION_SKIP_STACK_TRACE, "true");
         }
 
         @Override

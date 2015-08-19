@@ -45,8 +45,8 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
 
     public static final String REST_EXCEPTION_SKIP_CAUSE = "rest.exception.cause.skip";
     public static final String REST_EXCEPTION_SKIP_STACK_TRACE = "rest.exception.stacktrace.skip";
-    private static final boolean REST_EXCEPTION_SKIP_STACK_TRACE_DEFAULT = false;
-    private static final boolean REST_EXCEPTION_SKIP_CAUSE_DEFAULT = false;
+    public static final boolean REST_EXCEPTION_SKIP_STACK_TRACE_DEFAULT = true;
+    public static final boolean REST_EXCEPTION_SKIP_CAUSE_DEFAULT = false;
     private static final String INDEX_HEADER_KEY = "es.index";
     private static final String SHARD_HEADER_KEY = "es.shard";
     private static final String RESOURCE_HEADER_TYPE_KEY = "es.resource.type";

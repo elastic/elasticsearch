@@ -25,6 +25,8 @@ import org.elasticsearch.bootstrap.Elasticsearch;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
@@ -115,11 +117,20 @@ public class BytesRestResponse extends RestResponse {
         return this.status;
     }
 
+    private static final ESLogger SUPPRESSED_ERROR_LOGGER = ESLoggerFactory.getLogger("rest.suppressed");
+
     private static XContentBuilder convert(RestChannel channel, RestStatus status, Throwable t) throws IOException {
         XContentBuilder builder = channel.newErrorBuilder().startObject();
         if (t == null) {
             builder.field("error", "unknown");
         } else if (channel.detailedErrorsEnabled()) {
+            final ToXContent.Params params;
+            if (channel.request().paramAsBoolean("error_trace", !ElasticsearchException.REST_EXCEPTION_SKIP_STACK_TRACE_DEFAULT)) {
+                params =  new ToXContent.DelegatingMapParams(Collections.singletonMap(ElasticsearchException.REST_EXCEPTION_SKIP_STACK_TRACE, "false"), channel.request());
+            } else {
+                SUPPRESSED_ERROR_LOGGER.info("{} Params: {}", t, channel.request().path(), channel.request().params());
+                params = channel.request();
+            }
             builder.field("error");
             builder.startObject();
             final ElasticsearchException[] rootCauses = ElasticsearchException.guessRootCauses(t);
@@ -127,61 +138,19 @@ public class BytesRestResponse extends RestResponse {
             builder.startArray();
             for (ElasticsearchException rootCause : rootCauses){
                 builder.startObject();
-                rootCause.toXContent(builder, new ToXContent.DelegatingMapParams(Collections.singletonMap(ElasticsearchException.REST_EXCEPTION_SKIP_CAUSE, "true"), channel.request()));
+                rootCause.toXContent(builder, new ToXContent.DelegatingMapParams(Collections.singletonMap(ElasticsearchException.REST_EXCEPTION_SKIP_CAUSE, "true"), params));
                 builder.endObject();
             }
             builder.endArray();
 
-            ElasticsearchException.toXContent(builder, channel.request(), t);
+            ElasticsearchException.toXContent(builder, params, t);
             builder.endObject();
-            if (channel.request().paramAsBoolean("error_trace", false)) {
-                buildErrorTrace(t, builder);
-            }
         } else {
             builder.field("error", simpleMessage(t));
         }
         builder.field("status", status.getStatus());
         builder.endObject();
         return builder;
-    }
-
-
-    private static void buildErrorTrace(Throwable t, XContentBuilder builder) throws IOException {
-        builder.startObject("error_trace");
-        boolean first = true;
-        int counter = 0;
-        while (t != null) {
-            // bail if there are more than 10 levels, becomes useless really...
-            if (counter++ > 10) {
-                break;
-            }
-            if (!first) {
-                builder.startObject("cause");
-            }
-            buildThrowable(t, builder);
-            if (!first) {
-                builder.endObject();
-            }
-            t = t.getCause();
-            first = false;
-        }
-        builder.endObject();
-    }
-
-    private static void buildThrowable(Throwable t, XContentBuilder builder) throws IOException {
-        builder.field("message", t.getMessage());
-        for (StackTraceElement stElement : t.getStackTrace()) {
-            builder.startObject("at")
-                    .field("class", stElement.getClassName())
-                    .field("method", stElement.getMethodName());
-            if (stElement.getFileName() != null) {
-                builder.field("file", stElement.getFileName());
-            }
-            if (stElement.getLineNumber() >= 0) {
-                builder.field("line", stElement.getLineNumber());
-            }
-            builder.endObject();
-        }
     }
 
     /*

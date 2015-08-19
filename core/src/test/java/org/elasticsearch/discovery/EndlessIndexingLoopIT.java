@@ -35,7 +35,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.disruption.BlockClusterStateProcessing;
 import org.elasticsearch.test.disruption.SingleNodeDisruption;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.transport.TransportModule;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.junit.Test;
@@ -80,7 +79,9 @@ public class EndlessIndexingLoopIT extends ESIntegTestCase {
      */
     @Test
     public void testIndexOperationNotSentBackAndForthAllTheTime() throws Exception {
-        Settings mockTransportSetting = Settings.builder().put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, MockTransportService.class.getName()).build();
+        Settings mockTransportSetting = Settings.builder()
+                .put("plugin.types", MockTransportService.TestPlugin.class.getName())
+                .build();
         Future<String> masterNodeFuture = internalCluster().startMasterOnlyNodeAsync(mockTransportSetting);
         Future<String> node1Future = internalCluster().startDataOnlyNodeAsync(mockTransportSetting);
         final String masterNode = masterNodeFuture.get();

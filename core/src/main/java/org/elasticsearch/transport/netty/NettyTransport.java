@@ -22,8 +22,8 @@ package org.elasticsearch.transport.netty;
 import com.google.common.base.Charsets;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
+
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -75,6 +75,7 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
+import java.net.UnknownHostException;
 import java.nio.channels.CancelledKeyException;
 import java.util.*;
 import java.util.concurrent.*;
@@ -82,6 +83,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static org.elasticsearch.common.network.NetworkService.TcpSettings.*;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
@@ -583,34 +586,63 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
 
     @Override
     public TransportAddress[] addressesFromString(String address) throws Exception {
-        int index = address.indexOf('[');
-        if (index != -1) {
-            String host = address.substring(0, index);
-            Set<String> ports = Strings.commaDelimitedListToSet(address.substring(index + 1, address.indexOf(']')));
-            List<TransportAddress> addresses = Lists.newArrayList();
-            for (String port : ports) {
-                int[] iPorts = new PortsRange(port).ports();
-                for (int iPort : iPorts) {
-                    addresses.add(new InetSocketTransportAddress(host, iPort));
-                }
-            }
-            return addresses.toArray(new TransportAddress[addresses.size()]);
+        return parse(address, settings.get("transport.profiles.default.port", 
+                              settings.get("transport.netty.port", 
+                              settings.get("transport.tcp.port", 
+                              DEFAULT_PORT_RANGE))));
+    }
+    
+    // this code is a take on guava's HostAndPort, like a HostAndPortRange
+    
+    // pattern for validating ipv6 bracked addresses. 
+    // not perfect, but PortsRange should take care of any port range validation, not a regex
+    private static final Pattern BRACKET_PATTERN = Pattern.compile("^\\[(.*:.*)\\](?::([\\d\\-]*))?$");
+
+    /** parse a hostname+port range spec into its equivalent addresses */
+    static TransportAddress[] parse(String hostPortString, String defaultPortRange) throws UnknownHostException {
+        Objects.requireNonNull(hostPortString);
+        String host;
+        String portString = null;
+
+        if (hostPortString.startsWith("[")) {
+          // Parse a bracketed host, typically an IPv6 literal.
+          Matcher matcher = BRACKET_PATTERN.matcher(hostPortString);
+          if (!matcher.matches()) {
+              throw new IllegalArgumentException("Invalid bracketed host/port range: " + hostPortString);
+          }
+          host = matcher.group(1);
+          portString = matcher.group(2);  // could be null
         } else {
-            index = address.lastIndexOf(':');
-            if (index == -1) {
-                List<TransportAddress> addresses = Lists.newArrayList();
-                String defaultPort = settings.get("transport.profiles.default.port", settings.get("transport.netty.port", this.settings.get("transport.tcp.port", DEFAULT_PORT_RANGE)));
-                int[] iPorts = new PortsRange(defaultPort).ports();
-                for (int iPort : iPorts) {
-                    addresses.add(new InetSocketTransportAddress(address, iPort));
-                }
-                return addresses.toArray(new TransportAddress[addresses.size()]);
-            } else {
-                String host = address.substring(0, index);
-                int port = Integer.parseInt(address.substring(index + 1));
-                return new TransportAddress[]{new InetSocketTransportAddress(host, port)};
+          int colonPos = hostPortString.indexOf(':');
+          if (colonPos >= 0 && hostPortString.indexOf(':', colonPos + 1) == -1) {
+            // Exactly 1 colon.  Split into host:port.
+            host = hostPortString.substring(0, colonPos);
+            portString = hostPortString.substring(colonPos + 1);
+          } else {
+            // 0 or 2+ colons.  Bare hostname or IPv6 literal.
+            host = hostPortString;
+            // 2+ colons and not bracketed: exception
+            if (colonPos >= 0) {
+                throw new IllegalArgumentException("IPv6 addresses must be bracketed: " + hostPortString);
+            }
+          }
+        }
+        
+        // if port isn't specified, fill with the default
+        if (portString == null || portString.isEmpty()) {
+            portString = defaultPortRange;
+        }
+        
+        // generate address for each port in the range
+        Set<InetAddress> addresses = new HashSet<>(Arrays.asList(InetAddress.getAllByName(host)));
+        List<TransportAddress> transportAddresses = new ArrayList<>();
+        int[] ports = new PortsRange(portString).ports();
+        for (int port : ports) {
+            for (InetAddress address : addresses) {
+                transportAddresses.add(new InetSocketTransportAddress(address, port));
             }
         }
+        return transportAddresses.toArray(new TransportAddress[transportAddresses.size()]);
     }
 
     @Override

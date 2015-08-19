@@ -124,7 +124,9 @@ import org.junit.*;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.annotation.*;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.net.UnknownHostException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -1629,7 +1631,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         return Settings.EMPTY;
     }
 
-    private ExternalTestCluster buildExternalCluster(String clusterAddresses) {
+    private ExternalTestCluster buildExternalCluster(String clusterAddresses) throws UnknownHostException {
         String[] stringAddresses = clusterAddresses.split(",");
         TransportAddress[] transportAddresses = new TransportAddress[stringAddresses.length];
         int i = 0;
@@ -1639,7 +1641,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 throw new IllegalArgumentException("address [" + clusterAddresses + "] not valid");
             }
             try {
-                transportAddresses[i++] = new InetSocketTransportAddress(split[0], Integer.valueOf(split[1]));
+                transportAddresses[i++] = new InetSocketTransportAddress(InetAddress.getByName(split[0]), Integer.valueOf(split[1]));
             } catch (NumberFormatException e) {
                 throw new IllegalArgumentException("port is not valid, expected number but was [" + split[1] + "]");
             }

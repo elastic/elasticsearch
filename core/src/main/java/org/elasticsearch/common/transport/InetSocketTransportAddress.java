@@ -69,10 +69,6 @@ public final class InetSocketTransportAddress implements TransportAddress {
         address = null;
     }
 
-    public InetSocketTransportAddress(String hostname, int port) {
-        this(new InetSocketAddress(hostname, port));
-    }
-
     public InetSocketTransportAddress(InetAddress address, int port) {
         this(new InetSocketAddress(address, port));
     }

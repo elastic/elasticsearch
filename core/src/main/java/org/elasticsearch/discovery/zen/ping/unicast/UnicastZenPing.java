@@ -64,7 +64,7 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
 
     public static final String ACTION_NAME = "internal:discovery/zen/unicast";
 
-    public static final int LIMIT_PORTS_COUNT = 1;
+    public static final int LIMIT_PORTS_COUNT = 10;
 
     private final ThreadPool threadPool;
     private final TransportService transportService;
@@ -117,6 +117,11 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
             hostArr[i] = hostArr[i].trim();
         }
         List<String> hosts = Lists.newArrayList(hostArr);
+        if (hosts.isEmpty()) {
+            // if unicast hosts are not specified, fill with simple defaults on the local machine
+            hosts.add("127.0.0.1");
+            hosts.add("[::1]");
+        }
         logger.debug("using initial hosts {}, with concurrent_connects [{}]", hosts, concurrentConnects);
 
         List<DiscoveryNode> configuredTargetNodes = Lists.newArrayList();

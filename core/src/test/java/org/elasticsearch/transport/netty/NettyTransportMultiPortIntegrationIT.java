@@ -32,6 +32,7 @@ import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportModule;
 import org.junit.Test;
 
+import java.net.InetAddress;
 import java.util.Locale;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
@@ -71,7 +72,7 @@ public class NettyTransportMultiPortIntegrationIT extends ESIntegTestCase {
                 .put("path.home", createTempDir().toString())
                 .build();
         try (TransportClient transportClient = TransportClient.builder().settings(settings).loadConfigSettings(false).build()) {
-            transportClient.addTransportAddress(new InetSocketTransportAddress("127.0.0.1", randomPort));
+            transportClient.addTransportAddress(new InetSocketTransportAddress(InetAddress.getByName("127.0.0.1"), randomPort));
             ClusterHealthResponse response = transportClient.admin().cluster().prepareHealth().get();
             assertThat(response.getStatus(), is(ClusterHealthStatus.GREEN));
         }

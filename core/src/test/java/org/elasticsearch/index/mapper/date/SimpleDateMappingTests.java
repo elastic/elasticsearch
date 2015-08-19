@@ -83,6 +83,9 @@ public class SimpleDateMappingTests extends ESSingleNodeTestCase {
 
         FieldMapper fieldMapper = defaultMapper.mappers().smartNameFieldMapper("date_field1");
         assertThat(fieldMapper, instanceOf(DateFieldMapper.class));
+        DateFieldMapper dateFieldMapper = (DateFieldMapper)fieldMapper;
+        assertEquals("yyyy/MM/dd HH:mm:ss||yyyy/MM/dd||epoch_millis", dateFieldMapper.fieldType().dateTimeFormatter().format());
+        assertEquals(1265587200000L, dateFieldMapper.fieldType().dateTimeFormatter().parser().parseMillis("1265587200000"));
         fieldMapper = defaultMapper.mappers().smartNameFieldMapper("date_field2");
         assertThat(fieldMapper, instanceOf(DateFieldMapper.class));
 

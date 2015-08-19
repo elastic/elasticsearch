@@ -31,9 +31,13 @@
     </parent>
 
     <properties>
-        <!-- If we need to define any specific property -->
         <elasticsearch.version>2.0.0-SNAPSHOT</elasticsearch.version>
+
         <elasticsearch.plugin.classname>org.elasticsearch.plugin.mapper.attachments.MapperAttachmentsPlugin</elasticsearch.plugin.classname>
+
+        <elasticsearch.assembly.descriptor>${project.basedir}/src/main/assemblies/plugin.xml</elasticsearch.assembly.descriptor>
+        <tests.rest.suite>mapper_attachments</tests.rest.suite>
+        <tests.rest.load_packaged>false</tests.rest.load_packaged>
     </properties>
 
     <dependencies>
@@ -68,10 +72,6 @@
                 </exclusion>
                 <exclusion>
                     <groupId>commons-logging</groupId>
-                    <artifactId>commons-logging</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>commons-logging</groupId>
                     <artifactId>commons-logging-api</artifactId>
                 </exclusion>
             </exclusions>
@@ -88,6 +88,7 @@
     </build>
 
     <repositories>
+        <!-- We need this repository when we depend on a parent pom which is a SNAPSHOT one -->
         <repository>
             <id>oss-snapshots</id>
             <name>Sonatype OSS Snapshots</name>

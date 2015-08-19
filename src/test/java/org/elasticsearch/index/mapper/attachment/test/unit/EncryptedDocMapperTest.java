@@ -31,9 +31,9 @@ import org.junit.Test;
 
 import java.io.IOException;
 
-import static org.elasticsearch.common.io.Streams.copyToBytesFromClasspath;
-import static org.elasticsearch.common.io.Streams.copyToStringFromClasspath;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.test.StreamsUtils.copyToBytesFromClasspath;
+import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
 import static org.hamcrest.Matchers.*;
 
 /**
@@ -59,7 +59,7 @@ public class EncryptedDocMapperTest extends AttachmentUnitTestCase {
                     .field("file2", pdf)
                 .endObject().bytes();
 
-        ParseContext.Document doc =  docMapper.parse("person", "1", json).rootDoc();
+        ParseContext.Document doc =  docMapper.parse("person", "person", "1", json).rootDoc();
         assertThat(doc.get(docMapper.mappers().getMapper("file1.content").fieldType().names().indexName()), containsString("World"));
         assertThat(doc.get(docMapper.mappers().getMapper("file1.title").fieldType().names().indexName()), equalTo("Hello"));
         assertThat(doc.get(docMapper.mappers().getMapper("file1.author").fieldType().names().indexName()), equalTo("kimchy"));
@@ -91,7 +91,7 @@ public class EncryptedDocMapperTest extends AttachmentUnitTestCase {
                 .field("file2", html)
                 .endObject().bytes();
 
-        ParseContext.Document doc =  docMapper.parse("person", "1", json).rootDoc();
+        ParseContext.Document doc =  docMapper.parse("person", "person", "1", json).rootDoc();
         assertThat(doc.get(docMapper.mappers().getMapper("file1").fieldType().names().indexName()), nullValue());
         assertThat(doc.get(docMapper.mappers().getMapper("file1.title").fieldType().names().indexName()), nullValue());
         assertThat(doc.get(docMapper.mappers().getMapper("file1.author").fieldType().names().indexName()), nullValue());
@@ -127,7 +127,7 @@ public class EncryptedDocMapperTest extends AttachmentUnitTestCase {
                 .field("file2", html)
                 .endObject().bytes();
 
-        ParseContext.Document doc =  docMapper.parse("person", "1", json).rootDoc();
+        ParseContext.Document doc =  docMapper.parse("person", "person", "1", json).rootDoc();
         assertThat(doc.get(docMapper.mappers().getMapper("file1").fieldType().names().indexName()), nullValue());
         assertThat(doc.get(docMapper.mappers().getMapper("file1.title").fieldType().names().indexName()), nullValue());
         assertThat(doc.get(docMapper.mappers().getMapper("file1.author").fieldType().names().indexName()), nullValue());

@@ -32,11 +32,11 @@ import org.junit.Test;
 import java.io.IOException;
 import java.io.InputStream;
 
-import static org.elasticsearch.common.io.Streams.copyToBytesFromClasspath;
-import static org.elasticsearch.common.io.Streams.copyToStringFromClasspath;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.mapper.attachment.AttachmentMapper.FieldNames.*;
 import static org.elasticsearch.plugin.mapper.attachments.tika.TikaInstance.tika;
+import static org.elasticsearch.test.StreamsUtils.copyToBytesFromClasspath;
+import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
 import static org.hamcrest.Matchers.isEmptyOrNullString;
 import static org.hamcrest.Matchers.not;
 
@@ -147,7 +147,7 @@ public class VariousDocTest extends AttachmentUnitTestCase {
                     .endObject()
                 .endObject().bytes();
 
-        ParseContext.Document doc =  docMapper.parse("person", "1", json).rootDoc();
+        ParseContext.Document doc =  docMapper.parse("person", "person", "1", json).rootDoc();
         if (!errorExpected) {
             assertThat(doc.get(docMapper.mappers().getMapper("file.content").fieldType().names().indexName()), not(isEmptyOrNullString()));
             logger.debug("-> extracted content: {}", doc.get(docMapper.mappers().getMapper("file").fieldType().names().indexName()));

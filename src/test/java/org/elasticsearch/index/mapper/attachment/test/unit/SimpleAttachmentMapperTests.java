@@ -28,12 +28,11 @@ import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.attachment.AttachmentMapper;
 import org.elasticsearch.index.mapper.attachment.test.MapperTestUtils;
-import org.junit.Before;
 import org.junit.Test;
 
-import static org.elasticsearch.common.io.Streams.copyToBytesFromClasspath;
-import static org.elasticsearch.common.io.Streams.copyToStringFromClasspath;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.test.StreamsUtils.copyToBytesFromClasspath;
+import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
 import static org.hamcrest.Matchers.*;
 
 /**
@@ -50,8 +49,7 @@ public class SimpleAttachmentMapperTests extends AttachmentUnitTestCase {
         byte[] html = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/attachment/test/sample-files/testXHTML.html");
 
         BytesReference json = jsonBuilder().startObject().field("file", html).endObject().bytes();
-
-        ParseContext.Document doc = docMapper.parse("person", "1", json).rootDoc();
+        ParseContext.Document doc = docMapper.parse("person", "person", "1", json).rootDoc();
 
         assertThat(doc.get(docMapper.mappers().getMapper("file.content_type").fieldType().names().indexName()), startsWith("application/xhtml+xml"));
         assertThat(doc.get(docMapper.mappers().getMapper("file.title").fieldType().names().indexName()), equalTo("XHTML test document"));
@@ -63,7 +61,7 @@ public class SimpleAttachmentMapperTests extends AttachmentUnitTestCase {
 
         json = jsonBuilder().startObject().field("file", html).endObject().bytes();
 
-        doc = docMapper.parse("person", "1", json).rootDoc();
+        doc = docMapper.parse("person", "person", "1", json).rootDoc();
 
         assertThat(doc.get(docMapper.mappers().getMapper("file.content_type").fieldType().names().indexName()), startsWith("application/xhtml+xml"));
         assertThat(doc.get(docMapper.mappers().getMapper("file.title").fieldType().names().indexName()), equalTo("XHTML test document"));
@@ -82,7 +80,7 @@ public class SimpleAttachmentMapperTests extends AttachmentUnitTestCase {
 
         BytesReference json = jsonBuilder().startObject().field("file", html).endObject().bytes();
 
-        ParseContext.Document doc = docMapper.parse("person", "1", json).rootDoc();
+        ParseContext.Document doc = docMapper.parse("person", "person", "1", json).rootDoc();
         assertThat(doc.get("file"), containsString("This document tests the ability of Apache Tika to extract content"));
     }
 }

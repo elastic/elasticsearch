@@ -19,8 +19,6 @@
 
 package org.elasticsearch.index.mapper.attachment.test.unit;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -33,9 +31,9 @@ import org.junit.Test;
 
 import java.io.IOException;
 
-import static org.elasticsearch.common.io.Streams.copyToBytesFromClasspath;
-import static org.elasticsearch.common.io.Streams.copyToStringFromClasspath;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.test.StreamsUtils.copyToBytesFromClasspath;
+import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
 import static org.hamcrest.Matchers.*;
 
 /**
@@ -63,7 +61,7 @@ public class MetadataMapperTest extends AttachmentUnitTestCase {
                     .endObject()
                 .endObject().bytes();
 
-        ParseContext.Document doc =  docMapper.parse("person", "1", json).rootDoc();
+        ParseContext.Document doc =  docMapper.parse("person", "person", "1", json).rootDoc();
         assertThat(doc.get(docMapper.mappers().getMapper("file.content").fieldType().names().indexName()), containsString("World"));
         assertThat(doc.get(docMapper.mappers().getMapper("file.name").fieldType().names().indexName()), equalTo(filename));
         if (expectedDate == null) {

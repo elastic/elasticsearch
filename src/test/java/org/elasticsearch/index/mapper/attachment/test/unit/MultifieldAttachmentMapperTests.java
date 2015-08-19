@@ -19,8 +19,6 @@
 
 package org.elasticsearch.index.mapper.attachment.test.unit;
 
-import java.nio.charset.StandardCharsets;
-
 import org.elasticsearch.common.Base64;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -36,7 +34,9 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import static org.elasticsearch.common.io.Streams.copyToStringFromClasspath;
+import java.nio.charset.StandardCharsets;
+
+import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
 import static org.hamcrest.Matchers.*;
 
 /**
@@ -96,14 +96,14 @@ public class MultifieldAttachmentMapperTests extends AttachmentUnitTestCase {
         String bytes = Base64.encodeBytes(originalText.getBytes(StandardCharsets.ISO_8859_1));
         threadPool = new ThreadPool("testing-only");
 
-        MapperService mapperService = MapperTestUtils.newMapperService(createTempDir(), threadPool);
+        MapperService mapperService = MapperTestUtils.newMapperService(createTempDir());
         mapperService.documentMapperParser().putTypeParser(AttachmentMapper.CONTENT_TYPE, new AttachmentMapper.TypeParser());
 
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/attachment/test/unit/multifield/multifield-mapping.json");
 
         DocumentMapper documentMapper = mapperService.documentMapperParser().parse(mapping);
 
-        ParsedDocument doc = documentMapper.parse("person", "1", XContentFactory.jsonBuilder()
+        ParsedDocument doc = documentMapper.parse("person", "person", "1", XContentFactory.jsonBuilder()
                 .startObject()
                     .field("file", bytes)
                 .endObject()
@@ -123,7 +123,7 @@ public class MultifieldAttachmentMapperTests extends AttachmentUnitTestCase {
         assertThat(doc.rootDoc().getField("file.content.suggest").stringValue(), is(originalText + "\n"));
 
         // Let's force some values
-        doc = documentMapper.parse("person", "1", XContentFactory.jsonBuilder()
+        doc = documentMapper.parse("person", "person", "1", XContentFactory.jsonBuilder()
                 .startObject()
                     .startObject("file")
                         .field("_content", bytes)

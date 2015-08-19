@@ -46,6 +46,7 @@ import org.junit.Test;
 import static org.hamcrest.Matchers.*;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 2)
+@Ignore("Guava classpath madness")
 public class HdfsSnapshotRestoreTest extends ESIntegTestCase {
 
     @Override

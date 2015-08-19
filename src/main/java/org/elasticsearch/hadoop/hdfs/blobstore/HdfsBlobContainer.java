@@ -21,7 +21,10 @@ package org.elasticsearch.hadoop.hdfs.blobstore;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.Locale;
+import java.util.Map;
 
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.Path;
@@ -31,8 +34,6 @@ import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
-
-import com.google.common.collect.ImmutableMap;
 
 public class HdfsBlobContainer extends AbstractBlobContainer {
 
@@ -80,7 +81,7 @@ public class HdfsBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public ImmutableMap<String, BlobMetaData> listBlobsByPrefix(final @Nullable String blobNamePrefix) throws IOException {
+    public Map<String, BlobMetaData> listBlobsByPrefix(final @Nullable String blobNamePrefix) throws IOException {
         FileStatus[] files = blobStore.fileSystemFactory().getFileSystem().listStatus(path, new PathFilter() {
             @Override
             public boolean accept(Path path) {
@@ -88,25 +89,25 @@ public class HdfsBlobContainer extends AbstractBlobContainer {
             }
         });
         if (files == null || files.length == 0) {
-            return ImmutableMap.of();
+            return Collections.emptyMap();
         }
-        ImmutableMap.Builder<String, BlobMetaData> builder = ImmutableMap.builder();
+        Map<String, BlobMetaData> map = new LinkedHashMap<String, BlobMetaData>();
         for (FileStatus file : files) {
-            builder.put(file.getPath().getName(), new PlainBlobMetaData(file.getPath().getName(), file.getLen()));
+            map.put(file.getPath().getName(), new PlainBlobMetaData(file.getPath().getName(), file.getLen()));
         }
-        return builder.build();
+        return Collections.unmodifiableMap(map);
     }
 
     @Override
-    public ImmutableMap<String, BlobMetaData> listBlobs() throws IOException {
+    public Map<String, BlobMetaData> listBlobs() throws IOException {
         FileStatus[] files = blobStore.fileSystemFactory().getFileSystem().listStatus(path);
         if (files == null || files.length == 0) {
-            return ImmutableMap.of();
+            return Collections.emptyMap();
         }
-        ImmutableMap.Builder<String, BlobMetaData> builder = ImmutableMap.builder();
+        Map<String, BlobMetaData> map = new LinkedHashMap<String, BlobMetaData>();
         for (FileStatus file : files) {
-            builder.put(file.getPath().getName(), new PlainBlobMetaData(file.getPath().getName(), file.getLen()));
+            map.put(file.getPath().getName(), new PlainBlobMetaData(file.getPath().getName(), file.getLen()));
         }
-        return builder.build();
+        return Collections.unmodifiableMap(map);
     }
 }

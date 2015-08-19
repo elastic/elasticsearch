@@ -277,11 +277,19 @@ public class Bootstrap {
                 closeSysError();
             }
         } catch (Throwable e) {
+            // disable console logging, so user does not see the exception twice (jvm will show it already)
+            if (foreground) {
+                Loggers.disableConsoleLogging();
+            }
             ESLogger logger = Loggers.getLogger(Bootstrap.class);
             if (INSTANCE.node != null) {
                 logger = Loggers.getLogger(Bootstrap.class, INSTANCE.node.settings().get("name"));
             }
             logger.error("Exception", e);
+            // re-enable it if appropriate, so they can see any logging during the shutdown process
+            if (foreground) {
+                Loggers.enableConsoleLogging();
+            }
             
             throw e;
         }

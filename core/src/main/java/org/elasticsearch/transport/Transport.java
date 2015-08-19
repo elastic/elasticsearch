@@ -25,12 +25,14 @@ import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 /**
  *
  */
 public interface Transport extends LifecycleComponent<Transport> {
+
 
     public static class TransportSettings {
         public static final String TRANSPORT_TCP_COMPRESS = "transport.tcp.compress";
@@ -89,4 +91,6 @@ public interface Transport extends LifecycleComponent<Transport> {
      * Returns count of currently open connections
      */
     long serverOpen();
+
+    List<String> getLocalAddresses();
 }

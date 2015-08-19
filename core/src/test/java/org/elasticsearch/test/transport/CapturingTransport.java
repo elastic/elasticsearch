@@ -28,10 +28,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.transport.*;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.BlockingQueue;
 
 /** A transport class that doesn't send anything but rather captures all requests for inspection from tests */
@@ -176,5 +173,10 @@ public class CapturingTransport implements Transport {
     @Override
     public void close() {
 
+    }
+
+    @Override
+    public List<String> getLocalAddresses() {
+        return Collections.EMPTY_LIST;
     }
 }

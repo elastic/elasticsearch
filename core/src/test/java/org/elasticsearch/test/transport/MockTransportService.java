@@ -402,6 +402,11 @@ public class MockTransportService extends TransportService {
         }
 
         @Override
+        public List<String> getLocalAddresses() {
+            return transport.getLocalAddresses();
+        }
+
+        @Override
         public Lifecycle.State lifecycleState() {
             return transport.lifecycleState();
         }

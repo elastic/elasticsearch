@@ -123,8 +123,7 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
         if (hosts.isEmpty()) {
             // if unicast hosts are not specified, fill with simple defaults on the local machine
             limitPortCounts = LIMIT_LOCAL_PORTS_COUNT;
-            hosts.add("127.0.0.1");
-            hosts.add("[::1]");
+            hosts.addAll(transportService.getLocalAddresses());
         } else {
             // we only limit to 1 addresses, makes no sense to ping 100 ports
             limitPortCounts = LIMIT_FOREIGN_PORTS_COUNT;

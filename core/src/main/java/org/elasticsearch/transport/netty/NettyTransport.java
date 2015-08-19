@@ -121,6 +121,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
     public static final String DEFAULT_PORT_RANGE = "9300-9400";
     public static final String DEFAULT_PROFILE = "default";
 
+    private static final List<String> LOCAL_ADDRESSES = Arrays.asList("127.0.0.1", "[::1]");
     protected final NetworkService networkService;
     protected final Version version;
 
@@ -703,6 +704,11 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
     public long serverOpen() {
         OpenChannelsHandler channels = serverOpenChannels;
         return channels == null ? 0 : channels.numberOfOpenChannels();
+    }
+
+    @Override
+    public List<String> getLocalAddresses() {
+        return LOCAL_ADDRESSES;
     }
 
     @Override

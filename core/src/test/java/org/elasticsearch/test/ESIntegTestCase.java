@@ -28,12 +28,10 @@ import com.google.common.base.Joiner;
 import com.google.common.base.Predicate;
 import com.google.common.collect.Lists;
 
-import org.apache.commons.lang3.StringUtils;
 import org.apache.http.impl.client.HttpClients;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
-import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.shard.MergeSchedulerConfig;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.LuceneTestCase;
@@ -80,7 +78,6 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
@@ -1920,7 +1917,11 @@ public abstract class ESIntegTestCase extends ESTestCase {
         }
 
         if (list.length != 1) {
-            throw new IllegalStateException("Backwards index must contain exactly one cluster\n" + StringUtils.join(list, "\n"));
+            StringBuilder builder = new StringBuilder("Backwards index must contain exactly one cluster\n");
+            for (Path line : list) {
+                builder.append(line.toString()).append('\n');
+            }
+            throw new IllegalStateException(builder.toString());
         }
         Path src = list[0];
         Path dest = dataDir.resolve(internalCluster().getClusterName());

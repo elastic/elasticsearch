@@ -20,10 +20,8 @@
 package org.elasticsearch.script;
 
 import com.google.common.collect.ImmutableSet;
-
-import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.expression.ExpressionScriptEngineService;
 import org.elasticsearch.script.groovy.GroovyScriptEngineService;
 import org.elasticsearch.script.mustache.MustacheScriptEngineService;
@@ -117,7 +115,7 @@ public class CustomScriptContextIT extends ESIntegTestCase {
         }
     }
 
-    public static class CustomScriptContextPlugin extends AbstractPlugin {
+    public static class CustomScriptContextPlugin extends Plugin {
         @Override
         public String name() {
             return "custom_script_context_plugin";
@@ -128,14 +126,10 @@ public class CustomScriptContextIT extends ESIntegTestCase {
             return "Custom script context plugin";
         }
 
-        @Override
-        public void processModule(Module module) {
-            if (module instanceof ScriptModule) {
-                ScriptModule scriptModule = (ScriptModule) module;
-                scriptModule.registerScriptContext(new ScriptContext.Plugin(PLUGIN_NAME, "custom_op"));
-                scriptModule.registerScriptContext(new ScriptContext.Plugin(PLUGIN_NAME, "custom_exp_disabled_op"));
-                scriptModule.registerScriptContext(new ScriptContext.Plugin(PLUGIN_NAME, "custom_globally_disabled_op"));
-            }
+        public void onModule(ScriptModule scriptModule) {
+            scriptModule.registerScriptContext(new ScriptContext.Plugin(PLUGIN_NAME, "custom_op"));
+            scriptModule.registerScriptContext(new ScriptContext.Plugin(PLUGIN_NAME, "custom_exp_disabled_op"));
+            scriptModule.registerScriptContext(new ScriptContext.Plugin(PLUGIN_NAME, "custom_globally_disabled_op"));
         }
     }
 }

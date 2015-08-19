@@ -404,6 +404,9 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         } catch (IOException e) {
             throw new BindTransportException("Failed to resolve host [" + bindHost + "]", e);
         }
+        if (logger.isDebugEnabled()) {
+            logger.debug("binding server bootstrap to: {}", hostAddresses);
+        }
         for (InetAddress hostAddress : hostAddresses) {
             bindServerBootstrap(name, hostAddress, settings);
         }
@@ -497,7 +500,6 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         serverBootstrap.setOption("child.receiveBufferSizePredictorFactory", receiveBufferSizePredictorFactory);
         serverBootstrap.setOption("reuseAddress", reuseAddress);
         serverBootstrap.setOption("child.reuseAddress", reuseAddress);
-
         serverBootstraps.put(name, serverBootstrap);
     }
 

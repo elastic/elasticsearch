@@ -29,7 +29,7 @@ import org.elasticsearch.action.termvectors.TermVectorsResponse;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchParseElement;
@@ -99,7 +99,7 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
         assertThat(((Map<String, Integer>) response.getHits().getAt(0).field("term_vectors_fetch").getValues().get(0)).get("sam"), equalTo(1));
     }
 
-    public static class FetchTermVectorsPlugin extends AbstractPlugin {
+    public static class FetchTermVectorsPlugin extends Plugin {
 
         @Override
         public String name() {

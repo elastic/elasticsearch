@@ -31,7 +31,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-final class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource> {
+final class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory.LeafOnly<ValuesSource> {
 
     private final long precisionThreshold;
 

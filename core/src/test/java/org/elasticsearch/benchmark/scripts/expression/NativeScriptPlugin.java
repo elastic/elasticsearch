@@ -19,10 +19,10 @@
 
 package org.elasticsearch.benchmark.scripts.expression;
 
-import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptModule;
 
-public class NativeScriptPlugin extends AbstractPlugin {
+public class NativeScriptPlugin extends Plugin {
 
     @Override
     public String name() {

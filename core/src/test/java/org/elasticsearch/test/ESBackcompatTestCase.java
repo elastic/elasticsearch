@@ -19,7 +19,6 @@
 package org.elasticsearch.test;
 
 import com.carrotsearch.randomizedtesting.annotations.TestGroup;
-import org.apache.commons.lang3.ArrayUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -32,13 +31,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.junit.listeners.LoggingListener;
-import org.elasticsearch.test.transport.AssertingLocalTransport;
-import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportModule;
-import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.transport.netty.NettyTransport;
-import org.junit.Ignore;
 
 import java.io.IOException;
 import java.lang.annotation.ElementType;

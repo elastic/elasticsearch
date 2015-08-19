@@ -47,7 +47,6 @@ import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -184,7 +183,6 @@ public class PluginsService extends AbstractComponent {
 
     public void processModule(Module module) {
         for (Tuple<PluginInfo, Plugin> plugin : plugins()) {
-            plugin.v2().processModule(module);
             // see if there are onModule references
             List<OnModuleReference> references = onModuleReferences.get(plugin.v2());
             if (references != null) {
@@ -218,42 +216,26 @@ public class PluginsService extends AbstractComponent {
         return builder.put(this.settings).build();
     }
 
-    public Collection<Class<? extends Module>> modules() {
-        List<Class<? extends Module>> modules = new ArrayList<>();
-        for (Tuple<PluginInfo, Plugin> plugin : plugins) {
-            modules.addAll(plugin.v2().modules());
-        }
-        return modules;
-    }
-
-    public Collection<Module> modules(Settings settings) {
+    public Collection<Module> nodeModules() {
         List<Module> modules = new ArrayList<>();
         for (Tuple<PluginInfo, Plugin> plugin : plugins) {
-            modules.addAll(plugin.v2().modules(settings));
+            modules.addAll(plugin.v2().nodeModules());
         }
         return modules;
     }
 
-    public Collection<Class<? extends LifecycleComponent>> services() {
+    public Collection<Class<? extends LifecycleComponent>> nodeServices() {
         List<Class<? extends LifecycleComponent>> services = new ArrayList<>();
         for (Tuple<PluginInfo, Plugin> plugin : plugins) {
-            services.addAll(plugin.v2().services());
+            services.addAll(plugin.v2().nodeServices());
         }
         return services;
     }
 
-    public Collection<Class<? extends Module>> indexModules() {
-        List<Class<? extends Module>> modules = new ArrayList<>();
-        for (Tuple<PluginInfo, Plugin> plugin : plugins) {
-            modules.addAll(plugin.v2().indexModules());
-        }
-        return modules;
-    }
-
-    public Collection<Module> indexModules(Settings settings) {
+    public Collection<Module> indexModules(Settings indexSettings) {
         List<Module> modules = new ArrayList<>();
         for (Tuple<PluginInfo, Plugin> plugin : plugins) {
-            modules.addAll(plugin.v2().indexModules(settings));
+            modules.addAll(plugin.v2().indexModules(indexSettings));
         }
         return modules;
     }
@@ -266,18 +248,10 @@ public class PluginsService extends AbstractComponent {
         return services;
     }
 
-    public Collection<Class<? extends Module>> shardModules() {
-        List<Class<? extends Module>> modules = new ArrayList<>();
-        for (Tuple<PluginInfo, Plugin> plugin : plugins) {
-            modules.addAll(plugin.v2().shardModules());
-        }
-        return modules;
-    }
-
-    public Collection<Module> shardModules(Settings settings) {
+    public Collection<Module> shardModules(Settings indexSettings) {
         List<Module> modules = new ArrayList<>();
         for (Tuple<PluginInfo, Plugin> plugin : plugins) {
-            modules.addAll(plugin.v2().shardModules(settings));
+            modules.addAll(plugin.v2().shardModules(indexSettings));
         }
         return modules;
     }

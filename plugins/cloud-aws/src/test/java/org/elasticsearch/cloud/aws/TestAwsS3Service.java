@@ -22,12 +22,12 @@ import com.amazonaws.services.s3.AmazonS3;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.plugins.Plugin;
 
 import java.util.IdentityHashMap;
 
 public class TestAwsS3Service extends InternalAwsS3Service {
-    public static class Plugin extends AbstractPlugin {
+    public static class TestPlugin extends Plugin {
         @Override
         public String name() {
             return "mock-s3-service";

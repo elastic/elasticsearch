@@ -21,7 +21,6 @@ package org.elasticsearch.snapshots;
 
 import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.hppc.IntSet;
-import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.ElasticsearchParseException;
@@ -471,18 +470,16 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
             client().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap-2")
                     .setIndices("test-idx-all", "test-idx-none", "test-idx-some")
                     .setWaitForCompletion(false).setPartial(true).execute().actionGet();
-            awaitBusy(new Predicate<Object>() {
+            assertBusy(new Runnable() {
                 @Override
-                public boolean apply(Object o) {
+                public void run() {
                     SnapshotsStatusResponse snapshotsStatusResponse = client().admin().cluster().prepareSnapshotStatus("test-repo").setSnapshots("test-snap-2").get();
                     ImmutableList<SnapshotStatus> snapshotStatuses = snapshotsStatusResponse.getSnapshots();
-                    if (snapshotStatuses.size() == 1) {
-                        logger.trace("current snapshot status [{}]", snapshotStatuses.get(0));
-                        return snapshotStatuses.get(0).getState().completed();
-                    }
-                    return false;
+                    assertEquals(snapshotStatuses.size(), 1);
+                    logger.trace("current snapshot status [{}]", snapshotStatuses.get(0));
+                    assertTrue(snapshotStatuses.get(0).getState().completed());
                 }
-            });
+            }, 1, TimeUnit.MINUTES);
             SnapshotsStatusResponse snapshotsStatusResponse = client().admin().cluster().prepareSnapshotStatus("test-repo").setSnapshots("test-snap-2").get();
             ImmutableList<SnapshotStatus> snapshotStatuses = snapshotsStatusResponse.getSnapshots();
             assertThat(snapshotStatuses.size(), equalTo(1));
@@ -494,19 +491,16 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
 
             // There is slight delay between snapshot being marked as completed in the cluster state and on the file system
             // After it was marked as completed in the cluster state - we need to check if it's completed on the file system as well
-            awaitBusy(new Predicate<Object>() {
+            assertBusy(new Runnable() {
                 @Override
-                public boolean apply(Object o) {
+                public void run() {
                     GetSnapshotsResponse response = client().admin().cluster().prepareGetSnapshots("test-repo").setSnapshots("test-snap-2").get();
                     assertThat(response.getSnapshots().size(), equalTo(1));
                     SnapshotInfo snapshotInfo = response.getSnapshots().get(0);
-                    if (snapshotInfo.state().completed()) {
-                        assertThat(snapshotInfo.state(), equalTo(SnapshotState.PARTIAL));
-                        return true;
-                    }
-                    return false;
+                    assertTrue(snapshotInfo.state().completed());
+                    assertEquals(SnapshotState.PARTIAL, snapshotInfo.state());
                 }
-            });
+            }, 1, TimeUnit.MINUTES);
         } else {
             logger.info("checking snapshot completion using wait_for_completion flag");
             createSnapshotResponse = client().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap-2")

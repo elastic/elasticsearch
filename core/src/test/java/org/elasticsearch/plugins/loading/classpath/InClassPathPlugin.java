@@ -19,9 +19,9 @@
 
 package org.elasticsearch.plugins.loading.classpath;
 
-import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.plugins.Plugin;
 
-public class InClassPathPlugin extends AbstractPlugin {
+public class InClassPathPlugin extends Plugin {
 
     @Override
     public String name() {

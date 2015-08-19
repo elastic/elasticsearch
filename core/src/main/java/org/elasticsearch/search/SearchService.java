@@ -26,7 +26,6 @@ import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
-import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
@@ -54,7 +53,6 @@ import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -82,7 +80,6 @@ import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.Template;
 import org.elasticsearch.script.mustache.MustacheScriptEngineService;
-import org.elasticsearch.search.dfs.CachedDfSource;
 import org.elasticsearch.search.dfs.DfsPhase;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.fetch.*;
@@ -412,17 +409,8 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
     public QuerySearchResult executeQueryPhase(QuerySearchRequest request) {
         final SearchContext context = findContext(request.id());
         contextProcessing(context);
+        context.searcher().setAggregatedDfs(request.dfs());
         IndexShard indexShard = context.indexShard();
-        try {
-            final IndexCache indexCache = indexShard.indexService().cache();
-            final QueryCachingPolicy cachingPolicy = indexShard.getQueryCachingPolicy();
-            context.searcher().dfSource(new CachedDfSource(context.searcher().getIndexReader(), request.dfs(), context.similarityService().similarity(),
-                    indexCache.query(), cachingPolicy));
-        } catch (Throwable e) {
-            processFailure(context, e);
-            cleanContext(context);
-            throw new QueryPhaseExecutionException(context, "Failed to set aggregated df", e);
-        }
         ShardSearchStats shardSearchStats = indexShard.searchService();
         try {
             shardSearchStats.onPreQueryPhase(context);
@@ -488,17 +476,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
     public QueryFetchSearchResult executeFetchPhase(QuerySearchRequest request) {
         final SearchContext context = findContext(request.id());
         contextProcessing(context);
-        try {
-            final IndexShard indexShard = context.indexShard();
-            final IndexCache indexCache = indexShard.indexService().cache();
-            final QueryCachingPolicy cachingPolicy = indexShard.getQueryCachingPolicy();
-            context.searcher().dfSource(new CachedDfSource(context.searcher().getIndexReader(), request.dfs(), context.similarityService().similarity(),
-                    indexCache.query(), cachingPolicy));
-        } catch (Throwable e) {
-            freeContext(context.id());
-            cleanContext(context);
-            throw new QueryPhaseExecutionException(context, "Failed to set aggregated df", e);
-        }
+        context.searcher().setAggregatedDfs(request.dfs());
         try {
             ShardSearchStats shardSearchStats = context.indexShard().searchService();
             shardSearchStats.onPreQueryPhase(context);

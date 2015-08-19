@@ -76,7 +76,7 @@ public abstract class CheckFileCommand extends CliTool.Command {
         if (paths != null && paths.length > 0) {
             for (Path path : paths) {
                 try {
-                    boolean supportsPosixPermissions = Files.getFileStore(path).supportsFileAttributeView(PosixFileAttributeView.class);
+                    boolean supportsPosixPermissions = Environment.getFileStore(path).supportsFileAttributeView(PosixFileAttributeView.class);
                     if (supportsPosixPermissions) {
                         PosixFileAttributes attributes = Files.readAttributes(path, PosixFileAttributes.class);
                         permissions.put(path, attributes.permissions());

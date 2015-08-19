@@ -19,22 +19,19 @@
 package org.elasticsearch.test;
 
 import com.carrotsearch.hppc.ObjectObjectAssociativeContainer;
-
-import org.apache.lucene.search.Collector;
-import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.ScoreDoc;
-import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.*;
 import org.apache.lucene.util.Counter;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
-import org.elasticsearch.common.*;
+import org.elasticsearch.common.HasContext;
+import org.elasticsearch.common.HasContextAndHeaders;
+import org.elasticsearch.common.HasHeaders;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
-import org.elasticsearch.index.cache.query.QueryCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
@@ -76,6 +73,7 @@ public class TestSearchContext extends SearchContext {
     final BitsetFilterCache fixedBitSetFilterCache;
     final ThreadPool threadPool;
     final Map<Class<?>, Collector> queryCollectors = new HashMap<>();
+    final IndexShard indexShard;
 
     ContextIndexSearcher searcher;
     int size;
@@ -86,7 +84,7 @@ public class TestSearchContext extends SearchContext {
     private final long originNanoTime = System.nanoTime();
     private final Map<String, FetchSubPhaseContext> subPhaseContexts = new HashMap<>();
 
-    public TestSearchContext(ThreadPool threadPool,PageCacheRecycler pageCacheRecycler, BigArrays bigArrays, IndexService indexService, QueryCache filterCache, IndexFieldDataService indexFieldDataService) {
+    public TestSearchContext(ThreadPool threadPool,PageCacheRecycler pageCacheRecycler, BigArrays bigArrays, IndexService indexService) {
         super(ParseFieldMatcher.STRICT);
         this.pageCacheRecycler = pageCacheRecycler;
         this.bigArrays = bigArrays.withCircuitBreaking();
@@ -94,6 +92,7 @@ public class TestSearchContext extends SearchContext {
         this.indexFieldDataService = indexService.fieldData();
         this.fixedBitSetFilterCache = indexService.bitsetFilterCache();
         this.threadPool = threadPool;
+        this.indexShard = indexService.shard(0);
     }
 
     public TestSearchContext() {
@@ -104,6 +103,7 @@ public class TestSearchContext extends SearchContext {
         this.indexFieldDataService = null;
         this.threadPool = null;
         this.fixedBitSetFilterCache = null;
+        this.indexShard = null;
     }
 
     public void setTypes(String... types) {
@@ -282,7 +282,7 @@ public class TestSearchContext extends SearchContext {
 
     @Override
     public IndexShard indexShard() {
-        return null;
+        return indexShard;
     }
 
     @Override

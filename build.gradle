@@ -45,7 +45,7 @@ processResources {
             name: project.name)
 }
 
-test {
+tasks.withType(Test) {
     systemProperty 'java.io.tmp', './temp'
 }
 

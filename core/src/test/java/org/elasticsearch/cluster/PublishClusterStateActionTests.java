@@ -60,7 +60,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static com.google.common.collect.Maps.newHashMap;
 import static org.hamcrest.Matchers.*;
 
-public class ClusterStateDiffPublishingTests extends ESTestCase {
+public class PublishClusterStateActionTests extends ESTestCase {
 
     protected ThreadPool threadPool;
     protected Map<String, MockNode> nodes = newHashMap();
@@ -177,7 +177,7 @@ public class ClusterStateDiffPublishingTests extends ESTestCase {
     protected PublishClusterStateAction buildPublishClusterStateAction(Settings settings, MockTransportService transportService, MockDiscoveryNodesProvider nodesProvider,
                                                                        PublishClusterStateAction.NewClusterStateListener listener) {
         DiscoverySettings discoverySettings = new DiscoverySettings(settings, new NodeSettingsService(settings));
-        return new PublishClusterStateAction(settings, transportService, nodesProvider, listener, discoverySettings);
+        return new PublishClusterStateAction(settings, transportService, nodesProvider, listener, discoverySettings, ClusterName.DEFAULT);
     }
 
 
@@ -217,7 +217,7 @@ public class ClusterStateDiffPublishingTests extends ESTestCase {
 
         // Initial cluster state
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().put(nodeA.discoveryNode).localNodeId(nodeA.discoveryNode.id()).build();
-        ClusterState clusterState = ClusterState.builder(new ClusterName("test")).nodes(discoveryNodes).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).nodes(discoveryNodes).build();
 
         // cluster state update - add nodeB
         discoveryNodes = DiscoveryNodes.builder(discoveryNodes).put(nodeB.discoveryNode).build();
@@ -356,7 +356,7 @@ public class ClusterStateDiffPublishingTests extends ESTestCase {
 
         // Initial cluster state with both states - the second node still shouldn't get diff even though it's present in the previous cluster state
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().put(nodeA.discoveryNode).put(nodeB.discoveryNode).localNodeId(nodeA.discoveryNode.id()).build();
-        ClusterState previousClusterState = ClusterState.builder(new ClusterName("test")).nodes(discoveryNodes).build();
+        ClusterState previousClusterState = ClusterState.builder(ClusterName.DEFAULT).nodes(discoveryNodes).build();
         ClusterState clusterState = ClusterState.builder(previousClusterState).incrementVersion().build();
         mockListenerB.add(new NewClusterStateExpectation() {
             @Override
@@ -401,7 +401,7 @@ public class ClusterStateDiffPublishingTests extends ESTestCase {
 
         // Initial cluster state
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().put(nodeA.discoveryNode).localNodeId(nodeA.discoveryNode.id()).build();
-        ClusterState clusterState = ClusterState.builder(new ClusterName("test")).nodes(discoveryNodes).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).nodes(discoveryNodes).build();
 
         // cluster state update - add nodeB
         discoveryNodes = DiscoveryNodes.builder(discoveryNodes).put(nodeB.discoveryNode).build();
@@ -447,7 +447,7 @@ public class ClusterStateDiffPublishingTests extends ESTestCase {
         AssertingAckListener[] listeners = new AssertingAckListener[numberOfIterations];
         DiscoveryNodes discoveryNodes = discoveryNodesBuilder.build();
         MetaData metaData = MetaData.EMPTY_META_DATA;
-        ClusterState clusterState = ClusterState.builder(new ClusterName("test")).metaData(metaData).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metaData(metaData).build();
         ClusterState previousState;
         for (int i = 0; i < numberOfIterations; i++) {
             previousState = clusterState;
@@ -477,7 +477,7 @@ public class ClusterStateDiffPublishingTests extends ESTestCase {
 
         // Initial cluster state with both states - the second node still shouldn't get diff even though it's present in the previous cluster state
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().put(nodeA.discoveryNode).put(nodeB.discoveryNode).localNodeId(nodeA.discoveryNode.id()).build();
-        ClusterState previousClusterState = ClusterState.builder(new ClusterName("test")).nodes(discoveryNodes).build();
+        ClusterState previousClusterState = ClusterState.builder(ClusterName.DEFAULT).nodes(discoveryNodes).build();
         ClusterState clusterState = ClusterState.builder(previousClusterState).incrementVersion().build();
         mockListenerB.add(new NewClusterStateExpectation() {
             @Override
@@ -545,7 +545,8 @@ public class ClusterStateDiffPublishingTests extends ESTestCase {
     public AssertingAckListener publishStateDiff(PublishClusterStateAction action, ClusterState state, ClusterState previousState) throws InterruptedException {
         AssertingAckListener assertingAckListener = new AssertingAckListener(state.nodes().getSize() - 1);
         ClusterChangedEvent changedEvent = new ClusterChangedEvent("test update", state, previousState);
-        action.publish(changedEvent, assertingAckListener);
+        int requiredNodes = randomIntBetween(-1, state.nodes().getSize() - 1);
+        action.publish(changedEvent, requiredNodes, assertingAckListener);
         return assertingAckListener;
     }
 

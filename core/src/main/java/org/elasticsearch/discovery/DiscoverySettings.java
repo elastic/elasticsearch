@@ -36,10 +36,12 @@ import java.util.EnumSet;
 public class DiscoverySettings extends AbstractComponent {
 
     public static final String PUBLISH_TIMEOUT = "discovery.zen.publish_timeout";
+    public static final String COMMIT_TIMEOUT = "discovery.zen.commit_timeout";
     public static final String NO_MASTER_BLOCK = "discovery.zen.no_master_block";
     public static final String PUBLISH_DIFF_ENABLE = "discovery.zen.publish_diff.enable";
 
     public static final TimeValue DEFAULT_PUBLISH_TIMEOUT = TimeValue.timeValueSeconds(30);
+    public static final TimeValue DEFAULT_COMMIT_TIMEOUT = TimeValue.timeValueSeconds(1);
     public static final String DEFAULT_NO_MASTER_BLOCK = "write";
     public final static int NO_MASTER_BLOCK_ID = 2;
     public final static boolean DEFAULT_PUBLISH_DIFF_ENABLE = true;
@@ -49,6 +51,7 @@ public class DiscoverySettings extends AbstractComponent {
 
     private volatile ClusterBlock noMasterBlock;
     private volatile TimeValue publishTimeout = DEFAULT_PUBLISH_TIMEOUT;
+    private volatile TimeValue commitTimeout = DEFAULT_COMMIT_TIMEOUT;
     private volatile boolean publishDiff = DEFAULT_PUBLISH_DIFF_ENABLE;
 
     @Inject
@@ -57,6 +60,7 @@ public class DiscoverySettings extends AbstractComponent {
         nodeSettingsService.addListener(new ApplySettings());
         this.noMasterBlock = parseNoMasterBlock(settings.get(NO_MASTER_BLOCK, DEFAULT_NO_MASTER_BLOCK));
         this.publishTimeout = settings.getAsTime(PUBLISH_TIMEOUT, publishTimeout);
+        this.commitTimeout = settings.getAsTime(PUBLISH_TIMEOUT, publishTimeout);
         this.publishDiff = settings.getAsBoolean(PUBLISH_DIFF_ENABLE, DEFAULT_PUBLISH_DIFF_ENABLE);
     }
 
@@ -65,6 +69,10 @@ public class DiscoverySettings extends AbstractComponent {
      */
     public TimeValue getPublishTimeout() {
         return publishTimeout;
+    }
+
+    public TimeValue getCommitTimeout() {
+        return commitTimeout;
     }
 
     public ClusterBlock getNoMasterBlock() {

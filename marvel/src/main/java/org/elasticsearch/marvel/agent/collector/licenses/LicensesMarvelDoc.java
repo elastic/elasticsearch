@@ -14,8 +14,8 @@ public class LicensesMarvelDoc extends MarvelDoc<LicensesMarvelDoc.Payload> {
 
     private final Payload payload;
 
-    LicensesMarvelDoc(String index, String type, String id, String clusterName, long timestamp, Payload payload) {
-        super(index, type, id, clusterName, timestamp);
+    LicensesMarvelDoc(String index, String type, String id, String clusterUUID, long timestamp, Payload payload) {
+        super(index, type, id, clusterUUID, timestamp);
         this.payload = payload;
     }
 
@@ -24,18 +24,24 @@ public class LicensesMarvelDoc extends MarvelDoc<LicensesMarvelDoc.Payload> {
         return payload;
     }
 
-    public static LicensesMarvelDoc createMarvelDoc(String index, String type, String id, String clusterName, long timestamp, String version, List<License> licenses) {
-        return new LicensesMarvelDoc(index, type, id, clusterName, timestamp, new Payload(version, licenses));
+    public static LicensesMarvelDoc createMarvelDoc(String index, String type, String id, String clusterUUID, long timestamp, String clusterName, String version, List<License> licenses) {
+        return new LicensesMarvelDoc(index, type, id, clusterUUID, timestamp, new Payload(clusterName, version, licenses));
     }
 
     public static class Payload {
 
+        private final String clusterName;
         private final String version;
         private final List<License> licenses;
 
-        public Payload(String version, List<License> licenses) {
+        public Payload(String clusterName, String version, List<License> licenses) {
+            this.clusterName = clusterName;
             this.version = version;
             this.licenses = licenses;
+        }
+
+        public String getClusterName() {
+            return clusterName;
         }
 
         public String getVersion() {

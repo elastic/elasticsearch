@@ -9,7 +9,6 @@ import com.google.common.collect.ImmutableList;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.inject.Inject;
@@ -34,9 +33,8 @@ public class ClusterStateCollector extends AbstractCollector<ClusterStateCollect
     private final Client client;
 
     @Inject
-    public ClusterStateCollector(Settings settings, ClusterService clusterService,
-                                 ClusterName clusterName, MarvelSettings marvelSettings, Client client) {
-        super(settings, NAME, clusterService, clusterName, marvelSettings);
+    public ClusterStateCollector(Settings settings, ClusterService clusterService, MarvelSettings marvelSettings, Client client) {
+        super(settings, NAME, clusterService, marvelSettings);
         this.client = client;
     }
 
@@ -52,11 +50,11 @@ public class ClusterStateCollector extends AbstractCollector<ClusterStateCollect
         ClusterState clusterState = clusterService.state();
         ClusterHealthResponse clusterHealth = client.admin().cluster().prepareHealth().get(marvelSettings.clusterStateTimeout());
 
-        results.add(buildMarvelDoc(clusterName.value(), TYPE, System.currentTimeMillis(), clusterState, clusterHealth.getStatus()));
+        results.add(buildMarvelDoc(clusterUUID(), TYPE, System.currentTimeMillis(), clusterState, clusterHealth.getStatus()));
         return results.build();
     }
 
-    protected MarvelDoc buildMarvelDoc(String clusterName, String type, long timestamp, ClusterState clusterState, ClusterHealthStatus status) {
-        return ClusterStateMarvelDoc.createMarvelDoc(clusterName, type, timestamp, clusterState, status);
+    protected MarvelDoc buildMarvelDoc(String clusterUUID, String type, long timestamp, ClusterState clusterState, ClusterHealthStatus status) {
+        return ClusterStateMarvelDoc.createMarvelDoc(clusterUUID, type, timestamp, clusterState, status);
     }
 }

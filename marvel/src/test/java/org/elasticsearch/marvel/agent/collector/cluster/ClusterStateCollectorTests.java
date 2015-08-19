@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.marvel.agent.collector.cluster;
 
-import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -32,7 +31,7 @@ public class ClusterStateCollectorTests extends ESSingleNodeTestCase {
         assertThat(marvelDoc, instanceOf(ClusterStateMarvelDoc.class));
 
         ClusterStateMarvelDoc clusterStateMarvelDoc = (ClusterStateMarvelDoc) marvelDoc;
-        assertThat(clusterStateMarvelDoc.clusterName(), equalTo(client().admin().cluster().prepareHealth().get().getClusterName()));
+        assertThat(clusterStateMarvelDoc.clusterUUID(), equalTo(client().admin().cluster().prepareState().setMetaData(true).get().getState().metaData().clusterUUID()));
         assertThat(clusterStateMarvelDoc.timestamp(), greaterThan(0L));
         assertThat(clusterStateMarvelDoc.type(), equalTo(ClusterStateCollector.TYPE));
 
@@ -64,7 +63,7 @@ public class ClusterStateCollectorTests extends ESSingleNodeTestCase {
         assertThat(marvelDoc, instanceOf(ClusterStateMarvelDoc.class));
 
         ClusterStateMarvelDoc clusterStateMarvelDoc = (ClusterStateMarvelDoc) marvelDoc;
-        assertThat(clusterStateMarvelDoc.clusterName(), equalTo(client().admin().cluster().prepareHealth().get().getClusterName()));
+        assertThat(clusterStateMarvelDoc.clusterUUID(), equalTo(client().admin().cluster().prepareState().setMetaData(true).get().getState().metaData().clusterUUID()));
         assertThat(clusterStateMarvelDoc.timestamp(), greaterThan(0L));
         assertThat(clusterStateMarvelDoc.type(), equalTo(ClusterStateCollector.TYPE));
 
@@ -103,7 +102,7 @@ public class ClusterStateCollectorTests extends ESSingleNodeTestCase {
         assertThat(marvelDoc, instanceOf(ClusterStateMarvelDoc.class));
 
         ClusterStateMarvelDoc clusterStateMarvelDoc = (ClusterStateMarvelDoc) marvelDoc;
-        assertThat(clusterStateMarvelDoc.clusterName(), equalTo(client().admin().cluster().prepareHealth().get().getClusterName()));
+        assertThat(clusterStateMarvelDoc.clusterUUID(), equalTo(client().admin().cluster().prepareState().setMetaData(true).get().getState().metaData().clusterUUID()));
         assertThat(clusterStateMarvelDoc.timestamp(), greaterThan(0L));
         assertThat(clusterStateMarvelDoc.type(), equalTo(ClusterStateCollector.TYPE));
 
@@ -120,7 +119,6 @@ public class ClusterStateCollectorTests extends ESSingleNodeTestCase {
     private ClusterStateCollector newClusterStateCollector() {
         return new ClusterStateCollector(getInstanceFromNode(Settings.class),
                 getInstanceFromNode(ClusterService.class),
-                getInstanceFromNode(ClusterName.class),
                 getInstanceFromNode(MarvelSettings.class),
                 client());
     }

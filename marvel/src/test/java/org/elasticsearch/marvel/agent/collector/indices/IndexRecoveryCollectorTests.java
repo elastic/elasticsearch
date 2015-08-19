@@ -7,7 +7,6 @@ package org.elasticsearch.marvel.agent.collector.indices;
 
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.admin.indices.recovery.ShardRecoveryResponse;
-import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.common.settings.Settings;
@@ -96,7 +95,7 @@ public class IndexRecoveryCollectorTests extends ESIntegTestCase {
         assertThat(marvelDoc, instanceOf(IndexRecoveryMarvelDoc.class));
 
         IndexRecoveryMarvelDoc indexRecoveryMarvelDoc = (IndexRecoveryMarvelDoc) marvelDoc;
-        assertThat(indexRecoveryMarvelDoc.clusterName(), equalTo(client().admin().cluster().prepareHealth().get().getClusterName()));
+        assertThat(indexRecoveryMarvelDoc.clusterUUID(), equalTo(client().admin().cluster().prepareState().setMetaData(true).get().getState().metaData().clusterUUID()));
         assertThat(indexRecoveryMarvelDoc.timestamp(), greaterThan(0L));
         assertThat(indexRecoveryMarvelDoc.type(), equalTo(IndexRecoveryCollector.TYPE));
 
@@ -124,7 +123,6 @@ public class IndexRecoveryCollectorTests extends ESIntegTestCase {
     private IndexRecoveryCollector newIndexRecoveryCollector() {
         return new IndexRecoveryCollector(internalCluster().getInstance(Settings.class),
                 internalCluster().getInstance(ClusterService.class),
-                internalCluster().getInstance(ClusterName.class),
                 internalCluster().getInstance(MarvelSettings.class),
                 client());
     }

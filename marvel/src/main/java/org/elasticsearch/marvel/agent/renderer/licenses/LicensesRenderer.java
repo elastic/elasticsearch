@@ -29,6 +29,7 @@ public class LicensesRenderer extends AbstractRenderer<LicensesMarvelDoc> {
         LicensesMarvelDoc.Payload payload = marvelDoc.payload();
 
         if (payload != null) {
+            builder.field(Fields.CLUSTER_NAME, payload.getClusterName());
             builder.field(Fields.VERSION, payload.getVersion());
             builder.startArray(Fields.LICENSES);
 
@@ -45,7 +46,7 @@ public class LicensesRenderer extends AbstractRenderer<LicensesMarvelDoc> {
                     builder.field(Fields.MAX_NODES, license.maxNodes());
                     builder.field(Fields.ISSUED_TO, license.issuedTo());
                     builder.field(Fields.ISSUER, license.issuer());
-                    builder.field(Fields.HKEY, hash(license, marvelDoc.clusterName()));
+                    builder.field(Fields.HKEY, hash(license, payload.getClusterName()));
                     builder.endObject();
                 }
             }
@@ -71,6 +72,7 @@ public class LicensesRenderer extends AbstractRenderer<LicensesMarvelDoc> {
     }
 
     static final class Fields {
+        static final XContentBuilderString CLUSTER_NAME = new XContentBuilderString("cluster_name");
         static final XContentBuilderString LICENSES = new XContentBuilderString("licenses");
         static final XContentBuilderString VERSION = new XContentBuilderString("version");
 

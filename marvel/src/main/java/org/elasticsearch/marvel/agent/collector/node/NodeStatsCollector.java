@@ -9,7 +9,6 @@ package org.elasticsearch.marvel.agent.collector.node;
 import com.google.common.collect.ImmutableList;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.bootstrap.Bootstrap;
-import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.common.inject.ConfigurationException;
@@ -44,11 +43,10 @@ public class NodeStatsCollector extends AbstractCollector<NodeStatsCollector> {
     private final Provider<DiskThresholdDecider> diskThresholdDeciderProvider;
 
     @Inject
-    public NodeStatsCollector(Settings settings, ClusterService clusterService, ClusterName clusterName,
-                              MarvelSettings marvelSettings,
+    public NodeStatsCollector(Settings settings, ClusterService clusterService, MarvelSettings marvelSettings,
                               NodeService nodeService, DiscoveryService discoveryService,
                               Provider<DiskThresholdDecider> diskThresholdDeciderProvider) {
-        super(settings, NAME, clusterService, clusterName, marvelSettings);
+        super(settings, NAME, clusterService, marvelSettings);
         this.nodeService = nodeService;
         this.discoveryService = discoveryService;
         this.diskThresholdDeciderProvider = diskThresholdDeciderProvider;
@@ -72,16 +70,16 @@ public class NodeStatsCollector extends AbstractCollector<NodeStatsCollector> {
         Double diskThresholdWatermarkHigh = (diskThresholdDecider != null) ? 100.0 - diskThresholdDecider.getFreeDiskThresholdHigh() : -1;
         boolean diskThresholdDeciderEnabled = (diskThresholdDecider != null) && diskThresholdDecider.isEnabled();
 
-        results.add(buildMarvelDoc(clusterName.value(), TYPE, System.currentTimeMillis(),
+        results.add(buildMarvelDoc(clusterUUID(), TYPE, System.currentTimeMillis(),
                 discoveryService.localNode().id(), clusterService.state().nodes().localNodeMaster(), nodeStats,
                 Bootstrap.isMemoryLocked(), diskThresholdWatermarkHigh, diskThresholdDeciderEnabled));
 
         return results.build();
     }
 
-    protected MarvelDoc buildMarvelDoc(String clusterName, String type, long timestamp,
+    protected MarvelDoc buildMarvelDoc(String clusterUUID, String type, long timestamp,
                                        String nodeId, boolean nodeMaster, NodeStats nodeStats,
                                        boolean mlockall, Double diskThresholdWaterMarkHigh, boolean diskThresholdDeciderEnabled) {
-        return NodeStatsMarvelDoc.createMarvelDoc(clusterName, type, timestamp, nodeId, nodeMaster, nodeStats, mlockall, diskThresholdWaterMarkHigh, diskThresholdDeciderEnabled);
+        return NodeStatsMarvelDoc.createMarvelDoc(clusterUUID, type, timestamp, nodeId, nodeMaster, nodeStats, mlockall, diskThresholdWaterMarkHigh, diskThresholdDeciderEnabled);
     }
 }

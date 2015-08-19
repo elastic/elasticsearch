@@ -7,7 +7,6 @@ package org.elasticsearch.marvel.agent.collector;
 
 
 import org.elasticsearch.ElasticsearchTimeoutException;
-import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -22,16 +21,13 @@ public abstract class AbstractCollector<T> extends AbstractLifecycleComponent<T>
     private final String name;
 
     protected final ClusterService clusterService;
-    protected final ClusterName clusterName;
     protected final MarvelSettings marvelSettings;
 
     @Inject
-    public AbstractCollector(Settings settings, String name, ClusterService clusterService,
-                             ClusterName clusterName, MarvelSettings marvelSettings) {
+    public AbstractCollector(Settings settings, String name, ClusterService clusterService, MarvelSettings marvelSettings) {
         super(settings);
         this.name = name;
         this.clusterService = clusterService;
-        this.clusterName = clusterName;
         this.marvelSettings = marvelSettings;
     }
 
@@ -95,5 +91,9 @@ public abstract class AbstractCollector<T> extends AbstractLifecycleComponent<T>
 
     @Override
     protected void doClose() {
+    }
+
+    protected String clusterUUID() {
+        return clusterService.state().metaData().clusterUUID();
     }
 }

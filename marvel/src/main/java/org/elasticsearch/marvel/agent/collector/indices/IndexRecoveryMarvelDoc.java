@@ -12,8 +12,8 @@ public class IndexRecoveryMarvelDoc extends MarvelDoc<IndexRecoveryMarvelDoc.Pay
 
     private final Payload payload;
 
-    public IndexRecoveryMarvelDoc(String clusterName, String type, long timestamp, Payload payload) {
-        super(clusterName, type, timestamp);
+    public IndexRecoveryMarvelDoc(String clusterUUID, String type, long timestamp, Payload payload) {
+        super(clusterUUID, type, timestamp);
         this.payload = payload;
     }
 
@@ -22,9 +22,9 @@ public class IndexRecoveryMarvelDoc extends MarvelDoc<IndexRecoveryMarvelDoc.Pay
         return payload;
     }
 
-    public static IndexRecoveryMarvelDoc createMarvelDoc(String clusterName, String type, long timestamp,
+    public static IndexRecoveryMarvelDoc createMarvelDoc(String clusterUUID, String type, long timestamp,
                                                          RecoveryResponse recoveryResponse) {
-        return new IndexRecoveryMarvelDoc(clusterName, type, timestamp, new Payload(recoveryResponse));
+        return new IndexRecoveryMarvelDoc(clusterUUID, type, timestamp, new Payload(recoveryResponse));
     }
 
     public static class Payload {

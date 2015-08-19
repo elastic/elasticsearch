@@ -32,13 +32,14 @@ public class LicensesCollector extends AbstractCollector<LicensesMarvelDoc> {
     public static final String NAME = "licenses-collector";
     public static final String TYPE = "cluster_licenses";
 
+    private final ClusterName clusterName;
     private final LicenseService licenseService;
 
     @Inject
-    public LicensesCollector(Settings settings, ClusterService clusterService, ClusterName clusterName,
-                             MarvelSettings marvelSettings,
-                             LicenseService licenseService) {
-        super(settings, NAME, clusterService, clusterName, marvelSettings);
+    public LicensesCollector(Settings settings, ClusterService clusterService, MarvelSettings marvelSettings,
+                             ClusterName clusterName, LicenseService licenseService) {
+        super(settings, NAME, clusterService, marvelSettings);
+        this.clusterName = clusterName;
         this.licenseService = licenseService;
     }
 
@@ -48,8 +49,9 @@ public class LicensesCollector extends AbstractCollector<LicensesMarvelDoc> {
 
         List<License> licenses = licenseService.licenses();
         if (licenses != null) {
-            results.add(LicensesMarvelDoc.createMarvelDoc(MarvelSettings.MARVEL_DATA_INDEX_NAME, TYPE, clusterName.value(), clusterName.value(),
-                    System.currentTimeMillis(), Version.CURRENT.toString(), licenses));
+            String clusterUUID = clusterUUID();
+            results.add(LicensesMarvelDoc.createMarvelDoc(MarvelSettings.MARVEL_DATA_INDEX_NAME, TYPE, clusterUUID, clusterUUID, System.currentTimeMillis(),
+                    clusterName.value(), Version.CURRENT.toString(), licenses));
         }
         return results.build();
     }

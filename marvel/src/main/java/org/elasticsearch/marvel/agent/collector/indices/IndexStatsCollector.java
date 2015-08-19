@@ -10,7 +10,6 @@ import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -34,9 +33,8 @@ public class IndexStatsCollector extends AbstractCollector<IndexStatsCollector> 
     private final Client client;
 
     @Inject
-    public IndexStatsCollector(Settings settings, ClusterService clusterService,
-                               ClusterName clusterName, MarvelSettings marvelSettings, Client client) {
-        super(settings, NAME, clusterService, clusterName, marvelSettings);
+    public IndexStatsCollector(Settings settings, ClusterService clusterService, MarvelSettings marvelSettings, Client client) {
+        super(settings, NAME, clusterService, marvelSettings);
         this.client = client;
     }
 
@@ -56,13 +54,14 @@ public class IndexStatsCollector extends AbstractCollector<IndexStatsCollector> 
                 .get(marvelSettings.indexStatsTimeout());
 
         long timestamp = System.currentTimeMillis();
+        String clusterUUID = clusterUUID();
         for (IndexStats indexStats : indicesStats.getIndices().values()) {
-            results.add(buildMarvelDoc(clusterName.value(), TYPE, timestamp, indexStats));
+            results.add(buildMarvelDoc(clusterUUID, TYPE, timestamp, indexStats));
         }
         return results.build();
     }
 
-    protected MarvelDoc buildMarvelDoc(String clusterName, String type, long timestamp, IndexStats indexStats) {
-        return IndexStatsMarvelDoc.createMarvelDoc(clusterName, type, timestamp, indexStats);
+    protected MarvelDoc buildMarvelDoc(String clusterUUID, String type, long timestamp, IndexStats indexStats) {
+        return IndexStatsMarvelDoc.createMarvelDoc(clusterUUID, type, timestamp, indexStats);
     }
 }

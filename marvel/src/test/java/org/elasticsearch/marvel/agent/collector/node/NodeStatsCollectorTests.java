@@ -6,7 +6,6 @@
 package org.elasticsearch.marvel.agent.collector.node;
 
 import org.elasticsearch.bootstrap.Bootstrap;
-import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.common.inject.Provider;
@@ -37,7 +36,7 @@ public class NodeStatsCollectorTests extends ESIntegTestCase {
             assertThat(marvelDoc, instanceOf(NodeStatsMarvelDoc.class));
 
             NodeStatsMarvelDoc nodeStatsMarvelDoc = (NodeStatsMarvelDoc) marvelDoc;
-            assertThat(nodeStatsMarvelDoc.clusterName(), equalTo(client().admin().cluster().prepareHealth().get().getClusterName()));
+            assertThat(nodeStatsMarvelDoc.clusterUUID(), equalTo(client().admin().cluster().prepareState().setMetaData(true).get().getState().metaData().clusterUUID()));
             assertThat(nodeStatsMarvelDoc.timestamp(), greaterThan(0L));
             assertThat(nodeStatsMarvelDoc.type(), equalTo(NodeStatsCollector.TYPE));
 
@@ -56,7 +55,6 @@ public class NodeStatsCollectorTests extends ESIntegTestCase {
     private NodeStatsCollector newNodeStatsCollector(final String nodeId) {
         return new NodeStatsCollector(internalCluster().getInstance(Settings.class, nodeId),
                 internalCluster().getInstance(ClusterService.class, nodeId),
-                internalCluster().getInstance(ClusterName.class, nodeId),
                 internalCluster().getInstance(MarvelSettings.class, nodeId),
                 internalCluster().getInstance(NodeService.class, nodeId),
                 internalCluster().getInstance(DiscoveryService.class, nodeId),

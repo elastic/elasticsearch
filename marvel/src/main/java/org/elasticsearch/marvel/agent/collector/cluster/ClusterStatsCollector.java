@@ -8,7 +8,6 @@ package org.elasticsearch.marvel.agent.collector.cluster;
 import com.google.common.collect.ImmutableList;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -32,9 +31,8 @@ public class ClusterStatsCollector extends AbstractCollector<ClusterStatsCollect
     private final Client client;
 
     @Inject
-    public ClusterStatsCollector(Settings settings, ClusterService clusterService,
-                                 ClusterName clusterName, MarvelSettings marvelSettings, Client client) {
-        super(settings, NAME, clusterService, clusterName, marvelSettings);
+    public ClusterStatsCollector(Settings settings, ClusterService clusterService, MarvelSettings marvelSettings, Client client) {
+        super(settings, NAME, clusterService, marvelSettings);
         this.client = client;
     }
 
@@ -48,11 +46,11 @@ public class ClusterStatsCollector extends AbstractCollector<ClusterStatsCollect
         ImmutableList.Builder<MarvelDoc> results = ImmutableList.builder();
 
         ClusterStatsResponse clusterStatsResponse = client.admin().cluster().prepareClusterStats().get(marvelSettings.clusterStatsTimeout());
-        results.add(buildMarvelDoc(clusterName.value(), TYPE, System.currentTimeMillis(), clusterStatsResponse));
+        results.add(buildMarvelDoc(clusterUUID(), TYPE, System.currentTimeMillis(), clusterStatsResponse));
         return results.build();
     }
 
-    protected MarvelDoc buildMarvelDoc(String clusterName, String type, long timestamp, ClusterStatsResponse clusterStatsResponse) {
-        return ClusterStatsMarvelDoc.createMarvelDoc(clusterName, type, timestamp, clusterStatsResponse);
+    protected MarvelDoc buildMarvelDoc(String clusterUUID, String type, long timestamp, ClusterStatsResponse clusterStatsResponse) {
+        return ClusterStatsMarvelDoc.createMarvelDoc(clusterUUID, type, timestamp, clusterStatsResponse);
     }
 }

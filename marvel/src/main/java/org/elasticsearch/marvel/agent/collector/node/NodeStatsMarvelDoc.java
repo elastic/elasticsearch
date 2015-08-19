@@ -12,8 +12,8 @@ public class NodeStatsMarvelDoc extends MarvelDoc<NodeStatsMarvelDoc.Payload> {
 
     private final Payload payload;
 
-    public NodeStatsMarvelDoc(String clusterName, String type, long timestamp, Payload payload) {
-        super(clusterName, type, timestamp);
+    public NodeStatsMarvelDoc(String clusterUUID, String type, long timestamp, Payload payload) {
+        super(clusterUUID, type, timestamp);
         this.payload = payload;
     }
 
@@ -22,10 +22,10 @@ public class NodeStatsMarvelDoc extends MarvelDoc<NodeStatsMarvelDoc.Payload> {
         return payload;
     }
 
-    public static NodeStatsMarvelDoc createMarvelDoc(String clusterName, String type, long timestamp,
+    public static NodeStatsMarvelDoc createMarvelDoc(String clusterUUID, String type, long timestamp,
                                                      String nodeId, boolean nodeMaster, NodeStats nodeStats,
                                                      boolean mlockall, Double diskThresholdWaterMarkHigh, boolean diskThresholdDeciderEnabled) {
-        return new NodeStatsMarvelDoc(clusterName, type, timestamp, new Payload(nodeId, nodeMaster, nodeStats, mlockall, diskThresholdWaterMarkHigh, diskThresholdDeciderEnabled));
+        return new NodeStatsMarvelDoc(clusterUUID, type, timestamp, new Payload(nodeId, nodeMaster, nodeStats, mlockall, diskThresholdWaterMarkHigh, diskThresholdDeciderEnabled));
     }
 
     public static class Payload {

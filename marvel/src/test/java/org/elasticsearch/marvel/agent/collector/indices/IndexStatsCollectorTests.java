@@ -7,7 +7,6 @@ package org.elasticsearch.marvel.agent.collector.indices;
 
 import com.google.common.collect.ImmutableSet;
 import org.apache.lucene.util.LuceneTestCase;
-import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.common.settings.Settings;
@@ -53,7 +52,7 @@ public class IndexStatsCollectorTests extends ESSingleNodeTestCase {
         assertThat(marvelDoc, instanceOf(IndexStatsMarvelDoc.class));
 
         IndexStatsMarvelDoc indexStatsMarvelDoc = (IndexStatsMarvelDoc) marvelDoc;
-        assertThat(indexStatsMarvelDoc.clusterName(), equalTo(client().admin().cluster().prepareHealth().get().getClusterName()));
+        assertThat(indexStatsMarvelDoc.clusterUUID(), equalTo(client().admin().cluster().prepareState().setMetaData(true).get().getState().metaData().clusterUUID()));
         assertThat(indexStatsMarvelDoc.timestamp(), greaterThan(0L));
         assertThat(indexStatsMarvelDoc.type(), equalTo(IndexStatsCollector.TYPE));
 
@@ -84,7 +83,7 @@ public class IndexStatsCollectorTests extends ESSingleNodeTestCase {
             }
         }
 
-        String clusterName = client().admin().cluster().prepareHealth().get().getClusterName();
+        String clusterUUID = client().admin().cluster().prepareState().setMetaData(true).get().getState().metaData().clusterUUID();
         client().admin().indices().prepareRefresh().get();
         for (int i = 0; i < nbIndices; i++) {
             assertHitCount(client().prepareCount("test-" + i).get(), docsPerIndex[i]);
@@ -108,7 +107,7 @@ public class IndexStatsCollectorTests extends ESSingleNodeTestCase {
                 assertNotNull(payload.getIndexStats());
 
                 if (payload.getIndexStats().getIndex().equals("test-" + i)) {
-                    assertThat(indexStatsMarvelDoc.clusterName(), equalTo(clusterName));
+                    assertThat(indexStatsMarvelDoc.clusterUUID(), equalTo(clusterUUID));
                     assertThat(indexStatsMarvelDoc.timestamp(), greaterThan(0L));
                     assertThat(indexStatsMarvelDoc.type(), equalTo(IndexStatsCollector.TYPE));
 
@@ -129,7 +128,6 @@ public class IndexStatsCollectorTests extends ESSingleNodeTestCase {
     private IndexStatsCollector newIndexStatsCollector() {
         return new IndexStatsCollector(getInstanceFromNode(Settings.class),
                 getInstanceFromNode(ClusterService.class),
-                getInstanceFromNode(ClusterName.class),
                 getInstanceFromNode(MarvelSettings.class),
                 client());
     }

@@ -8,13 +8,13 @@ package org.elasticsearch.marvel.agent.renderer.licenses;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.license.core.License;
 import org.elasticsearch.license.plugin.LicensePlugin;
 import org.elasticsearch.marvel.MarvelPlugin;
 import org.elasticsearch.marvel.agent.collector.licenses.LicensesCollector;
-import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
 import org.elasticsearch.marvel.agent.settings.MarvelSettings;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -45,6 +45,9 @@ public class LicensesRendererIT extends ESIntegTestCase {
 
     @Test
     public void testLicenses() throws Exception {
+        final String clusterUUID = client().admin().cluster().prepareState().setMetaData(true).get().getState().metaData().clusterUUID();
+        assertTrue(Strings.hasText(clusterUUID));
+
         logger.debug("--> waiting for licenses collector to collect data (ie, the trial marvel license)");
         GetResponse response = assertBusy(new Callable<GetResponse>() {
             @Override
@@ -53,7 +56,7 @@ public class LicensesRendererIT extends ESIntegTestCase {
                 assertTrue(client().admin().indices().prepareExists(MarvelSettings.MARVEL_DATA_INDEX_NAME).get().isExists());
                 ensureYellow(MarvelSettings.MARVEL_DATA_INDEX_NAME);
 
-                GetResponse response = client().prepareGet(MarvelSettings.MARVEL_DATA_INDEX_NAME, LicensesCollector.TYPE, cluster().getClusterName()).get();
+                GetResponse response = client().prepareGet(MarvelSettings.MARVEL_DATA_INDEX_NAME, LicensesCollector.TYPE, clusterUUID).get();
                 assertTrue(response.isExists());
                 return response;
             }
@@ -62,9 +65,10 @@ public class LicensesRendererIT extends ESIntegTestCase {
         logger.debug("--> checking that the document contains license information");
         assertThat(response.getIndex(), equalTo(MarvelSettings.MARVEL_DATA_INDEX_NAME));
         assertThat(response.getType(), equalTo(LicensesCollector.TYPE));
-        assertThat(response.getId(), equalTo(cluster().getClusterName()));
+        assertThat(response.getId(), equalTo(clusterUUID));
 
         Map<String, Object> source = response.getSource();
+        assertThat((String) source.get(LicensesRenderer.Fields.CLUSTER_NAME.underscore().toString()), equalTo(cluster().getClusterName()));
         assertThat((String) source.get(LicensesRenderer.Fields.VERSION.underscore().toString()), equalTo(Version.CURRENT.toString()));
 
         Object licensesList = source.get(LicensesRenderer.Fields.LICENSES.underscore().toString());

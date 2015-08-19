@@ -12,8 +12,8 @@ public class IndexStatsMarvelDoc extends MarvelDoc<IndexStatsMarvelDoc.Payload> 
 
     private final Payload payload;
 
-    public IndexStatsMarvelDoc(String clusterName, String type, long timestamp, Payload payload) {
-        super(clusterName, type, timestamp);
+    public IndexStatsMarvelDoc(String clusterUUID, String type, long timestamp, Payload payload) {
+        super(clusterUUID, type, timestamp);
         this.payload = payload;
     }
 
@@ -22,8 +22,8 @@ public class IndexStatsMarvelDoc extends MarvelDoc<IndexStatsMarvelDoc.Payload> 
         return payload;
     }
 
-    public static IndexStatsMarvelDoc createMarvelDoc(String clusterName, String type, long timestamp, IndexStats indexStats) {
-        return new IndexStatsMarvelDoc(clusterName, type, timestamp, new Payload(indexStats));
+    public static IndexStatsMarvelDoc createMarvelDoc(String clusterUUID, String type, long timestamp, IndexStats indexStats) {
+        return new IndexStatsMarvelDoc(clusterUUID, type, timestamp, new Payload(indexStats));
     }
 
     public static class Payload {

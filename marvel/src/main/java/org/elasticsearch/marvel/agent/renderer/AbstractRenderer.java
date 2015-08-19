@@ -26,7 +26,7 @@ import java.util.Set;
 public abstract class AbstractRenderer<T extends MarvelDoc> implements Renderer<T> {
 
     private static final String[] DEFAULT_FILTERS = {
-            Fields.CLUSTER_NAME.underscore().toString(),
+            Fields.CLUSTER_UUID.underscore().toString(),
             Fields.TIMESTAMP.underscore().toString(),
     };
 
@@ -54,7 +54,7 @@ public abstract class AbstractRenderer<T extends MarvelDoc> implements Renderer<
                 builder.startObject();
 
                 // Add fields common to all Marvel documents
-                builder.field(Fields.CLUSTER_NAME, marvelDoc.clusterName());
+                builder.field(Fields.CLUSTER_UUID, marvelDoc.clusterUUID());
                 DateTime timestampDateTime = new DateTime(marvelDoc.timestamp(), DateTimeZone.UTC);
                 builder.field(Fields.TIMESTAMP, timestampDateTime.toString());
 
@@ -77,7 +77,7 @@ public abstract class AbstractRenderer<T extends MarvelDoc> implements Renderer<
     }
 
     static final class Fields {
-        static final XContentBuilderString CLUSTER_NAME = new XContentBuilderString("cluster_name");
+        static final XContentBuilderString CLUSTER_UUID = new XContentBuilderString("cluster_uuid");
         static final XContentBuilderString TIMESTAMP = new XContentBuilderString("timestamp");
     }
 }

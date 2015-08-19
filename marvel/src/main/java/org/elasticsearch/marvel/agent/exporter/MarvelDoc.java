@@ -11,23 +11,23 @@ public abstract class MarvelDoc<T> {
     private final String type;
     private final String id;
 
-    private final String clusterName;
+    private final String clusterUUID;
     private final long timestamp;
 
-    public MarvelDoc(String index, String type, String id, String clusterName, long timestamp) {
+    public MarvelDoc(String index, String type, String id, String clusterUUID, long timestamp) {
         this.index = index;
         this.type = type;
         this.id = id;
-        this.clusterName = clusterName;
+        this.clusterUUID = clusterUUID;
         this.timestamp = timestamp;
     }
 
-    public MarvelDoc(String clusterName, String type, long timestamp) {
-        this(null, type, null, clusterName, timestamp);
+    public MarvelDoc(String clusterUUID, String type, long timestamp) {
+        this(null, type, null, clusterUUID, timestamp);
     }
 
-    public String clusterName() {
-        return clusterName;
+    public String clusterUUID() {
+        return clusterUUID;
     }
 
     public String index() {

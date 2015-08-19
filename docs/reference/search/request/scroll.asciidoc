@@ -176,9 +176,11 @@ curl -XGET localhost:9200/_nodes/stats/indices/search?pretty
 
 ==== Clear scroll API
 
-Search contexts are removed automatically either when all results have been
-retrieved or when the `scroll` timeout has been exceeded.  However, you can
-clear a search context manually with the `clear-scroll` API:
+Search context are automatically removed when the `scroll` timeout has been
+exceeded. However keeping scrolls open has a cost, as discussed in the
+<<scroll-search-context,previous section>> so scrolls should be explicitly
+cleared as soon as the scroll is not being used anymore using the
+`clear-scroll` API:
 
 [source,js]
 ---------------------------------------

@@ -156,6 +156,7 @@ import org.elasticsearch.action.suggest.TransportSuggestAction;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.AutoCreateIndex;
+import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.termvectors.*;
 import org.elasticsearch.action.termvectors.dfs.TransportDfsOnlyAction;
@@ -223,6 +224,7 @@ public class ActionModule extends AbstractModule {
         }
         bind(ActionFilters.class).asEagerSingleton();
         bind(AutoCreateIndex.class).asEagerSingleton();
+        bind(DestructiveOperations.class).asEagerSingleton();
         registerAction(NodesInfoAction.INSTANCE, TransportNodesInfoAction.class);
         registerAction(NodesStatsAction.INSTANCE, TransportNodesStatsAction.class);
         registerAction(NodesHotThreadsAction.INSTANCE, TransportNodesHotThreadsAction.class);

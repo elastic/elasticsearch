@@ -19,7 +19,9 @@
 
 package org.elasticsearch.action.support;
 
+import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.settings.NodeSettingsService;
 
@@ -33,14 +35,11 @@ public final class DestructiveOperations implements NodeSettingsService.Listener
      */
     public static final String REQUIRES_NAME = "action.destructive_requires_name";
 
-    private final ESLogger logger;
+    private final ESLogger logger = Loggers.getLogger(DestructiveOperations.class);
     private volatile boolean destructiveRequiresName;
 
-    // TODO: Turn into a component that can be reused and wired up into all the transport actions where
-    // this helper logic is required. Note: also added the logger as argument, otherwise the same log
-    // statement is printed several times, this can removed once this becomes a component.
-    public DestructiveOperations(ESLogger logger, Settings settings, NodeSettingsService nodeSettingsService) {
-        this.logger = logger;
+    @Inject
+    public DestructiveOperations(Settings settings, NodeSettingsService nodeSettingsService) {
         destructiveRequiresName = settings.getAsBoolean(DestructiveOperations.REQUIRES_NAME, false);
         nodeSettingsService.addListener(this);
     }
@@ -70,7 +69,7 @@ public final class DestructiveOperations implements NodeSettingsService.Listener
 
     @Override
     public void onRefreshSettings(Settings settings) {
-        boolean newValue = settings.getAsBoolean("action.destructive_requires_name", destructiveRequiresName);
+        boolean newValue = settings.getAsBoolean(DestructiveOperations.REQUIRES_NAME, destructiveRequiresName);
         if (destructiveRequiresName != newValue) {
             logger.info("updating [action.operate_all_indices] from [{}] to [{}]", destructiveRequiresName, newValue);
             this.destructiveRequiresName = newValue;

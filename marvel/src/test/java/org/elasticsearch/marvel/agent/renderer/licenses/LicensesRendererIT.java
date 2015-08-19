@@ -94,7 +94,7 @@ public class LicensesRendererIT extends ESIntegTestCase {
 
         // We basically recompute the hash here
         String hkey = (String) ((Map) license).get(LicensesRenderer.Fields.HKEY.underscore().toString());
-        String recalculated = LicensesRenderer.hash(License.builder().uid(uid).type(type).expiryDate(expiryDate).build(), cluster().getClusterName());
+        String recalculated = LicensesRenderer.hash(status, uid, type, String.valueOf(expiryDate), cluster().getClusterName());
         assertThat(hkey, equalTo(recalculated));
 
         assertThat((String) ((Map) license).get(LicensesRenderer.Fields.FEATURE.underscore().toString()), not(isEmptyOrNullString()));

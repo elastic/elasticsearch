@@ -67,7 +67,11 @@ public class LicensesRenderer extends AbstractRenderer<LicensesMarvelDoc> {
     }
 
     public static String hash(License license, String clusterName) {
-        String toHash = status(license) + license.uid() + license.type() + String.valueOf(license.expiryDate()) + clusterName;
+        return hash(status(license), license.uid(), license.type(), String.valueOf(license.expiryDate()), clusterName);
+    }
+
+    public static String hash(String licenseStatus, String licenseUid, String licenseType, String licenseExpiryDate, String clusterName) {
+        String toHash = licenseStatus + licenseUid + licenseType + licenseExpiryDate + clusterName;
         return Hashing.sha256().hashString(toHash, Charsets.UTF_8).toString();
     }
 

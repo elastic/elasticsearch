@@ -64,7 +64,9 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
 
     public static final String ACTION_NAME = "internal:discovery/zen/unicast";
 
-    public static final int LIMIT_PORTS_COUNT = 10;
+    public static final int LIMIT_FOREIGN_PORTS_COUNT = 1;
+    public static final int LIMIT_LOCAL_PORTS_COUNT = 25;
+
 
     private final ThreadPool threadPool;
     private final TransportService transportService;
@@ -117,19 +119,24 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
             hostArr[i] = hostArr[i].trim();
         }
         List<String> hosts = Lists.newArrayList(hostArr);
+        final int limitPortCounts;
         if (hosts.isEmpty()) {
             // if unicast hosts are not specified, fill with simple defaults on the local machine
+            limitPortCounts = LIMIT_LOCAL_PORTS_COUNT;
             hosts.add("127.0.0.1");
             hosts.add("[::1]");
+        } else {
+            // we only limit to 1 addresses, makes no sense to ping 100 ports
+            limitPortCounts = LIMIT_FOREIGN_PORTS_COUNT;
         }
+
         logger.debug("using initial hosts {}, with concurrent_connects [{}]", hosts, concurrentConnects);
 
         List<DiscoveryNode> configuredTargetNodes = Lists.newArrayList();
         for (String host : hosts) {
             try {
                 TransportAddress[] addresses = transportService.addressesFromString(host);
-                // we only limit to 1 addresses, makes no sense to ping 100 ports
-                for (int i = 0; (i < addresses.length && i < LIMIT_PORTS_COUNT); i++) {
+                for (int i = 0; (i < addresses.length && i < limitPortCounts); i++) {
                     configuredTargetNodes.add(new DiscoveryNode(UNICAST_NODE_PREFIX + unicastNodeIdGenerator.incrementAndGet() + "#", addresses[i], version.minimumCompatibilityVersion()));
                 }
             } catch (Exception e) {

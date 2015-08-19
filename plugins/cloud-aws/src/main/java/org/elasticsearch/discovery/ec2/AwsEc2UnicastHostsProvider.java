@@ -158,7 +158,7 @@ public class AwsEc2UnicastHostsProvider extends AbstractComponent implements Uni
                     try {
                         TransportAddress[] addresses = transportService.addressesFromString(address);
                         // we only limit to 1 addresses, makes no sense to ping 100 ports
-                        for (int i = 0; (i < addresses.length && i < UnicastZenPing.LIMIT_PORTS_COUNT); i++) {
+                        for (int i = 0; (i < addresses.length && i < UnicastZenPing.LIMIT_FOREIGN_PORTS_COUNT); i++) {
                             logger.trace("adding {}, address {}, transport_address {}", instance.getInstanceId(), address, addresses[i]);
                             discoNodes.add(new DiscoveryNode("#cloud-" + instance.getInstanceId() + "-" + i, addresses[i], version.minimumCompatibilityVersion()));
                         }

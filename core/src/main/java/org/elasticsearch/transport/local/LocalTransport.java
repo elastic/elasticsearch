@@ -359,17 +359,6 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
 
     @Override
     public List<String> getLocalAddresses() {
-        // this is a crazy hack to make local transport work with unicast discovery
-        // we only have a couple of tests that do this where they use zen disco with local transport...
-        final List<String> list = new ArrayList<>();
-        Set<LocalTransportAddress> transportAddresses = transports.keySet();
-        long id = transportAddressIdGenerator.get();
-        for (LocalTransportAddress address : transportAddresses) {
-            list.add(address.id());
-        }
-        for (long i = id; i < id+25; i++) {
-            list.add(Long.toString(i));
-        }
-        return list;
+        return Collections.singletonList(boundAddress.boundAddress().getAddress());
     }
 }

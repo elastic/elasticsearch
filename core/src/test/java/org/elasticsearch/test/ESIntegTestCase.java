@@ -117,6 +117,7 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.client.RandomizingClient;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
+import org.elasticsearch.transport.TransportModule;
 import org.hamcrest.Matchers;
 import org.joda.time.DateTimeZone;
 import org.junit.*;
@@ -1609,7 +1610,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * In other words subclasses must ensure this method is idempotent.
      */
     protected Settings nodeSettings(int nodeOrdinal) {
-        return settingsBuilder()
+        Settings.Builder builder = settingsBuilder()
                 // Default the watermarks to absurdly low to prevent the tests
                 // from failing on nodes without enough disk space
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK, "1b")
@@ -1617,8 +1618,15 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 .put("script.indexed", "on")
                 .put("script.inline", "on")
                         // wait short time for other active shards before actually deleting, default 30s not needed in tests
-                .put(IndicesStore.INDICES_STORE_DELETE_SHARD_TIMEOUT, new TimeValue(1, TimeUnit.SECONDS))
-                .build();
+                .put(IndicesStore.INDICES_STORE_DELETE_SHARD_TIMEOUT, new TimeValue(1, TimeUnit.SECONDS));
+        if (forceNetwork()) {
+            builder.put(TransportModule.TRANSPORT_TYPE_KEY, TransportModule.NETTY_TRANSPORT);
+        }
+        return builder.build();
+    }
+
+    protected boolean forceNetwork() {
+        return false;
     }
 
     /**
@@ -1628,6 +1636,9 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * add by default.
      */
     protected Settings transportClientSettings() {
+        if (forceNetwork()) {
+            return settingsBuilder().put(TransportModule.TRANSPORT_TYPE_KEY, TransportModule.NETTY_TRANSPORT).build();
+        }
         return Settings.EMPTY;
     }
 

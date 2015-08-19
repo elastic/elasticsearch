@@ -46,6 +46,11 @@ import static org.hamcrest.Matchers.*;
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class MinimumMasterNodesIT extends ESIntegTestCase {
 
+    @Override
+    protected boolean forceNetwork() {
+        return true;
+    }
+
     @Test
     @TestLogging("cluster.service:TRACE,discovery.zen:TRACE,gateway:TRACE,transport.tracer:TRACE")
     public void simpleMinimumMasterNodes() throws Exception {

@@ -67,6 +67,11 @@ import static org.hamcrest.Matchers.*;
 public class RareClusterStateIT extends ESIntegTestCase {
 
     @Override
+    protected boolean forceNetwork() {
+        return true;
+    }
+
+    @Override
     protected int numberOfShards() {
         return 1;
     }

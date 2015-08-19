@@ -128,7 +128,7 @@ public class ActionErrorIntegrationTests extends AbstractWatcherIntegrationTests
             return name();
         }
 
-        public void onModule(ActionModule module) {
+        public void onModule(WatcherActionModule module) {
             module.registerAction(ErrorAction.TYPE, ErrorAction.Factory.class);
         }
     }

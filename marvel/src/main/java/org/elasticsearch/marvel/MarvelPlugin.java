@@ -15,13 +15,19 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.marvel.agent.AgentService;
+import org.elasticsearch.marvel.agent.collector.CollectorModule;
+import org.elasticsearch.marvel.agent.exporter.ExporterModule;
 import org.elasticsearch.marvel.agent.exporter.HttpESExporter;
+import org.elasticsearch.marvel.agent.renderer.RendererModule;
+import org.elasticsearch.marvel.agent.settings.MarvelModule;
+import org.elasticsearch.marvel.license.LicenseModule;
 import org.elasticsearch.marvel.agent.settings.MarvelSetting;
 import org.elasticsearch.marvel.agent.settings.MarvelSettings;
 import org.elasticsearch.marvel.license.LicenseService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.tribe.TribeService;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 
@@ -57,7 +63,12 @@ public class MarvelPlugin extends Plugin {
         if (!enabled) {
             return Collections.emptyList();
         }
-        return Collections.<Module>singletonList(new MarvelModule());
+        return Arrays.<Module>asList(
+            new MarvelModule(),
+            new LicenseModule(),
+            new CollectorModule(),
+            new ExporterModule(),
+            new RendererModule());
     }
 
     @Override

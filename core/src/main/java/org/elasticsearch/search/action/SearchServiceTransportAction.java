@@ -418,6 +418,7 @@ public class SearchServiceTransportAction extends AbstractComponent {
         }
     }
 
+    @Deprecated // remove in 3.0
     class SearchScanTransportHandler implements TransportRequestHandler<ShardSearchTransportRequest> {
         @Override
         public void messageReceived(ShardSearchTransportRequest request, TransportChannel channel) throws Exception {

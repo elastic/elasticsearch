@@ -1107,7 +1107,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
             newAllChannels.addAll(Arrays.asList(reg));
             newAllChannels.addAll(Arrays.asList(state));
             newAllChannels.addAll(Arrays.asList(ping));
-            this.allChannels = Collections.unmodifiableList(allChannels);
+            this.allChannels = Collections.unmodifiableList(allChannels );
         }
 
         public boolean hasChannel(Channel channel) {

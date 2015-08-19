@@ -86,7 +86,7 @@ class JNAKernel32Library {
     }
 
     List<Object> getCallbacks() {
-        return Collections.unmodifiableList(new ArrayList<Object>(callbacks));
+        return Collections.<Object>unmodifiableList(callbacks);
     }
 
     /**

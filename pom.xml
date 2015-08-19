@@ -33,6 +33,7 @@
 
     <properties>
         <!-- If we need to define any specific property -->
+        <elasticsearch.version>2.0.0-SNAPSHOT</elasticsearch.version>
     </properties>
 
     <dependencies>

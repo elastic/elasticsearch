@@ -15,7 +15,11 @@
       },
       "date_detection": false,
       "properties": {
-        "cluster_name": {
+        "cluster_uuid": {
+          "type": "string",
+          "index": "not_analyzed"
+        },
+        "cluster_uuid": {
           "type": "string",
           "index": "not_analyzed"
         },

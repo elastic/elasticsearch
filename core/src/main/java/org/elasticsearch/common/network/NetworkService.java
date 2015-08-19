@@ -82,6 +82,7 @@ public class NetworkService extends AbstractComponent {
     @Inject
     public NetworkService(Settings settings) {
         super(settings);
+        IfConfig.logIfNecessary();
         InetSocketTransportAddress.setResolveAddress(settings.getAsBoolean("network.address.serialization.resolve", false));
     }
 

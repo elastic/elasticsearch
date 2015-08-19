@@ -40,9 +40,13 @@ dependencies {
 
 processResources {
     expand (version: project.version, esVersion: project.esVersion,
-	        jmvCompatibility: project.targetCompatibility,
-			description: project.description, 
-			name: project.name)
+            jmvCompatibility: project.targetCompatibility,
+            description: project.description, 
+            name: project.name)
+}
+
+test {
+    systemProperty 'java.io.tmp', './temp'
 }
 
 jar {

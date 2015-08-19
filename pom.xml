@@ -40,7 +40,7 @@
         <dependency>
             <groupId>org.apache.tika</groupId>
             <artifactId>tika-parsers</artifactId>
-            <version>1.9</version>
+            <version>1.10</version>
             <exclusions>
                 <!-- Not Apache2 License compatible -->
                 <exclusion>

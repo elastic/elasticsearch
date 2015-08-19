@@ -94,7 +94,11 @@ public final class InetSocketTransportAddress implements TransportAddress {
 
     @Override
     public String getHost() {
-        return address.getHostName();
+        if (resolveAddress) {
+            return address.getHostName();
+        } else {
+            return getAddress();
+        }
     }
 
     @Override

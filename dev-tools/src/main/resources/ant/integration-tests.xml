@@ -241,7 +241,7 @@
     <attribute name="es.pidfile" default="${integ.pidfile}"/>
     <attribute name="es.peer.list" />
     <sequential>
-    <startup-elasticsearch es.pidfile="@{es.pidfile}" es.unicast.enabled="true"
+    <startup-elasticsearch es.pidfile="@{es.pidfile}"
                            es.transport.tcp.port="@{es.transport.port}" es.http.port="@{es.http.port}"
                            es.unicast.hosts="@{es.peer.list}"/>
     </sequential>

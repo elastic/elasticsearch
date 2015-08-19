@@ -24,7 +24,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.search.profile.InternalProfileBreakdown;
-import org.elasticsearch.search.query.InternalProfiler;
+import org.elasticsearch.search.profile.InternalProfiler;
 
 import java.io.IOException;
 import java.util.Collection;

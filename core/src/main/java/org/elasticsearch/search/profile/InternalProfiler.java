@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.search.query;
+package org.elasticsearch.search.profile;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.search.profile.InternalProfileResult;

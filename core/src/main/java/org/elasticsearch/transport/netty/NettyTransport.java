@@ -404,6 +404,9 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         } catch (IOException e) {
             throw new BindTransportException("Failed to resolve host [" + bindHost + "]", e);
         }
+        if (logger.isDebugEnabled()) {
+            logger.debug("binding server bootstrap to: {}", hostAddresses);
+        }
         for (InetAddress hostAddress : hostAddresses) {
             bindServerBootstrap(name, hostAddress, settings);
         }

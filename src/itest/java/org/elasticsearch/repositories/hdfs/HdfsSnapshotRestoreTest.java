@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.repositories.hdfs;
 
+import java.io.File;
 import java.io.IOException;
 
 import org.apache.hadoop.conf.Configuration;
@@ -46,9 +47,12 @@ import org.junit.Test;
 import static org.hamcrest.Matchers.*;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 2)
-@Ignore("temporary file creation seems problematic on the CI")
 public class HdfsSnapshotRestoreTest extends ESIntegTestCase {
 
+
+    static {
+        System.setProperty("java.io.temp", "." + File.separator + "temp");
+    }
 
     @Override
     protected Settings nodeSettings(int ordinal) {

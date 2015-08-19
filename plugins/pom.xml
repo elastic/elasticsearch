@@ -22,6 +22,7 @@
     <properties>
         <elasticsearch.assembly.descriptor>${elasticsearch.tools.directory}/plugin-metadata/plugin-assembly.xml</elasticsearch.assembly.descriptor>
         <elasticsearch.assembly.appendId>false</elasticsearch.assembly.appendId>
+        <elasticsearch.plugin.name>${project.artifactId}</elasticsearch.plugin.name>
         <elasticsearch.plugin.jvm>true</elasticsearch.plugin.jvm>
         <elasticsearch.plugin.isolated>true</elasticsearch.plugin.isolated>
         <elasticsearch.plugin.site>false</elasticsearch.plugin.site>
@@ -365,6 +366,7 @@
                                 <rules>
                                     <requireProperty>
                                         <property>elasticsearch.plugin.classname</property>
+                                        <property>elasticsearch.plugin.name</property>
                                     </requireProperty>
                                 </rules>
                             </configuration>

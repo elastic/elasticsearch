@@ -4,13 +4,13 @@ NAME
 
 SYNOPSIS
 
-    plugin install <name>
+    plugin install <name or url>
 
 DESCRIPTION
 
     This command installs an elasticsearch plugin
 
-    <name> can be one of the official plugins, or refer to a github repository, or to one of the official plugins
+    The argument can be a <name> of one of the official plugins, or refer to a github repository
 
     The notation of just specifying a plugin name, downloads an officially supported plugin.
 
@@ -20,6 +20,8 @@ DESCRIPTION
 
     The notation of 'username/repository' refers to a github repository.
 
+    The argument can be an valid <url> which points to a download or file location for the plugin to be loaded from.
+
 EXAMPLES
 
     plugin install analysis-kuromoji
@@ -27,6 +29,10 @@ EXAMPLES
     plugin install elasticsearch/shield/latest
 
     plugin install lmenezes/elasticsearch-kopf
+
+    plugin install http://download.elasticsearch.org/elasticsearch/elasticsearch-analysis-kuromoji/elasticsearch-analysis-kuromoji-2.7.0.zip
+
+    plugin install file:/path/to/plugin/elasticsearch-analysis-kuromoji-2.7.0.zip
 
 OFFICIAL PLUGINS
 
@@ -48,8 +54,6 @@ OFFICIAL PLUGINS
 
 
 OPTIONS
-
-    -u,--url                     URL to retrieve the plugin from
 
     -t,--timeout                 Timeout until the plugin download is abort
 

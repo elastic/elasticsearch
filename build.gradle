@@ -46,6 +46,8 @@ processResources {
 }
 
 tasks.withType(Test) {
+    // there's no fork so set the system property manually as well
+    System.setProperty('java.io.tmpdir', './temp')
     systemProperty 'java.io.tmpdir', './temp'
 }
 

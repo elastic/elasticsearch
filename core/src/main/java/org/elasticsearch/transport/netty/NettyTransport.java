@@ -497,7 +497,6 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         serverBootstrap.setOption("child.receiveBufferSizePredictorFactory", receiveBufferSizePredictorFactory);
         serverBootstrap.setOption("reuseAddress", reuseAddress);
         serverBootstrap.setOption("child.reuseAddress", reuseAddress);
-
         serverBootstraps.put(name, serverBootstrap);
     }
 

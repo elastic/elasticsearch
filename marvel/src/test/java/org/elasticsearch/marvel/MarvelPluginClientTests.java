@@ -39,7 +39,7 @@ public class MarvelPluginClientTests extends ESTestCase {
         MarvelPlugin plugin = new MarvelPlugin(settings);
         assertThat(plugin.isEnabled(), is(true));
         Collection<Module> modules = plugin.nodeModules();
-        assertThat(modules.size(), is(1));
+        assertThat(modules.size(), is(5));
     }
 
 }

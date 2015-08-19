@@ -34,20 +34,6 @@ public abstract class AbstractShieldModule extends AbstractModule {
 
     protected abstract void configure(boolean clientMode);
 
-    public static abstract class Spawn extends AbstractShieldModule implements SpawnModules {
-
-        protected Spawn(Settings settings) {
-            super(settings);
-        }
-
-        @Override
-        public final Iterable<? extends Module> spawnModules() {
-            return spawnModules(clientMode);
-        }
-
-        public abstract Iterable<? extends Module> spawnModules(boolean clientMode);
-    }
-
     public static abstract class Node extends AbstractShieldModule {
 
         protected Node(Settings settings) {

@@ -6,6 +6,7 @@
 package org.elasticsearch.watcher;
 
 import com.google.common.collect.ImmutableList;
+import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -13,17 +14,60 @@ import org.elasticsearch.cluster.settings.Validator;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.rest.RestModule;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptModule;
+import org.elasticsearch.watcher.actions.WatcherActionModule;
 import org.elasticsearch.watcher.actions.email.service.InternalEmailService;
+import org.elasticsearch.watcher.client.WatcherClientModule;
+import org.elasticsearch.watcher.condition.ConditionModule;
+import org.elasticsearch.watcher.execution.ExecutionModule;
 import org.elasticsearch.watcher.history.HistoryModule;
+import org.elasticsearch.watcher.input.InputModule;
+import org.elasticsearch.watcher.license.LicenseModule;
 import org.elasticsearch.watcher.license.LicenseService;
+import org.elasticsearch.watcher.rest.action.RestAckWatchAction;
+import org.elasticsearch.watcher.rest.action.RestDeleteWatchAction;
+import org.elasticsearch.watcher.rest.action.RestExecuteWatchAction;
+import org.elasticsearch.watcher.rest.action.RestGetWatchAction;
+import org.elasticsearch.watcher.rest.action.RestHijackOperationAction;
+import org.elasticsearch.watcher.rest.action.RestPutWatchAction;
+import org.elasticsearch.watcher.rest.action.RestWatchServiceAction;
+import org.elasticsearch.watcher.rest.action.RestWatcherInfoAction;
+import org.elasticsearch.watcher.rest.action.RestWatcherStatsAction;
+import org.elasticsearch.watcher.shield.WatcherShieldModule;
 import org.elasticsearch.watcher.support.WatcherIndexTemplateRegistry.TemplateConfig;
+import org.elasticsearch.watcher.support.clock.ClockModule;
 import org.elasticsearch.watcher.support.http.HttpClient;
+import org.elasticsearch.watcher.support.http.HttpClientModule;
+import org.elasticsearch.watcher.support.init.InitializingModule;
 import org.elasticsearch.watcher.support.init.InitializingService;
 import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
+import org.elasticsearch.watcher.support.secret.SecretModule;
+import org.elasticsearch.watcher.support.template.TemplateModule;
+import org.elasticsearch.watcher.support.template.xmustache.XMustacheScriptEngineService;
 import org.elasticsearch.watcher.support.validation.WatcherSettingsValidation;
+import org.elasticsearch.watcher.transform.TransformModule;
+import org.elasticsearch.watcher.transport.WatcherTransportModule;
+import org.elasticsearch.watcher.transport.actions.ack.AckWatchAction;
+import org.elasticsearch.watcher.transport.actions.ack.TransportAckWatchAction;
+import org.elasticsearch.watcher.transport.actions.delete.DeleteWatchAction;
+import org.elasticsearch.watcher.transport.actions.delete.TransportDeleteWatchAction;
+import org.elasticsearch.watcher.transport.actions.execute.ExecuteWatchAction;
+import org.elasticsearch.watcher.transport.actions.execute.TransportExecuteWatchAction;
+import org.elasticsearch.watcher.transport.actions.get.GetWatchAction;
+import org.elasticsearch.watcher.transport.actions.get.TransportGetWatchAction;
+import org.elasticsearch.watcher.transport.actions.put.PutWatchAction;
+import org.elasticsearch.watcher.transport.actions.put.TransportPutWatchAction;
+import org.elasticsearch.watcher.transport.actions.service.TransportWatcherServiceAction;
+import org.elasticsearch.watcher.transport.actions.service.WatcherServiceAction;
+import org.elasticsearch.watcher.transport.actions.stats.TransportWatcherStatsAction;
+import org.elasticsearch.watcher.transport.actions.stats.WatcherStatsAction;
+import org.elasticsearch.watcher.trigger.TriggerModule;
+import org.elasticsearch.watcher.trigger.schedule.ScheduleModule;
+import org.elasticsearch.watcher.watch.WatchModule;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 
@@ -58,14 +102,31 @@ public class WatcherPlugin extends Plugin {
 
     @Override
     public Collection<Module> nodeModules() {
-        if (!enabled) {
-            return ImmutableList.of();
+        if (enabled == false) {
+            return Collections.emptyList();
+        } else if (transportClient == false){
+            return Arrays.<Module>asList(
+                new WatcherModule(settings),
+                new InitializingModule(),
+                new LicenseModule(),
+                new WatchModule(),
+                new TemplateModule(),
+                new HttpClientModule(),
+                new ClockModule(),
+                new WatcherClientModule(),
+                new TransformModule(),
+                new TriggerModule(settings),
+                new ScheduleModule(),
+                new ConditionModule(),
+                new InputModule(),
+                new WatcherActionModule(),
+                new HistoryModule(),
+                new ExecutionModule(),
+                new WatcherShieldModule(settings),
+                new SecretModule(settings));
         }
-        return transportClient ?
-                Collections.<Module>singletonList(new TransportClientWatcherModule()) :
-                Collections.<Module>singletonList(new WatcherModule(settings));
+        return Collections.emptyList();
     }
-
 
     @Override
     public Collection<Class<? extends LifecycleComponent>> nodeServices() {
@@ -97,11 +158,40 @@ public class WatcherPlugin extends Plugin {
 
     public void onModule(ScriptModule module) {
         module.registerScriptContext(ScriptServiceProxy.INSTANCE);
+        if (enabled && transportClient == false) {
+            module.addScriptEngine(XMustacheScriptEngineService.class);
+        }
     }
 
     public void onModule(ClusterModule module) {
         for (TemplateConfig templateConfig : WatcherModule.TEMPLATE_CONFIGS) {
             module.registerClusterDynamicSetting(templateConfig.getDynamicSettingsPrefix(), Validator.EMPTY);
+        }
+    }
+
+    public void onModule(RestModule module) {
+        if (enabled && transportClient == false) {
+            module.addRestAction(RestPutWatchAction.class);
+            module.addRestAction(RestDeleteWatchAction.class);
+            module.addRestAction(RestWatcherStatsAction.class);
+            module.addRestAction(RestWatcherInfoAction.class);
+            module.addRestAction(RestGetWatchAction.class);
+            module.addRestAction(RestWatchServiceAction.class);
+            module.addRestAction(RestAckWatchAction.class);
+            module.addRestAction(RestExecuteWatchAction.class);
+            module.addRestAction(RestHijackOperationAction.class);
+        }
+    }
+
+    public void onModule(ActionModule module) {
+        if (enabled) {
+            module.registerAction(PutWatchAction.INSTANCE, TransportPutWatchAction.class);
+            module.registerAction(DeleteWatchAction.INSTANCE, TransportDeleteWatchAction.class);
+            module.registerAction(GetWatchAction.INSTANCE, TransportGetWatchAction.class);
+            module.registerAction(WatcherStatsAction.INSTANCE, TransportWatcherStatsAction.class);
+            module.registerAction(AckWatchAction.INSTANCE, TransportAckWatchAction.class);
+            module.registerAction(WatcherServiceAction.INSTANCE, TransportWatcherServiceAction.class);
+            module.registerAction(ExecuteWatchAction.INSTANCE, TransportExecuteWatchAction.class);
         }
     }
 

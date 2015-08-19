@@ -6,25 +6,12 @@
 package org.elasticsearch.watcher.support.template;
 
 import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.inject.PreProcessModule;
-import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.ScriptModule;
-import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
-import org.elasticsearch.watcher.support.template.xmustache.XMustacheScriptEngineService;
 import org.elasticsearch.watcher.support.template.xmustache.XMustacheTemplateEngine;
 
 /**
  *
  */
-public class TemplateModule extends AbstractModule implements PreProcessModule {
-
-    @Override
-    public void processModule(Module module) {
-        if (module instanceof ScriptModule) {
-            ((ScriptModule) module).addScriptEngine(XMustacheScriptEngineService.class);
-        }
-    }
+public class TemplateModule extends AbstractModule {
 
     @Override
     protected void configure() {

@@ -1,0 +1,5 @@
+Apache HttpComponents Core - HttpCore
+Copyright 2006-2009 The Apache Software Foundation
+
+This product includes software developed by
+The Apache Software Foundation (http://www.apache.org/).

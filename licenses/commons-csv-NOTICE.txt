@@ -1,0 +1,22 @@
+Apache Commons CSV
+Copyright 2005-2015 The Apache Software Foundation
+
+This product includes software developed at
+The Apache Software Foundation (http://www.apache.org/).
+
+src/main/resources/contract.txt
+This file was downloaded from http://www.ferc.gov/docs-filing/eqr/soft-tools/sample-csv/contract.txt and contains neither copyright notice nor license.
+
+src/main/resources/transaction.txt
+This file was downloaded from http://www.ferc.gov/docs-filing/eqr/soft-tools/sample-csv/transaction.txt and contains neither copyright notice nor license.
+
+src/test/resources/CSVFileParser/bom.csv
+src/test/resources/CSVFileParser/test.csv
+src/test/resources/CSVFileParser/test_default.txt
+src/test/resources/CSVFileParser/test_default_comment.txt
+src/test/resources/CSVFileParser/test_rfc4180.txt
+src/test/resources/CSVFileParser/test_rfc4180_trim.txt
+src/test/resources/CSVFileParser/testCSV85.csv
+src/test/resources/CSVFileParser/testCSV85_default.txt
+src/test/resources/CSVFileParser/testCSV85_ignoreEmpty.txt
+These files are used as test data and test result specifications.

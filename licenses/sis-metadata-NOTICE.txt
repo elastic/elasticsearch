@@ -1,0 +1,18 @@
+Apache Spatial Information System (SIS)
+Copyright 2010-2015 The Apache Software Foundation
+
+This product includes software developed at
+The Apache Software Foundation (http://www.apache.org/).
+
+The Javadoc contains documentation from the Open Geospatial Consortium
+(OGC®) specifications (http://www.opengeospatial.org/standards/), also
+known as OpenGIS.
+
+The matrix package contains code adapted from JAMA Java Matrix Package
+(http://math.nist.gov/javanumerics/jama/)
+
+Some modules use the Esri Geometry API developed by ESRI
+(http://github.com/Esri/geometry-api-java/)
+
+The test suite uses software developed by the JUnit community
+(http://github.com/junit-team/junit.contrib/)

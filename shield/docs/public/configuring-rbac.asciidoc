@@ -25,7 +25,7 @@ As an administrator, you will need to define the roles that you want to use, the
 
 [[defining-roles]]
 === Defining Roles
-Roles are defined in the role definition file `roles.yml` located in `ES_HOME/config/shield`.
+Roles are defined in the role definition file `roles.yml` located in `CONFIG_DIR/shield`.
 This is a YAML file where each entry defines the unique role name and the cluster and indices permissions associated
 with it.
 

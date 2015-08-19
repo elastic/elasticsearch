@@ -29,8 +29,8 @@ shield:
 | `type`                         | yes       | Indicates the realm type and must be set to `esusers`.
 | `order`                        | no        | Indicates the priority of this realm within the realm chain. Realms with lower order will be consulted first. Although not required, it is highly recommended to explicitly set this value when multiple realms are configured. Defaults to `Integer.MAX_VALUE`.
 | `enabled`                      | no        | Indicates whether this realm is enabled/disabled. Provides an easy way to disable realms in the chain without removing their configuration. Defaults to `true`.
-| `files.users`                  | no        | Points to the location of the `users` file where the users and their passwords are stored. By default, it is `ES_HOME/config/shield/users`.
-| `files.users_roles`            | no        | Points to the location of the `users_roles` file where the users and their roles are stored. By default, it is `ES_HOME/config/shield/users_roles`.
+| `files.users`                  | no        | Points to the <<ref-shield-files-location,location>> of the `users` file where the users and their passwords are stored. By default, it is `CONFIG_DIR/shield/users`.
+| `files.users_roles`            | no        | Points to the <<ref-shield-files-location,location>> of the `users_roles` file where the users and their roles are stored. By default, it is `CONFIG_DIR/shield/users_roles`.
 | `cache.ttl`                    | no        | Specified the time-to-live for cached user entries (a user and its credentials will be cached for this configured period of time). Defaults to `20m` (use the standard Elasticsearch {ref}/common-options.html#time-units[time units]).
 | `cache.max_users`              | no        | Specified the maximum number of user entries that can live in the cache at a given time. Defaults to 100,000.
 | `cache.hash_algo`              | no        | (Expert Setting) Specifies the hashing algorithm that will be used for the in-memory cached user credentials (see <<esusers-cache-hash-algo,here>> for possible values).

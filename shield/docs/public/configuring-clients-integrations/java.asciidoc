@@ -82,9 +82,14 @@ dependencies {
 import org.elasticsearch.client.transport.TransportClient;
 ...
 
-TransportClient client = new TransportClient(ImmutableSettings.builder()
-    .put("cluster.name", "myClusterName")
-    .put("shield.user", "transport_client_user:changeme")
+TransportClient client = TransportClient.builder()
+    .settings(Settings.builder()
+        .put("cluster.name", "myClusterName")
+        .put("shield.user", "transport_client_user:changeme")
+        .put("plugin.types", "org.elasticsearch.shield.ShieldPlugin")
+        .put("path.home", "/path/to/client/home")
+        ...
+        .build())
     .addTransportAddress(new InetSocketTransportAddress("localhost", 9300))
     .addTransportAddress(new InetSocketTransportAddress("localhost", 9301));
 -------------------------------------------------------------------------------------------------
@@ -97,15 +102,23 @@ For example, the following snippet adds the `Authorization` header to a search r
 +
 [source,java]
 --------------------------------------------------------------------------------------------------
-import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.client.transport.TransportClient;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.InetSocketTransportAddress;
+import org.elasticsearch.shield.authc.support.SecuredString;
 
 import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 ...
 
-TransportClient client = new TransportClient(ImmutableSettings.builder()
-    .put("shield.user", "transport_client_user:changeme")
-    ...
+TransportClient client = TransportClient.builder()
+    .settings(Settings.builder()
+        .put("cluster.name", "myClusterName")
+        .put("shield.user", "transport_client_user:changeme")
+        .put("plugin.types", "org.elasticsearch.shield.ShieldPlugin")
+        .put("path.home", "/path/to/client/home")
+        ...
+        .build())
+    .build()
     .addTransportAddress(new InetSocketTransportAddress("localhost", 9300))
     .addTransportAddress(new InetSocketTransportAddress("localhost", 9301));
 
@@ -126,15 +139,19 @@ NOTE: Client authentication is enabled by default. For information about disabli
 import org.elasticsearch.client.transport.TransportClient;
 ...
 
-TransportClient client = new TransportClient(ImmutableSettings.builder()
-    .put("cluster.name", "myClusterName")
-    .put("shield.user", "transport_client_user:changeme")
-    .put("shield.ssl.keystore.path", "/path/to/client.jks") (1)
-    .put("shield.ssl.keystore.password", "password")
-    ...
+TransportClient client = TransportClient.builder()
+    .settings(Settings.builder()
+        .put("cluster.name", "myClusterName")
+        .put("plugin.types", "org.elasticsearch.shield.ShieldPlugin")
+        .put("shield.user", "transport_client_user:changeme")
+        .put("shield.ssl.keystore.path", "/path/to/client.jks") (1)
+        .put("shield.ssl.keystore.password", "password")
+        .put("path.home", "/path/to/client/home")
+        ...
+        .build());
 --------------------------------------------------------------------------------------------------
 +
-(1) The `client.jks` keystore must contain the client's signed CA certificate and the CA certificate.
+(1) The `client.jks` keystore must contain the client's signed certificate and the CA certificate.
 +
 .. Enable the SSL transport by setting `shield.transport.ssl` to `true` in the client configuration.
 +
@@ -143,12 +160,17 @@ TransportClient client = new TransportClient(ImmutableSettings.builder()
 import org.elasticsearch.client.transport.TransportClient;
 ...
 
-TransportClient client = new TransportClient(ImmutableSettings.builder()
-    .put("cluster.name", "myClusterName")
-    .put("shield.user", "transport_client_user:changeme")
-    .put("shield.ssl.keystore.path", "/path/to/client.jks") (1)
-    .put("shield.ssl.keystore.password", "password")
-    .put("shield.transport.ssl", "true"))
+TransportClient client = TransportClient.builder()
+    .settings(Settings.builder()
+        .put("cluster.name", "myClusterName")
+        .put("shield.user", "transport_client_user:changeme")
+        .put("shield.ssl.keystore.path", "/path/to/client.jks") (1)
+        .put("shield.ssl.keystore.password", "password")
+        .put("shield.transport.ssl", "true")
+        .put("plugin.types", "org.elasticsearch.shield.ShieldPlugin")
+        .put("path.home", "/path/to/client/home")
+        ...
+        .build())
     .addTransportAddress(new InetSocketTransportAddress("localhost", 9300))
     .addTransportAddress(new InetSocketTransportAddress("localhost", 9301));
 --------------------------------------------------------------------------------------------------
@@ -166,12 +188,17 @@ If you are not using client authentication and sign the Elasticsearch node certi
 import org.elasticsearch.client.transport.TransportClient;
 ...
 
-TransportClient client = new TransportClient(ImmutableSettings.builder()
-    .put("cluster.name", "myClusterName")
-    .put("shield.user", "test_user:changeme")
-    .put("shield.ssl.truststore.path", "/path/to/truststore.jks") (1)
-    .put("shield.ssl.truststore.password", "password")
-    .put("shield.transport.ssl", "true"))
+TransportClient client = TransportClient.builder()
+    .settings(Settings.builder()
+        .put("cluster.name", "myClusterName")
+        .put("shield.user", "test_user:changeme")
+        .put("shield.ssl.truststore.path", "/path/to/truststore.jks") (1)
+        .put("shield.ssl.truststore.password", "password")
+        .put("shield.transport.ssl", "true")
+        .put("plugin.types", "org.elasticsearch.shield.ShieldPlugin")
+        .put("path.home", "/path/to/client/home")
+        ...
+        .build())
     .addTransportAddress(new InetSocketTransportAddress("localhost", 9300))
     .addTransportAddress(new InetSocketTransportAddress("localhost", 9301));
 ------------------------------------------------------------------------------------------------------
@@ -198,7 +225,7 @@ The following example shows how you can clear Shield's realm caches using `Shiel
 import static org.elasticsearch.node.NodeBuilder.*;
 ...
 
-Client client = ... // create the client (either transport or node)
+Client client = ... // create the transport client
 
 ShieldClient shieldClient = new ShieldClient(client);
 ClearRealmCacheResponse response = shieldClient.authc().prepareClearRealmCache()

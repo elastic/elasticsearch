@@ -50,9 +50,6 @@ public class AwsEc2Service extends AbstractLifecycleComponent<AwsEc2Service> {
     @Inject
     public AwsEc2Service(Settings settings, SettingsFilter settingsFilter, NetworkService networkService, DiscoveryNodeService discoveryNodeService) {
         super(settings);
-        // Filter global settings
-        settingsFilter.addFilter("cloud.key");
-        settingsFilter.addFilter("cloud.account");
         settingsFilter.addFilter("cloud.aws.access_key");
         settingsFilter.addFilter("cloud.aws.secret_key");
         // Filter repository-specific settings
@@ -81,8 +78,8 @@ public class AwsEc2Service extends AbstractLifecycleComponent<AwsEc2Service> {
         } else {
             throw new IllegalArgumentException("No protocol supported [" + protocol + "], can either be [http] or [https]");
         }
-        String account = settings.get("cloud.aws.access_key", settings.get("cloud.account"));
-        String key = settings.get("cloud.aws.secret_key", settings.get("cloud.key"));
+        String account = settings.get("cloud.aws.access_key");
+        String key = settings.get("cloud.aws.secret_key");
 
         String proxyHost = settings.get("cloud.aws.proxy_host");
         proxyHost = settings.get("cloud.aws.ec2.proxy_host", proxyHost);

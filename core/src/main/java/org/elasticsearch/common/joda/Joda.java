@@ -275,9 +275,9 @@ public class Joda {
                 .toFormatter()
                 .withZoneUTC();
 
-        DateTimeFormatterBuilder builder = new DateTimeFormatterBuilder().append(longFormatter.withZone(DateTimeZone.UTC).getPrinter(), new DateTimeParser[] {longFormatter.getParser(), shortFormatter.getParser()});
+        DateTimeFormatterBuilder builder = new DateTimeFormatterBuilder().append(longFormatter.withZone(DateTimeZone.UTC).getPrinter(), new DateTimeParser[]{longFormatter.getParser(), shortFormatter.getParser(), new EpochTimeParser(true)});
 
-        return new FormatDateTimeFormatter("yyyy/MM/dd HH:mm:ss||yyyy/MM/dd", builder.toFormatter().withZone(DateTimeZone.UTC), Locale.ROOT);
+        return new FormatDateTimeFormatter("yyyy/MM/dd HH:mm:ss||yyyy/MM/dd||epoch_millis", builder.toFormatter().withZone(DateTimeZone.UTC), Locale.ROOT);
     }
 
 

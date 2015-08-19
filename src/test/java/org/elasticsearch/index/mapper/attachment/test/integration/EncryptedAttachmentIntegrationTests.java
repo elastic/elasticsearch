@@ -22,22 +22,21 @@ package org.elasticsearch.index.mapper.attachment.test.integration;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.plugin.mapper.attachments.MapperAttachmentsPlugin;
 import org.junit.Test;
-import org.apache.lucene.util.LuceneTestCase.Slow;
 
 import static org.elasticsearch.client.Requests.putMappingRequest;
-import static org.elasticsearch.common.io.Streams.copyToBytesFromClasspath;
-import static org.elasticsearch.common.io.Streams.copyToStringFromClasspath;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
+import static org.elasticsearch.test.StreamsUtils.copyToBytesFromClasspath;
+import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
  * Test case for issue https://github.com/elasticsearch/elasticsearch-mapper-attachments/issues/18
+ * TODO Change this to a real IT
  */
-@Slow
 public class EncryptedAttachmentIntegrationTests extends AttachmentIntegrationTestCase {
     private boolean ignore_errors = true;
 
@@ -45,7 +44,7 @@ public class EncryptedAttachmentIntegrationTests extends AttachmentIntegrationTe
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put("plugins." + PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, true)
+                .put("plugin.types", MapperAttachmentsPlugin.class.getName())
                 .build();
     }
 

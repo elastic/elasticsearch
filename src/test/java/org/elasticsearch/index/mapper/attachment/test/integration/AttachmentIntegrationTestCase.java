@@ -19,15 +19,15 @@
 
 package org.elasticsearch.index.mapper.attachment.test.integration;
 
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matcher;
 import org.junit.BeforeClass;
 
 import static org.elasticsearch.plugin.mapper.attachments.tika.LocaleChecker.isLocaleCompatible;
 import static org.hamcrest.Matchers.not;
 
-@ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.SUITE)
-public class AttachmentIntegrationTestCase extends ElasticsearchIntegrationTest {
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE)
+public class AttachmentIntegrationTestCase extends ESIntegTestCase {
 
     protected static boolean expectError;
 

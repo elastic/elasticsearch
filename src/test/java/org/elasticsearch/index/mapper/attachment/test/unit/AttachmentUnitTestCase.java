@@ -22,13 +22,13 @@ package org.elasticsearch.index.mapper.attachment.test.unit;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
 import static org.elasticsearch.index.mapper.attachment.test.MapperTestUtils.assumeCorrectLocale;
 
-public class AttachmentUnitTestCase extends ElasticsearchTestCase {
+public class AttachmentUnitTestCase extends ESTestCase {
     /**
      * We can have issues with some JVMs and Locale
      * See https://github.com/elasticsearch/elasticsearch-mapper-attachments/issues/105

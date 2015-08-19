@@ -24,32 +24,29 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.plugin.mapper.attachments.MapperAttachmentsPlugin;
 import org.elasticsearch.search.highlight.HighlightField;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
-import org.apache.lucene.util.LuceneTestCase.Slow;
 
 import static org.elasticsearch.client.Requests.putMappingRequest;
-import static org.elasticsearch.common.io.Streams.copyToBytesFromClasspath;
-import static org.elasticsearch.common.io.Streams.copyToStringFromClasspath;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
+import static org.elasticsearch.test.StreamsUtils.copyToBytesFromClasspath;
+import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
 import static org.hamcrest.Matchers.*;
 
 /**
- *
+ * TODO Change this to real IT
  */
-@Slow
 public class SimpleAttachmentIntegrationTests extends AttachmentIntegrationTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put("plugins." + PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, true)
+                .put("plugin.types", MapperAttachmentsPlugin.class.getName())
                 .build();
     }
 
@@ -164,7 +161,8 @@ public class SimpleAttachmentIntegrationTests extends AttachmentIntegrationTestC
      * As for now, we don't support a global `copy_to` property for `attachment` type.
      * So this test is failing.
      */
-    @Test @Ignore
+    /*
+    @Test
     public void testCopyTo() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/attachment/test/integration/simple/copy-to.json");
         byte[] txt = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/attachment/test/sample-files/text-in-english.txt");
@@ -180,6 +178,7 @@ public class SimpleAttachmentIntegrationTests extends AttachmentIntegrationTestC
         countResponse = client().prepareCount("test").setQuery(queryStringQuery("Queen").defaultField("copy")).execute().get();
         assertThatWithError(countResponse.getCount(), equalTo(1l));
     }
+    */
 
     @Test
     public void testHighlightAttachment() throws Exception {

@@ -45,8 +45,8 @@ import java.util.Locale;
 import static org.elasticsearch.common.cli.CliToolConfig.Builder.cmd;
 import static org.elasticsearch.common.cli.CliToolConfig.Builder.option;
 import static org.elasticsearch.common.io.Streams.copy;
-import static org.elasticsearch.common.io.Streams.copyToStringFromClasspath;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
 
 /**
  * This class provides a simple main class which can be used to test what is extracted from a given binary file.
@@ -109,7 +109,7 @@ public class StandaloneRunner extends CliTool {
 
             BytesReference json = builder.endObject().endObject().bytes();
 
-            ParseContext.Document doc = docMapper.parse("person", "1", json).rootDoc();
+            ParseContext.Document doc = docMapper.parse("person", "person", "1", json).rootDoc();
 
             terminal.println("## Extracted text");
             terminal.println("--------------------- BEGIN -----------------------");

@@ -20,15 +20,12 @@
 package org.elasticsearch.index.mapper.attachment;
 
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.Constants;
 import org.apache.tika.Tika;
 import org.apache.tika.language.LanguageIdentifier;
 import org.apache.tika.metadata.Metadata;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
@@ -36,9 +33,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.*;
-import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 
 import java.io.IOException;
 import java.util.*;
@@ -67,7 +62,7 @@ import static org.elasticsearch.plugin.mapper.attachments.tika.TikaInstance.tika
  * _content_length = Specify the maximum amount of characters to extract from the attachment. If not specified, then the default for
  * tika is 100,000 characters. Caution is required when setting large values as this can cause memory issues.
  */
-public class AttachmentMapper extends AbstractFieldMapper {
+public class AttachmentMapper extends FieldMapper {
 
     private static ESLogger logger = ESLoggerFactory.getLogger("mapper.attachment");
 
@@ -115,7 +110,7 @@ public class AttachmentMapper extends AbstractFieldMapper {
         }
     }
 
-    public static class Builder extends AbstractFieldMapper.Builder<Builder, AttachmentMapper> {
+    public static class Builder extends FieldMapper.Builder<Builder, AttachmentMapper> {
 
         private ContentPath.Type pathType = Defaults.PATH_TYPE;
 
@@ -207,10 +202,10 @@ public class AttachmentMapper extends AbstractFieldMapper {
             FieldMapper contentMapper;
             if (context.indexCreatedVersion().before(Version.V_2_0_0)) {
                 // old behavior, we need the content to be indexed under the attachment field name
-                if (contentBuilder instanceof AbstractFieldMapper.Builder == false) {
+                if (contentBuilder instanceof FieldMapper.Builder == false) {
                     throw new IllegalStateException("content field for attachment must be a field mapper");
                 }
-                ((AbstractFieldMapper.Builder)contentBuilder).indexName(name);
+                ((FieldMapper.Builder)contentBuilder).indexName(name);
                 contentBuilder.name = name + "." + FieldNames.CONTENT;
                 contentMapper = (FieldMapper) contentBuilder.build(context);
                 context.path().add(name);
@@ -329,7 +324,7 @@ public class AttachmentMapper extends AbstractFieldMapper {
                         Map<String, Object> propNode = (Map<String, Object>) entry1.getValue();
 
                         Mapper.Builder<?, ?> mapperBuilder = findMapperBuilder(propNode, propName, parserContext);
-                        if (parseMultiField((AbstractFieldMapper.Builder) mapperBuilder, fieldName, parserContext, propName, propNode)) {
+                        if (parseMultiField((FieldMapper.Builder) mapperBuilder, fieldName, parserContext, propName, propNode)) {
                             fieldsIterator.remove();
                         } else if (propName.equals(name) && parserContext.indexVersionCreated().before(Version.V_2_0_0)) {
                             builder.content(mapperBuilder);

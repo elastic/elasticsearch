@@ -32,17 +32,12 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNameModule;
 import org.elasticsearch.index.analysis.AnalysisModule;
 import org.elasticsearch.index.analysis.AnalysisService;
-import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.index.similarity.SimilarityLookupService;
 import org.elasticsearch.indices.analysis.IndicesAnalysisModule;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
-import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
-import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCacheListener;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.nio.file.Path;
 import java.util.Locale;
@@ -52,23 +47,17 @@ import static org.elasticsearch.plugin.mapper.attachments.tika.LocaleChecker.isL
 
 public class MapperTestUtils {
 
-    public static MapperService newMapperService(Path tempDir, ThreadPool testingThreadPool) {
+    public static MapperService newMapperService(Path tempDir) {
         return newMapperService(new Index("test"), Settings.builder()
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put("path.home", tempDir)
-                .build(), testingThreadPool);
+                .build());
     }
 
-    public static MapperService newMapperService(Index index, Settings indexSettings, ThreadPool testingThreadPool) {
-        NoneCircuitBreakerService circuitBreakerService = new NoneCircuitBreakerService();
-        return new MapperService(index, 
+    public static MapperService newMapperService(Index index, Settings indexSettings) {
+        return new MapperService(index,
                                  indexSettings, 
                                  newAnalysisService(indexSettings),
-                                 new IndexFieldDataService(index, Settings.Builder.EMPTY_SETTINGS,
-                                     new IndicesFieldDataCache(Settings.Builder.EMPTY_SETTINGS, 
-                                                               new IndicesFieldDataCacheListener(circuitBreakerService), 
-                                                               testingThreadPool),
-                                     circuitBreakerService), 
                                  newSimilarityLookupService(indexSettings), 
                                  null);
     }
@@ -106,8 +95,8 @@ public class MapperTestUtils {
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put(settings)
                 .build();
-        MapperService mapperService = new MapperService(new Index("test"), forcedSettings, newAnalysisService(forcedSettings), null, newSimilarityLookupService(forcedSettings), null);
-        return new DocumentMapperParser(new Index("test"), forcedSettings, mapperService, MapperTestUtils.newAnalysisService(forcedSettings), null, null);
+        MapperService mapperService = new MapperService(new Index("test"), forcedSettings, newAnalysisService(forcedSettings), newSimilarityLookupService(forcedSettings), null);
+        return new DocumentMapperParser(forcedSettings, mapperService, MapperTestUtils.newAnalysisService(forcedSettings), null, null);
     }
 
     /**

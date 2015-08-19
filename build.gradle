@@ -46,7 +46,7 @@ processResources {
 }
 
 tasks.withType(Test) {
-    systemProperty 'java.io.tmp', './temp'
+    systemProperty 'java.io.tmpdir', './temp'
 }
 
 jar {

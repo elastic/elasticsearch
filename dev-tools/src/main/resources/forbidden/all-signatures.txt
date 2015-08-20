@@ -43,7 +43,7 @@ org.apache.lucene.search.NumericRangeFilter
 org.apache.lucene.search.PrefixFilter
 
 java.nio.file.Paths @ Use org.elasticsearch.common.io.PathUtils.get() instead.
-java.nio.file.FileSystems#getDefault() @ use org.elasticsearch.common.io.PathUtils.getDefault() instead.
+java.nio.file.FileSystems#getDefault() @ use org.elasticsearch.common.io.PathUtils.getDefaultFileSystem() instead.
 
 @defaultMessage Specify a location for the temp file/directory instead.
 java.nio.file.Files#createTempDirectory(java.lang.String,java.nio.file.attribute.FileAttribute[])

@@ -56,8 +56,7 @@ public final class InetSocketTransportAddress implements TransportAddress {
             in.readFully(a);
             InetAddress inetAddress;
             if (len == 16) {
-                int scope_id = in.readInt();
-                inetAddress = Inet6Address.getByAddress(null, a, scope_id);
+                inetAddress = Inet6Address.getByAddress(null, a);
             } else {
                 inetAddress = InetAddress.getByAddress(a);
             }
@@ -122,8 +121,9 @@ public final class InetSocketTransportAddress implements TransportAddress {
             byte[] bytes = address().getAddress().getAddress();  // 4 bytes (IPv4) or 16 bytes (IPv6)
             out.writeByte((byte) bytes.length); // 1 byte
             out.write(bytes, 0, bytes.length);
-            if (address().getAddress() instanceof Inet6Address)
-                out.writeInt(((Inet6Address) address.getAddress()).getScopeId());
+            // don't serialize scope ids over the network!!!!
+            // these only make sense with respect to the local machine, and will only formulate
+            // the address incorrectly remotely.
         } else {
             out.writeByte((byte) 1);
             out.writeString(maybeLookupHostname());

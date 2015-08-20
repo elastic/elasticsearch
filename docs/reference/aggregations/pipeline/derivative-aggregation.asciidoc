@@ -225,7 +225,7 @@ of the total sales per month but ask for the derivative of the sales as in the u
                 },
                 "sales_deriv": {
                     "derivative": {
-                        "buckets_paths": "sales",
+                        "buckets_path": "sales",
                         "unit": "day" <1>
                     }
                 }

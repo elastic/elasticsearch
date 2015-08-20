@@ -54,7 +54,7 @@ The following snippet calculates the derivative of the total monthly `sales`:
                 },
                 "sales_deriv": {
                     "derivative": {
-                        "buckets_paths": "sales" <1>
+                        "buckets_path": "sales" <1>
                     }
                 }
             }
@@ -63,7 +63,7 @@ The following snippet calculates the derivative of the total monthly `sales`:
 }
 --------------------------------------------------
 
-<1> `bucket_paths` instructs this derivative aggregation to use the output of the `sales` aggregation for the derivative
+<1> `buckets_path` instructs this derivative aggregation to use the output of the `sales` aggregation for the derivative
 
 And the following may be the response:
 
@@ -137,12 +137,12 @@ monthly sales:
                 },
                 "sales_deriv": {
                     "derivative": {
-                        "buckets_paths": "sales"
+                        "buckets_path": "sales"
                     }
                 },
                 "sales_2nd_deriv": {
                     "derivative": {
-                        "buckets_paths": "sales_deriv" <1>
+                        "buckets_path": "sales_deriv" <1>
                     }
                 }
             }
@@ -151,7 +151,7 @@ monthly sales:
 }
 --------------------------------------------------
 
-<1> `bucket_paths` for the second derivative points to the name of the first derivative
+<1> `buckets_path` for the second derivative points to the name of the first derivative
 
 And the following may be the response:
 

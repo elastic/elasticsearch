@@ -53,10 +53,10 @@ public class ZenPingService extends AbstractLifecycleComponent<ZenPing> implemen
                           Version version, ElectMasterService electMasterService, @Nullable Set<UnicastHostsProvider> unicastHostsProviders) {
         super(settings);
         ImmutableList.Builder<ZenPing> zenPingsBuilder = ImmutableList.builder();
-        if (this.settings.getAsBoolean("discovery.zen.ping.multicast.enabled", true)) {
+        if (this.settings.getAsBoolean("discovery.zen.ping.multicast.enabled", false)) {
             zenPingsBuilder.add(new MulticastZenPing(settings, threadPool, transportService, clusterName, networkService, version));
         }
-        // always add the unicast hosts, so it will be able to receive unicast requests even when working in multicast
+        // always add the unicast hosts, or things get angry!
         zenPingsBuilder.add(new UnicastZenPing(settings, threadPool, transportService, clusterName, version, electMasterService, unicastHostsProviders));
 
         this.zenPings = zenPingsBuilder.build();

@@ -23,6 +23,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
@@ -32,6 +33,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.discovery.zen.ping.PingContextProvider;
 import org.elasticsearch.discovery.zen.ping.ZenPing;
 import org.elasticsearch.node.service.NodeService;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -44,12 +46,14 @@ import java.net.MulticastSocket;
 
 import static org.hamcrest.Matchers.equalTo;
 
+@ESIntegTestCase.Multicast
 public class MulticastZenPingIT extends ESTestCase {
 
     private Settings buildRandomMulticast(Settings settings) {
         Settings.Builder builder = Settings.builder().put(settings);
         builder.put("discovery.zen.ping.multicast.group", "224.2.3." + randomIntBetween(0, 255));
         builder.put("discovery.zen.ping.multicast.port", randomIntBetween(55000, 56000));
+        builder.put("discovery.zen.ping.multicast.enabled", true);
         if (randomBoolean()) {
             builder.put("discovery.zen.ping.multicast.shared", randomBoolean());
         }
@@ -129,7 +133,7 @@ public class MulticastZenPingIT extends ESTestCase {
         }
     }
 
-    @Test
+    @Test @SuppressForbidden(reason = "I bind to wildcard addresses. I am a total nightmare")
     public void testExternalPing() throws Exception {
         Settings settings = Settings.EMPTY;
         settings = buildRandomMulticast(settings);

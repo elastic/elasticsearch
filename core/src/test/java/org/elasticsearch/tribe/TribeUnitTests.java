@@ -48,7 +48,7 @@ public class TribeUnitTests extends ESTestCase {
     private static Node tribe1;
     private static Node tribe2;
 
-    private static final String NODE_MODE = InternalTestCluster.nodeMode();
+    private static final String NODE_MODE = InternalTestCluster.configuredNodeMode();
 
     @BeforeClass
     public static void createTribes() {

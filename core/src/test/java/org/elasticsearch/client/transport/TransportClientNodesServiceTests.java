@@ -32,6 +32,8 @@ import org.elasticsearch.transport.*;
 import org.junit.Test;
 
 import java.io.Closeable;
+import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -53,6 +55,11 @@ public class TransportClientNodesServiceTests extends ESTestCase {
         TestIteration() {
             threadPool = new ThreadPool("transport-client-nodes-service-tests");
             transport = new FailAndRetryMockTransport<TestResponse>(getRandom()) {
+                @Override
+                public List<String> getLocalAddresses() {
+                    return Collections.EMPTY_LIST;
+                }
+
                 @Override
                 protected TestResponse newResponse() {
                     return  new TestResponse();

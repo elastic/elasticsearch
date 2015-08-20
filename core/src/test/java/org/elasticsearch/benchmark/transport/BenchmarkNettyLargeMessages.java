@@ -35,6 +35,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 import org.elasticsearch.transport.netty.NettyTransport;
 
+import java.net.InetAddress;
 import java.util.concurrent.CountDownLatch;
 
 import static org.elasticsearch.transport.TransportRequestOptions.options;
@@ -44,7 +45,7 @@ import static org.elasticsearch.transport.TransportRequestOptions.options;
  */
 public class BenchmarkNettyLargeMessages {
 
-    public static void main(String[] args) throws InterruptedException {
+    public static void main(String[] args) throws Exception {
         final ByteSizeValue payloadSize = new ByteSizeValue(10, ByteSizeUnit.MB);
         final int NUMBER_OF_ITERATIONS = 100000;
         final int NUMBER_OF_CLIENTS = 5;
@@ -63,7 +64,7 @@ public class BenchmarkNettyLargeMessages {
                 new NettyTransport(settings, threadPool, networkService, BigArrays.NON_RECYCLING_INSTANCE, Version.CURRENT, new NamedWriteableRegistry()), threadPool
         ).start();
 
-        final DiscoveryNode bigNode = new DiscoveryNode("big", new InetSocketTransportAddress("localhost", 9300), Version.CURRENT);
+        final DiscoveryNode bigNode = new DiscoveryNode("big", new InetSocketTransportAddress(InetAddress.getByName("localhost"), 9300), Version.CURRENT);
 //        final DiscoveryNode smallNode = new DiscoveryNode("small", new InetSocketTransportAddress("localhost", 9300));
         final DiscoveryNode smallNode = bigNode;
 

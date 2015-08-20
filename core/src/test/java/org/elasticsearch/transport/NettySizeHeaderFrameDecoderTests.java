@@ -20,6 +20,7 @@
 package org.elasticsearch.transport;
 
 import com.google.common.base.Charsets;
+
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
@@ -39,6 +40,7 @@ import org.junit.Test;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
+import java.net.InetAddress;
 import java.net.Socket;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
@@ -55,7 +57,7 @@ public class NettySizeHeaderFrameDecoderTests extends ESTestCase {
     private ThreadPool threadPool;
     private NettyTransport nettyTransport;
     private int port;
-    private String host;
+    private InetAddress host;
 
     @Before
     public void startThreadPool() {
@@ -70,7 +72,7 @@ public class NettySizeHeaderFrameDecoderTests extends ESTestCase {
 
         InetSocketTransportAddress transportAddress = (InetSocketTransportAddress) nettyTransport.boundAddress().boundAddress();
         port = transportAddress.address().getPort();
-        host = transportAddress.address().getHostString();
+        host = transportAddress.address().getAddress();
 
     }
 

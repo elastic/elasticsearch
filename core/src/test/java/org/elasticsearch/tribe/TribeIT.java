@@ -70,7 +70,7 @@ public class TribeIT extends ESIntegTestCase {
     public static void setupSecondCluster() throws Exception {
         ESIntegTestCase.beforeClass();
         // create another cluster
-        cluster2 = new InternalTestCluster(randomLong(), createTempDir(), 2, 2, Strings.randomBase64UUID(getRandom()), 0, false, SECOND_CLUSTER_NODE_PREFIX);
+        cluster2 = new InternalTestCluster(InternalTestCluster.configuredNodeMode(), randomLong(), createTempDir(), 2, 2, Strings.randomBase64UUID(getRandom()), 0, false, SECOND_CLUSTER_NODE_PREFIX);
         cluster2.beforeTest(getRandom(), 0.1);
         cluster2.ensureAtLeastNumDataNodes(2);
     }

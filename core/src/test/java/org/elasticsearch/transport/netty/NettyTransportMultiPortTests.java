@@ -170,7 +170,7 @@ public class NettyTransportMultiPortTests extends ESTestCase {
                         // Set SO_REUSEADDR as we may bind here and not be able
                         // to reuse the address immediately without it.
                         serverSocket.setReuseAddress(NetworkUtils.defaultReuseAddress());
-                        serverSocket.bind(new InetSocketAddress(nextPort));
+                        serverSocket.bind(new InetSocketAddress(InetAddress.getLoopbackAddress(), nextPort));
 
                         // bind was a success
                         logger.debug("port [{}] available.", nextPort);
@@ -199,7 +199,7 @@ public class NettyTransportMultiPortTests extends ESTestCase {
 
     private void assertConnectionRefused(int port) throws Exception {
         try {
-            trySocketConnection(new InetSocketTransportAddress("localhost", port).address());
+            trySocketConnection(new InetSocketTransportAddress(InetAddress.getByName("localhost"), port).address());
             fail("Expected to get exception when connecting to port " + port);
         } catch (IOException e) {
             // expected
@@ -213,7 +213,7 @@ public class NettyTransportMultiPortTests extends ESTestCase {
 
     private void assertPortIsBound(String host, int port) throws Exception {
         logger.info("Trying to connect to [{}]:[{}]", host, port);
-        trySocketConnection(new InetSocketTransportAddress(host, port).address());
+        trySocketConnection(new InetSocketTransportAddress(InetAddress.getByName(host), port).address());
     }
 
     private void trySocketConnection(InetSocketAddress address) throws Exception {

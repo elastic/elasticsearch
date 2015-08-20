@@ -359,6 +359,6 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
 
     @Override
     public List<String> getLocalAddresses() {
-        return Collections.singletonList(boundAddress.boundAddress().getAddress());
+        return Collections.singletonList("0.0.0.0");
     }
 }

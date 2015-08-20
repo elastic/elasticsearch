@@ -357,11 +357,8 @@ public final class InternalTestCluster extends TestCluster {
         return nodes.keySet().toArray(Strings.EMPTY_ARRAY);
     }
 
-    private static boolean isLocalTransportConfigured() {
-        if ("local".equals(System.getProperty("es.node.mode", "network"))) {
-            return true;
-        }
-        return Boolean.parseBoolean(System.getProperty("es.node.local", "false"));
+    private boolean isLocalTransportConfigured() {
+        return "local".equals(nodeMode);
     }
 
     private Settings getSettings(int nodeOrdinal, long nodeSeed, Settings others) {
@@ -381,7 +378,7 @@ public final class InternalTestCluster extends TestCluster {
         return builder.build();
     }
 
-    private static Settings getRandomNodeSettings(long seed) {
+    private Settings getRandomNodeSettings(long seed) {
         Random random = new Random(seed);
         Builder builder = Settings.settingsBuilder()
                 .put(SETTING_CLUSTER_NODE_SEED, seed);

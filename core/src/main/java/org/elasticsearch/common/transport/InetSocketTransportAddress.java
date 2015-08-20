@@ -33,7 +33,7 @@ import java.net.InetSocketAddress;
  */
 public final class InetSocketTransportAddress implements TransportAddress {
 
-    public static final InetSocketTransportAddress PROTO = new InetSocketTransportAddress(new InetSocketAddress("127.0.0.1", 0));
+    public static final InetSocketTransportAddress PROTO = new InetSocketTransportAddress();
 
     private final InetSocketAddress address;
 
@@ -49,6 +49,10 @@ public final class InetSocketTransportAddress implements TransportAddress {
         }
         int port = in.readInt();
         this.address = new InetSocketAddress(inetAddress, port);
+    }
+
+    private InetSocketTransportAddress() {
+        address = null;
     }
 
     public InetSocketTransportAddress(InetAddress address, int port) {

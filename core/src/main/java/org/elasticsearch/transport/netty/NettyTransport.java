@@ -42,6 +42,7 @@ import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.netty.NettyUtils;
 import org.elasticsearch.common.netty.OpenChannelsHandler;
 import org.elasticsearch.common.netty.ReleaseChannelFutureListener;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.common.settings.Settings;
@@ -409,7 +410,11 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
             throw new BindTransportException("Failed to resolve host [" + bindHost + "]", e);
         }
         if (logger.isDebugEnabled()) {
-            logger.debug("binding server bootstrap to: {}", hostAddresses);
+            String[] addresses = new String[hostAddresses.length];
+            for (int i = 0; i < hostAddresses.length; i++) {
+                addresses[i] = NetworkAddress.format(hostAddresses[i]);
+            }
+            logger.debug("binding server bootstrap to: {}", addresses);
         }
         for (InetAddress hostAddress : hostAddresses) {
             bindServerBootstrap(name, hostAddress, settings);
@@ -421,7 +426,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         String port = settings.get("port");
         PortsRange portsRange = new PortsRange(port);
         final AtomicReference<Exception> lastException = new AtomicReference<>();
-        final AtomicReference<SocketAddress> boundSocket = new AtomicReference<>();
+        final AtomicReference<InetSocketAddress> boundSocket = new AtomicReference<>();
         boolean success = portsRange.iterate(new PortsRange.PortCallback() {
             @Override
             public boolean onPortNumber(int portNumber) {
@@ -434,7 +439,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
                             serverChannels.put(name, list);
                         }
                         list.add(channel);
-                        boundSocket.set(channel.getLocalAddress());
+                        boundSocket.set((InetSocketAddress)channel.getLocalAddress());
                     }
                 } catch (Exception e) {
                     lastException.set(e);
@@ -448,7 +453,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         }
 
         if (!DEFAULT_PROFILE.equals(name)) {
-            InetSocketAddress boundAddress = (InetSocketAddress) boundSocket.get();
+            InetSocketAddress boundAddress = boundSocket.get();
             int publishPort = settings.getAsInt("publish_port", boundAddress.getPort());
             String publishHost = settings.get("publish_host", boundAddress.getHostString());
             InetSocketAddress publishAddress = createPublishAddress(publishHost, publishPort);
@@ -456,7 +461,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
             profileBoundAddresses.putIfAbsent(name, new BoundTransportAddress(new InetSocketTransportAddress(boundAddress), new InetSocketTransportAddress(publishAddress)));
         }
 
-        logger.info("Bound profile [{}] to address [{}]", name, boundSocket.get());
+        logger.info("Bound profile [{}] to address {{}}", name, NetworkAddress.format(boundSocket.get()));
     }
 
     private void createServerBootstrap(String name, Settings settings) {

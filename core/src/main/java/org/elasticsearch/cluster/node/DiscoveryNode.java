@@ -360,16 +360,16 @@ public class DiscoveryNode implements Streamable, ToXContent {
     public String toString() {
         StringBuilder sb = new StringBuilder();
         if (nodeName.length() > 0) {
-            sb.append('[').append(nodeName).append(']');
+            sb.append('{').append(nodeName).append('}');
         }
         if (nodeId != null) {
-            sb.append('[').append(nodeId).append(']');
+            sb.append('{').append(nodeId).append('}');
         }
         if (Strings.hasLength(hostName)) {
-            sb.append('[').append(hostName).append(']');
+            sb.append('{').append(hostName).append('}');
         }
         if (address != null) {
-            sb.append('[').append(address).append(']');
+            sb.append('{').append(address).append('}');
         }
         if (!attributes.isEmpty()) {
             sb.append(attributes);

@@ -22,8 +22,6 @@ package org.elasticsearch.transport.netty;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.test.ESTestCase;
 
-import java.net.InetAddress;
-
 /** Unit tests for NettyTransport */
 public class NettyTransportTests extends ESTestCase {
     
@@ -32,7 +30,7 @@ public class NettyTransportTests extends ESTestCase {
         TransportAddress[] addresses = NettyTransport.parse("127.0.0.1", "1234");
         assertEquals(1, addresses.length);
 
-        assertEquals(InetAddress.getByName("127.0.0.1").getHostAddress(), addresses[0].getAddress());
+        assertEquals("127.0.0.1", addresses[0].getAddress());
         assertEquals(1234, addresses[0].getPort());
     }
 
@@ -41,10 +39,10 @@ public class NettyTransportTests extends ESTestCase {
         TransportAddress[] addresses = NettyTransport.parse("127.0.0.1", "1234-1235");
         assertEquals(2, addresses.length);
 
-        assertEquals(InetAddress.getByName("127.0.0.1").getHostAddress(), addresses[0].getAddress());
+        assertEquals("127.0.0.1", addresses[0].getAddress());
         assertEquals(1234, addresses[0].getPort());
         
-        assertEquals(InetAddress.getByName("127.0.0.1").getHostAddress(), addresses[1].getAddress());
+        assertEquals("127.0.0.1", addresses[1].getAddress());
         assertEquals(1235, addresses[1].getPort());
     }
 
@@ -53,7 +51,7 @@ public class NettyTransportTests extends ESTestCase {
         TransportAddress[] addresses = NettyTransport.parse("127.0.0.1:2345", "1234");
         assertEquals(1, addresses.length);
 
-        assertEquals(InetAddress.getByName("127.0.0.1").getHostAddress(), addresses[0].getAddress());
+        assertEquals("127.0.0.1", addresses[0].getAddress());
         assertEquals(2345, addresses[0].getPort());
     }
 
@@ -62,10 +60,10 @@ public class NettyTransportTests extends ESTestCase {
         TransportAddress[] addresses = NettyTransport.parse("127.0.0.1:2345-2346", "1234");
         assertEquals(2, addresses.length);
 
-        assertEquals(InetAddress.getByName("127.0.0.1").getHostAddress(), addresses[0].getAddress());
+        assertEquals("127.0.0.1", addresses[0].getAddress());
         assertEquals(2345, addresses[0].getPort());
 
-        assertEquals(InetAddress.getByName("127.0.0.1").getHostAddress(), addresses[1].getAddress());
+        assertEquals("127.0.0.1", addresses[1].getAddress());
         assertEquals(2346, addresses[1].getPort());
     }
 
@@ -84,7 +82,7 @@ public class NettyTransportTests extends ESTestCase {
         TransportAddress[] addresses = NettyTransport.parse("[::1]", "1234");
         assertEquals(1, addresses.length);
 
-        assertEquals(InetAddress.getByName("::1").getHostAddress(), addresses[0].getAddress());
+        assertEquals("::1", addresses[0].getAddress());
         assertEquals(1234, addresses[0].getPort());
     }
 
@@ -93,10 +91,10 @@ public class NettyTransportTests extends ESTestCase {
         TransportAddress[] addresses = NettyTransport.parse("[::1]", "1234-1235");
         assertEquals(2, addresses.length);
 
-        assertEquals(InetAddress.getByName("::1").getHostAddress(), addresses[0].getAddress());
+        assertEquals("::1", addresses[0].getAddress());
         assertEquals(1234, addresses[0].getPort());
         
-        assertEquals(InetAddress.getByName("::1").getHostAddress(), addresses[1].getAddress());
+        assertEquals("::1", addresses[1].getAddress());
         assertEquals(1235, addresses[1].getPort());
     }
 
@@ -105,7 +103,7 @@ public class NettyTransportTests extends ESTestCase {
         TransportAddress[] addresses = NettyTransport.parse("[::1]:2345", "1234");
         assertEquals(1, addresses.length);
 
-        assertEquals(InetAddress.getByName("::1").getHostAddress(), addresses[0].getAddress());
+        assertEquals("::1", addresses[0].getAddress());
         assertEquals(2345, addresses[0].getPort());
     }
 
@@ -114,10 +112,10 @@ public class NettyTransportTests extends ESTestCase {
         TransportAddress[] addresses = NettyTransport.parse("[::1]:2345-2346", "1234");
         assertEquals(2, addresses.length);
 
-        assertEquals(InetAddress.getByName("::1").getHostAddress(), addresses[0].getAddress());
+        assertEquals("::1", addresses[0].getAddress());
         assertEquals(2345, addresses[0].getPort());
 
-        assertEquals(InetAddress.getByName("::1").getHostAddress(), addresses[1].getAddress());
+        assertEquals("::1", addresses[1].getAddress());
         assertEquals(2346, addresses[1].getPort());
     }
 }

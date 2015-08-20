@@ -21,6 +21,7 @@ package org.elasticsearch.common.transport;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.network.NetworkAddress;
 
 import java.io.IOException;
 import java.net.Inet6Address;
@@ -100,7 +101,7 @@ public final class InetSocketTransportAddress implements TransportAddress {
 
     @Override
     public String getAddress() {
-        return address.getAddress().getHostAddress();
+        return NetworkAddress.formatAddress(address.getAddress());
     }
 
     @Override
@@ -148,6 +149,6 @@ public final class InetSocketTransportAddress implements TransportAddress {
 
     @Override
     public String toString() {
-        return "inet[" + address + "]";
+        return NetworkAddress.format(address);
     }
 }

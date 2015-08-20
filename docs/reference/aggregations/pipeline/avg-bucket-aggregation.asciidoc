@@ -52,13 +52,13 @@ The following snippet calculates the average of the total monthly `sales`:
         },
         "avg_monthly_sales": {
             "avg_bucket": {
-                "buckets_paths": "sales_per_month>sales" <1>
+                "buckets_path": "sales_per_month>sales" <1>
             }
         }
     }
 }
 --------------------------------------------------
-<1> `bucket_paths` instructs this avg_bucket aggregation that we want the (mean) average value of the `sales` aggregation in the 
+<1> `buckets_path` instructs this avg_bucket aggregation that we want the (mean) average value of the `sales` aggregation in the 
 `sales_per_month` date histogram.
 
 And the following may be the response:

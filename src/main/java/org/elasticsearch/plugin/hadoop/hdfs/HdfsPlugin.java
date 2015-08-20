@@ -18,16 +18,16 @@
  */
 package org.elasticsearch.plugin.hadoop.hdfs;
 
-import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardRepository;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesModule;
 import org.elasticsearch.repositories.hdfs.HdfsRepository;
-import org.elasticsearch.repositories.hdfs.HdfsRepositoryModule;
 
-public class HdfsPlugin extends AbstractPlugin {
+public class HdfsPlugin extends Plugin {
 
     @Override
     public String name() {
-        return "hdfs-snapshot";
+        return "repository-hdfs";
     }
 
     @Override
@@ -37,7 +37,7 @@ public class HdfsPlugin extends AbstractPlugin {
 
     public void onModule(RepositoriesModule repositoriesModule) {
         //if (settings.getAsBoolean("hdfs.enabled", true)) {
-        repositoriesModule.registerRepository(HdfsRepository.TYPE, HdfsRepositoryModule.class);
+        repositoriesModule.registerRepository(HdfsRepository.TYPE, HdfsRepository.class, BlobStoreIndexShardRepository.class);
         //}
     }
 }

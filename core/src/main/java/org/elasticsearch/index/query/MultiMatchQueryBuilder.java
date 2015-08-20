@@ -72,7 +72,7 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
 
     private Float cutoffFrequency = null;
 
-    private MatchQueryBuilder.ZeroTermsQuery zeroTermsQuery = null;
+    private MatchQuery.ZeroTermsQuery zeroTermsQuery = null;
 
     static final MultiMatchQueryBuilder PROTOTYPE = new MultiMatchQueryBuilder(null);
 
@@ -296,7 +296,7 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
     }
 
 
-    public MultiMatchQueryBuilder zeroTermsQuery(MatchQueryBuilder.ZeroTermsQuery zeroTermsQuery) {
+    public MultiMatchQueryBuilder zeroTermsQuery(MatchQuery.ZeroTermsQuery zeroTermsQuery) {
         this.zeroTermsQuery = zeroTermsQuery;
         return this;
     }

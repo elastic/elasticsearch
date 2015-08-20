@@ -84,3 +84,7 @@ InnerHitsBuilder now has a dedicated addParentChildInnerHits and addNestedInnerH
 to differentiate between inner hits for nested vs. parent / child documents. This change
 makes the type / path parameter mandatory.
 
+==== MatchQueryBuilder
+
+Moving MatchQueryBuilder.Type and MatchQueryBuilder.ZeroTermsQuery enum to MatchQuery.Type.
+Also reusing new Operator enum.

@@ -25,7 +25,11 @@ import org.apache.lucene.queries.ExtendedCommonTermsQuery;
 import org.apache.lucene.search.*;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.util.QueryBuilder;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -38,16 +42,90 @@ import java.util.List;
 
 public class MatchQuery {
 
-    public static enum Type {
-        BOOLEAN,
-        PHRASE,
-        PHRASE_PREFIX
+    public static enum Type implements Writeable<Type> {
+        /**
+         * The text is analyzed and terms are added to a boolean query.
+         */
+        BOOLEAN(0),
+        /**
+         * The text is analyzed and used as a phrase query.
+         */
+        PHRASE(1),
+        /**
+         * The text is analyzed and used in a phrase query, with the last term acting as a prefix.
+         */
+        PHRASE_PREFIX(2);
+
+        private final int ordinal;
+
+        private static final Type PROTOTYPE = BOOLEAN;
+
+        private Type(int ordinal) {
+            this.ordinal = ordinal;
+        }
+
+        @Override
+        public Type readFrom(StreamInput in) throws IOException {
+            int ord = in.readVInt();
+            for (Type type : Type.values()) {
+                if (type.ordinal == ord) {
+                    return type;
+                }
+            }
+            throw new ElasticsearchException("unknown serialized type [" + ord + "]");
+        }
+
+        public static Type readTypeFrom(StreamInput in) throws IOException {
+            return PROTOTYPE.readFrom(in);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeVInt(this.ordinal);
+        }
     }
 
-    public static enum ZeroTermsQuery {
-        NONE,
-        ALL
+    public static enum ZeroTermsQuery implements Writeable<ZeroTermsQuery> {
+        NONE(0),
+        ALL(1);
+
+        private final int ordinal;
+
+        private static final ZeroTermsQuery PROTOTYPE = NONE;
+
+        private ZeroTermsQuery(int ordinal) {
+            this.ordinal = ordinal;
+        }
+
+        @Override
+        public ZeroTermsQuery readFrom(StreamInput in) throws IOException {
+            int ord = in.readVInt();
+            for (ZeroTermsQuery zeroTermsQuery : ZeroTermsQuery.values()) {
+                if (zeroTermsQuery.ordinal == ord) {
+                    return zeroTermsQuery;
+                }
+            }
+            throw new ElasticsearchException("unknown serialized type [" + ord + "]");
+        }
+
+        public static ZeroTermsQuery readZeroTermsQueryFrom(StreamInput in) throws IOException {
+            return PROTOTYPE.readFrom(in);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeVInt(this.ordinal);
+        }
     }
+
+    /** the default phrase slop */
+    public static final int DEFAULT_PHRASE_SLOP = 0;
+
+    /** the default leniency setting */
+    public static final boolean DEFAULT_LENIENCY = false;
+
+    /** the default zero terms query */
+    public static final ZeroTermsQuery DEFAULT_ZERO_TERMS_QUERY = ZeroTermsQuery.NONE;
 
     protected final QueryShardContext context;
 
@@ -57,7 +135,7 @@ public class MatchQuery {
 
     protected boolean enablePositionIncrements = true;
 
-    protected int phraseSlop = 0;
+    protected int phraseSlop = DEFAULT_PHRASE_SLOP;
 
     protected Fuzziness fuzziness = null;
 
@@ -69,9 +147,9 @@ public class MatchQuery {
 
     protected MultiTermQuery.RewriteMethod fuzzyRewriteMethod;
 
-    protected boolean lenient;
+    protected boolean lenient = DEFAULT_LENIENCY;
 
-    protected ZeroTermsQuery zeroTermsQuery = ZeroTermsQuery.NONE;
+    protected ZeroTermsQuery zeroTermsQuery = DEFAULT_ZERO_TERMS_QUERY;
 
     protected Float commonTermsCutoff = null;
 
@@ -87,8 +165,8 @@ public class MatchQuery {
         this.occur = occur;
     }
 
-    public void setCommonTermsCutoff(float cutoff) {
-        this.commonTermsCutoff = Float.valueOf(cutoff);
+    public void setCommonTermsCutoff(Float cutoff) {
+        this.commonTermsCutoff = cutoff;
     }
 
     public void setEnablePositionIncrements(boolean enablePositionIncrements) {
@@ -198,7 +276,7 @@ public class MatchQuery {
     }
 
     protected Query zeroTermsQuery() {
-        return zeroTermsQuery == ZeroTermsQuery.NONE ? Queries.newMatchNoDocsQuery() : Queries.newMatchAllQuery();
+        return zeroTermsQuery == DEFAULT_ZERO_TERMS_QUERY ? Queries.newMatchNoDocsQuery() : Queries.newMatchAllQuery();
     }
 
     private class MatchQueryBuilder extends QueryBuilder {

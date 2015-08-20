@@ -21,13 +21,16 @@ package org.elasticsearch.search.aggregations.bucket;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.joda.DateMathParser;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
+import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Bucket;
 import org.elasticsearch.search.aggregations.metrics.max.Max;
 import org.elasticsearch.search.aggregations.metrics.sum.Sum;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -43,21 +46,16 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.dateHistogram;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.max;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.stats;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.*;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.*;
 import static org.hamcrest.core.IsNull.notNullValue;
 
 /**
@@ -1203,6 +1201,70 @@ public class DateHistogramTests extends ElasticsearchIntegrationTest {
             assertThat(bucket.getKeyAsDate(), equalTo(key));
             assertThat(bucket.getDocCount(), equalTo(extendedValueCounts[i]));
             key = key.plusDays(interval);
+        }
+    }
+
+    /**
+     * Test date histogram aggregation with hour interval, timezone shift and
+     * extended bounds (see https://github.com/elastic/elasticsearch/issues/12278)
+     */
+    @Test
+    public void singleValueField_WithExtendedBoundsTimezone() throws Exception {
+
+        String index = "test12278";
+        prepareCreate(index)
+                .setSettings(ImmutableSettings.builder().put(indexSettings()).put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
+                .execute().actionGet();
+
+        DateMathParser parser = new DateMathParser(Joda.forPattern("dateOptionalTime"), TimeUnit.MILLISECONDS);
+
+        final Callable<Long> callable = new Callable<Long>() {
+            @Override
+            public Long call() throws Exception {
+                return System.currentTimeMillis();
+            }
+        };
+
+        // we pick a random timezone offset of +12/-12 hours and insert two documents
+        // one at 00:00 in that time zone and one at 12:00
+        List<IndexRequestBuilder> builders = new ArrayList<>();
+        int timeZoneHourOffset = randomIntBetween(-12, 12);
+        DateTimeZone timezone = DateTimeZone.forOffsetHours(timeZoneHourOffset);
+        DateTime timeZoneStartToday = new DateTime(parser.parse("now/d", callable, false, timezone), DateTimeZone.UTC);
+        DateTime timeZoneNoonToday = new DateTime(parser.parse("now/d+12h", callable, false, timezone), DateTimeZone.UTC);
+        builders.add(indexDoc(index, timeZoneStartToday, 1));
+        builders.add(indexDoc(index, timeZoneNoonToday, 2));
+        indexRandom(true, builders);
+        ensureSearchable(index);
+
+        SearchResponse response = null;
+        // retrieve those docs with the same time zone and extended bounds
+        response = client()
+                .prepareSearch(index)
+                .setQuery(QueryBuilders.rangeQuery("date").from("now/d").to("now/d").includeLower(true).includeUpper(true).timeZone(timezone.getID()))
+                .addAggregation(
+                        dateHistogram("histo").field("date").interval(DateHistogram.Interval.hours(1)).timeZone(timezone.getID()).minDocCount(0)
+                                .extendedBounds("now/d", "now/d+23h")
+                ).execute().actionGet();
+        assertSearchResponse(response);
+
+        assertThat("Expected 24 buckets for one day aggregation with hourly interval", response.getHits().totalHits(), equalTo(2l));
+
+        Histogram histo = response.getAggregations().get("histo");
+        assertThat(histo, notNullValue());
+        assertThat(histo.getName(), equalTo("histo"));
+        List<? extends Bucket> buckets = histo.getBuckets();
+        assertThat(buckets.size(), equalTo(24));
+
+        for (int i = 0; i < buckets.size(); i++) {
+            Histogram.Bucket bucket = buckets.get(i);
+            assertThat(bucket, notNullValue());
+            assertThat("Bucket " + i +" had wrong key", new DateTime(bucket.getKey(), DateTimeZone.UTC), equalTo(new DateTime(timeZoneStartToday.getMillis() + (i * 60 * 60 * 1000), DateTimeZone.UTC)));
+            if (i == 0 || i == 12) {
+                assertThat(bucket.getDocCount(), equalTo(1l));
+            } else {
+                assertThat(bucket.getDocCount(), equalTo(0l));
+            }
         }
     }
 

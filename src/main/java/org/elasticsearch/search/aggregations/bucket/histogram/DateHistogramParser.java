@@ -46,9 +46,7 @@ public class DateHistogramParser implements Aggregator.Parser {
     static final ParseField OFFSET = new ParseField("offset");
     static final ParseField PRE_OFFSET = new ParseField("pre_offset").withAllDeprecated("offset");
     static final ParseField POST_OFFSET = new ParseField("post_offset").withAllDeprecated("offset");
-    static final ParseField PRE_ZONE = new ParseField("pre_zone").withAllDeprecated("time_zone");
     static final ParseField POST_ZONE = new ParseField("post_zone").withAllDeprecated("time_zone");
-    static final ParseField TIME_ZONE = new ParseField("time_zone");
     static final ParseField INTERVAL = new ParseField("interval");
     static final ParseField PRE_ZONE_ADJUST = new ParseField("pre_zone_adjust_large_interval").withAllDeprecated("");
 
@@ -87,6 +85,7 @@ public class DateHistogramParser implements Aggregator.Parser {
         ValuesSourceParser vsParser = ValuesSourceParser.numeric(aggregationName, InternalDateHistogram.TYPE, context)
                 .targetValueType(ValueType.DATE)
                 .formattable(true)
+                .timezoneAware(true)
                 .build();
 
         boolean keyed = false;
@@ -95,7 +94,6 @@ public class DateHistogramParser implements Aggregator.Parser {
         InternalOrder order = (InternalOrder) Histogram.Order.KEY_ASC;
         String interval = null;
         boolean preZoneAdjustLargeInterval = false;
-        DateTimeZone preZone = DateTimeZone.UTC;
         DateTimeZone postZone = DateTimeZone.UTC;
         long preOffset = 0;
         long postOffset = 0;
@@ -108,11 +106,7 @@ public class DateHistogramParser implements Aggregator.Parser {
             } else if (vsParser.token(currentFieldName, token, parser)) {
                 continue;
             } else if (token == XContentParser.Token.VALUE_STRING) {
-                if (TIME_ZONE.match(currentFieldName)) {
-                    preZone = DateMathParser.parseZone(parser.text());
-                } else if (PRE_ZONE.match(currentFieldName)) {
-                    preZone = DateMathParser.parseZone(parser.text());
-                } else if (POST_ZONE.match(currentFieldName)) {
+                if (POST_ZONE.match(currentFieldName)) {
                     postZone = DateMathParser.parseZone(parser.text());
                 } else if (PRE_OFFSET.match(currentFieldName)) {
                     preOffset = parseOffset(parser.text());
@@ -137,10 +131,6 @@ public class DateHistogramParser implements Aggregator.Parser {
             } else if (token == XContentParser.Token.VALUE_NUMBER) {
                 if ("min_doc_count".equals(currentFieldName) || "minDocCount".equals(currentFieldName)) {
                     minDocCount = parser.longValue();
-                } else if (TIME_ZONE.match(currentFieldName)) {
-                    preZone = DateTimeZone.forOffsetHours(parser.intValue());
-                } else if (PRE_ZONE.match(currentFieldName)) {
-                    preZone = DateTimeZone.forOffsetHours(parser.intValue());
                 } else if (POST_ZONE.match(currentFieldName)) {
                     postZone = DateTimeZone.forOffsetHours(parser.intValue());
                 } else {
@@ -206,7 +196,7 @@ public class DateHistogramParser implements Aggregator.Parser {
         }
 
         Rounding rounding = tzRoundingBuilder
-                .preZone(preZone).postZone(postZone)
+                .preZone(vsParser.input().timezone()).postZone(postZone)
                 .preZoneAdjustLargeInterval(preZoneAdjustLargeInterval)
                 .preOffset(preOffset).postOffset(postOffset)
                 .build();

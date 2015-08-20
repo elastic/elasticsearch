@@ -20,6 +20,8 @@
 package org.elasticsearch.search.aggregations.support;
 
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.joda.DateMathParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
@@ -28,12 +30,16 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ip.IpFieldMapper;
-import org.elasticsearch.script.*;
+import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.script.ScriptParameterParser;
 import org.elasticsearch.script.ScriptParameterParser.ScriptParameterValue;
+import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.support.format.ValueFormat;
 import org.elasticsearch.search.internal.SearchContext;
+import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.util.Map;
@@ -42,6 +48,9 @@ import java.util.Map;
  *
  */
 public class ValuesSourceParser<VS extends ValuesSource> {
+
+    static final ParseField TIME_ZONE = new ParseField("time_zone");
+    static final ParseField PRE_ZONE = new ParseField("pre_zone").withAllDeprecated("time_zone");
 
     public static Builder any(String aggName, InternalAggregation.Type aggType, SearchContext context) {
         return new Builder<>(aggName, aggType, context, ValuesSource.class);
@@ -59,14 +68,19 @@ public class ValuesSourceParser<VS extends ValuesSource> {
         return new Builder<>(aggName, aggType, context, ValuesSource.GeoPoint.class).targetValueType(ValueType.GEOPOINT).scriptable(false);
     }
 
-    private static class Input {
-        String field = null;
-        String script = null;
-        ScriptService.ScriptType scriptType = null;
-        String lang = null;
-        Map<String, Object> params = null;
-        ValueType valueType = null;
-        String format = null;
+    public static class Input {
+        private String field = null;
+        private String script = null;
+        private ScriptService.ScriptType scriptType = null;
+        private String lang = null;
+        private Map<String, Object> params = null;
+        private ValueType valueType = null;
+        private String format = null;
+        private DateTimeZone timezone = DateTimeZone.UTC;
+
+        public DateTimeZone timezone() {
+            return this.timezone;
+        }
     }
 
     private final String aggName;
@@ -76,6 +90,7 @@ public class ValuesSourceParser<VS extends ValuesSource> {
 
     private boolean scriptable = true;
     private boolean formattable = false;
+    private boolean timezoneAware = false;
     private ValueType targetValueType = null;
     private ScriptParameterParser scriptParameterParser = new ScriptParameterParser();
 
@@ -94,6 +109,10 @@ public class ValuesSourceParser<VS extends ValuesSource> {
                 input.field = parser.text();
             } else if (formattable && "format".equals(currentFieldName)) {
                 input.format = parser.text();
+            } else if (timezoneAware && TIME_ZONE.match(currentFieldName)) {
+                input.timezone = DateMathParser.parseZone(parser.text());
+            } else if (timezoneAware && PRE_ZONE.match(currentFieldName)) {
+                input.timezone = DateMathParser.parseZone(parser.text());
             } else if (scriptable) {
                 if ("value_type".equals(currentFieldName) || "valueType".equals(currentFieldName)) {
                     input.valueType = ValueType.resolveForScript(parser.text());
@@ -106,6 +125,16 @@ public class ValuesSourceParser<VS extends ValuesSource> {
                     return false;
                 }
                 return true;
+            } else {
+                return false;
+            }
+            return true;
+        }
+        if (token == XContentParser.Token.VALUE_NUMBER) {
+            if (timezoneAware && TIME_ZONE.match(currentFieldName)) {
+                input.timezone = DateTimeZone.forOffsetHours(parser.intValue());
+            } else if (timezoneAware && PRE_ZONE.match(currentFieldName)) {
+                input.timezone = DateTimeZone.forOffsetHours(parser.intValue());
             } else {
                 return false;
             }
@@ -180,7 +209,7 @@ public class ValuesSourceParser<VS extends ValuesSource> {
 
         config.fieldContext = new FieldContext(input.field, indexFieldData, mapper);
         config.script = createScript();
-        config.format = resolveFormat(input.format, mapper);
+        config.format = resolveFormat(input.format, mapper, input.timezone());
         return config;
     }
 
@@ -199,9 +228,9 @@ public class ValuesSourceParser<VS extends ValuesSource> {
         return valueFormat;
     }
 
-    private static ValueFormat resolveFormat(@Nullable String format, FieldMapper mapper) {
+    private static ValueFormat resolveFormat(@Nullable String format, FieldMapper mapper, @Nullable DateTimeZone timezone) {
         if (mapper instanceof  DateFieldMapper) {
-            return format != null ? ValueFormat.DateTime.format(format) : ValueFormat.DateTime.mapper((DateFieldMapper) mapper);
+            return format != null ? ValueFormat.DateTime.format(format, timezone) : ValueFormat.DateTime.mapper((DateFieldMapper) mapper, timezone);
         }
         if (mapper instanceof IpFieldMapper) {
             return ValueFormat.IPv4;
@@ -210,6 +239,10 @@ public class ValuesSourceParser<VS extends ValuesSource> {
             return format != null ? ValueFormat.Number.format(format) : ValueFormat.RAW;
         }
         return null;
+    }
+
+    public Input input() {
+        return this.input;
     }
 
     public static class Builder<VS extends ValuesSource> {
@@ -227,6 +260,11 @@ public class ValuesSourceParser<VS extends ValuesSource> {
 
         public Builder<VS> formattable(boolean formattable) {
             parser.formattable = formattable;
+            return this;
+        }
+
+        public Builder<VS> timezoneAware(boolean timezoneAware) {
+            parser.timezoneAware = timezoneAware;
             return this;
         }
 

@@ -85,4 +85,4 @@ java.net.InetSocketAddress#toString()
 java.net.InetAddress#getHostName()
 java.net.InetAddress#getCanonicalHostName()
 
-java.net.InetAddress#getHostName() @ Use getHostString() instead, which avoids a DNS lookup
+java.net.InetSocketAddress#getHostName() @ Use getHostString() instead, which avoids a DNS lookup

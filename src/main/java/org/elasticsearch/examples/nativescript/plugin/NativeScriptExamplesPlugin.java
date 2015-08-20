@@ -26,7 +26,7 @@ import org.elasticsearch.examples.nativescript.script.stockaggs.CombineScriptFac
 import org.elasticsearch.examples.nativescript.script.stockaggs.InitScriptFactory;
 import org.elasticsearch.examples.nativescript.script.stockaggs.MapScriptFactory;
 import org.elasticsearch.examples.nativescript.script.stockaggs.ReduceScriptFactory;
-import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptModule;
 
 /**
@@ -34,7 +34,7 @@ import org.elasticsearch.script.ScriptModule;
  * first time. If you change the name of this plugin, make sure to update
  * src/main/resources/es-plugin.properties file that points to this class.
  */
-public class NativeScriptExamplesPlugin extends AbstractPlugin {
+public class NativeScriptExamplesPlugin extends Plugin {
 
     /**
      * The name of the plugin.

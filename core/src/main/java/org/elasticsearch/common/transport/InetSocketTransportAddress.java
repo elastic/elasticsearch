@@ -24,7 +24,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.network.NetworkAddress;
 
 import java.io.IOException;
-import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 
@@ -41,12 +40,7 @@ public final class InetSocketTransportAddress implements TransportAddress {
         final int len = in.readByte();
         final byte[] a = new byte[len]; // 4 bytes (IPv4) or 16 bytes (IPv6)
         in.readFully(a);
-        InetAddress inetAddress;
-        if (len == 16) {
-            inetAddress = Inet6Address.getByAddress(null, a);
-        } else {
-            inetAddress = InetAddress.getByAddress(a);
-        }
+        InetAddress inetAddress = InetAddress.getByAddress(a);
         int port = in.readInt();
         this.address = new InetSocketAddress(inetAddress, port);
     }

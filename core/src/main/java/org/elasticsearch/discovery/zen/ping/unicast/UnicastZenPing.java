@@ -66,7 +66,7 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
 
     // these limits are per-address
     public static final int LIMIT_FOREIGN_PORTS_COUNT = 1;
-    public static final int LIMIT_LOCAL_PORTS_COUNT = 25;
+    public static final int LIMIT_LOCAL_PORTS_COUNT = 5;
 
 
     private final ThreadPool threadPool;

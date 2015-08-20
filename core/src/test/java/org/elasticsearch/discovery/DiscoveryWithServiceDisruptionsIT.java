@@ -143,12 +143,15 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
             .put("discovery.zen.join_timeout", "10s")  // still long to induce failures but to long so test won't time out
             .put(DiscoverySettings.PUBLISH_TIMEOUT, "1s") // <-- for hitting simulated network failures quickly
             .put("http.enabled", false) // just to make test quicker
+            .put("transport.host", "127.0.0.1") // only bind on one IF we use v4 here by default
+            .put("transport.bind_host", "127.0.0.1")
+            .put("transport.publish_host", "127.0.0.1")
             .put("gateway.local.list_timeout", "10s") // still long to induce failures but to long so test won't time out
             .put("plugin.types", MockTransportService.TestPlugin.class.getName())
             .build();
 
     private void configureCluster(int numberOfNodes, int minimumMasterNode) throws ExecutionException, InterruptedException {
-        if (randomBoolean()) {
+        if (randomBoolean() && canUseMuticast()) {
             configureMulticastCluster(numberOfNodes, minimumMasterNode);
         } else {
             configureUnicastCluster(numberOfNodes, null, minimumMasterNode);

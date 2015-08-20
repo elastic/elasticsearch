@@ -648,7 +648,6 @@ public class PluginManagerIT extends ESIntegTestCase {
 
     private Tuple<Settings, Environment> buildInitialSettings() throws IOException {
         Settings settings = settingsBuilder()
-                .put("discovery.zen.ping.multicast.enabled", false)
                 .put("http.enabled", true)
                 .put("path.home", createTempDir()).build();
         return InternalSettingsPreparer.prepareSettings(settings, false);

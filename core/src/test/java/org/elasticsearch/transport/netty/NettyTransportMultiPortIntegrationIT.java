@@ -80,7 +80,7 @@ public class NettyTransportMultiPortIntegrationIT extends ESIntegTestCase {
     }
 
     @Test
-//    @Network
+    @Network
     public void testThatInfosAreExposed() throws Exception {
         NodesInfoResponse response = client().admin().cluster().prepareNodesInfo().clear().setTransport(true).get();
         for (NodeInfo nodeInfo : response.getNodes()) {

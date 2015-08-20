@@ -8,6 +8,7 @@ package org.elasticsearch.shield.audit.logfile;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
@@ -25,6 +26,7 @@ import org.elasticsearch.transport.TransportRequest;
 
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.net.SocketAddress;
 
 import static org.elasticsearch.common.Strings.arrayToCommaDelimitedString;
 import static org.elasticsearch.shield.audit.AuditUtil.indices;
@@ -231,17 +233,24 @@ public class LoggingAuditTrail implements AuditTrail {
     @Override
     public void connectionGranted(InetAddress inetAddress, String profile, ShieldIpFilterRule rule) {
         if (logger.isTraceEnabled()) {
-            logger.trace("{}[ip_filter] [connection_granted]\torigin_address=[{}], transport_profile=[{}], rule=[{}]", prefix, inetAddress.getHostAddress(), profile, rule);
+            logger.trace("{}[ip_filter] [connection_granted]\torigin_address=[{}], transport_profile=[{}], rule=[{}]", prefix, NetworkAddress.formatAddress(inetAddress), profile, rule);
         }
     }
 
     @Override
     public void connectionDenied(InetAddress inetAddress, String profile, ShieldIpFilterRule rule) {
-        logger.error("{}[ip_filter] [connection_denied]\torigin_address=[{}], transport_profile=[{}], rule=[{}]", prefix, inetAddress.getHostAddress(), profile, rule);
+        logger.error("{}[ip_filter] [connection_denied]\torigin_address=[{}], transport_profile=[{}], rule=[{}]", prefix, NetworkAddress.formatAddress(inetAddress), profile, rule);
     }
 
     private static String hostAttributes(RestRequest request) {
-        return "origin_address=[" + request.getRemoteAddress() + "]";
+        String formattedAddress;
+        SocketAddress socketAddress = request.getRemoteAddress();
+        if (socketAddress instanceof InetSocketAddress) {
+            formattedAddress = NetworkAddress.formatAddress(((InetSocketAddress) socketAddress).getAddress());
+        } else {
+            formattedAddress = socketAddress.toString();
+        }
+        return "origin_address=[" + formattedAddress + "]";
     }
 
     static String originAttributes(TransportMessage message, Transport transport) {
@@ -250,7 +259,7 @@ public class LoggingAuditTrail implements AuditTrail {
         // first checking if the message originated in a rest call
         InetSocketAddress restAddress = RemoteHostHeader.restRemoteAddress(message);
         if (restAddress != null) {
-            builder.append("origin_type=[rest], origin_address=[").append(restAddress).append("]");
+            builder.append("origin_type=[rest], origin_address=[").append(NetworkAddress.formatAddress(restAddress.getAddress())).append("]");
             return builder.toString();
         }
 
@@ -259,7 +268,7 @@ public class LoggingAuditTrail implements AuditTrail {
         if (address != null) {
             builder.append("origin_type=[transport], ");
             if (address instanceof InetSocketTransportAddress) {
-                builder.append("origin_address=[").append(((InetSocketTransportAddress) address).address()).append("]");
+                builder.append("origin_address=[").append(NetworkAddress.formatAddress(((InetSocketTransportAddress) address).address().getAddress())).append("]");
             } else {
                 builder.append("origin_address=[").append(address).append("]");
             }

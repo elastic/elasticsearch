@@ -33,6 +33,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 
 // Transport Client instantiation also calls the marvel plugin, which then fails to find modules
 @ClusterScope(transportClientRatio = 0.0, scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
+@ESIntegTestCase.SuppressLocalMode
 public class HttpESExporterTests extends ESIntegTestCase {
 
     final static AtomicLong timeStampGenerator = new AtomicLong();

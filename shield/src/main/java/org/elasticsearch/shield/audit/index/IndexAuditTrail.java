@@ -27,6 +27,8 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Provider;
+import org.elasticsearch.common.network.NetworkAddress;
+import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -505,9 +507,9 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail {
         msg.builder.field(Field.ORIGIN_TYPE, "rest");
         SocketAddress address = request.getRemoteAddress();
         if (address instanceof InetSocketAddress) {
-            msg.builder.field(Field.ORIGIN_ADDRESS, ((InetSocketAddress)request.getRemoteAddress()).getAddress().getHostAddress());
+            msg.builder.field(Field.ORIGIN_ADDRESS, NetworkAddress.formatAddress(((InetSocketAddress) request.getRemoteAddress()).getAddress()));
         } else {
-            msg.builder.field(Field.ORIGIN_ADDRESS, request.getRemoteAddress());
+            msg.builder.field(Field.ORIGIN_ADDRESS, address);
         }
         msg.builder.field(Field.URI, request.uri());
 
@@ -520,7 +522,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail {
         Message msg = new Message().start();
         common(layer, type, msg.builder);
 
-        msg.builder.field(Field.ORIGIN_ADDRESS, originAddress.getHostAddress());
+        msg.builder.field(Field.ORIGIN_ADDRESS, NetworkAddress.formatAddress(originAddress));
         msg.builder.field(Field.TRANSPORT_PROFILE, profile);
         msg.builder.field(Field.RULE, rule);
 
@@ -542,7 +544,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail {
         InetSocketAddress restAddress = RemoteHostHeader.restRemoteAddress(message);
         if (restAddress != null) {
             builder.field(Field.ORIGIN_TYPE, "rest");
-            builder.field(Field.ORIGIN_ADDRESS, restAddress.getAddress().getHostAddress());
+            builder.field(Field.ORIGIN_ADDRESS, NetworkAddress.formatAddress(restAddress.getAddress()));
             return builder;
         }
 
@@ -551,7 +553,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail {
         if (address != null) {
             builder.field(Field.ORIGIN_TYPE, "transport");
             if (address instanceof InetSocketTransportAddress) {
-                builder.field(Field.ORIGIN_ADDRESS, ((InetSocketTransportAddress) address).address().getAddress().getHostAddress());
+                builder.field(Field.ORIGIN_ADDRESS, NetworkAddress.formatAddress(((InetSocketTransportAddress) address).address().getAddress()));
             } else {
                 builder.field(Field.ORIGIN_ADDRESS, address);
             }
@@ -613,7 +615,11 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail {
                             .put(clientSettings))
                     .build();
             for (Tuple<String, Integer> pair : hostPortPairs) {
-                transportClient.addTransportAddress(new InetSocketTransportAddress(pair.v1(), pair.v2()));
+                try {
+                    transportClient.addTransportAddress(new InetSocketTransportAddress(InetAddress.getByName(pair.v1()), pair.v2()));
+                } catch (UnknownHostException e) {
+                    throw new ElasticsearchException("could not find host {}", e, pair.v1());
+                }
             }
 
             this.client = transportClient;

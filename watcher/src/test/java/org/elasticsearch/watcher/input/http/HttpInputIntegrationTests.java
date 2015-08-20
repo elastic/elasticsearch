@@ -57,7 +57,7 @@ public class HttpInputIntegrationTests extends AbstractWatcherIntegrationTests {
         watcherClient().preparePutWatch("_name")
                 .setSource(watchBuilder()
                         .trigger(schedule(interval("5s")))
-                        .input(httpInput(HttpRequestTemplate.builder(address.getHostName(), address.getPort())
+                        .input(httpInput(HttpRequestTemplate.builder(address.getHostString(), address.getPort())
                                 .path("/index/_search")
                                 .body(jsonBuilder().startObject().field("size", 1).endObject())
                                 .auth(shieldEnabled() ? new BasicAuth("test", "changeme".toCharArray()) : null)))
@@ -78,7 +78,7 @@ public class HttpInputIntegrationTests extends AbstractWatcherIntegrationTests {
         PutWatchResponse putWatchResponse = watcherClient().preparePutWatch("_name")
                 .setSource(watchBuilder()
                         .trigger(schedule(interval("1s")))
-                        .input(httpInput(HttpRequestTemplate.builder(address.getHostName(), address.getPort())
+                        .input(httpInput(HttpRequestTemplate.builder(address.getHostString(), address.getPort())
                                 .path("/_cluster/stats")
                                 .auth(shieldEnabled() ? new BasicAuth("test", "changeme".toCharArray()) : null)))
                         .condition(scriptCondition("ctx.payload.nodes.count.total >= 1"))
@@ -106,7 +106,7 @@ public class HttpInputIntegrationTests extends AbstractWatcherIntegrationTests {
         XContentBuilder body = jsonBuilder().prettyPrint().startObject()
                     .field("query").value(termQuery("field", "value"))
                 .endObject();
-        HttpRequestTemplate.Builder requestBuilder = HttpRequestTemplate.builder(address.getHostName(), address.getPort())
+        HttpRequestTemplate.Builder requestBuilder = HttpRequestTemplate.builder(address.getHostString(), address.getPort())
                 .path(Template.inline("/idx/_search"))
                 .body(body);
         if (shieldEnabled()) {

@@ -24,6 +24,7 @@ import org.elasticsearch.shield.audit.AuditTrail;
 import org.elasticsearch.transport.Transport;
 
 import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.util.*;
 
 public class IPFilter extends AbstractLifecycleComponent<IPFilter> {
@@ -188,9 +189,17 @@ public class IPFilter extends AbstractLifecycleComponent<IPFilter> {
         return rules.toArray(new ShieldIpFilterRule[]{});
     }
 
+    /**
+     * Checks if a user provided address is the same address that we are bound to. This is to prevent denying
+     * connections from the machine we are running on
+     *
+     * @param localAddress the InetAddress that this node is bound to. This should come from the transport
+     * @param address the address that is being evaluated to be blocked
+     * @return true if the address is not the same as the localAddress
+     */
     private boolean isLocalAddress(InetAddress localAddress, String address) {
-        return address.equals("127.0.0.1") || address.equals("localhost") || address.equals("::1") || address.startsWith("fe80::1") ||
-               address.equals(localAddress.getHostAddress()) || address.equals(localAddress.getHostName());
+        // FIXME add the correct behavior, see https://github.com/elastic/x-plugins/issues/487
+        return false;
     }
 
     private class ApplySettings implements NodeSettingsService.Listener {

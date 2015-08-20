@@ -17,6 +17,7 @@ import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.discovery.zen.ping.ZenPing;
 import org.elasticsearch.discovery.zen.ping.ZenPingService;
 import org.elasticsearch.discovery.zen.ping.unicast.UnicastZenPing;
+import org.elasticsearch.test.ESIntegTestCase.SuppressLocalMode;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.discovery.ClusterDiscoveryConfiguration;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -51,6 +52,7 @@ import static org.hamcrest.core.Is.is;
 
 @TestLogging("discovery:TRACE,watcher:TRACE")
 @ClusterScope(scope = TEST, numClientNodes = 0, transportClientRatio = 0, randomDynamicTemplates = false, numDataNodes = 0)
+@SuppressLocalMode
 public class NoMasterNodeTests extends AbstractWatcherIntegrationTests {
 
     private ClusterDiscoveryConfiguration.UnicastZen config;
@@ -79,7 +81,8 @@ public class NoMasterNodeTests extends AbstractWatcherIntegrationTests {
 
     @Test
     public void testSimpleFailure() throws Exception {
-        config = new ClusterDiscoveryConfiguration.UnicastZen(2);
+        // we need 3 hosts here because we stop the master and start another - it doesn't restart the pre-existing node...
+        config = new ClusterDiscoveryConfiguration.UnicastZen(3, Settings.EMPTY);
         internalCluster().startNodesAsync(2).get();
         createIndex("my-index");
         ensureWatcherStarted(false);
@@ -132,7 +135,7 @@ public class NoMasterNodeTests extends AbstractWatcherIntegrationTests {
     @Test
     public void testDedicatedMasterNodeLayout() throws Exception {
         // Only the master nodes are in the unicast nodes list:
-        config = new ClusterDiscoveryConfiguration.UnicastZen(3);
+        config = new ClusterDiscoveryConfiguration.UnicastZen(11, 3, Settings.EMPTY);
         Settings settings = Settings.builder()
                 .put("node.data", false)
                 .put("node.master", true)
@@ -187,7 +190,7 @@ public class NoMasterNodeTests extends AbstractWatcherIntegrationTests {
         int numberOfFailures = scaledRandomIntBetween(2, 9);
         int numberOfWatches = scaledRandomIntBetween(numberOfFailures, 12);
         logger.info("number of failures [{}], number of watches [{}]", numberOfFailures, numberOfWatches);
-        config = new ClusterDiscoveryConfiguration.UnicastZen(2 + numberOfFailures);
+        config = new ClusterDiscoveryConfiguration.UnicastZen(2 + numberOfFailures, Settings.EMPTY);
         internalCluster().startNodesAsync(2).get();
         createIndex("my-index");
         client().prepareIndex("my-index", "my-type").setSource("field", "value").get();

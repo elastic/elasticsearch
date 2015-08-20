@@ -11,6 +11,7 @@ import org.apache.http.client.methods.HttpPut;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.http.impl.conn.BasicHttpClientConnectionManager;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.plugin.LicensePlugin;
 import org.elasticsearch.node.Node;
@@ -48,7 +49,7 @@ public abstract class WatcherRestTestCase extends ESRestTestCase {
     public void startWatcher() throws Exception {
         try(CloseableHttpClient client = HttpClients.createMinimal(new BasicHttpClientConnectionManager())) {
             InetSocketAddress address = cluster().httpAddresses()[0];
-            HttpPut request = new HttpPut(new URI("http", null, address.getAddress().getHostAddress(), address.getPort(), "/_watcher/_start", null, null));
+            HttpPut request = new HttpPut(new URI("http", null, NetworkAddress.formatAddress(address.getAddress()), address.getPort(), "/_watcher/_start", null, null));
             client.execute(request);
         }
     }
@@ -57,7 +58,7 @@ public abstract class WatcherRestTestCase extends ESRestTestCase {
     public void stopWatcher() throws Exception {
         try(CloseableHttpClient client = HttpClients.createMinimal(new BasicHttpClientConnectionManager())) {
             InetSocketAddress address = cluster().httpAddresses()[0];
-            HttpPut request = new HttpPut(new URI("http", null, address.getAddress().getHostAddress(), address.getPort(), "/_watcher/_stop", null, null));
+            HttpPut request = new HttpPut(new URI("http", null, NetworkAddress.formatAddress(address.getAddress()), address.getPort(), "/_watcher/_stop", null, null));
             client.execute(request);
         }
     }

@@ -7,6 +7,7 @@ package org.elasticsearch.shield.transport;
 
 import com.google.common.collect.ImmutableMap;
 
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -86,7 +87,7 @@ public class ServerTransportFilterIntegrationTests extends ShieldIntegTestCase {
         TransportAddress transportAddress = transport.boundAddress().publishAddress();
         assertThat(transportAddress, instanceOf(InetSocketTransportAddress.class));
         InetSocketAddress inetSocketAddress = ((InetSocketTransportAddress) transportAddress).address();
-        String unicastHost = inetSocketAddress.getHostName() + ":" + inetSocketAddress.getPort();
+        String unicastHost = NetworkAddress.formatAddress(inetSocketAddress);
 
         // test that starting up a node works
         Settings nodeSettings = settingsBuilder()

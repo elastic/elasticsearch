@@ -14,6 +14,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.util.Providers;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.DummyTransportAddress;
@@ -149,7 +150,7 @@ public class IndexAuditTrailTests extends ShieldIntegTestCase {
                                 .build();
                     }
             };
-            cluster2 = new InternalTestCluster(randomLong(), createTempDir(), numNodes, numNodes, cluster2Name, cluster2SettingsSource, 0, false, SECOND_CLUSTER_NODE_PREFIX);
+            cluster2 = new InternalTestCluster("network", randomLong(), createTempDir(), numNodes, numNodes, cluster2Name, cluster2SettingsSource, 0, false, SECOND_CLUSTER_NODE_PREFIX);
             cluster2.beforeTest(getRandom(), 0.5);
             remoteClient = cluster2.client();
 
@@ -160,7 +161,7 @@ public class IndexAuditTrailTests extends ShieldIntegTestCase {
             Settings.Builder builder = Settings.builder()
                     .put(settings)
                     .put(ShieldPlugin.ENABLED_SETTING_NAME, useShield)
-                    .put(remoteSettings(inet.address().getAddress().getHostAddress(), inet.address().getPort(), cluster2Name))
+                    .put(remoteSettings(NetworkAddress.format(inet.address().getAddress()), inet.address().getPort(), cluster2Name))
                     .put("shield.audit.index.client.shield.user", ShieldSettingsSource.DEFAULT_USER_NAME + ":" + ShieldSettingsSource.DEFAULT_PASSWORD);
 
             if (useSSL) {
@@ -243,7 +244,7 @@ public class IndexAuditTrailTests extends ShieldIntegTestCase {
         SearchHit hit = getIndexedAuditMessage();
 
         assertAuditMessage(hit, "rest", "anonymous_access_denied");
-        assertThat("127.0.0.1", equalTo(hit.field("origin_address").getValue()));
+        assertThat(NetworkAddress.formatAddress(InetAddress.getLoopbackAddress()), equalTo(hit.field("origin_address").getValue()));
         assertThat("_uri", equalTo(hit.field("uri").getValue()));
         assertThat((String) hit.field("origin_type").getValue(), is("rest"));
         assertThat(hit.field("request_body").getValue(), notNullValue());
@@ -651,7 +652,7 @@ public class IndexAuditTrailTests extends ShieldIntegTestCase {
 
     private RestRequest mockRestRequest() {
         RestRequest request = mock(RestRequest.class);
-        when(request.getRemoteAddress()).thenReturn(new InetSocketAddress("127.0.0.1", 9200));
+        when(request.getRemoteAddress()).thenReturn(new InetSocketAddress(InetAddress.getLoopbackAddress(), 9200));
         when(request.uri()).thenReturn("_uri");
         return request;
     }

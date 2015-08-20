@@ -7,6 +7,7 @@ package org.elasticsearch.marvel.agent.support;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -34,9 +35,9 @@ public class AgentUtils {
             InetSocketAddress inetSocketAddress = address.address();
             InetAddress inetAddress = inetSocketAddress.getAddress();
             if (inetAddress != null) {
-                builder.field("ip", inetAddress.getHostAddress());
-                builder.field("host", inetAddress.getHostName());
-                builder.field("ip_port", inetAddress.getHostAddress() + ":" + inetSocketAddress.getPort());
+                builder.field("ip", NetworkAddress.formatAddress(inetAddress));
+                builder.field("host", inetSocketAddress.getHostString());
+                builder.field("ip_port", NetworkAddress.formatAddress(inetSocketAddress));
             }
         } else if (node.address().uniqueAddressTypeId() == 2) {  // local transport
             builder.field("ip_port", "_" + node.address()); // will end up being "_local[ID]"
@@ -58,19 +59,6 @@ public class AgentUtils {
         return builder;
     }
 
-    public static String nodeDescription(DiscoveryNode node) {
-        StringBuilder builder = new StringBuilder().append("[").append(node.name()).append("]");
-        if (node.address().uniqueAddressTypeId() == 1) { // InetSocket
-            InetSocketTransportAddress address = (InetSocketTransportAddress) node.address();
-            InetSocketAddress inetSocketAddress = address.address();
-            InetAddress inetAddress = inetSocketAddress.getAddress();
-            if (inetAddress != null) {
-                builder.append("[").append(inetAddress.getHostAddress()).append(":").append(inetSocketAddress.getPort()).append("]");
-            }
-        }
-        return builder.toString();
-    }
-
     public static String[] extractHostsFromAddress(BoundTransportAddress boundAddress, ESLogger logger) {
         if (boundAddress == null || boundAddress.boundAddress() == null) {
             logger.debug("local http server is not yet started. can't connect");
@@ -89,13 +77,7 @@ public class AgentUtils {
             return null;
         }
 
-        String host = inetAddress.getHostAddress();
-        if (host.indexOf(":") >= 0) {
-            // ipv6
-            host = "[" + host + "]";
-        }
-
-        return new String[]{host + ":" + inetSocketAddress.getPort()};
+        return new String[]{ NetworkAddress.formatAddress(inetSocketAddress) };
     }
 
     public static URL parseHostWithPath(String host, String path) throws URISyntaxException, MalformedURLException {

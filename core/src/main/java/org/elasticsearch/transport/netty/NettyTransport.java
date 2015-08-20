@@ -717,7 +717,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         local.add("127.0.0.1");
         // check if v6 is supported, if so, v4 will also work via mapped addresses.
         if (NetworkUtils.SUPPORTS_V6) {
-            local.add("::1");
+            local.add("[::1]"); // may get ports appended!
         }
         return local;
     }

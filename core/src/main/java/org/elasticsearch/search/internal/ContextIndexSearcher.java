@@ -20,15 +20,13 @@
 package org.elasticsearch.search.internal;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.Collector;
-import org.apache.lucene.search.Explanation;
-import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.Weight;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.index.TermContext;
+import org.apache.lucene.search.*;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.search.dfs.CachedDfSource;
+import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.internal.SearchContext.Lifetime;
 
 import java.io.IOException;
@@ -46,21 +44,23 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     private final SearchContext searchContext;
 
-    private CachedDfSource dfSource;
+    private AggregatedDfs aggregatedDfs;
 
     public ContextIndexSearcher(SearchContext searchContext, Engine.Searcher searcher) {
         super(searcher.reader());
         in = searcher.searcher();
         this.searchContext = searchContext;
         setSimilarity(searcher.searcher().getSimilarity(true));
+        setQueryCache(searchContext.indexShard().indexService().cache().query());
+        setQueryCachingPolicy(searchContext.indexShard().getQueryCachingPolicy());
     }
 
     @Override
     public void close() {
     }
 
-    public void dfSource(CachedDfSource dfSource) {
-        this.dfSource = dfSource;
+    public void setAggregatedDfs(AggregatedDfs aggregatedDfs) {
+        this.aggregatedDfs = aggregatedDfs;
     }
 
     @Override
@@ -75,10 +75,12 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     @Override
     public Weight createNormalizedWeight(Query query, boolean needsScores) throws IOException {
+        // During tests we prefer to use the wrapped IndexSearcher, because then we use the AssertingIndexSearcher
+        // it is hacky, because if we perform a dfs search, we don't use the wrapped IndexSearcher...
         try {
             // if scores are needed and we have dfs data then use it
-            if (dfSource != null && needsScores) {
-                return dfSource.createNormalizedWeight(query, needsScores);
+            if (aggregatedDfs != null && needsScores) {
+                return super.createNormalizedWeight(query, needsScores);
             }
             return in.createNormalizedWeight(query, needsScores);
         } catch (Throwable t) {
@@ -103,5 +105,33 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         } finally {
             searchContext.clearReleasables(Lifetime.COLLECTION);
         }
+    }
+
+    @Override
+    public TermStatistics termStatistics(Term term, TermContext context) throws IOException {
+        if (aggregatedDfs == null) {
+            // we are either executing the dfs phase or the search_type doesn't include the dfs phase.
+            return super.termStatistics(term, context);
+        }
+        TermStatistics termStatistics = aggregatedDfs.termStatistics().get(term);
+        if (termStatistics == null) {
+            // we don't have stats for this - this might be a must_not clauses etc. that doesn't allow extract terms on the query
+            return super.termStatistics(term, context);
+        }
+        return termStatistics;
+    }
+
+    @Override
+    public CollectionStatistics collectionStatistics(String field) throws IOException {
+        if (aggregatedDfs == null) {
+            // we are either executing the dfs phase or the search_type doesn't include the dfs phase.
+            return super.collectionStatistics(field);
+        }
+        CollectionStatistics collectionStatistics = aggregatedDfs.fieldStatistics().get(field);
+        if (collectionStatistics == null) {
+            // we don't have stats for this - this might be a must_not clauses etc. that doesn't allow extract terms on the query
+            return super.collectionStatistics(field);
+        }
+        return collectionStatistics;
     }
 }

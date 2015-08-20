@@ -6,7 +6,7 @@ The delete-by-query plugin adds support for deleting all of the documents
 replacement for the problematic _delete-by-query_ functionality which has been
 removed from Elasticsearch core.
 
-Internally, it uses the {ref}/search-request-scroll.html#scroll-scan[Scan/Scroll]
+Internally, it uses {ref}/search-request-scroll.html[Scroll]
 and {ref}/docs-bulk.html[Bulk] APIs to delete documents in an efficient and
 safe manner. It is slower than the old _delete-by-query_ functionality, but
 fixes the problems with the previous implementation.
@@ -101,7 +101,7 @@ See {ref}/search-uri-request.html[URI search request] for details.
 
 `size`::
 
-The number of hits returned *per shard* by the {ref}/search-request-scroll.html#scroll-scan[scan]
+The number of hits returned by the {ref}/search-request-scroll.html[scroll]
 request.  Defaults to 10.  May also be specified in the request body.
 
 `timeout`::
@@ -148,7 +148,7 @@ The JSON response looks like this:
 --------------------------------------------------
 
 Internally, the query is used to execute an initial
-{ref}/search-request-scroll.html#scroll-scan[scroll/scan] request. As hits are
+{ref}/search-request-scroll.html[scroll] request. As hits are
 pulled from the scroll API, they are passed to the {ref}/docs-bulk.html[Bulk
 API] for deletion.
 
@@ -157,7 +157,7 @@ was visible to search at the time the request was executed.  Any documents
 that have been reindexed or updated during execution will not be deleted.
 
 Since documents can be updated or deleted by external operations during the
-_scan-scroll-bulk_ process, the plugin keeps track of different counters for
+_scroll-bulk_ process, the plugin keeps track of different counters for
 each index, with the totals displayed under the `_all` index.  The counters
 are as follows:
 
@@ -212,7 +212,7 @@ Resiliency::
 === New delete-by-query implementation
 
 The new implementation, provided by this plugin, is built internally
-using  {ref}/search-request-scroll.html#scroll-scan[scan and scroll] to return
+using  {ref}/search-request-scroll.html[scroll] to return
 the document IDs and versions of all the documents that need to be deleted.
 It then uses  the {ref}/docs-bulk.html[`bulk` API] to do the actual deletion.
 
@@ -231,8 +231,8 @@ try-once::
 
 syntactic sugar::
 
-    A delete-by-query is equivalent to a scan/scroll search and corresponding
-    bulk-deletes by ID.
+    A delete-by-query is equivalent to a scroll search ordered by `_doc` and
+    corresponding bulk-deletes by ID.
 
 point-in-time::
 

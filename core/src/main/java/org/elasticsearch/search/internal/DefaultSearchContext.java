@@ -49,7 +49,6 @@ import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.dfs.DfsSearchResult;
@@ -98,7 +97,7 @@ public class DefaultSearchContext extends SearchContext {
     // terminate after count
     private int terminateAfter = DEFAULT_TERMINATE_AFTER;
     private List<String> groupStats;
-    private Scroll scroll;
+    private ScrollContext scrollContext;
     private boolean explain;
     private boolean version = false; // by default, we don't return versions
     private List<String> fieldNames;
@@ -290,13 +289,13 @@ public class DefaultSearchContext extends SearchContext {
     }
 
     @Override
-    public Scroll scroll() {
-        return this.scroll;
+    public ScrollContext scrollContext() {
+        return this.scrollContext;
     }
 
     @Override
-    public SearchContext scroll(Scroll scroll) {
-        this.scroll = scroll;
+    public SearchContext scrollContext(ScrollContext scrollContext) {
+        this.scrollContext = scrollContext;
         return this;
     }
 
@@ -650,16 +649,6 @@ public class DefaultSearchContext extends SearchContext {
     @Override
     public void keepAlive(long keepAlive) {
         this.keepAlive = keepAlive;
-    }
-
-    @Override
-    public void lastEmittedDoc(ScoreDoc doc) {
-        this.lastEmittedDoc = doc;
-    }
-
-    @Override
-    public ScoreDoc lastEmittedDoc() {
-        return lastEmittedDoc;
     }
 
     @Override

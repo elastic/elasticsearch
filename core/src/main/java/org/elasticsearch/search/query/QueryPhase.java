@@ -21,12 +21,16 @@ package org.elasticsearch.search.query;
 
 import com.google.common.collect.ImmutableMap;
 
+import org.apache.lucene.queries.MinDocQuery;
+import org.apache.lucene.search.BooleanClause.Occur;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MultiCollector;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TimeLimitingCollector;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopDocsCollector;
@@ -43,8 +47,8 @@ import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchPhase;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.AggregationPhase;
+import org.elasticsearch.search.internal.ScrollContext;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.internal.SearchContext.Lifetime;
 import org.elasticsearch.search.rescore.RescorePhase;
 import org.elasticsearch.search.rescore.RescoreSearchContext;
 import org.elasticsearch.search.scan.ScanContext.ScanCollector;
@@ -52,7 +56,6 @@ import org.elasticsearch.search.sort.SortParseElement;
 import org.elasticsearch.search.sort.TrackScoresParseElement;
 import org.elasticsearch.search.suggest.SuggestPhase;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -115,6 +118,7 @@ public class QueryPhase implements SearchPhase {
 
         searchContext.queryResult().searchTimedOut(false);
 
+        final SearchType searchType = searchContext.searchType();
         boolean rescore = false;
         try {
             searchContext.queryResult().from(searchContext.from());
@@ -138,7 +142,7 @@ public class QueryPhase implements SearchPhase {
                         return new TopDocs(totalHitCountCollector.getTotalHits(), Lucene.EMPTY_SCORE_DOCS, 0);
                     }
                 };
-            } else if (searchContext.searchType() == SearchType.SCAN) {
+            } else if (searchType == SearchType.SCAN) {
                 query = searchContext.scanContext().wrapQuery(query);
                 final ScanCollector scanCollector = searchContext.scanContext().collector(searchContext);
                 collector = scanCollector;
@@ -150,11 +154,32 @@ public class QueryPhase implements SearchPhase {
                 };
             } else {
                 // Perhaps have a dedicated scroll phase?
+                final ScrollContext scrollContext = searchContext.scrollContext();
+                assert (scrollContext != null) == (searchContext.request().scroll() != null);
                 final TopDocsCollector<?> topDocsCollector;
                 ScoreDoc lastEmittedDoc;
                 if (searchContext.request().scroll() != null) {
                     numDocs = Math.min(searchContext.size(), totalNumDocs);
-                    lastEmittedDoc = searchContext.lastEmittedDoc();
+                    lastEmittedDoc = scrollContext.lastEmittedDoc;
+
+                    if (Sort.INDEXORDER.equals(searchContext.sort())) {
+                        if (scrollContext.totalHits == -1) {
+                            // first round
+                            assert scrollContext.lastEmittedDoc == null;
+                            // there is not much that we can optimize here since we want to collect all
+                            // documents in order to get the total number of hits
+                        } else {
+                            // now this gets interesting: since we sort in index-order, we can directly
+                            // skip to the desired doc and stop collecting after ${size} matches
+                            if (scrollContext.lastEmittedDoc != null) {
+                                BooleanQuery bq = new BooleanQuery();
+                                bq.add(query, Occur.MUST);
+                                bq.add(new MinDocQuery(lastEmittedDoc.doc + 1), Occur.FILTER);
+                                query = bq;
+                            }
+                            searchContext.terminateAfter(numDocs);
+                        }
+                    }
                 } else {
                     lastEmittedDoc = null;
                 }
@@ -177,7 +202,31 @@ public class QueryPhase implements SearchPhase {
                 topDocsCallable = new Callable<TopDocs>() {
                     @Override
                     public TopDocs call() throws Exception {
-                        return topDocsCollector.topDocs();
+                        TopDocs topDocs = topDocsCollector.topDocs();
+                        if (scrollContext != null) {
+                            if (scrollContext.totalHits == -1) {
+                                // first round
+                                scrollContext.totalHits = topDocs.totalHits;
+                                scrollContext.maxScore = topDocs.getMaxScore();
+                            } else {
+                                // subsequent round: the total number of hits and
+                                // the maximum score were computed on the first round
+                                topDocs.totalHits = scrollContext.totalHits;
+                                topDocs.setMaxScore(scrollContext.maxScore);
+                            }
+                            switch (searchType) {
+                            case QUERY_AND_FETCH:
+                            case DFS_QUERY_AND_FETCH:
+                                // for (DFS_)QUERY_AND_FETCH, we already know the last emitted doc
+                                if (topDocs.scoreDocs.length > 0) {
+                                    // set the last emitted doc
+                                    scrollContext.lastEmittedDoc = topDocs.scoreDocs[topDocs.scoreDocs.length - 1];
+                                }
+                            default:
+                                break;
+                            }
+                        }
+                        return topDocs;
                     }
                 };
             }
@@ -227,19 +276,7 @@ public class QueryPhase implements SearchPhase {
                 searchContext.queryResult().terminatedEarly(false);
             }
 
-            final TopDocs topDocs = topDocsCallable.call();
-            if (searchContext.request().scroll() != null) {
-                int size = topDocs.scoreDocs.length;
-                if (size > 0) {
-                    // In the case of *QUERY_AND_FETCH we don't get back to shards telling them which least
-                    // relevant docs got emitted as hit, we can simply mark the last doc as last emitted
-                    if (searchContext.searchType() == SearchType.QUERY_AND_FETCH ||
-                            searchContext.searchType() == SearchType.DFS_QUERY_AND_FETCH) {
-                        searchContext.lastEmittedDoc(topDocs.scoreDocs[size - 1]);
-                    }
-                }
-            }
-            searchContext.queryResult().topDocs(topDocs);
+            searchContext.queryResult().topDocs(topDocsCallable.call());
         } catch (Throwable e) {
             throw new QueryPhaseExecutionException(searchContext, "Failed to execute main query", e);
         }

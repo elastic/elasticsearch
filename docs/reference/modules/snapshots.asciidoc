@@ -81,7 +81,7 @@ a prefix and back slashes are properly escaped:
 
 [source,yaml]
 --------------
-repo.path: ["\\\\MY_SERVER\\Snapshots"]
+path.repo: ["\\\\MY_SERVER\\Snapshots"]
 --------------
 
 After all nodes are restarted, the following command can be used to register the shared file system repository with

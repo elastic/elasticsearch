@@ -52,6 +52,31 @@ public abstract class NetworkUtils {
      */
     @Deprecated
     static final boolean PREFER_V6 = Boolean.parseBoolean(System.getProperty("java.net.preferIPv6Addresses", "false"));
+
+    /**
+     * True if we can bind to a v6 address. Its silly, but for *binding* we have a need to know
+     * if the stack works. this can prevent scary noise on IPv4-only hosts.
+     * @deprecated transition mechanism only, do not use
+     */
+    @Deprecated
+    public static final boolean SUPPORTS_V6;
+
+    static {
+        boolean v = false;
+        try {
+            for (NetworkInterface nic : getInterfaces()) {
+                for (InetAddress address : Collections.list(nic.getInetAddresses())) {
+                    if (address instanceof Inet6Address) {
+                        v = true;
+                        break;
+                    }
+                }
+            }
+        } catch (SecurityException | SocketException misconfiguration) {
+            v = true; // be optimistic, you misconfigure, then you get noise to your screen
+        }
+        SUPPORTS_V6 = v;
+    }
     
     /** Sorts an address by preference. This way code like publishing can just pick the first one */
     static int sortKey(InetAddress address, boolean prefer_v6) {

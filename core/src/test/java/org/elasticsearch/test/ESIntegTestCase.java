@@ -1556,49 +1556,51 @@ public abstract class ESIntegTestCase extends ESTestCase {
         assertThat(clearResponse.isSucceeded(), equalTo(true));
     }
 
-    private static ClusterScope getAnnotation(Class<?> clazz) {
+    private static <A extends Annotation> A getAnnotation(Class<?> clazz, Class<A> annotationClass) {
         if (clazz == Object.class || clazz == ESIntegTestCase.class) {
             return null;
         }
-        ClusterScope annotation = clazz.getAnnotation(ClusterScope.class);
+        A annotation = clazz.getAnnotation(annotationClass);
         if (annotation != null) {
             return annotation;
         }
-        return getAnnotation(clazz.getSuperclass());
+        return getAnnotation(clazz.getSuperclass(), annotationClass);
     }
+
+
 
     private Scope getCurrentClusterScope() {
         return getCurrentClusterScope(this.getClass());
     }
 
     private static Scope getCurrentClusterScope(Class<?> clazz) {
-        ClusterScope annotation = getAnnotation(clazz);
+        ClusterScope annotation = getAnnotation(clazz, ClusterScope.class);
         // if we are not annotated assume suite!
         return annotation == null ? Scope.SUITE : annotation.scope();
     }
 
     private int getNumDataNodes() {
-        ClusterScope annotation = getAnnotation(this.getClass());
+        ClusterScope annotation = getAnnotation(this.getClass(), ClusterScope.class);
         return annotation == null ? -1 : annotation.numDataNodes();
     }
 
     private int getMinNumDataNodes() {
-        ClusterScope annotation = getAnnotation(this.getClass());
+        ClusterScope annotation = getAnnotation(this.getClass(), ClusterScope.class);
         return annotation == null || annotation.minNumDataNodes() == -1 ? InternalTestCluster.DEFAULT_MIN_NUM_DATA_NODES : annotation.minNumDataNodes();
     }
 
     private int getMaxNumDataNodes() {
-        ClusterScope annotation = getAnnotation(this.getClass());
+        ClusterScope annotation = getAnnotation(this.getClass(), ClusterScope.class);
         return annotation == null || annotation.maxNumDataNodes() == -1 ? InternalTestCluster.DEFAULT_MAX_NUM_DATA_NODES : annotation.maxNumDataNodes();
     }
 
     private int getNumClientNodes() {
-        ClusterScope annotation = getAnnotation(this.getClass());
+        ClusterScope annotation = getAnnotation(this.getClass(), ClusterScope.class);
         return annotation == null ? InternalTestCluster.DEFAULT_NUM_CLIENT_NODES : annotation.numClientNodes();
     }
 
     private boolean randomDynamicTemplates() {
-        ClusterScope annotation = getAnnotation(this.getClass());
+        ClusterScope annotation = getAnnotation(this.getClass(), ClusterScope.class);
         return annotation == null || annotation.randomDynamicTemplates();
     }
 
@@ -1619,14 +1621,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 .put("script.inline", "on")
                         // wait short time for other active shards before actually deleting, default 30s not needed in tests
                 .put(IndicesStore.INDICES_STORE_DELETE_SHARD_TIMEOUT, new TimeValue(1, TimeUnit.SECONDS));
-        if (forceNetwork()) {
-            builder.put(TransportModule.TRANSPORT_TYPE_KEY, TransportModule.NETTY_TRANSPORT);
-        }
         return builder.build();
-    }
-
-    protected boolean forceNetwork() {
-        return false;
     }
 
     /**
@@ -1636,9 +1631,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * add by default.
      */
     protected Settings transportClientSettings() {
-        if (forceNetwork()) {
-            return settingsBuilder().put(TransportModule.TRANSPORT_TYPE_KEY, TransportModule.NETTY_TRANSPORT).build();
-        }
         return Settings.EMPTY;
     }
 
@@ -1706,7 +1698,18 @@ public abstract class ESIntegTestCase extends ESTestCase {
             minNumDataNodes = getMinNumDataNodes();
             maxNumDataNodes = getMaxNumDataNodes();
         }
-        return new InternalTestCluster(seed, createTempDir(), minNumDataNodes, maxNumDataNodes,
+        SuppressLocalMode noLocal = getAnnotation(this.getClass(), SuppressLocalMode.class);
+        SuppressNetworkMode noNetwork = getAnnotation(this.getClass(), SuppressNetworkMode.class);
+        String nodeMode = InternalTestCluster.configuredNodeMode();
+        if (noLocal != null && noNetwork != null) {
+            throw new IllegalStateException("Can't suppress both network and local mode");
+        } else if (noLocal != null){
+            nodeMode = "network";
+        } else if (noNetwork != null) {
+            nodeMode = "local";
+        }
+
+        return new InternalTestCluster(nodeMode, seed, createTempDir(), minNumDataNodes, maxNumDataNodes,
                 InternalTestCluster.clusterName(scope.name(), seed) + "-cluster", settingsSource, getNumClientNodes(),
                 InternalTestCluster.DEFAULT_ENABLE_HTTP_PIPELINING, nodePrefix);
     }
@@ -1728,7 +1731,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * return a random ratio in the interval <tt>[0..1]</tt>
      */
     protected double getPerTestTransportClientRatio() {
-        final ClusterScope annotation = getAnnotation(this.getClass());
+        final ClusterScope annotation = getAnnotation(this.getClass(), ClusterScope.class);
         double perTestRatio = -1;
         if (annotation != null) {
             perTestRatio = annotation.transportClientRatio();
@@ -1986,4 +1989,18 @@ public abstract class ESIntegTestCase extends ESTestCase {
     @Inherited
     public @interface SuiteScopeTestCase {
     }
+
+    /**
+     * If used the test will never run in local mode.
+     */
+    @Retention(RetentionPolicy.RUNTIME)
+    @Inherited
+    public @interface SuppressLocalMode {}
+
+    /**
+     * If used the test will never run in network mode
+     */
+    @Retention(RetentionPolicy.RUNTIME)
+    @Inherited
+    public @interface SuppressNetworkMode {}
 }

@@ -66,12 +66,8 @@ import static org.hamcrest.Matchers.notNullValue;
  *
  */
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
+@ESIntegTestCase.SuppressLocalMode
 public class ClusterServiceIT extends ESIntegTestCase {
-
-    @Override
-    protected boolean forceNetwork() {
-        return true; // TODO only testLocalNodeMasterListenerCallbacks needs this - maybe factor out?
-    }
 
     @Test
     public void testTimeoutUpdateTask() throws Exception {

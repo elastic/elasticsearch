@@ -65,12 +65,8 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
+@ESIntegTestCase.SuppressLocalMode
 public class ZenDiscoveryIT extends ESIntegTestCase {
-
-    @Override
-    protected boolean forceNetwork() {
-        return true;
-    }
 
     @Test
     public void testChangeRejoinOnMasterOptionIsDynamic() throws Exception {

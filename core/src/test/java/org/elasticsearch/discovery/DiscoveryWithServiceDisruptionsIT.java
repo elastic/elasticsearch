@@ -72,7 +72,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.Matchers.*;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0, transportClientRatio = 0)
-@LuceneTestCase.AwaitsFix(bugUrl = "this one is just beyond nuts")
+@ESIntegTestCase.SuppressLocalMode
 public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
 
     private static final TimeValue DISRUPTION_HEALING_OVERHEAD = TimeValue.timeValueSeconds(40); // we use 30s as timeout in many places.
@@ -160,10 +160,13 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         if (minimumMasterNode < 0) {
             minimumMasterNode = numberOfNodes / 2 + 1;
         }
+        logger.info("---> configured multicast");
         // TODO: Rarely use default settings form some of these
         Settings settings = Settings.builder()
                 .put(DEFAULT_SETTINGS)
+                .put("discovery.zen.ping.multicast.enabled", true)
                 .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, minimumMasterNode)
+                .put()
                 .build();
 
         if (discoveryConfig == null) {
@@ -175,6 +178,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         if (minimumMasterNode < 0) {
             minimumMasterNode = numberOfNodes / 2 + 1;
         }
+        logger.info("---> configured unicast");
         // TODO: Rarely use default settings form some of these
         Settings nodeSettings = Settings.builder()
                 .put(DEFAULT_SETTINGS)

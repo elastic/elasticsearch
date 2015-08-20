@@ -53,12 +53,8 @@ public class IndexRecoveryCollector extends AbstractCollector<IndexRecoveryColle
                 .get(marvelSettings.recoveryTimeout());
 
         if (recoveryResponse.hasRecoveries()) {
-            results.add(buildMarvelDoc(clusterUUID(), TYPE, System.currentTimeMillis(), recoveryResponse));
+            results.add(new IndexRecoveryMarvelDoc(clusterUUID(), TYPE, System.currentTimeMillis(), recoveryResponse));
         }
         return results.build();
-    }
-
-    protected MarvelDoc buildMarvelDoc(String clusterUUID, String type, long timestamp, RecoveryResponse recoveryResponse) {
-        return IndexRecoveryMarvelDoc.createMarvelDoc(clusterUUID, type, timestamp, recoveryResponse);
     }
 }

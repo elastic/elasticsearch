@@ -70,16 +70,10 @@ public class NodeStatsCollector extends AbstractCollector<NodeStatsCollector> {
         Double diskThresholdWatermarkHigh = (diskThresholdDecider != null) ? 100.0 - diskThresholdDecider.getFreeDiskThresholdHigh() : -1;
         boolean diskThresholdDeciderEnabled = (diskThresholdDecider != null) && diskThresholdDecider.isEnabled();
 
-        results.add(buildMarvelDoc(clusterUUID(), TYPE, System.currentTimeMillis(),
-                discoveryService.localNode().id(), clusterService.state().nodes().localNodeMaster(), nodeStats,
+        results.add(new NodeStatsMarvelDoc(clusterUUID(), TYPE, System.currentTimeMillis(),
+                discoveryService.localNode().id(), localNodeMaster(), nodeStats,
                 Bootstrap.isMemoryLocked(), diskThresholdWatermarkHigh, diskThresholdDeciderEnabled));
 
         return results.build();
-    }
-
-    protected MarvelDoc buildMarvelDoc(String clusterUUID, String type, long timestamp,
-                                       String nodeId, boolean nodeMaster, NodeStats nodeStats,
-                                       boolean mlockall, Double diskThresholdWaterMarkHigh, boolean diskThresholdDeciderEnabled) {
-        return NodeStatsMarvelDoc.createMarvelDoc(clusterUUID, type, timestamp, nodeId, nodeMaster, nodeStats, mlockall, diskThresholdWaterMarkHigh, diskThresholdDeciderEnabled);
     }
 }

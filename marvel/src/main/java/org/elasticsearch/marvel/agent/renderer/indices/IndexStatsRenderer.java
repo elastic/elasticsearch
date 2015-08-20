@@ -40,25 +40,23 @@ public class IndexStatsRenderer extends AbstractRenderer<IndexStatsMarvelDoc> {
     protected void doRender(IndexStatsMarvelDoc marvelDoc, XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject(Fields.INDEX_STATS);
 
-        IndexStatsMarvelDoc.Payload payload = marvelDoc.payload();
-        if (payload != null) {
-            IndexStats indexStats = payload.getIndexStats();
-            if (indexStats != null) {
-                builder.field(Fields.INDEX, indexStats.getIndex());
+        IndexStats indexStats = marvelDoc.getIndexStats();
+        if (indexStats != null) {
+            builder.field(Fields.INDEX, indexStats.getIndex());
 
-                builder.startObject(Fields.TOTAL);
-                if (indexStats.getTotal() != null) {
-                    indexStats.getTotal().toXContent(builder, params);
-                }
-                builder.endObject();
-
-                builder.startObject(Fields.PRIMARIES);
-                if (indexStats.getPrimaries() != null) {
-                    indexStats.getPrimaries().toXContent(builder, params);
-                }
-                builder.endObject();
+            builder.startObject(Fields.TOTAL);
+            if (indexStats.getTotal() != null) {
+                indexStats.getTotal().toXContent(builder, params);
             }
+            builder.endObject();
+
+            builder.startObject(Fields.PRIMARIES);
+            if (indexStats.getPrimaries() != null) {
+                indexStats.getPrimaries().toXContent(builder, params);
+            }
+            builder.endObject();
         }
+
         builder.endObject();
     }
 

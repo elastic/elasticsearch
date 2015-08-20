@@ -56,12 +56,8 @@ public class IndexStatsCollector extends AbstractCollector<IndexStatsCollector> 
         long timestamp = System.currentTimeMillis();
         String clusterUUID = clusterUUID();
         for (IndexStats indexStats : indicesStats.getIndices().values()) {
-            results.add(buildMarvelDoc(clusterUUID, TYPE, timestamp, indexStats));
+            results.add(new IndexStatsMarvelDoc(clusterUUID, TYPE, timestamp, indexStats));
         }
         return results.build();
-    }
-
-    protected MarvelDoc buildMarvelDoc(String clusterUUID, String type, long timestamp, IndexStats indexStats) {
-        return IndexStatsMarvelDoc.createMarvelDoc(clusterUUID, type, timestamp, indexStats);
     }
 }

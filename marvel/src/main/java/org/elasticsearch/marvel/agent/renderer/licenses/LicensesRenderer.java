@@ -26,32 +26,29 @@ public class LicensesRenderer extends AbstractRenderer<LicensesMarvelDoc> {
 
     @Override
     protected void doRender(LicensesMarvelDoc marvelDoc, XContentBuilder builder, ToXContent.Params params) throws IOException {
-        LicensesMarvelDoc.Payload payload = marvelDoc.payload();
 
-        if (payload != null) {
-            builder.field(Fields.CLUSTER_NAME, payload.getClusterName());
-            builder.field(Fields.VERSION, payload.getVersion());
-            builder.startArray(Fields.LICENSES);
+        builder.field(Fields.CLUSTER_NAME, marvelDoc.getClusterName());
+        builder.field(Fields.VERSION, marvelDoc.getVersion());
+        builder.startArray(Fields.LICENSES);
 
-            List<License> licenses = payload.getLicenses();
-            if (licenses != null) {
-                for (License license : licenses) {
-                    builder.startObject();
-                    builder.field(Fields.STATUS, status(license));
-                    builder.field(Fields.UID, license.uid());
-                    builder.field(Fields.TYPE, license.type());
-                    builder.dateValueField(Fields.ISSUE_DATE_IN_MILLIS, Fields.ISSUE_DATE, license.issueDate());
-                    builder.field(Fields.FEATURE, license.feature());
-                    builder.dateValueField(Fields.EXPIRY_DATE_IN_MILLIS, Fields.EXPIRY_DATE, license.expiryDate());
-                    builder.field(Fields.MAX_NODES, license.maxNodes());
-                    builder.field(Fields.ISSUED_TO, license.issuedTo());
-                    builder.field(Fields.ISSUER, license.issuer());
-                    builder.field(Fields.HKEY, hash(license, payload.getClusterName()));
-                    builder.endObject();
-                }
+        List<License> licenses = marvelDoc.getLicenses();
+        if (licenses != null) {
+            for (License license : licenses) {
+                builder.startObject();
+                builder.field(Fields.STATUS, status(license));
+                builder.field(Fields.UID, license.uid());
+                builder.field(Fields.TYPE, license.type());
+                builder.dateValueField(Fields.ISSUE_DATE_IN_MILLIS, Fields.ISSUE_DATE, license.issueDate());
+                builder.field(Fields.FEATURE, license.feature());
+                builder.dateValueField(Fields.EXPIRY_DATE_IN_MILLIS, Fields.EXPIRY_DATE, license.expiryDate());
+                builder.field(Fields.MAX_NODES, license.maxNodes());
+                builder.field(Fields.ISSUED_TO, license.issuedTo());
+                builder.field(Fields.ISSUER, license.issuer());
+                builder.field(Fields.HKEY, hash(license, marvelDoc.getClusterName()));
+                builder.endObject();
             }
-            builder.endArray();
         }
+        builder.endArray();
     }
 
     // TODO (tlrx): move status as a calculated getter in License class then remove this method

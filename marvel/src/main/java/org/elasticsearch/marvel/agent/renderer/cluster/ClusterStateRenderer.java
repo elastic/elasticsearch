@@ -36,25 +36,22 @@ public class ClusterStateRenderer extends AbstractRenderer<ClusterStateMarvelDoc
     protected void doRender(ClusterStateMarvelDoc marvelDoc, XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject(Fields.CLUSTER_STATE);
 
-        ClusterStateMarvelDoc.Payload payload = marvelDoc.payload();
-        if (payload != null) {
-            ClusterState clusterState = payload.getClusterState();
-            if (clusterState != null) {
-                builder.field(Fields.STATUS, payload.getStatus().name().toLowerCase(Locale.ROOT));
+        ClusterState clusterState = marvelDoc.getClusterState();
+        if (clusterState != null) {
+            builder.field(Fields.STATUS, marvelDoc.getStatus().name().toLowerCase(Locale.ROOT));
 
-                clusterState.toXContent(builder, params);
+            clusterState.toXContent(builder, params);
 
-                RoutingTable routingTable = clusterState.routingTable();
-                if (routingTable != null) {
-                    List<ShardRouting> shards = routingTable.allShards();
-                    if (shards != null) {
+            RoutingTable routingTable = clusterState.routingTable();
+            if (routingTable != null) {
+                List<ShardRouting> shards = routingTable.allShards();
+                if (shards != null) {
 
-                        builder.startArray(Fields.SHARDS);
-                        for (ShardRouting shard : shards) {
-                            shard.toXContent(builder, params);
-                        }
-                        builder.endArray();
+                    builder.startArray(Fields.SHARDS);
+                    for (ShardRouting shard : shards) {
+                        shard.toXContent(builder, params);
                     }
+                    builder.endArray();
                 }
             }
         }

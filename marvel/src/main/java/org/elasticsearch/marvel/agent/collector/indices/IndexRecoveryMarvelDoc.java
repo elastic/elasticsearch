@@ -8,36 +8,16 @@ package org.elasticsearch.marvel.agent.collector.indices;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
 
-public class IndexRecoveryMarvelDoc extends MarvelDoc<IndexRecoveryMarvelDoc.Payload> {
+public class IndexRecoveryMarvelDoc extends MarvelDoc {
 
-    private final Payload payload;
+    private final RecoveryResponse recoveryResponse;
 
-    public IndexRecoveryMarvelDoc(String clusterUUID, String type, long timestamp, Payload payload) {
+    public IndexRecoveryMarvelDoc(String clusterUUID, String type, long timestamp, RecoveryResponse recoveryResponse) {
         super(clusterUUID, type, timestamp);
-        this.payload = payload;
+        this.recoveryResponse = recoveryResponse;
     }
 
-    @Override
-    public IndexRecoveryMarvelDoc.Payload payload() {
-        return payload;
-    }
-
-    public static IndexRecoveryMarvelDoc createMarvelDoc(String clusterUUID, String type, long timestamp,
-                                                         RecoveryResponse recoveryResponse) {
-        return new IndexRecoveryMarvelDoc(clusterUUID, type, timestamp, new Payload(recoveryResponse));
-    }
-
-    public static class Payload {
-
-        RecoveryResponse recoveryResponse;
-
-        public Payload(RecoveryResponse recoveryResponse) {
-            this.recoveryResponse = recoveryResponse;
-        }
-
-        public RecoveryResponse getRecoveryResponse() {
-            return recoveryResponse;
-        }
-
+    public RecoveryResponse getRecoveryResponse() {
+        return recoveryResponse;
     }
 }

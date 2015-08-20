@@ -34,12 +34,9 @@ public class ClusterStateCollectorTests extends ESSingleNodeTestCase {
         assertThat(clusterStateMarvelDoc.clusterUUID(), equalTo(client().admin().cluster().prepareState().setMetaData(true).get().getState().metaData().clusterUUID()));
         assertThat(clusterStateMarvelDoc.timestamp(), greaterThan(0L));
         assertThat(clusterStateMarvelDoc.type(), equalTo(ClusterStateCollector.TYPE));
+        assertNotNull(clusterStateMarvelDoc.getClusterState());
 
-        ClusterStateMarvelDoc.Payload payload = clusterStateMarvelDoc.payload();
-        assertNotNull(payload);
-        assertNotNull(payload.getClusterState());
-
-        ClusterState clusterState = payload.getClusterState();
+        ClusterState clusterState = clusterStateMarvelDoc.getClusterState();
         assertThat(clusterState.getRoutingTable().allShards(), hasSize(0));
     }
 
@@ -67,11 +64,9 @@ public class ClusterStateCollectorTests extends ESSingleNodeTestCase {
         assertThat(clusterStateMarvelDoc.timestamp(), greaterThan(0L));
         assertThat(clusterStateMarvelDoc.type(), equalTo(ClusterStateCollector.TYPE));
 
-        ClusterStateMarvelDoc.Payload payload = clusterStateMarvelDoc.payload();
-        assertNotNull(payload);
-        assertNotNull(payload.getClusterState());
+        assertNotNull(clusterStateMarvelDoc.getClusterState());
 
-        ClusterState clusterState = payload.getClusterState();
+        ClusterState clusterState = clusterStateMarvelDoc.getClusterState();
         assertThat(clusterState.getRoutingTable().allShards("test"), hasSize(nbShards));
     }
 
@@ -105,12 +100,9 @@ public class ClusterStateCollectorTests extends ESSingleNodeTestCase {
         assertThat(clusterStateMarvelDoc.clusterUUID(), equalTo(client().admin().cluster().prepareState().setMetaData(true).get().getState().metaData().clusterUUID()));
         assertThat(clusterStateMarvelDoc.timestamp(), greaterThan(0L));
         assertThat(clusterStateMarvelDoc.type(), equalTo(ClusterStateCollector.TYPE));
+        assertNotNull(clusterStateMarvelDoc.getClusterState());
 
-        ClusterStateMarvelDoc.Payload payload = clusterStateMarvelDoc.payload();
-        assertNotNull(payload);
-        assertNotNull(payload.getClusterState());
-
-        ClusterState clusterState = payload.getClusterState();
+        ClusterState clusterState = clusterStateMarvelDoc.getClusterState();
         for (int i = 0; i < nbIndices; i++) {
             assertThat(clusterState.getRoutingTable().allShards("test-" + i), hasSize(shardsPerIndex[i]));
         }

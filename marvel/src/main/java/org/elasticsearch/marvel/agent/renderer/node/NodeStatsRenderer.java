@@ -56,20 +56,17 @@ public class NodeStatsRenderer extends AbstractRenderer<NodeStatsMarvelDoc> {
     protected void doRender(NodeStatsMarvelDoc marvelDoc, XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject(Fields.NODE_STATS);
 
-        NodeStatsMarvelDoc.Payload payload = marvelDoc.payload();
-        if (payload != null) {
+        builder.field(Fields.NODE_ID, marvelDoc.getNodeId());
+        builder.field(Fields.NODE_MASTER, marvelDoc.isNodeMaster());
+        builder.field(Fields.MLOCKALL, marvelDoc.isMlockall());
+        builder.field(Fields.DISK_THRESHOLD_ENABLED, marvelDoc.isDiskThresholdDeciderEnabled());
+        builder.field(Fields.DISK_THRESHOLD_WATERMARK_HIGH, marvelDoc.getDiskThresholdWaterMarkHigh());
 
-            builder.field(Fields.NODE_ID, payload.getNodeId());
-            builder.field(Fields.NODE_MASTER, payload.isNodeMaster());
-            builder.field(Fields.MLOCKALL, payload.isMlockall());
-            builder.field(Fields.DISK_THRESHOLD_ENABLED, payload.isDiskThresholdDeciderEnabled());
-            builder.field(Fields.DISK_THRESHOLD_WATERMARK_HIGH, payload.getDiskThresholdWaterMarkHigh());
-
-            NodeStats nodeStats = payload.getNodeStats();
-            if (nodeStats != null) {
-                nodeStats.toXContent(builder, params);
-            }
+        NodeStats nodeStats = marvelDoc.getNodeStats();
+        if (nodeStats != null) {
+            nodeStats.toXContent(builder, params);
         }
+
         builder.endObject();
     }
 

@@ -37,12 +37,9 @@ public class ClusterStatsRenderer extends AbstractRenderer<ClusterStatsMarvelDoc
     protected void doRender(ClusterStatsMarvelDoc marvelDoc, XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject(Fields.CLUSTER_STATS);
 
-        ClusterStatsMarvelDoc.Payload payload = marvelDoc.payload();
-        if (payload != null) {
-            ClusterStatsResponse clusterStats = payload.getClusterStats();
-            if (clusterStats != null) {
-                clusterStats.toXContent(builder, params);
-            }
+        ClusterStatsResponse clusterStats = marvelDoc.getClusterStats();
+        if (clusterStats != null) {
+            clusterStats.toXContent(builder, params);
         }
 
         builder.endObject();

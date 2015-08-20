@@ -27,29 +27,27 @@ public class IndexRecoveryRenderer extends AbstractRenderer<IndexRecoveryMarvelD
     protected void doRender(IndexRecoveryMarvelDoc marvelDoc, XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject(Fields.INDEX_RECOVERY);
 
-        IndexRecoveryMarvelDoc.Payload payload = marvelDoc.payload();
-        if (payload != null) {
-            RecoveryResponse recovery = payload.getRecoveryResponse();
-            if (recovery != null) {
-                builder.startArray(Fields.SHARDS);
-                Map<String, List<ShardRecoveryResponse>> shards = recovery.shardResponses();
-                if (shards != null) {
-                    for (Map.Entry<String, List<ShardRecoveryResponse>> shard : shards.entrySet()) {
+        RecoveryResponse recovery = marvelDoc.getRecoveryResponse();
+        if (recovery != null) {
+            builder.startArray(Fields.SHARDS);
+            Map<String, List<ShardRecoveryResponse>> shards = recovery.shardResponses();
+            if (shards != null) {
+                for (Map.Entry<String, List<ShardRecoveryResponse>> shard : shards.entrySet()) {
 
-                        List<ShardRecoveryResponse> indexShards = shard.getValue();
-                        if (indexShards != null) {
-                            for (ShardRecoveryResponse indexShard : indexShards) {
-                                builder.startObject();
-                                builder.field(Fields.INDEX_NAME, shard.getKey());
-                                indexShard.toXContent(builder, params);
-                                builder.endObject();
-                            }
+                    List<ShardRecoveryResponse> indexShards = shard.getValue();
+                    if (indexShards != null) {
+                        for (ShardRecoveryResponse indexShard : indexShards) {
+                            builder.startObject();
+                            builder.field(Fields.INDEX_NAME, shard.getKey());
+                            indexShard.toXContent(builder, params);
+                            builder.endObject();
                         }
                     }
                 }
-                builder.endArray();
             }
+            builder.endArray();
         }
+
         builder.endObject();
     }
 

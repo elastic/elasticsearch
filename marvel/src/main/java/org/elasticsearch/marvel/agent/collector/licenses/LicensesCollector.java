@@ -50,7 +50,7 @@ public class LicensesCollector extends AbstractCollector<LicensesMarvelDoc> {
         List<License> licenses = licenseService.licenses();
         if (licenses != null) {
             String clusterUUID = clusterUUID();
-            results.add(LicensesMarvelDoc.createMarvelDoc(MarvelSettings.MARVEL_DATA_INDEX_NAME, TYPE, clusterUUID, clusterUUID, System.currentTimeMillis(),
+            results.add(new LicensesMarvelDoc(MarvelSettings.MARVEL_DATA_INDEX_NAME, TYPE, clusterUUID, clusterUUID, System.currentTimeMillis(),
                     clusterName.value(), Version.CURRENT.toString(), licenses));
         }
         return results.build();

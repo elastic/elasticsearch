@@ -46,11 +46,7 @@ public class ClusterStatsCollector extends AbstractCollector<ClusterStatsCollect
         ImmutableList.Builder<MarvelDoc> results = ImmutableList.builder();
 
         ClusterStatsResponse clusterStatsResponse = client.admin().cluster().prepareClusterStats().get(marvelSettings.clusterStatsTimeout());
-        results.add(buildMarvelDoc(clusterUUID(), TYPE, System.currentTimeMillis(), clusterStatsResponse));
+        results.add(new ClusterStatsMarvelDoc(clusterUUID(), TYPE, System.currentTimeMillis(), clusterStatsResponse));
         return results.build();
-    }
-
-    protected MarvelDoc buildMarvelDoc(String clusterUUID, String type, long timestamp, ClusterStatsResponse clusterStatsResponse) {
-        return ClusterStatsMarvelDoc.createMarvelDoc(clusterUUID, type, timestamp, clusterStatsResponse);
     }
 }

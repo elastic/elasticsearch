@@ -32,10 +32,8 @@ public class ClusterStatsCollectorTests extends ESIntegTestCase {
         assertThat(clusterStatsMarvelDoc.timestamp(), greaterThan(0L));
         assertThat(clusterStatsMarvelDoc.type(), equalTo(ClusterStatsCollector.TYPE));
 
-        ClusterStatsMarvelDoc.Payload payload = clusterStatsMarvelDoc.payload();
-        assertNotNull(payload);
-        assertNotNull(payload.getClusterStats());
-        assertThat(payload.getClusterStats().getNodesStats().getCounts().getTotal(), equalTo(internalCluster().getNodeNames().length));
+        assertNotNull(clusterStatsMarvelDoc.getClusterStats());
+        assertThat(clusterStatsMarvelDoc.getClusterStats().getNodesStats().getCounts().getTotal(), equalTo(internalCluster().getNodeNames().length));
     }
 
     private ClusterStatsCollector newClusterStatsCollector() {

@@ -54,9 +54,13 @@ public abstract class AbstractCollector<T> extends AbstractLifecycleComponent<T>
         return false;
     }
 
+    protected boolean localNodeMaster() {
+        return clusterService.state().nodes().localNodeMaster();
+    }
+
     @Override
     public Collection<MarvelDoc> collect() {
-        if (masterOnly() && !clusterService.state().nodes().localNodeMaster()) {
+        if (masterOnly() && !localNodeMaster()) {
             logger.trace("collector [{}] runs on master only", name());
             return null;
         }

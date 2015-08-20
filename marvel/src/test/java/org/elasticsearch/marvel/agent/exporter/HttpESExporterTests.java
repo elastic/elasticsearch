@@ -220,7 +220,7 @@ public class HttpESExporterTests extends ESIntegTestCase {
     }
 
     private MarvelDoc newRandomMarvelDoc() {
-        return IndexStatsMarvelDoc.createMarvelDoc(internalCluster().getClusterName(), "test_marvelDoc", timeStampGenerator.incrementAndGet(),
+        return new IndexStatsMarvelDoc(internalCluster().getClusterName(), "test_marvelDoc", timeStampGenerator.incrementAndGet(),
                 new IndexStats("test_index", null));
     }
 

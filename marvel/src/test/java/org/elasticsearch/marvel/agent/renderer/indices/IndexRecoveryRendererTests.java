@@ -53,7 +53,7 @@ public class IndexRecoveryRendererTests extends ESTestCase {
 
         RecoveryResponse recoveryResponse = new RecoveryResponse(2, 2, 2, false, shardResponses, null);
 
-        IndexRecoveryMarvelDoc marvelDoc = IndexRecoveryMarvelDoc.createMarvelDoc("test", "marvel_index_recovery", 1437580442979L, recoveryResponse);
+        IndexRecoveryMarvelDoc marvelDoc = new IndexRecoveryMarvelDoc("test", "marvel_index_recovery", 1437580442979L, recoveryResponse);
 
         logger.debug("--> rendering the document");
         Renderer renderer = new IndexRecoveryRenderer();

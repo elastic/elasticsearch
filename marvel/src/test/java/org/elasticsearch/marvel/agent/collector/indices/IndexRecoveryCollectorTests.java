@@ -99,10 +99,7 @@ public class IndexRecoveryCollectorTests extends ESIntegTestCase {
         assertThat(indexRecoveryMarvelDoc.timestamp(), greaterThan(0L));
         assertThat(indexRecoveryMarvelDoc.type(), equalTo(IndexRecoveryCollector.TYPE));
 
-        IndexRecoveryMarvelDoc.Payload payload = indexRecoveryMarvelDoc.payload();
-        assertNotNull(payload);
-
-        RecoveryResponse recovery = payload.getRecoveryResponse();
+        RecoveryResponse recovery = indexRecoveryMarvelDoc.getRecoveryResponse();
         assertNotNull(recovery);
 
         Map<String, List<ShardRecoveryResponse>> shards = recovery.shardResponses();

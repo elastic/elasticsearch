@@ -29,7 +29,7 @@ public class IndexStatsRendererTests extends ESTestCase {
     @Test
     public void testIndexStatsRenderer() throws Exception {
         logger.debug("--> creating the index stats marvel document");
-        IndexStatsMarvelDoc marvelDoc = IndexStatsMarvelDoc.createMarvelDoc("test", "marvel_index_stats", 1437580442979L,
+        IndexStatsMarvelDoc marvelDoc = new IndexStatsMarvelDoc("test", "marvel_index_stats", 1437580442979L,
                 new IndexStats("index-0", new ShardStats[0]) {
                     @Override
                     public CommonStats getTotal() {

@@ -7,7 +7,6 @@ package org.elasticsearch.marvel.agent.collector.cluster;
 
 import com.google.common.collect.ImmutableList;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -50,11 +49,7 @@ public class ClusterStateCollector extends AbstractCollector<ClusterStateCollect
         ClusterState clusterState = clusterService.state();
         ClusterHealthResponse clusterHealth = client.admin().cluster().prepareHealth().get(marvelSettings.clusterStateTimeout());
 
-        results.add(buildMarvelDoc(clusterUUID(), TYPE, System.currentTimeMillis(), clusterState, clusterHealth.getStatus()));
+        results.add(new ClusterStateMarvelDoc(clusterUUID(), TYPE, System.currentTimeMillis(), clusterState, clusterHealth.getStatus()));
         return results.build();
-    }
-
-    protected MarvelDoc buildMarvelDoc(String clusterUUID, String type, long timestamp, ClusterState clusterState, ClusterHealthStatus status) {
-        return ClusterStateMarvelDoc.createMarvelDoc(clusterUUID, type, timestamp, clusterState, status);
     }
 }

@@ -40,15 +40,13 @@ public class NodeStatsCollectorTests extends ESIntegTestCase {
             assertThat(nodeStatsMarvelDoc.timestamp(), greaterThan(0L));
             assertThat(nodeStatsMarvelDoc.type(), equalTo(NodeStatsCollector.TYPE));
 
-            NodeStatsMarvelDoc.Payload payload = nodeStatsMarvelDoc.payload();
-            assertNotNull(payload);
-            assertThat(payload.getNodeId(), equalTo(internalCluster().getInstance(DiscoveryService.class, node).localNode().id()));
-            assertThat(payload.isNodeMaster(), equalTo(node.equals(internalCluster().getMasterName())));
-            assertThat(payload.isMlockall(), equalTo(Bootstrap.isMemoryLocked()));
-            assertNotNull(payload.isDiskThresholdDeciderEnabled());
-            assertNotNull(payload.getDiskThresholdWaterMarkHigh());
+            assertThat(nodeStatsMarvelDoc.getNodeId(), equalTo(internalCluster().getInstance(DiscoveryService.class, node).localNode().id()));
+            assertThat(nodeStatsMarvelDoc.isNodeMaster(), equalTo(node.equals(internalCluster().getMasterName())));
+            assertThat(nodeStatsMarvelDoc.isMlockall(), equalTo(Bootstrap.isMemoryLocked()));
+            assertNotNull(nodeStatsMarvelDoc.isDiskThresholdDeciderEnabled());
+            assertNotNull(nodeStatsMarvelDoc.getDiskThresholdWaterMarkHigh());
 
-            assertNotNull(payload.getNodeStats());
+            assertNotNull(nodeStatsMarvelDoc.getNodeStats());
         }
     }
 

@@ -21,6 +21,7 @@ package org.elasticsearch.test.discovery;
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.google.common.primitives.Ints;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.InternalTestCluster;
@@ -28,6 +29,8 @@ import org.elasticsearch.test.SettingsSource;
 import org.elasticsearch.transport.local.LocalTransport;
 
 import java.io.IOException;
+import java.net.Inet4Address;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.util.HashSet;
@@ -125,6 +128,7 @@ public class ClusterDiscoveryConfiguration extends SettingsSource {
             return builder.put(super.node(nodeOrdinal)).build();
         }
 
+        @SuppressForbidden(reason = "we know we pass a IP address")
         protected synchronized static int[] unicastHostPorts(int numHosts) {
             int[] unicastHostPorts = new int[numHosts];
 

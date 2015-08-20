@@ -23,6 +23,7 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.client.transport.TransportClient;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -79,7 +80,7 @@ public class NettyTransportMultiPortIntegrationIT extends ESIntegTestCase {
     }
 
     @Test
-    @Network
+//    @Network
     public void testThatInfosAreExposed() throws Exception {
         NodesInfoResponse response = client().admin().cluster().prepareNodesInfo().clear().setTransport(true).get();
         for (NodeInfo nodeInfo : response.getNodes()) {
@@ -94,7 +95,7 @@ public class NettyTransportMultiPortIntegrationIT extends ESIntegTestCase {
             // publish address
             assertThat(nodeInfo.getTransport().getProfileAddresses().get("client1").publishAddress(), instanceOf(InetSocketTransportAddress.class));
             InetSocketTransportAddress publishAddress = (InetSocketTransportAddress) nodeInfo.getTransport().getProfileAddresses().get("client1").publishAddress();
-            assertThat(publishAddress.address().getHostName(), is("127.0.0.7"));
+            assertThat(NetworkAddress.formatAddress(publishAddress.address().getAddress()), is("127.0.0.7"));
             assertThat(publishAddress.address().getPort(), is(4321));
         }
     }

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.transport;
 
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.network.NetworkAddress;
@@ -33,7 +34,7 @@ import java.net.InetSocketAddress;
  */
 public final class InetSocketTransportAddress implements TransportAddress {
 
-    // TODO: do we really need this option, why do resolving?
+    // TODO: do we really need this option, why do resolving? - remove this as a follow-up
     private static boolean resolveAddress = false;
 
     public static void setResolveAddress(boolean resolveAddress) {
@@ -92,11 +93,7 @@ public final class InetSocketTransportAddress implements TransportAddress {
 
     @Override
     public String getHost() {
-        if (resolveAddress) {
-            return address.getHostName();
-        } else {
-            return getAddress();
-        }
+       return maybeLookupHostname();
     }
 
     @Override
@@ -129,9 +126,18 @@ public final class InetSocketTransportAddress implements TransportAddress {
                 out.writeInt(((Inet6Address) address.getAddress()).getScopeId());
         } else {
             out.writeByte((byte) 1);
-            out.writeString(address.getHostName());
+            out.writeString(maybeLookupHostname());
         }
         out.writeInt(address.getPort());
+    }
+
+    @SuppressForbidden(reason = "if explicitly configured we do hostName reverse lookup") // TODO remove this?
+    private String maybeLookupHostname() {
+        if (resolveAddress) {
+            return address.getHostName();
+        } else {
+            return getAddress();
+        }
     }
 
     @Override

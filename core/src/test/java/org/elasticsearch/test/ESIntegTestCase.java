@@ -32,6 +32,7 @@ import org.apache.http.impl.client.HttpClients;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.index.shard.MergeSchedulerConfig;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.LuceneTestCase;
@@ -1963,7 +1964,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         TransportAddress publishAddress = randomFrom(nodes).getHttp().address().publishAddress();
         assertEquals(1, publishAddress.uniqueAddressTypeId());
         InetSocketAddress address = ((InetSocketTransportAddress) publishAddress).address();
-        return new HttpRequestBuilder(HttpClients.createDefault()).host(address.getHostName()).port(address.getPort());
+        return new HttpRequestBuilder(HttpClients.createDefault()).host(NetworkAddress.formatAddress(address.getAddress())).port(address.getPort());
     }
 
     /**

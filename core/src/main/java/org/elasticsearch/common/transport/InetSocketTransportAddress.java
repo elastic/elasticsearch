@@ -19,8 +19,10 @@
 
 package org.elasticsearch.common.transport;
 
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.network.NetworkAddress;
 
 import java.io.IOException;
 import java.net.Inet6Address;
@@ -32,6 +34,7 @@ import java.net.InetSocketAddress;
  */
 public final class InetSocketTransportAddress implements TransportAddress {
 
+    // TODO: do we really need this option, why do resolving? - remove this as a follow-up
     private static boolean resolveAddress = false;
 
     public static void setResolveAddress(boolean resolveAddress) {
@@ -53,24 +56,19 @@ public final class InetSocketTransportAddress implements TransportAddress {
             in.readFully(a);
             InetAddress inetAddress;
             if (len == 16) {
-                int scope_id = in.readInt();
-                inetAddress = Inet6Address.getByAddress(null, a, scope_id);
+                inetAddress = Inet6Address.getByAddress(null, a);
             } else {
                 inetAddress = InetAddress.getByAddress(a);
             }
             int port = in.readInt();
             this.address = new InetSocketAddress(inetAddress, port);
         } else {
-            this.address = new InetSocketAddress(in.readString(), in.readInt());
+            this.address = new InetSocketAddress(InetAddress.getByName(in.readString()), in.readInt());
         }
     }
 
     private InetSocketTransportAddress() {
         address = null;
-    }
-
-    public InetSocketTransportAddress(String hostname, int port) {
-        this(new InetSocketAddress(hostname, port));
     }
 
     public InetSocketTransportAddress(InetAddress address, int port) {
@@ -94,16 +92,12 @@ public final class InetSocketTransportAddress implements TransportAddress {
 
     @Override
     public String getHost() {
-        if (resolveAddress) {
-            return address.getHostName();
-        } else {
-            return getAddress();
-        }
+       return maybeLookupHostname();
     }
 
     @Override
     public String getAddress() {
-        return address.getAddress().getHostAddress();
+        return NetworkAddress.formatAddress(address.getAddress());
     }
 
     @Override
@@ -127,13 +121,23 @@ public final class InetSocketTransportAddress implements TransportAddress {
             byte[] bytes = address().getAddress().getAddress();  // 4 bytes (IPv4) or 16 bytes (IPv6)
             out.writeByte((byte) bytes.length); // 1 byte
             out.write(bytes, 0, bytes.length);
-            if (address().getAddress() instanceof Inet6Address)
-                out.writeInt(((Inet6Address) address.getAddress()).getScopeId());
+            // don't serialize scope ids over the network!!!!
+            // these only make sense with respect to the local machine, and will only formulate
+            // the address incorrectly remotely.
         } else {
             out.writeByte((byte) 1);
-            out.writeString(address.getHostName());
+            out.writeString(maybeLookupHostname());
         }
         out.writeInt(address.getPort());
+    }
+
+    @SuppressForbidden(reason = "if explicitly configured we do hostName reverse lookup") // TODO remove this?
+    private String maybeLookupHostname() {
+        if (resolveAddress) {
+            return address.getHostName();
+        } else {
+            return getAddress();
+        }
     }
 
     @Override
@@ -151,6 +155,6 @@ public final class InetSocketTransportAddress implements TransportAddress {
 
     @Override
     public String toString() {
-        return "inet[" + address + "]";
+        return NetworkAddress.format(address);
     }
 }

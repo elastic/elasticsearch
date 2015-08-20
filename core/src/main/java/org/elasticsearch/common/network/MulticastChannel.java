@@ -20,7 +20,9 @@
 package org.elasticsearch.common.network;
 
 import com.google.common.collect.Maps;
+
 import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.ESLogger;
@@ -257,6 +259,7 @@ public abstract class MulticastChannel implements Closeable {
     /**
      * Simple implementation of a channel.
      */
+    @SuppressForbidden(reason = "I bind to wildcard addresses. I am a total nightmare")
     private static class Plain extends MulticastChannel {
         private final ESLogger logger;
         private final Config config;

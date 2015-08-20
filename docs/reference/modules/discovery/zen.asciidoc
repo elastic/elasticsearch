@@ -2,7 +2,7 @@
 === Zen Discovery
 
 The zen discovery is the built in discovery module for elasticsearch and
-the default. It provides both multicast and unicast discovery as well
+the default. It provides both unicast and multicast discovery as well
 being easily extended to support cloud environments.
 
 The zen discovery is integrated with other modules, for example, all
@@ -40,7 +40,7 @@ respond to. It provides the following settings with the
 |`address` |The address to bind to, defaults to `null` which means it
 will bind `network.bind_host`
 
-|`enabled` |Whether multicast ping discovery is enabled. Defaults to `true`.
+|`enabled` |Whether multicast ping discovery is enabled. Defaults to `false`.
 |=======================================================================
 
 [float]
@@ -57,7 +57,8 @@ as gossip routers. It provides the following settings with the
 |Setting |Description
 |`hosts` |Either an array setting or a comma delimited setting. Each
 value is either in the form of `host:port`, or in the form of
-`host[port1-port2]`.
+`host:port1-port2`. Note that IPv6 hosts must be bracketed. Defaults to
+`127.0.0.1, [::1]`
 |=======================================================================
 
 The unicast discovery uses the

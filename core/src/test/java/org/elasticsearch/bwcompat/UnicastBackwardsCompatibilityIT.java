@@ -33,7 +33,6 @@ public class UnicastBackwardsCompatibilityIT extends ESBackcompatTestCase {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put("transport.tcp.port", 9380 + nodeOrdinal)
-                .put("discovery.zen.ping.multicast.enabled", false)
                 .put("discovery.zen.ping.unicast.hosts", "localhost:9380,localhost:9381,localhost:9390,localhost:9391")
                 .build();
     }
@@ -43,7 +42,6 @@ public class UnicastBackwardsCompatibilityIT extends ESBackcompatTestCase {
         return Settings.settingsBuilder()
                 .put(super.externalNodeSettings(nodeOrdinal))
                 .put("transport.tcp.port", 9390 + nodeOrdinal)
-                .put("discovery.zen.ping.multicast.enabled", false)
                 .put("discovery.zen.ping.unicast.hosts", "localhost:9380,localhost:9381,localhost:9390,localhost:9391")
                 .build();
     }

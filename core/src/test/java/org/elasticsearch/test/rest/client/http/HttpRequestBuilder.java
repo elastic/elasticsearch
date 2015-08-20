@@ -27,6 +27,7 @@ import org.elasticsearch.client.support.Headers;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.http.HttpServerTransport;
 
@@ -77,7 +78,7 @@ public class HttpRequestBuilder {
 
     public HttpRequestBuilder httpTransport(HttpServerTransport httpServerTransport) {
         InetSocketTransportAddress transportAddress = (InetSocketTransportAddress) httpServerTransport.boundAddress().publishAddress();
-        return host(transportAddress.address().getHostName()).port(transportAddress.address().getPort());
+        return host(NetworkAddress.formatAddress(transportAddress.address().getAddress())).port(transportAddress.address().getPort());
     }
 
     public HttpRequestBuilder port(int port) {

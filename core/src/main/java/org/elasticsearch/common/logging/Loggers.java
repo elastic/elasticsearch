@@ -84,6 +84,7 @@ public class Loggers {
         }
     }
 
+    @SuppressForbidden(reason = "do not know what this method does")
     public static ESLogger getLogger(String loggerName, Settings settings, String... prefixes) {
         List<String> prefixesList = newArrayList();
         if (settings.getAsBoolean("logger.logHostAddress", false)) {

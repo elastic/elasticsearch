@@ -92,7 +92,6 @@ public class TransportModule extends AbstractModule {
         }
 
         bind(NamedWriteableRegistry.class).asEagerSingleton();
-
         if (configuredTransport != null) {
             logger.info("Using [{}] as transport, overridden by [{}]", configuredTransport.getName(), configuredTransportSource);
             bind(Transport.class).to(configuredTransport).asEagerSingleton();

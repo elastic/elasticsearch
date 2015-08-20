@@ -21,8 +21,6 @@ package org.elasticsearch.common.network;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.logging.Loggers;
 
 import java.net.Inet4Address;
 import java.net.Inet6Address;
@@ -34,10 +32,12 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 
 /**
- * Utilities for network interfaces / addresses
+ * Utilities for network interfaces / addresses binding and publishing.
+ * Its only intended for that purpose, not general purpose usage!!!!
  */
 public abstract class NetworkUtils {
 
@@ -84,7 +84,7 @@ public abstract class NetworkUtils {
      * @deprecated remove this when multihoming is really correct
      */
     @Deprecated
-    private static void sortAddresses(List<InetAddress> list) {
+    static void sortAddresses(List<InetAddress> list) {
         Collections.sort(list, new Comparator<InetAddress>() {
             @Override
             public int compare(InetAddress left, InetAddress right) {
@@ -97,8 +97,6 @@ public abstract class NetworkUtils {
         });
     }
     
-    private final static ESLogger logger = Loggers.getLogger(NetworkUtils.class);
-
     /** Return all interfaces (and subinterfaces) on the system */
     static List<NetworkInterface> getInterfaces() throws SocketException {
         List<NetworkInterface> all = new ArrayList<>();
@@ -127,19 +125,8 @@ public abstract class NetworkUtils {
         return Constants.WINDOWS ? false : true;
     }
     
-    /** Returns localhost, or if its misconfigured, falls back to loopback. Use with caution!!!! */
-    // TODO: can we remove this?
-    public static InetAddress getLocalHost() {
-        try {
-            return InetAddress.getLocalHost();
-        } catch (UnknownHostException e) {
-            logger.warn("failed to resolve local host, fallback to loopback", e);
-            return InetAddress.getLoopbackAddress();
-        }
-    }
-    
     /** Returns addresses for all loopback interfaces that are up. */
-    public static InetAddress[] getLoopbackAddresses() throws SocketException {
+    static InetAddress[] getLoopbackAddresses() throws SocketException {
         List<InetAddress> list = new ArrayList<>();
         for (NetworkInterface intf : getInterfaces()) {
             if (intf.isLoopback() && intf.isUp()) {
@@ -154,7 +141,7 @@ public abstract class NetworkUtils {
     }
     
     /** Returns addresses for the first non-loopback interface that is up. */
-    public static InetAddress[] getFirstNonLoopbackAddresses() throws SocketException {
+    static InetAddress[] getFirstNonLoopbackAddresses() throws SocketException {
         List<InetAddress> list = new ArrayList<>();
         for (NetworkInterface intf : getInterfaces()) {
             if (intf.isLoopback() == false && intf.isUp()) {
@@ -170,7 +157,7 @@ public abstract class NetworkUtils {
     }
     
     /** Returns addresses for the given interface (it must be marked up) */
-    public static InetAddress[] getAddressesForInterface(String name) throws SocketException {
+    static InetAddress[] getAddressesForInterface(String name) throws SocketException {
         NetworkInterface intf = NetworkInterface.getByName(name);
         if (intf == null) {
             throw new IllegalArgumentException("No interface named '" + name + "' found, got " + getInterfaces());
@@ -187,14 +174,17 @@ public abstract class NetworkUtils {
     }
     
     /** Returns addresses for the given host, sorted by order of preference */
-    public static InetAddress[] getAllByName(String host) throws UnknownHostException {
+    static InetAddress[] getAllByName(String host) throws UnknownHostException {
         InetAddress addresses[] = InetAddress.getAllByName(host);
-        sortAddresses(Arrays.asList(addresses));
-        return addresses;
+        // deduplicate, in case of resolver misconfiguration
+        // stuff like https://bugzilla.redhat.com/show_bug.cgi?id=496300
+        List<InetAddress> unique = new ArrayList<>(new HashSet<>(Arrays.asList(addresses)));
+        sortAddresses(unique);
+        return unique.toArray(new InetAddress[unique.size()]);
     }
     
     /** Returns only the IPV4 addresses in {@code addresses} */
-    public static InetAddress[] filterIPV4(InetAddress addresses[]) {
+    static InetAddress[] filterIPV4(InetAddress addresses[]) {
         List<InetAddress> list = new ArrayList<>();
         for (InetAddress address : addresses) {
             if (address instanceof Inet4Address) {
@@ -208,7 +198,7 @@ public abstract class NetworkUtils {
     }
     
     /** Returns only the IPV6 addresses in {@code addresses} */
-    public static InetAddress[] filterIPV6(InetAddress addresses[]) {
+    static InetAddress[] filterIPV6(InetAddress addresses[]) {
         List<InetAddress> list = new ArrayList<>();
         for (InetAddress address : addresses) {
             if (address instanceof Inet6Address) {

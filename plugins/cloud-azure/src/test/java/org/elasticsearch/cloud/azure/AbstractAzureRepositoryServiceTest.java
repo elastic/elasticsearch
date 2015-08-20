@@ -26,7 +26,7 @@ import org.elasticsearch.cloud.azure.storage.AzureStorageServiceMock;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugin.cloud.azure.CloudAzurePlugin;
-import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.test.store.MockFSDirectoryService;
 import org.junit.After;
@@ -36,7 +36,7 @@ import java.net.URISyntaxException;
 
 public abstract class AbstractAzureRepositoryServiceTest extends AbstractAzureTest {
 
-    public static class Plugin extends AbstractPlugin {
+    public static class TestPlugin extends Plugin {
         @Override
         public String name() {
             return "mock-stoarge-service";
@@ -77,7 +77,7 @@ public abstract class AbstractAzureRepositoryServiceTest extends AbstractAzureTe
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         Settings.Builder builder = Settings.settingsBuilder()
-                .extendArray("plugin.types", CloudAzurePlugin.class.getName(), Plugin.class.getName())
+                .extendArray("plugin.types", CloudAzurePlugin.class.getName(), TestPlugin.class.getName())
                 .put(Storage.API_IMPLEMENTATION, mock)
                 .put(Storage.CONTAINER, "snapshots");
 

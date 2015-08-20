@@ -23,7 +23,7 @@ import com.google.common.collect.Sets;
 import com.spatial4j.core.exception.InvalidShapeException;
 import com.spatial4j.core.shape.Shape;
 import com.vividsolutions.jts.geom.*;
-import org.apache.commons.lang3.tuple.Pair;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -98,7 +98,6 @@ public abstract class BasePolygonBuilder<E extends BasePolygonBuilder<E>> extend
 
     /**
      * build new hole to the polygon
-     * @param hole linear ring defining the hole
      * @return this
      */
     public Ring<E> hole() {
@@ -285,7 +284,7 @@ public abstract class BasePolygonBuilder<E extends BasePolygonBuilder<E>> extend
         Edge current = edge;
         Edge prev = edge;
         // bookkeep the source and sink of each visited coordinate
-        HashMap<Coordinate, Pair<Edge, Edge>> visitedEdge = new HashMap<>();
+        HashMap<Coordinate, Tuple<Edge, Edge>> visitedEdge = new HashMap<>();
         do {
             current.coordinate = shift(current.coordinate, shiftOffset);
             current.component = id;
@@ -301,7 +300,7 @@ public abstract class BasePolygonBuilder<E extends BasePolygonBuilder<E>> extend
                     // since we're splitting connected components, we want the edges method to visit
                     // the newly separated component
                     final int visitID = -id;
-                    Edge firstAppearance = visitedEdge.get(current.coordinate).getRight();
+                    Edge firstAppearance = visitedEdge.get(current.coordinate).v2();
                     // correct the graph pointers by correcting the 'next' pointer for both the
                     // first appearance and this appearance of the edge
                     Edge temp = firstAppearance.next;
@@ -312,12 +311,12 @@ public abstract class BasePolygonBuilder<E extends BasePolygonBuilder<E>> extend
                     // a non-visited value (anything positive)
                     do {
                         prev.component = visitID;
-                        prev = visitedEdge.get(prev.coordinate).getLeft();
+                        prev = visitedEdge.get(prev.coordinate).v1();
                         ++splitIndex;
                     } while (!current.coordinate.equals(prev.coordinate));
                     ++connectedComponents;
                 } else {
-                    visitedEdge.put(current.coordinate, Pair.of(prev, current));
+                    visitedEdge.put(current.coordinate, new Tuple<Edge, Edge>(prev, current));
                 }
                 edges.add(current);
                 prev = current;

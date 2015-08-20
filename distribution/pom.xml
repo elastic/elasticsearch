@@ -5,14 +5,14 @@
     <modelVersion>4.0.0</modelVersion>
     <parent>
         <groupId>org.elasticsearch</groupId>
-        <artifactId>elasticsearch-parent</artifactId>
+        <artifactId>parent</artifactId>
         <version>2.1.0-SNAPSHOT</version>
     </parent>
 
     <groupId>org.elasticsearch.distribution</groupId>
-    <artifactId>elasticsearch-distribution</artifactId>
+    <artifactId>distributions</artifactId>
     <packaging>pom</packaging>
-    <name>Elasticsearch Distribution</name>
+    <name>Distribution: Parent POM</name>
 
     <properties>
         <!-- Properties used for building RPM & DEB packages (see common/packaging.properties) -->
@@ -32,9 +32,6 @@
         <!-- Properties for the license checker -->
         <project.licenses.dir>${project.basedir}/../licenses</project.licenses.dir>
         <project.licenses.check_target>${integ.scratch}</project.licenses.check_target>
-
-        <!-- rpmbuild location : default to /usr/bin/rpmbuild -->
-        <packaging.rpm.rpmbuild>/usr/bin/rpmbuild</packaging.rpm.rpmbuild>
 
         <!-- we expect packaging formats to have integration tests, but not unit tests -->
         <skip.unit.tests>true</skip.unit.tests>
@@ -172,6 +169,11 @@
     </modules>
 
     <profiles>
+        <!--
+            We include automatically RPM module when it's available in common locations.
+            If your rpmbuild is in another location (but in path), run maven with rpm profile:
+             mvn deploy -Prpm
+        -->
         <profile>
             <id>macos_brew</id>
             <activation>
@@ -190,7 +192,7 @@
             <activation>
                 <file>
                     <!-- Folks having /usr/bin/rpmbuild available will be able to build the rpm module -->
-                    <exists>${packaging.rpm.rpmbuild}</exists>
+                    <exists>/usr/bin/rpmbuild</exists>
                 </file>
             </activation>
             <modules>

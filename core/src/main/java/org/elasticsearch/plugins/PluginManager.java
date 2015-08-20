@@ -75,27 +75,27 @@ public class PluginManager {
 
     static final ImmutableSet<String> OFFICIAL_PLUGINS = ImmutableSet.<String>builder()
             .add(
-                    "elasticsearch-analysis-icu",
-                    "elasticsearch-analysis-kuromoji",
-                    "elasticsearch-analysis-phonetic",
-                    "elasticsearch-analysis-smartcn",
-                    "elasticsearch-analysis-stempel",
-                    "elasticsearch-cloud-aws",
-                    "elasticsearch-cloud-azure",
-                    "elasticsearch-cloud-gce",
-                    "elasticsearch-delete-by-query",
-                    "elasticsearch-lang-javascript",
-                    "elasticsearch-lang-python",
-                    "elasticsearch-mapper-murmur3",
-                    "elasticsearch-mapper-size"
+                    "analysis-icu",
+                    "analysis-kuromoji",
+                    "analysis-phonetic",
+                    "analysis-smartcn",
+                    "analysis-stempel",
+                    "cloud-aws",
+                    "cloud-azure",
+                    "cloud-gce",
+                    "delete-by-query",
+                    "lang-javascript",
+                    "lang-python",
+                    "mapper-murmur3",
+                    "mapper-size"
             ).build();
 
     private final Environment environment;
-    private String url;
+    private URL url;
     private OutputMode outputMode;
     private TimeValue timeout;
 
-    public PluginManager(Environment environment, String url, OutputMode outputMode, TimeValue timeout) {
+    public PluginManager(Environment environment, URL url, OutputMode outputMode, TimeValue timeout) {
         this.environment = environment;
         this.url = url;
         this.outputMode = outputMode;
@@ -103,8 +103,8 @@ public class PluginManager {
     }
 
     public void downloadAndExtract(String name, Terminal terminal) throws IOException {
-        if (name == null) {
-            throw new IllegalArgumentException("plugin name must be supplied with install [name].");
+        if (name == null && url == null) {
+            throw new IllegalArgumentException("plugin name or url must be supplied with install.");
         }
 
         if (!Files.exists(environment.pluginsFile())) {
@@ -112,12 +112,18 @@ public class PluginManager {
             Files.createDirectory(environment.pluginsFile());
         }
 
-        if (!Files.isWritable(environment.pluginsFile())) {
+        if (!Environment.isWritable(environment.pluginsFile())) {
             throw new IOException("plugin directory " + environment.pluginsFile() + " is read only");
         }
 
-        PluginHandle pluginHandle = PluginHandle.parse(name);
-        checkForForbiddenName(pluginHandle.name);
+        PluginHandle pluginHandle;
+        if (name != null) {
+            pluginHandle = PluginHandle.parse(name);
+            checkForForbiddenName(pluginHandle.name);
+        } else {
+            // if we have no name but url, use temporary name that will be overwritten later
+            pluginHandle = new PluginHandle("temp_name" + new Random().nextInt(), null, null);
+        }
 
         Path pluginFile = download(pluginHandle, terminal);
         extract(pluginHandle, terminal, pluginFile);
@@ -138,7 +144,7 @@ public class PluginManager {
 
         // first, try directly from the URL provided
         if (url != null) {
-            URL pluginUrl = new URL(url);
+            URL pluginUrl = url;
             boolean isSecureProcotol = "https".equalsIgnoreCase(pluginUrl.getProtocol());
             boolean isAuthInfoSet = !Strings.isNullOrEmpty(pluginUrl.getUserInfo());
             if (isAuthInfoSet && !isSecureProcotol) {
@@ -163,7 +169,7 @@ public class PluginManager {
                 terminal.println("Failed: %s", ExceptionsHelper.detailedMessage(e));
             }
         } else {
-            if (PluginHandle.isOfficialPlugin(pluginHandle.repo, pluginHandle.user, pluginHandle.version)) {
+            if (PluginHandle.isOfficialPlugin(pluginHandle.name, pluginHandle.user, pluginHandle.version)) {
                 checkForOfficialPlugins(pluginHandle.name);
             }
         }
@@ -204,14 +210,10 @@ public class PluginManager {
     }
 
     private void extract(PluginHandle pluginHandle, Terminal terminal, Path pluginFile) throws IOException {
-        final Path extractLocation = pluginHandle.extractedDir(environment);
-        if (Files.exists(extractLocation)) {
-            throw new IOException("plugin directory " + extractLocation.toAbsolutePath() + " already exists. To update the plugin, uninstall it first using 'remove " + pluginHandle.name + "' command");
-        }
 
         // unzip plugin to a staging temp dir, named for the plugin
         Path tmp = Files.createTempDirectory(environment.tmpFile(), null);
-        Path root = tmp.resolve(pluginHandle.name); 
+        Path root = tmp.resolve(pluginHandle.name);
         unzipPlugin(pluginFile, root);
 
         // find the actual root (in case its unzipped with extra directory wrapping)
@@ -224,6 +226,13 @@ public class PluginManager {
         // check for jar hell before any copying
         if (info.isJvm()) {
             jarHellCheck(root, info.isIsolated());
+        }
+
+        // update name in handle based on 'name' property found in descriptor file
+        pluginHandle = new PluginHandle(info.getName(), pluginHandle.version, pluginHandle.user);
+        final Path extractLocation = pluginHandle.extractedDir(environment);
+        if (Files.exists(extractLocation)) {
+            throw new IOException("plugin directory " + extractLocation.toAbsolutePath() + " already exists. To update the plugin, uninstall it first using 'remove " + pluginHandle.name + "' command");
         }
 
         // install plugin
@@ -246,7 +255,7 @@ public class PluginManager {
             } catch (IOException e) {
                 throw new IOException("Could not move [" + binFile + "] to [" + toLocation + "]", e);
             }
-            if (Files.getFileStore(toLocation).supportsFileAttributeView(PosixFileAttributeView.class)) {
+            if (Environment.getFileStore(toLocation).supportsFileAttributeView(PosixFileAttributeView.class)) {
                 // add read and execute permissions to existing perms, so execution will work.
                 // read should generally be set already, but set it anyway: don't rely on umask...
                 final Set<PosixFilePermission> executePerms = new HashSet<>();
@@ -334,7 +343,7 @@ public class PluginManager {
 
     private void unzipPlugin(Path zip, Path target) throws IOException {
         Files.createDirectories(target);
-        
+
         try (ZipInputStream zipInput = new ZipInputStream(Files.newInputStream(zip))) {
             ZipEntry entry;
             byte[] buffer = new byte[8192];
@@ -395,7 +404,7 @@ public class PluginManager {
         }
     }
 
-    private static void checkForForbiddenName(String name) {
+    static void checkForForbiddenName(String name) {
         if (!hasLength(name) || BLACKLIST.contains(name.toLowerCase(Locale.ROOT))) {
             throw new IllegalArgumentException("Illegal plugin name: " + name);
         }
@@ -438,43 +447,41 @@ public class PluginManager {
      */
     static class PluginHandle {
 
-        final String name;
         final String version;
         final String user;
-        final String repo;
+        final String name;
 
-        PluginHandle(String name, String version, String user, String repo) {
-            this.name = name;
+        PluginHandle(String name, String version, String user) {
             this.version = version;
             this.user = user;
-            this.repo = repo;
+            this.name = name;
         }
 
         List<URL> urls() {
             List<URL> urls = new ArrayList<>();
             if (version != null) {
-                // Elasticsearch new download service uses groupId org.elasticsearch.plugins from 2.0.0
+                // Elasticsearch new download service uses groupId org.elasticsearch.plugin from 2.0.0
                 if (user == null) {
                     // TODO Update to https
                     if (!Strings.isNullOrEmpty(System.getProperty(PROPERTY_SUPPORT_STAGING_URLS))) {
-                        addUrl(urls, String.format(Locale.ROOT, "http://download.elastic.co/elasticsearch/staging/elasticsearch-%s-%s/org/elasticsearch/plugin/elasticsearch-%s/%s/elasticsearch-%s-%s.zip", version, Build.CURRENT.hashShort(), repo, version, repo, version));
+                        addUrl(urls, String.format(Locale.ROOT, "http://download.elastic.co/elasticsearch/staging/%s-%s/org/elasticsearch/plugin/%s/%s/%s-%s.zip", version, Build.CURRENT.hashShort(), name, version, name, version));
                     }
-                    addUrl(urls, String.format(Locale.ROOT, "http://download.elastic.co/elasticsearch/release/org/elasticsearch/plugin/elasticsearch-%s/%s/elasticsearch-%s-%s.zip", repo, version, repo, version));
+                    addUrl(urls, String.format(Locale.ROOT, "http://download.elastic.co/elasticsearch/release/org/elasticsearch/plugin/%s/%s/%s-%s.zip", name, version, name, version));
                 } else {
                     // Elasticsearch old download service
                     // TODO Update to https
-                    addUrl(urls, String.format(Locale.ROOT, "http://download.elastic.co/%1$s/%2$s/%2$s-%3$s.zip", user, repo, version));
+                    addUrl(urls, String.format(Locale.ROOT, "http://download.elastic.co/%1$s/%2$s/%2$s-%3$s.zip", user, name, version));
                     // Maven central repository
-                    addUrl(urls, String.format(Locale.ROOT, "http://search.maven.org/remotecontent?filepath=%1$s/%2$s/%3$s/%2$s-%3$s.zip", user.replace('.', '/'), repo, version));
+                    addUrl(urls, String.format(Locale.ROOT, "http://search.maven.org/remotecontent?filepath=%1$s/%2$s/%3$s/%2$s-%3$s.zip", user.replace('.', '/'), name, version));
                     // Sonatype repository
-                    addUrl(urls, String.format(Locale.ROOT, "https://oss.sonatype.org/service/local/repositories/releases/content/%1$s/%2$s/%3$s/%2$s-%3$s.zip", user.replace('.', '/'), repo, version));
+                    addUrl(urls, String.format(Locale.ROOT, "https://oss.sonatype.org/service/local/repositories/releases/content/%1$s/%2$s/%3$s/%2$s-%3$s.zip", user.replace('.', '/'), name, version));
                     // Github repository
-                    addUrl(urls, String.format(Locale.ROOT, "https://github.com/%1$s/%2$s/archive/%3$s.zip", user, repo, version));
+                    addUrl(urls, String.format(Locale.ROOT, "https://github.com/%1$s/%2$s/archive/%3$s.zip", user, name, version));
                 }
             }
             if (user != null) {
                 // Github repository for master branch (assume site)
-                addUrl(urls, String.format(Locale.ROOT, "https://github.com/%1$s/%2$s/archive/master.zip", user, repo));
+                addUrl(urls, String.format(Locale.ROOT, "https://github.com/%1$s/%2$s/archive/master.zip", user, name));
             }
             return urls;
         }
@@ -526,20 +533,11 @@ public class PluginManager {
                 }
             }
 
-            String endname = repo;
-            if (repo.startsWith("elasticsearch-")) {
-                // remove elasticsearch- prefix
-                endname = repo.substring("elasticsearch-".length());
-            } else if (repo.startsWith("es-")) {
-                // remove es- prefix
-                endname = repo.substring("es-".length());
-            }
-
             if (isOfficialPlugin(repo, user, version)) {
-                return new PluginHandle(endname, Version.CURRENT.number(), null, repo);
+                return new PluginHandle(repo, Version.CURRENT.number(), null);
             }
 
-            return new PluginHandle(endname, version, user, repo);
+            return new PluginHandle(repo, version, user);
         }
 
         static boolean isOfficialPlugin(String repo, String user, String version) {

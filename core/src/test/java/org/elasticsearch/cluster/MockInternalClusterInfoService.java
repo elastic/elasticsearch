@@ -28,7 +28,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.MockDiskUsagesIT;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.settings.NodeSettingsService;
-import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.concurrent.CountDownLatch;
@@ -39,7 +39,7 @@ import java.util.concurrent.CountDownLatch;
  */
 public class MockInternalClusterInfoService extends InternalClusterInfoService {
 
-    public static class Plugin extends AbstractPlugin {
+    public static class TestPlugin extends Plugin {
         @Override
         public String name() {
             return "mock-cluster-info-service";

@@ -35,7 +35,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
-import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.engine.MockEngineSupport;
@@ -107,7 +107,7 @@ public class RandomExceptionCircuitBreakerIT extends ESIntegTestCase {
 
         Settings.Builder settings = settingsBuilder()
                 .put(indexSettings())
-                .extendArray("plugin.types", RandomExceptionDirectoryReaderWrapper.Plugin.class.getName())
+                .extendArray("plugin.types", RandomExceptionDirectoryReaderWrapper.TestPlugin.class.getName())
                 .put(EXCEPTION_TOP_LEVEL_RATIO_KEY, topLevelRate)
                 .put(EXCEPTION_LOW_LEVEL_RATIO_KEY, lowLevelRate)
                 .put(MockEngineSupport.WRAP_READER_RATIO, 1.0d);
@@ -202,7 +202,7 @@ public class RandomExceptionCircuitBreakerIT extends ESIntegTestCase {
     // TODO: Generalize this class and add it as a utility
     public static class RandomExceptionDirectoryReaderWrapper extends MockEngineSupport.DirectoryReaderWrapper {
 
-        public static class Plugin extends AbstractPlugin {
+        public static class TestPlugin extends Plugin {
             @Override
             public String name() {
                 return "random-exception-reader-wrapper";

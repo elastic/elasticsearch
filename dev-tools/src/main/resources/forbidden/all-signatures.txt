@@ -18,6 +18,9 @@
 java.net.URL#getPath()
 java.net.URL#getFile()
 
+@defaultMessage Usage of getLocalHost is discouraged
+java.net.InetAddress#getLocalHost()
+
 @defaultMessage Use java.nio.file instead of java.io.File API
 java.util.jar.JarFile
 java.util.zip.ZipFile
@@ -53,3 +56,6 @@ java.io.ObjectInputStream
 java.io.ObjectInput
 
 java.nio.file.Files#isHidden(java.nio.file.Path) @ Dependent on the operating system, use FileSystemUtils.isHidden instead
+
+java.nio.file.Files#getFileStore(java.nio.file.Path) @ Use Environment.getFileStore() instead, impacted by JDK-8034057
+java.nio.file.Files#isWritable(java.nio.file.Path) @ Use Environment.isWritable() instead, impacted by JDK-8034057

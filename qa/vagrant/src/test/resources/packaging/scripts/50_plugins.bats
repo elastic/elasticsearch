@@ -74,7 +74,7 @@ install_package() {
     assert_file_exist "/etc/elasticsearch/jvm-example/example.yaml"
     assert_file_exist "/usr/share/elasticsearch/plugins/jvm-example"
     assert_file_exist "/usr/share/elasticsearch/plugins/jvm-example/plugin-descriptor.properties"
-    assert_file_exist "/usr/share/elasticsearch/plugins/jvm-example/elasticsearch-jvm-example-"*".jar"
+    assert_file_exist "/usr/share/elasticsearch/plugins/jvm-example/jvm-example-"*".jar"
 
     # Remove the plugin
     run /usr/share/elasticsearch/bin/plugin remove jvm-example
@@ -121,7 +121,7 @@ install_package() {
     assert_file_exist "/etc/elasticsearch/jvm-example/example.yaml"
     assert_file_exist "$TEMP_PLUGINS_DIR/jvm-example"
     assert_file_exist "$TEMP_PLUGINS_DIR/jvm-example/plugin-descriptor.properties"
-    assert_file_exist "$TEMP_PLUGINS_DIR/jvm-example/elasticsearch-jvm-example-"*".jar"
+    assert_file_exist "$TEMP_PLUGINS_DIR/jvm-example/jvm-example-"*".jar"
 
 
     # Remove the plugin
@@ -183,7 +183,7 @@ install_package() {
     assert_file_exist "$TEMP_CONFIG_DIR/jvm-example/example.yaml"
     assert_file_exist "/usr/share/elasticsearch/plugins/jvm-example"
     assert_file_exist "/usr/share/elasticsearch/plugins/jvm-example/plugin-descriptor.properties"
-    assert_file_exist "/usr/share/elasticsearch/plugins/jvm-example/elasticsearch-jvm-example-"*".jar"
+    assert_file_exist "/usr/share/elasticsearch/plugins/jvm-example/jvm-example-"*".jar"
 
     # Remove the plugin
     run /usr/share/elasticsearch/bin/plugin remove jvm-example
@@ -241,7 +241,7 @@ install_package() {
     assert_file_exist "$TEMP_CONFIG_DIR/jvm-example/example.yaml"
     assert_file_exist "/usr/share/elasticsearch/plugins/jvm-example"
     assert_file_exist "/usr/share/elasticsearch/plugins/jvm-example/plugin-descriptor.properties"
-    assert_file_exist "/usr/share/elasticsearch/plugins/jvm-example/elasticsearch-jvm-example-"*".jar"
+    assert_file_exist "/usr/share/elasticsearch/plugins/jvm-example/jvm-example-"*".jar"
 
     # Remove the plugin
     run /usr/share/elasticsearch/bin/plugin remove jvm-example

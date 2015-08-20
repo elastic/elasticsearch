@@ -84,15 +84,15 @@ A plugin can also be downloaded directly from a custom location by specifying th
 
 [source,shell]
 -----------------------------------
-sudo bin/plugin install [plugin-name] --url [url] <1>
+sudo bin/plugin install [url] <1>
 -----------------------------------
-<1> Both the URL and the plugin name must be specified.
+<1> must be a valid URL, the plugin name is determined from its descriptor.
 
 For instance, to install a plugin from your local file system, you could run:
 
 [source,shell]
 -----------------------------------
-sudo bin/plugin install my_plugin --url file:/path/to/plugin.zip
+sudo bin/plugin install file:/path/to/plugin.zip
 -----------------------------------
 
 [[listing-removing]]
@@ -222,19 +222,4 @@ plugin.mandatory: mapper-attachments,lang-groovy
 --------------------------------------------------
 
 For safety reasons, a node will not start if it is missing a mandatory plugin.
-
-[float]
-=== Lucene version dependent plugins
-
-For some plugins, such as analysis plugins, a specific major Lucene version is
-required to run. In that case, the plugin provides in its
-`es-plugin.properties` file the Lucene version for which the plugin was built for.
-
-If present at startup the node will check the Lucene version before loading
-the plugin. You can disable that check using
-
-[source,yaml]
---------------------------------------------------
-plugins.check_lucene: false
---------------------------------------------------
 

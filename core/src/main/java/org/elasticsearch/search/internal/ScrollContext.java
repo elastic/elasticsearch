@@ -17,26 +17,17 @@
  * under the License.
  */
 
-package org.elasticsearch.snapshots.mockstore;
+package org.elasticsearch.search.internal;
 
-import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.index.snapshots.IndexShardRepository;
-import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardRepository;
-import org.elasticsearch.repositories.Repository;
+import org.apache.lucene.search.ScoreDoc;
+import org.elasticsearch.search.Scroll;
 
-/**
- */
-public class MockRepositoryModule extends AbstractModule {
+/** Wrapper around information that needs to stay around when scrolling. */
+public class ScrollContext {
 
-    public MockRepositoryModule() {
-        super();
-    }
-
-    @Override
-    protected void configure() {
-        bind(Repository.class).to(MockRepository.class).asEagerSingleton();
-        bind(IndexShardRepository.class).to(BlobStoreIndexShardRepository.class).asEagerSingleton();
-    }
+    public int totalHits = -1;
+    public float maxScore;
+    public ScoreDoc lastEmittedDoc;
+    public Scroll scroll;
 
 }
-

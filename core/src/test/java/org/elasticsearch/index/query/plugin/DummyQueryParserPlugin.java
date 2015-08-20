@@ -27,11 +27,11 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.*;
 import org.elasticsearch.indices.IndicesModule;
-import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.plugins.Plugin;
 
 import java.io.IOException;
 
-public class DummyQueryParserPlugin extends AbstractPlugin {
+public class DummyQueryParserPlugin extends Plugin {
 
     @Override
     public String name() {

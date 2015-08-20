@@ -30,7 +30,7 @@ import java.net.InetSocketAddress;
 /**
  * A transport address used for IP socket address (wraps {@link java.net.InetSocketAddress}).
  */
-public class InetSocketTransportAddress implements TransportAddress {
+public final class InetSocketTransportAddress implements TransportAddress {
 
     private static boolean resolveAddress = false;
 
@@ -90,6 +90,25 @@ public class InetSocketTransportAddress implements TransportAddress {
     public boolean sameHost(TransportAddress other) {
         return other instanceof InetSocketTransportAddress &&
                 address.getAddress().equals(((InetSocketTransportAddress) other).address.getAddress());
+    }
+
+    @Override
+    public String getHost() {
+        if (resolveAddress) {
+            return address.getHostName();
+        } else {
+            return getAddress();
+        }
+    }
+
+    @Override
+    public String getAddress() {
+        return address.getAddress().getHostAddress();
+    }
+
+    @Override
+    public int getPort() {
+        return address.getPort();
     }
 
     public InetSocketAddress address() {

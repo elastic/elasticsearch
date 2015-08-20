@@ -18,11 +18,15 @@
  */
 package org.elasticsearch.benchmark.scripts.score.plugin;
 
-import org.elasticsearch.benchmark.scripts.score.script.*;
-import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.benchmark.scripts.score.script.NativeConstantForLoopScoreScript;
+import org.elasticsearch.benchmark.scripts.score.script.NativeConstantScoreScript;
+import org.elasticsearch.benchmark.scripts.score.script.NativeNaiveTFIDFScoreScript;
+import org.elasticsearch.benchmark.scripts.score.script.NativePayloadSumNoRecordScoreScript;
+import org.elasticsearch.benchmark.scripts.score.script.NativePayloadSumScoreScript;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptModule;
 
-public class NativeScriptExamplesPlugin extends AbstractPlugin {
+public class NativeScriptExamplesPlugin extends Plugin {
 
 
     @Override

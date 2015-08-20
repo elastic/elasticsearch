@@ -62,7 +62,7 @@ public class PluginManagerUnitTests extends ESTestCase {
                 .build();
         Environment environment = new Environment(settings);
 
-        PluginManager.PluginHandle pluginHandle = new PluginManager.PluginHandle(pluginName, "version", "user", "repo");
+        PluginManager.PluginHandle pluginHandle = new PluginManager.PluginHandle(pluginName, "version", "user");
         String configDirPath = Files.simplifyPath(pluginHandle.configDir(environment).normalize().toString());
         String expectedDirPath = Files.simplifyPath(genericConfigFolder.resolve(pluginName).normalize().toString());
 
@@ -82,12 +82,12 @@ public class PluginManagerUnitTests extends ESTestCase {
         Iterator<URL> iterator = handle.urls().iterator();
 
         if (supportStagingUrls) {
-            String expectedStagingURL = String.format(Locale.ROOT, "http://download.elastic.co/elasticsearch/staging/elasticsearch-%s-%s/org/elasticsearch/plugin/elasticsearch-%s/%s/elasticsearch-%s-%s.zip",
+            String expectedStagingURL = String.format(Locale.ROOT, "http://download.elastic.co/elasticsearch/staging/%s-%s/org/elasticsearch/plugin/%s/%s/%s-%s.zip",
                     Version.CURRENT.number(), Build.CURRENT.hashShort(), pluginName, Version.CURRENT.number(), pluginName, Version.CURRENT.number());
             assertThat(iterator.next().toExternalForm(), is(expectedStagingURL));
         }
 
-        URL expected = new URL("http", "download.elastic.co", "/elasticsearch/release/org/elasticsearch/plugin/elasticsearch-" + pluginName + "/" + Version.CURRENT.number() + "/elasticsearch-" +
+        URL expected = new URL("http", "download.elastic.co", "/elasticsearch/release/org/elasticsearch/plugin/" + pluginName + "/" + Version.CURRENT.number() + "/" +
                 pluginName + "-" + Version.CURRENT.number() + ".zip");
         assertThat(iterator.next().toExternalForm(), is(expected.toExternalForm()));
 
@@ -95,10 +95,10 @@ public class PluginManagerUnitTests extends ESTestCase {
     }
 
     @Test
-    public void testTrimmingElasticsearchFromOfficialPluginName() throws IOException {
-        String randomPluginName = randomFrom(PluginManager.OFFICIAL_PLUGINS.asList()).replaceFirst("elasticsearch-", "");
+    public void testOfficialPluginName() throws IOException {
+        String randomPluginName = randomFrom(PluginManager.OFFICIAL_PLUGINS.asList());
         PluginManager.PluginHandle handle = PluginManager.PluginHandle.parse(randomPluginName);
-        assertThat(handle.name, is(randomPluginName.replaceAll("^elasticsearch-", "")));
+        assertThat(handle.name, is(randomPluginName));
 
         boolean supportStagingUrls = randomBoolean();
         if (supportStagingUrls) {
@@ -108,12 +108,12 @@ public class PluginManagerUnitTests extends ESTestCase {
         Iterator<URL> iterator = handle.urls().iterator();
 
         if (supportStagingUrls) {
-            String expectedStagingUrl = String.format(Locale.ROOT, "http://download.elastic.co/elasticsearch/staging/elasticsearch-%s-%s/org/elasticsearch/plugin/elasticsearch-%s/%s/elasticsearch-%s-%s.zip",
+            String expectedStagingUrl = String.format(Locale.ROOT, "http://download.elastic.co/elasticsearch/staging/%s-%s/org/elasticsearch/plugin/%s/%s/%s-%s.zip",
                     Version.CURRENT.number(), Build.CURRENT.hashShort(), randomPluginName, Version.CURRENT.number(), randomPluginName, Version.CURRENT.number());
             assertThat(iterator.next().toExternalForm(), is(expectedStagingUrl));
         }
 
-        String releaseUrl = String.format(Locale.ROOT, "http://download.elastic.co/elasticsearch/release/org/elasticsearch/plugin/elasticsearch-%s/%s/elasticsearch-%s-%s.zip",
+        String releaseUrl = String.format(Locale.ROOT, "http://download.elastic.co/elasticsearch/release/org/elasticsearch/plugin/%s/%s/%s-%s.zip",
                 randomPluginName, Version.CURRENT.number(), randomPluginName, Version.CURRENT.number());
         assertThat(iterator.next().toExternalForm(), is(releaseUrl));
 
@@ -121,12 +121,11 @@ public class PluginManagerUnitTests extends ESTestCase {
     }
 
     @Test
-    public void testTrimmingElasticsearchFromGithubPluginName() throws IOException {
+    public void testGithubPluginName() throws IOException {
         String user = randomAsciiOfLength(6);
-        String randomName = randomAsciiOfLength(10);
-        String pluginName = randomFrom("elasticsearch-", "es-") + randomName;
+        String pluginName = randomAsciiOfLength(10);
         PluginManager.PluginHandle handle = PluginManager.PluginHandle.parse(user + "/" + pluginName);
-        assertThat(handle.name, is(randomName));
+        assertThat(handle.name, is(pluginName));
         assertThat(handle.urls(), hasSize(1));
         assertThat(handle.urls().get(0).toExternalForm(), is(new URL("https", "github.com", "/" + user + "/" + pluginName + "/" + "archive/master.zip").toExternalForm()));
     }

@@ -108,6 +108,7 @@ import org.junit.Assert;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -383,14 +384,14 @@ public final class InternalTestCluster extends TestCluster {
                 .put(SETTING_CLUSTER_NODE_SEED, seed);
         if (ENABLE_MOCK_MODULES && usually(random)) {
             builder.extendArray("plugin.types",
-                MockTransportService.Plugin.class.getName(),
-                MockFSIndexStore.Plugin.class.getName(),
+                MockTransportService.TestPlugin.class.getName(),
+                MockFSIndexStore.TestPlugin.class.getName(),
                 NodeMocksPlugin.class.getName(),
                 MockEngineFactoryPlugin.class.getName(),
-                MockSearchService.Plugin.class.getName());
+                MockSearchService.TestPlugin.class.getName());
         }
         if (isLocalTransportConfigured()) {
-            builder.extendArray("plugin.types", AssertingLocalTransport.Plugin.class.getName());
+            builder.extendArray("plugin.types", AssertingLocalTransport.TestPlugin.class.getName());
         } else {
             builder.put(Transport.TransportSettings.TRANSPORT_TCP_COMPRESS, rarely(random));
         }
@@ -504,7 +505,6 @@ public final class InternalTestCluster extends TestCluster {
     public static String clusterName(String prefix, long clusterSeed) {
         StringBuilder builder = new StringBuilder(prefix);
         final int childVM = RandomizedTest.systemPropertyAsInt(SysGlobals.CHILDVM_SYSPROP_JVM_ID, 0);
-        builder.append('-').append(NetworkUtils.getLocalHost().getHostName());
         builder.append("-CHILD_VM=[").append(childVM).append(']');
         builder.append("-CLUSTER_SEED=[").append(clusterSeed).append(']');
         // if multiple maven task run on a single host we better have an identifier that doesn't rely on input params

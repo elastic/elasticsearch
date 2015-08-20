@@ -19,44 +19,33 @@
 
 package org.elasticsearch.repositories;
 
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Maps;
 import org.elasticsearch.action.admin.cluster.snapshots.status.TransportNodesSnapshotsStatus;
 import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.index.snapshots.IndexShardRepository;
+import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardRepository;
 import org.elasticsearch.repositories.fs.FsRepository;
-import org.elasticsearch.repositories.fs.FsRepositoryModule;
 import org.elasticsearch.repositories.uri.URLRepository;
-import org.elasticsearch.repositories.uri.URLRepositoryModule;
 import org.elasticsearch.snapshots.RestoreService;
-import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.snapshots.SnapshotShardsService;
-
-import java.util.Map;
+import org.elasticsearch.snapshots.SnapshotsService;
 
 /**
- * Module responsible for registering other repositories.
- * <p/>
- * Repositories implemented as plugins should implement {@code onModule(RepositoriesModule module)} method, in which
- * they should register repository using {@link #registerRepository(String, Class)} method.
+ * Sets up classes for Snapshot/Restore.
+ *
+ * Plugins can add custom repository types by calling {@link #registerRepository(String, Class, Class)}.
  */
 public class RepositoriesModule extends AbstractModule {
 
-    private Map<String, Class<? extends Module>> repositoryTypes = Maps.newHashMap();
+    private final RepositoryTypesRegistry repositoryTypes = new RepositoryTypesRegistry();
 
     public RepositoriesModule() {
-        registerRepository(FsRepository.TYPE, FsRepositoryModule.class);
-        registerRepository(URLRepository.TYPE, URLRepositoryModule.class);
+        registerRepository(FsRepository.TYPE, FsRepository.class, BlobStoreIndexShardRepository.class);
+        registerRepository(URLRepository.TYPE, URLRepository.class, BlobStoreIndexShardRepository.class);
     }
 
-    /**
-     * Registers a custom repository type name against a module.
-     *
-     * @param type   The type
-     * @param module The module
-     */
-    public void registerRepository(String type, Class<? extends Module> module) {
-        repositoryTypes.put(type, module);
+    /** Registers a custom repository type to the given {@link Repository} and {@link IndexShardRepository}. */
+    public void registerRepository(String type, Class<? extends Repository> repositoryType, Class<? extends IndexShardRepository> shardRepositoryType) {
+        repositoryTypes.registerRepository(type, repositoryType, shardRepositoryType);
     }
 
     @Override
@@ -66,6 +55,6 @@ public class RepositoriesModule extends AbstractModule {
         bind(SnapshotShardsService.class).asEagerSingleton();
         bind(TransportNodesSnapshotsStatus.class).asEagerSingleton();
         bind(RestoreService.class).asEagerSingleton();
-        bind(RepositoryTypesRegistry.class).toInstance(new RepositoryTypesRegistry(ImmutableMap.copyOf(repositoryTypes)));
+        bind(RepositoryTypesRegistry.class).toInstance(repositoryTypes);
     }
 }

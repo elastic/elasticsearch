@@ -622,4 +622,20 @@ public class ExceptionSerializationTests extends ESTestCase {
         assertEquals(ex.status(), e.status());
         assertEquals(RestStatus.UNAUTHORIZED, e.status());
     }
+
+    public void testInterruptedException() throws IOException {
+        InterruptedException orig = randomBoolean() ? new InterruptedException("boom") : new InterruptedException();
+        InterruptedException ex = serialize(orig);
+        assertEquals(orig.getMessage(), ex.getMessage());
+    }
+
+    public static class UnknownException extends Exception {
+        public UnknownException(String message) {
+            super(message);
+        }
+
+        public UnknownException(String message, Throwable cause) {
+            super(message, cause);
+        }
+    }
 }

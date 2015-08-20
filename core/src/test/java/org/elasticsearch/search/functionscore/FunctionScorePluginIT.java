@@ -28,7 +28,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.functionscore.DecayFunction;
 import org.elasticsearch.index.query.functionscore.DecayFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.DecayFunctionParser;
-import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -95,7 +95,7 @@ public class FunctionScorePluginIT extends ESIntegTestCase {
 
     }
 
-    public static class CustomDistanceScorePlugin extends AbstractPlugin {
+    public static class CustomDistanceScorePlugin extends Plugin {
 
         @Override
         public String name() {

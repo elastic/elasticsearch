@@ -25,7 +25,6 @@ import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.multibindings.Multibinder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.AbstractPlugin;
 import org.elasticsearch.repositories.RepositoriesModule;
 import org.elasticsearch.rest.action.cat.AbstractCatAction;
 
@@ -37,7 +36,7 @@ import java.util.Collections;
 /**
  * Example of a plugin.
  */
-public class JvmExamplePlugin implements Plugin {
+public class JvmExamplePlugin extends Plugin {
 
     private final Settings settings;
 
@@ -56,31 +55,18 @@ public class JvmExamplePlugin implements Plugin {
     }
 
     @Override
-    public Collection<Class<? extends Module>> modules() {
-        Collection<Class<? extends Module>> modules = new ArrayList<>();
-        modules.add(ConfiguredExampleModule.class);
-        return modules;
+    public Collection<Module> nodeModules() {
+        return Collections.<Module>singletonList(new ConfiguredExampleModule());
     }
 
     @Override
-    public Collection<Module> modules(Settings settings) {
-        Collection<Module> modules = new ArrayList<>();
-        return modules;
-    }
-
-    @Override
-    public Collection<Class<? extends LifecycleComponent>> services() {
+    public Collection<Class<? extends LifecycleComponent>> nodeServices() {
         Collection<Class<? extends LifecycleComponent>> services = new ArrayList<>();
         return services;
     }
 
     @Override
-    public Collection<Class<? extends Module>> indexModules() {
-        return Collections.emptyList();
-    }
-
-    @Override
-    public Collection<? extends Module> indexModules(Settings settings) {
+    public Collection<Module> indexModules(Settings indexSettings) {
         return Collections.emptyList();
     }
 
@@ -90,23 +76,13 @@ public class JvmExamplePlugin implements Plugin {
     }
 
     @Override
-    public Collection<Class<? extends Module>> shardModules() {
-        return Collections.emptyList();
-    }
-
-    @Override
-    public Collection<? extends Module> shardModules(Settings settings) {
+    public Collection<Module> shardModules(Settings indexSettings) {
         return Collections.emptyList();
     }
 
     @Override
     public Collection<Class<? extends Closeable>> shardServices() {
         return Collections.emptyList();
-    }
-
-    @Override
-    public void processModule(Module module) {
-
     }
 
     @Override

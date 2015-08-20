@@ -19,9 +19,6 @@
 
 package org.elasticsearch.snapshots.mockstore;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
-
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -30,11 +27,16 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.snapshots.IndexShardRepository;
+import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardRepository;
+import org.elasticsearch.repositories.RepositoriesModule;
 import org.elasticsearch.repositories.RepositoryName;
 import org.elasticsearch.repositories.RepositorySettings;
 import org.elasticsearch.repositories.fs.FsRepository;
@@ -46,6 +48,8 @@ import java.io.UnsupportedEncodingException;
 import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -54,9 +58,45 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 
-/**
- */
 public class MockRepository extends FsRepository {
+
+    public static class Plugin extends org.elasticsearch.plugins.Plugin {
+
+        @Override
+        public String name() {
+            return "mock-repository";
+        }
+
+        @Override
+        public String description() {
+            return "Mock Repository";
+        }
+
+        public void onModule(RepositoriesModule repositoriesModule) {
+            repositoriesModule.registerRepository("mock", MockRepository.class, BlobStoreIndexShardRepository.class);
+        }
+
+        @Override
+        public Collection<Module> nodeModules() {
+            return Collections.<Module>singletonList(new SettingsFilteringModule());
+        }
+
+        public static class SettingsFilteringModule extends AbstractModule {
+
+            @Override
+            protected void configure() {
+                bind(SettingsFilteringService.class).asEagerSingleton();
+            }
+        }
+
+        public static class SettingsFilteringService {
+            @Inject
+            public SettingsFilteringService(SettingsFilter settingsFilter) {
+                settingsFilter.addFilter("secret.mock.password");
+            }
+        }
+
+    }
 
     private final AtomicLong failureCounter = new AtomicLong();
 

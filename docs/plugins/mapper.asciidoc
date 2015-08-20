@@ -8,6 +8,12 @@ Mapper plugins allow new field datatypes to be added to Elasticsearch.
 
 The core mapper plugins are:
 
+https://github.com/elasticsearch/elasticsearch-mapper-attachments[Mapper Attachments Type plugin]::
+
+Integrates http://lucene.apache.org/tika/[Apache Tika] to provide a new field
+type `attachment` to allow indexing of documents such as PDFs and Microsoft
+Word.
+
 <<mapper-size>>::
 
 The mapper-size plugin provides the `_size` meta field which, when enabled,

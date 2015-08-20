@@ -5,15 +5,14 @@
     <modelVersion>4.0.0</modelVersion>
     <parent>
         <groupId>org.elasticsearch</groupId>
-        <artifactId>elasticsearch-parent</artifactId>
+        <artifactId>parent</artifactId>
         <version>2.1.0-SNAPSHOT</version>
     </parent>
 
     <groupId>org.elasticsearch</groupId>
     <artifactId>elasticsearch</artifactId>
 
-    <packaging>jar</packaging>
-    <name>Elasticsearch Core</name>
+    <name>Elasticsearch: Core</name>
     <description>Elasticsearch - Open Source, Distributed, RESTful Search Engine</description>
 
     <dependencies>
@@ -161,10 +160,6 @@
         <dependency>
             <groupId>org.hdrhistogram</groupId>
             <artifactId>HdrHistogram</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.commons</groupId>
-            <artifactId>commons-lang3</artifactId>
         </dependency>
         <dependency>
             <groupId>commons-cli</groupId>

@@ -25,6 +25,7 @@ import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.net.URL;
 import java.net.URLClassLoader;
@@ -33,12 +34,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
-import java.util.Arrays;
-import java.util.Enumeration;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.jar.Manifest;
@@ -69,7 +65,7 @@ public class JarHell {
             logger.debug("sun.boot.class.path: {}", System.getProperty("sun.boot.class.path"));
             logger.debug("classloader urls: {}", Arrays.toString(((URLClassLoader)loader).getURLs()));
         }
-        checkJarHell(((URLClassLoader)loader).getURLs());
+        checkJarHell(((URLClassLoader) loader).getURLs());
     }
 
     /**
@@ -141,6 +137,7 @@ public class JarHell {
         // give a nice error if jar requires a newer java version
         String targetVersion = manifest.getMainAttributes().getValue("X-Compile-Target-JDK");
         if (targetVersion != null) {
+            checkVersionFormat(targetVersion);
             checkJavaVersion(jar.toString(), targetVersion);
         }
 
@@ -153,23 +150,34 @@ public class JarHell {
         }
     }
 
+    public static void checkVersionFormat(String targetVersion) {
+        if (!JavaVersion.isValid(targetVersion)) {
+            throw new IllegalStateException(
+                    String.format(
+                            Locale.ROOT,
+                            "version string must be a sequence of nonnegative decimal integers separated by \".\"'s and may have leading zeros but was %s",
+                            targetVersion
+                    )
+            );
+        }
+    }
+
     /**
      * Checks that the java specification version {@code targetVersion}
      * required by {@code resource} is compatible with the current installation.
      */
     public static void checkJavaVersion(String resource, String targetVersion) {
-        String systemVersion = System.getProperty("java.specification.version");
-        float current = Float.POSITIVE_INFINITY;
-        float target = Float.NEGATIVE_INFINITY;
-        try {
-            current = Float.parseFloat(systemVersion);
-            target = Float.parseFloat(targetVersion);
-        } catch (NumberFormatException e) {
-            // some spec changed, time for a more complex parser
-        }
-        if (current < target) {
-            throw new IllegalStateException(resource + " requires Java " + targetVersion
-                    + ", your system: " + systemVersion);
+        JavaVersion version = JavaVersion.parse(targetVersion);
+        if (JavaVersion.current().compareTo(version) < 0) {
+            throw new IllegalStateException(
+                    String.format(
+                            Locale.ROOT,
+                            "%s requires Java %s:, your system: %s",
+                            resource,
+                            targetVersion,
+                            JavaVersion.current().toString()
+                    )
+            );
         }
     }
 

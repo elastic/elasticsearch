@@ -22,12 +22,14 @@ package org.elasticsearch.discovery.gce;
 import com.google.api.services.compute.model.AccessConfig;
 import com.google.api.services.compute.model.Instance;
 import com.google.api.services.compute.model.NetworkInterface;
+
 import org.elasticsearch.Version;
 import org.elasticsearch.cloud.gce.GceComputeService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -114,7 +116,7 @@ public class GceUnicastHostsProvider extends AbstractComponent implements Unicas
         try {
             InetAddress inetAddress = networkService.resolvePublishHostAddress(null);
             if (inetAddress != null) {
-                ipAddress = inetAddress.getHostAddress();
+                ipAddress = NetworkAddress.formatAddress(inetAddress);
             }
         } catch (IOException e) {
             // We can't find the publish host address... Hmmm. Too bad :-(

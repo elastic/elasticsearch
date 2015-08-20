@@ -105,23 +105,10 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
     }
 
     private List<String> startCluster(int numberOfNodes, int minimumMasterNode) throws ExecutionException, InterruptedException {
-        configureCluster(numberOfNodes, minimumMasterNode);
-        List<String> nodes = internalCluster().startNodesAsync(numberOfNodes).get();
-        ensureStableCluster(numberOfNodes);
-
-        // TODO: this is a temporary solution so that nodes will not base their reaction to a partition based on previous successful results
-        for (ZenPingService pingService : internalCluster().getInstances(ZenPingService.class)) {
-            for (ZenPing zenPing : pingService.zenPings()) {
-                if (zenPing instanceof UnicastZenPing) {
-                    ((UnicastZenPing) zenPing).clearTemporalResponses();
-                }
-            }
-        }
-        return nodes;
+        return startCluster(numberOfNodes, minimumMasterNode, null);
     }
 
-
-    private List<String> startUnicastCluster(int numberOfNodes, @Nullable int[] unicastHostsOrdinals, int minimumMasterNode) throws ExecutionException, InterruptedException {
+    private List<String> startCluster(int numberOfNodes, int minimumMasterNode, @Nullable int[] unicastHostsOrdinals) throws ExecutionException, InterruptedException {
         configureUnicastCluster(numberOfNodes, unicastHostsOrdinals, minimumMasterNode);
         List<String> nodes = internalCluster().startNodesAsync(numberOfNodes).get();
         ensureStableCluster(numberOfNodes);
@@ -149,33 +136,6 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
             .put("gateway.local.list_timeout", "10s") // still long to induce failures but to long so test won't time out
             .put("plugin.types", MockTransportService.TestPlugin.class.getName())
             .build();
-
-    private void configureCluster(int numberOfNodes, int minimumMasterNode) throws ExecutionException, InterruptedException {
-        if (randomBoolean() && canUseMuticast()) {
-            configureMulticastCluster(numberOfNodes, minimumMasterNode);
-        } else {
-            configureUnicastCluster(numberOfNodes, null, minimumMasterNode);
-        }
-
-    }
-
-    private void configureMulticastCluster(int numberOfNodes, int minimumMasterNode) throws ExecutionException, InterruptedException {
-        if (minimumMasterNode < 0) {
-            minimumMasterNode = numberOfNodes / 2 + 1;
-        }
-        logger.info("---> configured multicast");
-        // TODO: Rarely use default settings form some of these
-        Settings settings = Settings.builder()
-                .put(DEFAULT_SETTINGS)
-                .put("discovery.zen.ping.multicast.enabled", true)
-                .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, minimumMasterNode)
-                .put()
-                .build();
-
-        if (discoveryConfig == null) {
-            discoveryConfig = new ClusterDiscoveryConfiguration(numberOfNodes, settings);
-        }
-    }
 
     private void configureUnicastCluster(int numberOfNodes, @Nullable int[] unicastHostsOrdinals, int minimumMasterNode) throws ExecutionException, InterruptedException {
         if (minimumMasterNode < 0) {
@@ -564,9 +524,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
      */
     @Test
     public void testMasterNodeGCs() throws Exception {
-        // TODO: on mac OS multicast threads are shared between nodes and we therefore we can't simulate GC and stop pinging for just one node
-        // find a way to block thread creation in the generic thread pool to avoid this.
-        List<String> nodes = startUnicastCluster(3, null, -1);
+        List<String> nodes = startCluster(3, -1);
 
         String oldMasterNode = internalCluster().getMasterName();
         // a very long GC, but it's OK as we remove the disruption when it has had an effect
@@ -608,10 +566,8 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
      */
     @Test
     public void testStaleMasterNotHijackingMajority() throws Exception {
-        // TODO: on mac OS multicast threads are shared between nodes and we therefore we can't simulate GC and stop pinging for just one node
-        // find a way to block thread creation in the generic thread pool to avoid this.
         // 3 node cluster with unicast discovery and minimum_master_nodes set to 2:
-        final List<String> nodes = startUnicastCluster(3, null, 2);
+        final List<String> nodes = startCluster(3, 2);
 
         // Save the current master node as old master node, because that node will get frozen
         final String oldMasterNode = internalCluster().getMasterName();
@@ -778,7 +734,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
      */
     @Test
     public void unicastSinglePingResponseContainsMaster() throws Exception {
-        List<String> nodes = startUnicastCluster(4, new int[]{0}, -1);
+        List<String> nodes = startCluster(4, -1, new int[] {0});
         // Figure out what is the elected master node
         final String masterNode = internalCluster().getMasterName();
         logger.info("---> legit elected master node=" + masterNode);
@@ -815,7 +771,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
     @Test
     @TestLogging("discovery.zen:TRACE,cluster.service:TRACE")
     public void isolatedUnicastNodes() throws Exception {
-        List<String> nodes = startUnicastCluster(4, new int[]{0}, -1);
+        List<String> nodes = startCluster(4, -1, new int[]{0});
         // Figure out what is the elected master node
         final String unicastTarget = nodes.get(0);
 
@@ -898,7 +854,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
 
     @Test
     public void testClusterFormingWithASlowNode() throws Exception {
-        configureCluster(3, 2);
+        configureUnicastCluster(3, null, 2);
 
         SlowClusterStateProcessing disruption = new SlowClusterStateProcessing(getRandom(), 0, 0, 1000, 2000);
 
@@ -959,7 +915,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
     @Test
     public void testIndexImportedFromDataOnlyNodesIfMasterLostDataFolder() throws Exception {
         // test for https://github.com/elastic/elasticsearch/issues/8823
-        configureCluster(2, 1);
+        configureUnicastCluster(2, null, 1);
         String masterNode = internalCluster().startMasterOnlyNode(Settings.EMPTY);
         internalCluster().startDataOnlyNode(Settings.EMPTY);
 
@@ -982,7 +938,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/11665")
     @Test
     public void testIndicesDeleted() throws Exception {
-        configureCluster(3, 2);
+        configureUnicastCluster(3, null, 2);
         Future<List<String>> masterNodes= internalCluster().startMasterOnlyNodesAsync(2);
         Future<String> dataNode = internalCluster().startDataOnlyNodeAsync();
         dataNode.get();

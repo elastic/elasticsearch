@@ -46,7 +46,6 @@ public class GceDiscovery extends ZenDiscovery {
         super(settings, clusterName, threadPool, transportService, clusterService, nodeSettingsService,
                 pingService, electMasterService, discoverySettings);
 
-        // TODO Add again force disable multicast
         // See related issue in AWS plugin https://github.com/elastic/elasticsearch-cloud-aws/issues/179
     }
 }

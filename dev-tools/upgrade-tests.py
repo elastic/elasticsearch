@@ -105,8 +105,7 @@ def start_node(version, data_dir, node_dir, unicast_host_list, tcp_port, http_po
     foreground = ''
   return subprocess.Popen([es_run_path,
     '-Des.path.data=%s' % data_dir, '-Des.cluster.name=upgrade_test',  
-    '-Des.discovery.zen.ping.unicast.hosts=%s' % unicast_host_list, 
-    '-Des.discovery.zen.ping.multicast.enabled=false',
+    '-Des.discovery.zen.ping.unicast.hosts=%s' % unicast_host_list,
     '-Des.transport.tcp.port=%s' % tcp_port,
     '-Des.http.port=%s' % http_port,
     foreground], stdout=subprocess.PIPE, stderr=subprocess.PIPE)

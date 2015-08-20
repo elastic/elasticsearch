@@ -263,6 +263,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         }
     }
 
+    @Deprecated // remove in 3.0
     public QuerySearchResult executeScan(ShardSearchRequest request) {
         final SearchContext context = createAndPutContext(request);
         final int originalSize = context.size();

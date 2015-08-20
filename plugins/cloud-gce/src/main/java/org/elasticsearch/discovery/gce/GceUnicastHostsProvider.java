@@ -226,13 +226,15 @@ public class GceUnicastHostsProvider extends AbstractComponent implements Unicas
                         }
 
                         // ip_private is a single IP Address. We need to build a TransportAddress from it
-                        TransportAddress[] addresses = transportService.addressesFromString(address);
-
                         // If user has set `es_port` metadata, we don't need to ping all ports
                         // we only limit to 1 addresses, makes no sense to ping 100 ports
-                        logger.trace("adding {}, type {}, address {}, transport_address {}, status {}", name, type,
-                                ip_private, addresses[0], status);
-                        cachedDiscoNodes.add(new DiscoveryNode("#cloud-" + name + "-" + 0, addresses[0], version.minimumCompatibilityVersion()));
+                        TransportAddress[] addresses = transportService.addressesFromString(address, 1);
+
+                        for (TransportAddress transportAddress : addresses) {
+                            logger.trace("adding {}, type {}, address {}, transport_address {}, status {}", name, type,
+                                    ip_private, transportAddress, status);
+                            cachedDiscoNodes.add(new DiscoveryNode("#cloud-" + name + "-" + 0, transportAddress, version.minimumCompatibilityVersion()));
+                        }
                     }
                 } catch (Exception e) {
                     logger.warn("failed to add {}, address {}", e, name, ip_private);

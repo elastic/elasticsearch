@@ -32,6 +32,7 @@ import java.net.InetSocketAddress;
  */
 public final class InetSocketTransportAddress implements TransportAddress {
 
+    // TODO: do we really need this option, why do resolving?
     private static boolean resolveAddress = false;
 
     public static void setResolveAddress(boolean resolveAddress) {
@@ -61,7 +62,7 @@ public final class InetSocketTransportAddress implements TransportAddress {
             int port = in.readInt();
             this.address = new InetSocketAddress(inetAddress, port);
         } else {
-            this.address = new InetSocketAddress(in.readString(), in.readInt());
+            this.address = new InetSocketAddress(InetAddress.getByName(in.readString()), in.readInt());
         }
     }
 

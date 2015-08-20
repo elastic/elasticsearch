@@ -59,3 +59,5 @@ java.nio.file.Files#isHidden(java.nio.file.Path) @ Dependent on the operating sy
 
 java.nio.file.Files#getFileStore(java.nio.file.Path) @ Use Environment.getFileStore() instead, impacted by JDK-8034057
 java.nio.file.Files#isWritable(java.nio.file.Path) @ Use Environment.isWritable() instead, impacted by JDK-8034057
+
+java.net.InetSocketAddress#<init>(java.lang.String,int) @ Resolve host explicitly to the address(es) you want with InetAddress, and without leniency

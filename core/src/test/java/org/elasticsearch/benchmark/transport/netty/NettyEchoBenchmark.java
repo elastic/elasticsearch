@@ -27,13 +27,14 @@ import org.jboss.netty.channel.*;
 import org.jboss.netty.channel.socket.nio.NioClientSocketChannelFactory;
 import org.jboss.netty.channel.socket.nio.NioServerSocketChannelFactory;
 
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 
 public class NettyEchoBenchmark {
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws Exception {
         final int payloadSize = 100;
         int CYCLE_SIZE = 50000;
         final long NUMBER_OF_ITERATIONS = 500000;
@@ -78,7 +79,7 @@ public class NettyEchoBenchmark {
         });
 
         // Start the connection attempt.
-        ChannelFuture future = clientBootstrap.connect(new InetSocketAddress("localhost", 9000));
+        ChannelFuture future = clientBootstrap.connect(new InetSocketAddress(InetAddress.getByName("localhost"), 9000));
         future.awaitUninterruptibly();
         Channel clientChannel = future.getChannel();
 

@@ -32,6 +32,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.List;
@@ -57,7 +58,7 @@ public class HttpPipeliningHandlerTest extends ESTestCase {
     private static final long CONNECTION_TIMEOUT = 10000L;
     private static final String CONTENT_TYPE_TEXT = "text/plain; charset=UTF-8";
     // TODO make me random
-    private static final InetSocketAddress HOST_ADDR = new InetSocketAddress("127.0.0.1", 9080);
+    private static final InetSocketAddress HOST_ADDR = new InetSocketAddress(InetAddress.getLoopbackAddress(), 9080);
     private static final String PATH1 = "/1";
     private static final String PATH2 = "/2";
     private static final String SOME_RESPONSE_TEXT = "some response for ";

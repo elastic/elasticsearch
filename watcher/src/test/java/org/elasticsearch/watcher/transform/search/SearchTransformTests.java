@@ -20,7 +20,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
@@ -364,6 +363,7 @@ public class SearchTransformTests extends ESIntegTestCase {
         assertThat(names, arrayContaining("idx", "idx-" + DateTimeFormat.forPattern(dateFormat).print(now.minusDays(3))));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/484")
     @Test(expected = ElasticsearchParseException.class)
     public void testParser_ScanNotSupported() throws Exception {
         SearchRequest request = client().prepareSearch()

@@ -44,8 +44,9 @@ public class LicensesRenderer extends AbstractRenderer<LicensesMarvelDoc> {
                 builder.field(Fields.MAX_NODES, license.maxNodes());
                 builder.field(Fields.ISSUED_TO, license.issuedTo());
                 builder.field(Fields.ISSUER, license.issuer());
-                builder.field(Fields.HKEY, hash(license, marvelDoc.getClusterName()));
+                builder.field(Fields.HKEY, hash(license, marvelDoc.clusterUUID()));
                 builder.endObject();
+
             }
         }
         builder.endArray();
@@ -67,8 +68,8 @@ public class LicensesRenderer extends AbstractRenderer<LicensesMarvelDoc> {
         return hash(status(license), license.uid(), license.type(), String.valueOf(license.expiryDate()), clusterName);
     }
 
-    public static String hash(String licenseStatus, String licenseUid, String licenseType, String licenseExpiryDate, String clusterName) {
-        String toHash = licenseStatus + licenseUid + licenseType + licenseExpiryDate + clusterName;
+    public static String hash(String licenseStatus, String licenseUid, String licenseType, String licenseExpiryDate, String clusterUUID) {
+        String toHash = licenseStatus + licenseUid + licenseType + licenseExpiryDate + clusterUUID;
         return Hashing.sha256().hashString(toHash, Charsets.UTF_8).toString();
     }
 

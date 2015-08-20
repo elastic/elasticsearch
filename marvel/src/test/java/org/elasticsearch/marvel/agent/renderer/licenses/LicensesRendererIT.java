@@ -11,7 +11,6 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.license.core.License;
 import org.elasticsearch.license.plugin.LicensePlugin;
 import org.elasticsearch.marvel.MarvelPlugin;
 import org.elasticsearch.marvel.agent.collector.licenses.LicensesCollector;
@@ -94,7 +93,7 @@ public class LicensesRendererIT extends ESIntegTestCase {
 
         // We basically recompute the hash here
         String hkey = (String) ((Map) license).get(LicensesRenderer.Fields.HKEY.underscore().toString());
-        String recalculated = LicensesRenderer.hash(status, uid, type, String.valueOf(expiryDate), cluster().getClusterName());
+        String recalculated = LicensesRenderer.hash(status, uid, type, String.valueOf(expiryDate), clusterUUID);
         assertThat(hkey, equalTo(recalculated));
 
         assertThat((String) ((Map) license).get(LicensesRenderer.Fields.FEATURE.underscore().toString()), not(isEmptyOrNullString()));

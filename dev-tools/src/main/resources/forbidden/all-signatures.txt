@@ -60,4 +60,16 @@ java.nio.file.Files#isHidden(java.nio.file.Path) @ Dependent on the operating sy
 java.nio.file.Files#getFileStore(java.nio.file.Path) @ Use Environment.getFileStore() instead, impacted by JDK-8034057
 java.nio.file.Files#isWritable(java.nio.file.Path) @ Use Environment.isWritable() instead, impacted by JDK-8034057
 
-java.net.InetSocketAddress#<init>(java.lang.String,int) @ Resolve host explicitly to the address(es) you want with InetAddress, and without leniency
+@defaultMessage Resolve hosts explicitly to the address(es) you want with InetAddress.
+java.net.InetSocketAddress#<init>(java.lang.String,int)
+java.net.Socket#<init>(java.lang.String,int)
+java.net.Socket#<init>(java.lang.String,int,java.net.InetAddress,int)
+
+@defaultMessage Don't bind to wildcard addresses. Be specific.
+java.net.DatagramSocket#<init>()
+java.net.DatagramSocket#<init>(int)
+java.net.InetSocketAddress#<init>(int)
+java.net.MulticastSocket#<init>()
+java.net.MulticastSocket#<init>(int)
+java.net.ServerSocket#<init>(int)
+java.net.ServerSocket#<init>(int,int)

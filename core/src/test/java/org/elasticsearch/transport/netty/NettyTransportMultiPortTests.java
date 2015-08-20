@@ -170,7 +170,7 @@ public class NettyTransportMultiPortTests extends ESTestCase {
                         // Set SO_REUSEADDR as we may bind here and not be able
                         // to reuse the address immediately without it.
                         serverSocket.setReuseAddress(NetworkUtils.defaultReuseAddress());
-                        serverSocket.bind(new InetSocketAddress(nextPort));
+                        serverSocket.bind(new InetSocketAddress(InetAddress.getLoopbackAddress(), nextPort));
 
                         // bind was a success
                         logger.debug("port [{}] available.", nextPort);

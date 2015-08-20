@@ -23,6 +23,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
@@ -130,7 +131,7 @@ public class MulticastZenPingIT extends ESTestCase {
         }
     }
 
-    @Test
+    @Test @SuppressForbidden(reason = "I bind to wildcard addresses. I am a total nightmare")
     public void testExternalPing() throws Exception {
         Settings settings = Settings.EMPTY;
         settings = buildRandomMulticast(settings);

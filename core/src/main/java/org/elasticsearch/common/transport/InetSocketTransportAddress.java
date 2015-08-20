@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.transport;
 
-import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.network.NetworkAddress;
@@ -34,41 +33,22 @@ import java.net.InetSocketAddress;
  */
 public final class InetSocketTransportAddress implements TransportAddress {
 
-    // TODO: do we really need this option, why do resolving? - remove this as a follow-up
-    private static boolean resolveAddress = false;
-
-    public static void setResolveAddress(boolean resolveAddress) {
-        InetSocketTransportAddress.resolveAddress = resolveAddress;
-    }
-
-    public static boolean getResolveAddress() {
-        return resolveAddress;
-    }
-
-    public static final InetSocketTransportAddress PROTO = new InetSocketTransportAddress();
+    public static final InetSocketTransportAddress PROTO = new InetSocketTransportAddress(new InetSocketAddress("127.0.0.1", 0));
 
     private final InetSocketAddress address;
 
     public InetSocketTransportAddress(StreamInput in) throws IOException {
-        if (in.readByte() == 0) {
-            int len = in.readByte();
-            byte[] a = new byte[len]; // 4 bytes (IPv4) or 16 bytes (IPv6)
-            in.readFully(a);
-            InetAddress inetAddress;
-            if (len == 16) {
-                inetAddress = Inet6Address.getByAddress(null, a);
-            } else {
-                inetAddress = InetAddress.getByAddress(a);
-            }
-            int port = in.readInt();
-            this.address = new InetSocketAddress(inetAddress, port);
+        final int len = in.readByte();
+        final byte[] a = new byte[len]; // 4 bytes (IPv4) or 16 bytes (IPv6)
+        in.readFully(a);
+        InetAddress inetAddress;
+        if (len == 16) {
+            inetAddress = Inet6Address.getByAddress(null, a);
         } else {
-            this.address = new InetSocketAddress(InetAddress.getByName(in.readString()), in.readInt());
+            inetAddress = InetAddress.getByAddress(a);
         }
-    }
-
-    private InetSocketTransportAddress() {
-        address = null;
+        int port = in.readInt();
+        this.address = new InetSocketAddress(inetAddress, port);
     }
 
     public InetSocketTransportAddress(InetAddress address, int port) {
@@ -76,6 +56,12 @@ public final class InetSocketTransportAddress implements TransportAddress {
     }
 
     public InetSocketTransportAddress(InetSocketAddress address) {
+        if (address == null) {
+            throw new IllegalArgumentException("InetSocketAddress must not be null");
+        }
+        if (address.getAddress() == null) {
+            throw new IllegalArgumentException("Address must be resolved but wasn't - InetSocketAddress#getAddress() returned null");
+        }
         this.address = address;
     }
 
@@ -92,7 +78,7 @@ public final class InetSocketTransportAddress implements TransportAddress {
 
     @Override
     public String getHost() {
-       return maybeLookupHostname();
+       return getAddress(); // just delegate no resolving
     }
 
     @Override
@@ -116,29 +102,15 @@ public final class InetSocketTransportAddress implements TransportAddress {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (!resolveAddress && address.getAddress() != null) {
-            out.writeByte((byte) 0);
-            byte[] bytes = address().getAddress().getAddress();  // 4 bytes (IPv4) or 16 bytes (IPv6)
-            out.writeByte((byte) bytes.length); // 1 byte
-            out.write(bytes, 0, bytes.length);
-            // don't serialize scope ids over the network!!!!
-            // these only make sense with respect to the local machine, and will only formulate
-            // the address incorrectly remotely.
-        } else {
-            out.writeByte((byte) 1);
-            out.writeString(maybeLookupHostname());
-        }
+        byte[] bytes = address().getAddress().getAddress();  // 4 bytes (IPv4) or 16 bytes (IPv6)
+        out.writeByte((byte) bytes.length); // 1 byte
+        out.write(bytes, 0, bytes.length);
+        // don't serialize scope ids over the network!!!!
+        // these only make sense with respect to the local machine, and will only formulate
+        // the address incorrectly remotely.
         out.writeInt(address.getPort());
     }
 
-    @SuppressForbidden(reason = "if explicitly configured we do hostName reverse lookup") // TODO remove this?
-    private String maybeLookupHostname() {
-        if (resolveAddress) {
-            return address.getHostName();
-        } else {
-            return getAddress();
-        }
-    }
 
     @Override
     public boolean equals(Object o) {

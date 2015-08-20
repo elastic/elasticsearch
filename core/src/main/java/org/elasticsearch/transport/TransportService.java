@@ -384,8 +384,8 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
         return requestIds.getAndIncrement();
     }
 
-    public TransportAddress[] addressesFromString(String address) throws Exception {
-        return transport.addressesFromString(address);
+    public TransportAddress[] addressesFromString(String address, int perAddressLimit) throws Exception {
+        return transport.addressesFromString(address, perAddressLimit);
     }
 
     /**

@@ -85,7 +85,7 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
     }
 
     @Override
-    public TransportAddress[] addressesFromString(String address) {
+    public TransportAddress[] addressesFromString(String address, int perAddressLimit) {
         return new TransportAddress[]{new LocalTransportAddress(address)};
     }
 

@@ -254,11 +254,13 @@ public class AzureUnicastHostsProvider extends AbstractComponent implements Unic
                 }
 
                 try {
-                    TransportAddress[] addresses = transportService.addressesFromString(networkAddress);
-                    // we only limit to 1 addresses, makes no sense to ping 100 ports
-                    logger.trace("adding {}, transport_address {}", networkAddress, addresses[0]);
-                    cachedDiscoNodes.add(new DiscoveryNode("#cloud-" + instance.getInstanceName(), addresses[0],
+                    // we only limit to 1 port per address, makes no sense to ping 100 ports
+                    TransportAddress[] addresses = transportService.addressesFromString(networkAddress, 1);
+                    for (TransportAddress address : addresses) {
+                        logger.trace("adding {}, transport_address {}", networkAddress, address);
+                        cachedDiscoNodes.add(new DiscoveryNode("#cloud-" + instance.getInstanceName(), address,
                             version.minimumCompatibilityVersion()));
+                    }
                 } catch (Exception e) {
                     logger.warn("can not convert [{}] to transport address. skipping. [{}]", networkAddress, e.getMessage());
                 }

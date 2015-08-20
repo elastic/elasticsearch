@@ -591,11 +591,11 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
     }
 
     @Override
-    public TransportAddress[] addressesFromString(String address) throws Exception {
+    public TransportAddress[] addressesFromString(String address, int perAddressLimit) throws Exception {
         return parse(address, settings.get("transport.profiles.default.port", 
                               settings.get("transport.netty.port", 
                               settings.get("transport.tcp.port", 
-                              DEFAULT_PORT_RANGE))));
+                              DEFAULT_PORT_RANGE))), perAddressLimit);
     }
     
     // this code is a take on guava's HostAndPort, like a HostAndPortRange
@@ -605,7 +605,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
     private static final Pattern BRACKET_PATTERN = Pattern.compile("^\\[(.*:.*)\\](?::([\\d\\-]*))?$");
 
     /** parse a hostname+port range spec into its equivalent addresses */
-    static TransportAddress[] parse(String hostPortString, String defaultPortRange) throws UnknownHostException {
+    static TransportAddress[] parse(String hostPortString, String defaultPortRange, int perAddressLimit) throws UnknownHostException {
         Objects.requireNonNull(hostPortString);
         String host;
         String portString = null;
@@ -643,9 +643,10 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         Set<InetAddress> addresses = new HashSet<>(Arrays.asList(InetAddress.getAllByName(host)));
         List<TransportAddress> transportAddresses = new ArrayList<>();
         int[] ports = new PortsRange(portString).ports();
-        for (int port : ports) {
+        int limit = Math.min(ports.length, perAddressLimit);
+        for (int i = 0; i < limit; i++) {
             for (InetAddress address : addresses) {
-                transportAddresses.add(new InetSocketTransportAddress(address, port));
+                transportAddresses.add(new InetSocketTransportAddress(address, ports[i]));
             }
         }
         return transportAddresses.toArray(new TransportAddress[transportAddresses.size()]);

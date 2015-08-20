@@ -111,7 +111,8 @@ public class CapturingTransport implements Transport {
     }
 
     @Override
-    public TransportAddress[] addressesFromString(String address) throws Exception {
+    public TransportAddress[] addressesFromString(String address, int perAddressLimit) throws Exception {
+        // WTF
         return new TransportAddress[0];
     }
 

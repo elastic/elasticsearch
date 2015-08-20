@@ -64,6 +64,7 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
 
     public static final String ACTION_NAME = "internal:discovery/zen/unicast";
 
+    // these limits are per-address
     public static final int LIMIT_FOREIGN_PORTS_COUNT = 1;
     public static final int LIMIT_LOCAL_PORTS_COUNT = 25;
 
@@ -134,9 +135,9 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
         List<DiscoveryNode> configuredTargetNodes = Lists.newArrayList();
         for (String host : hosts) {
             try {
-                TransportAddress[] addresses = transportService.addressesFromString(host);
-                for (int i = 0; (i < addresses.length && i < limitPortCounts); i++) {
-                    configuredTargetNodes.add(new DiscoveryNode(UNICAST_NODE_PREFIX + unicastNodeIdGenerator.incrementAndGet() + "#", addresses[i], version.minimumCompatibilityVersion()));
+                TransportAddress[] addresses = transportService.addressesFromString(host, limitPortCounts);
+                for (TransportAddress address : addresses) {
+                    configuredTargetNodes.add(new DiscoveryNode(UNICAST_NODE_PREFIX + unicastNodeIdGenerator.incrementAndGet() + "#", address, version.minimumCompatibilityVersion()));
                 }
             } catch (Exception e) {
                 throw new IllegalArgumentException("Failed to resolve address for [" + host + "]", e);

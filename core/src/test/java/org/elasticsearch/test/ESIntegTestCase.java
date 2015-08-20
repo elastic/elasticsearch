@@ -1046,40 +1046,34 @@ public abstract class ESIntegTestCase extends ESTestCase {
      */
     protected void ensureClusterStateConsistency() throws IOException {
         if (cluster() != null) {
-            boolean getResolvedAddress = InetSocketTransportAddress.getResolveAddress();
-            try {
-                InetSocketTransportAddress.setResolveAddress(false);
-                ClusterState masterClusterState = client().admin().cluster().prepareState().all().get().getState();
-                byte[] masterClusterStateBytes = ClusterState.Builder.toBytes(masterClusterState);
+            ClusterState masterClusterState = client().admin().cluster().prepareState().all().get().getState();
+            byte[] masterClusterStateBytes = ClusterState.Builder.toBytes(masterClusterState);
+            // remove local node reference
+            masterClusterState = ClusterState.Builder.fromBytes(masterClusterStateBytes, null);
+            Map<String, Object> masterStateMap = convertToMap(masterClusterState);
+            int masterClusterStateSize = masterClusterState.toString().length();
+            String masterId = masterClusterState.nodes().masterNodeId();
+            for (Client client : cluster()) {
+                ClusterState localClusterState = client.admin().cluster().prepareState().all().setLocal(true).get().getState();
+                byte[] localClusterStateBytes = ClusterState.Builder.toBytes(localClusterState);
                 // remove local node reference
-                masterClusterState = ClusterState.Builder.fromBytes(masterClusterStateBytes, null);
-                Map<String, Object> masterStateMap = convertToMap(masterClusterState);
-                int masterClusterStateSize = masterClusterState.toString().length();
-                String masterId = masterClusterState.nodes().masterNodeId();
-                for (Client client : cluster()) {
-                    ClusterState localClusterState = client.admin().cluster().prepareState().all().setLocal(true).get().getState();
-                    byte[] localClusterStateBytes = ClusterState.Builder.toBytes(localClusterState);
-                    // remove local node reference
-                    localClusterState = ClusterState.Builder.fromBytes(localClusterStateBytes, null);
-                    final Map<String, Object> localStateMap = convertToMap(localClusterState);
-                    final int localClusterStateSize = localClusterState.toString().length();
-                    // Check that the non-master node has the same version of the cluster state as the master and that this node didn't disconnect from the master
-                    if (masterClusterState.version() == localClusterState.version() && localClusterState.nodes().nodes().containsKey(masterId)) {
-                        try {
-                            assertEquals("clusterstate UUID does not match", masterClusterState.stateUUID(), localClusterState.stateUUID());
-                            // We cannot compare serialization bytes since serialization order of maps is not guaranteed
-                            // but we can compare serialization sizes - they should be the same
-                            assertEquals("clusterstate size does not match", masterClusterStateSize, localClusterStateSize);
-                            // Compare JSON serialization
-                            assertNull("clusterstate JSON serialization does not match", differenceBetweenMapsIgnoringArrayOrder(masterStateMap, localStateMap));
-                        } catch (AssertionError error) {
-                            logger.error("Cluster state from master:\n{}\nLocal cluster state:\n{}", masterClusterState.toString(), localClusterState.toString());
-                            throw error;
-                        }
+                localClusterState = ClusterState.Builder.fromBytes(localClusterStateBytes, null);
+                final Map<String, Object> localStateMap = convertToMap(localClusterState);
+                final int localClusterStateSize = localClusterState.toString().length();
+                // Check that the non-master node has the same version of the cluster state as the master and that this node didn't disconnect from the master
+                if (masterClusterState.version() == localClusterState.version() && localClusterState.nodes().nodes().containsKey(masterId)) {
+                    try {
+                        assertEquals("clusterstate UUID does not match", masterClusterState.stateUUID(), localClusterState.stateUUID());
+                        // We cannot compare serialization bytes since serialization order of maps is not guaranteed
+                        // but we can compare serialization sizes - they should be the same
+                        assertEquals("clusterstate size does not match", masterClusterStateSize, localClusterStateSize);
+                        // Compare JSON serialization
+                        assertNull("clusterstate JSON serialization does not match", differenceBetweenMapsIgnoringArrayOrder(masterStateMap, localStateMap));
+                    } catch (AssertionError error) {
+                        logger.error("Cluster state from master:\n{}\nLocal cluster state:\n{}", masterClusterState.toString(), localClusterState.toString());
+                        throw error;
                     }
                 }
-            } finally {
-                InetSocketTransportAddress.setResolveAddress(getResolvedAddress);
             }
         }
 

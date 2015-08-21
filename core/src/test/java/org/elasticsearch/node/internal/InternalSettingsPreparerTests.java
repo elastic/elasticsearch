@@ -28,7 +28,9 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.ExpectedException;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -42,6 +44,8 @@ import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.*;
 
 public class InternalSettingsPreparerTests extends ESTestCase {
+    @Rule
+    public ExpectedException expectedException = ExpectedException.none();
 
     @Before
     public void setupSystemProperties() {
@@ -73,29 +77,6 @@ public class InternalSettingsPreparerTests extends ESTestCase {
         tuple = InternalSettingsPreparer.prepareSettings(settings, true);
         // Should use setting from the system property
         assertThat(tuple.v1().get("node.zone"), equalTo("bar"));
-    }
-
-    @Test
-    public void testAlternateConfigFileSuffixes() throws Exception {
-        InputStream yaml = getClass().getResourceAsStream("/config/elasticsearch.yaml");
-        InputStream json = getClass().getResourceAsStream("/config/elasticsearch.json");
-        InputStream properties = getClass().getResourceAsStream("/config/elasticsearch.properties");
-        Path home = createTempDir();
-        Path config = home.resolve("config");
-        Files.createDirectory(config);
-        Files.copy(yaml, config.resolve("elasticsearch.yaml"));
-        Files.copy(json, config.resolve("elasticsearch.json"));
-        Files.copy(properties, config.resolve("elasticsearch.properties"));
-
-        // test that we can read config files with .yaml, .json, and .properties suffixes
-        Tuple<Settings, Environment> tuple = InternalSettingsPreparer.prepareSettings(settingsBuilder()
-                .put("config.ignore_system_properties", true)
-                .put("path.home", home)
-                .build(), true);
-
-        assertThat(tuple.v1().get("yaml.config.exists"), equalTo("true"));
-        assertThat(tuple.v1().get("json.config.exists"), equalTo("true"));
-        assertThat(tuple.v1().get("properties.config.exists"), equalTo("true"));
     }
 
     @Test
@@ -243,6 +224,26 @@ public class InternalSettingsPreparerTests extends ESTestCase {
         Path config = home.resolve("config");
         Files.createDirectory(config);
         Files.copy(garbage, config.resolve("elasticsearch.yml"));
+        InternalSettingsPreparer.prepareSettings(settingsBuilder()
+                .put("config.ignore_system_properties", true)
+                .put("path.home", home)
+                .build(), true);
+    }
+
+    public void testMultipleSettingsFileNotAllowed() throws IOException {
+        InputStream yaml = getClass().getResourceAsStream("/config/elasticsearch.yaml");
+        InputStream properties = getClass().getResourceAsStream("/config/elasticsearch.properties");
+        Path home = createTempDir();
+        Path config = home.resolve("config");
+        Files.createDirectory(config);
+        Files.copy(yaml, config.resolve("elasticsearch.yaml"));
+        Files.copy(properties, config.resolve("elasticsearch.properties"));
+
+        expectedException.expect(SettingsException.class);
+        expectedException.expectMessage("multiple settings files found with suffixes: ");
+        expectedException.expectMessage("yaml");
+        expectedException.expectMessage("properties");
+
         InternalSettingsPreparer.prepareSettings(settingsBuilder()
                 .put("config.ignore_system_properties", true)
                 .put("path.home", home)

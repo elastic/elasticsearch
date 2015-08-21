@@ -23,15 +23,15 @@ import org.elasticsearch.common.cli.CliToolTestCase;
 import org.elasticsearch.common.cli.Terminal;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.io.IOException;
 import java.io.InputStream;
-import java.net.URL;
-import java.net.URLClassLoader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -234,5 +234,18 @@ public class InternalSettingsPreparerTests extends ESTestCase {
         assertThat(counter.intValue(), is(1));
         assertThat(settings.get("name"), is("prompted name 0"));
         assertThat(settings.get("node.name"), is("prompted name 0"));
+    }
+
+    @Test(expected = SettingsException.class)
+    public void testGarbageIsNotSwallowed() throws IOException {
+        InputStream garbage = getClass().getResourceAsStream("/config/garbage/garbage.yml");
+        Path home = createTempDir();
+        Path config = home.resolve("config");
+        Files.createDirectory(config);
+        Files.copy(garbage, config.resolve("elasticsearch.yml"));
+        InternalSettingsPreparer.prepareSettings(settingsBuilder()
+                .put("config.ignore_system_properties", true)
+                .put("path.home", home)
+                .build(), true);
     }
 }

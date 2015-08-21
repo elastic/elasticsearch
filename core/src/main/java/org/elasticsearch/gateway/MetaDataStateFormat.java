@@ -43,12 +43,10 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.OutputStream;
-import java.nio.file.DirectoryStream;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
+import java.nio.file.*;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Matcher;
@@ -253,10 +251,9 @@ public abstract class MetaDataStateFormat<T> {
         if (dataLocations != null) { // select all eligable files first
             for (Path dataLocation : dataLocations) {
                 final Path stateDir = dataLocation.resolve(STATE_DIR_NAME);
-                if (!Files.isDirectory(stateDir)) {
-                    continue;
-                }
                 // now, iterate over the current versions, and find latest one
+                // we don't check if the stateDir is present since it could be deleted
+                // after the check. Also if there is a _state file and it's not a dir something is really wrong
                 try (DirectoryStream<Path> paths = Files.newDirectoryStream(stateDir)) { // we don't pass a glob since we need the group part for parsing
                     for (Path stateFile : paths) {
                         final Matcher matcher = stateFilePattern.matcher(stateFile.getFileName().toString());
@@ -270,6 +267,8 @@ public abstract class MetaDataStateFormat<T> {
                             files.add(pav);
                         }
                     }
+                } catch (NoSuchFileException | FileNotFoundException ex) {
+                    // no _state directory -- move on
                 }
             }
         }

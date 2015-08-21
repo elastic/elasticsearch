@@ -60,7 +60,6 @@ public class ZenPingService extends AbstractLifecycleComponent<ZenPing> implemen
     @Override
     protected void doStart() {
         for (ZenPing zenPing : zenPings) {
-            logger.info("Starting ping: " + zenPing);
             zenPing.start();
         }
     }

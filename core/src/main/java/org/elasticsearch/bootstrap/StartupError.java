@@ -59,10 +59,7 @@ class StartupError extends RuntimeException {
             cause = getFirstGuiceCause((CreationException)cause);
         }
         
-        String message = cause.getMessage();
-        if (message == null) {
-            message = "Unknown Error";
-        }
+        String message = cause.toString();
         s.println(message);
         
         if (cause != null) {

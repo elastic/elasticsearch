@@ -118,25 +118,25 @@ final class Security {
     static Permissions createPermissions(Environment environment) throws IOException {
         Permissions policy = new Permissions();
         // read-only dirs
-        addPath(policy, environment.binFile(), "read,readlink");
-        addPath(policy, environment.libFile(), "read,readlink");
-        addPath(policy, environment.pluginsFile(), "read,readlink");
-        addPath(policy, environment.configFile(), "read,readlink");
-        addPath(policy, environment.scriptsFile(), "read,readlink");
+        addPath(policy, "path.home", environment.binFile(), "read,readlink");
+        addPath(policy, "path.home", environment.libFile(), "read,readlink");
+        addPath(policy, "path.plugins", environment.pluginsFile(), "read,readlink");
+        addPath(policy, "path.conf", environment.configFile(), "read,readlink");
+        addPath(policy, "path.scripts", environment.scriptsFile(), "read,readlink");
         // read-write dirs
-        addPath(policy, environment.tmpFile(), "read,readlink,write,delete");
-        addPath(policy, environment.logsFile(), "read,readlink,write,delete");
+        addPath(policy, "java.io.tmpdir", environment.tmpFile(), "read,readlink,write,delete");
+        addPath(policy, "path.logs", environment.logsFile(), "read,readlink,write,delete");
         if (environment.sharedDataFile() != null) {
-            addPath(policy, environment.sharedDataFile(), "read,readlink,write,delete");
+            addPath(policy, "path.shared_data", environment.sharedDataFile(), "read,readlink,write,delete");
         }
         for (Path path : environment.dataFiles()) {
-            addPath(policy, path, "read,readlink,write,delete");
+            addPath(policy, "path.data", path, "read,readlink,write,delete");
         }
         for (Path path : environment.dataWithClusterFiles()) {
-            addPath(policy, path, "read,readlink,write,delete");
+            addPath(policy, "path.data", path, "read,readlink,write,delete");
         }
         for (Path path : environment.repoFiles()) {
-            addPath(policy, path, "read,readlink,write,delete");
+            addPath(policy, "path.repo", path, "read,readlink,write,delete");
         }
         if (environment.pidFile() != null) {
             // we just need permission to remove the file if its elsewhere.
@@ -145,10 +145,20 @@ final class Security {
         return policy;
     }
     
-    /** Add access to path (and all files underneath it */
-    static void addPath(Permissions policy, Path path, String permissions) throws IOException {
-        // paths may not exist yet
-        ensureDirectoryExists(path);
+    /**
+     * Add access to path (and all files underneath it)
+     * @param policy current policy to add permissions to
+     * @param configurationName the configuration name associated with the path (for error messages only)
+     * @param path the path itself
+     * @param permissions set of filepermissions to grant to the path
+     */
+    static void addPath(Permissions policy, String configurationName, Path path, String permissions) {
+        // paths may not exist yet, this also checks accessibility
+        try {
+            ensureDirectoryExists(path);
+        } catch (IOException e) {
+            throw new IllegalStateException("Unable to access '" + configurationName + "' (" + path + ")", e);
+        }
 
         // add each path twice: once for itself, again for files underneath it
         policy.add(new FilePermission(path.toString(), permissions));

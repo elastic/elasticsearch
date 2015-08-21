@@ -107,7 +107,7 @@ public class PluginsService extends AbstractComponent {
           List<Bundle> bundles = getPluginBundles(environment);
           tupleBuilder.addAll(loadBundles(bundles));
         } catch (IOException ex) {
-          throw new IllegalStateException(ex);
+          throw new IllegalStateException("Unable to initialize plugins", ex);
         }
 
         plugins = tupleBuilder.build();
@@ -279,9 +279,10 @@ public class PluginsService extends AbstractComponent {
     }
 
     static List<Bundle> getPluginBundles(Environment environment) throws IOException {
-        ESLogger logger = Loggers.getLogger(Bootstrap.class);
+        ESLogger logger = Loggers.getLogger(PluginsService.class);
 
         Path pluginsDirectory = environment.pluginsFile();
+        // TODO: remove this leniency, but tests bogusly rely on it
         if (!isAccessibleDirectory(pluginsDirectory, logger)) {
             return Collections.emptyList();
         }

@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations;
 import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -31,6 +32,7 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.SiblingPipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.profile.InternalProfiler;
 import org.elasticsearch.search.query.QueryPhaseExecutionException;
 
 import java.io.IOException;
@@ -73,6 +75,7 @@ public class AggregationPhase implements SearchPhase {
 
             List<Aggregator> collectors = new ArrayList<>();
             Aggregator[] aggregators;
+            InternalProfiler profiler = context.queryProfiler();
             try {
                 AggregatorFactories factories = context.aggregations().factories();
                 aggregators = factories.createTopLevelAggregators(aggregationContext);
@@ -83,8 +86,9 @@ public class AggregationPhase implements SearchPhase {
                 }
                 context.aggregations().aggregators(aggregators);
                 if (!collectors.isEmpty()) {
-                    final BucketCollector collector = BucketCollector.wrap(collectors);
-                    collector.preCollection();
+                    Collector collector = BucketCollector.wrap(collectors);
+                    ((BucketCollector)collector).preCollection();
+                    collector = InternalProfiler.wrapBucketCollector(profiler, collector);
                     context.queryCollectors().put(AggregationPhase.class, collector);
                 }
             } catch (IOException e) {
@@ -115,7 +119,7 @@ public class AggregationPhase implements SearchPhase {
 
         // optimize the global collector based execution
         if (!globals.isEmpty()) {
-            BucketCollector globalsCollector = BucketCollector.wrap(globals);
+            Collector globalsCollector = BucketCollector.wrap(globals);
             Query query = Queries.newMatchAllQuery();
             Query searchFilter = context.searchFilter(context.types());
             if (searchFilter != null) {
@@ -126,7 +130,8 @@ public class AggregationPhase implements SearchPhase {
                 query = filtered;
             }
             try {
-                globalsCollector.preCollection();
+                ((BucketCollector)globalsCollector).preCollection();
+                globalsCollector = InternalProfiler.wrapBucketCollector(context.queryProfiler(), globalsCollector, true);
                 context.searcher().search(query, globalsCollector);
             } catch (Exception e) {
                 throw new QueryPhaseExecutionException(context, "Failed to execute global aggregators", e);

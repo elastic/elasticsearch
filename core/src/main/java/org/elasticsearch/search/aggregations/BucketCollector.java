@@ -27,6 +27,7 @@ import org.apache.lucene.search.Collector;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -98,6 +99,11 @@ public abstract class BucketCollector implements Collector {
                             }
                         }
                         return false;
+                    }
+
+                    @Override
+                    public String toString() {
+                        return Arrays.toString(collectors);
                     }
                 };
         }

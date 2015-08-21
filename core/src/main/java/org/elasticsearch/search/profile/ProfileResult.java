@@ -63,4 +63,6 @@ public interface ProfileResult {
      * Returns a list of all profiled children queries
      */
     List<ProfileResult> getProfiledChildren();
+
+    InternalProfileCollector getCollector();
 }

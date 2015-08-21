@@ -36,6 +36,10 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.AggregationPhase;
 import org.elasticsearch.search.internal.ScrollContext;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.profile.CollectorResult.CollectorReason;
+import org.elasticsearch.search.profile.InternalProfileResult;
+import org.elasticsearch.search.profile.InternalProfiler;
+import org.elasticsearch.search.profile.InternalProfileCollector;
 import org.elasticsearch.search.rescore.RescorePhase;
 import org.elasticsearch.search.rescore.RescoreSearchContext;
 import org.elasticsearch.search.scan.ScanContext.ScanCollector;
@@ -56,6 +60,8 @@ public class QueryPhase implements SearchPhase {
     private final AggregationPhase aggregationPhase;
     private final SuggestPhase suggestPhase;
     private RescorePhase rescorePhase;
+
+    private InternalProfileCollector last;
 
     @Inject
     public QueryPhase(AggregationPhase aggregationPhase, SuggestPhase suggestPhase, RescorePhase rescorePhase) {
@@ -111,6 +117,11 @@ public class QueryPhase implements SearchPhase {
         }
         suggestPhase.execute(searchContext);
         aggregationPhase.execute(searchContext);
+
+        if (profiler != null) {
+            InternalProfileResult result = searchContext.queryProfiler().finalizeProfileResults();
+            searchContext.queryResult().profileResult(result);
+        }
     }
 
     private static boolean returnsDocsInOrder(Query query, Sort sort) {
@@ -136,6 +147,7 @@ public class QueryPhase implements SearchPhase {
 
         final SearchType searchType = searchContext.searchType();
         boolean rescore = false;
+        InternalProfiler profiler = searchContext.queryProfiler();
         try {
             queryResult.from(searchContext.from());
             queryResult.size(searchContext.size());
@@ -152,6 +164,7 @@ public class QueryPhase implements SearchPhase {
             if (searchContext.size() == 0) { // no matter what the value of from is
                 final TotalHitCountCollector totalHitCountCollector = new TotalHitCountCollector();
                 collector = totalHitCountCollector;
+                collector = InternalProfiler.wrapCollector(profiler, collector, CollectorReason.SEARCH_COUNT);
                 topDocsCallable = new Callable<TopDocs>() {
                     @Override
                     public TopDocs call() throws Exception {
@@ -162,6 +175,7 @@ public class QueryPhase implements SearchPhase {
                 query = searchContext.scanContext().wrapQuery(query);
                 final ScanCollector scanCollector = searchContext.scanContext().collector(searchContext);
                 collector = scanCollector;
+                collector = InternalProfiler.wrapCollector(profiler, collector, CollectorReason.SEARCH_SCAN);
                 topDocsCallable = new Callable<TopDocs>() {
                     @Override
                     public TopDocs call() throws Exception {
@@ -216,6 +230,7 @@ public class QueryPhase implements SearchPhase {
                     topDocsCollector = TopScoreDocCollector.create(numDocs, lastEmittedDoc);
                 }
                 collector = topDocsCollector;
+                collector = InternalProfiler.wrapCollector(profiler, collector, CollectorReason.SEARCH_SORTED);
                 topDocsCallable = new Callable<TopDocs>() {
                     @Override
                     public TopDocs call() throws Exception {
@@ -252,6 +267,7 @@ public class QueryPhase implements SearchPhase {
             if (terminateAfterSet) {
                 // throws Lucene.EarlyTerminationException when given count is reached
                 collector = Lucene.wrapCountBasedEarlyTerminatingCollector(collector, searchContext.terminateAfter());
+                collector = InternalProfiler.wrapCollector(profiler, collector, CollectorReason.SEARCH_TERMINATE_AFTER_COUNT);
             }
 
             if (searchContext.parsedPostFilter() != null) {
@@ -260,6 +276,7 @@ public class QueryPhase implements SearchPhase {
                 // since that is where the filter should only work
                 final Weight filterWeight = searcher.createNormalizedWeight(searchContext.parsedPostFilter().query(), false);
                 collector = new FilteredCollector(collector, filterWeight);
+                collector = InternalProfiler.wrapCollector(profiler, collector, CollectorReason.SEARCH_POST_FILTER);
             }
 
             // plug in additional collectors, like aggregations
@@ -267,10 +284,12 @@ public class QueryPhase implements SearchPhase {
             allCollectors.add(collector);
             allCollectors.addAll(searchContext.queryCollectors().values());
             collector = MultiCollector.wrap(allCollectors);
+            collector = InternalProfiler.wrapMultiCollector(profiler, collector, allCollectors);
 
             // apply the minimum score after multi collector so we filter aggs as well
             if (searchContext.minimumScore() != null) {
                 collector = new MinimumScoreCollector(collector, searchContext.minimumScore());
+                collector = InternalProfiler.wrapCollector(profiler, collector, CollectorReason.SEARCH_MIN_SCORE);
             }
 
             if (collector.getClass() == TotalHitCountCollector.class) {
@@ -318,6 +337,7 @@ public class QueryPhase implements SearchPhase {
                 // TODO: change to use our own counter that uses the scheduler in ThreadPool
                 // throws TimeLimitingCollector.TimeExceededException when timeout has reached
                 collector = Lucene.wrapTimeLimitingCollector(collector, searchContext.timeEstimateCounter(), searchContext.timeoutInMillis());
+                collector = InternalProfiler.wrapCollector(profiler, collector, CollectorReason.SEARCH_TIMEOUT);
             }
 
             try {

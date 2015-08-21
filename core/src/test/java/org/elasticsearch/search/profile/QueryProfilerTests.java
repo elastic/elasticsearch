@@ -19,14 +19,8 @@
 
 package org.elasticsearch.search.profile;
 
-
-import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
-import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
-import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequestBuilder;
-import org.elasticsearch.client.transport.TransportClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.SearchHit;
 import org.apache.lucene.util.English;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -42,14 +36,9 @@ import java.util.List;
 
 import static org.elasticsearch.search.profile.RandomQueryGenerator.randomQueryBuilder;
 import static org.elasticsearch.test.hamcrest.DoubleMatcher.nearlyEqual;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.*;
 
-
-@ESIntegTestCase.ClusterScope(scope=ESIntegTestCase.Scope.TEST)
 public class QueryProfilerTests extends ESIntegTestCase {
-
-
 
     /**
      * This test simply checks to make sure nothing crashes.  Test indexes 100-150 documents,
@@ -82,6 +71,17 @@ public class QueryProfilerTests extends ESIntegTestCase {
 
             SearchResponse resp = client().prepareSearch().setQuery(q).setProfile(true).setSearchType(SearchType.QUERY_THEN_FETCH).execute().actionGet();
             assertNotNull("Profile response element should not be null", resp.getProfileResults());
+            for (ProfileResult result : resp.getProfileResults().asCollection()) {
+                assertNotNull(result.getQueryName());
+                assertNotNull(result.getLuceneDescription());
+                assertThat(result.getTime(), greaterThan(0L));
+                assertThat(result.getRelativeTime(), greaterThan(0.0));
+
+                CollectorResult collectorResult = result.getCollector();
+                assertThat(collectorResult.getName(), not(isEmptyOrNullString()));
+                assertThat(collectorResult.getTime(), greaterThan(0L));
+                assertThat(collectorResult.getRelativeTime(), greaterThan(0.0));
+            }
 
         }
     }
@@ -195,7 +195,11 @@ public class QueryProfilerTests extends ESIntegTestCase {
             assertThat(result.getRelativeTime(), greaterThan(0.0));
             assertThat(result.getTime(), greaterThan(0L));
             assertNotNull(result.getTimeBreakdown());
-            assertEquals(result.getProfiledChildren().size(), 0);
+
+            CollectorResult collectorResult = result.getCollector();
+            assertThat(collectorResult.getName(), not(isEmptyOrNullString()));
+            assertThat(collectorResult.getTime(), greaterThan(0L));
+            assertThat(collectorResult.getRelativeTime(), greaterThan(0.0));
         }
     }
 
@@ -251,7 +255,11 @@ public class QueryProfilerTests extends ESIntegTestCase {
             assertThat(childProfile.getRelativeTime(), greaterThan(0.0));
             assertThat(childProfile.getTime(), greaterThan(0L));
             assertNotNull(childProfile.getTimeBreakdown());
-            assertEquals(childProfile.getProfiledChildren().size(), 0);
+
+            CollectorResult collectorResult = result.getCollector();
+            assertThat(collectorResult.getName(), not(isEmptyOrNullString()));
+            assertThat(collectorResult.getTime(), greaterThan(0L));
+            assertThat(collectorResult.getRelativeTime(), greaterThan(0.0));
         }
 
 
@@ -286,7 +294,18 @@ public class QueryProfilerTests extends ESIntegTestCase {
         SearchResponse resp = client().prepareSearch().setQuery(q).setProfile(true).setSearchType(SearchType.QUERY_THEN_FETCH).execute().actionGet();
         assertNotNull("Profile response element should not be null", resp.getProfileResults());
 
+        for (ProfileResult result : resp.getProfileResults().asCollection()) {
+            assertNotNull(result.getQueryName());
+            assertNotNull(result.getLuceneDescription());
+            assertThat(result.getRelativeTime(), greaterThan(0.0));
+            assertThat(result.getTime(), greaterThan(0L));
+            assertNotNull(result.getTimeBreakdown());
 
+            CollectorResult collectorResult = result.getCollector();
+            assertThat(collectorResult.getName(), not(isEmptyOrNullString()));
+            assertThat(collectorResult.getTime(), greaterThan(0L));
+            assertThat(collectorResult.getRelativeTime(), greaterThan(0.0));
+        }
     }
 
     /**
@@ -322,7 +341,18 @@ public class QueryProfilerTests extends ESIntegTestCase {
         SearchResponse resp = client().prepareSearch().setQuery(q).setProfile(true).setSearchType(SearchType.QUERY_THEN_FETCH).execute().actionGet();
         assertNotNull("Profile response element should not be null", resp.getProfileResults());
 
+        for (ProfileResult result : resp.getProfileResults().asCollection()) {
+            assertNotNull(result.getQueryName());
+            assertNotNull(result.getLuceneDescription());
+            assertThat(result.getRelativeTime(), greaterThan(0.0));
+            assertThat(result.getTime(), greaterThan(0L));
+            assertNotNull(result.getTimeBreakdown());
 
+            CollectorResult collectorResult = result.getCollector();
+            assertThat(collectorResult.getName(), not(isEmptyOrNullString()));
+            assertThat(collectorResult.getTime(), greaterThan(0L));
+            assertThat(collectorResult.getRelativeTime(), greaterThan(0.0));
+        }
     }
 
     @Test
@@ -352,7 +382,18 @@ public class QueryProfilerTests extends ESIntegTestCase {
         SearchResponse resp = client().prepareSearch().setQuery(q).setProfile(true).setSearchType(SearchType.QUERY_THEN_FETCH).execute().actionGet();
         assertNotNull("Profile response element should not be null", resp.getProfileResults());
 
+        for (ProfileResult result : resp.getProfileResults().asCollection()) {
+            assertNotNull(result.getQueryName());
+            assertNotNull(result.getLuceneDescription());
+            assertThat(result.getRelativeTime(), greaterThan(0.0));
+            assertThat(result.getTime(), greaterThan(0L));
+            assertNotNull(result.getTimeBreakdown());
 
+            CollectorResult collectorResult = result.getCollector();
+            assertThat(collectorResult.getName(), not(isEmptyOrNullString()));
+            assertThat(collectorResult.getTime(), greaterThan(0L));
+            assertThat(collectorResult.getRelativeTime(), greaterThan(0.0));
+        }
     }
 
     @Test
@@ -381,6 +422,18 @@ public class QueryProfilerTests extends ESIntegTestCase {
         SearchResponse resp = client().prepareSearch().setQuery(q).setProfile(true).setSearchType(SearchType.QUERY_THEN_FETCH).execute().actionGet();
         assertNotNull("Profile response element should not be null", resp.getProfileResults());
 
+        for (ProfileResult result : resp.getProfileResults().asCollection()) {
+            assertNotNull(result.getQueryName());
+            assertNotNull(result.getLuceneDescription());
+            assertThat(result.getRelativeTime(), greaterThan(0.0));
+            assertThat(result.getTime(), greaterThan(0L));
+            assertNotNull(result.getTimeBreakdown());
+
+            CollectorResult collectorResult = result.getCollector();
+            assertThat(collectorResult.getName(), not(isEmptyOrNullString()));
+            assertThat(collectorResult.getTime(), greaterThan(0L));
+            assertThat(collectorResult.getRelativeTime(), greaterThan(0.0));
+        }
     }
 
     @Test
@@ -408,7 +461,47 @@ public class QueryProfilerTests extends ESIntegTestCase {
         SearchResponse resp = client().prepareSearch().setQuery(q).setProfile(true).setSearchType(SearchType.QUERY_THEN_FETCH).execute().actionGet();
         assertNotNull("Profile response element should not be null", resp.getProfileResults());
 
+        for (ProfileResult result : resp.getProfileResults().asCollection()) {
+            assertNotNull(result.getQueryName());
+            assertNotNull(result.getLuceneDescription());
+            assertThat(result.getRelativeTime(), greaterThan(0.0));
+            assertThat(result.getTime(), greaterThan(0L));
+            assertNotNull(result.getTimeBreakdown());
 
+            CollectorResult collectorResult = result.getCollector();
+            assertThat(collectorResult.getName(), not(isEmptyOrNullString()));
+            assertThat(collectorResult.getTime(), greaterThan(0L));
+            assertThat(collectorResult.getRelativeTime(), greaterThan(0.0));
+        }
+    }
+
+    /**
+     * This test makes sure no profile results are returned when profiling is disabled
+     *
+     * @throws Exception
+     */
+    @Test
+    public void testNoProfile() throws Exception {
+        createIndex("test");
+        ensureGreen();
+
+        int numDocs = randomIntBetween(100, 150);
+        IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
+        for (int i = 0; i < numDocs; i++) {
+            docs[i] = client().prepareIndex("test", "type1", String.valueOf(i)).setSource(
+                    "field1", English.intToEnglish(i),
+                    "field2", i
+            );
+        }
+
+        indexRandom(true, docs);
+        refresh();
+        QueryBuilder q = QueryBuilders.rangeQuery("field2").from(0).to(5);
+
+        logger.info(q.toString());
+
+        SearchResponse resp = client().prepareSearch().setQuery(q).setProfile(false).execute().actionGet();
+        assertNull("Profile response element should be null", resp.getProfileResults());
     }
 
 }

@@ -65,33 +65,42 @@ public class InternalProfileShardResults implements ProfileResults, Streamable, 
      * then calling setGlobalTime() on each individual shard result.  This will recursively
      * populate the relative times in all query nodes across all shards.
      *
+     * A similar process is done for Collector timings.
+     *
      * This should be called after all shard results are added via addShardResult
      */
     public void finalizeTimings() {
         long totalTime = 0;
+        long totalCollectorTime = 0;
         for (Map.Entry<SearchShardTarget, InternalProfileResult> entry : results.entrySet()) {
             totalTime += entry.getValue().calculateNodeTime();
+            totalCollectorTime += entry.getValue().getCollector().getTime();
         }
 
         for (Map.Entry<SearchShardTarget, InternalProfileResult> entry : results.entrySet()) {
             entry.getValue().setGlobalTime(totalTime);
+            entry.getValue().getCollector().setGlobalCollectorTime(totalCollectorTime);
         }
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder = builder.startObject("profile").startObject("query").startArray("shards");
+
+        builder = builder.startObject("profile").startArray("shards");
 
         for (Map.Entry<SearchShardTarget, InternalProfileResult> entry : results.entrySet()) {
             builder = builder.startObject()
                     .field("shard_id", entry.getKey().getNodeId())
-                    .startArray("timings");
+                    .startArray("query");
             builder = entry.getValue().toXContent(builder, params)
-                    .endArray().endObject();
+                    .endArray()
+                    .startArray("collector");
+            builder = entry.getValue().getCollector().toXContent(builder,params)
+                    .endArray()
+                    .endObject();
         }
 
-        builder = builder.endArray().endObject().endObject();
-
+        builder = builder.endArray().endObject();
         return builder;
     }
 

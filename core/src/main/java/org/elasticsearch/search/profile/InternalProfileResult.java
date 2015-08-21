@@ -60,6 +60,13 @@ public class InternalProfileResult implements ProfileResult, Streamable, ToXCont
     private long globalTime;
     private ArrayList<InternalProfileResult> children;
 
+    /**
+     * A top level InternalProfileResult will have a Collector.
+     * Since a query only has one Collector tree, non-top-level InternalProfileResult's
+     * will have a null collector.
+     */
+    private InternalProfileCollector collector;
+
     private static final Function<InternalProfileResult, ProfileResult> SUPERTYPE_CAST = new Function<InternalProfileResult, ProfileResult>() {
         @Override
         public ProfileResult apply(InternalProfileResult input) {
@@ -156,6 +163,14 @@ public class InternalProfileResult implements ProfileResult, Streamable, ToXCont
         return nodeTime;
     }
 
+    public void setCollector(InternalProfileCollector collector) {
+        this.collector = collector;
+    }
+
+    public InternalProfileCollector getCollector() {
+        return this.collector;
+    }
+
     /**
      * Static helper to read an InternalProfileResult off the stream
      */
@@ -184,6 +199,10 @@ public class InternalProfileResult implements ProfileResult, Streamable, ToXCont
         for (int i = 0; i < size; i++) {
             children.add(InternalProfileResult.readProfileResult(in));
         }
+
+        if (in.readBoolean()) {
+            collector = InternalProfileCollector.readProfileCollectorFromStream(in);
+        }
     }
 
     @Override
@@ -197,6 +216,14 @@ public class InternalProfileResult implements ProfileResult, Streamable, ToXCont
         for (InternalProfileResult child : children) {
             child.writeTo(out);
         }
+
+        if (collector != null) {
+            out.writeBoolean(true);
+            collector.writeTo(out);
+        } else {
+            out.writeBoolean(false);
+        }
+
     }
 
     @Override

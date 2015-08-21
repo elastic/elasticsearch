@@ -221,8 +221,17 @@ public class Bootstrap {
             keepAliveLatch.countDown();
         }
     }
+    
+    /** Calls doMain(), but with special formatting of errors */
+    public static void main(String[] args) throws StartupError {
+        try {
+            doMain(args);
+        } catch (Throwable t) {
+            throw new StartupError(t);
+        }
+    }
 
-    public static void main(String[] args) throws Throwable {
+    public static void doMain(String[] args) throws Throwable {
         BootstrapCLIParser bootstrapCLIParser = new BootstrapCLIParser();
         CliTool.ExitStatus status = bootstrapCLIParser.execute(args);
 
@@ -291,7 +300,7 @@ public class Bootstrap {
                 Loggers.enableConsoleLogging();
             }
             
-            throw new StartupError(e);
+            throw e;
         }
     }
 

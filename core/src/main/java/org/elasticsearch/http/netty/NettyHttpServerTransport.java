@@ -24,6 +24,7 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.netty.NettyUtils;
 import org.elasticsearch.common.netty.OpenChannelsHandler;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.common.settings.Settings;
@@ -274,7 +275,7 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
     private void bindAddress(final InetAddress hostAddress) {
         PortsRange portsRange = new PortsRange(port);
         final AtomicReference<Exception> lastException = new AtomicReference<>();
-        final AtomicReference<SocketAddress> boundSocket = new AtomicReference<>();
+        final AtomicReference<InetSocketAddress> boundSocket = new AtomicReference<>();
         boolean success = portsRange.iterate(new PortsRange.PortCallback() {
             @Override
             public boolean onPortNumber(int portNumber) {
@@ -282,7 +283,7 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
                     synchronized (serverChannels) {
                         Channel channel = serverBootstrap.bind(new InetSocketAddress(hostAddress, portNumber));
                         serverChannels.add(channel);
-                        boundSocket.set(channel.getLocalAddress());
+                        boundSocket.set((InetSocketAddress) channel.getLocalAddress());
                     }
                 } catch (Exception e) {
                     lastException.set(e);
@@ -294,7 +295,7 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
         if (!success) {
             throw new BindHttpException("Failed to bind to [" + port + "]", lastException.get());
         }
-        logger.info("Bound http to address [{}]", boundSocket.get());
+        logger.info("Bound http to address {{}}", NetworkAddress.format(boundSocket.get()));
     }
 
     @Override

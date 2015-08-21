@@ -114,22 +114,22 @@ final class IfConfig {
         InetAddress address = interfaceAddress.getAddress();
         if (address instanceof Inet6Address) {
             sb.append("inet6 ");
-            sb.append(address.toString().substring(1));
+            sb.append(NetworkAddress.formatAddress(address));
             sb.append(" prefixlen:");
             sb.append(interfaceAddress.getNetworkPrefixLength());
         } else {
             sb.append("inet ");
-            sb.append(address.toString().substring(1));
+            sb.append(NetworkAddress.formatAddress(address));
             int netmask = 0xFFFFFFFF << (32 - interfaceAddress.getNetworkPrefixLength());
-            sb.append(" netmask:" + InetAddress.getByAddress(new byte[] {
+            sb.append(" netmask:" + NetworkAddress.formatAddress(InetAddress.getByAddress(new byte[] {
                     (byte)(netmask >>> 24), 
                     (byte)(netmask >>> 16 & 0xFF), 
                     (byte)(netmask >>> 8 & 0xFF), 
                     (byte)(netmask & 0xFF) 
-            }).toString().substring(1));
+            })));
             InetAddress broadcast = interfaceAddress.getBroadcast();
             if (broadcast != null) {
-                sb.append(" broadcast:" + broadcast.toString().substring(1));
+                sb.append(" broadcast:" + NetworkAddress.formatAddress(broadcast));
             }
         }
         if (address.isLoopbackAddress()) {

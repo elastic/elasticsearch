@@ -25,6 +25,7 @@ import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeBuilder;
 
+import java.net.InetAddress;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -42,9 +43,9 @@ public class ClientFailover {
         // TODO: what is this? a public static void main test?!?!
 
         final TransportClient client = TransportClient.builder().build()
-                .addTransportAddress(new InetSocketTransportAddress("localhost", 9300))
-                .addTransportAddress(new InetSocketTransportAddress("localhost", 9301))
-                .addTransportAddress(new InetSocketTransportAddress("localhost", 9302));
+                .addTransportAddress(new InetSocketTransportAddress(InetAddress.getByName("localhost"), 9300))
+                .addTransportAddress(new InetSocketTransportAddress(InetAddress.getByName("localhost"), 9301))
+                .addTransportAddress(new InetSocketTransportAddress(InetAddress.getByName("localhost"), 9302));
 
         final AtomicBoolean done = new AtomicBoolean();
         final AtomicLong indexed = new AtomicLong();

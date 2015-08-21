@@ -187,7 +187,7 @@ public abstract class ExtensionPoint {
         protected final void bindExtensions(Binder binder) {
             Multibinder<T> allocationMultibinder = Multibinder.newSetBinder(binder, extensionClass);
             for (Class<? extends T> clazz : extensions) {
-                allocationMultibinder.addBinding().to(clazz);
+                allocationMultibinder.addBinding().to(clazz).asEagerSingleton();
             }
         }
     }

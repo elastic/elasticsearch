@@ -19,18 +19,20 @@
 
 package org.elasticsearch.discovery;
 
-import com.google.common.collect.Lists;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.multibindings.Multibinder;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.ExtensionPoint;
 import org.elasticsearch.discovery.local.LocalDiscovery;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
+import org.elasticsearch.discovery.zen.ping.ZenPing;
 import org.elasticsearch.discovery.zen.ping.ZenPingService;
 import org.elasticsearch.discovery.zen.ping.unicast.UnicastHostsProvider;
+import org.elasticsearch.discovery.zen.ping.unicast.UnicastZenPing;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -44,7 +46,8 @@ public class DiscoveryModule extends AbstractModule {
     public static final String ZEN_MASTER_SERVICE_TYPE_KEY = "discovery.zen.masterservice.type";
 
     private final Settings settings;
-    private final List<Class<? extends UnicastHostsProvider>> unicastHostProviders = Lists.newArrayList();
+    private final List<Class<? extends UnicastHostsProvider>> unicastHostProviders = new ArrayList<>();
+    private final ExtensionPoint.ClassSet<ZenPing> zenPings = new ExtensionPoint.ClassSet<>("zen_ping", ZenPing.class);
     private final Map<String, Class<? extends Discovery>> discoveryTypes = new HashMap<>();
     private final Map<String, Class<? extends ElectMasterService>> masterServiceType = new HashMap<>();
 
@@ -53,6 +56,8 @@ public class DiscoveryModule extends AbstractModule {
         addDiscoveryType("local", LocalDiscovery.class);
         addDiscoveryType("zen", ZenDiscovery.class);
         addElectMasterService("zen", ElectMasterService.class);
+        // always add the unicast hosts, or things get angry!
+        addZenPing(UnicastZenPing.class);
     }
 
     /**
@@ -82,6 +87,10 @@ public class DiscoveryModule extends AbstractModule {
         this.masterServiceType.put(type, masterService);
     }
 
+    public void addZenPing(Class<? extends ZenPing> clazz) {
+        zenPings.registerExtension(clazz);
+    }
+
     @Override
     protected void configure() {
         String defaultType = DiscoveryNode.localNode(settings) ? "local" : "zen";
@@ -107,6 +116,7 @@ public class DiscoveryModule extends AbstractModule {
             for (Class<? extends UnicastHostsProvider> unicastHostProvider : unicastHostProviders) {
                 unicastHostsProviderMultibinder.addBinding().to(unicastHostProvider);
             }
+            zenPings.bind(binder());
         }
         bind(Discovery.class).to(discoveryClass).asEagerSingleton();
         bind(DiscoveryService.class).asEagerSingleton();

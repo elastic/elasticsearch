@@ -263,6 +263,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         }
     }
 
+    @Deprecated // remove in 3.0
     public QuerySearchResult executeScan(ShardSearchRequest request) {
         final SearchContext context = createAndPutContext(request);
         final int originalSize = context.size();
@@ -271,7 +272,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                 throw new IllegalArgumentException("aggregations are not supported with search_type=scan");
             }
 
-            if (context.scroll() == null) {
+            if (context.scrollContext() == null || context.scrollContext().scroll == null) {
                 throw new ElasticsearchException("Scroll must be provided when scanning...");
             }
 
@@ -319,7 +320,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             try {
                 shortcutDocIdsToLoadForScanning(context);
                 fetchPhase.execute(context);
-                if (context.scroll() == null || context.fetchResult().hits().hits().length < context.size()) {
+                if (context.scrollContext() == null || context.fetchResult().hits().hits().length < context.size()) {
                     freeContext(request.id());
                 } else {
                     contextProcessedSuccessfully(context);
@@ -362,7 +363,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
 
             loadOrExecuteQueryPhase(request, context, queryPhase);
 
-            if (context.queryResult().topDocs().scoreDocs.length == 0 && context.scroll() == null) {
+            if (context.queryResult().topDocs().scoreDocs.length == 0 && context.scrollContext() == null) {
                 freeContext(context.id());
             } else {
                 contextProcessedSuccessfully(context);
@@ -416,7 +417,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             shardSearchStats.onPreQueryPhase(context);
             long time = System.nanoTime();
             queryPhase.execute(context);
-            if (context.queryResult().topDocs().scoreDocs.length == 0 && context.scroll() == null) {
+            if (context.queryResult().topDocs().scoreDocs.length == 0 && context.scrollContext() == null) {
                 // no hits, we can release the context since there will be no fetch phase
                 freeContext(context.id());
             } else {
@@ -431,6 +432,16 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             throw ExceptionsHelper.convertToRuntime(e);
         } finally {
             cleanContext(context);
+        }
+    }
+
+    private boolean fetchPhaseShouldFreeContext(SearchContext context) {
+        if (context.scrollContext() == null) {
+            // simple search, no scroll
+            return true;
+        } else {
+            // scroll request, but the scroll was not extended
+            return context.scrollContext().scroll == null;
         }
     }
 
@@ -453,7 +464,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             try {
                 shortcutDocIdsToLoad(context);
                 fetchPhase.execute(context);
-                if (context.scroll() == null) {
+                if (fetchPhaseShouldFreeContext(context)) {
                     freeContext(context.id());
                 } else {
                     contextProcessedSuccessfully(context);
@@ -493,7 +504,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             try {
                 shortcutDocIdsToLoad(context);
                 fetchPhase.execute(context);
-                if (context.scroll() == null) {
+                if (fetchPhaseShouldFreeContext(context)) {
                     freeContext(request.id());
                 } else {
                     contextProcessedSuccessfully(context);
@@ -533,7 +544,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             try {
                 shortcutDocIdsToLoad(context);
                 fetchPhase.execute(context);
-                if (context.scroll() == null) {
+                if (fetchPhaseShouldFreeContext(context)) {
                     freeContext(request.id());
                 } else {
                     contextProcessedSuccessfully(context);
@@ -559,13 +570,13 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         final ShardSearchStats shardSearchStats = context.indexShard().searchService();
         try {
             if (request.lastEmittedDoc() != null) {
-                context.lastEmittedDoc(request.lastEmittedDoc());
+                context.scrollContext().lastEmittedDoc = request.lastEmittedDoc();
             }
             context.docIdsToLoad(request.docIds(), 0, request.docIdsSize());
             shardSearchStats.onPreFetchPhase(context);
             long time = System.nanoTime();
             fetchPhase.execute(context);
-            if (context.scroll() == null) {
+            if (fetchPhaseShouldFreeContext(context)) {
                 freeContext(request.id());
             } else {
                 contextProcessedSuccessfully(context);
@@ -620,7 +631,10 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         SearchContext context = new DefaultSearchContext(idGenerator.incrementAndGet(), request, shardTarget, engineSearcher, indexService, indexShard, scriptService, pageCacheRecycler, bigArrays, threadPool.estimatedTimeInMillisCounter(), parseFieldMatcher, defaultSearchTimeout);
         SearchContext.setCurrent(context);
         try {
-            context.scroll(request.scroll());
+            if (request.scroll() != null) {
+                context.scrollContext(new ScrollContext());
+                context.scrollContext().scroll = request.scroll();
+            }
 
             parseTemplate(request, context);
             parseSource(context, request.source());
@@ -673,7 +687,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         if (context != null) {
             try {
                 context.indexShard().searchService().onFreeContext(context);
-                if (context.scroll() != null) {
+                if (context.scrollContext() != null) {
                     context.indexShard().searchService().onFreeScrollContext(context);
                 }
             } finally {
@@ -686,7 +700,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
 
     public void freeAllScrollContexts() {
         for (SearchContext searchContext : activeContexts.values()) {
-            if (searchContext.scroll() != null) {
+            if (searchContext.scrollContext() != null) {
                 freeContext(searchContext.id());
             }
         }
@@ -880,7 +894,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
     private void processScroll(InternalScrollSearchRequest request, SearchContext context) {
         // process scroll
         context.from(context.from() + context.size());
-        context.scroll(request.scroll());
+        context.scrollContext().scroll = request.scroll();
         // update the context keep alive based on the new scroll value
         if (request.scroll() != null && request.scroll().keepAlive() != null) {
             context.keepAlive(request.scroll().keepAlive().millis());

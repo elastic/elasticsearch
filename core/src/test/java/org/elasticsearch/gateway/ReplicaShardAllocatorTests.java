@@ -21,6 +21,7 @@ package org.elasticsearch.gateway;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -302,7 +303,7 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
                 .metaData(metaData)
                 .routingTable(routingTable)
                 .nodes(DiscoveryNodes.builder().put(node1).put(node2).put(node3)).build();
-        return new RoutingAllocation(deciders, new RoutingNodes(state, false), state.nodes(), null);
+        return new RoutingAllocation(deciders, new RoutingNodes(state, false), state.nodes(), ClusterInfo.EMPTY);
     }
 
     private RoutingAllocation onePrimaryOnNode1And1ReplicaRecovering(AllocationDeciders deciders) {
@@ -321,7 +322,7 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
                 .metaData(metaData)
                 .routingTable(routingTable)
                 .nodes(DiscoveryNodes.builder().put(node1).put(node2).put(node3)).build();
-        return new RoutingAllocation(deciders, new RoutingNodes(state, false), state.nodes(), null);
+        return new RoutingAllocation(deciders, new RoutingNodes(state, false), state.nodes(), ClusterInfo.EMPTY);
     }
 
     class TestAllocator extends ReplicaShardAllocator {

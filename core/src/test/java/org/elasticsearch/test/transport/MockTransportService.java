@@ -362,8 +362,8 @@ public class MockTransportService extends TransportService {
         }
 
         @Override
-        public TransportAddress[] addressesFromString(String address) throws Exception {
-            return transport.addressesFromString(address);
+        public TransportAddress[] addressesFromString(String address, int perAddressLimit) throws Exception {
+            return transport.addressesFromString(address, perAddressLimit);
         }
 
         @Override
@@ -399,6 +399,11 @@ public class MockTransportService extends TransportService {
         @Override
         public long serverOpen() {
             return transport.serverOpen();
+        }
+
+        @Override
+        public List<String> getLocalAddresses() {
+            return transport.getLocalAddresses();
         }
 
         @Override

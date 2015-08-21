@@ -28,6 +28,7 @@ import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeBuilder;
 
+import java.net.InetAddress;
 import java.util.Date;
 
 /**
@@ -49,7 +50,7 @@ public class ManyIndicesRemoteStressTest {
         Node node = null;
         // TODO: what is this? a public static void main test?!?!?!
         if (true) {
-            client = TransportClient.builder().settings(Settings.EMPTY).build().addTransportAddress(new InetSocketTransportAddress("localhost", 9300));
+            client = TransportClient.builder().settings(Settings.EMPTY).build().addTransportAddress(new InetSocketTransportAddress(InetAddress.getByName("localhost"), 9300));
         } else {
             node = NodeBuilder.nodeBuilder().client(true).node();
             client = node.client();

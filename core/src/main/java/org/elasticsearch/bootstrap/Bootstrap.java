@@ -291,7 +291,7 @@ public class Bootstrap {
                 Loggers.enableConsoleLogging();
             }
             
-            throw e;
+            throw new StartupError(e);
         }
     }
 

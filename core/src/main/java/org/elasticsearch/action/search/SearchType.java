@@ -54,7 +54,9 @@ public enum SearchType {
     /**
      * Performs scanning of the results which executes the search without any sorting.
      * It will automatically start scrolling the result set.
+     * @deprecated will be removed in 3.0, you should do a regular scroll instead, ordered by `_doc`
      */
+    @Deprecated
     SCAN((byte) 4),
     /**
      * Only counts the results, will still execute aggregations and the like.
@@ -69,6 +71,7 @@ public enum SearchType {
     public static final SearchType DEFAULT = QUERY_THEN_FETCH;
 
     private static final ParseField COUNT_VALUE = new ParseField("count").withAllDeprecated("query_then_fetch");
+    private static final ParseField SCAN_VALUE = new ParseField("scan").withAllDeprecated("query_then_fetch sorting on `_doc`");
 
     private byte id;
 
@@ -121,7 +124,7 @@ public enum SearchType {
             return SearchType.QUERY_THEN_FETCH;
         } else if ("query_and_fetch".equals(searchType)) {
             return SearchType.QUERY_AND_FETCH;
-        } else if ("scan".equals(searchType)) {
+        } else if (parseFieldMatcher.match(searchType, SCAN_VALUE)) {
             return SearchType.SCAN;
         } else if (parseFieldMatcher.match(searchType, COUNT_VALUE)) {
             return SearchType.COUNT;

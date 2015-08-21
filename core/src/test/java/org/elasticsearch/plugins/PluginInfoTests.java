@@ -176,6 +176,25 @@ public class PluginInfoTests extends ESTestCase {
         }
     }
 
+    public void testReadFromPropertiesBadJavaVersionFormat() throws Exception {
+        String pluginName = "fake-plugin";
+        Path pluginDir = createTempDir().resolve(pluginName);
+        writeProperties(pluginDir,
+                "description", "fake desc",
+                "name", pluginName,
+                "elasticsearch.version", Version.CURRENT.toString(),
+                "java.version", "1.7.0_80",
+                "classname", "FakePlugin",
+                "version", "1.0",
+                "jvm", "true");
+        try {
+            PluginInfo.readFromProperties(pluginDir);
+            fail("expected bad java version format exception");
+        } catch (IllegalStateException e) {
+            assertTrue(e.getMessage(), e.getMessage().equals("version string must be a sequence of nonnegative decimal integers separated by \".\"'s and may have leading zeros but was 1.7.0_80"));
+        }
+    }
+
     public void testReadFromPropertiesBogusElasticsearchVersion() throws Exception {
         Path pluginDir = createTempDir().resolve("fake-plugin");
         writeProperties(pluginDir,

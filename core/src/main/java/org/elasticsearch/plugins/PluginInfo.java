@@ -120,6 +120,7 @@ public class PluginInfo implements Streamable, ToXContent {
             if (javaVersionString == null) {
                 throw new IllegalArgumentException("Property [java.version] is missing for jvm plugin [" + name + "]");
             }
+            JarHell.checkVersionFormat(javaVersionString);
             JarHell.checkJavaVersion(name, javaVersionString);
             isolated = Boolean.parseBoolean(props.getProperty("isolated", "true"));
             classname = props.getProperty("classname");

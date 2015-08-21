@@ -20,33 +20,13 @@
 package org.elasticsearch.plugins;
 
 import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.inject.PreProcessModule;
-import org.elasticsearch.common.inject.SpawnModules;
-import org.elasticsearch.common.settings.Settings;
 
-/**
- *
- */
-public class PluginsModule extends AbstractModule implements SpawnModules, PreProcessModule {
-
-    private final Settings settings;
+public class PluginsModule extends AbstractModule {
 
     private final PluginsService pluginsService;
 
-    public PluginsModule(Settings settings, PluginsService pluginsService) {
-        this.settings = settings;
+    public PluginsModule(PluginsService pluginsService) {
         this.pluginsService = pluginsService;
-    }
-
-    @Override
-    public Iterable<? extends Module> spawnModules() {
-        return pluginsService.nodeModules();
-    }
-
-    @Override
-    public void processModule(Module module) {
-        pluginsService.processModule(module);
     }
 
     @Override

@@ -18,6 +18,8 @@ import org.elasticsearch.license.plugin.core.LicensesClientService;
 import org.elasticsearch.shield.ShieldPlugin;
 
 import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 import java.util.Locale;
 
 /**
@@ -35,6 +37,7 @@ public class LicenseService extends AbstractLifecycleComponent<LicenseService> {
     private final LicensesClientService licensesClientService;
     private final LicenseEventsNotifier notifier;
     private final Collection<LicensesClientService.ExpirationCallback> expirationLoggers;
+    private final LicensesClientService.AcknowledgementCallback acknowledgementCallback;
 
     private boolean enabled = false;
 
@@ -78,6 +81,15 @@ public class LicenseService extends AbstractLifecycleComponent<LicenseService> {
                     }
                 }
         );
+        this.acknowledgementCallback = new LicensesClientService.AcknowledgementCallback() {
+            @Override
+            public List<String> acknowledge(License currentLicense, License newLicense) {
+                // TODO: add messages to be acknowledged when installing newLicense from currentLicense
+                // NOTE: currentLicense can be null, as a license registration can happen before
+                // a trial license could be generated
+                return Collections.emptyList();
+            }
+        };
     }
 
     public synchronized boolean enabled() {
@@ -87,7 +99,7 @@ public class LicenseService extends AbstractLifecycleComponent<LicenseService> {
     @Override
     protected void doStart() throws ElasticsearchException {
         if (settings.getGroups("tribe", true).isEmpty()) {
-            licensesClientService.register(FEATURE_NAME, TRIAL_LICENSE_OPTIONS, expirationLoggers, null, new InternalListener());
+            licensesClientService.register(FEATURE_NAME, TRIAL_LICENSE_OPTIONS, expirationLoggers, acknowledgementCallback, new InternalListener());
         } else {
             //TODO currently we disable licensing on tribe node. remove this once es core supports merging cluster
             new InternalListener().onEnabled(null);

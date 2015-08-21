@@ -19,10 +19,7 @@ import org.elasticsearch.license.plugin.core.LicensesService;
 import org.elasticsearch.marvel.MarvelPlugin;
 import org.elasticsearch.marvel.mode.Mode;
 
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.List;
-import java.util.Locale;
+import java.util.*;
 
 public class LicenseService extends AbstractLifecycleComponent<LicenseService> {
 
@@ -36,6 +33,7 @@ public class LicenseService extends AbstractLifecycleComponent<LicenseService> {
     private final LicensesManagerService managerService;
     private final LicensesClientService clientService;
     private final Collection<LicensesService.ExpirationCallback> expirationLoggers;
+    private final LicensesClientService.AcknowledgementCallback acknowledgementCallback;
 
     private volatile Mode mode;
 
@@ -77,11 +75,20 @@ public class LicenseService extends AbstractLifecycleComponent<LicenseService> {
                     }
                 }
         );
+        this.acknowledgementCallback = new LicensesClientService.AcknowledgementCallback() {
+            @Override
+            public List<String> acknowledge(License currentLicense, License newLicense) {
+                // TODO: add messages to be acknowledged when installing newLicense from currentLicense
+                // NOTE: currentLicense can be null, as a license registration can happen before
+                // a trial license could be generated
+                return Collections.emptyList();
+            }
+        };
     }
 
     @Override
     protected void doStart() throws ElasticsearchException {
-        clientService.register(FEATURE_NAME, TRIAL_LICENSE_OPTIONS, expirationLoggers, null, new InternalListener(this));
+        clientService.register(FEATURE_NAME, TRIAL_LICENSE_OPTIONS, expirationLoggers, acknowledgementCallback, new InternalListener(this));
     }
 
     @Override

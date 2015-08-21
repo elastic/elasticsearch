@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
@@ -38,6 +39,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.netty.NettyTransport;
 import org.junit.Test;
+
+import java.net.InetSocketAddress;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -68,8 +71,8 @@ public class UnicastZenPingIT extends ESTestCase {
         InetSocketTransportAddress addressB = (InetSocketTransportAddress) transportB.boundAddress().publishAddress();
 
         Settings hostsSettings = Settings.settingsBuilder().putArray("discovery.zen.ping.unicast.hosts",
-                addressA.address().getAddress().getHostAddress() + ":" + addressA.address().getPort(),
-                addressB.address().getAddress().getHostAddress() + ":" + addressB.address().getPort())
+                NetworkAddress.formatAddress(new InetSocketAddress(addressA.address().getAddress(), addressA.address().getPort())),
+                NetworkAddress.formatAddress(new InetSocketAddress(addressB.address().getAddress(), addressB.address().getPort())))
                 .build();
 
         UnicastZenPing zenPingA = new UnicastZenPing(hostsSettings, threadPool, transportServiceA, clusterName, Version.CURRENT, electMasterService, null);

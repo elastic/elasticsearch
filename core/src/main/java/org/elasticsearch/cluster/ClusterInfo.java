@@ -30,7 +30,7 @@ import java.util.Map;
  * <code>InternalClusterInfoService.shardIdentifierFromRouting(String)</code>
  * for the key used in the shardSizes map
  */
-public final class ClusterInfo {
+public class ClusterInfo {
 
     private final Map<String, DiskUsage> usages;
     final Map<String, Long> shardSizes;
@@ -52,6 +52,11 @@ public final class ClusterInfo {
 
     public Long getShardSize(ShardRouting shardRouting) {
         return shardSizes.get(shardIdentifierFromRouting(shardRouting));
+    }
+
+    public long getShardSize(ShardRouting shardRouting, long defaultValue) {
+        Long shardSize = getShardSize(shardRouting);
+        return shardSize == null ? defaultValue : shardSize;
     }
 
     /**

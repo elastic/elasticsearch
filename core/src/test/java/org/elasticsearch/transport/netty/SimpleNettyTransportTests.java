@@ -31,6 +31,9 @@ import org.elasticsearch.transport.AbstractSimpleTransportTests;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.junit.Test;
 
+import java.net.InetAddress;
+import java.net.UnknownHostException;
+
 public class SimpleNettyTransportTests extends AbstractSimpleTransportTests {
 
     @Override
@@ -44,7 +47,7 @@ public class SimpleNettyTransportTests extends AbstractSimpleTransportTests {
     }
 
     @Test(expected = ConnectTransportException.class)
-    public void testConnectException() {
-        serviceA.connectToNode(new DiscoveryNode("C", new InetSocketTransportAddress("localhost", 9876), Version.CURRENT));
+    public void testConnectException() throws UnknownHostException {
+        serviceA.connectToNode(new DiscoveryNode("C", new InetSocketTransportAddress(InetAddress.getByName("localhost"), 9876), Version.CURRENT));
     }
 }

@@ -231,7 +231,7 @@ public class AllocateAllocationCommand implements AllocationCommand {
                 unassigned.updateUnassignedInfo(new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED,
                         "force allocation from previous reason " + unassigned.unassignedInfo().getReason() + ", " + unassigned.unassignedInfo().getMessage(), unassigned.unassignedInfo().getFailure()));
             }
-            it.initialize(routingNode.nodeId());
+            it.initialize(routingNode.nodeId(), unassigned.version(), allocation.clusterInfo().getShardSize(unassigned, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE));
             break;
         }
         return new RerouteExplanation(this, decision);

@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -64,7 +65,10 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
 
     public static final String ACTION_NAME = "internal:discovery/zen/unicast";
 
-    public static final int LIMIT_PORTS_COUNT = 1;
+    // these limits are per-address
+    public static final int LIMIT_FOREIGN_PORTS_COUNT = 1;
+    public static final int LIMIT_LOCAL_PORTS_COUNT = 5;
+
 
     private final ThreadPool threadPool;
     private final TransportService transportService;
@@ -96,6 +100,7 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
 
     private volatile boolean closed = false;
 
+    @Inject
     public UnicastZenPing(Settings settings, ThreadPool threadPool, TransportService transportService, ClusterName clusterName,
                           Version version, ElectMasterService electMasterService, @Nullable Set<UnicastHostsProvider> unicastHostsProviders) {
         super(settings);
@@ -117,15 +122,24 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
             hostArr[i] = hostArr[i].trim();
         }
         List<String> hosts = Lists.newArrayList(hostArr);
+        final int limitPortCounts;
+        if (hosts.isEmpty()) {
+            // if unicast hosts are not specified, fill with simple defaults on the local machine
+            limitPortCounts = LIMIT_LOCAL_PORTS_COUNT;
+            hosts.addAll(transportService.getLocalAddresses());
+        } else {
+            // we only limit to 1 addresses, makes no sense to ping 100 ports
+            limitPortCounts = LIMIT_FOREIGN_PORTS_COUNT;
+        }
+
         logger.debug("using initial hosts {}, with concurrent_connects [{}]", hosts, concurrentConnects);
 
         List<DiscoveryNode> configuredTargetNodes = Lists.newArrayList();
         for (String host : hosts) {
             try {
-                TransportAddress[] addresses = transportService.addressesFromString(host);
-                // we only limit to 1 addresses, makes no sense to ping 100 ports
-                for (int i = 0; (i < addresses.length && i < LIMIT_PORTS_COUNT); i++) {
-                    configuredTargetNodes.add(new DiscoveryNode(UNICAST_NODE_PREFIX + unicastNodeIdGenerator.incrementAndGet() + "#", addresses[i], version.minimumCompatibilityVersion()));
+                TransportAddress[] addresses = transportService.addressesFromString(host, limitPortCounts);
+                for (TransportAddress address : addresses) {
+                    configuredTargetNodes.add(new DiscoveryNode(UNICAST_NODE_PREFIX + unicastNodeIdGenerator.incrementAndGet() + "#", address, version.minimumCompatibilityVersion()));
                 }
             } catch (Exception e) {
                 throw new IllegalArgumentException("Failed to resolve address for [" + host + "]", e);

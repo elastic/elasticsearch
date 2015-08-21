@@ -20,6 +20,7 @@ package org.elasticsearch.plugins;
 
 import com.google.common.base.Charsets;
 import com.google.common.hash.Hashing;
+
 import org.apache.http.impl.client.HttpClients;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
@@ -51,8 +52,10 @@ import org.junit.Test;
 import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLSocketFactory;
+
 import java.io.BufferedWriter;
 import java.io.IOException;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.FileVisitResult;
@@ -605,7 +608,7 @@ public class PluginManagerIT extends ESIntegTestCase {
                 }
             });
 
-            Channel channel = serverBootstrap.bind(new InetSocketAddress("localhost", 0));
+            Channel channel = serverBootstrap.bind(new InetSocketAddress(InetAddress.getByName("localhost"), 0));
             int port = ((InetSocketAddress) channel.getLocalAddress()).getPort();
             // IO_ERROR because there is no real file delivered...
             assertStatus(String.format(Locale.ROOT, "install https://user:pass@localhost:%s/foo.zip --verbose --timeout 1s", port), ExitStatus.IO_ERROR);
@@ -645,7 +648,6 @@ public class PluginManagerIT extends ESIntegTestCase {
 
     private Tuple<Settings, Environment> buildInitialSettings() throws IOException {
         Settings settings = settingsBuilder()
-                .put("discovery.zen.ping.multicast.enabled", false)
                 .put("http.enabled", true)
                 .put("path.home", createTempDir()).build();
         return InternalSettingsPreparer.prepareSettings(settings, false);

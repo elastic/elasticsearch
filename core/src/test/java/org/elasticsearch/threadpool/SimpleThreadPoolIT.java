@@ -23,7 +23,6 @@ import com.google.common.collect.Sets;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.common.network.MulticastChannel;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -112,8 +111,7 @@ public class SimpleThreadPoolIT extends ESIntegTestCase {
         for (String threadName : threadNames) {
             // ignore some shared threads we know that are created within the same VM, like the shared discovery one
             // or the ones that are occasionally come up from ESSingleNodeTestCase
-            if (threadName.contains("[" + MulticastChannel.SHARED_CHANNEL_NAME + "]")
-                    || threadName.contains("[" + ESSingleNodeTestCase.nodeName() + "]")
+            if (threadName.contains("[" + ESSingleNodeTestCase.nodeName() + "]")
                     || threadName.contains("Keep-Alive-Timer")) {
                 continue;
             }

@@ -40,6 +40,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import static org.elasticsearch.action.search.type.TransportSearchHelper.buildScrollId;
 
+@Deprecated // remove in 3.0
 public class TransportSearchScanAction extends TransportSearchTypeAction {
 
     @Inject

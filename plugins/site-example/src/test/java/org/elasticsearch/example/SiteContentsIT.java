@@ -22,6 +22,7 @@ package org.elasticsearch.example;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ExternalTestCluster;
 import org.elasticsearch.test.TestCluster;
@@ -46,7 +47,7 @@ public class SiteContentsIT extends ESIntegTestCase {
             for (InetSocketAddress address :  externalCluster.httpAddresses()) {
                 RestResponse restResponse = new RestResponse(
                         new HttpRequestBuilder(httpClient)
-                        .host(address.getHostName()).port(address.getPort())
+                        .host(NetworkAddress.formatAddress(address.getAddress())).port(address.getPort())
                         .path("/_plugin/site-example/")
                         .method("GET").execute());
                 assertEquals(200, restResponse.getStatusCode());

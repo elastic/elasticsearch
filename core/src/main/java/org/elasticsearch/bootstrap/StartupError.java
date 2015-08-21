@@ -71,7 +71,7 @@ class StartupError extends RuntimeException {
                 cause = cause.getCause();
             }
 
-            if (cause != originalCause) {
+            if (cause != originalCause && (message.equals(cause.toString()) == false)) {
                 s.println("Likely root cause: " + cause);
             }
             StackTraceElement stack[] = cause.getStackTrace();

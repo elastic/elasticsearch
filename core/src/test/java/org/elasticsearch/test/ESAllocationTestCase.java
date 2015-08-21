@@ -19,6 +19,7 @@
 package org.elasticsearch.test;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
@@ -63,7 +64,7 @@ public abstract class ESAllocationTestCase extends ESTestCase {
     }
 
     public static AllocationService createAllocationService(Settings settings, Random random) {
-        return createAllocationService(settings,  new NodeSettingsService(Settings.Builder.EMPTY_SETTINGS), random);
+        return createAllocationService(settings, new NodeSettingsService(Settings.Builder.EMPTY_SETTINGS), random);
     }
 
     public static AllocationService createAllocationService(Settings settings, NodeSettingsService nodeSettingsService, Random random) {
@@ -71,6 +72,13 @@ public abstract class ESAllocationTestCase extends ESTestCase {
                 randomAllocationDeciders(settings, nodeSettingsService, random),
                 new ShardsAllocators(settings, NoopGatewayAllocator.INSTANCE), EmptyClusterInfoService.INSTANCE);
     }
+
+    public static AllocationService createAllocationService(Settings settings, ClusterInfoService clusterInfoService) {
+        return new AllocationService(settings,
+                randomAllocationDeciders(settings, new NodeSettingsService(Settings.Builder.EMPTY_SETTINGS), getRandom()),
+                new ShardsAllocators(settings, NoopGatewayAllocator.INSTANCE), clusterInfoService);
+    }
+
 
 
     public static AllocationDeciders randomAllocationDeciders(Settings settings, NodeSettingsService nodeSettingsService, Random random) {

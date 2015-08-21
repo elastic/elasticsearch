@@ -87,21 +87,13 @@ public class NetworkAddressTests extends ESTestCase {
     
     /** creates address without any lookups. hostname can be null, for missing */
     private InetAddress forge(String hostname, String address) throws IOException {
-        if (hostname == null) {
-            return InetAddress.getByName(address);
-        } else {
-            byte bytes[] = InetAddress.getByName(address).getAddress();
-            return InetAddress.getByAddress(hostname, bytes);
-        }
+        byte bytes[] = InetAddress.getByName(address).getAddress();
+        return InetAddress.getByAddress(hostname, bytes);
     }
     
     /** creates scoped ipv6 address without any lookups. hostname can be null, for missing */
     private InetAddress forgeScoped(String hostname, String address, int scopeid) throws IOException {
         byte bytes[] = InetAddress.getByName(address).getAddress();
-        if (hostname == null) {
-            return Inet6Address.getByAddress(hostname, bytes);
-        } else {
-            return Inet6Address.getByAddress(hostname, bytes, scopeid);
-        }
+        return Inet6Address.getByAddress(hostname, bytes, scopeid);
     }
 }

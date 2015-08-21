@@ -88,6 +88,8 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
 
     private String timeZone;
 
+    private Boolean escape;
+
     /** To limit effort spent determinizing regexp queries. */
     private Integer maxDeterminizedStates;
 
@@ -318,6 +320,14 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         return this;
     }
 
+    /**
+     * Set to <tt>true</tt> to enable escaping of the query string
+     */
+    public QueryStringQueryBuilder escape(boolean escape) {
+        this.escape = escape;
+        return this;
+    }
+
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
@@ -400,6 +410,9 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         }
         if (timeZone != null) {
             builder.field("time_zone", timeZone);
+        }
+        if (escape != null) {
+            builder.field("escape", escape);
         }
         printBoostAndQueryName(builder);
         builder.endObject();

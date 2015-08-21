@@ -24,7 +24,6 @@ import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.base.Charsets;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
-
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
@@ -46,6 +45,7 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.Inject;
@@ -60,12 +60,15 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.IndexQueryParserService;
-import org.elasticsearch.index.IndexService;
-import org.elasticsearch.indices.*;
+import org.elasticsearch.indices.IndexAlreadyExistsException;
+import org.elasticsearch.indices.IndexCreationException;
+import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.joda.time.DateTime;
@@ -514,6 +517,15 @@ public class MetaDataCreateIndexService extends AbstractComponent {
     }
 
     public void validateIndexSettings(String indexName, Settings settings) throws IndexCreationException {
+        List<String> validationErrors = getIndexSettingsValidationErrors(settings);
+        if (validationErrors.isEmpty() == false) {
+            ValidationException validationException = new ValidationException();
+            validationException.addValidationErrors(validationErrors);
+            throw new IndexCreationException(new Index(indexName), validationException);
+        }
+    }
+
+    List<String> getIndexSettingsValidationErrors(Settings settings) {
         String customPath = settings.get(IndexMetaData.SETTING_DATA_PATH, null);
         List<String> validationErrors = Lists.newArrayList();
         if (customPath != null && env.sharedDataFile() == null) {
@@ -530,22 +542,9 @@ public class MetaDataCreateIndexService extends AbstractComponent {
             validationErrors.add("index must have 1 or more primary shards");
         }
         if (number_of_replicas != null && number_of_replicas < 0) {
-           validationErrors.add("index must have 0 or more replica shards");
+            validationErrors.add("index must have 0 or more replica shards");
         }
-        if (validationErrors.isEmpty() == false) {
-            throw new IndexCreationException(new Index(indexName),
-                new IllegalArgumentException(getMessage(validationErrors)));
-        }
-    }
-
-    private String getMessage(List<String> validationErrors) {
-        StringBuilder sb = new StringBuilder();
-        sb.append("Validation Failed: ");
-        int index = 0;
-        for (String error : validationErrors) {
-            sb.append(++index).append(": ").append(error).append(";");
-        }
-        return sb.toString();
+        return validationErrors;
     }
 
     private static class DefaultIndexTemplateFilter implements IndexTemplateFilter {

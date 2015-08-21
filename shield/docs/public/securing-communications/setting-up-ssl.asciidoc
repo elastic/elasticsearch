@@ -75,7 +75,7 @@ keytool -genkey -alias node01 -keystore node01.jks -keyalg RSA -keysize 2048 -va
 This command creates an RSA private key with a key size of 2048 bits and a public certificate that 
 is valid for 712 days. The key and certificate are stored in the `node01.jks` keystore. 
 +
-The `san` value specifies all alternative names for the node. The generated certificate is valid for the DNS names and IP addresses specified as alternative names. You can specify multiple DNS or IP address entries as a comma-separated list. 
+The `san` value specifies all alternative names for the node. The generated certificate is valid for the DNS names and IP addresses specified as alternative names. You can specify multiple DNS or IP address entries as a comma-separated list.
 +
 [IMPORTANT]
 .Specifying the Node Identity
@@ -123,6 +123,12 @@ Enter key password for <node01> <2>
 --------------------------------------------------
 <1> Provides information about the node that this certificate is intended for. In the past, this field specified the node's identity using a DNS name, but that behavior has been deprecated.
 <2> If you don't specify a password for the certificate, the keystore password is used. 
++
+[IMPORTANT]
+.Extended Key Usage
+==========================
+The Extended Key Usage attribute in a certificate is used to indicate the purpose of the key. By default `keytool` does not set this attribute in the certificate. If you are generating your certificates with another tool, please ensure the certificates support both `serverAuth` and `clientAuth` if the Extended Key Usage attribute is set.
+==========================
 
 [float]
 [[generate-csr]]

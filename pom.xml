@@ -976,7 +976,7 @@
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-eclipse-plugin</artifactId>
-                    <version>2.9</version>
+                    <version>2.10</version>
                     <configuration>
                         <buildOutputDirectory>eclipse-build</buildOutputDirectory>
                         <downloadSources>true</downloadSources>

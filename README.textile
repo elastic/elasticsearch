@@ -12,29 +12,46 @@ bc.. .
 |- pom.xml
 |- src
    |- main
-      |- assemblies
-      |  |- plugin.xml
+   |  |- java
+   |  |  |- ... source code ...
+   |- test
       |- java
       |  |- ... source code ...
       |- resources
-         |- es-plugin.properties
+         |- ... test resources ...
+
 
 p. An Elasticsearch plugin can be created by following these six steps.
 
 * Create pom.xml file in the root directory of your plugin. The "pom.xml":https://github.com/imotov/elasticsearch-native-script-example/blob/master/pom.xml file in this project can be used as a starting point.
 * Create source code directories:
-** @mkdir -p src/main/assemblies@
 ** @mkdir -p src/main/java@
-** @mkdir -p src/main/resources@
-* Download "plugin.xml":https://github.com/imotov/elasticsearch-native-script-example/blob/master/src/main/assemblies/plugin.xml to the @src/main/assemblies@ directory. This file specifies how plugin .zip package should be built. By default, the project artifact with all its dependencies is going to be included in the plugin package. For more information on how to configure the content of the package, see "Maven Assembly Plugin Documentation":http://maven.apache.org/plugins/maven-assembly-plugin/.
+** @mkdir -p src/test/java@
+** @mkdir -p src/test/resources@
+* The parent project @org.elasticsearch.plugin:plugins@ provides all needed tasks to assemble the plugin. It is using the following properties that should be modified to match the project's plugin class name and license file definition.
+
+bc.. <properties>
+    <!-- define class name for the descriptor file -->
+    <elasticsearch.plugin.classname>org.elasticsearch.examples.nativescript.plugin.NativeScriptExamplesPlugin</elasticsearch.plugin.classname>
+
+    <!-- we have custom licence header in this project -->
+    <elasticsearch.license.header>${project.basedir}/dev-tools/src/main/resources/license-check/native_script_example_license_header.txt</elasticsearch.license.header>
+    <elasticsearch.license.headerDefinition>${project.basedir}/dev-tools/src/main/resources/license-check/license_header_definition.xml</elasticsearch.license.headerDefinition>
+
+    ... other properties ......
+
+</properties>
+
+p.
+
 * Create main Plugin class in the @src/main/java@ directory. This project is using @org.elasticsearch.examples.nativescript.plugin.NativeScriptExamplesPlugin@ class as an example, so the it has to be saved as @src/main/java/org/elasticsearch/examples/nativescript/plugin/NativeScriptExamplesPlugin.java@
 
 bc.. package org.elasticsearch.examples.nativescript.plugin;
 
-import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptModule;
 
-public class NativeScriptExamplesPlugin extends AbstractPlugin {
+public class NativeScriptExamplesPlugin extends Plugin {
     @Override
     public String name() {
         return "native-script-examples";
@@ -46,13 +63,23 @@ public class NativeScriptExamplesPlugin extends AbstractPlugin {
     }
 }
 
-p. 
+p.
 
-* Create @es-plugin.properties@ file in the @src/main/resources@ directory to point to the Plugin class that was created in the previous step:
-
-bc. plugin=org.elasticsearch.examples.nativescript.plugin.NativeScriptExamplesPlugin
+* The parent project will automatically create @plugin-descriptor.properties@ for you.
+* If you are not using the standard parent project, you can create this file manually by using this "plugin-descriptor.properties":https://github.com/elastic/elasticsearch/blob/master/dev-tools/src/main/resources/plugin-metadata/plugin-descriptor.properties as a template. You will also need to package the plugin into .zip file, which can be done using maven assemble task and "plugin-assembly.xml":https://github.com/elastic/elasticsearch/blob/master/dev-tools/src/main/resources/plugin-metadata/plugin-assembly.xml assembly definition.
 
 * The plugin can be built using @mvn package@ command. The assembled .zip package can be found in the @target/releases/@ directory and deployed to elasticsearch installation using @plugin -install plugin-name -url path/to/plugin/zip/file@.
+
+h2. Migration from 1.x
+
+p. The plugin infrastructure significantly changed in 2.0. So, the plugin project will need to be modified in order to be used with elasticsearch 2.0:
+
+* Instead of using @es-plugin.properties@ file that in 1.x was places in the plugin jar, the plugin infrastructure is now using  the @plugin-descriptor.properties@ file that describes not only the main plugin class, version and description but also plugin type (_site and/or jvm), required minimal java and Elasticsearch versions. The  @plugin-descriptor.properties@ file should be placed into root directory of the .zip file that the plugin is packaged into. The simplest way to deal with this change is by switching the plugin project to @org.elasticsearch.plugin:plugins@ as a parent.
+* Elasticsearch 2.0 is also stricter when it comes to plugin classes. For example, the "jar hell" prevention mechanism will not allow the plugin to contain classes that are already defined in the Elasticsearch classpath. Make sure that your project doesn't have any dependencies that are conflicting with existing elasticsearch classes.
+* In 2.0 the base class for the plugin was renamed from @AbstractPlugin@ to @Plugin@
+* Plugins are no longer loaded from the classpath, so they have to be "explicitly loaded":https://github.com/imotov/elasticsearch-native-script-example/commit/96f8b93f27f80346503dfa91e564b87c9334fbdf in the tests.
+* Some base test classes need to be "renamed":https://github.com/imotov/elasticsearch-native-script-example/commit/6c4ba4ab967b938fd06200b51e78dcf523861c40.
+* Native scripts now have to "indicate":https://github.com/imotov/elasticsearch-native-script-example/commit/4cda2ccdaa8094c5de3e86ccfeea0fe56b26d353 whether they use the `_score` or not.
 
 h2. Adding Native Scripts
 

@@ -76,10 +76,10 @@
 
     <startup-elasticsearch>
       <additional-args>
-        <arg value="-Dshield.authc.realms.custom.order=0"/>
-        <arg value="-Dshield.authc.realms.custom.type=custom"/>
-        <arg value="-Dshield.authc.realms.esusers.order=1"/>
-        <arg value="-Dshield.authc.realms.esusers.type=esusers"/>
+        <arg value="-Des.shield.authc.realms.custom.order=0"/>
+        <arg value="-Des.shield.authc.realms.custom.type=custom"/>
+        <arg value="-Des.shield.authc.realms.esusers.order=1"/>
+        <arg value="-Des.shield.authc.realms.esusers.type=esusers"/>
       </additional-args>
     </startup-elasticsearch>
 

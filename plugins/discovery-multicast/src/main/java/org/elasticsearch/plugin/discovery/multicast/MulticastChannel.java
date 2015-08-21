@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.common.network;
+package org.elasticsearch.plugin.discovery.multicast;
 
 import com.google.common.collect.Maps;
 

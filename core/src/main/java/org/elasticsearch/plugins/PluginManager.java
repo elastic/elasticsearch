@@ -84,6 +84,7 @@ public class PluginManager {
                     "cloud-azure",
                     "cloud-gce",
                     "delete-by-query",
+                    "discovery-multicast",
                     "lang-javascript",
                     "lang-python",
                     "mapper-murmur3",

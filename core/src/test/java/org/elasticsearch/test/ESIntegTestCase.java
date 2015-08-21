@@ -1999,24 +1999,4 @@ public abstract class ESIntegTestCase extends ESTestCase {
     @Inherited
     public @interface SuppressNetworkMode {}
 
-    /**
-     * Annotation used to set if working multicast is required to run the test.
-     * By default, tests annotated with @Multicast won't be executed.
-     * Set -Dtests.multicast=true when running test to launch multicast tests
-     */
-    @Retention(RetentionPolicy.RUNTIME)
-    @Inherited
-    @TestGroup(enabled = false, sysProperty = "tests.multicast")
-    public @interface Multicast {
-    }
-
-
-    /**
-     * Returns true if tests can use multicast. Default is false.
-     * To disable an entire test use {@link org.elasticsearch.test.ESIntegTestCase.Multicast} instead
-     */
-    protected boolean canUseMuticast() {
-        return Boolean.parseBoolean(System.getProperty("tests.multicast", "false"));
-    }
-
 }

@@ -314,6 +314,14 @@
 
                  <artifactItem>
                    <groupId>org.elasticsearch.plugin</groupId>
+                   <artifactId>discovery-multicast</artifactId>
+                   <version>${elasticsearch.version}</version>
+                   <type>zip</type>
+                   <overWrite>true</overWrite>
+                 </artifactItem>
+
+                 <artifactItem>
+                   <groupId>org.elasticsearch.plugin</groupId>
                    <artifactId>lang-python</artifactId>
                    <version>${elasticsearch.version}</version>
                    <type>zip</type>

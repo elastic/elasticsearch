@@ -30,6 +30,7 @@
 
 # Load test utilities
 load packaging_test_utils
+load tar
 
 setup() {
     skip_not_tar_gz
@@ -61,13 +62,12 @@ setup() {
 
     count=$(find /tmp -type d -name 'elasticsearch*' | wc -l)
     [ "$count" -eq 1 ]
-}
 
-##################################
-# Check that the archive is correctly installed
-##################################
-@test "[TAR] verify archive installation" {
-    verify_archive_installation "/tmp/elasticsearch"
+    # Its simpler to check that the install was correct in this test rather
+    # than in another test because install_archive sets a number of path
+    # variables that verify_archive_installation reads. To separate this into
+    # another test you'd have to recreate the variables.
+    verify_archive_installation
 }
 
 ##################################

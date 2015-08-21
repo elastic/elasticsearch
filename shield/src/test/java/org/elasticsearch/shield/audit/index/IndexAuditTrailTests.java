@@ -161,7 +161,7 @@ public class IndexAuditTrailTests extends ShieldIntegTestCase {
             Settings.Builder builder = Settings.builder()
                     .put(settings)
                     .put(ShieldPlugin.ENABLED_SETTING_NAME, useShield)
-                    .put(remoteSettings(NetworkAddress.format(inet.address().getAddress()), inet.address().getPort(), cluster2Name))
+                    .put(remoteSettings(NetworkAddress.formatAddress(inet.address().getAddress()), inet.address().getPort(), cluster2Name))
                     .put("shield.audit.index.client.shield.user", ShieldSettingsSource.DEFAULT_USER_NAME + ":" + ShieldSettingsSource.DEFAULT_PASSWORD);
 
             if (useSSL) {

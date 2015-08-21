@@ -90,6 +90,15 @@
                     </execution>
                 </executions>
             </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-eclipse-plugin</artifactId>
+                <configuration>
+                    <!-- Many of the modules in this build have the artifactId "elasticsearch"
+                      which break importing into Eclipse without this. -->
+                    <projectNameTemplate>[groupId].[artifactId]</projectNameTemplate>
+                </configuration>
+            </plugin>
         </plugins>
 
         <pluginManagement>

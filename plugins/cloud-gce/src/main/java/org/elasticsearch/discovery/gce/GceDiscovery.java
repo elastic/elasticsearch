@@ -45,7 +45,5 @@ public class GceDiscovery extends ZenDiscovery {
                         ElectMasterService electMasterService) {
         super(settings, clusterName, threadPool, transportService, clusterService, nodeSettingsService,
                 pingService, electMasterService, discoverySettings);
-
-        // See related issue in AWS plugin https://github.com/elastic/elasticsearch-cloud-aws/issues/179
     }
 }

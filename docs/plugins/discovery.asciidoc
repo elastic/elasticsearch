@@ -26,6 +26,10 @@ support for using Azure as a repository for
 
 The Google Compute Engine Cloud plugin uses the GCE API for unicast discovery.
 
+<<discovery-multicast,Multicast>>::
+
+The multicast plugin sends multicast messages to discover other nodes in the cluster.
+
 [float]
 ==== Community contributed discovery plugins
 
@@ -40,6 +44,8 @@ include::cloud-aws.asciidoc[]
 include::cloud-azure.asciidoc[]
 
 include::cloud-gce.asciidoc[]
+
+include::discovery-multicast.asciidoc[]
 
 
 

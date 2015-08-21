@@ -434,6 +434,7 @@
         <module>cloud-azure</module>
         <module>cloud-aws</module>
         <module>delete-by-query</module>
+        <module>discovery-multicast</module>
         <module>lang-python</module>
         <module>lang-javascript</module>
         <module>mapper-murmur3</module>

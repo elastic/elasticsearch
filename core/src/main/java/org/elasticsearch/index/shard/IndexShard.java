@@ -21,8 +21,15 @@ package org.elasticsearch.index.shard;
 
 import com.google.common.base.Charsets;
 import com.google.common.base.Preconditions;
+
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.index.CheckIndex;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.DisjunctionMaxQuery;
+import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.UsageTrackingQueryCachingPolicy;
 import org.apache.lucene.store.AlreadyClosedException;
@@ -162,8 +169,8 @@ public class IndexShard extends AbstractIndexShardComponent {
 
     private TimeValue refreshInterval;
 
-    private volatile ScheduledFuture refreshScheduledFuture;
-    private volatile ScheduledFuture mergeScheduleFuture;
+    private volatile ScheduledFuture<?> refreshScheduledFuture;
+    private volatile ScheduledFuture<?> mergeScheduleFuture;
     protected volatile ShardRouting shardRouting;
     protected volatile IndexShardState state;
     protected final AtomicReference<Engine> currentEngineReference = new AtomicReference<>();
@@ -252,7 +259,42 @@ public class IndexShard extends AbstractIndexShardComponent {
         if (indexSettings.getAsBoolean(IndexCacheModule.QUERY_CACHE_EVERYTHING, false)) {
             cachingPolicy = QueryCachingPolicy.ALWAYS_CACHE;
         } else {
-            cachingPolicy = new UsageTrackingQueryCachingPolicy();
+            assert Version.CURRENT.luceneVersion == org.apache.lucene.util.Version.LUCENE_5_2_1;
+            // TODO: remove this hack in Lucene 5.4, use UsageTrackingQueryCachingPolicy directly
+            // See https://issues.apache.org/jira/browse/LUCENE-6748
+            // cachingPolicy = new UsageTrackingQueryCachingPolicy();
+
+            final QueryCachingPolicy wrapped = new UsageTrackingQueryCachingPolicy();
+            cachingPolicy = new QueryCachingPolicy() {
+
+                @Override
+                public boolean shouldCache(Query query, LeafReaderContext context) throws IOException {
+                    if (query instanceof MatchAllDocsQuery
+                            // MatchNoDocsQuery currently rewrites to a BooleanQuery,
+                            // but who knows, it might get its own Weight one day
+                            || query instanceof MatchNoDocsQuery) {
+                        return false;
+                    }
+                    if (query instanceof BooleanQuery) {
+                        BooleanQuery bq = (BooleanQuery) query;
+                        if (bq.clauses().isEmpty()) {
+                            return false;
+                        }
+                    }
+                    if (query instanceof DisjunctionMaxQuery) {
+                        DisjunctionMaxQuery dmq = (DisjunctionMaxQuery) query;
+                        if (dmq.getDisjuncts().isEmpty()) {
+                            return false;
+                        }
+                    }
+                    return wrapped.shouldCache(query, context);
+                }
+
+                @Override
+                public void onUse(Query query) {
+                    wrapped.onUse(query);
+                }
+            };
         }
         this.engineConfig = newEngineConfig(translogConfig, cachingPolicy);
         this.indexShardOperationCounter = new IndexShardOperationCounter(logger, shardId);

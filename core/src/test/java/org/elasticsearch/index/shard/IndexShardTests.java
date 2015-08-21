@@ -25,6 +25,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -452,6 +453,22 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         assertHitCount(response, 1l);
         client().admin().indices().prepareDelete("test").get();
         assertPathHasBeenCleared(idxPath);
+    }
+
+    public void testExpectedShardSizeIsPresent() throws InterruptedException {
+        assertAcked(client().admin().indices().prepareCreate("test")
+                .setSettings(SETTING_NUMBER_OF_SHARDS, 1, SETTING_NUMBER_OF_REPLICAS, 0));
+        for (int i = 0; i < 50; i++) {
+            client().prepareIndex("test", "test").setSource("{}").get();
+        }
+        ensureGreen("test");
+        InternalClusterInfoService clusterInfoService = (InternalClusterInfoService) getInstanceFromNode(ClusterInfoService.class);
+        InternalClusterInfoService.ClusterInfoUpdateJob job = clusterInfoService.new ClusterInfoUpdateJob(false);
+        job.run();
+        ClusterState state = getInstanceFromNode(ClusterService.class).state();
+        Long test = clusterInfoService.getClusterInfo().getShardSize(state.getRoutingTable().index("test").getShards().get(0).primaryShard());
+        assertNotNull(test);
+        assertTrue(test > 0);
     }
 
     public void testIndexCanChangeCustomDataPath() throws Exception {

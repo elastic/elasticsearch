@@ -507,7 +507,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                     Decision decision = allocation.deciders().canAllocate(shard, target, allocation);
                     if (decision.type() == Type.YES) { // TODO maybe we can respect throttling here too?
                         sourceNode.removeShard(shard);
-                        ShardRouting targetRelocatingShard = routingNodes.relocate(shard, target.nodeId());
+                        ShardRouting targetRelocatingShard = routingNodes.relocate(shard, target.nodeId(), allocation.clusterInfo().getShardSize(shard, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE));
                         currentNode.addShard(targetRelocatingShard, decision);
                         if (logger.isTraceEnabled()) {
                             logger.trace("Moved shard [{}] to node [{}]", shard, currentNode.getNodeId());
@@ -687,7 +687,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                             if (logger.isTraceEnabled()) {
                                 logger.trace("Assigned shard [{}] to [{}]", shard, minNode.getNodeId());
                             }
-                            routingNodes.initialize(shard, routingNodes.node(minNode.getNodeId()).nodeId());
+                            routingNodes.initialize(shard, routingNodes.node(minNode.getNodeId()).nodeId(), allocation.clusterInfo().getShardSize(shard, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE));
                             changed = true;
                             continue; // don't add to ignoreUnassigned
                         } else {
@@ -779,10 +779,10 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                         /* now allocate on the cluster - if we are started we need to relocate the shard */
                         if (candidate.started()) {
                             RoutingNode lowRoutingNode = routingNodes.node(minNode.getNodeId());
-                            routingNodes.relocate(candidate, lowRoutingNode.nodeId());
+                            routingNodes.relocate(candidate, lowRoutingNode.nodeId(), allocation.clusterInfo().getShardSize(candidate, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE));
 
                         } else {
-                            routingNodes.initialize(candidate, routingNodes.node(minNode.getNodeId()).nodeId());
+                            routingNodes.initialize(candidate, routingNodes.node(minNode.getNodeId()).nodeId(), allocation.clusterInfo().getShardSize(candidate, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE));
                         }
                         return true;
 

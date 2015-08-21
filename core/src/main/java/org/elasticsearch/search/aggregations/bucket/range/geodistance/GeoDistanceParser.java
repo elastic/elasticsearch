@@ -145,8 +145,8 @@ public class GeoDistanceParser implements Aggregator.Parser {
                             + currentFieldName + "].", parser.getTokenLocation());
                 }
             } else {
-                throw new SearchParseException(context, "Unexpected token " + token + " in [" + aggregationName + "].",
-                        parser.getTokenLocation());
+                throw new SearchParseException(context, "Unexpected token " + token + " in [" + aggregationName + "]: ["
+                        + currentFieldName + "].", parser.getTokenLocation());
             }
         }
 

@@ -64,10 +64,16 @@ public class VersionUtils {
     public static List<Version> allVersions() {
         return Collections.unmodifiableList(SORTED_VERSIONS);
     }
-    
+
+    public static Version getPreviousVersion(Version version) {
+        int index = SORTED_VERSIONS.indexOf(version);
+        assert index > 0;
+        return SORTED_VERSIONS.get(index - 1);
+    }
+
     /** Returns the {@link Version} before the {@link Version#CURRENT} */
     public static Version getPreviousVersion() {
-        Version version = SORTED_VERSIONS.get(SORTED_VERSIONS.size() - 2);
+        Version version = getPreviousVersion(Version.CURRENT);
         assert version.before(Version.CURRENT);
         return version;
     }

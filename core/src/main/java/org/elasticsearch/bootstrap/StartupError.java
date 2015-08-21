@@ -53,7 +53,8 @@ class StartupError extends RuntimeException {
      */
     @Override
     public void printStackTrace(PrintStream s) {
-        Throwable cause = getCause();
+        Throwable originalCause = getCause();
+        Throwable cause = originalCause;
         if (cause instanceof CreationException) {
             cause = getFirstGuiceCause((CreationException)cause);
         }
@@ -70,7 +71,9 @@ class StartupError extends RuntimeException {
                 cause = cause.getCause();
             }
 
-            s.println("Likely root cause: " + cause);
+            if (cause != originalCause) {
+                s.println("Likely root cause: " + cause);
+            }
             StackTraceElement stack[] = cause.getStackTrace();
             int linesWritten = 0;
             for (int i = 0; i < stack.length; i++) {

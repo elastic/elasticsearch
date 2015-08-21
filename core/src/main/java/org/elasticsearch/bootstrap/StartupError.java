@@ -71,9 +71,12 @@ class StartupError extends RuntimeException {
                 cause = cause.getCause();
             }
 
+            // print the root cause message, only if it differs!
             if (cause != originalCause && (message.equals(cause.toString()) == false)) {
                 s.println("Likely root cause: " + cause);
             }
+
+            // print stacktrace of cause
             StackTraceElement stack[] = cause.getStackTrace();
             int linesWritten = 0;
             for (int i = 0; i < stack.length; i++) {
@@ -110,6 +113,6 @@ class StartupError extends RuntimeException {
                 return cause;
             }
         }
-        throw guice; // we tried
+        return guice; // we tried
     }
 }

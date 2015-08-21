@@ -114,10 +114,9 @@ public class InternalSettingsPreparer {
             }
             if (loadFromEnv) {
                 for (String allowedSuffix : ALLOWED_SUFFIXES) {
-                    try {
-                        settingsBuilder.loadFromPath(environment.configFile().resolve("elasticsearch" + allowedSuffix));
-                    } catch (SettingsException e) {
-                        // ignore
+                    Path path = environment.configFile().resolve("elasticsearch" + allowedSuffix);
+                    if (Files.exists(path)) {
+                        settingsBuilder.loadFromPath(path);
                     }
                 }
             }

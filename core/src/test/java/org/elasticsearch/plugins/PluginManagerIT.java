@@ -563,6 +563,7 @@ public class PluginManagerIT extends ESIntegTestCase {
         PluginManager.checkForOfficialPlugins("lang-python");
         PluginManager.checkForOfficialPlugins("mapper-murmur3");
         PluginManager.checkForOfficialPlugins("mapper-size");
+        PluginManager.checkForOfficialPlugins("discovery-multicast");
 
         try {
             PluginManager.checkForOfficialPlugins("elasticsearch-mapper-attachment");

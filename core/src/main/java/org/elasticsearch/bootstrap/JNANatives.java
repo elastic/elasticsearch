@@ -34,10 +34,13 @@ import static org.elasticsearch.bootstrap.JNAKernel32Library.SizeT;
  */
 class JNANatives {
 
+    /** no instantiation */
+    private JNANatives() {}
+
     private static final ESLogger logger = Loggers.getLogger(JNANatives.class);
 
     // Set to true, in case native mlockall call was successful
-    public static boolean LOCAL_MLOCKALL = false;
+    static boolean LOCAL_MLOCKALL = false;
 
     static void tryMlockall() {
         int errno = Integer.MIN_VALUE;

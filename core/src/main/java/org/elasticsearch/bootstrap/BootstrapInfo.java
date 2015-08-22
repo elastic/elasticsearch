@@ -19,24 +19,28 @@
 
 package org.elasticsearch.bootstrap;
 
-/**
- * This class starts elasticsearch.
+/** 
+ * Exposes system startup information 
  */
-public final class Elasticsearch {
+public final class BootstrapInfo {
 
     /** no instantiation */
-    private Elasticsearch() {}
-
-    /**
-     * Main entry point for starting elasticsearch
+    private BootstrapInfo() {}
+    
+    /** 
+     * Returns true if we successfully loaded native libraries.
+     * <p>
+     * If this returns false, then native operations such as locking
+     * memory did not work.
      */
-    public static void main(String[] args) throws StartupError {
-        try {
-            Bootstrap.init(args);
-        } catch (Throwable t) {
-            // format exceptions to the console in a special way
-            // to avoid 2MB stacktraces from guice, etc.
-            throw new StartupError(t);
-        }
+    public static boolean isNativesAvailable() {
+        return Natives.JNA_AVAILABLE;
+    }
+    
+    /** 
+     * Returns true if we were able to lock the process's address space.
+     */
+    public static boolean isMemoryLocked() {
+        return Natives.isMemoryLocked();
     }
 }

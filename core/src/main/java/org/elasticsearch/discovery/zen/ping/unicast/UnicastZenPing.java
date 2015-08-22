@@ -64,6 +64,7 @@ import static org.elasticsearch.discovery.zen.ping.ZenPing.PingResponse.readPing
 public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implements ZenPing {
 
     public static final String ACTION_NAME = "internal:discovery/zen/unicast";
+    public static final String DISCOVERY_ZEN_PING_UNICAST_HOSTS = "discovery.zen.ping.unicast.hosts";
 
     // these limits are per-address
     public static final int LIMIT_FOREIGN_PORTS_COUNT = 1;
@@ -116,7 +117,7 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
         }
 
         this.concurrentConnects = this.settings.getAsInt("discovery.zen.ping.unicast.concurrent_connects", 10);
-        String[] hostArr = this.settings.getAsArray("discovery.zen.ping.unicast.hosts");
+        String[] hostArr = this.settings.getAsArray(DISCOVERY_ZEN_PING_UNICAST_HOSTS);
         // trim the hosts
         for (int i = 0; i < hostArr.length; i++) {
             hostArr[i] = hostArr[i].trim();

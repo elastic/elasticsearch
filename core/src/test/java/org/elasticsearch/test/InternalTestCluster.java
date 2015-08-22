@@ -227,11 +227,6 @@ public final class InternalTestCluster extends TestCluster {
     private ServiceDisruptionScheme activeDisruptionScheme;
     private String nodeMode;
 
-    public InternalTestCluster(String nodeMode, long clusterSeed, Path baseDir, int minNumDataNodes, int maxNumDataNodes, String clusterName, int numClientNodes,
-                               boolean enableHttpPipelining, String nodePrefix) {
-        this(nodeMode, clusterSeed, baseDir, minNumDataNodes, maxNumDataNodes, clusterName, DEFAULT_SETTINGS_SOURCE, numClientNodes, enableHttpPipelining, nodePrefix);
-    }
-
     public InternalTestCluster(String nodeMode, long clusterSeed, Path baseDir,
                                int minNumDataNodes, int maxNumDataNodes, String clusterName, SettingsSource settingsSource, int numClientNodes,
                                boolean enableHttpPipelining, String nodePrefix) {

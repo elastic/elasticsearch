@@ -19,7 +19,7 @@
 
 package org.elasticsearch.monitor.process;
 
-import org.elasticsearch.bootstrap.Bootstrap;
+import org.elasticsearch.bootstrap.BootstrapInfo;
 
 import java.lang.management.ManagementFactory;
 import java.lang.management.OperatingSystemMXBean;
@@ -136,7 +136,7 @@ public class ProcessProbe {
     }
 
     public ProcessInfo processInfo() {
-        return new ProcessInfo(jvmInfo().pid(), Bootstrap.isMemoryLocked());
+        return new ProcessInfo(jvmInfo().pid(), BootstrapInfo.isMemoryLocked());
     }
 
     public ProcessStats processStats() {

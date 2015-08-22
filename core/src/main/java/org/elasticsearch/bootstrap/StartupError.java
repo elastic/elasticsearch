@@ -32,7 +32,7 @@ import java.io.PrintStream;
  */
 //TODO: remove this when guice is removed, and exceptions are cleaned up
 //this is horrible, but its what we must do
-class StartupError extends RuntimeException {
+final class StartupError extends RuntimeException {
     
     /** maximum length of a stacktrace, before we truncate it */
     static final int STACKTRACE_LIMIT = 30;

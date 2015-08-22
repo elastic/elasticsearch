@@ -25,7 +25,6 @@ import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.net.URL;
 import java.net.URLClassLoader;
@@ -34,13 +33,33 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
-import java.util.*;
+import java.util.Arrays;
+import java.util.Enumeration;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.jar.Manifest;
 
-/** Simple check for duplicate class files across the classpath */
+/**
+ * Simple check for duplicate class files across the classpath.
+ * <p>
+ * This class checks for incompatibilities in the following ways:
+ * <ul>
+ *   <li>Checks that class files are not duplicated across jars.</li>
+ *   <li>Checks any {@code X-Compile-Target-JDK} value in the jar
+ *       manifest is compatible with current JRE</li>
+ *   <li>Checks any {@code X-Compile-Elasticsearch-Version} value in
+ *       the jar manifest is compatible with the current ES</li>
+ * </ul>
+ */
 public class JarHell {
+
+    /** no instantiation */
+    private JarHell() {}
 
     /** Simple driver class, can be used eg. from builds. Returns non-zero on jar-hell */
     @SuppressForbidden(reason = "command line tool")

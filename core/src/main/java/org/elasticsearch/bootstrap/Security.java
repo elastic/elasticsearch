@@ -38,15 +38,59 @@ import java.util.Map;
 import java.util.regex.Pattern;
 
 /** 
- * Initializes securitymanager with necessary permissions.
+ * Initializes SecurityManager with necessary permissions.
  * <p>
- * We use a template file (the one we test with), and add additional 
- * permissions based on the environment (data paths, etc)
+ * <h1>Initialization</h1>
+ * The JVM is not initially started with security manager enabled,
+ * instead we turn it on early in the startup process. This is a tradeoff
+ * between security and ease of use:
+ * <ul>
+ *   <li>Assigns file permissions to user-configurable paths that can
+ *       be specified from the command-line or {@code elasticsearch.yml}.</li>
+ *   <li>Allows for some contained usage of native code that would not
+ *       otherwise be permitted.</li>
+ * </ul>
+ * <p>
+ * <h1>Permissions</h1>
+ * Permissions use a policy file packaged as a resource, this file is
+ * also used in tests. File permissions are generated dynamically and
+ * combined with this policy file.
+ * <p>
+ * For each configured path, we ensure it exists and is accessible before
+ * granting permissions, otherwise directory creation would require
+ * permissions to parent directories.
+ * <p>
+ * In some exceptional cases, permissions are assigned to specific jars only,
+ * when they are so dangerous that general code should not be granted the
+ * permission, but there are extenuating circumstances.
+ * <p>
+ * Groovy scripts are assigned no permissions. This does not provide adequate
+ * sandboxing, as these scripts still have access to ES classes, and could
+ * modify members, etc that would cause bad things to happen later on their
+ * behalf (no package protections are yet in place, this would need some
+ * cleanups to the scripting apis). But still it can provide some defense for users
+ * that enable dynamic scripting without being fully aware of the consequences.
+ * <p>
+ * <h1>Disabling Security</h1>
+ * SecurityManager can be disabled completely with this setting:
+ * <pre>
+ * es.security.manager.enabled = false
+ * </pre>
+ * <p>
+ * <h1>Debugging Security</h1>
+ * A good place to start when there is a problem is to turn on security debugging:
+ * <pre>
+ * JAVA_OPTS="-Djava.security.debug=access:failure" bin/elasticsearch
+ * </pre>
+ * See <a href="https://docs.oracle.com/javase/7/docs/technotes/guides/security/troubleshooting-security.html">
+ * Troubleshooting Security</a> for information.
  */
 final class Security {
+    /** no instantiation */
+    private Security() {}
        
     /** 
-     * Initializes securitymanager for the environment
+     * Initializes SecurityManager for the environment
      * Can only happen once!
      */
     static void configure(Environment environment) throws Exception {

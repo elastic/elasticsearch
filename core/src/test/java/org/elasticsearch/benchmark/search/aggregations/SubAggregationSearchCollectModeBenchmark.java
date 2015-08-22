@@ -27,7 +27,7 @@ import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.bootstrap.Bootstrap;
+import org.elasticsearch.bootstrap.BootstrapForTesting;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.StopWatch;
@@ -71,7 +71,7 @@ public class SubAggregationSearchCollectModeBenchmark {
     static Node[] nodes;
 
     public static void main(String[] args) throws Exception {
-        Bootstrap.initializeNatives(true, false);
+        BootstrapForTesting.ensureInitialized();
         Random random = new Random();
 
         Settings settings = settingsBuilder()

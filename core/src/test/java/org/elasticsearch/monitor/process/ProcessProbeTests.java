@@ -20,7 +20,7 @@
 package org.elasticsearch.monitor.process;
 
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.bootstrap.Bootstrap;
+import org.elasticsearch.bootstrap.BootstrapInfo;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
@@ -37,7 +37,7 @@ public class ProcessProbeTests extends ESTestCase {
         assertNotNull(info);
         assertThat(info.getRefreshInterval(), greaterThanOrEqualTo(0L));
         assertThat(info.getId(), equalTo(jvmInfo().pid()));
-        assertThat(info.isMlockall(), equalTo(Bootstrap.isMemoryLocked()));
+        assertThat(info.isMlockall(), equalTo(BootstrapInfo.isMemoryLocked()));
     }
 
     @Test

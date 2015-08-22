@@ -42,7 +42,8 @@ bc.. <properties>
 
 </properties>
 
-p.
+
+p. 
 
 * Create main Plugin class in the @src/main/java@ directory. This project is using @org.elasticsearch.examples.nativescript.plugin.NativeScriptExamplesPlugin@ class as an example, so the it has to be saved as @src/main/java/org/elasticsearch/examples/nativescript/plugin/NativeScriptExamplesPlugin.java@
 
@@ -63,7 +64,7 @@ public class NativeScriptExamplesPlugin extends Plugin {
     }
 }
 
-p.
+p. 
 
 * The parent project will automatically create @plugin-descriptor.properties@ for you.
 * If you are not using the standard parent project, you can create this file manually by using this "plugin-descriptor.properties":https://github.com/elastic/elasticsearch/blob/master/dev-tools/src/main/resources/plugin-metadata/plugin-descriptor.properties as a template. You will also need to package the plugin into .zip file, which can be done using maven assemble task and "plugin-assembly.xml":https://github.com/elastic/elasticsearch/blob/master/dev-tools/src/main/resources/plugin-metadata/plugin-assembly.xml assembly definition.

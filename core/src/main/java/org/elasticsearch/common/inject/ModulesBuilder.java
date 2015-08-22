@@ -44,7 +44,6 @@ public class ModulesBuilder implements Iterable<Module> {
     }
 
     public Injector createInjector() {
-        Modules.processModules(modules);
         Injector injector = Guice.createInjector(modules);
         Injectors.cleanCaches(injector);
         // in ES, we always create all instances as if they are eager singletons
@@ -54,7 +53,6 @@ public class ModulesBuilder implements Iterable<Module> {
     }
 
     public Injector createChildInjector(Injector injector) {
-        Modules.processModules(modules);
         Injector childInjector = injector.createChildInjector(modules);
         Injectors.cleanCaches(childInjector);
         // in ES, we always create all instances as if they are eager singletons

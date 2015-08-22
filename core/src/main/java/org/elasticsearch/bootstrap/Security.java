@@ -38,15 +38,59 @@ import java.util.Map;
 import java.util.regex.Pattern;
 
 /** 
- * Initializes securitymanager with necessary permissions.
+ * Initializes SecurityManager with necessary permissions.
  * <p>
- * We use a template file (the one we test with), and add additional 
- * permissions based on the environment (data paths, etc)
+ * <h1>Initialization</h1>
+ * The JVM is not initially started with security manager enabled,
+ * instead we turn it on early in the startup process. This is a tradeoff
+ * between security and ease of use:
+ * <ul>
+ *   <li>Assigns file permissions to user-configurable paths that can
+ *       be specified from the command-line or {@code elasticsearch.yml}.</li>
+ *   <li>Allows for some contained usage of native code that would not
+ *       otherwise be permitted.</li>
+ * </ul>
+ * <p>
+ * <h1>Permissions</h1>
+ * Permissions use a policy file packaged as a resource, this file is
+ * also used in tests. File permissions are generated dynamically and
+ * combined with this policy file.
+ * <p>
+ * For each configured path, we ensure it exists and is accessible before
+ * granting permissions, otherwise directory creation would require
+ * permissions to parent directories.
+ * <p>
+ * In some exceptional cases, permissions are assigned to specific jars only,
+ * when they are so dangerous that general code should not be granted the
+ * permission, but there are extenuating circumstances.
+ * <p>
+ * Groovy scripts are assigned no permissions. This does not provide adequate
+ * sandboxing, as these scripts still have access to ES classes, and could
+ * modify members, etc that would cause bad things to happen later on their
+ * behalf (no package protections are yet in place, this would need some
+ * cleanups to the scripting apis). But still it can provide some defense for users
+ * that enable dynamic scripting without being fully aware of the consequences.
+ * <p>
+ * <h1>Disabling Security</h1>
+ * SecurityManager can be disabled completely with this setting:
+ * <pre>
+ * es.security.manager.enabled = false
+ * </pre>
+ * <p>
+ * <h1>Debugging Security</h1>
+ * A good place to start when there is a problem is to turn on security debugging:
+ * <pre>
+ * JAVA_OPTS="-Djava.security.debug=access:failure" bin/elasticsearch
+ * </pre>
+ * See <a href="https://docs.oracle.com/javase/7/docs/technotes/guides/security/troubleshooting-security.html">
+ * Troubleshooting Security</a> for information.
  */
 final class Security {
+    /** no instantiation */
+    private Security() {}
        
     /** 
-     * Initializes securitymanager for the environment
+     * Initializes SecurityManager for the environment
      * Can only happen once!
      */
     static void configure(Environment environment) throws Exception {
@@ -118,25 +162,25 @@ final class Security {
     static Permissions createPermissions(Environment environment) throws IOException {
         Permissions policy = new Permissions();
         // read-only dirs
-        addPath(policy, environment.binFile(), "read,readlink");
-        addPath(policy, environment.libFile(), "read,readlink");
-        addPath(policy, environment.pluginsFile(), "read,readlink");
-        addPath(policy, environment.configFile(), "read,readlink");
-        addPath(policy, environment.scriptsFile(), "read,readlink");
+        addPath(policy, "path.home", environment.binFile(), "read,readlink");
+        addPath(policy, "path.home", environment.libFile(), "read,readlink");
+        addPath(policy, "path.plugins", environment.pluginsFile(), "read,readlink");
+        addPath(policy, "path.conf", environment.configFile(), "read,readlink");
+        addPath(policy, "path.scripts", environment.scriptsFile(), "read,readlink");
         // read-write dirs
-        addPath(policy, environment.tmpFile(), "read,readlink,write,delete");
-        addPath(policy, environment.logsFile(), "read,readlink,write,delete");
+        addPath(policy, "java.io.tmpdir", environment.tmpFile(), "read,readlink,write,delete");
+        addPath(policy, "path.logs", environment.logsFile(), "read,readlink,write,delete");
         if (environment.sharedDataFile() != null) {
-            addPath(policy, environment.sharedDataFile(), "read,readlink,write,delete");
+            addPath(policy, "path.shared_data", environment.sharedDataFile(), "read,readlink,write,delete");
         }
         for (Path path : environment.dataFiles()) {
-            addPath(policy, path, "read,readlink,write,delete");
+            addPath(policy, "path.data", path, "read,readlink,write,delete");
         }
         for (Path path : environment.dataWithClusterFiles()) {
-            addPath(policy, path, "read,readlink,write,delete");
+            addPath(policy, "path.data", path, "read,readlink,write,delete");
         }
         for (Path path : environment.repoFiles()) {
-            addPath(policy, path, "read,readlink,write,delete");
+            addPath(policy, "path.repo", path, "read,readlink,write,delete");
         }
         if (environment.pidFile() != null) {
             // we just need permission to remove the file if its elsewhere.
@@ -145,10 +189,20 @@ final class Security {
         return policy;
     }
     
-    /** Add access to path (and all files underneath it */
-    static void addPath(Permissions policy, Path path, String permissions) throws IOException {
-        // paths may not exist yet
-        ensureDirectoryExists(path);
+    /**
+     * Add access to path (and all files underneath it)
+     * @param policy current policy to add permissions to
+     * @param configurationName the configuration name associated with the path (for error messages only)
+     * @param path the path itself
+     * @param permissions set of filepermissions to grant to the path
+     */
+    static void addPath(Permissions policy, String configurationName, Path path, String permissions) {
+        // paths may not exist yet, this also checks accessibility
+        try {
+            ensureDirectoryExists(path);
+        } catch (IOException e) {
+            throw new IllegalStateException("Unable to access '" + configurationName + "' (" + path + ")", e);
+        }
 
         // add each path twice: once for itself, again for files underneath it
         policy.add(new FilePermission(path.toString(), permissions));

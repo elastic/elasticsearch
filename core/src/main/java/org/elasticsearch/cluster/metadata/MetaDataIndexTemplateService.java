@@ -29,12 +29,12 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.TimeoutClusterStateUpdateTask;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.indices.IndexCreationException;
 import org.elasticsearch.indices.IndexTemplateAlreadyExistsException;
 import org.elasticsearch.indices.IndexTemplateMissingException;
 import org.elasticsearch.indices.InvalidIndexTemplateException;
@@ -179,41 +179,44 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
     }
 
     private void validate(PutRequest request) {
+        List<String> validationErrors = Lists.newArrayList();
         if (request.name.contains(" ")) {
-            throw new InvalidIndexTemplateException(request.name, "name must not contain a space");
+            validationErrors.add("name must not contain a space");
         }
         if (request.name.contains(",")) {
-            throw new InvalidIndexTemplateException(request.name, "name must not contain a ','");
+            validationErrors.add("name must not contain a ','");
         }
         if (request.name.contains("#")) {
-            throw new InvalidIndexTemplateException(request.name, "name must not contain a '#'");
+            validationErrors.add("name must not contain a '#'");
         }
         if (request.name.startsWith("_")) {
-            throw new InvalidIndexTemplateException(request.name, "name must not start with '_'");
+            validationErrors.add("name must not start with '_'");
         }
         if (!request.name.toLowerCase(Locale.ROOT).equals(request.name)) {
-            throw new InvalidIndexTemplateException(request.name, "name must be lower cased");
+            validationErrors.add("name must be lower cased");
         }
         if (request.template.contains(" ")) {
-            throw new InvalidIndexTemplateException(request.name, "template must not contain a space");
+            validationErrors.add("template must not contain a space");
         }
         if (request.template.contains(",")) {
-            throw new InvalidIndexTemplateException(request.name, "template must not contain a ','");
+            validationErrors.add("template must not contain a ','");
         }
         if (request.template.contains("#")) {
-            throw new InvalidIndexTemplateException(request.name, "template must not contain a '#'");
+            validationErrors.add("template must not contain a '#'");
         }
         if (request.template.startsWith("_")) {
-            throw new InvalidIndexTemplateException(request.name, "template must not start with '_'");
+            validationErrors.add("template must not start with '_'");
         }
         if (!Strings.validFileNameExcludingAstrix(request.template)) {
-            throw new InvalidIndexTemplateException(request.name, "template must not container the following characters " + Strings.INVALID_FILENAME_CHARS);
+            validationErrors.add("template must not container the following characters " + Strings.INVALID_FILENAME_CHARS);
         }
 
-        try {
-            metaDataCreateIndexService.validateIndexSettings(request.name, request.settings);
-        } catch (IndexCreationException exception) {
-            throw new InvalidIndexTemplateException(request.name, exception.getDetailedMessage());
+        List<String> indexSettingsValidation = metaDataCreateIndexService.getIndexSettingsValidationErrors(request.settings);
+        validationErrors.addAll(indexSettingsValidation);
+        if (!validationErrors.isEmpty()) {
+            ValidationException validationException = new ValidationException();
+            validationException.addValidationErrors(validationErrors);
+            throw new InvalidIndexTemplateException(request.name, validationException.getMessage());
         }
 
         for (Alias alias : request.aliases) {
@@ -271,7 +274,7 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
             this.mappings.putAll(mappings);
             return this;
         }
-        
+
         public PutRequest aliases(Set<Alias> aliases) {
             this.aliases.addAll(aliases);
             return this;

@@ -20,6 +20,7 @@
 package org.elasticsearch.bootstrap;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -27,6 +28,8 @@ import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.jar.Attributes;
 import java.util.jar.JarOutputStream;
 import java.util.jar.Manifest;
@@ -153,22 +156,25 @@ public class JarHellTests extends ESTestCase {
 
     public void testRequiredJDKVersionTooOld() throws Exception {
         Path dir = createTempDir();
-        String previousJavaVersion = System.getProperty("java.specification.version");
-        System.setProperty("java.specification.version", "1.7");
+        List<Integer> current = JavaVersion.current().getVersion();
+        List<Integer> target = new ArrayList<>(current.size());
+        for (int i = 0; i < current.size(); i++) {
+            target.add(current.get(i) + 1);
+        }
+        JavaVersion targetVersion = JavaVersion.parse(Strings.collectionToDelimitedString(target, "."));
+
 
         Manifest manifest = new Manifest();
         Attributes attributes = manifest.getMainAttributes();
         attributes.put(Attributes.Name.MANIFEST_VERSION, "1.0.0");
-        attributes.put(new Attributes.Name("X-Compile-Target-JDK"), "1.8");
+        attributes.put(new Attributes.Name("X-Compile-Target-JDK"), targetVersion.toString());
         URL[] jars = {makeJar(dir, "foo.jar", manifest, "Foo.class")};
         try {
             JarHell.checkJarHell(jars);
             fail("did not get expected exception");
         } catch (IllegalStateException e) {
-            assertTrue(e.getMessage().contains("requires Java 1.8"));
-            assertTrue(e.getMessage().contains("your system: 1.7"));
-        } finally {
-            System.setProperty("java.specification.version", previousJavaVersion);
+            assertTrue(e.getMessage().contains("requires Java " + targetVersion.toString()));
+            assertTrue(e.getMessage().contains("your system: " + JavaVersion.current().toString()));
         }
     }
 
@@ -213,7 +219,12 @@ public class JarHellTests extends ESTestCase {
         attributes.put(Attributes.Name.MANIFEST_VERSION, "1.0.0");
         attributes.put(new Attributes.Name("X-Compile-Target-JDK"), "bogus");
         URL[] jars = {makeJar(dir, "foo.jar", manifest, "Foo.class")};
-        JarHell.checkJarHell(jars);
+        try {
+            JarHell.checkJarHell(jars);
+            fail("did not get expected exception");
+        } catch (IllegalStateException e) {
+            assertTrue(e.getMessage().equals("version string must be a sequence of nonnegative decimal integers separated by \".\"'s and may have leading zeros but was bogus"));
+        }
     }
 
     /** make sure if a plugin is compiled against the same ES version, it works */
@@ -240,6 +251,28 @@ public class JarHellTests extends ESTestCase {
             fail("did not get expected exception");
         } catch (IllegalStateException e) {
             assertTrue(e.getMessage().contains("requires Elasticsearch 1.0-bogus"));
+        }
+    }
+
+    public void testValidVersions() {
+        String[] versions = new String[]{"1.7", "1.7.0", "0.1.7", "1.7.0.80"};
+        for (String version : versions) {
+            try {
+                JarHell.checkVersionFormat(version);
+            } catch (IllegalStateException e) {
+                fail(version + " should be accepted as a valid version format");
+            }
+        }
+    }
+
+    public void testInvalidVersions() {
+        String[] versions = new String[]{"", "1.7.0_80", "1.7."};
+        for (String version : versions) {
+            try {
+                JarHell.checkVersionFormat(version);
+                fail("\"" + version + "\"" + " should be rejected as an invalid version format");
+            } catch (IllegalStateException e) {
+            }
         }
     }
 }

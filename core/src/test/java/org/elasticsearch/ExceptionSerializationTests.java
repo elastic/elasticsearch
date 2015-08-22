@@ -526,7 +526,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         try {
             XContentBuilder builder = XContentFactory.jsonBuilder();
             builder.startObject();
-            x.toXContent(builder, new ToXContent.MapParams(Collections.singletonMap(ElasticsearchException.REST_EXCEPTION_SKIP_STACK_TRACE, "true")));
+            x.toXContent(builder, ToXContent.EMPTY_PARAMS);
             builder.endObject();
             return builder.string();
         } catch (IOException e) {

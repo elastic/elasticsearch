@@ -57,7 +57,7 @@ import java.util.Collections;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ESExceptionTests extends ESTestCase {
-    private static final ToXContent.Params PARAMS = new ToXContent.MapParams(Collections.singletonMap(ElasticsearchException.REST_EXCEPTION_SKIP_STACK_TRACE, "true"));
+    private static final ToXContent.Params PARAMS = ToXContent.EMPTY_PARAMS;
 
     @Test
     public void testStatus() {

@@ -29,6 +29,8 @@ import java.util.Map;
 
 /** Checks that the JVM is ok and won't cause index corruption */
 final class JVMCheck {
+    /** no instantiation */
+    private JVMCheck() {}
     
     /**
      * URL with latest JVM recommendations

@@ -400,19 +400,18 @@ public class ContextAndHeaderTransportIT extends ESIntegTestCase {
         public Collection<Module> nodeModules() {
             return Collections.<Module>singletonList(new ActionLoggingModule());
         }
+
+        public void onModule(ActionModule module) {
+            module.registerFilter(LoggingFilter.class);
+        }
     }
 
     public static class ActionLoggingModule extends AbstractModule {
-
-
         @Override
         protected void configure() {
             bind(LoggingFilter.class).asEagerSingleton();
         }
 
-        public void onModule(ActionModule module) {
-            module.registerFilter(LoggingFilter.class);
-        }
     }
 
     public static class LoggingFilter extends ActionFilter.Simple {

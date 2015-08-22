@@ -42,8 +42,8 @@ import org.elasticsearch.index.analysis.filter1.MyFilterTokenFilterFactory;
 import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 import org.hamcrest.MatcherAssert;
-import org.junit.Test;
 
 import java.io.BufferedWriter;
 import java.io.IOException;
@@ -87,26 +87,22 @@ public class AnalysisModuleTests extends ESTestCase {
 
     }
 
-    @Test
     public void testSimpleConfigurationJson() {
         Settings settings = loadFromClasspath("/org/elasticsearch/index/analysis/test1.json");
         testSimpleConfiguration(settings);
     }
 
-    @Test
     public void testSimpleConfigurationYaml() {
         Settings settings = loadFromClasspath("/org/elasticsearch/index/analysis/test1.yml");
         testSimpleConfiguration(settings);
     }
 
-    @Test
     public void testDefaultFactoryTokenFilters() throws IOException {
         assertTokenFilter("keyword_repeat", KeywordRepeatFilter.class);
         assertTokenFilter("persian_normalization", PersianNormalizationFilter.class);
         assertTokenFilter("arabic_normalization", ArabicNormalizationFilter.class);
     }
 
-    @Test
     public void testVersionedAnalyzers() throws Exception {
         String yaml = "/org/elasticsearch/index/analysis/test1.yml";
         Settings settings2 = settingsBuilder()
@@ -164,7 +160,7 @@ public class AnalysisModuleTests extends ESTestCase {
 //        html = (HtmlStripCharFilterFactory) custom2.charFilters()[1];
 //        assertThat(html.readAheadLimit(), equalTo(1024));
 
-        // verify position offset gap
+        // verify position increment gap
         analyzer = analysisService.analyzer("custom6").analyzer();
         assertThat(analyzer, instanceOf(CustomAnalyzer.class));
         CustomAnalyzer custom6 = (CustomAnalyzer) analyzer;
@@ -215,7 +211,6 @@ public class AnalysisModuleTests extends ESTestCase {
 //        MatcherAssert.assertThat(wordList, hasItems("donau", "dampf", "schiff", "spargel", "creme", "suppe"));
     }
 
-    @Test
     public void testWordListPath() throws Exception {
         Settings settings = Settings.builder()
                                .put("path.home", createTempDir().toString())
@@ -243,7 +238,6 @@ public class AnalysisModuleTests extends ESTestCase {
         return wordListFile;
     }
 
-    @Test
     public void testUnderscoreInAnalyzerName() {
         Settings settings = Settings.builder()
                 .put("index.analysis.analyzer._invalid_name.tokenizer", "keyword")
@@ -259,7 +253,6 @@ public class AnalysisModuleTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testUnderscoreInAnalyzerNameAlias() {
         Settings settings = Settings.builder()
                 .put("index.analysis.analyzer.valid_name.tokenizer", "keyword")
@@ -273,6 +266,63 @@ public class AnalysisModuleTests extends ESTestCase {
         } catch (ProvisionException e) {
             assertTrue(e.getCause() instanceof IllegalArgumentException);
             assertThat(e.getCause().getMessage(), equalTo("analyzer name must not start with '_'. got \"_invalid_name\""));
+        }
+    }
+
+    public void testBackwardCompatible() {
+        Settings settings = settingsBuilder()
+                .put("index.analysis.analyzer.custom1.tokenizer", "standard")
+                .put("index.analysis.analyzer.custom1.position_offset_gap", "128")
+                .put("index.analysis.analyzer.custom2.tokenizer", "standard")
+                .put("index.analysis.analyzer.custom2.position_increment_gap", "256")
+                .put("path.home", createTempDir().toString())
+                .put(IndexMetaData.SETTING_VERSION_CREATED, VersionUtils.randomVersionBetween(random(), Version.V_1_0_0,
+                        Version.V_1_7_1))
+                .build();
+        AnalysisService analysisService = getAnalysisService(settings);
+
+        Analyzer custom1 = analysisService.analyzer("custom1").analyzer();
+        assertThat(custom1, instanceOf(CustomAnalyzer.class));
+        assertThat(custom1.getPositionIncrementGap("custom1"), equalTo(128));
+
+        Analyzer custom2 = analysisService.analyzer("custom2").analyzer();
+        assertThat(custom2, instanceOf(CustomAnalyzer.class));
+        assertThat(custom2.getPositionIncrementGap("custom2"), equalTo(256));
+    }
+
+    public void testWithBothSettings() {
+        Settings settings = settingsBuilder()
+                .put("index.analysis.analyzer.custom.tokenizer", "standard")
+                .put("index.analysis.analyzer.custom.position_offset_gap", "128")
+                .put("index.analysis.analyzer.custom.position_increment_gap", "256")
+                .put("path.home", createTempDir().toString())
+                .put(IndexMetaData.SETTING_VERSION_CREATED, VersionUtils.randomVersionBetween(random(), Version.V_1_0_0,
+                        Version.V_1_7_1))
+                .build();
+        try {
+            getAnalysisService(settings);
+            fail("Analyzer has both position_offset_gap and position_increment_gap should fail");
+        } catch (ProvisionException e) {
+            assertTrue(e.getCause() instanceof IllegalArgumentException);
+            assertThat(e.getCause().getMessage(), equalTo("Custom Analyzer [custom] defined both [position_offset_gap] and [position_increment_gap]" +
+                    ", use only [position_increment_gap]"));
+        }
+    }
+
+    public void testDeprecatedPositionOffsetGap() {
+        Settings settings = settingsBuilder()
+                .put("index.analysis.analyzer.custom.tokenizer", "standard")
+                .put("index.analysis.analyzer.custom.position_offset_gap", "128")
+                .put("path.home", createTempDir().toString())
+                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                .build();
+        try {
+            getAnalysisService(settings);
+            fail("Analyzer should fail if it has position_offset_gap");
+        } catch (ProvisionException e) {
+            assertTrue(e.getCause() instanceof IllegalArgumentException);
+            assertThat(e.getCause().getMessage(), equalTo("Option [position_offset_gap] in Custom Analyzer [custom] " +
+                    "has been renamed, please use [position_increment_gap] instead."));
         }
     }
 }

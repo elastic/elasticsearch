@@ -217,22 +217,22 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
         Map<String, NamedAnalyzer> analyzers = newHashMap();
         for (AnalyzerProvider analyzerFactory : analyzerProviders.values()) {
             /*
-             * Lucene defaults positionOffsetGap to 0 in all analyzers but
-             * Elasticsearch defaults them to 0 only before version 2.1
-             * and 100 afterwards so we override the positionOffsetGap if it
+             * Lucene defaults positionIncrementGap to 0 in all analyzers but
+             * Elasticsearch defaults them to 0 only before version 2.0
+             * and 100 afterwards so we override the positionIncrementGap if it
              * doesn't match here.
              */
-            int overridePositionOffsetGap = StringFieldMapper.Defaults.positionOffsetGap(Version.indexCreated(indexSettings));
+            int overridePositionIncrementGap = StringFieldMapper.Defaults.positionIncrementGap(Version.indexCreated(indexSettings));
             if (analyzerFactory instanceof CustomAnalyzerProvider) {
                 ((CustomAnalyzerProvider) analyzerFactory).build(this);
                 /*
                  * Custom analyzers already default to the correct, version
-                 * dependent positionOffsetGap and the user is be able to
-                 * configure the positionOffsetGap directly on the analyzer so
-                 * we disable overriding the positionOffsetGap to preserve the
+                 * dependent positionIncrementGap and the user is be able to
+                 * configure the positionIncrementGap directly on the analyzer so
+                 * we disable overriding the positionIncrementGap to preserve the
                  * user's setting.
                  */
-                overridePositionOffsetGap = Integer.MIN_VALUE;
+                overridePositionIncrementGap = Integer.MIN_VALUE;
             }
             Analyzer analyzerF = analyzerFactory.get();
             if (analyzerF == null) {
@@ -242,12 +242,12 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
             if (analyzerF instanceof NamedAnalyzer) {
                 // if we got a named analyzer back, use it...
                 analyzer = (NamedAnalyzer) analyzerF;
-                if (overridePositionOffsetGap >= 0 && analyzer.getPositionIncrementGap(analyzer.name()) != overridePositionOffsetGap) {
-                    // unless the positionOffsetGap needs to be overridden
-                    analyzer = new NamedAnalyzer(analyzer, overridePositionOffsetGap);
+                if (overridePositionIncrementGap >= 0 && analyzer.getPositionIncrementGap(analyzer.name()) != overridePositionIncrementGap) {
+                    // unless the positionIncrementGap needs to be overridden
+                    analyzer = new NamedAnalyzer(analyzer, overridePositionIncrementGap);
                 }
             } else {
-                analyzer = new NamedAnalyzer(analyzerFactory.name(), analyzerFactory.scope(), analyzerF, overridePositionOffsetGap);
+                analyzer = new NamedAnalyzer(analyzerFactory.name(), analyzerFactory.scope(), analyzerF, overridePositionIncrementGap);
             }
             analyzers.put(analyzerFactory.name(), analyzer);
             analyzers.put(Strings.toCamelCase(analyzerFactory.name()), analyzer);

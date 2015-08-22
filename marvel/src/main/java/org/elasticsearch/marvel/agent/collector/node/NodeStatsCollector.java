@@ -8,7 +8,7 @@ package org.elasticsearch.marvel.agent.collector.node;
 
 import com.google.common.collect.ImmutableList;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
-import org.elasticsearch.bootstrap.Bootstrap;
+import org.elasticsearch.bootstrap.BootstrapInfo;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.common.inject.ConfigurationException;
@@ -72,7 +72,7 @@ public class NodeStatsCollector extends AbstractCollector<NodeStatsCollector> {
 
         results.add(new NodeStatsMarvelDoc(clusterUUID(), TYPE, System.currentTimeMillis(),
                 discoveryService.localNode().id(), localNodeMaster(), nodeStats,
-                Bootstrap.isMemoryLocked(), diskThresholdWatermarkHigh, diskThresholdDeciderEnabled));
+                BootstrapInfo.isMemoryLocked(), diskThresholdWatermarkHigh, diskThresholdDeciderEnabled));
 
         return results.build();
     }

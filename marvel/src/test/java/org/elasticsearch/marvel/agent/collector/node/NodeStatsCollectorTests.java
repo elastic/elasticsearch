@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.marvel.agent.collector.node;
 
-import org.elasticsearch.bootstrap.Bootstrap;
+import org.elasticsearch.bootstrap.BootstrapInfo;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.common.inject.Provider;
@@ -42,7 +42,7 @@ public class NodeStatsCollectorTests extends ESIntegTestCase {
 
             assertThat(nodeStatsMarvelDoc.getNodeId(), equalTo(internalCluster().getInstance(DiscoveryService.class, node).localNode().id()));
             assertThat(nodeStatsMarvelDoc.isNodeMaster(), equalTo(node.equals(internalCluster().getMasterName())));
-            assertThat(nodeStatsMarvelDoc.isMlockall(), equalTo(Bootstrap.isMemoryLocked()));
+            assertThat(nodeStatsMarvelDoc.isMlockall(), equalTo(BootstrapInfo.isMemoryLocked()));
             assertNotNull(nodeStatsMarvelDoc.isDiskThresholdDeciderEnabled());
             assertNotNull(nodeStatsMarvelDoc.getDiskThresholdWaterMarkHigh());
 

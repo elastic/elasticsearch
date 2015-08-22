@@ -92,6 +92,7 @@ public class TransportDeleteWarmerAction extends TransportMasterNodeAction<Delet
                 MetaData.Builder mdBuilder = MetaData.builder(currentState.metaData());
 
                 boolean globalFoundAtLeastOne = false;
+                boolean deleteAll = Arrays.asList(request.names()).contains("_all");
                 for (String index : concreteIndices) {
                     IndexMetaData indexMetaData = currentState.metaData().index(index);
                     if (indexMetaData == null) {
@@ -123,7 +124,7 @@ public class TransportDeleteWarmerAction extends TransportMasterNodeAction<Delet
                     }
                 }
 
-                if (!globalFoundAtLeastOne) {
+                if (!globalFoundAtLeastOne && deleteAll == false) {
                     throw new IndexWarmerMissingException(request.names());
                 }
 
@@ -142,6 +143,8 @@ public class TransportDeleteWarmerAction extends TransportMasterNodeAction<Delet
                                     }
                                 }
                             }
+                        } else if(deleteAll){
+                            logger.info("no warmers to delete on indice [{}]", index);
                         }
                     }
                 }

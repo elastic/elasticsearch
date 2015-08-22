@@ -22,6 +22,7 @@ import org.elasticsearch.shield.action.ShieldActionModule;
 import org.elasticsearch.shield.action.authc.cache.ClearRealmCacheAction;
 import org.elasticsearch.shield.action.authc.cache.TransportClearRealmCacheAction;
 import org.elasticsearch.shield.audit.AuditTrailModule;
+import org.elasticsearch.shield.audit.index.IndexAuditUserHolder;
 import org.elasticsearch.shield.authc.AuthenticationModule;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.shield.authc.Realms;
@@ -169,6 +170,12 @@ public class ShieldPlugin extends Plugin {
         }
         // we want to expose the shield rest action even when the plugin is disabled
         module.addRestAction(RestShieldInfoAction.class);
+    }
+
+    public void onModule(AuthorizationModule module) {
+        if (enabled && AuditTrailModule.auditingEnabled(settings)) {
+            module.registerReservedRole(IndexAuditUserHolder.ROLE);
+        }
     }
 
     private void addUserSettings(Settings.Builder settingsBuilder) {

@@ -6,19 +6,16 @@
 package org.elasticsearch.watcher.shield;
 
 import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.inject.PreProcessModule;
 import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.shield.authz.AuthorizationModule;
 import org.elasticsearch.shield.authz.Privilege;
 
 /**
  *
  */
-public class WatcherShieldModule extends AbstractModule implements PreProcessModule {
+public class WatcherShieldModule extends AbstractModule {
 
     private final ESLogger logger;
 
@@ -47,13 +44,6 @@ public class WatcherShieldModule extends AbstractModule implements PreProcessMod
             // we need to prevent bubbling the shield exception here for the tests. In the tests
             // we create multiple nodes in the same jvm and since the custom cluster is a static binding
             // multiple nodes will try to add the same privileges multiple times.
-        }
-    }
-
-    @Override
-    public void processModule(Module module) {
-        if (enabled && module instanceof AuthorizationModule) {
-            ((AuthorizationModule) module).registerReservedRole(userHolder.role);
         }
     }
 

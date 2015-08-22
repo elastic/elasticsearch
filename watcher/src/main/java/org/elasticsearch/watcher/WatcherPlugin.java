@@ -14,9 +14,10 @@ import org.elasticsearch.cluster.settings.Validator;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.RestModule;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.rest.RestModule;
 import org.elasticsearch.script.ScriptModule;
+import org.elasticsearch.shield.authz.AuthorizationModule;
 import org.elasticsearch.watcher.actions.WatcherActionModule;
 import org.elasticsearch.watcher.actions.email.service.InternalEmailService;
 import org.elasticsearch.watcher.client.WatcherClientModule;
@@ -35,7 +36,9 @@ import org.elasticsearch.watcher.rest.action.RestPutWatchAction;
 import org.elasticsearch.watcher.rest.action.RestWatchServiceAction;
 import org.elasticsearch.watcher.rest.action.RestWatcherInfoAction;
 import org.elasticsearch.watcher.rest.action.RestWatcherStatsAction;
+import org.elasticsearch.watcher.shield.ShieldIntegration;
 import org.elasticsearch.watcher.shield.WatcherShieldModule;
+import org.elasticsearch.watcher.shield.WatcherUserHolder;
 import org.elasticsearch.watcher.support.WatcherIndexTemplateRegistry.TemplateConfig;
 import org.elasticsearch.watcher.support.clock.ClockModule;
 import org.elasticsearch.watcher.support.http.HttpClient;
@@ -48,7 +51,6 @@ import org.elasticsearch.watcher.support.template.TemplateModule;
 import org.elasticsearch.watcher.support.template.xmustache.XMustacheScriptEngineService;
 import org.elasticsearch.watcher.support.validation.WatcherSettingsValidation;
 import org.elasticsearch.watcher.transform.TransformModule;
-import org.elasticsearch.watcher.transport.WatcherTransportModule;
 import org.elasticsearch.watcher.transport.actions.ack.AckWatchAction;
 import org.elasticsearch.watcher.transport.actions.ack.TransportAckWatchAction;
 import org.elasticsearch.watcher.transport.actions.delete.DeleteWatchAction;
@@ -134,14 +136,14 @@ public class WatcherPlugin extends Plugin {
             return ImmutableList.of();
         }
         return ImmutableList.<Class<? extends LifecycleComponent>>of(
-                // the initialization service must be first in the list
-                // as other services may depend on one of the initialized
-                // constructs
-                InitializingService.class,
-                LicenseService.class,
-                InternalEmailService.class,
-                HttpClient.class,
-                WatcherSettingsValidation.class);
+            // the initialization service must be first in the list
+            // as other services may depend on one of the initialized
+            // constructs
+            InitializingService.class,
+            LicenseService.class,
+            InternalEmailService.class,
+            HttpClient.class,
+            WatcherSettingsValidation.class);
     }
 
     @Override
@@ -192,6 +194,16 @@ public class WatcherPlugin extends Plugin {
             module.registerAction(AckWatchAction.INSTANCE, TransportAckWatchAction.class);
             module.registerAction(WatcherServiceAction.INSTANCE, TransportWatcherServiceAction.class);
             module.registerAction(ExecuteWatchAction.INSTANCE, TransportExecuteWatchAction.class);
+        }
+    }
+
+    // NOTE: The fact this signature takes a module is a hack, and effectively like the previous
+    // processModule in the plugin api. The problem is tight coupling between watcher and shield.
+    // We need to avoid trying to load the AuthorizationModule class unless we know shield integration
+    // is enabled. This is a temporary solution until inter-plugin-communication can be worked out.
+    public void onModule(Module module) {
+        if (enabled && ShieldIntegration.enabled(settings) && module instanceof AuthorizationModule) {
+            ((AuthorizationModule)module).registerReservedRole(WatcherUserHolder.ROLE);
         }
     }
 

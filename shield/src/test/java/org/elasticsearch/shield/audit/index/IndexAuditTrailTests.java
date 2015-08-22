@@ -69,7 +69,7 @@ public class IndexAuditTrailTests extends ShieldIntegTestCase {
 
     public static final String SECOND_CLUSTER_NODE_PREFIX = "remote_" + SUITE_CLUSTER_NODE_PREFIX;
 
-    private static final IndexAuditUserHolder user = new IndexAuditUserHolder(IndexAuditTrail.INDEX_NAME_PREFIX);
+    private static final IndexAuditUserHolder user = new IndexAuditUserHolder();
 
     private IndexNameResolver.Rollover rollover;
     private IndexAuditTrail auditor;

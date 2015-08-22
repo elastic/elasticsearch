@@ -22,9 +22,14 @@ package org.elasticsearch.plugins;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 
+import org.apache.lucene.analysis.util.CharFilterFactory;
+import org.apache.lucene.analysis.util.TokenFilterFactory;
+import org.apache.lucene.analysis.util.TokenizerFactory;
+import org.apache.lucene.codecs.Codec;
+import org.apache.lucene.codecs.DocValuesFormat;
+import org.apache.lucene.codecs.PostingsFormat;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsInfo;
-import org.elasticsearch.bootstrap.Bootstrap;
 import org.elasticsearch.bootstrap.JarHell;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
@@ -348,6 +353,8 @@ public class PluginsService extends AbstractComponent {
             for (PluginInfo pluginInfo : bundle.plugins) {
                 final Plugin plugin;
                 if (pluginInfo.isJvm()) {
+                    // reload lucene SPI with any new services from the plugin
+                    reloadLuceneSPI(loader);
                     plugin = loadPlugin(pluginInfo.getClassname(), settings, loader);
                 } else {
                     plugin = new SitePlugin(pluginInfo.getName(), pluginInfo.getDescription());
@@ -357,6 +364,24 @@ public class PluginsService extends AbstractComponent {
         }
 
         return plugins.build();
+    }
+
+    /**
+     * Reloads all Lucene SPI implementations using the new classloader.
+     * This method must be called after the new classloader has been created to
+     * register the services for use.
+     */
+    static void reloadLuceneSPI(ClassLoader loader) {
+        // do NOT change the order of these method calls!
+
+        // Codecs:
+        PostingsFormat.reloadPostingsFormats(loader);
+        DocValuesFormat.reloadDocValuesFormats(loader);
+        Codec.reloadCodecs(loader);
+        // Analysis:
+        CharFilterFactory.reloadCharFilters(loader);
+        TokenFilterFactory.reloadTokenFilters(loader);
+        TokenizerFactory.reloadTokenizers(loader);
     }
 
     private Plugin loadPlugin(String className, Settings settings, ClassLoader loader) {

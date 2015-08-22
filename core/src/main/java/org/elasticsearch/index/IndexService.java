@@ -56,7 +56,6 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InternalIndicesLifecycle;
 import org.elasticsearch.indices.cache.query.IndicesQueryCache;
 import org.elasticsearch.plugins.PluginsService;
-import org.elasticsearch.plugins.ShardsPluginsModule;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -317,7 +316,6 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
             final boolean canDeleteShardContent = IndexMetaData.isOnSharedFilesystem(indexSettings) == false ||
                     (primary && IndexMetaData.isOnSharedFilesystem(indexSettings));
             ModulesBuilder modules = new ModulesBuilder();
-            modules.add(new ShardsPluginsModule(indexSettings, pluginsService));
             modules.add(new IndexShardModule(shardId, primary, indexSettings));
             modules.add(new StoreModule(injector.getInstance(IndexStore.class).shardDirectory(), lock,
                     new StoreCloseListener(shardId, canDeleteShardContent,  new Closeable() {
@@ -327,6 +325,12 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
                         }
                     }), path));
             modules.add(new DeletionPolicyModule());
+
+            for (Module pluginModule : pluginsService.shardModules(indexSettings)) {
+                modules.add(pluginModule);
+            }
+            pluginsService.processModules(modules);
+
             try {
                 shardInjector = modules.createChildInjector(injector);
             } catch (CreationException e) {

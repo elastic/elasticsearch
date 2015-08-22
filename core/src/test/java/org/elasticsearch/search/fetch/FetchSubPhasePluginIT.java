@@ -43,6 +43,7 @@ import org.junit.Test;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -59,11 +60,8 @@ import static org.hamcrest.Matchers.equalTo;
 public class FetchSubPhasePluginIT extends ESIntegTestCase {
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return settingsBuilder()
-                .put(super.nodeSettings(nodeOrdinal))
-                .put("plugin.types", FetchTermVectorsPlugin.class.getName())
-                .build();
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return pluginList(FetchTermVectorsPlugin.class);
     }
 
     @Test

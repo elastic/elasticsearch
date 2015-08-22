@@ -36,7 +36,7 @@ import static org.hamcrest.Matchers.notNullValue;
 public class AzureSimpleTest extends AbstractAzureComputeServiceTest {
 
     public AzureSimpleTest() {
-        super(AzureComputeServiceSimpleMock.TestPlugin.class.getName());
+        super(AzureComputeServiceSimpleMock.TestPlugin.class);
     }
 
     @Test

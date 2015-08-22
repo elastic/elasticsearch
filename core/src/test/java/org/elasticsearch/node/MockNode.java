@@ -17,36 +17,38 @@
  * under the License.
  */
 
-package org.elasticsearch.index.store;
+package org.elasticsearch.node;
 
-import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.plugin.cloud.azure.CloudAzurePlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.util.Collection;
 
-import static org.hamcrest.Matchers.is;
+/**
+ * A node for testing which allows:
+ * <ul>
+ *   <li>Overriding Version.CURRENT</li>
+ *   <li>Adding test plugins that exist on the classpath</li>
+ * </ul>
+ */
+public class MockNode extends Node {
 
-abstract public class AbstractAzureFsTest extends ESIntegTestCase {
+    // these are kept here so a copy of this MockNode can be created, since Node does not store them
+    private Version version;
+    private Collection<Class<? extends Plugin>> plugins;
 
-    @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(CloudAzurePlugin.class);
+    public MockNode(Settings settings, boolean loadConfigSettings, Version version, Collection<Class<? extends Plugin>> classpathPlugins) {
+        super(settings, loadConfigSettings, version, classpathPlugins);
+        this.version = version;
+        this.plugins = classpathPlugins;
     }
 
-    @Test
-    public void testAzureFs() {
-        // Create an index and index some documents
-        createIndex("test");
-        long nbDocs = randomIntBetween(10, 1000);
-        for (long i = 0; i < nbDocs; i++) {
-            index("test", "doc", "" + i, "foo", "bar");
-        }
-        refresh();
-        SearchResponse response = client().prepareSearch("test").get();
-        assertThat(response.getHits().totalHits(), is(nbDocs));
+    public Collection<Class<? extends Plugin>> getPlugins() {
+        return plugins;
+    }
+
+    public Version getVersion() {
+        return version;
     }
 }

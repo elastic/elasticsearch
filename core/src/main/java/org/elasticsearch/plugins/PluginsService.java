@@ -70,10 +70,10 @@ public class PluginsService extends AbstractComponent {
     /**
      * We keep around a list of plugins
      */
-    private final ImmutableList<Tuple<PluginInfo, Plugin>> plugins;
+    private final List<Tuple<PluginInfo, Plugin>> plugins;
     private final PluginsInfo info;
 
-    private final ImmutableMap<Plugin, List<OnModuleReference>> onModuleReferences;
+    private final Map<Plugin, List<OnModuleReference>> onModuleReferences;
 
     static class OnModuleReference {
         public final Class<? extends Module> moduleClass;
@@ -89,20 +89,19 @@ public class PluginsService extends AbstractComponent {
      * Constructs a new PluginService
      * @param settings The settings of the system
      * @param environment The environment of the system
+     * @param classpathPlugins Plugins that exist in the classpath which should be loaded
      */
-    public PluginsService(Settings settings, Environment environment) {
+    public PluginsService(Settings settings, Environment environment, Collection<Class<? extends Plugin>> classpathPlugins) {
         super(settings);
 
-        ImmutableList.Builder<Tuple<PluginInfo, Plugin>> tupleBuilder = ImmutableList.builder();
+        List<Tuple<PluginInfo, Plugin>> tupleBuilder = new ArrayList<>();
 
-        // first we load specified plugins via 'plugin.types' settings parameter.
-        // this is a hack for what is between unit and integration tests...
-        String[] defaultPluginsClasses = settings.getAsArray("plugin.types");
-        for (String pluginClass : defaultPluginsClasses) {
-            Plugin plugin = loadPlugin(pluginClass, settings, getClass().getClassLoader());
-            PluginInfo pluginInfo = new PluginInfo(plugin.name(), plugin.description(), false, "NA", true, pluginClass, false);
+        // first we load plugins that are on the classpath. this is for tests and transport clients
+        for (Class<? extends Plugin> pluginClass : classpathPlugins) {
+            Plugin plugin = loadPlugin(pluginClass, settings);
+            PluginInfo pluginInfo = new PluginInfo(plugin.name(), plugin.description(), false, "NA", true, pluginClass.getName(), false);
             if (logger.isTraceEnabled()) {
-                logger.trace("plugin loaded from settings [{}]", pluginInfo);
+                logger.trace("plugin loaded from classpath [{}]", pluginInfo);
             }
             tupleBuilder.add(new Tuple<>(pluginInfo, plugin));
         }
@@ -115,7 +114,7 @@ public class PluginsService extends AbstractComponent {
           throw new IllegalStateException("Unable to initialize plugins", ex);
         }
 
-        plugins = tupleBuilder.build();
+        plugins = Collections.unmodifiableList(tupleBuilder);
         info = new PluginsInfo();
         for (Tuple<PluginInfo, Plugin> tuple : plugins) {
             info.add(tuple.v1());
@@ -128,7 +127,7 @@ public class PluginsService extends AbstractComponent {
         for (Tuple<PluginInfo, Plugin> tuple : plugins) {
             PluginInfo info = tuple.v1();
             if (info.isJvm()) {
-                jvmPlugins.put(tuple.v2().name(), tuple.v2());
+                jvmPlugins.put(info.getName(), tuple.v2());
             }
             if (info.isSite()) {
                 sitePlugins.add(info.getName());
@@ -151,7 +150,7 @@ public class PluginsService extends AbstractComponent {
 
         logger.info("loaded {}, sites {}", jvmPlugins.keySet(), sitePlugins);
 
-        MapBuilder<Plugin, List<OnModuleReference>> onModuleReferences = MapBuilder.newMapBuilder();
+        Map<Plugin, List<OnModuleReference>> onModuleReferences = new HashMap<>();
         for (Plugin plugin : jvmPlugins.values()) {
             List<OnModuleReference> list = new ArrayList<>();
             for (Method method : plugin.getClass().getMethods()) {
@@ -173,10 +172,10 @@ public class PluginsService extends AbstractComponent {
                 onModuleReferences.put(plugin, list);
             }
         }
-        this.onModuleReferences = onModuleReferences.immutableMap();
+        this.onModuleReferences = Collections.unmodifiableMap(onModuleReferences);
     }
 
-    public ImmutableList<Tuple<PluginInfo, Plugin>> plugins() {
+    public List<Tuple<PluginInfo, Plugin>> plugins() {
         return plugins;
     }
 
@@ -355,7 +354,8 @@ public class PluginsService extends AbstractComponent {
                 if (pluginInfo.isJvm()) {
                     // reload lucene SPI with any new services from the plugin
                     reloadLuceneSPI(loader);
-                    plugin = loadPlugin(pluginInfo.getClassname(), settings, loader);
+                    Class<? extends Plugin> pluginClass = loadPluginClass(pluginInfo.getClassname(), loader);
+                    plugin = loadPlugin(pluginClass, settings);
                 } else {
                     plugin = new SitePlugin(pluginInfo.getName(), pluginInfo.getDescription());
                 }
@@ -384,10 +384,16 @@ public class PluginsService extends AbstractComponent {
         TokenizerFactory.reloadTokenizers(loader);
     }
 
-    private Plugin loadPlugin(String className, Settings settings, ClassLoader loader) {
+    private Class<? extends Plugin> loadPluginClass(String className, ClassLoader loader) {
         try {
-            Class<? extends Plugin> pluginClass = loader.loadClass(className).asSubclass(Plugin.class);
+            return loader.loadClass(className).asSubclass(Plugin.class);
+        } catch (ClassNotFoundException e) {
+            throw new ElasticsearchException("Could not find plugin class [" + className + "]", e);
+        }
+    }
 
+    private Plugin loadPlugin(Class<? extends Plugin> pluginClass, Settings settings) {
+        try {
             try {
                 return pluginClass.getConstructor(Settings.class).newInstance(settings);
             } catch (NoSuchMethodException e) {
@@ -395,13 +401,12 @@ public class PluginsService extends AbstractComponent {
                     return pluginClass.getConstructor().newInstance();
                 } catch (NoSuchMethodException e1) {
                     throw new ElasticsearchException("No constructor for [" + pluginClass + "]. A plugin class must " +
-                            "have either an empty default constructor or a single argument constructor accepting a " +
-                            "Settings instance");
+                        "have either an empty default constructor or a single argument constructor accepting a " +
+                        "Settings instance");
                 }
             }
-
         } catch (Throwable e) {
-            throw new ElasticsearchException("Failed to load plugin class [" + className + "]", e);
+            throw new ElasticsearchException("Failed to load plugin class [" + pluginClass.getName() + "]", e);
         }
     }
 }

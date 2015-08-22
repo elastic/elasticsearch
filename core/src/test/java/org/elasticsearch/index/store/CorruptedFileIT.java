@@ -61,6 +61,7 @@ import org.elasticsearch.indices.recovery.RecoveryFileChunkRequest;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
 import org.elasticsearch.monitor.fs.FsInfo;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
@@ -98,12 +99,16 @@ public class CorruptedFileIT extends ESIntegTestCase {
                 // we really need local GW here since this also checks for corruption etc.
                 // and we need to make sure primaries are not just trashed if we don't have replicas
                 .put(super.nodeSettings(nodeOrdinal))
-                .extendArray("plugin.types", MockTransportService.TestPlugin.class.getName())
                         // speed up recoveries
                 .put(RecoverySettings.INDICES_RECOVERY_CONCURRENT_STREAMS, 10)
                 .put(RecoverySettings.INDICES_RECOVERY_CONCURRENT_SMALL_FILE_STREAMS, 10)
                 .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES, 5)
                 .build();
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return pluginList(MockTransportService.TestPlugin.class);
     }
 
     /**

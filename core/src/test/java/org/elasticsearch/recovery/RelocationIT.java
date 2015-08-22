@@ -54,6 +54,7 @@ import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.indices.recovery.RecoveryFileChunkRequest;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.BackgroundIndexer;
@@ -76,6 +77,7 @@ import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Semaphore;
@@ -100,11 +102,9 @@ public class RelocationIT extends ESIntegTestCase {
     private final TimeValue ACCEPTABLE_RELOCATION_TIME = new TimeValue(5, TimeUnit.MINUTES);
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder()
-            .put("plugin.types", MockTransportService.TestPlugin.class.getName()).build();
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return pluginList(MockTransportService.TestPlugin.class);
     }
-
 
     @Test
     public void testSimpleRelocationNoIndexing() {

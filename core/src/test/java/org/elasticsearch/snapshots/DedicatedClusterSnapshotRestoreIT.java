@@ -56,6 +56,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.indices.ttl.IndicesTTLService;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
@@ -72,6 +73,7 @@ import org.junit.Test;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -101,6 +103,11 @@ import static org.hamcrest.Matchers.nullValue;
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0, transportClientRatio = 0)
 @ESIntegTestCase.SuppressLocalMode // TODO only restorePersistentSettingsTest needs this maybe factor out?
 public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCase {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return pluginList(MockRepository.Plugin.class);
+    }
 
     @Test
     public void restorePersistentSettingsTest() throws Exception {
@@ -617,7 +624,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
     @Test
     public void registrationFailureTest() {
         logger.info("--> start first node");
-        internalCluster().startNode(settingsBuilder().put("plugin.types", MockRepository.Plugin.class.getName()));
+        internalCluster().startNode();
         logger.info("--> start second node");
         // Make sure the first node is elected as master
         internalCluster().startNode(settingsBuilder().put("node.master", false));
@@ -636,7 +643,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
 
     @Test
     public void testThatSensitiveRepositorySettingsAreNotExposed() throws Exception {
-        Settings nodeSettings = settingsBuilder().put("plugin.types", MockRepository.Plugin.class.getName()).build();
+        Settings nodeSettings = settingsBuilder().put().build();
         logger.info("--> start two nodes");
         internalCluster().startNodesAsync(2, nodeSettings).get();
         // Register mock repositories

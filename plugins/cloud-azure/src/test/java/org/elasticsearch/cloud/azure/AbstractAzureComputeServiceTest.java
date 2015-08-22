@@ -24,13 +24,16 @@ import org.elasticsearch.cloud.azure.management.AzureComputeService.Discovery;
 import org.elasticsearch.cloud.azure.management.AzureComputeService.Management;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugin.cloud.azure.CloudAzurePlugin;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
+
+import java.util.Collection;
 
 public abstract class AbstractAzureComputeServiceTest extends ESIntegTestCase {
 
-    private String mockPlugin;
+    private Class<? extends Plugin> mockPlugin;
 
-    public AbstractAzureComputeServiceTest(String mockPlugin) {
+    public AbstractAzureComputeServiceTest(Class<? extends Plugin> mockPlugin) {
         // We want to inject the Azure API Mock
         this.mockPlugin = mockPlugin;
     }
@@ -41,8 +44,7 @@ public abstract class AbstractAzureComputeServiceTest extends ESIntegTestCase {
             .put(super.nodeSettings(nodeOrdinal))
             .put("discovery.type", "azure")
                 // We need the network to make the mock working
-            .put("node.mode", "network")
-            .extendArray("plugin.types", CloudAzurePlugin.class.getName(), mockPlugin);
+            .put("node.mode", "network");
 
         // We add a fake subscription_id to start mock compute service
         builder.put(Management.SUBSCRIPTION_ID, "fake")
@@ -51,6 +53,11 @@ public abstract class AbstractAzureComputeServiceTest extends ESIntegTestCase {
             .put(Management.KEYSTORE_PASSWORD, "dummy")
             .put(Management.SERVICE_NAME, "dummy");
         return builder.build();
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return pluginList(CloudAzurePlugin.class, mockPlugin);
     }
 
     protected void checkNumberOfNodes(int expected) {

@@ -34,6 +34,7 @@ import org.elasticsearch.cloud.aws.AwsS3Service;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugin.cloud.aws.CloudAwsPlugin;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.repositories.RepositoryVerificationException;
 import org.elasticsearch.snapshots.SnapshotMissingException;
@@ -46,6 +47,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 
 import static org.hamcrest.Matchers.*;
@@ -63,9 +65,13 @@ abstract public class AbstractS3SnapshotRestoreTest extends AbstractAwsTest {
                 .put(MockFSDirectoryService.RANDOM_PREVENT_DOUBLE_WRITE, false)
                 .put(MockFSDirectoryService.RANDOM_NO_DELETE_OPEN_FILE, false)
                 .put("cloud.enabled", true)
-                .put("plugin.types", CloudAwsPlugin.class.getName())
                 .put("repositories.s3.base_path", basePath)
                 .build();
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return pluginList(CloudAwsPlugin.class);
     }
 
     private String basePath;

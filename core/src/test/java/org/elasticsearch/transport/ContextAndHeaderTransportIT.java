@@ -100,10 +100,14 @@ public class ContextAndHeaderTransportIT extends ESIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         return settingsBuilder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put("plugin.types", ActionLoggingPlugin.class.getName())
                 .put("script.indexed", "on")
                 .put(HTTP_ENABLED, true)
                 .build();
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return pluginList(ActionLoggingPlugin.class);
     }
 
     @Before

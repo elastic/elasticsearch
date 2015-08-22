@@ -47,6 +47,7 @@ import org.hamcrest.Matchers;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
@@ -146,8 +147,13 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
         return Settings.builder()
                 // manual collection or upon cluster forming.
                 .put(InternalClusterInfoService.INTERNAL_CLUSTER_INFO_TIMEOUT, "1s")
-                .putArray("plugin.types", TestPlugin.class.getName(), MockTransportService.TestPlugin.class.getName())
                 .build();
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return pluginList(TestPlugin.class,
+                          MockTransportService.TestPlugin.class);
     }
 
     @Test

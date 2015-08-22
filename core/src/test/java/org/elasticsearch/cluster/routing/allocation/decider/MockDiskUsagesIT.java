@@ -29,9 +29,11 @@ import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.monitor.fs.FsInfo;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
+import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -50,11 +52,15 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                    // Use the mock internal cluster info service, which has fake-able disk usages
-                .extendArray("plugin.types", MockInternalClusterInfoService.TestPlugin.class.getName())
                         // Update more frequently
                 .put(InternalClusterInfoService.INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL, "1s")
                 .build();
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        // Use the mock internal cluster info service, which has fake-able disk usages
+        return pluginList(MockInternalClusterInfoService.TestPlugin.class);
     }
 
     @Test

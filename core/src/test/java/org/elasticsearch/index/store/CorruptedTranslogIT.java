@@ -34,6 +34,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.monitor.fs.FsInfo;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.engine.MockEngineSupport;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -46,6 +47,7 @@ import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.*;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
@@ -61,12 +63,10 @@ import static org.hamcrest.Matchers.notNullValue;
 public class CorruptedTranslogIT extends ESIntegTestCase {
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder()
-                // we really need local GW here since this also checks for corruption etc.
-                // and we need to make sure primaries are not just trashed if we don't have replicas
-                .put(super.nodeSettings(nodeOrdinal))
-                .extendArray("plugin.types", MockTransportService.TestPlugin.class.getName()).build();
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        // we really need local GW here since this also checks for corruption etc.
+        // and we need to make sure primaries are not just trashed if we don't have replicas
+        return pluginList(MockTransportService.TestPlugin.class);
     }
 
     @Test

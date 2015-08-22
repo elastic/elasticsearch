@@ -47,6 +47,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoverySource;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.InternalTestCluster;
@@ -63,6 +64,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
@@ -87,8 +89,12 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
                 // which is between 1 and 2 sec can cause each of the shard deletion requests to timeout.
                 // to prevent this we are setting the timeout here to something highish ie. the default in practice
                 .put(IndicesStore.INDICES_STORE_DELETE_SHARD_TIMEOUT, new TimeValue(30, TimeUnit.SECONDS))
-                .extendArray("plugin.types", MockTransportService.TestPlugin.class.getName())
                 .build();
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return pluginList(MockTransportService.TestPlugin.class);
     }
 
     @Override

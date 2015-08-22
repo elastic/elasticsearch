@@ -42,7 +42,7 @@ public class ZenUnicastDiscoveryIT extends ESIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return discoveryConfig.node(nodeOrdinal);
+        return discoveryConfig.nodeSettings(nodeOrdinal);
     }
 
     @Before

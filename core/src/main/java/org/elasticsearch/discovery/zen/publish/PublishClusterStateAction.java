@@ -439,7 +439,11 @@ public class PublishClusterStateAction extends AbstractComponent {
     }
 
 
-    public class FailedToCommitException extends ElasticsearchException {
+    public static class FailedToCommitException extends ElasticsearchException {
+
+        public FailedToCommitException(StreamInput in) throws IOException {
+            super(in);
+        }
 
         public FailedToCommitException(String msg, Object... args) {
             super(msg, args);

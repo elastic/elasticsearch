@@ -160,6 +160,10 @@ public class Node implements Releasable {
             ModulesBuilder modules = new ModulesBuilder();
             modules.add(new Version.Module(version));
             modules.add(new CircuitBreakerModule(settings));
+            // plugin modules must be added here, before others or we can get crazy injection errors...
+            for (Module pluginModule : pluginsService.nodeModules()) {
+                modules.add(pluginModule);
+            }
             modules.add(new PluginsModule(pluginsService));
             modules.add(new SettingsModule(settings));
             modules.add(new NodeModule(this));
@@ -188,9 +192,7 @@ public class Node implements Releasable {
             modules.add(new RepositoriesModule());
             modules.add(new TribeModule());
 
-            for (Module pluginModule : pluginsService.nodeModules()) {
-                modules.add(pluginModule);
-            }
+
             pluginsService.processModules(modules);
 
             injector = modules.createInjector();

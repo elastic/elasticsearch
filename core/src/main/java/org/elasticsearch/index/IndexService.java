@@ -316,6 +316,10 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
             final boolean canDeleteShardContent = IndexMetaData.isOnSharedFilesystem(indexSettings) == false ||
                     (primary && IndexMetaData.isOnSharedFilesystem(indexSettings));
             ModulesBuilder modules = new ModulesBuilder();
+            // plugin modules must be added here, before others or we can get crazy injection errors...
+            for (Module pluginModule : pluginsService.shardModules(indexSettings)) {
+                modules.add(pluginModule);
+            }
             modules.add(new IndexShardModule(shardId, primary, indexSettings));
             modules.add(new StoreModule(injector.getInstance(IndexStore.class).shardDirectory(), lock,
                     new StoreCloseListener(shardId, canDeleteShardContent,  new Closeable() {
@@ -326,9 +330,6 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
                     }), path));
             modules.add(new DeletionPolicyModule());
 
-            for (Module pluginModule : pluginsService.shardModules(indexSettings)) {
-                modules.add(pluginModule);
-            }
             pluginsService.processModules(modules);
 
             try {

@@ -54,13 +54,24 @@ public class FieldValueFactorFunction extends ScoreFunction {
 
     @Override
     public LeafScoreFunction getLeafScoreFunction(LeafReaderContext ctx) {
-        final SortedNumericDoubleValues values = this.indexFieldData.load(ctx).getDoubleValues();
+        final SortedNumericDoubleValues values;
+        if(indexFieldData == null) {
+            values = null;
+        } else {
+            values = this.indexFieldData.load(ctx).getDoubleValues();
+        }
+
         return new LeafScoreFunction() {
 
             @Override
             public double score(int docId, float subQueryScore) {
-                values.setDocument(docId);
-                final int numValues = values.count();
+                final int numValues;
+                if(values == null){
+                    numValues = 0;
+                } else {
+                    values.setDocument(docId);
+                    numValues = values.count();
+                }
                 double value;
                 if (numValues > 0) {
                     value = values.valueAt(0);

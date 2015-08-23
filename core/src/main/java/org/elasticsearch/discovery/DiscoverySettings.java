@@ -35,13 +35,22 @@ import java.util.EnumSet;
  */
 public class DiscoverySettings extends AbstractComponent {
 
+    /**
+     * sets the timeout for a complete publishing cycle, including both sending and committing. the master
+     * will continute to process the next cluster state update after this time has elapsed
+     **/
     public static final String PUBLISH_TIMEOUT = "discovery.zen.publish_timeout";
+
+    /**
+     * sets the timeout for receiving enough acks for a specific cluster state and committing it. failing
+     * to receive responses within this window will cause the cluster state change to be rejected.
+     */
     public static final String COMMIT_TIMEOUT = "discovery.zen.commit_timeout";
     public static final String NO_MASTER_BLOCK = "discovery.zen.no_master_block";
     public static final String PUBLISH_DIFF_ENABLE = "discovery.zen.publish_diff.enable";
 
     public static final TimeValue DEFAULT_PUBLISH_TIMEOUT = TimeValue.timeValueSeconds(30);
-    public static final TimeValue DEFAULT_COMMIT_TIMEOUT = TimeValue.timeValueSeconds(1);
+    public static final TimeValue DEFAULT_COMMIT_TIMEOUT = TimeValue.timeValueSeconds(30);
     public static final String DEFAULT_NO_MASTER_BLOCK = "write";
     public final static int NO_MASTER_BLOCK_ID = 2;
     public final static boolean DEFAULT_PUBLISH_DIFF_ENABLE = true;

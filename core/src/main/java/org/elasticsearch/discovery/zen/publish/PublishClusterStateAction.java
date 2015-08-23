@@ -121,6 +121,8 @@ public class PublishClusterStateAction extends AbstractComponent {
         final boolean sendFullVersion = !discoverySettings.getPublishDiff() || previousState == null;
         final SendingController sendingController = new SendingController(clusterChangedEvent.state(), minMasterNodes, totalMasterNodes, publishResponseHandler);
 
+        final long publishingStartInNanos = System.nanoTime();
+
         // we build these early as a best effort not to commit in the case of error.
         // sadly this is not water tight as it may that a failed diff based publishing to a node
         // will cause a full serialization based on an older version, which may fail after the
@@ -140,21 +142,19 @@ public class PublishClusterStateAction extends AbstractComponent {
 
         sendingController.waitForCommit(discoverySettings.getCommitTimeout());
 
-        if (publishTimeout.millis() > 0) {
-            // only wait if the publish timeout is configured...
-            try {
-                sendingController.setPublishingTimedOut(!publishResponseHandler.awaitAllNodes(publishTimeout));
-                if (sendingController.getPublishingTimedOut()) {
-                    DiscoveryNode[] pendingNodes = publishResponseHandler.pendingNodes();
-                    // everyone may have just responded
-                    if (pendingNodes.length > 0) {
-                        logger.warn("timed out waiting for all nodes to process published state [{}] (timeout [{}], pending nodes: {})", clusterState.version(), publishTimeout, pendingNodes);
-                    }
+        try {
+            long timeLeftInNanos = Math.max(0, publishTimeout.nanos() - (System.nanoTime() - publishingStartInNanos));
+            sendingController.setPublishingTimedOut(!publishResponseHandler.awaitAllNodes(TimeValue.timeValueNanos(timeLeftInNanos)));
+            if (sendingController.getPublishingTimedOut()) {
+                DiscoveryNode[] pendingNodes = publishResponseHandler.pendingNodes();
+                // everyone may have just responded
+                if (pendingNodes.length > 0) {
+                    logger.warn("timed out waiting for all nodes to process published state [{}] (timeout [{}], pending nodes: {})", clusterState.version(), publishTimeout, pendingNodes);
                 }
-            } catch (InterruptedException e) {
-                // ignore & restore interrupt
-                Thread.currentThread().interrupt();
             }
+        } catch (InterruptedException e) {
+            // ignore & restore interrupt
+            Thread.currentThread().interrupt();
         }
     }
 
@@ -487,6 +487,7 @@ public class PublishClusterStateAction extends AbstractComponent {
             } catch (InterruptedException e) {
 
             }
+            //nocommit: make sure we prevent publishing successfully!
             if (committed.get() == false) {
                 throw new FailedToCommitException("{} enough masters to ack sent cluster state. [{}] left",
                         timedout ? "timed out while waiting for" : "failed to get", neededMastersToCommit);

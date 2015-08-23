@@ -23,24 +23,37 @@ import com.google.common.base.Predicate;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.DiscoverySettings;
+import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
+import org.elasticsearch.discovery.zen.fd.FaultDetection;
+import org.elasticsearch.discovery.zen.publish.PublishClusterStateAction;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.test.disruption.NetworkDelaysPartition;
+import org.elasticsearch.test.disruption.NetworkUnresponsivePartition;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.ESIntegTestCase.Scope;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
 import static org.hamcrest.Matchers.*;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
@@ -331,5 +344,70 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
 
         logger.info("--> verifying no node left and master is up");
         assertFalse(client().admin().cluster().prepareHealth().setWaitForNodes(Integer.toString(nodeCount)).get().isTimedOut());
+    }
+
+    public void testCanNotPublishWithoutMinMastNodes() throws Exception {
+        Settings settings = settingsBuilder()
+                .put("discovery.type", "zen")
+                .put(FaultDetection.SETTING_PING_TIMEOUT, "1h") // disable it
+                .put(ZenDiscovery.SETTING_PING_TIMEOUT, "200ms")
+                .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, 2)
+                .put(DiscoverySettings.COMMIT_TIMEOUT, "100ms") // speed things up
+                .build();
+        internalCluster().startNodesAsync(3, settings).get();
+
+        final String master = internalCluster().getMasterName();
+        Set<String> otherNodes = new HashSet<>(Arrays.asList(internalCluster().getNodeNames()));
+        otherNodes.remove(master);
+        NetworkDelaysPartition partition = new NetworkDelaysPartition(Collections.singleton(master), otherNodes, 60000, random());
+        internalCluster().setDisruptionScheme(partition);
+        partition.startDisrupting();
+
+        final CountDownLatch latch = new CountDownLatch(1);
+        final AtomicReference<Throwable> failure = new AtomicReference<>();
+        logger.debug("--> submitting for cluster state to be rejected");
+        final ClusterService masterClusterService = internalCluster().clusterService(master);
+        masterClusterService.submitStateUpdateTask("test", new ProcessedClusterStateUpdateTask() {
+            @Override
+            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                latch.countDown();
+            }
+
+            @Override
+            public ClusterState execute(ClusterState currentState) throws Exception {
+                MetaData.Builder metaData = MetaData.builder(currentState.metaData()).persistentSettings(
+                        Settings.builder().put(currentState.metaData().persistentSettings()).put("_SHOULD_NOT_BE_THERE_", true).build()
+                );
+                return ClusterState.builder(currentState).metaData(metaData).build();
+            }
+
+            @Override
+            public void onFailure(String source, Throwable t) {
+                failure.set(t);
+                latch.countDown();
+            }
+        });
+
+        logger.debug("--> waiting for cluster state to be processed/rejected");
+        latch.await();
+
+        assertThat(failure.get(), instanceOf(PublishClusterStateAction.FailedToCommitException.class));
+        assertBusy(new Runnable() {
+            @Override
+            public void run() {
+                assertThat(masterClusterService.state().nodes().masterNode(), nullValue());
+            }
+        });
+
+        partition.stopDisrupting();
+
+        logger.debug("--> waiting for cluster to heal");
+        assertNoTimeout(client().admin().cluster().prepareHealth().setWaitForNodes("3").setWaitForEvents(Priority.LANGUID));
+
+        for (String node : internalCluster().getNodeNames()) {
+            Settings nodeSetting = internalCluster().clusterService(node).state().metaData().settings();
+            assertThat(node + " processed the cluster state despite of a min master node violation", nodeSetting.get("_SHOULD_NOT_BE_THERE_"), nullValue());
+        }
+
     }
 }

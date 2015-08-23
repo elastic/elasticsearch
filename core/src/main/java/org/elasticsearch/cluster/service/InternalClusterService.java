@@ -482,8 +482,14 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                 // we publish here before we send a notification to all the listeners, since if it fails
                 // we don't want to notify
                 if (newClusterState.nodes().localNodeMaster()) {
-                    logger.debug("publishing cluster state version {}", newClusterState.version());
-                    discoveryService.publish(clusterChangedEvent, ackListener);
+                    logger.debug("publishing cluster state version [{}]", newClusterState.version());
+                    try {
+                        discoveryService.publish(clusterChangedEvent, ackListener);
+                    } catch (Throwable t) {
+                        logger.warn("failing [{}]: failed to publish cluster state version [{}]", t, source, newClusterState.version());
+                        updateTask.onFailure(source, t);
+                        return;
+                    }
                 }
 
                 // update the current cluster state

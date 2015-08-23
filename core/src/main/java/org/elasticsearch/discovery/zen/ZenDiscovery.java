@@ -36,7 +36,6 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.service.InternalClusterService;
@@ -333,7 +332,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         try {
             publishClusterState.publish(clusterChangedEvent, electMaster.minimumMasterNodes(), ackListener);
         } catch (PublishClusterStateAction.FailedToCommitException t) {
-            logger.warn("failed to publish [{}] (not enough nodes acknowledged, min master nodes [{}])", clusterChangedEvent.state().version(), electMaster.minimumMasterNodes());
+            // cluster service logs a WARN message
+            logger.debug("failed to publish cluster state version [{}] (not enough nodes acknowledged, min master nodes [{}])", clusterChangedEvent.state().version(), electMaster.minimumMasterNodes());
             clusterService.submitStateUpdateTask("zen-disco-failed-to-publish", Priority.IMMEDIATE, new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
@@ -856,7 +856,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
      * If the second condition fails we ignore the cluster state.
      */
     static boolean shouldIgnoreOrRejectNewClusterState(ESLogger logger, ClusterState currentState, ClusterState newClusterState) {
-        rejectNewClusterStateIfNeeded(logger, currentState.nodes(), newClusterState);
+        validateStateIsFromCurrentMaster(logger, currentState.nodes(), newClusterState);
         if (currentState.nodes().masterNodeId() != null && newClusterState.version() < currentState.version()) {
             // if the new state has a smaller version, and it has the same master node, then no need to process it
             logger.debug("received a cluster state that has a lower version than the current one, ignoring (received {}, current {})", newClusterState.version(), currentState.version());
@@ -871,7 +871,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
      * This method checks for this and throws an exception if needed
      */
 
-    public static void rejectNewClusterStateIfNeeded(ESLogger logger, DiscoveryNodes currentNodes, ClusterState newClusterState) {
+    public static void validateStateIsFromCurrentMaster(ESLogger logger, DiscoveryNodes currentNodes, ClusterState newClusterState) {
         if (currentNodes.masterNodeId() == null) {
             return;
         }

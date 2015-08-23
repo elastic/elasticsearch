@@ -256,7 +256,7 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
     }
 
     // Used for testing and logging to determine how this cluster state was send over the wire
-    boolean wasReadFromDiff() {
+    public boolean wasReadFromDiff() {
         return wasReadFromDiff;
     }
 

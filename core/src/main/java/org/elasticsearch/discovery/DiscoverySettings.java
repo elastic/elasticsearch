@@ -60,7 +60,7 @@ public class DiscoverySettings extends AbstractComponent {
         nodeSettingsService.addListener(new ApplySettings());
         this.noMasterBlock = parseNoMasterBlock(settings.get(NO_MASTER_BLOCK, DEFAULT_NO_MASTER_BLOCK));
         this.publishTimeout = settings.getAsTime(PUBLISH_TIMEOUT, publishTimeout);
-        this.commitTimeout = settings.getAsTime(PUBLISH_TIMEOUT, publishTimeout);
+        this.commitTimeout = settings.getAsTime(COMMIT_TIMEOUT, publishTimeout);
         this.publishDiff = settings.getAsBoolean(PUBLISH_DIFF_ENABLE, DEFAULT_PUBLISH_DIFF_ENABLE);
     }
 
@@ -89,6 +89,13 @@ public class DiscoverySettings extends AbstractComponent {
                 if (newPublishTimeout.millis() != publishTimeout.millis()) {
                     logger.info("updating [{}] from [{}] to [{}]", PUBLISH_TIMEOUT, publishTimeout, newPublishTimeout);
                     publishTimeout = newPublishTimeout;
+                }
+            }
+            TimeValue newCommitTimeout = settings.getAsTime(COMMIT_TIMEOUT, null);
+            if (newCommitTimeout != null) {
+                if (newCommitTimeout.millis() != commitTimeout.millis()) {
+                    logger.info("updating [{}] from [{}] to [{}]", COMMIT_TIMEOUT, commitTimeout, newCommitTimeout);
+                    commitTimeout = newCommitTimeout;
                 }
             }
             String newNoMasterBlockValue = settings.get(NO_MASTER_BLOCK);

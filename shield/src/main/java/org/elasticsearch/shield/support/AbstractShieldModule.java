@@ -7,8 +7,6 @@ package org.elasticsearch.shield.support;
 
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.inject.SpawnModules;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.ShieldPlugin;
 

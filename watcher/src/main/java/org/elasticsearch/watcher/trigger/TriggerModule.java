@@ -6,14 +6,11 @@
 package org.elasticsearch.watcher.trigger;
 
 import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.inject.SpawnModules;
 import org.elasticsearch.common.inject.multibindings.Multibinder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.watcher.trigger.manual.ManualTriggerEngine;
 import org.elasticsearch.watcher.trigger.schedule.ScheduleModule;
 
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 

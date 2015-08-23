@@ -133,6 +133,10 @@ public class TransportClient extends AbstractClient {
             try {
                 ModulesBuilder modules = new ModulesBuilder();
                 modules.add(new Version.Module(version));
+                // plugin modules must be added here, before others or we can get crazy injection errors...
+                for (Module pluginModule : pluginsService.nodeModules()) {
+                    modules.add(pluginModule);
+                }
                 modules.add(new PluginsModule(pluginsService));
                 modules.add(new EnvironmentModule(environment));
                 modules.add(new SettingsModule(this.settings));
@@ -150,9 +154,6 @@ public class TransportClient extends AbstractClient {
                 modules.add(new ClientTransportModule());
                 modules.add(new CircuitBreakerModule(this.settings));
 
-                for (Module pluginModule : pluginsService.nodeModules()) {
-                    modules.add(pluginModule);
-                }
                 pluginsService.processModules(modules);
 
                 Injector injector = modules.createInjector();

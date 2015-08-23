@@ -76,24 +76,80 @@ dependencies {
   testCompile group: 'org.apache.httpcomponents', name: 'httpclient', version: '4.3.6'
 }
 
+sourceSets {
+  main {
+    output.resourcesDir = "build/classes/main"
+  }
+  test {
+    // hack, see https://discuss.gradle.org/t/processresources-does-not-copy-to-correct-dir/11293
+    output.resourcesDir = "build/classes/test"
+    resources {
+      // hack because we have lots of resource files in java root
+      srcDirs = ['src/test/resources', 'src/test/java']
+      excludes = ['**/*.java']
+    }
+  }
+}
+
 task sourcesJar(type: Jar, dependsOn: classes) {
     classifier = 'sources'
     from sourceSets.main.java
 }
 
-task test(overwrite:true, dependsOn: testClasses) {
-  ant.taskdef(resource: 'com/carrotsearch/junit4/antlib.xml',
-              uri: 'junit4',
-              classpath: configurations.testCompile.asPath)
-  def junit4 = NamespaceBuilder.newInstance(ant, 'junit4')
-  junit4.pickseed(property: 'tests.seed')
-  println "Seed: " + ant.properties['tests.seed']
-  junit4.junit4(taskName: 'junit4') {
-    classpath {
-      pathElement(path: configurations.testCompile.asPath)
-    }
-    fileset(dir: sourceSets.test.output.classesDir) {
-      include(name:'**/*Tests.class')
+// TODO: how to have task know about this global?
+ant.taskdef(resource: 'com/carrotsearch/junit4/antlib.xml',
+            uri: 'junit4',
+            classpath: configurations.testCompile.asPath)
+def junit4runner = NamespaceBuilder.newInstance(ant, 'junit4')
+
+task test(type: RandomizedRunnerTask, overwrite:true, dependsOn: testClasses) {
+  sourceSet = sourceSets.test
+  workingDir = new File(buildDir, 'run-tests')
+  junit4 = junit4runner
+}
+
+
+class RandomizedRunnerTask extends DefaultTask {
+  @Input
+  SourceSet sourceSet
+  @Input
+  workingDir
+  @Input
+  junit4 
+
+  @TaskAction
+  def run() {
+    junit4.pickseed(property: 'tests.seed')
+    println "Seed: " + ant.properties['tests.seed']
+    junit4.junit4(
+        taskName: 'junit4',
+        dir: workingDir)
+    {
+      println "Classpath: " + sourceSet.runtimeClasspath.asPath
+      classpath {
+        pathElement(path: sourceSet.runtimeClasspath.asPath)
+      }
+      jvmarg(line: '-ea -esa')
+      fileset(dir: sourceSet.output.classesDir) {
+        //include(name:'**/*IT.class') // temp
+        include(name:'**/*Test.class')
+        include(name:'**/*Tests.class')
+        exclude(name:'**/Abstract*.class')
+        exclude(name:'**/*StressTest.class')
+      }
+      listeners {
+        junit4.'report-text'(
+          showThrowable: true,
+          showStackTraces: true,
+          showOutput: 'onerror', // TODO: change to property
+          showStatusOk: false,
+          showStatusError: true,
+          showStatusFailure: true,
+          showStatusIgnored: true,
+          showSuiteSummary: true,
+          timestamps: false
+        )
+      }
     }
   }
 }

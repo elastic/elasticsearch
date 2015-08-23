@@ -1,0 +1,1 @@
+allprojects { apply plugin: "idea" }

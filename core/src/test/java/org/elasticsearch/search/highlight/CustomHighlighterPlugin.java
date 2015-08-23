@@ -19,10 +19,10 @@
 
 package org.elasticsearch.search.highlight;
 
-import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchModule;
 
-public class CustomHighlighterPlugin extends AbstractPlugin {
+public class CustomHighlighterPlugin extends Plugin {
 
     @Override
     public String name() {

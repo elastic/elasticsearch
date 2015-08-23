@@ -69,14 +69,14 @@ public class ValueFormat {
         public static final DateTime DEFAULT = new DateTime(DateFieldMapper.Defaults.DATE_TIME_FORMATTER.format(), ValueFormatter.DateTime.DEFAULT, ValueParser.DateMath.DEFAULT);
 
         public static DateTime format(String format, DateTimeZone timezone) {
-            return new DateTime(format, new ValueFormatter.DateTime(format, timezone), new ValueParser.DateMath(format));
+            return new DateTime(format, new ValueFormatter.DateTime(format, timezone), new ValueParser.DateMath(format, timezone));
         }
 
         public static DateTime mapper(DateFieldMapper.DateFieldType fieldType, DateTimeZone timezone) {
-            return new DateTime(fieldType.dateTimeFormatter().format(), ValueFormatter.DateTime.mapper(fieldType, timezone), ValueParser.DateMath.mapper(fieldType));
+            return new DateTime(fieldType.dateTimeFormatter().format(), ValueFormatter.DateTime.mapper(fieldType, timezone), ValueParser.DateMath.mapper(fieldType, timezone));
         }
 
-        public DateTime(String pattern, ValueFormatter formatter, ValueParser parser) {
+        private DateTime(String pattern, ValueFormatter formatter, ValueParser parser) {
             super(pattern, formatter, parser);
         }
 

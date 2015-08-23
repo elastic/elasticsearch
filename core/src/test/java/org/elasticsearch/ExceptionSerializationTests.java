@@ -526,7 +526,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         try {
             XContentBuilder builder = XContentFactory.jsonBuilder();
             builder.startObject();
-            x.toXContent(builder, new ToXContent.MapParams(Collections.singletonMap(ElasticsearchException.REST_EXCEPTION_SKIP_STACK_TRACE, "true")));
+            x.toXContent(builder, ToXContent.EMPTY_PARAMS);
             builder.endObject();
             return builder.string();
         } catch (IOException e) {
@@ -606,5 +606,21 @@ public class ExceptionSerializationTests extends ESTestCase {
         ElasticsearchSecurityException e = serialize(ex);
         assertEquals(ex.status(), e.status());
         assertEquals(RestStatus.UNAUTHORIZED, e.status());
+    }
+
+    public void testInterruptedException() throws IOException {
+        InterruptedException orig = randomBoolean() ? new InterruptedException("boom") : new InterruptedException();
+        InterruptedException ex = serialize(orig);
+        assertEquals(orig.getMessage(), ex.getMessage());
+    }
+
+    public static class UnknownException extends Exception {
+        public UnknownException(String message) {
+            super(message);
+        }
+
+        public UnknownException(String message, Throwable cause) {
+            super(message, cause);
+        }
     }
 }

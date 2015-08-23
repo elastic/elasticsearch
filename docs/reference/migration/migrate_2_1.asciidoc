@@ -1,0 +1,27 @@
+[[breaking-changes-2.1]]
+== Breaking changes in 2.1
+
+This section discusses the changes that you need to be aware of when migrating
+your application to Elasticsearch 2.1.
+
+=== Search changes
+
+==== `search_type=scan` deprecated
+
+The `scan` search type has been deprecated. All benefits from this search
+type can now be achieved by doing a scroll request that sorts documents in
+`_doc` order, for instance:
+
+[source,sh]
+---------------
+GET /my_index/_search?scroll=2m
+{
+  "sort": [
+    "_doc"
+  ]
+}
+---------------
+
+Scroll requests sorted by `_doc` have been optimized to more efficiently resume
+from where the previous request stopped, so this will have the same performance
+characteristics as the former `scan` search type.

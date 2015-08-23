@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.innerhits;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.index.IndexRequestBuilder;

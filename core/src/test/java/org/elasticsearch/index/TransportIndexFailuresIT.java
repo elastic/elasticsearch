@@ -48,6 +48,7 @@ import static org.hamcrest.Matchers.equalTo;
  * Test failure when index replication actions fail mid-flight
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, transportClientRatio = 0)
+@ESIntegTestCase.SuppressLocalMode
 public class TransportIndexFailuresIT extends ESIntegTestCase {
 
     private static final Settings nodeSettings = Settings.settingsBuilder()
@@ -56,7 +57,7 @@ public class TransportIndexFailuresIT extends ESIntegTestCase {
             .put(FaultDetection.SETTING_PING_RETRIES, "1") // <-- for hitting simulated network failures quickly
             .put(DiscoverySettings.PUBLISH_TIMEOUT, "1s") // <-- for hitting simulated network failures quickly
             .put("discovery.zen.minimum_master_nodes", 1)
-            .put("plugin.types", MockTransportService.Plugin.class.getName())
+            .put("plugin.types", MockTransportService.TestPlugin.class.getName())
             .build();
 
     @Override

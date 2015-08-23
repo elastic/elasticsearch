@@ -102,7 +102,7 @@ public class RelocationIT extends ESIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
-            .put("plugin.types", MockTransportService.Plugin.class.getName()).build();
+            .put("plugin.types", MockTransportService.TestPlugin.class.getName()).build();
     }
 
 
@@ -402,7 +402,7 @@ public class RelocationIT extends ESIntegTestCase {
 
         // Slow down recovery in order to make recovery cancellations more likely
         IndicesStatsResponse statsResponse = client().admin().indices().prepareStats(indexName).get();
-        long chunkSize = statsResponse.getIndex(indexName).getShards()[0].getStats().getStore().size().bytes() / 10;
+        long chunkSize = Math.max(1, statsResponse.getIndex(indexName).getShards()[0].getStats().getStore().size().bytes() / 10);
         assertTrue(client().admin().cluster().prepareUpdateSettings()
                 .setTransientSettings(Settings.builder()
                                 // one chunk per sec..

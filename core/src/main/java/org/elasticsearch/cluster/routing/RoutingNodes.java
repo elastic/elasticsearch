@@ -345,10 +345,10 @@ public class RoutingNodes implements Iterable<RoutingNode> {
     /**
      * Moves a shard from unassigned to initialize state
      */
-    public void initialize(ShardRouting shard, String nodeId) {
+    public void initialize(ShardRouting shard, String nodeId, long expectedSize) {
         ensureMutable();
         assert shard.unassigned() : shard;
-        shard.initialize(nodeId);
+        shard.initialize(nodeId, expectedSize);
         node(nodeId).add(shard);
         inactiveShardCount++;
         if (shard.primary()) {
@@ -362,10 +362,10 @@ public class RoutingNodes implements Iterable<RoutingNode> {
      * shard as well as assigning it. And returning the target initializing
      * shard.
      */
-    public ShardRouting relocate(ShardRouting shard, String nodeId) {
+    public ShardRouting relocate(ShardRouting shard, String nodeId, long expectedShardSize) {
         ensureMutable();
         relocatingShards++;
-        shard.relocate(nodeId);
+        shard.relocate(nodeId, expectedShardSize);
         ShardRouting target = shard.buildTargetRelocatingShard();
         node(target.currentNodeId()).add(target);
         assignedShardsAdd(target);
@@ -608,16 +608,9 @@ public class RoutingNodes implements Iterable<RoutingNode> {
             /**
              * Initializes the current unassigned shard and moves it from the unassigned list.
              */
-            public void initialize(String nodeId) {
-                initialize(nodeId, current.version());
-            }
-
-            /**
-             * Initializes the current unassigned shard and moves it from the unassigned list.
-             */
-            public void initialize(String nodeId, long version) {
+            public void initialize(String nodeId, long version, long expectedShardSize) {
                 innerRemove();
-                nodes.initialize(new ShardRouting(current, version), nodeId);
+                nodes.initialize(new ShardRouting(current, version), nodeId, expectedShardSize);
             }
 
             /**

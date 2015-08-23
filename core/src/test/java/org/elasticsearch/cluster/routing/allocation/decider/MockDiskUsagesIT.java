@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
@@ -50,7 +51,7 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                     // Use the mock internal cluster info service, which has fake-able disk usages
-                .extendArray("plugin.types", MockInternalClusterInfoService.Plugin.class.getName())
+                .extendArray("plugin.types", MockInternalClusterInfoService.TestPlugin.class.getName())
                         // Update more frequently
                 .put(InternalClusterInfoService.INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL, "1s")
                 .build();
@@ -167,7 +168,7 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
                 usage.getTotalBytes(), usage.getFreeBytes(), usage.getFreeBytes());
         paths[0] = path;
         FsInfo fsInfo = new FsInfo(System.currentTimeMillis(), paths);
-        return new NodeStats(new DiscoveryNode(nodeName, null, Version.V_2_0_0_beta1),
+        return new NodeStats(new DiscoveryNode(nodeName, DummyTransportAddress.INSTANCE, Version.CURRENT),
                 System.currentTimeMillis(),
                 null, null, null, null, null,
                 fsInfo,

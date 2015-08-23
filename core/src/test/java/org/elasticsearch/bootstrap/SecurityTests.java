@@ -244,7 +244,7 @@ public class SecurityTests extends ESTestCase {
             assumeNoException("test cannot create symbolic links with security manager enabled", e);
         }
         Permissions permissions = new Permissions();
-        Security.addPath(permissions, link, "read");
+        Security.addPath(permissions, "testing", link, "read");
         assertExactPermissions(new FilePermission(link.toString(), "read"), permissions);
         assertExactPermissions(new FilePermission(link.resolve("foo").toString(), "read"), permissions);
         assertExactPermissions(new FilePermission(target.toString(), "read"), permissions);

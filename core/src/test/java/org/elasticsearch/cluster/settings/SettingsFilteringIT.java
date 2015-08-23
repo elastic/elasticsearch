@@ -25,12 +25,13 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
-import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.junit.Test;
 
 import java.util.Collection;
+import java.util.Collections;
 
 import static com.google.common.collect.Lists.newArrayList;
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
@@ -49,7 +50,7 @@ public class SettingsFilteringIT extends ESIntegTestCase {
                 .build();
     }
 
-    public static class SettingsFilteringPlugin extends AbstractPlugin {
+    public static class SettingsFilteringPlugin extends Plugin {
         /**
          * The name of the plugin.
          */
@@ -67,10 +68,8 @@ public class SettingsFilteringIT extends ESIntegTestCase {
         }
 
         @Override
-        public Collection<Class<? extends Module>> indexModules() {
-            Collection<Class<? extends Module>> modules = newArrayList();
-            modules.add(SettingsFilteringModule.class);
-            return modules;
+        public Collection<Module> indexModules(Settings indexSettings) {
+            return Collections.<Module>singletonList(new SettingsFilteringModule());
         }
     }
 

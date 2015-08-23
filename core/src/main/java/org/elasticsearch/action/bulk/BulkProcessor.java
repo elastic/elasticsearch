@@ -145,6 +145,10 @@ public class BulkProcessor implements Closeable {
     }
 
     public static Builder builder(Client client, Listener listener) {
+        if (client == null) {
+            throw new NullPointerException("The client you specified while building a BulkProcessor is null");
+        }
+        
         return new Builder(client, listener);
     }
 

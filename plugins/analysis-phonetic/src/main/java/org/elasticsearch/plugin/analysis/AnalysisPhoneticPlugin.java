@@ -21,11 +21,11 @@ package org.elasticsearch.plugin.analysis;
 
 import org.elasticsearch.index.analysis.AnalysisModule;
 import org.elasticsearch.index.analysis.PhoneticAnalysisBinderProcessor;
-import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.plugins.Plugin;
 
 /**
  */
-public class AnalysisPhoneticPlugin extends AbstractPlugin {
+public class AnalysisPhoneticPlugin extends Plugin {
 
     @Override
     public String name() {

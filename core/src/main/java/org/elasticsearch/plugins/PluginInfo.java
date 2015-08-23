@@ -52,7 +52,7 @@ public class PluginInfo implements Streamable, ToXContent {
     private String description;
     private boolean site;
     private String version;
-    
+
     private boolean jvm;
     private String classname;
     private boolean isolated;
@@ -86,7 +86,11 @@ public class PluginInfo implements Streamable, ToXContent {
         try (InputStream stream = Files.newInputStream(descriptor)) {
             props.load(stream);
         }
-        String name = dir.getFileName().toString();
+        String name = props.getProperty("name");
+        if (name == null || name.isEmpty()) {
+            throw new IllegalArgumentException("Property [name] is missing in [" + descriptor + "]");
+        }
+        PluginManager.checkForForbiddenName(name);
         String description = props.getProperty("description");
         if (description == null) {
             throw new IllegalArgumentException("Property [description] is missing for plugin [" + name + "]");
@@ -95,6 +99,7 @@ public class PluginInfo implements Streamable, ToXContent {
         if (version == null) {
             throw new IllegalArgumentException("Property [version] is missing for plugin [" + name + "]");
         }
+
         boolean jvm = Boolean.parseBoolean(props.getProperty("jvm"));
         boolean site = Boolean.parseBoolean(props.getProperty("site"));
         if (jvm == false && site == false) {
@@ -115,6 +120,7 @@ public class PluginInfo implements Streamable, ToXContent {
             if (javaVersionString == null) {
                 throw new IllegalArgumentException("Property [java.version] is missing for jvm plugin [" + name + "]");
             }
+            JarHell.checkVersionFormat(javaVersionString);
             JarHell.checkJavaVersion(name, javaVersionString);
             isolated = Boolean.parseBoolean(props.getProperty("isolated", "true"));
             classname = props.getProperty("classname");
@@ -122,7 +128,7 @@ public class PluginInfo implements Streamable, ToXContent {
                 throw new IllegalArgumentException("Property [classname] is missing for jvm plugin [" + name + "]");
             }
         }
-        
+
         if (site) {
             if (!Files.exists(dir.resolve("_site"))) {
                 throw new IllegalArgumentException("Plugin [" + name + "] is a site plugin but has no '_site/' directory");
@@ -159,14 +165,14 @@ public class PluginInfo implements Streamable, ToXContent {
     public boolean isJvm() {
         return jvm;
     }
-    
+
     /**
      * @return true if jvm plugin has isolated classloader
      */
     public boolean isIsolated() {
         return isolated;
     }
-    
+
     /**
      * @return jvm plugin's classname
      */

@@ -590,6 +590,9 @@ public abstract class StreamOutput extends OutputStream {
                 writeVInt(16);
             } else if (throwable instanceof LockObtainFailedException) {
                 writeVInt(17);
+            } else if (throwable instanceof InterruptedException) {
+                writeVInt(18);
+                writeCause = false;
             } else {
                 ElasticsearchException ex;
                 final String name = throwable.getClass().getName();

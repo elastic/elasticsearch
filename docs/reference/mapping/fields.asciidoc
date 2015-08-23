@@ -32,9 +32,10 @@ can be customised when a mapping type is created.
 
     The original JSON representing the body of the document.
 
-<<mapping-size-field,`_size`>>::
+{plugins}/mapper-size.html[`_size`]::
 
-    The size of the `_source` field in bytes.
+    The size of the `_source` field in bytes, provided by the
+    {plugins}/mapper-size.html[`mapper-size` plugin].
 
 [float]
 === Indexing meta-fields
@@ -88,8 +89,6 @@ include::fields/meta-field.asciidoc[]
 include::fields/parent-field.asciidoc[]
 
 include::fields/routing-field.asciidoc[]
-
-include::fields/size-field.asciidoc[]
 
 include::fields/source-field.asciidoc[]
 

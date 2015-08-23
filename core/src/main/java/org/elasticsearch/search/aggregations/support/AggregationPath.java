@@ -186,9 +186,8 @@ public class AggregationPath {
     }
 
     public AggregationPath subPath(int offset, int length) {
-        PathElement[] subTokens = new PathElement[length];
-        System.arraycopy(pathElements, offset, subTokens, 0, length);
-        return new AggregationPath(pathElements);
+        List<PathElement> subTokens = new ArrayList<>(pathElements.subList(offset, offset + length));
+        return new AggregationPath(subTokens);
     }
 
     /**
@@ -266,12 +265,12 @@ public class AggregationPath {
         }
         return aggregator;
     }
-    
+
     /**
      * Resolves the topmost aggregator pointed by this path using the given root as a point of reference.
      *
      * @param root      The point of reference of this path
-     * @return          The first child aggregator of the root pointed by this path 
+     * @return          The first child aggregator of the root pointed by this path
      */
     public Aggregator resolveTopmostAggregator(Aggregator root) {
         AggregationPath.PathElement token = pathElements.get(0);
@@ -279,7 +278,7 @@ public class AggregationPath {
         assert (aggregator instanceof SingleBucketAggregator )
                 || (aggregator instanceof NumericMetricsAggregator) : "this should be picked up before aggregation execution - on validate";
         return aggregator;
-    }    
+    }
 
     /**
      * Validates this path over the given aggregator as a point of reference.

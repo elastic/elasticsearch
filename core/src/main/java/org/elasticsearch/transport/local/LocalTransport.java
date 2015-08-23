@@ -41,8 +41,7 @@ import org.elasticsearch.transport.*;
 import org.elasticsearch.transport.support.TransportStatus;
 
 import java.io.IOException;
-import java.util.Collections;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -57,14 +56,13 @@ import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.new
 public class LocalTransport extends AbstractLifecycleComponent<Transport> implements Transport {
 
     public static final String LOCAL_TRANSPORT_THREAD_NAME_PREFIX = "local_transport";
-
     private final ThreadPool threadPool;
     private final ThreadPoolExecutor workers;
     private final Version version;
     private volatile TransportServiceAdapter transportServiceAdapter;
     private volatile BoundTransportAddress boundAddress;
     private volatile LocalTransportAddress localAddress;
-    private final static ConcurrentMap<TransportAddress, LocalTransport> transports = newConcurrentMap();
+    private final static ConcurrentMap<LocalTransportAddress, LocalTransport> transports = newConcurrentMap();
     private static final AtomicLong transportAddressIdGenerator = new AtomicLong();
     private final ConcurrentMap<DiscoveryNode, LocalTransport> connectedNodes = newConcurrentMap();
     private final NamedWriteableRegistry namedWriteableRegistry;
@@ -78,7 +76,6 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
         super(settings);
         this.threadPool = threadPool;
         this.version = version;
-
         int workerCount = this.settings.getAsInt(TRANSPORT_LOCAL_WORKERS, EsExecutors.boundedNumberOfProcessors(settings));
         int queueSize = this.settings.getAsInt(TRANSPORT_LOCAL_QUEUE, -1);
         logger.debug("creating [{}] workers, queue_size [{}]", workerCount, queueSize);
@@ -88,7 +85,7 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
     }
 
     @Override
-    public TransportAddress[] addressesFromString(String address) {
+    public TransportAddress[] addressesFromString(String address, int perAddressLimit) {
         return new TransportAddress[]{new LocalTransportAddress(address)};
     }
 
@@ -358,5 +355,10 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
         } catch (Throwable t) {
             logger.error("failed to handle exception response [{}]", t, handler);
         }
+    }
+
+    @Override
+    public List<String> getLocalAddresses() {
+        return Collections.singletonList("0.0.0.0");
     }
 }

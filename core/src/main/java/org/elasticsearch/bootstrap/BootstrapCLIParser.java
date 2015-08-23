@@ -38,7 +38,7 @@ import java.util.Properties;
 import static org.elasticsearch.common.cli.CliToolConfig.Builder.cmd;
 import static org.elasticsearch.common.cli.CliToolConfig.Builder.optionBuilder;
 
-public class BootstrapCLIParser extends CliTool {
+final class BootstrapCLIParser extends CliTool {
 
     private static final CliToolConfig CONFIG = CliToolConfig.config("elasticsearch", BootstrapCLIParser.class)
             .cmds(Start.CMD, Version.CMD)

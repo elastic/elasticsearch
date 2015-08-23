@@ -30,6 +30,7 @@ $Source      = File::Spec->rel2abs($Source);
 
 say "LICENSE DIR: $License_Dir";
 say "SOURCE: $Source";
+say "IGNORE: $Ignore";
 
 die "License dir is not a directory: $License_Dir\n" . usage()
     unless -d $License_Dir;

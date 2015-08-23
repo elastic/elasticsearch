@@ -22,11 +22,13 @@ import com.google.common.base.Strings;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.index.mapper.internal.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.internal.IndexFieldMapper;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
@@ -388,7 +390,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
             assertThat(bucket.getDocCount(), equalTo(1l));
         }
 
-        // Check case with only exact term exclude clauses 
+        // Check case with only exact term exclude clauses
         response = client()
                 .prepareSearch("idx")
                 .setTypes("high_card_type")
@@ -690,11 +692,11 @@ public class StringTermsIT extends AbstractTermsTestCase {
     }
 
     /*
-     * 
+     *
      * [foo_val0, foo_val1] [foo_val1, foo_val2] [foo_val2, foo_val3] [foo_val3,
      * foo_val4] [foo_val4, foo_val5]
-     * 
-     * 
+     *
+     *
      * foo_val0 - doc_count: 1 - val_count: 2 foo_val1 - doc_count: 2 -
      * val_count: 4 foo_val2 - doc_count: 2 - val_count: 4 foo_val3 - doc_count:
      * 2 - val_count: 4 foo_val4 - doc_count: 2 - val_count: 4 foo_val5 -
@@ -992,6 +994,36 @@ public class StringTermsIT extends AbstractTermsTestCase {
             assertThat(avg, notNullValue());
             assertThat(avg.getValue(), equalTo((double) i));
             i++;
+        }
+    }
+
+    @Test
+    public void singleValuedField_OrderedByIllegalAgg() throws Exception {
+        boolean asc = true;
+        try {
+            client()
+                .prepareSearch("idx")
+                .setTypes("type")
+                .addAggregation(
+                        terms("terms").executionHint(randomExecutionHint()).field(SINGLE_VALUED_FIELD_NAME)
+                                .collectMode(randomFrom(SubAggCollectionMode.values()))
+                                .order(Terms.Order.aggregation("inner_terms>avg", asc))
+                                .subAggregation(terms("inner_terms").field(MULTI_VALUED_FIELD_NAME).subAggregation(avg("avg").field("i"))))
+                .execute().actionGet();
+            fail("Expected an exception");
+        } catch (SearchPhaseExecutionException e) {
+            ElasticsearchException[] rootCauses = e.guessRootCauses();
+            if (rootCauses.length == 1) {
+                ElasticsearchException rootCause = rootCauses[0];
+                if (rootCause instanceof AggregationExecutionException) {
+                    AggregationExecutionException aggException = (AggregationExecutionException) rootCause;
+                    assertThat(aggException.getMessage(), Matchers.startsWith("Invalid terms aggregation order path"));
+                } else {
+                    throw e;
+                }
+            } else {
+                throw e;
+            }
         }
     }
 

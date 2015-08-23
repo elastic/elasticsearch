@@ -39,6 +39,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
 import org.elasticsearch.test.rest.client.http.HttpResponse;
@@ -247,7 +248,7 @@ public class RestClient implements Closeable {
         return new HttpRequestBuilder(httpClient)
                 .addHeaders(headers)
                 .protocol(protocol)
-                .host(address.getHostName()).port(address.getPort());
+                .host(NetworkAddress.formatAddress(address.getAddress())).port(address.getPort());
     }
 
     protected HttpRequestBuilder httpRequestBuilder() {

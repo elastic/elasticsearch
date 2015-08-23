@@ -20,11 +20,23 @@
 package org.elasticsearch.bootstrap;
 
 /**
- * A wrapper around {@link Bootstrap} just so the process will look nicely on things like jps.
+ * This class starts elasticsearch.
  */
-public class Elasticsearch extends Bootstrap {
+public final class Elasticsearch {
 
-    public static void main(String[] args) throws Throwable {
-        Bootstrap.main(args);
+    /** no instantiation */
+    private Elasticsearch() {}
+
+    /**
+     * Main entry point for starting elasticsearch
+     */
+    public static void main(String[] args) throws StartupError {
+        try {
+            Bootstrap.init(args);
+        } catch (Throwable t) {
+            // format exceptions to the console in a special way
+            // to avoid 2MB stacktraces from guice, etc.
+            throw new StartupError(t);
+        }
     }
 }

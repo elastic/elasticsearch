@@ -694,9 +694,9 @@ public class InternalSearchHit implements SearchHit {
             innerHits = new HashMap<>(size);
             for (int i = 0; i < size; i++) {
                 String key = in.readString();
-                ShardTargetType shardTarget = InternalSearchHits.streamContext().streamShardTarget();
-                InternalSearchHits value = InternalSearchHits.readSearchHits(in, InternalSearchHits.streamContext().streamShardTarget(ShardTargetType.NO_STREAM));
-                InternalSearchHits.streamContext().streamShardTarget(shardTarget);
+                ShardTargetType shardTarget = context.streamShardTarget();
+                InternalSearchHits value = InternalSearchHits.readSearchHits(in, context.streamShardTarget(ShardTargetType.NO_STREAM));
+                context.streamShardTarget(shardTarget);
                 innerHits.put(key, value);
             }
         }
@@ -810,9 +810,9 @@ public class InternalSearchHit implements SearchHit {
             out.writeVInt(innerHits.size());
             for (Map.Entry<String, InternalSearchHits> entry : innerHits.entrySet()) {
                 out.writeString(entry.getKey());
-                ShardTargetType shardTarget = InternalSearchHits.streamContext().streamShardTarget();
-                entry.getValue().writeTo(out, InternalSearchHits.streamContext().streamShardTarget(ShardTargetType.NO_STREAM));
-                InternalSearchHits.streamContext().streamShardTarget(shardTarget);
+                ShardTargetType shardTarget = context.streamShardTarget();
+                entry.getValue().writeTo(out, context.streamShardTarget(ShardTargetType.NO_STREAM));
+                context.streamShardTarget(shardTarget);
             }
         }
     }

@@ -19,14 +19,18 @@
 
 package org.elasticsearch.plugin.deletebyquery;
 
+import org.elasticsearch.action.ActionModule;
+import org.elasticsearch.action.deletebyquery.DeleteByQueryAction;
+import org.elasticsearch.action.deletebyquery.TransportDeleteByQueryAction;
 import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.rest.RestModule;
+import org.elasticsearch.rest.action.deletebyquery.RestDeleteByQueryAction;
 
-import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 
-public class DeleteByQueryPlugin extends AbstractPlugin {
+public class DeleteByQueryPlugin extends Plugin {
 
     public static final String NAME = "delete-by-query";
 
@@ -40,8 +44,12 @@ public class DeleteByQueryPlugin extends AbstractPlugin {
         return "Elasticsearch Delete-By-Query Plugin";
     }
 
-    @Override
-    public Collection<Module> modules(Settings settings) {
-        return Arrays.asList((Module) new DeleteByQueryModule());
+    public void onModule(ActionModule actionModule) {
+        actionModule.registerAction(DeleteByQueryAction.INSTANCE, TransportDeleteByQueryAction.class);
     }
+
+    public void onModule(RestModule restModule) {
+        restModule.addRestAction(RestDeleteByQueryAction.class);
+    }
+
 }

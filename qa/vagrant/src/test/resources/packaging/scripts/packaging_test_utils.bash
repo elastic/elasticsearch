@@ -26,6 +26,9 @@
 # under the License.
 
 
+# Variables used by tests
+EXAMPLE_PLUGIN_ZIP=$(readlink -m jvm-example-*.zip)
+
 # Checks if necessary commands are available to run the tests
 
 if [ ! -x /usr/bin/which ]; then
@@ -134,11 +137,17 @@ skip_not_zip() {
 }
 
 assert_file_exist() {
-    [ -e "$1" ]
+    local file="$1"
+    echo "Should exist: ${file}"
+    local file=$(readlink -m "${file}")
+    [ -e "$file" ]
 }
 
 assert_file_not_exist() {
-    [ ! -e "$1" ]
+    local file="$1"
+    echo "Should not exist: ${file}"
+    local file=$(readlink -m "${file}")
+    [ ! -e "$file" ]
 }
 
 assert_file() {
@@ -305,51 +314,41 @@ clean_before_test() {
                             "/usr/lib/tmpfiles.d/elasticsearch.conf" \
                             "/usr/lib/sysctl.d/elasticsearch.conf")
 
-    if [ "$ES_CLEAN_BEFORE_TEST" = "true" ]; then
-        # Kills all processes of user elasticsearch
-        if id elasticsearch > /dev/null 2>&1; then
-            pkill -u elasticsearch 2>/dev/null || true
-        fi
-
-        # Kills all running Elasticsearch processes
-        ps aux | grep -i "org.elasticsearch.bootstrap.Elasticsearch" | awk {'print $2'} | xargs kill -9 > /dev/null 2>&1 || true
-
-        # Removes RPM package
-        if is_rpm; then
-            rpm --quiet -e elasticsearch > /dev/null 2>&1 || true
-        fi
-
-        if [ -x "`which yum 2>/dev/null`" ]; then
-            yum remove -y elasticsearch > /dev/null 2>&1 || true
-        fi
-
-        # Removes DEB package
-        if is_dpkg; then
-            dpkg --purge elasticsearch > /dev/null 2>&1 || true
-        fi
-
-        if [ -x "`which apt-get 2>/dev/null`" ]; then
-            apt-get --quiet --yes purge elasticsearch > /dev/null 2>&1 || true
-        fi
-
-        # Removes user & group
-        userdel elasticsearch > /dev/null 2>&1 || true
-        groupdel elasticsearch > /dev/null 2>&1 || true
-
-
-        # Removes all files
-        for d in "${ELASTICSEARCH_TEST_FILES[@]}"; do
-            if [ -e "$d" ]; then
-                rm -rf "$d"
-            fi
-        done
+    # Kills all processes of user elasticsearch
+    if id elasticsearch > /dev/null 2>&1; then
+        pkill -u elasticsearch 2>/dev/null || true
     fi
 
-    # Checks that all files are deleted
+    # Kills all running Elasticsearch processes
+    ps aux | grep -i "org.elasticsearch.bootstrap.Elasticsearch" | awk {'print $2'} | xargs kill -9 > /dev/null 2>&1 || true
+
+    # Removes RPM package
+    if is_rpm; then
+        rpm --quiet -e elasticsearch > /dev/null 2>&1 || true
+    fi
+
+    if [ -x "`which yum 2>/dev/null`" ]; then
+        yum remove -y elasticsearch > /dev/null 2>&1 || true
+    fi
+
+    # Removes DEB package
+    if is_dpkg; then
+        dpkg --purge elasticsearch > /dev/null 2>&1 || true
+    fi
+
+    if [ -x "`which apt-get 2>/dev/null`" ]; then
+        apt-get --quiet --yes purge elasticsearch > /dev/null 2>&1 || true
+    fi
+
+    # Removes user & group
+    userdel elasticsearch > /dev/null 2>&1 || true
+    groupdel elasticsearch > /dev/null 2>&1 || true
+
+
+    # Removes all files
     for d in "${ELASTICSEARCH_TEST_FILES[@]}"; do
         if [ -e "$d" ]; then
-            echo "$d should not exist before running the tests" >&2
-            exit 1
+            rm -rf "$d"
         fi
     done
 }

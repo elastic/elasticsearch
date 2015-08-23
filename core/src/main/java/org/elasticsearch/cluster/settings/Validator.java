@@ -20,7 +20,9 @@
 package org.elasticsearch.cluster.settings;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Booleans;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 
 import static org.elasticsearch.common.unit.ByteSizeValue.parseBytesSizeValue;
@@ -32,18 +34,18 @@ import static org.elasticsearch.common.unit.MemorySizeValue.parseBytesSizeValueO
  */
 public interface Validator {
 
-    String validate(String setting, String value);
+    String validate(String setting, String value, ClusterState clusterState);
 
-    public static final Validator EMPTY = new Validator() {
+    Validator EMPTY = new Validator() {
         @Override
-        public String validate(String setting, String value) {
+        public String validate(String setting, String value, ClusterState clusterState) {
             return null;
         }
     };
 
-    public static final Validator TIME = new Validator() {
+    Validator TIME = new Validator() {
         @Override
-        public String validate(String setting, String value) {
+        public String validate(String setting, String value, ClusterState clusterState) {
             if (value == null) {
                 throw new NullPointerException("value must not be null");
             }
@@ -57,9 +59,9 @@ public interface Validator {
         }
     };
 
-    public static final Validator TIMEOUT = new Validator() {
+    Validator TIMEOUT = new Validator() {
         @Override
-        public String validate(String setting, String value) {
+        public String validate(String setting, String value, ClusterState clusterState) {
             try {
                 if (value == null) {
                     throw new NullPointerException("value must not be null");
@@ -76,9 +78,9 @@ public interface Validator {
         }
     };
 
-    public static final Validator TIME_NON_NEGATIVE = new Validator() {
+    Validator TIME_NON_NEGATIVE = new Validator() {
         @Override
-        public String validate(String setting, String value) {
+        public String validate(String setting, String value, ClusterState clusterState) {
             try {
                 if (value == null) {
                     throw new NullPointerException("value must not be null");
@@ -95,9 +97,9 @@ public interface Validator {
         }
     };
 
-    public static final Validator FLOAT = new Validator() {
+    Validator FLOAT = new Validator() {
         @Override
-        public String validate(String setting, String value) {
+        public String validate(String setting, String value, ClusterState clusterState) {
             try {
                 Float.parseFloat(value);
             } catch (NumberFormatException ex) {
@@ -107,9 +109,9 @@ public interface Validator {
         }
     };
 
-    public static final Validator NON_NEGATIVE_FLOAT = new Validator() {
+    Validator NON_NEGATIVE_FLOAT = new Validator() {
         @Override
-        public String validate(String setting, String value) {
+        public String validate(String setting, String value, ClusterState clusterState) {
             try {
                 if (Float.parseFloat(value) < 0.0) {
                     return "the value of the setting " + setting + " must be a non negative float";
@@ -121,9 +123,9 @@ public interface Validator {
         }
     };
 
-    public static final Validator DOUBLE = new Validator() {
+    Validator DOUBLE = new Validator() {
         @Override
-        public String validate(String setting, String value) {
+        public String validate(String setting, String value, ClusterState clusterState) {
             try {
                 Double.parseDouble(value);
             } catch (NumberFormatException ex) {
@@ -133,9 +135,9 @@ public interface Validator {
         }
     };
 
-    public static final Validator NON_NEGATIVE_DOUBLE = new Validator() {
+    Validator NON_NEGATIVE_DOUBLE = new Validator() {
         @Override
-        public String validate(String setting, String value) {
+        public String validate(String setting, String value, ClusterState clusterState) {
             try {
                 if (Double.parseDouble(value) < 0.0) {
                     return "the value of the setting " + setting + " must be a non negative double";
@@ -147,9 +149,9 @@ public interface Validator {
         }
     };
 
-    public static final Validator DOUBLE_GTE_2 = new Validator() {
+    Validator DOUBLE_GTE_2 = new Validator() {
         @Override
-        public String validate(String setting, String value) {
+        public String validate(String setting, String value, ClusterState clusterState) {
             try {
                 if (Double.parseDouble(value) < 2.0) {
                     return "the value of the setting " + setting + " must be >= 2.0";
@@ -161,9 +163,9 @@ public interface Validator {
         }
     };
 
-    public static final Validator INTEGER = new Validator() {
+    Validator INTEGER = new Validator() {
         @Override
-        public String validate(String setting, String value) {
+        public String validate(String setting, String value, ClusterState clusterState) {
             try {
                 Integer.parseInt(value);
             } catch (NumberFormatException ex) {
@@ -173,9 +175,9 @@ public interface Validator {
         }
     };
 
-    public static final Validator POSITIVE_INTEGER = new Validator() {
+    Validator POSITIVE_INTEGER = new Validator() {
         @Override
-        public String validate(String setting, String value) {
+        public String validate(String setting, String value, ClusterState clusterState) {
             try {
                 if (Integer.parseInt(value) <= 0) {
                     return "the value of the setting " + setting + " must be a positive integer";
@@ -187,9 +189,9 @@ public interface Validator {
         }
     };
 
-    public static final Validator NON_NEGATIVE_INTEGER = new Validator() {
+    Validator NON_NEGATIVE_INTEGER = new Validator() {
         @Override
-        public String validate(String setting, String value) {
+        public String validate(String setting, String value, ClusterState clusterState) {
             try {
                 if (Integer.parseInt(value) < 0) {
                     return "the value of the setting " + setting + " must be a non negative integer";
@@ -201,9 +203,9 @@ public interface Validator {
         }
     };
 
-    public static final Validator INTEGER_GTE_2 = new Validator() {
+    Validator INTEGER_GTE_2 = new Validator() {
         @Override
-        public String validate(String setting, String value) {
+        public String validate(String setting, String value, ClusterState clusterState) {
             try {
                 if (Integer.parseInt(value) < 2) {
                     return "the value of the setting " + setting + " must be >= 2";
@@ -215,9 +217,9 @@ public interface Validator {
         }
     };
 
-    public static final Validator BYTES_SIZE = new Validator() {
+    Validator BYTES_SIZE = new Validator() {
         @Override
-        public String validate(String setting, String value) {
+        public String validate(String setting, String value, ClusterState clusterState) {
             try {
                 parseBytesSizeValue(value, setting);
             } catch (ElasticsearchParseException ex) {
@@ -227,9 +229,24 @@ public interface Validator {
         }
     };
 
-    public static final Validator PERCENTAGE = new Validator() {
+    Validator POSITIVE_BYTES_SIZE = new Validator() {
         @Override
-        public String validate(String setting, String value) {
+        public String validate(String setting, String value, ClusterState state) {
+            try {
+                ByteSizeValue byteSizeValue = parseBytesSizeValue(value, setting);
+                if (byteSizeValue.getBytes() <= 0) {
+                    return setting + " must be a positive byte size value";
+                }
+            } catch (ElasticsearchParseException ex) {
+                return ex.getMessage();
+            }
+            return null;
+        }
+    };
+
+    Validator PERCENTAGE = new Validator() {
+        @Override
+        public String validate(String setting, String value, ClusterState clusterState) {
             try {
                 if (value == null) {
                     return "the value of " + setting + " can not be null";
@@ -249,12 +266,12 @@ public interface Validator {
     };
 
 
-    public static final Validator BYTES_SIZE_OR_PERCENTAGE = new Validator() {
+    Validator BYTES_SIZE_OR_PERCENTAGE = new Validator() {
         @Override
-        public String validate(String setting, String value) {
-            String byteSize = BYTES_SIZE.validate(setting, value);
+        public String validate(String setting, String value, ClusterState clusterState) {
+            String byteSize = BYTES_SIZE.validate(setting, value, clusterState);
             if (byteSize != null) {
-                String percentage = PERCENTAGE.validate(setting, value);
+                String percentage = PERCENTAGE.validate(setting, value, clusterState);
                 if (percentage == null) {
                     return null;
                 }
@@ -265,9 +282,9 @@ public interface Validator {
     };
 
 
-    public static final Validator MEMORY_SIZE = new Validator() {
+    Validator MEMORY_SIZE = new Validator() {
         @Override
-        public String validate(String setting, String value) {
+        public String validate(String setting, String value, ClusterState clusterState) {
             try {
                 parseBytesSizeValueOrHeapRatio(value, setting);
             } catch (ElasticsearchParseException ex) {
@@ -279,7 +296,7 @@ public interface Validator {
 
     public static final Validator BOOLEAN = new Validator() {
         @Override
-        public String validate(String setting, String value) {
+        public String validate(String setting, String value, ClusterState clusterState) {
 
             if (value != null && (Booleans.isExplicitFalse(value) || Booleans.isExplicitTrue(value))) {
                 return null;

@@ -321,11 +321,13 @@ Vagrant. You can get started by following there five easy steps:
 
 . (Optional) Install vagrant-cachier to squeeze a bit more performance out of
 the process:
+
 --------------------------------------
 vagrant plugin install vagrant-cachier
 --------------------------------------
 
 . Validate your installed dependencies:
+
 -------------------------------------
 mvn -Dtests.vagrant -pl qa/vagrant validate
 -------------------------------------
@@ -334,11 +336,14 @@ mvn -Dtests.vagrant -pl qa/vagrant validate
 from Vagrant when you run it inside mvn its probably best if you run this one
 time to setup all the VMs one at a time. Run this to download and setup the VMs
 we use for testing by default:
+
 --------------------------------------------------------
 vagrant up --provision trusty && vagrant halt trusty
 vagrant up --provision centos-7 && vagrant halt centos-7
 --------------------------------------------------------
+
 or run this to download and setup all the VMs:
+
 -------------------------------------------------------------------------------
 vagrant halt
 for box in $(vagrant status | grep 'poweroff\|not created' | cut -f1 -d' '); do
@@ -349,24 +354,32 @@ done
 
 . Smoke test the maven/ant dance that we use to get vagrant involved in
 integration testing is working:
+
 ---------------------------------------------
 mvn -Dtests.vagrant -Psmoke-vms -pl qa/vagrant verify
 ---------------------------------------------
+
 or this to validate all the VMs:
+
 -------------------------------------------------
 mvn -Dtests.vagrant=all -Psmoke-vms -pl qa/vagrant verify
 -------------------------------------------------
+
 That will start up the VMs and then immediate quit.
 
 . Finally run the tests. The fastest way to get this started is to run:
+
 -----------------------------------
 mvn clean install -DskipTests
 mvn -Dtests.vagrant -pl qa/vagrant verify
 -----------------------------------
+
 You could just run:
+
 --------------------
 mvn -Dtests.vagrant verify
 --------------------
+
 but that will run all the tests. Which is probably a good thing, but not always
 what you want.
 
@@ -379,39 +392,51 @@ packaging and SyvVinit and systemd.
 
 You can control the boxes that are used for testing like so. Run just
 fedora-22 with:
+
 --------------------------------------------
 mvn -Dtests.vagrant -pl qa/vagrant verify -DboxesToTest=fedora-22
 --------------------------------------------
+
 or run wheezy and trusty:
+
 ------------------------------------------------------------------
 mvn -Dtests.vagrant -pl qa/vagrant verify -DboxesToTest='wheezy, trusty'
 ------------------------------------------------------------------
+
 or run all the boxes:
+
 ---------------------------------------
 mvn -Dtests.vagrant=all -pl qa/vagrant verify
 ---------------------------------------
 
 Its important to know that if you ctrl-c any of these `mvn` runs that you'll
 probably leave a VM up. You can terminate it by running:
+
 ------------
 vagrant halt
 ------------
 
 This is just regular vagrant so you can run normal multi box vagrant commands
 to test things manually. Just run:
+
 ---------------------------------------
 vagrant up trusty && vagrant ssh trusty
 ---------------------------------------
+
 to get an Ubuntu or
+
 -------------------------------------------
 vagrant up centos-7 && vagrant ssh centos-7
 -------------------------------------------
+
 to get a CentOS. Once you are done with them you should halt them:
+
 -------------------
 vagrant halt trusty
 -------------------
 
 These are the linux flavors the Vagrantfile currently supports:
+
 * precise aka Ubuntu 12.04
 * trusty aka Ubuntu 14.04
 * vivid aka Ubuntun 15.04
@@ -424,23 +449,29 @@ These are the linux flavors the Vagrantfile currently supports:
 
 We're missing the following from the support matrix because there aren't high
 quality boxes available in vagrant atlas:
+
 * sles-11
 * sles-12
 * opensuse-13
 * oel-6
 
 We're missing the follow because our tests are very linux/bash centric:
+
 * Windows Server 2012
 
 Its important to think of VMs like cattle: if they become lame you just shoot
 them and let vagrant reprovision them. Say you've hosed your precise VM:
+
 ----------------------------------------------------
 vagrant ssh precise -c 'sudo rm -rf /bin'; echo oops
 ----------------------------------------------------
+
 All you've got to do to get another one is
+
 ----------------------------------------------
 vagrant destroy -f trusty && vagrant up trusty
 ----------------------------------------------
+
 The whole process takes a minute and a half on a modern laptop, two and a half
 without vagrant-cachier.
 
@@ -450,14 +481,17 @@ around it:
 https://github.com/mitchellh/vagrant/issues/4479
 
 Some vagrant commands will work on all VMs at once:
+
 ------------------
 vagrant halt
 vagrant destroy -f
 ------------------
 
+
 ----------
 vagrant up
 ----------
+
 would normally start all the VMs but we've prevented that because that'd
 consume a ton of ram.
 
@@ -466,19 +500,21 @@ consume a ton of ram.
 In general its best to stick to testing in vagrant because the bats scripts are
 destructive. When working with a single package its generally faster to run its
 tests in a tighter loop than maven provides. In one window:
+
 --------------------------------
 mvn -pl distribution/rpm package
 --------------------------------
+
 and in another window:
+
 ----------------------------------------------------
 vagrant up centos-7 && vagrant ssh centos-7
 cd $RPM
-sudo ES_CLEAN_BEFORE_TEST=true bats $BATS/*rpm*.bats
+sudo bats $BATS/*rpm*.bats
 ----------------------------------------------------
 
-At this point `ES_CLEAN_BEFORE_TEST=true` is required or tests fail spuriously.
-
 If you wanted to retest all the release artifacts on a single VM you could:
+
 -------------------------------------------------
 # Build all the distributions fresh but skip recompiling elasticsearch:
 mvn -amd -pl distribution install -DskipTests
@@ -486,7 +522,7 @@ mvn -amd -pl distribution install -DskipTests
 mvn -Dtests.vagrant -pl qa/vagrant pre-integration-test
 vagrant up trusty && vagrant ssh trusty
 cd $TESTROOT
-sudo ES_CLEAN_BEFORE_TEST=true bats $BATS/*.bats
+sudo bats $BATS/*.bats
 -------------------------------------------------
 
 == Coverage analysis

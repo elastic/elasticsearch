@@ -19,13 +19,14 @@
 package org.elasticsearch.test;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.ClusterInfoService;
+import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.allocation.AllocationModule;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocators;
@@ -63,7 +64,7 @@ public abstract class ESAllocationTestCase extends ESTestCase {
     }
 
     public static AllocationService createAllocationService(Settings settings, Random random) {
-        return createAllocationService(settings,  new NodeSettingsService(Settings.Builder.EMPTY_SETTINGS), random);
+        return createAllocationService(settings, new NodeSettingsService(Settings.Builder.EMPTY_SETTINGS), random);
     }
 
     public static AllocationService createAllocationService(Settings settings, NodeSettingsService nodeSettingsService, Random random) {
@@ -72,11 +73,18 @@ public abstract class ESAllocationTestCase extends ESTestCase {
                 new ShardsAllocators(settings, NoopGatewayAllocator.INSTANCE), EmptyClusterInfoService.INSTANCE);
     }
 
+    public static AllocationService createAllocationService(Settings settings, ClusterInfoService clusterInfoService) {
+        return new AllocationService(settings,
+                randomAllocationDeciders(settings, new NodeSettingsService(Settings.Builder.EMPTY_SETTINGS), getRandom()),
+                new ShardsAllocators(settings, NoopGatewayAllocator.INSTANCE), clusterInfoService);
+    }
+
+
 
     public static AllocationDeciders randomAllocationDeciders(Settings settings, NodeSettingsService nodeSettingsService, Random random) {
-        final List<Class<? extends AllocationDecider>> defaultAllocationDeciders = AllocationModule.DEFAULT_ALLOCATION_DECIDERS;
+        final List<Class<? extends AllocationDecider>> defaultAllocationDeciders = ClusterModule.DEFAULT_ALLOCATION_DECIDERS;
         final List<AllocationDecider> list = new ArrayList<>();
-        for (Class<? extends AllocationDecider> deciderClass : AllocationModule.DEFAULT_ALLOCATION_DECIDERS) {
+        for (Class<? extends AllocationDecider> deciderClass : ClusterModule.DEFAULT_ALLOCATION_DECIDERS) {
             try {
                 try {
                     Constructor<? extends AllocationDecider> constructor = deciderClass.getConstructor(Settings.class, NodeSettingsService.class);

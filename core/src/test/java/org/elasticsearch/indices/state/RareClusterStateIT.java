@@ -64,6 +64,7 @@ import static org.hamcrest.Matchers.*;
 /**
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0, transportClientRatio = 0)
+@ESIntegTestCase.SuppressLocalMode
 public class RareClusterStateIT extends ESIntegTestCase {
 
     @Override

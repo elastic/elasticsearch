@@ -44,7 +44,7 @@ import static org.hamcrest.Matchers.nullValue;
 public class AzureMinimumMasterNodesTest extends AbstractAzureComputeServiceTest {
 
     public AzureMinimumMasterNodesTest() {
-        super(AzureComputeServiceTwoNodesMock.Plugin.class.getName());
+        super(AzureComputeServiceTwoNodesMock.TestPlugin.class.getName());
     }
 
     @Override

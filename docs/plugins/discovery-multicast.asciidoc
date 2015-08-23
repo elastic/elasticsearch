@@ -1,0 +1,55 @@
+[[discovery-multicast]]
+=== Multicast Discovery Plugin
+
+The Multicast Discovery plugin provides the ability to form a cluster using
+TCP/IP multicast messages.
+
+[[discovery-multicast-install]]
+[float]
+==== Installation
+
+This plugin can be installed using the plugin manager:
+
+[source,sh]
+----------------------------------------------------------------
+sudo bin/plugin install discovery-multicast
+----------------------------------------------------------------
+
+The plugin must be installed on every node in the cluster, and each node must
+be restarted after installation.
+
+[[discovery-multicast-remove]]
+[float]
+==== Removal
+
+The plugin can be removed with the following command:
+
+[source,sh]
+----------------------------------------------------------------
+sudo bin/plugin remove discovery-multicast
+----------------------------------------------------------------
+
+The node must be stopped before removing the plugin.
+
+[[discovery-multicast-usage]]
+==== Configuring multicast discovery
+
+Multicast ping discovery of other nodes is done by sending one or more
+multicast requests which existing nodes will receive and
+respond to. It provides the following settings with the
+`discovery.zen.ping.multicast` prefix:
+
+[cols="<,<",options="header",]
+|=======================================================================
+|Setting |Description
+|`group` |The group address to use. Defaults to `224.2.2.4`.
+
+|`port` |The port to use. Defaults to `54328`.
+
+|`ttl` |The ttl of the multicast message. Defaults to `3`.
+
+|`address` |The address to bind to, defaults to `null` which means it
+will bind `network.bind_host`
+
+|`enabled` |Whether multicast ping discovery is enabled. Defaults to `false`.
+|=======================================================================

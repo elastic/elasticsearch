@@ -1165,7 +1165,7 @@ public class SearchQueryIT extends ESIntegTestCase {
     }
 
     @Test
-    public void testFieldDatatermsQuery() throws Exception {
+    public void testTermsQuery() throws Exception {
         assertAcked(prepareCreate("test").addMapping("type", "str", "type=string", "lng", "type=long", "dbl", "type=double"));
 
         indexRandom(true,
@@ -1175,60 +1175,60 @@ public class SearchQueryIT extends ESIntegTestCase {
                 client().prepareIndex("test", "type", "4").setSource("str", "4", "lng", 4l, "dbl", 4.0d));
 
         SearchResponse searchResponse = client().prepareSearch("test")
-                .setQuery(filteredQuery(matchAllQuery(), termsQuery("str", "1", "4").execution("fielddata"))).get();
+                .setQuery(filteredQuery(matchAllQuery(), termsQuery("str", "1", "4"))).get();
         assertHitCount(searchResponse, 2l);
         assertSearchHits(searchResponse, "1", "4");
 
         searchResponse = client().prepareSearch("test")
-                .setQuery(filteredQuery(matchAllQuery(), termsQuery("lng", new long[] {2, 3}).execution("fielddata"))).get();
+                .setQuery(filteredQuery(matchAllQuery(), termsQuery("lng", new long[] {2, 3}))).get();
         assertHitCount(searchResponse, 2l);
         assertSearchHits(searchResponse, "2", "3");
 
         searchResponse = client().prepareSearch("test")
-                .setQuery(filteredQuery(matchAllQuery(), termsQuery("dbl", new double[]{2, 3}).execution("fielddata"))).get();
+                .setQuery(filteredQuery(matchAllQuery(), termsQuery("dbl", new double[]{2, 3}))).get();
         assertHitCount(searchResponse, 2l);
         assertSearchHits(searchResponse, "2", "3");
 
         searchResponse = client().prepareSearch("test")
-                .setQuery(filteredQuery(matchAllQuery(), termsQuery("lng", new int[] {1, 3}).execution("fielddata"))).get();
+                .setQuery(filteredQuery(matchAllQuery(), termsQuery("lng", new int[] {1, 3}))).get();
         assertHitCount(searchResponse, 2l);
         assertSearchHits(searchResponse, "1", "3");
 
         searchResponse = client().prepareSearch("test")
-                .setQuery(filteredQuery(matchAllQuery(), termsQuery("dbl", new float[] {2, 4}).execution("fielddata"))).get();
+                .setQuery(filteredQuery(matchAllQuery(), termsQuery("dbl", new float[] {2, 4}))).get();
         assertHitCount(searchResponse, 2l);
         assertSearchHits(searchResponse, "2", "4");
 
         // test partial matching
         searchResponse = client().prepareSearch("test")
-                .setQuery(filteredQuery(matchAllQuery(), termsQuery("str", "2", "5").execution("fielddata"))).get();
+                .setQuery(filteredQuery(matchAllQuery(), termsQuery("str", "2", "5"))).get();
         assertNoFailures(searchResponse);
         assertHitCount(searchResponse, 1l);
         assertFirstHit(searchResponse, hasId("2"));
 
         searchResponse = client().prepareSearch("test")
-                .setQuery(filteredQuery(matchAllQuery(), termsQuery("dbl", new double[] {2, 5}).execution("fielddata"))).get();
+                .setQuery(filteredQuery(matchAllQuery(), termsQuery("dbl", new double[] {2, 5}))).get();
         assertNoFailures(searchResponse);
         assertHitCount(searchResponse, 1l);
         assertFirstHit(searchResponse, hasId("2"));
 
         searchResponse = client().prepareSearch("test")
-                .setQuery(filteredQuery(matchAllQuery(), termsQuery("lng", new long[] {2, 5}).execution("fielddata"))).get();
+                .setQuery(filteredQuery(matchAllQuery(), termsQuery("lng", new long[] {2, 5}))).get();
         assertNoFailures(searchResponse);
         assertHitCount(searchResponse, 1l);
         assertFirstHit(searchResponse, hasId("2"));
 
         // test valid type, but no matching terms
         searchResponse = client().prepareSearch("test")
-                .setQuery(filteredQuery(matchAllQuery(), termsQuery("str", "5", "6").execution("fielddata"))).get();
+                .setQuery(filteredQuery(matchAllQuery(), termsQuery("str", "5", "6"))).get();
         assertHitCount(searchResponse, 0l);
 
         searchResponse = client().prepareSearch("test")
-                .setQuery(filteredQuery(matchAllQuery(), termsQuery("dbl", new double[] {5, 6}).execution("fielddata"))).get();
+                .setQuery(filteredQuery(matchAllQuery(), termsQuery("dbl", new double[] {5, 6}))).get();
         assertHitCount(searchResponse, 0l);
 
         searchResponse = client().prepareSearch("test")
-                .setQuery(filteredQuery(matchAllQuery(), termsQuery("lng", new long[] {5, 6}).execution("fielddata"))).get();
+                .setQuery(filteredQuery(matchAllQuery(), termsQuery("lng", new long[] {5, 6}))).get();
         assertHitCount(searchResponse, 0l);
     }
 

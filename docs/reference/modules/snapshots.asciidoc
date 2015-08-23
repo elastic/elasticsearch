@@ -81,7 +81,7 @@ a prefix and back slashes are properly escaped:
 
 [source,yaml]
 --------------
-repo.path: ["\\\\MY_SERVER\\Snapshots"]
+path.repo: ["\\\\MY_SERVER\\Snapshots"]
 --------------
 
 After all nodes are restarted, the following command can be used to register the shared file system repository with
@@ -141,7 +141,7 @@ This setting supports wildcards in the place of host, path, query, and fragment.
 repositories.url.allowed_urls: ["http://www.example.org/root/*", "https://*.mydomain.com/*?*#*"]
 -----------------------------------
 
-URL repositories with `file:` URLs can only point to locations registered in the `repo.path` setting similiar to
+URL repositories with `file:` URLs can only point to locations registered in the `path.repo` setting similiar to
 shared file system repository.
 
 [float]

@@ -68,7 +68,7 @@ function migratePlugin() {
 	mkdir -p plugins/$1
 	git mv -k * plugins/$1 > /dev/null 2>/dev/null       
 	git rm .gitignore > /dev/null 2>/dev/null
-	# echo "### change $1 groupId to org.elasticsearch.plugins"
+	# echo "### change $1 groupId to org.elasticsearch.plugin"
 	# Change the groupId to avoid conflicts with existing 2.0.0 versions.
 	replaceLine "    <groupId>org.elasticsearch<\/groupId>" "    <groupId>org.elasticsearch.plugin<\/groupId>" "plugins/$1/pom.xml"
 

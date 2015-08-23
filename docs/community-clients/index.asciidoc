@@ -1,0 +1,234 @@
+= Community Contributed Clients
+
+:client: https://www.elastic.co/guide/en/elasticsearch/client
+
+Besides the link:/guide[officially supported Elasticsearch clients], there are
+a number of clients that have been contributed by the community for various languages:
+
+* <<clojure>>
+* <<cold-fusion>>
+* <<erlang>>
+* <<go>>
+* <<groovy>>
+* <<haskell>>
+* <<java>>
+* <<javascript>>
+* <<dotnet>>
+* <<ocaml>>
+* <<perl>>
+* <<php>>
+* <<python>>
+* <<r>>
+* <<ruby>>
+* <<scala>>
+* <<smalltalk>>
+* <<vertx>>
+
+
+[[clojure]]
+== Clojure
+
+* http://github.com/clojurewerkz/elastisch[Elastisch]:
+  Clojure client.
+
+[[cold-fusion]]
+== Cold Fusion
+
+The following project appears to be abandoned:
+
+* https://github.com/jasonfill/ColdFusion-ElasticSearch-Client[ColdFusion-Elasticsearch-Client]
+  Cold Fusion client for Elasticsearch
+
+[[erlang]]
+== Erlang
+
+* http://github.com/tsloughter/erlastic_search[erlastic_search]:
+  Erlang client using HTTP.
+
+* https://github.com/dieswaytoofast/erlasticsearch[erlasticsearch]:
+  Erlang client using Thrift.
+
+* https://github.com/datahogs/tirexs[Tirexs]:
+  An https://github.com/elixir-lang/elixir[Elixir] based API/DSL, inspired by
+  http://github.com/karmi/tire[Tire]. Ready to use in pure Erlang
+  environment.
+
+
+[[go]]
+== Go
+
+* https://github.com/mattbaird/elastigo[elastigo]:
+  Go client.
+
+* https://github.com/belogik/goes[goes]:
+  Go lib.
+
+* https://github.com/olivere/elastic[elastic]:
+  Elasticsearch client for Google Go.
+
+
+[[groovy]]
+== Groovy
+
+See the {client}/groovy-api/current/index.html[official Elasticsearch Groovy client].
+
+[[haskell]]
+== Haskell
+* https://github.com/bitemyapp/bloodhound[bloodhound]:
+  Haskell client and DSL.
+
+
+[[java]]
+== Java
+
+Also see the {client}/java-api/current/index.html[official Elasticsearch Java client].
+
+* https://github.com/searchbox-io/Jest[Jest]:
+  Java Rest client.
+
+[[javascript]]
+== JavaScript
+
+Also see the {client}/javascript-api/current/index.html[official Elasticsearch JavaScript client].
+
+* https://github.com/fullscale/elastic.js[Elastic.js]:
+  A JavaScript implementation of the Elasticsearch Query DSL and Core API.
+
+* https://github.com/printercu/elastics[elastics]: Simple tiny client that just works
+
+* https://github.com/roundscope/ember-data-elasticsearch-kit[ember-data-elasticsearch-kit]:
+  An ember-data kit for both pushing and querying objects to Elasticsearch cluster
+
+The following project appears to be abandoned:
+
+* https://github.com/ramv/node-elastical[node-elastical]:
+  Node.js client for the Elasticsearch REST API
+
+
+[[dotnet]]
+== .NET
+
+Also see the {client}/net-api/current/index.html[official Elasticsearch .NET client].
+
+* https://github.com/Yegoroff/PlainElastic.Net[PlainElastic.Net]:
+  .NET client.
+
+[[ocaml]]
+== OCaml
+
+The following project appears to be abandoned:
+
+* https://github.com/tovbinm/ocaml-elasticsearch[ocaml-elasticsearch]:
+  OCaml client for Elasticsearch
+
+[[perl]]
+== Perl
+
+Also see the {client}/perl-api/current/index.html[official Elasticsearch Perl client].
+
+* https://metacpan.org/pod/Elastijk[Elastijk]: A low level minimal HTTP client.
+
+
+[[php]]
+== PHP
+
+Also see the {client}/php-api/current/index.html[official Elasticsearch PHP client].
+
+* http://github.com/ruflin/Elastica[Elastica]:
+  PHP client.
+
+* http://github.com/nervetattoo/elasticsearch[elasticsearch] PHP client.
+
+[[python]]
+== Python
+
+Also see the {client}/python-api/current/index.html[official Elasticsearch Python client].
+
+* http://github.com/elasticsearch/elasticsearch-dsl-py[elasticsearch-dsl-py]
+  chainable query and filter construction built on top of official client.
+
+* http://github.com/rhec/pyelasticsearch[pyelasticsearch]:
+  Python client.
+
+* https://github.com/eriky/ESClient[ESClient]:
+  A lightweight and easy to use Python client for Elasticsearch.
+
+* https://github.com/mozilla/elasticutils/[elasticutils]:
+  A friendly chainable Elasticsearch interface for Python.
+
+* http://github.com/aparo/pyes[pyes]:
+  Python client.
+
+The following projects appear to be abandoned:
+
+* https://github.com/humangeo/rawes[rawes]:
+  Python low level client.
+
+* http://intridea.github.io/surfiki-refine-elasticsearch/[Surfiki Refine]:
+  Python Map-Reduce engine targeting Elasticsearch indices.
+
+[[r]]
+== R
+* https://github.com/Tomesch/elasticsearch[elasticsearch]
+  R client for Elasticsearch
+
+* https://github.com/ropensci/elastic[elastic]:
+  A general purpose R client for Elasticsearch
+
+[[ruby]]
+== Ruby
+
+Also see the {client}/ruby-api/current/index.html[official Elasticsearch Ruby client].
+
+* https://github.com/PoseBiz/stretcher[stretcher]:
+  Ruby client.
+
+* https://github.com/printercu/elastics-rb[elastics]:
+  Tiny client with built-in zero-downtime migrations and ActiveRecord integration.
+
+* https://github.com/toptal/chewy[chewy]:
+  Chewy is ODM and wrapper for official elasticsearch client
+
+* https://github.com/ankane/searchkick[Searchkick]:
+  Intelligent search made easy
+
+The following projects appear to be abandoned:
+
+* https://github.com/wireframe/elastic_searchable/[elastic_searchable]:
+  Ruby client + Rails integration.
+
+* https://github.com/ddnexus/flex[Flex]:
+  Ruby Client.
+
+
+
+[[scala]]
+== Scala
+
+* https://github.com/sksamuel/elastic4s[elastic4s]:
+  Scala DSL.
+
+* https://github.com/scalastuff/esclient[esclient]:
+  Thin Scala client.
+
+* https://github.com/gphat/wabisabi[wabisabi]:
+  Asynchronous REST API Scala client.
+
+The following project appears to be abandoned:
+
+* https://github.com/bsadeh/scalastic[scalastic]:
+  Scala client.
+
+
+[[smalltalk]]
+== Smalltalk
+
+* http://ss3.gemstone.com/ss/Elasticsearch.html[Elasticsearch] -
+  Smalltalk client for Elasticsearch
+
+
+[[vertx]]
+== Vert.x
+
+* https://github.com/goodow/realtime-search[realtime-search]:
+  Elasticsearch module for Vert.x

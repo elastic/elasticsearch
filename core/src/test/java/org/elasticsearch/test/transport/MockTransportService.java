@@ -32,12 +32,24 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.*;
+import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.RequestHandlerRegistry;
+import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportModule;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportRequestOptions;
+import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.TransportServiceAdapter;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
@@ -46,7 +58,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
  */
 public class MockTransportService extends TransportService {
 
-    public static class Plugin extends AbstractPlugin {
+    public static class TestPlugin extends Plugin {
         @Override
         public String name() {
             return "mock-transport-service";
@@ -350,8 +362,8 @@ public class MockTransportService extends TransportService {
         }
 
         @Override
-        public TransportAddress[] addressesFromString(String address) throws Exception {
-            return transport.addressesFromString(address);
+        public TransportAddress[] addressesFromString(String address, int perAddressLimit) throws Exception {
+            return transport.addressesFromString(address, perAddressLimit);
         }
 
         @Override
@@ -387,6 +399,11 @@ public class MockTransportService extends TransportService {
         @Override
         public long serverOpen() {
             return transport.serverOpen();
+        }
+
+        @Override
+        public List<String> getLocalAddresses() {
+            return transport.getLocalAddresses();
         }
 
         @Override

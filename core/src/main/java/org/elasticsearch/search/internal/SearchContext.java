@@ -24,7 +24,6 @@ import com.google.common.collect.MultimapBuilder;
 
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.util.Counter;
 import org.elasticsearch.action.search.SearchType;
@@ -159,9 +158,9 @@ public abstract class SearchContext implements Releasable, HasContextAndHeaders 
 
     protected abstract long nowInMillisImpl();
 
-    public abstract Scroll scroll();
+    public abstract ScrollContext scrollContext();
 
-    public abstract SearchContext scroll(Scroll scroll);
+    public abstract SearchContext scrollContext(ScrollContext scroll);
 
     public abstract SearchContextAggregations aggregations();
 
@@ -302,10 +301,6 @@ public abstract class SearchContext implements Releasable, HasContextAndHeaders 
     public abstract long keepAlive();
 
     public abstract void keepAlive(long keepAlive);
-
-    public abstract void lastEmittedDoc(ScoreDoc doc);
-
-    public abstract ScoreDoc lastEmittedDoc();
 
     public abstract SearchLookup lookup();
 

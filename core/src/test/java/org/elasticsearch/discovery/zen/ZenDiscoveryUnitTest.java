@@ -19,9 +19,13 @@
 
 package org.elasticsearch.discovery.zen;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.transport.DummyTransportAddress;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
@@ -41,9 +45,10 @@ public class ZenDiscoveryUnitTest extends ESTestCase {
         ClusterName clusterName = new ClusterName("abc");
 
         DiscoveryNodes.Builder currentNodes = DiscoveryNodes.builder();
-        currentNodes.masterNodeId("a");
+        currentNodes.masterNodeId("a").put(new DiscoveryNode("a", DummyTransportAddress.INSTANCE, Version.CURRENT));
+        ;
         DiscoveryNodes.Builder newNodes = DiscoveryNodes.builder();
-        newNodes.masterNodeId("a");
+        newNodes.masterNodeId("a").put(new DiscoveryNode("a", DummyTransportAddress.INSTANCE, Version.CURRENT));
 
         ClusterState.Builder currentState = ClusterState.builder(clusterName);
         currentState.nodes(currentNodes);
@@ -61,7 +66,8 @@ public class ZenDiscoveryUnitTest extends ESTestCase {
         assertFalse("should not ignore, because new state's version is higher to current state's version", shouldIgnoreOrRejectNewClusterState(logger, currentState.build(), newState.build()));
 
         currentNodes = DiscoveryNodes.builder();
-        currentNodes.masterNodeId("b");
+        currentNodes.masterNodeId("b").put(new DiscoveryNode("b", DummyTransportAddress.INSTANCE, Version.CURRENT));
+        ;
         // version isn't taken into account, so randomize it to ensure this.
         if (randomBoolean()) {
             currentState.version(2);

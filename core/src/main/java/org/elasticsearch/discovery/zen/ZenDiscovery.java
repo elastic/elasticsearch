@@ -876,8 +876,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
             return;
         }
         if (!currentNodes.masterNodeId().equals(newClusterState.nodes().masterNodeId())) {
-            logger.warn("received a cluster state from a different master then the current one, rejecting (received {}, current {})", newClusterState.nodes().masterNode(), currentNodes.masterNode());
-            throw new IllegalStateException("cluster state from a different master then the current one, rejecting (received " + newClusterState.nodes().masterNode() + ", current " + currentNodes.masterNode() + ")");
+            logger.warn("received a cluster state from a different master than the current one, rejecting (received {}, current {})", newClusterState.nodes().masterNode(), currentNodes.masterNode());
+            throw new IllegalStateException("cluster state from a different master than the current one, rejecting (received " + newClusterState.nodes().masterNode() + ", current " + currentNodes.masterNode() + ")");
         }
     }
 

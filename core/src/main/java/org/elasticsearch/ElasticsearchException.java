@@ -596,7 +596,8 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
                 ResourceNotFoundException.class,
                 IndexNotFoundException.class,
                 ShardNotFoundException.class,
-                NotSerializableExceptionWrapper.class
+                NotSerializableExceptionWrapper.class,
+                org.elasticsearch.discovery.zen.publish.PublishClusterStateAction.FailedToCommitException.class
         };
         Map<String, Constructor<? extends ElasticsearchException>> mapping = new HashMap<>(exceptions.length);
         for (Class<? extends ElasticsearchException> e : exceptions) {

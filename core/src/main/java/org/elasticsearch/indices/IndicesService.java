@@ -324,6 +324,10 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         modules.add(new IndexNameModule(index));
         modules.add(new LocalNodeIdModule(localNodeId));
         modules.add(new IndexSettingsModule(index, indexSettings));
+        // plugin modules must be added here, before others or we can get crazy injection errors...
+        for (Module pluginModule : pluginsService.indexModules(indexSettings)) {
+            modules.add(pluginModule);
+        }
         modules.add(new IndexStoreModule(indexSettings));
         modules.add(new AnalysisModule(indexSettings, indicesAnalysisService));
         modules.add(new SimilarityModule(indexSettings));
@@ -332,10 +336,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         modules.add(new MapperServiceModule());
         modules.add(new IndexAliasesServiceModule());
         modules.add(new IndexModule(indexSettings));
-
-        for (Module pluginModule : pluginsService.indexModules(indexSettings)) {
-            modules.add(pluginModule);
-        }
+        
         pluginsService.processModules(modules);
 
         Injector indexInjector;

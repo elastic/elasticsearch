@@ -104,24 +104,16 @@
     },
     "marvel_node_stats": {
       "properties": {
-        "node_id": {
-          "type": "string",
-          "index": "not_analyzed"
-        },
-        "node_master": {
-          "type": "boolean"
-        },
-        "mlockall": {
-          "type": "boolean"
-        },
-        "disk_threshold_enabled": {
-          "type": "boolean"
-        },
-        "disk_threshold_watermark_high": {
-          "type": "short"
-        },
         "node_stats": {
-          "type": "object"
+          "properties": {
+            "node_id": {
+              "type": "string",
+              "index": "not_analyzed"
+            },
+            "node_master": {
+              "type": "boolean"
+            }
+          }
         }
       }
     },

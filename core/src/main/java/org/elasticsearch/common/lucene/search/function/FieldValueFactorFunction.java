@@ -57,7 +57,7 @@ public class FieldValueFactorFunction extends ScoreFunction {
     public LeafScoreFunction getLeafScoreFunction(LeafReaderContext ctx) {
         final SortedNumericDoubleValues values;
         if(indexFieldData == null) {
-            values = FieldData.emptySortedNumericDoubles(0);
+            values = FieldData.emptySortedNumericDoubles(ctx.reader().maxDoc());
         } else {
             values = this.indexFieldData.load(ctx).getDoubleValues();
         }

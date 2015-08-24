@@ -44,6 +44,7 @@ import hashlib
 import time
 import socket
 import json
+import base64
 
 from prepare_release_candidate import run
 from http.client import HTTPConnection
@@ -62,8 +63,6 @@ DEFAULT_PLUGINS = ["analysis-icu",
                    "lang-python",
                    "mapper-murmur3",
                    "mapper-size"]
-
-#TODO install commercial plugins too?
 
 try:
   JAVA_HOME = os.environ['JAVA_HOME']
@@ -95,33 +94,34 @@ def read_fully(file):
   with open(file, encoding='utf-8') as f:
      return f.read()
 
-def wait_for_node_startup(host='127.0.0.1', port=9200, timeout=15):
+
+def wait_for_node_startup(host='127.0.0.1', port=9200, timeout=60, header={}):
+  print('     Waiting until node becomes available for at most %s seconds' % timeout)
   for _ in range(timeout):
-    conn = HTTPConnection(host, port, timeout)
+    conn = HTTPConnection(host=host, port=port, timeout=timeout)
     try:
-      print('   Waiting until node becomes available for 1 second')
       time.sleep(1)
-      print('   Check if node is available')
-      conn.request('GET', '')
+      conn.request('GET', '', headers=header)
       res = conn.getresponse()
       if res.status == 200:
         return True
     except socket.error as e:
-      print("Failed while waiting for node - Exception: [%s]" % e)
+      pass
       #that is ok it might not be there yet
     finally:
       conn.close()
-
   return False
 
-def download_and_verify(version, hash, files, base_url='http://download.elasticsearch.org/elasticsearch/staging', plugins=DEFAULT_PLUGINS):
+def download_and_verify(version, hash, files, base_url='http://download.elasticsearch.org/elasticsearch/staging', plugins=DEFAULT_PLUGINS, verbose=False):
   base_url = '%s/%s-%s' % (base_url, version, hash)
   print('Downloading and verifying release %s from %s' % (version, base_url))
-  tmp_dir = '/Users/simon/projects/release_stageing/foo' # tempfile.mkdtemp()
+  tmp_dir = tempfile.mkdtemp()
   try:
     downloaded_files = []
+    print('  ' + '*' * 80)
     for file in files:
       name = os.path.basename(file)
+      print('  Smoketest file: %s' % name)
       url = '%s/%s' % (base_url, file)
       print('  Downloading %s' % (url))
       artifact_path = os.path.join(tmp_dir, file)
@@ -143,44 +143,61 @@ def download_and_verify(version, hash, files, base_url='http://download.elastics
       print('  Downloading %s' % (gpg_url))
       urllib.request.urlretrieve(gpg_url, gpg_file)
       print('  Verifying gpg signature %s' % (gpg_file))
+      # here we create a temp gpg home where we download the release key as the only key into
+      # when we verify the signature it will fail if the signed key is not in the keystore and that
+      # way we keep the executing host unmodified since we don't have to import the key into the default keystore
       gpg_home_dir = os.path.join(current_artifact_dir, "gpg_home_dir")
       os.makedirs(gpg_home_dir, 0o700)
-      run('gpg --homedir %s --keyserver pgp.mit.edu --recv-key D88E42B4' % gpg_home_dir)
-      run('cd %s && gpg --homedir %s --verify %s' % (current_artifact_dir, gpg_home_dir, os.path.basename(gpg_file)))
-
-    smoke_test_release(version, downloaded_files, hash, plugins)
+      run('gpg --homedir %s --keyserver pgp.mit.edu --recv-key D88E42B4' % gpg_home_dir, verbose=verbose)
+      run('cd %s && gpg --homedir %s --verify %s' % (current_artifact_dir, gpg_home_dir, os.path.basename(gpg_file)), verbose=verbose)
+      print('  ' + '*' * 80)
+      print()
+    smoke_test_release(version, downloaded_files, hash, plugins, verbose=verbose)
     print('  SUCCESS')
   finally:
     shutil.rmtree(tmp_dir)
 
-def smoke_test_release(release, files, expected_hash, plugins):
+def smoke_test_release(release, files, expected_hash, plugins, verbose=False):
   for release_file in files:
     if not os.path.isfile(release_file):
       raise RuntimeError('Smoketest failed missing file %s' % (release_file))
     tmp_dir = tempfile.mkdtemp()
     if release_file.endswith('tar.gz'):
-      run('tar -xzf %s -C %s' % (release_file, tmp_dir))
+      run('tar -xzf %s -C %s' % (release_file, tmp_dir), verbose=verbose)
     elif release_file.endswith('zip'):
-      run('unzip %s -d %s' % (release_file, tmp_dir))
+      run('unzip %s -d %s' % (release_file, tmp_dir), verbose=verbose)
     else:
-      log('Skip SmokeTest for [%s]' % release_file)
+      print('  Skip SmokeTest for [%s]' % release_file)
       continue # nothing to do here
     es_run_path = os.path.join(tmp_dir, 'elasticsearch-%s' % (release), 'bin/elasticsearch')
     print('  Smoke testing package [%s]' % release_file)
-    es_plugin_path = os.path.join(tmp_dir, 'elasticsearch-%s' % (release),'bin/plugin')
+    es_plugin_path = os.path.join(tmp_dir, 'elasticsearch-%s' % (release), 'bin/plugin')
     plugin_names = {}
     for plugin  in plugins:
-      print('  Install plugin [%s]' % (plugin))
-      run('%s; %s -Des.plugins.staging=true %s %s' % (java_exe(), es_plugin_path, 'install', plugin))
+      print('     Install plugin [%s]' % (plugin))
+      run('%s; %s -Des.plugins.staging=true %s %s' % (java_exe(), es_plugin_path, 'install', plugin), verbose=verbose)
       plugin_names[plugin] = True
+    if 'shield' in plugin_names:
+      headers = { 'Authorization' : 'Basic %s' % base64.b64encode(b"es_admin:foobar").decode("UTF-8") }
+      es_shield_path = os.path.join(tmp_dir, 'elasticsearch-%s' % (release), 'bin/shield/esusers')
+      print("     Install dummy shield user")
+      run('%s; %s  useradd es_admin -r admin -p foobar' % (java_exe(), es_shield_path), verbose=verbose)
+    else:
+      headers = {}
     print('  Starting elasticsearch deamon from [%s]' % os.path.join(tmp_dir, 'elasticsearch-%s' % release))
-    run('%s; %s -Des.node.name=smoke_tester -Des.cluster.name=prepare_release -Des.script.inline=on -Des.script.indexed=on -Des.repositories.url.allowed_urls=http://snapshot.test* %s -Des.pidfile=%s'
-        % (java_exe(), es_run_path, '-d', os.path.join(tmp_dir, 'elasticsearch-%s' % (release), 'es-smoke.pid')))
-    conn = HTTPConnection('127.0.0.1', 9200, 20);
-    wait_for_node_startup()
     try:
-      try:
-        conn.request('GET', '')
+      run('%s; %s -Des.node.name=smoke_tester -Des.cluster.name=prepare_release -Des.script.inline=on -Des.script.indexed=on -Des.repositories.url.allowed_urls=http://snapshot.test* %s -Des.pidfile=%s'
+          % (java_exe(), es_run_path, '-d', os.path.join(tmp_dir, 'elasticsearch-%s' % (release), 'es-smoke.pid')), verbose=verbose)
+      conn = HTTPConnection(host='127.0.0.1', port=9200, timeout=20)
+      if not wait_for_node_startup(header=headers):
+        print("elasticsearch logs:")
+        print('*' * 80)
+        logs = read_fully(os.path.join(tmp_dir, 'elasticsearch-%s' % (release), 'logs/prepare_release.log'))
+        print(logs)
+        print('*' * 80)
+        raise RuntimeError('server didn\'t start up')
+      try: # we now get / and /_nodes to fetch basic infos like hashes etc and the installed plugins
+        conn.request('GET', '', headers=headers)
         res = conn.getresponse()
         if res.status == 200:
           version = json.loads(res.read().decode("utf-8"))['version']
@@ -191,14 +208,14 @@ def smoke_test_release(release, files, expected_hash, plugins):
           if expected_hash.startswith(version['build_hash'].strip()):
             raise RuntimeError('HEAD hash does not match expected [%s] but got [%s]' % (expected_hash, version['build_hash']))
           print('  Verify if plugins are listed in _nodes')
-          conn.request('GET', '/_nodes?plugin=true&pretty=true')
+          conn.request('GET', '/_nodes?plugin=true&pretty=true', headers=headers)
           res = conn.getresponse()
           if res.status == 200:
             nodes = json.loads(res.read().decode("utf-8"))['nodes']
             for _, node in nodes.items():
               node_plugins = node['plugins']
               for node_plugin in node_plugins:
-                if not plugin_names.get(node_plugin['name'], False):
+                if not plugin_names.get(node_plugin['name'].strip(), False):
                   raise RuntimeError('Unexpeced plugin %s' % node_plugin['name'])
                 del plugin_names[node_plugin['name']]
             if plugin_names:
@@ -209,13 +226,19 @@ def smoke_test_release(release, files, expected_hash, plugins):
         else:
           raise RuntimeError('Expected HTTP 200 but got %s' % res.status)
       finally:
-        pid_path = os.path.join(tmp_dir, 'elasticsearch-%s' % (release), 'es-smoke.pid')
+        conn.close()
+    finally:
+      pid_path = os.path.join(tmp_dir, 'elasticsearch-%s' % (release), 'es-smoke.pid')
+      if os.path.exists(pid_path): # try reading the pid and kill the node
         pid = int(read_fully(pid_path))
         os.kill(pid, signal.SIGKILL)
-    finally:
-      conn.close()
-    shutil.rmtree(tmp_dir)
+      shutil.rmtree(tmp_dir)
+    print('  ' + '*' * 80)
+    print()
 
+
+def parse_list(string):
+  return [x.strip() for x in string.split(',')]
 
 if __name__ == "__main__":
   parser = argparse.ArgumentParser(description='SmokeTests a Release Candidate from S3 staging repo')
@@ -223,17 +246,27 @@ if __name__ == "__main__":
                       help='The Elasticsearch Version to smoke-tests', required=True)
   parser.add_argument('--hash', '-s', dest='hash', default=None, required=True,
                       help='The sha1 short hash of the git commit to smoketest')
+  parser.add_argument('--plugins', '-p', dest='plugins', default=[], required=False, type=parse_list,
+                      help='A list of additional plugins to smoketest')
+  parser.add_argument('--verbose', '-b', dest='verbose',
+                    help='Runs the script in verbose mode')
   parser.set_defaults(hash=None)
+  parser.set_defaults(plugins=[])
   parser.set_defaults(version=None)
+  parser.set_defaults(verbose=False)
   args = parser.parse_args()
+  plugins = args.plugins
   version = args.version
   hash = args.hash
+  verbose = args.verbose
   files = [
     'org/elasticsearch/distribution/tar/elasticsearch/2.0.0-beta1/elasticsearch-2.0.0-beta1.tar.gz',
-    'org/elasticsearch/distribution/zip/elasticsearch/2.0.0-beta1/elasticsearch-2.0.0-beta1.zip'
+    'org/elasticsearch/distribution/zip/elasticsearch/2.0.0-beta1/elasticsearch-2.0.0-beta1.zip',
+    'org/elasticsearch/distribution/deb/elasticsearch/2.0.0-beta1/elasticsearch-2.0.0-beta1.deb',
+    'org/elasticsearch/distribution/rpm/elasticsearch/2.0.0-beta1/elasticsearch-2.0.0-beta1.rpm'
   ]
   verify_java_version('1.7')
-  download_and_verify(version, hash, files)
+  download_and_verify(version, hash, files, plugins= DEFAULT_PLUGINS + plugins, verbose=verbose)
 
 
 

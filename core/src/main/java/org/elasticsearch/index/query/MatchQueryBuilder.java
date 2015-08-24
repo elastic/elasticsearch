@@ -78,8 +78,6 @@ public class MatchQueryBuilder extends QueryBuilder implements BoostableQueryBui
 
     private String minimumShouldMatch;
 
-    private String rewrite = null;
-
     private String fuzzyRewrite = null;
 
     private Boolean lenient;
@@ -179,11 +177,6 @@ public class MatchQueryBuilder extends QueryBuilder implements BoostableQueryBui
         return this;
     }
 
-    public MatchQueryBuilder rewrite(String rewrite) {
-        this.rewrite = rewrite;
-        return this;
-    }
-
     public MatchQueryBuilder fuzzyRewrite(String fuzzyRewrite) {
         this.fuzzyRewrite = fuzzyRewrite;
         return this;
@@ -248,9 +241,6 @@ public class MatchQueryBuilder extends QueryBuilder implements BoostableQueryBui
         }
         if (minimumShouldMatch != null) {
             builder.field("minimum_should_match", minimumShouldMatch);
-        }
-        if (rewrite != null) {
-            builder.field("rewrite", rewrite);
         }
         if (fuzzyRewrite != null) {
             builder.field("fuzzy_rewrite", fuzzyRewrite);

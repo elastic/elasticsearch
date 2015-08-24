@@ -7,42 +7,28 @@ package org.elasticsearch.marvel.agent.renderer.licenses;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.license.core.License;
 import org.elasticsearch.license.plugin.LicensePlugin;
 import org.elasticsearch.marvel.MarvelPlugin;
 import org.elasticsearch.marvel.agent.collector.licenses.LicensesCollector;
+import org.elasticsearch.marvel.agent.renderer.AbstractRendererTestCase;
 import org.elasticsearch.marvel.agent.settings.MarvelSettings;
-import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.Callable;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.*;
 
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, transportClientRatio = 0.0)
-public class LicensesRendererIT extends ESIntegTestCase {
+public class LicensesIT extends AbstractRendererTestCase {
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal))
-                .put(Node.HTTP_ENABLED, true)
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(MarvelSettings.STARTUP_DELAY, "1s")
-                .put(MarvelSettings.COLLECTORS, LicensesCollector.NAME)
-                .build();
+    protected Collection<String> collectors() {
+        return Collections.singleton(LicensesCollector.NAME);
     }
 
     @Override

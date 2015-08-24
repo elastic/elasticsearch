@@ -8,19 +8,19 @@ package org.elasticsearch.marvel.agent.collector.indices;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.admin.indices.recovery.ShardRecoveryResponse;
 import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.recovery.RecoveryState;
+import org.elasticsearch.marvel.agent.collector.AbstractCollectorTestCase;
 import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
 import org.elasticsearch.marvel.agent.settings.MarvelSettings;
+import org.elasticsearch.marvel.license.LicenseService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.Callable;
-import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
@@ -30,7 +30,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.hamcrest.Matchers.*;
 
 @ESIntegTestCase.ClusterScope(numDataNodes = 0)
-public class IndexRecoveryCollectorTests extends ESIntegTestCase {
+public class IndexRecoveryCollectorTests extends AbstractCollectorTestCase {
 
     private final boolean activeOnly = false;
     private final String indexName = "test";
@@ -52,7 +52,7 @@ public class IndexRecoveryCollectorTests extends ESIntegTestCase {
         waitForNoBlocksOnNode(node1);
 
         logger.info("--> collect index recovery data");
-        Collection<MarvelDoc> results = newIndexRecoveryCollector().doCollect();
+        Collection<MarvelDoc> results = newIndexRecoveryCollector(node1).doCollect();
 
         logger.info("--> no indices created, expecting 0 marvel documents");
         assertNotNull(results);
@@ -84,7 +84,7 @@ public class IndexRecoveryCollectorTests extends ESIntegTestCase {
         }
 
         logger.info("--> collect index recovery data");
-        results = newIndexRecoveryCollector().doCollect();
+        results = newIndexRecoveryCollector(null).doCollect();
 
         logger.info("--> we should have at least 1 shard in relocation state");
         assertNotNull(results);
@@ -117,22 +117,48 @@ public class IndexRecoveryCollectorTests extends ESIntegTestCase {
         }
     }
 
-    private IndexRecoveryCollector newIndexRecoveryCollector() {
-        return new IndexRecoveryCollector(internalCluster().getInstance(Settings.class),
-                internalCluster().getInstance(ClusterService.class),
-                internalCluster().getInstance(MarvelSettings.class),
-                client());
+    @Test
+    public void tesIndexRecoveryCollectorWithLicensing() {
+        String[] nodes = internalCluster().getNodeNames();
+        for (String node : nodes) {
+            logger.debug("--> creating a new instance of the collector");
+            IndexRecoveryCollector collector = newIndexRecoveryCollector(node);
+            assertNotNull(collector);
+
+            logger.debug("--> enabling license and checks that the collector can collect data if node is master");
+            enableLicense();
+            if (node.equals(internalCluster().getMasterName())) {
+                assertCanCollect(collector);
+            } else {
+                assertCannotCollect(collector);
+            }
+
+            logger.debug("--> starting graceful period and checks that the collector can still collect data if node is master");
+            beginGracefulPeriod();
+            if (node.equals(internalCluster().getMasterName())) {
+                assertCanCollect(collector);
+            } else {
+                assertCannotCollect(collector);
+            }
+
+            logger.debug("--> ending graceful period and checks that the collector cannot collect data");
+            endGracefulPeriod();
+            assertCannotCollect(collector);
+
+            logger.debug("--> disabling license and checks that the collector cannot collect data");
+            disableLicense();
+            assertCannotCollect(collector);
+        }
     }
 
-    public void waitForNoBlocksOnNode(final String nodeId) throws Exception {
-        assertBusy(new Callable<Void>() {
-            @Override
-            public Void call() throws Exception {
-                ClusterBlocks clusterBlocks = client(nodeId).admin().cluster().prepareState().setLocal(true).execute().actionGet().getState().blocks();
-                assertTrue(clusterBlocks.global().isEmpty());
-                assertTrue(clusterBlocks.indices().values().isEmpty());
-                return null;
-            }
-        }, 30L, TimeUnit.SECONDS);
+    private IndexRecoveryCollector newIndexRecoveryCollector(String nodeId) {
+        if (!Strings.hasText(nodeId)) {
+            nodeId = randomFrom(internalCluster().getNodeNames());
+        }
+        return new IndexRecoveryCollector(internalCluster().getInstance(Settings.class, nodeId),
+                internalCluster().getInstance(ClusterService.class, nodeId),
+                internalCluster().getInstance(MarvelSettings.class, nodeId),
+                internalCluster().getInstance(LicenseService.class, nodeId),
+                client(nodeId));
     }
 }

@@ -11,17 +11,18 @@ import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider
 import org.elasticsearch.common.inject.Provider;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.DiscoveryService;
+import org.elasticsearch.marvel.agent.collector.AbstractCollectorTestCase;
 import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
 import org.elasticsearch.marvel.agent.settings.MarvelSettings;
+import org.elasticsearch.marvel.license.LicenseService;
 import org.elasticsearch.node.service.NodeService;
-import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
 import java.util.Collection;
 
 import static org.hamcrest.Matchers.*;
 
-public class NodeStatsCollectorTests extends ESIntegTestCase {
+public class NodeStatsCollectorTests extends AbstractCollectorTestCase {
 
     @Test
     public void testNodeStatsCollector() throws Exception {
@@ -50,10 +51,37 @@ public class NodeStatsCollectorTests extends ESIntegTestCase {
         }
     }
 
+    @Test
+    public void testNodeStatsCollectorWithLicensing() {
+        String[] nodes = internalCluster().getNodeNames();
+        for (String node : nodes) {
+            logger.debug("--> creating a new instance of the collector");
+            NodeStatsCollector collector = newNodeStatsCollector(node);
+            assertNotNull(collector);
+
+            logger.debug("--> enabling license and checks that the collector can collect data");
+            enableLicense();
+            assertCanCollect(collector);
+
+            logger.debug("--> starting graceful period and checks that the collector can still collect data");
+            beginGracefulPeriod();
+            assertCanCollect(collector);
+
+            logger.debug("--> ending graceful period and checks that the collector cannot collect data");
+            endGracefulPeriod();
+            assertCannotCollect(collector);
+
+            logger.debug("--> disabling license and checks that the collector cannot collect data");
+            disableLicense();
+            assertCannotCollect(collector);
+        }
+    }
+
     private NodeStatsCollector newNodeStatsCollector(final String nodeId) {
         return new NodeStatsCollector(internalCluster().getInstance(Settings.class, nodeId),
                 internalCluster().getInstance(ClusterService.class, nodeId),
                 internalCluster().getInstance(MarvelSettings.class, nodeId),
+                internalCluster().getInstance(LicenseService.class, nodeId),
                 internalCluster().getInstance(NodeService.class, nodeId),
                 internalCluster().getInstance(DiscoveryService.class, nodeId),
                 new Provider<DiskThresholdDecider>() {

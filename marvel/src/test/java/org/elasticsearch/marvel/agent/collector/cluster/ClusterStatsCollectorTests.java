@@ -6,17 +6,19 @@
 package org.elasticsearch.marvel.agent.collector.cluster;
 
 import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.marvel.agent.collector.AbstractCollectorTestCase;
 import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
 import org.elasticsearch.marvel.agent.settings.MarvelSettings;
-import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.marvel.license.LicenseService;
 import org.junit.Test;
 
 import java.util.Collection;
 
 import static org.hamcrest.Matchers.*;
 
-public class ClusterStatsCollectorTests extends ESIntegTestCase {
+public class ClusterStatsCollectorTests extends AbstractCollectorTestCase {
 
     @Test
     public void testClusterStatsCollector() throws Exception {
@@ -36,10 +38,52 @@ public class ClusterStatsCollectorTests extends ESIntegTestCase {
         assertThat(clusterStatsMarvelDoc.getClusterStats().getNodesStats().getCounts().getTotal(), equalTo(internalCluster().getNodeNames().length));
     }
 
+    @Test
+    public void tesClusterStatsCollectorWithLicensing() {
+        String[] nodes = internalCluster().getNodeNames();
+        for (String node : nodes) {
+            logger.debug("--> creating a new instance of the collector");
+            ClusterStatsCollector collector = newClusterStatsCollector(node);
+            assertNotNull(collector);
+
+            logger.debug("--> enabling license and checks that the collector can collect data if node is master");
+            enableLicense();
+            if (node.equals(internalCluster().getMasterName())) {
+                assertCanCollect(collector);
+            } else {
+                assertCannotCollect(collector);
+            }
+
+            logger.debug("--> starting graceful period and checks that the collector can still collect data if node is master");
+            beginGracefulPeriod();
+            if (node.equals(internalCluster().getMasterName())) {
+                assertCanCollect(collector);
+            } else {
+                assertCannotCollect(collector);
+            }
+
+            logger.debug("--> ending graceful period and checks that the collector cannot collect data");
+            endGracefulPeriod();
+            assertCannotCollect(collector);
+
+            logger.debug("--> disabling license and checks that the collector cannot collect data");
+            disableLicense();
+            assertCannotCollect(collector);
+        }
+    }
+
     private ClusterStatsCollector newClusterStatsCollector() {
-        return new ClusterStatsCollector(internalCluster().getInstance(Settings.class),
-                internalCluster().getInstance(ClusterService.class),
-                internalCluster().getInstance(MarvelSettings.class),
-                client());
+        return newClusterStatsCollector(null);
+    }
+
+    private ClusterStatsCollector newClusterStatsCollector(String nodeId) {
+        if (!Strings.hasText(nodeId)) {
+            nodeId = randomFrom(internalCluster().getNodeNames());
+        }
+        return new ClusterStatsCollector(internalCluster().getInstance(Settings.class, nodeId),
+                internalCluster().getInstance(ClusterService.class, nodeId),
+                internalCluster().getInstance(MarvelSettings.class, nodeId),
+                internalCluster().getInstance(LicenseService.class, nodeId),
+                client(nodeId));
     }
 }

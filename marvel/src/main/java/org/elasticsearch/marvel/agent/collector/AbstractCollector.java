@@ -13,6 +13,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
 import org.elasticsearch.marvel.agent.settings.MarvelSettings;
+import org.elasticsearch.marvel.license.LicenseService;
 
 import java.util.Collection;
 
@@ -22,13 +23,15 @@ public abstract class AbstractCollector<T> extends AbstractLifecycleComponent<T>
 
     protected final ClusterService clusterService;
     protected final MarvelSettings marvelSettings;
+    protected final LicenseService licenseService;
 
     @Inject
-    public AbstractCollector(Settings settings, String name, ClusterService clusterService, MarvelSettings marvelSettings) {
+    public AbstractCollector(Settings settings, String name, ClusterService clusterService, MarvelSettings marvelSettings, LicenseService licenseService) {
         super(settings);
         this.name = name;
         this.clusterService = clusterService;
         this.marvelSettings = marvelSettings;
+        this.licenseService = licenseService;
     }
 
     @Override
@@ -47,26 +50,23 @@ public abstract class AbstractCollector<T> extends AbstractLifecycleComponent<T>
     }
 
     /**
-     * Indicates if the current collector should
-     * be executed on master node only.
+     * Indicates if the current collector is allowed to collect data
      */
-    protected boolean masterOnly() {
-        return false;
+    protected boolean canCollect() {
+        return licenseService.enabled() || licenseService.inExpirationGracePeriod();
     }
 
-    protected boolean localNodeMaster() {
+    protected boolean isLocalNodeMaster() {
         return clusterService.state().nodes().localNodeMaster();
     }
 
     @Override
     public Collection<MarvelDoc> collect() {
-        if (masterOnly() && !localNodeMaster()) {
-            logger.trace("collector [{}] runs on master only", name());
-            return null;
-        }
-
         try {
-            return doCollect();
+            if (canCollect()) {
+                return doCollect();
+            }
+            logger.trace("collector [{}] can not collect data", name());
         } catch (ElasticsearchTimeoutException e) {
             logger.error("collector [{}] timed out when collecting data");
         } catch (Exception e) {

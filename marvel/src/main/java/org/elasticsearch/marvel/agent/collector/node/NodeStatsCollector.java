@@ -20,6 +20,7 @@ import org.elasticsearch.discovery.DiscoveryService;
 import org.elasticsearch.marvel.agent.collector.AbstractCollector;
 import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
 import org.elasticsearch.marvel.agent.settings.MarvelSettings;
+import org.elasticsearch.marvel.license.LicenseService;
 import org.elasticsearch.node.service.NodeService;
 
 import java.util.Collection;
@@ -43,10 +44,10 @@ public class NodeStatsCollector extends AbstractCollector<NodeStatsCollector> {
     private final Provider<DiskThresholdDecider> diskThresholdDeciderProvider;
 
     @Inject
-    public NodeStatsCollector(Settings settings, ClusterService clusterService, MarvelSettings marvelSettings,
+    public NodeStatsCollector(Settings settings, ClusterService clusterService, MarvelSettings marvelSettings, LicenseService licenseService,
                               NodeService nodeService, DiscoveryService discoveryService,
                               Provider<DiskThresholdDecider> diskThresholdDeciderProvider) {
-        super(settings, NAME, clusterService, marvelSettings);
+        super(settings, NAME, clusterService, marvelSettings, licenseService);
         this.nodeService = nodeService;
         this.discoveryService = discoveryService;
         this.diskThresholdDeciderProvider = diskThresholdDeciderProvider;
@@ -71,7 +72,7 @@ public class NodeStatsCollector extends AbstractCollector<NodeStatsCollector> {
         boolean diskThresholdDeciderEnabled = (diskThresholdDecider != null) && diskThresholdDecider.isEnabled();
 
         results.add(new NodeStatsMarvelDoc(clusterUUID(), TYPE, System.currentTimeMillis(),
-                discoveryService.localNode().id(), localNodeMaster(), nodeStats,
+                discoveryService.localNode().id(), isLocalNodeMaster(), nodeStats,
                 BootstrapInfo.isMemoryLocked(), diskThresholdWatermarkHigh, diskThresholdDeciderEnabled));
 
         return results.build();

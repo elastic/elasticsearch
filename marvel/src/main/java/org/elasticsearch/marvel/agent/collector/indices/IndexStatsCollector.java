@@ -16,6 +16,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.marvel.agent.collector.AbstractCollector;
 import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
 import org.elasticsearch.marvel.agent.settings.MarvelSettings;
+import org.elasticsearch.marvel.license.LicenseService;
 
 import java.util.Collection;
 
@@ -33,14 +34,15 @@ public class IndexStatsCollector extends AbstractCollector<IndexStatsCollector> 
     private final Client client;
 
     @Inject
-    public IndexStatsCollector(Settings settings, ClusterService clusterService, MarvelSettings marvelSettings, Client client) {
-        super(settings, NAME, clusterService, marvelSettings);
+    public IndexStatsCollector(Settings settings, ClusterService clusterService, MarvelSettings marvelSettings,  LicenseService licenseService,
+                               Client client) {
+        super(settings, NAME, clusterService, marvelSettings, licenseService);
         this.client = client;
     }
 
     @Override
-    protected boolean masterOnly() {
-        return true;
+    protected boolean canCollect() {
+        return super.canCollect() && isLocalNodeMaster();
     }
 
     @Override

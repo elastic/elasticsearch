@@ -36,11 +36,17 @@ public class LicensesCollector extends AbstractCollector<LicensesMarvelDoc> {
     private final LicenseService licenseService;
 
     @Inject
-    public LicensesCollector(Settings settings, ClusterService clusterService, MarvelSettings marvelSettings,
-                             ClusterName clusterName, LicenseService licenseService) {
-        super(settings, NAME, clusterService, marvelSettings);
+    public LicensesCollector(Settings settings, ClusterService clusterService, MarvelSettings marvelSettings, LicenseService licenseService,
+                             ClusterName clusterName) {
+        super(settings, NAME, clusterService, marvelSettings, licenseService);
         this.clusterName = clusterName;
         this.licenseService = licenseService;
+    }
+
+    @Override
+    protected boolean canCollect() {
+        // This collector can always collect data on the master node
+        return isLocalNodeMaster();
     }
 
     @Override

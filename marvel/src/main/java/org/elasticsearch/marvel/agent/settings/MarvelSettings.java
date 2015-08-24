@@ -22,6 +22,7 @@ public class MarvelSettings extends AbstractComponent implements NodeSettingsSer
     private static final String PREFIX = MarvelPlugin.NAME + ".agent.";
 
     public static final String MARVEL_DATA_INDEX_NAME = ".marvel-data";
+    public static final TimeValue MAX_LICENSE_GRACE_PERIOD = TimeValue.timeValueHours(7 * 24);
 
     public static final String INTERVAL                     = PREFIX + "interval";
     public static final String STARTUP_DELAY                = PREFIX + "startup.delay";
@@ -32,6 +33,7 @@ public class MarvelSettings extends AbstractComponent implements NodeSettingsSer
     public static final String INDEX_RECOVERY_TIMEOUT       = PREFIX + "index.recovery.timeout";
     public static final String INDEX_RECOVERY_ACTIVE_ONLY   = PREFIX + "index.recovery.active_only";
     public static final String COLLECTORS                   = PREFIX + "collectors";
+    public static final String LICENSE_GRACE_PERIOD         = PREFIX + "license.grace.period";
 
     private static Map<String, ? extends MarvelSetting> MARVEL_SETTINGS = Collections.EMPTY_MAP;
 
@@ -55,6 +57,8 @@ public class MarvelSettings extends AbstractComponent implements NodeSettingsSer
                 "INDEX_RECOVERY_ACTIVE_ONLY to indicate if only active recoveries should be collected (default to false: all recoveries are collected)", true));
         map.put(COLLECTORS, arraySetting(COLLECTORS, Strings.EMPTY_ARRAY,
                 "List of collectors allowed to collect data (default to all)", false));
+        map.put(LICENSE_GRACE_PERIOD, timeSetting(LICENSE_GRACE_PERIOD, MAX_LICENSE_GRACE_PERIOD,
+                "Period during which the agent continues to collect data even if the license is expired (default to 7 days, cannot be greater than 7 days)", false));
         MARVEL_SETTINGS = Collections.unmodifiableMap(map);
     }
 
@@ -163,5 +167,13 @@ public class MarvelSettings extends AbstractComponent implements NodeSettingsSer
 
     public String[] collectors() {
         return getSettingValue(COLLECTORS);
+    }
+
+    public TimeValue licenseExpirationGracePeriod() {
+        TimeValue delay = getSettingValue(LICENSE_GRACE_PERIOD);
+        if ((delay.millis() >= 0) && (delay.millis() < MAX_LICENSE_GRACE_PERIOD.millis())) {
+            return delay;
+        }
+        return MAX_LICENSE_GRACE_PERIOD;
     }
 }

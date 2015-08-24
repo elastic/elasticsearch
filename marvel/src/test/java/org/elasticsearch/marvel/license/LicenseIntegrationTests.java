@@ -30,6 +30,8 @@ import java.util.List;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.is;
 
 @ClusterScope(scope = SUITE, transportClientRatio = 0, numClientNodes = 0)
 public class LicenseIntegrationTests extends ESIntegTestCase {
@@ -44,21 +46,26 @@ public class LicenseIntegrationTests extends ESIntegTestCase {
 
     @Test
     public void testEnableDisableLicense() {
-        assertMarvelMode(Mode.STANDARD);
+        assertThat(getLicenseService().mode(), equalTo(Mode.STANDARD));
+        assertThat(getLicenseService().enabled(), is(true));
+        assertThat(getLicenseService().expiryDate(), greaterThan(0L));
         disableLicensing();
 
-        assertMarvelMode(Mode.LITE);
+        assertThat(getLicenseService().mode(), equalTo(Mode.LITE));
+        assertThat(getLicenseService().enabled(), is(false));
+        assertThat(getLicenseService().expiryDate(), greaterThan(0L));
         enableLicensing();
 
-        assertMarvelMode(Mode.STANDARD);
+        assertThat(getLicenseService().mode(), equalTo(Mode.STANDARD));
+        assertThat(getLicenseService().enabled(), is(true));
+        assertThat(getLicenseService().expiryDate(), greaterThan(0L));
     }
 
-    private void assertMarvelMode(Mode expected) {
+    private LicenseService getLicenseService() {
         LicenseService licenseService = internalCluster().getInstance(LicenseService.class);
         assertNotNull(licenseService);
-        assertThat(licenseService.mode(), equalTo(expected));
+        return licenseService;
     }
-
 
     public static void disableLicensing() {
         for (MockLicenseService service : internalCluster().getInstances(MockLicenseService.class)) {

@@ -8,18 +8,21 @@ package org.elasticsearch.marvel.agent.collector.cluster;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.marvel.agent.collector.AbstractCollectorTestCase;
 import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
 import org.elasticsearch.marvel.agent.settings.MarvelSettings;
-import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.marvel.license.LicenseService;
 import org.junit.Test;
 
 import java.util.Collection;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.*;
 
-public class ClusterStateCollectorTests extends ESSingleNodeTestCase {
+public class ClusterStateCollectorTests extends AbstractCollectorTestCase {
 
     @Test
     public void testClusterStateCollectorNoIndices() throws Exception {
@@ -43,7 +46,10 @@ public class ClusterStateCollectorTests extends ESSingleNodeTestCase {
     @Test
     public void testClusterStateCollectorOneIndex() throws Exception {
         int nbShards = randomIntBetween(1, 5);
-        createIndex("test", Settings.settingsBuilder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, nbShards).build());
+        assertAcked(prepareCreate("test").setSettings(Settings.settingsBuilder()
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, nbShards)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                .build()));
 
         int nbDocs = randomIntBetween(1, 20);
         for (int i = 0; i < nbDocs; i++) {
@@ -78,7 +84,10 @@ public class ClusterStateCollectorTests extends ESSingleNodeTestCase {
 
         for (int i = 0; i < nbIndices; i++) {
             shardsPerIndex[i] = randomIntBetween(1, 5);
-            createIndex("test-" + i, Settings.settingsBuilder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, shardsPerIndex[i]).build());
+            assertAcked(prepareCreate("test-" + i).setSettings(Settings.settingsBuilder()
+                    .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, shardsPerIndex[i])
+                    .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .build()));
 
             docsPerIndex[i] = randomIntBetween(1, 20);
             for (int j = 0; j < docsPerIndex[i]; j++) {
@@ -108,10 +117,52 @@ public class ClusterStateCollectorTests extends ESSingleNodeTestCase {
         }
     }
 
+    @Test
+    public void tesClusterStateCollectorWithLicensing() {
+        String[] nodes = internalCluster().getNodeNames();
+        for (String node : nodes) {
+            logger.debug("--> creating a new instance of the collector");
+            ClusterStateCollector collector = newClusterStateCollector(node);
+            assertNotNull(collector);
+
+            logger.debug("--> enabling license and checks that the collector can collect data if node is master");
+            enableLicense();
+            if (node.equals(internalCluster().getMasterName())) {
+                assertCanCollect(collector);
+            } else {
+                assertCannotCollect(collector);
+            }
+
+            logger.debug("--> starting graceful period and checks that the collector can still collect data if node is master");
+            beginGracefulPeriod();
+            if (node.equals(internalCluster().getMasterName())) {
+                assertCanCollect(collector);
+            } else {
+                assertCannotCollect(collector);
+            }
+
+            logger.debug("--> ending graceful period and checks that the collector cannot collect data");
+            endGracefulPeriod();
+            assertCannotCollect(collector);
+
+            logger.debug("--> disabling license and checks that the collector cannot collect data");
+            disableLicense();
+            assertCannotCollect(collector);
+        }
+    }
+
     private ClusterStateCollector newClusterStateCollector() {
-        return new ClusterStateCollector(getInstanceFromNode(Settings.class),
-                getInstanceFromNode(ClusterService.class),
-                getInstanceFromNode(MarvelSettings.class),
-                client());
+        return newClusterStateCollector(null);
+    }
+
+    private ClusterStateCollector newClusterStateCollector(String nodeId) {
+        if (!Strings.hasText(nodeId)) {
+            nodeId = randomFrom(internalCluster().getNodeNames());
+        }
+        return new ClusterStateCollector(internalCluster().getInstance(Settings.class, nodeId),
+                internalCluster().getInstance(ClusterService.class, nodeId),
+                internalCluster().getInstance(MarvelSettings.class, nodeId),
+                internalCluster().getInstance(LicenseService.class, nodeId),
+                client(nodeId));
     }
 }

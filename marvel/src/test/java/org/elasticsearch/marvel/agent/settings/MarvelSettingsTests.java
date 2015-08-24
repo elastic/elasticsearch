@@ -15,7 +15,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.*;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 1)
 public class MarvelSettingsTests extends ESIntegTestCase {
@@ -29,6 +29,7 @@ public class MarvelSettingsTests extends ESIntegTestCase {
     private final TimeValue recoveryTimeout = randomTimeValue();
     private final Boolean recoveryActiveOnly = randomBoolean();
     private final String[] collectors = randomStringArray();
+    private final TimeValue licenseGracePeriod = randomExpirationDelay();
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
@@ -51,6 +52,7 @@ public class MarvelSettingsTests extends ESIntegTestCase {
                 .put(MarvelSettings.INDEX_RECOVERY_TIMEOUT, recoveryTimeout)
                 .put(MarvelSettings.INDEX_RECOVERY_ACTIVE_ONLY, recoveryActiveOnly)
                 .putArray(MarvelSettings.COLLECTORS, collectors)
+                .put(MarvelSettings.LICENSE_GRACE_PERIOD, licenseGracePeriod)
                 .build();
     }
 
@@ -67,6 +69,8 @@ public class MarvelSettingsTests extends ESIntegTestCase {
             assertThat(marvelSettings.recoveryTimeout().millis(), equalTo(recoveryTimeout.millis()));
             assertThat(marvelSettings.recoveryActiveOnly(), equalTo(recoveryActiveOnly));
             assertArrayEquals(marvelSettings.collectors(), collectors);
+            assertThat(marvelSettings.licenseExpirationGracePeriod().millis(), equalTo(licenseGracePeriod.millis()));
+            assertThat(marvelSettings.licenseExpirationGracePeriod().millis(), allOf(greaterThanOrEqualTo(0L), lessThanOrEqualTo(MarvelSettings.MAX_LICENSE_GRACE_PERIOD.millis())));
 
             for (final MarvelSetting setting : MarvelSettings.dynamicSettings()) {
                 assertThat(marvelSettings.getSettingValue(setting.getName()), equalTo(setting.getValue()));
@@ -147,5 +151,9 @@ public class MarvelSettingsTests extends ESIntegTestCase {
             items[i] = randomAsciiOfLength(5);
         }
         return items;
+    }
+
+    private TimeValue randomExpirationDelay() {
+        return randomBoolean() ? randomTimeValue() : TimeValue.timeValueHours(randomIntBetween(-10, 10) * 24);
     }
 }

@@ -29,6 +29,7 @@ import com.google.common.base.Predicate;
 import com.google.common.collect.Lists;
 
 import org.apache.http.impl.client.HttpClients;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
@@ -1086,6 +1087,38 @@ public abstract class ESIntegTestCase extends ESTestCase {
     protected ClusterHealthStatus ensureSearchable(String... indices) {
         // this is just a temporary thing but it's easier to change if it is encapsulated.
         return ensureGreen(indices);
+    }
+
+    protected void ensureStableCluster(int nodeCount) {
+        ensureStableCluster(nodeCount, TimeValue.timeValueSeconds(30));
+    }
+
+    protected void ensureStableCluster(int nodeCount, TimeValue timeValue) {
+        ensureStableCluster(nodeCount, timeValue, false, null);
+    }
+
+    protected void ensureStableCluster(int nodeCount, @Nullable String viaNode) {
+        ensureStableCluster(nodeCount, TimeValue.timeValueSeconds(30), false, viaNode);
+    }
+
+    protected void ensureStableCluster(int nodeCount, TimeValue timeValue, boolean local, @Nullable String viaNode) {
+        if (viaNode == null) {
+            viaNode = randomFrom(internalCluster().getNodeNames());
+        }
+        logger.debug("ensuring cluster is stable with [{}] nodes. access node: [{}]. timeout: [{}]", nodeCount, viaNode, timeValue);
+        ClusterHealthResponse clusterHealthResponse = client(viaNode).admin().cluster().prepareHealth()
+                .setWaitForEvents(Priority.LANGUID)
+                .setWaitForNodes(Integer.toString(nodeCount))
+                .setTimeout(timeValue)
+                .setLocal(local)
+                .setWaitForRelocatingShards(0)
+                .get();
+        if (clusterHealthResponse.isTimedOut()) {
+            ClusterStateResponse stateResponse = client(viaNode).admin().cluster().prepareState().get();
+            fail("failed to reach a stable cluster of [" + nodeCount + "] nodes. Tried via [" + viaNode + "]. last cluster state:\n"
+                    + stateResponse.getState().prettyPrint());
+        }
+        assertThat(clusterHealthResponse.isTimedOut(), is(false));
     }
 
     /**

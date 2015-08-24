@@ -20,13 +20,7 @@
 package org.elasticsearch.repositories;
 
 import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.inject.Modules;
-import org.elasticsearch.common.inject.SpawnModules;
 import org.elasticsearch.common.settings.Settings;
-
-import java.util.Arrays;
-import java.util.Collections;
 
 /**
  * Binds repository classes for the specific repository type.

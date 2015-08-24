@@ -17,20 +17,30 @@
  * under the License.
  */
 
-package org.elasticsearch.common.inject;
+package org.elasticsearch.bootstrap;
 
-/**
- * This interface can be added to a Module to spawn sub modules. DO NOT USE.
- *
- * This is fundamentally broken.
- * <ul>
- * <li>If you have a plugin with multiple modules, return all the modules at once.</li>
- * <li>If you are trying to make the implementation of a module "pluggable", don't do it.
- * This is not extendable because custom implementations (using onModule) cannot be
- * registered before spawnModules() is called.</li>
- * </ul>
+/** 
+ * Exposes system startup information 
  */
-public interface SpawnModules {
+public final class BootstrapInfo {
 
-    Iterable<? extends Module> spawnModules();
+    /** no instantiation */
+    private BootstrapInfo() {}
+    
+    /** 
+     * Returns true if we successfully loaded native libraries.
+     * <p>
+     * If this returns false, then native operations such as locking
+     * memory did not work.
+     */
+    public static boolean isNativesAvailable() {
+        return Natives.JNA_AVAILABLE;
+    }
+    
+    /** 
+     * Returns true if we were able to lock the process's address space.
+     */
+    public static boolean isMemoryLocked() {
+        return Natives.isMemoryLocked();
+    }
 }

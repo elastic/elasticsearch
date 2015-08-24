@@ -99,4 +99,23 @@ public class ThreadPoolSerializationTests extends ESTestCase {
         assertThat(threadPool.info("index").getQueueSize(), is(nullValue()));
         terminate(threadPool);
     }
+
+    @Test
+    public void testThatToXContentWritesInteger() throws Exception {
+        ThreadPool.Info info = new ThreadPool.Info("foo", "search", 1, 10, TimeValue.timeValueMillis(3000), SizeValue.parseSizeValue("1k"));
+        XContentBuilder builder = jsonBuilder();
+        builder.startObject();
+        info.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        builder.endObject();
+
+        BytesReference bytesReference = builder.bytes();
+        Map<String, Object> map;
+        try (XContentParser parser = XContentFactory.xContent(bytesReference).createParser(bytesReference)) {
+            map = parser.map();
+        }
+        assertThat(map, hasKey("foo"));
+        map = (Map<String, Object>) map.get("foo");
+        assertThat(map, hasKey("queue_size"));
+        assertThat(map.get("queue_size").toString(), is("1000"));
+    }
 }

@@ -21,7 +21,7 @@ package org.elasticsearch.benchmark.mapping;
 
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.bootstrap.Bootstrap;
+import org.elasticsearch.bootstrap.BootstrapForTesting;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -85,7 +85,7 @@ public class ManyMappingsBenchmark {
 
     public static void main(String[] args) throws Exception {
         System.setProperty("es.logger.prefix", "");
-        Bootstrap.initializeNatives(true, false);
+        BootstrapForTesting.ensureInitialized();
         Settings settings = settingsBuilder()
                 .put("")
                 .put(SETTING_NUMBER_OF_SHARDS, 5)

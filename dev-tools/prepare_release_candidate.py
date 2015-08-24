@@ -23,7 +23,7 @@
 #
 # python3 ./dev-tools/prepare-release.py
 #
-# Note: Ensure the script is run from the root directory
+# Note: Ensure the script is run from the elasticsearch top level directory
 #
 
 import fnmatch

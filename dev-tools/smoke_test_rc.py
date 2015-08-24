@@ -16,21 +16,25 @@
 
 # Smoke-tests a release candidate
 #
-# 1. Downloads the tar.gz & zip file from the staging URL
+# 1. Downloads the tar.gz, deb, RPM and zip file from the staging URL
 # 2. Verifies it's sha1 hashes and GPG signatures against the release key
 # 3. Installs all official plugins
-# 4. Starts one node an checks:
+# 4. Starts one node for tar.gz and zip packages and checks:
 #    -- if it runs with Java 1.7
 #    -- if the build hash given is the one that is returned by the status response
 #    -- if the build is a release version and not a snapshot version
 #    -- if all plugins are loaded
-#    -- if the status reponse returns the correct version
+#    -- if the status response returns the correct version
 #
 # USAGE:
 #
 # python3 -B ./dev-tools/smoke_tests_rc.py --version 2.0.0-beta1 --hash bfa3e47
 #
-# Note: Ensure the script is run from the root directory
+# to also test other plugins try run
+#
+# python3 -B ./dev-tools/smoke_tests_rc.py --version 2.0.0-beta1 --hash bfa3e47 --plugins license,shield,watcher
+#
+# Note: Ensure the script is run from the elasticsearch top level directory
 #
 
 import argparse

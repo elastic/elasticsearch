@@ -86,7 +86,7 @@ enabled=1
 
 def run(command, env_vars=None):
   if env_vars:
-    for key, value in env_vars.iter_items():
+    for key, value in env_vars.items():
       os.putenv(key, value)
   if os.system('%s' % (command)):
     raise RuntimeError('    FAILED: %s' % (command))

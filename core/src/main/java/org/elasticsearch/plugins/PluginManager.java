@@ -80,15 +80,16 @@ public class PluginManager {
                     "analysis-phonetic",
                     "analysis-smartcn",
                     "analysis-stempel",
-                    "cloud-aws",
                     "cloud-azure",
                     "cloud-gce",
                     "delete-by-query",
+                    "discovery-ec2",
                     "discovery-multicast",
                     "lang-javascript",
                     "lang-python",
                     "mapper-murmur3",
-                    "mapper-size"
+                    "mapper-size",
+                    "repository-s3"
             ).build();
 
     private final Environment environment;

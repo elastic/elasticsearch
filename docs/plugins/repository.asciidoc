@@ -10,10 +10,9 @@ by distributed file systems:
 
 The core repository plugins are:
 
-<<cloud-aws,AWS Cloud>>::
+<<repository-s3,S3 Repository>>::
 
-The Amazon Web Service (AWS) Cloud plugin adds support for using S3 as a
-repository.
+The S3 repository plugin adds support for using S3 as a repository.
 
 <<cloud-azure,Azure Cloud>>::
 
@@ -35,3 +34,7 @@ The following plugin has been contributed by our community:
 This community plugin appears to have been abandoned:
 
 * https://github.com/kzwang/elasticsearch-repository-gridfs[GridFS] Repository (by Kevin Wang)
+
+
+include::repository-s3.asciidoc[]
+

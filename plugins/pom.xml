@@ -425,20 +425,23 @@
     </build>
 
     <modules>
+        <module>analysis-icu</module>
         <module>analysis-kuromoji</module>
+        <module>analysis-phonetic</module>
         <module>analysis-smartcn</module>
         <module>analysis-stempel</module>
-        <module>analysis-phonetic</module>
-        <module>analysis-icu</module>
-        <module>cloud-gce</module>
         <module>cloud-azure</module>
-        <module>cloud-aws</module>
+        <module>cloud-gce</module>
         <module>delete-by-query</module>
+        <module>discovery-ec2</module>
         <module>discovery-multicast</module>
-        <module>lang-python</module>
         <module>lang-javascript</module>
+        <module>lang-python</module>
         <module>mapper-murmur3</module>
         <module>mapper-size</module>
+        <module>repository-s3</module>
+
+        <!-- Internal plugins for test only -->
         <module>jvm-example</module>
         <module>site-example</module>
     </modules>

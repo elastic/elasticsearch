@@ -9,12 +9,9 @@ can be used instead of {ref}/modules-discovery-zen.html[Zen Discovery].
 
 The core discovery plugins are:
 
-<<cloud-aws,AWS Cloud>>::
+<<discovery-ec2,EC2 discovery>>::
 
-The Amazon Web Service (AWS) Cloud plugin uses the
-https://github.com/aws/aws-sdk-java[AWS API] for unicast discovery, and adds
-support for using S3 as a repository for
-{ref}/modules-snapshots.html[Snapshot/Restore].
+The EC2 discovery plugin uses the https://github.com/aws/aws-sdk-java[AWS API] for unicast discovery.
 
 <<cloud-azure,Azure Cloud>>::
 
@@ -39,13 +36,11 @@ A number of discovery plugins have been contributed by our community:
 * https://github.com/shikhar/eskka[eskka Discovery Plugin] (by Shikhar Bhushan)
 * https://github.com/grmblfrz/elasticsearch-zookeeper[ZooKeeper Discovery Plugin] (by Sonian Inc.)
 
-include::cloud-aws.asciidoc[]
+include::discovery-ec2.asciidoc[]
 
 include::cloud-azure.asciidoc[]
 
 include::cloud-gce.asciidoc[]
 
 include::discovery-multicast.asciidoc[]
-
-
 

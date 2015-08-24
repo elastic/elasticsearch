@@ -38,6 +38,7 @@ import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.disruption.NetworkDelaysPartition;
 import org.elasticsearch.test.disruption.NetworkUnresponsivePartition;
 import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.test.transport.MockTransportService;
 import org.junit.Test;
 
 import java.util.Arrays;
@@ -353,6 +354,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
                 .put(ZenDiscovery.SETTING_PING_TIMEOUT, "200ms")
                 .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, 2)
                 .put(DiscoverySettings.COMMIT_TIMEOUT, "100ms") // speed things up
+                .put("plugin.types", MockTransportService.TestPlugin.class.getName())
                 .build();
         internalCluster().startNodesAsync(3, settings).get();
 

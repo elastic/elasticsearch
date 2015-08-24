@@ -36,7 +36,6 @@ import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.index.similarity.SimilarityLookupService;
-import org.elasticsearch.indices.analysis.IndicesAnalysisModule;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 
 import java.nio.file.Path;
@@ -70,7 +69,7 @@ public class MapperTestUtils {
     }
 
     public static AnalysisService newAnalysisService(Settings indexSettings) {
-        Injector parentInjector = new ModulesBuilder().add(new SettingsModule(indexSettings), new EnvironmentModule(new Environment(indexSettings)), new IndicesAnalysisModule()).createInjector();
+        Injector parentInjector = new ModulesBuilder().add(new SettingsModule(indexSettings), new EnvironmentModule(new Environment(indexSettings))).createInjector();
         Index index = new Index("test");
         Injector injector = new ModulesBuilder().add(
                 new IndexSettingsModule(index, indexSettings),

@@ -20,15 +20,16 @@
 package org.elasticsearch.plugin.mapper.attachments;
 
 import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.plugins.Plugin;
 
-import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 
 /**
  *
  */
-public class MapperAttachmentsPlugin extends AbstractPlugin {
+public class MapperAttachmentsPlugin extends Plugin {
 
     @Override
     public String name() {
@@ -41,9 +42,7 @@ public class MapperAttachmentsPlugin extends AbstractPlugin {
     }
 
     @Override
-    public Collection<Class<? extends Module>> indexModules() {
-        Collection<Class<? extends Module>> modules = new ArrayList<>();
-        modules.add(AttachmentsIndexModule.class);
-        return modules;
+    public Collection<Module> indexModules(Settings indexSettings) {
+        return Collections.<Module>singletonList(new AttachmentsIndexModule());
     }
 }

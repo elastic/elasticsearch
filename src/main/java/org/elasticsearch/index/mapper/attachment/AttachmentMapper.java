@@ -200,7 +200,7 @@ public class AttachmentMapper extends FieldMapper {
             context.path().pathType(pathType);
 
             FieldMapper contentMapper;
-            if (context.indexCreatedVersion().before(Version.V_2_0_0)) {
+            if (context.indexCreatedVersion().before(Version.V_2_0_0_beta1)) {
                 // old behavior, we need the content to be indexed under the attachment field name
                 if (contentBuilder instanceof FieldMapper.Builder == false) {
                     throw new IllegalStateException("content field for attachment must be a field mapper");
@@ -313,7 +313,7 @@ public class AttachmentMapper extends FieldMapper {
                 Map.Entry<String, Object> entry = iterator.next();
                 String fieldName = entry.getKey();
                 Object fieldNode = entry.getValue();
-                if (fieldName.equals("path") && parserContext.indexVersionCreated().before(Version.V_2_0_0)) {
+                if (fieldName.equals("path") && parserContext.indexVersionCreated().before(Version.V_2_0_0_beta1)) {
                     builder.pathType(parsePathType(name, fieldNode.toString()));
                     iterator.remove();
                 } else if (fieldName.equals("fields")) {
@@ -326,7 +326,7 @@ public class AttachmentMapper extends FieldMapper {
                         Mapper.Builder<?, ?> mapperBuilder = findMapperBuilder(propNode, propName, parserContext);
                         if (parseMultiField((FieldMapper.Builder) mapperBuilder, fieldName, parserContext, propName, propNode)) {
                             fieldsIterator.remove();
-                        } else if (propName.equals(name) && parserContext.indexVersionCreated().before(Version.V_2_0_0)) {
+                        } else if (propName.equals(name) && parserContext.indexVersionCreated().before(Version.V_2_0_0_beta1)) {
                             builder.content(mapperBuilder);
                             fieldsIterator.remove();
                         } else {

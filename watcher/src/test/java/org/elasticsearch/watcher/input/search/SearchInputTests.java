@@ -315,7 +315,6 @@ public class SearchInputTests extends ESIntegTestCase {
         assertThat(names, arrayContaining("test", "test-" + DateTimeFormat.forPattern(dateFormat).print(now.minusDays(1))));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/484")
     @Test(expected = ElasticsearchParseException.class)
     public void testParser_ScanNotSupported() throws Exception {
         SearchRequest request = client().prepareSearch()

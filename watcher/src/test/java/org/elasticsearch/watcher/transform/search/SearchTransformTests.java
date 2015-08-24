@@ -363,7 +363,6 @@ public class SearchTransformTests extends ESIntegTestCase {
         assertThat(names, arrayContaining("idx", "idx-" + DateTimeFormat.forPattern(dateFormat).print(now.minusDays(3))));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/484")
     @Test(expected = ElasticsearchParseException.class)
     public void testParser_ScanNotSupported() throws Exception {
         SearchRequest request = client().prepareSearch()

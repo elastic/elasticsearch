@@ -19,19 +19,19 @@
 
 package org.elasticsearch.common.settings.loader;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
  *
  */
 public class JsonSettingsLoaderTests extends ESTestCase {
-
     @Test
     public void testSimpleJsonSettings() throws Exception {
         String json = "/org/elasticsearch/common/settings/loader/test-settings.json";
@@ -49,5 +49,18 @@ public class JsonSettingsLoaderTests extends ESTestCase {
         assertThat(settings.getAsArray("test1.test3").length, equalTo(2));
         assertThat(settings.getAsArray("test1.test3")[0], equalTo("test3-1"));
         assertThat(settings.getAsArray("test1.test3")[1], equalTo("test3-2"));
+    }
+
+    public void testDuplicateKeysThrowsException() {
+        String json = "{\"foo\":\"bar\",\"foo\":\"baz\"}";
+        try {
+            settingsBuilder()
+                    .loadFromSource(json)
+                    .build();
+            fail("expected exception");
+        } catch (SettingsException e) {
+            assertEquals(e.getCause().getClass(), ElasticsearchParseException.class);
+            assertTrue(e.toString().contains("duplicate settings key [foo] found at line number [1], column number [13], previous value [bar], current value [baz]"));
+        }
     }
 }

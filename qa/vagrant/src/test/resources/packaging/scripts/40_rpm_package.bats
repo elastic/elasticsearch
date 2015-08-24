@@ -33,50 +33,39 @@ load packaging_test_utils
 
 # Cleans everything for the 1st execution
 setup() {
-    if [ "$BATS_TEST_NUMBER" -eq 1 ]; then
-        clean_before_test
-    fi
+    skip_not_rpm
 }
 
 ##################################
 # Install RPM package
 ##################################
 @test "[RPM] rpm command is available" {
-    skip_not_rpm
-    run rpm --version
-    [ "$status" -eq 0 ]
+    clean_before_test
+    rpm --version
 }
 
 @test "[RPM] package is available" {
-    skip_not_rpm
     count=$(find . -type f -name 'elastic*.rpm' | wc -l)
     [ "$count" -eq 1 ]
 }
 
 @test "[RPM] package is not installed" {
-    skip_not_rpm
-    run rpm -qe 'elasticsearch' >&2
+    run rpm -qe 'elasticsearch'
     [ "$status" -eq 1 ]
 }
 
 @test "[RPM] install package" {
-    skip_not_rpm
-    run rpm -i elasticsearch*.rpm >&2
-    [ "$status" -eq 0 ]
+    rpm -i elasticsearch*.rpm
 }
 
 @test "[RPM] package is installed" {
-    skip_not_rpm
-    run rpm -qe 'elasticsearch' >&2
-    [ "$status" -eq 0 ]
+    rpm -qe 'elasticsearch'
 }
 
 ##################################
 # Check that the package is correctly installed
 ##################################
 @test "[RPM] verify package installation" {
-    skip_not_rpm
-
     verify_package_installation
 }
 
@@ -84,8 +73,6 @@ setup() {
 # Check that Elasticsearch is working
 ##################################
 @test "[RPM] test elasticsearch" {
-    skip_not_rpm
-
     start_elasticsearch_service
 
     run_elasticsearch_tests
@@ -95,20 +82,15 @@ setup() {
 # Uninstall RPM package
 ##################################
 @test "[RPM] remove package" {
-    skip_not_rpm
-    run rpm -e 'elasticsearch' >&2
-    [ "$status" -eq 0 ]
+    rpm -e 'elasticsearch'
 }
 
 @test "[RPM] package has been removed" {
-    skip_not_rpm
-    run rpm -qe 'elasticsearch' >&2
+    run rpm -qe 'elasticsearch'
     [ "$status" -eq 1 ]
 }
 
 @test "[RPM] verify package removal" {
-    skip_not_rpm
-
     # The removal must stop the service
     count=$(ps | grep Elasticsearch | wc -l)
     [ "$count" -eq 0 ]

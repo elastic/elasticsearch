@@ -5,17 +5,17 @@
 [[version-compatibility]]
 === Version Compatibility
 
-Watcher 1.0.0 is compatible with:
+Watcher {version} is compatible with:
 
-* Elasticsearch: 1.5.2+
-* License: 1.0
-* Shield: 1.2.2
+* Elasticsearch: {version}
+* License {version}
+* Shield {version}
 
 [float]
 [[upgrade-instructions]]
 === Upgrading Watcher
 
-Watcher 1.0.0 is not backward compatible with Watcher 1.0.0-rc1. Follow these steps to
+Watcher {version} is backward compatible with Watcher 1.0.x. Follow these steps to
 upgrade:
 
 1. Back up all of the watches you've defined. You can search/scan the `.watches` index and save the
@@ -30,30 +30,17 @@ upgrade:
 bin/plugin remove watcher
 --------------------------------------------------
 
-4. Restart Elasticsearch on each node.
-
-5. Delete the `.watches` index and all of the existing `.watch_history-*` indices
-+
-[source,yaml]
---------------------------------------------------
-DELETE .watches
---------------------------------------------------
-+
-[source,yaml]
---------------------------------------------------
-DELETE .watch_history*
---------------------------------------------------
-
-6. Stop Elasticsearch on all nodes in your cluster.
-
-7. From here on you can simply follow the <<getting-started, Getting Started>> guide. If you are
-   upgrading from Beta1, you can skip the license installation as both Beta1 and Beta2 are
-   compatible with the same license version (1.0.0). Once Watcher is installed, you can use the
-   <<api-rest-put-watch, PUT Watch API>> to restore your backed up watches.
+4. From here on you can simply follow the <<getting-started, Getting Started>> guide.
 
 [float]
 [[change-list]]
 === Change List
+
+[float]
+==== 2.0.0-beta1
+
+This release is primarily for compatibility with Elasticsearch 2.0.0-beta1.
+
 
 [float]
 ==== 1.0.0

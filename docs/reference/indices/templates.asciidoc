@@ -1,7 +1,7 @@
 [[indices-templates]]
 == Index Templates
 
-Index templates allow to define templates that will automatically be
+Index templates allow you to define templates that will automatically be
 applied to new indices created. The templates include both settings and
 mappings, and a simple pattern template that controls if the template
 will be applied to the index created. For example:

@@ -40,6 +40,20 @@ can install the plugin with:
 ./bin/plugin install delete-by-query
 ------------------
 
+==== Multicast Discovery is now a plugin
+
+Support for multicast is very patchy. Linux doesn’t allow multicast listening on localhost,
+while OS/X sends multicast broadcasts across all interfaces regardless of the configured
+bind address. On top of that, some networks have multicast disabled by default.
+
+This feature has been moved to a plugin. The default discovery mechanism now uses
+unicast, with a default setup which looks for the first 5 ports on localhost. If you
+still need to use multicast discovery, you can install the plugin with:
+
+[source,sh]
+------------------
+./bin/plugin install discovery-multicast
+------------------
 
 ==== `_shutdown` API
 

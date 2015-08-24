@@ -20,6 +20,7 @@
 package org.elasticsearch.http;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.io.ByteStreams;
 
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -30,6 +31,7 @@ import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.rest.*;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.HashMap;
@@ -114,9 +116,13 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> {
     }
 
     public void internalDispatchRequest(final HttpRequest request, final HttpChannel channel) {
-        if (request.rawPath().startsWith("/_plugin/")) {
+        String rawPath = request.rawPath();
+        if (rawPath.startsWith("/_plugin/")) {
             RestFilterChain filterChain = restController.filterChain(pluginSiteFilter);
             filterChain.continueProcessing(request, channel);
+            return;
+        } else if (rawPath.equals("/favicon.ico")) {
+            handleFavicon(request, channel);
             return;
         }
         restController.dispatchRequest(request, channel);
@@ -128,6 +134,22 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> {
         @Override
         public void process(RestRequest request, RestChannel channel, RestFilterChain filterChain) throws IOException {
             handlePluginSite((HttpRequest) request, (HttpChannel) channel);
+        }
+    }
+
+    void handleFavicon(HttpRequest request, HttpChannel channel) {
+        if (request.method() == RestRequest.Method.GET) {
+            try {
+                try (InputStream stream = getClass().getResourceAsStream("/config/favicon.ico")) {
+                    byte[] content = ByteStreams.toByteArray(stream);
+                    BytesRestResponse restResponse = new BytesRestResponse(RestStatus.OK, "image/x-icon", content);
+                    channel.sendResponse(restResponse);
+                }
+            } catch (IOException e) {
+                channel.sendResponse(new BytesRestResponse(INTERNAL_SERVER_ERROR));
+            }
+        } else {
+            channel.sendResponse(new BytesRestResponse(FORBIDDEN));
         }
     }
 

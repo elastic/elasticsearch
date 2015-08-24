@@ -31,20 +31,9 @@ public class ModulesBuilder implements Iterable<Module> {
 
     private final List<Module> modules = Lists.newArrayList();
 
-    public ModulesBuilder add(Module... modules) {
-        for (Module module : modules) {
-            add(module);
-        }
-        return this;
-    }
-
-    public ModulesBuilder add(Module module) {
-        modules.add(module);
-        if (module instanceof SpawnModules) {
-            Iterable<? extends Module> spawned = ((SpawnModules) module).spawnModules();
-            for (Module spawn : spawned) {
-                add(spawn);
-            }
+    public ModulesBuilder add(Module... newModules) {
+        for (Module module : newModules) {
+            modules.add(module);
         }
         return this;
     }
@@ -55,7 +44,6 @@ public class ModulesBuilder implements Iterable<Module> {
     }
 
     public Injector createInjector() {
-        Modules.processModules(modules);
         Injector injector = Guice.createInjector(modules);
         Injectors.cleanCaches(injector);
         // in ES, we always create all instances as if they are eager singletons
@@ -65,7 +53,6 @@ public class ModulesBuilder implements Iterable<Module> {
     }
 
     public Injector createChildInjector(Injector injector) {
-        Modules.processModules(modules);
         Injector childInjector = injector.createChildInjector(modules);
         Injectors.cleanCaches(childInjector);
         // in ES, we always create all instances as if they are eager singletons

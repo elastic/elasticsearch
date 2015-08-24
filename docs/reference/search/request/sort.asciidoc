@@ -3,7 +3,7 @@
 
 Allows to add one or more sort on specific fields. Each sort can be
 reversed as well. The sort is defined on a per field level, with special
-field name for `_score` to sort by score.
+field name for `_score` to sort by score, and `_doc` to sort by index order.
 
 [source,js]
 --------------------------------------------------
@@ -20,6 +20,10 @@ field name for `_score` to sort by score.
     }
 }
 --------------------------------------------------
+
+NOTE: `_doc` has no real use-case besides being the most efficient sort order.
+So if you don't care about the order in which documents are returned, then you
+should sort by `_doc`. This especially helps when <<search-request-scroll,scrolling>>.
 
 ==== Sort Values
 

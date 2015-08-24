@@ -165,7 +165,7 @@ curl -X POST 'localhost:9200/music/_suggest?pretty' -d '{
   "song-suggest" : [ {
     "text" : "n",
     "offset" : 0,
-    "length" : 4,
+    "length" : 1,
     "options" : [ {
       "text" : "Nirvana - Nevermind",
       "score" : 34.0, "payload" : {"artistId":2321}

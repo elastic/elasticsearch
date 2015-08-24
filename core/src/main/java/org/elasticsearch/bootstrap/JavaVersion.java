@@ -54,10 +54,7 @@ class JavaVersion implements Comparable<JavaVersion> {
     }
 
     public static boolean isValid(String value) {
-        if (!value.matches("^0*[0-9]+(\\.[0-9]+)*$")) {
-            return false;
-        }
-        return true;
+        return value.matches("^0*[0-9]+(\\.[0-9]+)*$");
     }
 
     private final static JavaVersion CURRENT = parse(System.getProperty("java.specification.version"));

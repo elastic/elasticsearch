@@ -242,34 +242,27 @@ install_archive() {
         eshome="$1"
     fi
 
-    run tar -xzvf elasticsearch*.tar.gz -C "$eshome" >&2
-    [ "$status" -eq 0 ]
+    tar -xzvf elasticsearch*.tar.gz -C "$eshome"
 
-    run find "$eshome" -depth -type d -name 'elasticsearch*' -exec mv {} "$eshome/elasticsearch" \;
-    [ "$status" -eq 0 ]
+    find "$eshome" -depth -type d -name 'elasticsearch*' -exec mv {} "$eshome/elasticsearch" \;
 
     # ES cannot run as root so create elasticsearch user & group if needed
     if ! getent group "elasticsearch" > /dev/null 2>&1 ; then
         if is_dpkg; then
-            run addgroup --system "elasticsearch"
-            [ "$status" -eq 0 ]
+            addgroup --system "elasticsearch"
         else
-            run groupadd -r "elasticsearch"
-            [ "$status" -eq 0 ]
+            groupadd -r "elasticsearch"
         fi
     fi
     if ! id "elasticsearch" > /dev/null 2>&1 ; then
         if is_dpkg; then
-            run adduser --quiet --system --no-create-home --ingroup "elasticsearch" --disabled-password --shell /bin/false "elasticsearch"
-            [ "$status" -eq 0 ]
+            adduser --quiet --system --no-create-home --ingroup "elasticsearch" --disabled-password --shell /bin/false "elasticsearch"
         else
-            run useradd --system -M --gid "elasticsearch" --shell /sbin/nologin --comment "elasticsearch user" "elasticsearch"
-            [ "$status" -eq 0 ]
+            useradd --system -M --gid "elasticsearch" --shell /sbin/nologin --comment "elasticsearch user" "elasticsearch"
         fi
     fi
 
-    run chown -R elasticsearch:elasticsearch "$eshome/elasticsearch"
-    [ "$status" -eq 0 ]
+    chown -R elasticsearch:elasticsearch "$eshome/elasticsearch"
 }
 
 
@@ -354,11 +347,12 @@ clean_before_test() {
 }
 
 start_elasticsearch_service() {
-
     if [ -f "/tmp/elasticsearch/bin/elasticsearch" ]; then
-        run /bin/su -s /bin/sh -c '/tmp/elasticsearch/bin/elasticsearch -d -p /tmp/elasticsearch/elasticsearch.pid' elasticsearch
-        [ "$status" -eq 0 ]
-
+        # su and the Elasticsearch init script work together to break bats.
+        # sudo isolates bats enough from the init script so everything continues
+        # to tick along
+        sudo -u elasticsearch /tmp/elasticsearch/bin/elasticsearch -d \
+            -p /tmp/elasticsearch/elasticsearch.pid
     elif is_systemd; then
         run systemctl daemon-reload
         [ "$status" -eq 0 ]
@@ -383,9 +377,8 @@ start_elasticsearch_service() {
         pid=$(cat /tmp/elasticsearch/elasticsearch.pid)
         [ "x$pid" != "x" ] && [ "$pid" -gt 0 ]
 
-        run  ps $pid
-        [ "$status" -eq 0 ]
-
+        echo "Looking for elasticsearch pid...."
+        ps $pid
     elif is_systemd; then
         run systemctl is-active elasticsearch.service
         [ "$status" -eq 0 ]
@@ -400,14 +393,11 @@ start_elasticsearch_service() {
 }
 
 stop_elasticsearch_service() {
-
     if [ -r "/tmp/elasticsearch/elasticsearch.pid" ]; then
         pid=$(cat /tmp/elasticsearch/elasticsearch.pid)
         [ "x$pid" != "x" ] && [ "$pid" -gt 0 ]
 
-        run kill -SIGTERM $pid
-        [ "$status" -eq 0 ]
-
+        kill -SIGTERM $pid
     elif is_systemd; then
         run systemctl stop elasticsearch.service
         [ "$status" -eq 0 ]
@@ -428,36 +418,63 @@ stop_elasticsearch_service() {
 
 # Waits for Elasticsearch to reach a given status (defaults to "green")
 wait_for_elasticsearch_status() {
-    local status="green"
+    local desired_status="green"
     if [ "x$1" != "x" ]; then
         status="$1"
     fi
 
-    # Try to connect to elasticsearch and wait for expected status
-    wget --quiet --retry-connrefused --waitretry=1 --timeout=60 \
-         --output-document=/dev/null "http://localhost:9200/_cluster/health?wait_for_status=$status&timeout=60s" || true
+    echo "Making sure elasticsearch is up..."
+    wget -O - --retry-connrefused --waitretry=1 --timeout=60 http://localhost:9200 || {
+          echo "Looks like elasticsearch never started. Here is its log:"
+          if [ -r "/tmp/elasticsearch/elasticsearch.pid" ]; then
+              cat /tmp/elasticsearch/log/elasticsearch.log
+          else
+              if [ -e '/var/log/elasticsearch/elasticsearch.log' ]; then
+                  cat /var/log/elasticsearch/elasticsearch.log
+              else
+                  echo "The elasticsearch log doesn't exist. Maybe /vag/log/messages has something:"
+                  tail -n20 /var/log/messages
+              fi
+          fi
+          false
+    }
 
-    # Checks the cluster health
-    curl -XGET 'http://localhost:9200/_cat/health?h=status&v=false'
-    if [ $? -ne 0 ]; then
-        echo "error when checking cluster health" >&2
-        exit 1
+    echo "Tring to connect to elasticsearch and wait for expected status..."
+    curl -sS "http://localhost:9200/_cluster/health?wait_for_status=$desired_status&timeout=60s&pretty"
+    if [ $? -eq 0 ]; then
+        echo "Connected"
+    else
+        echo "Unable to connect to Elastisearch"
+        false
     fi
+
+    echo "Checking that the cluster health matches the waited for status..."
+    run curl -sS -XGET 'http://localhost:9200/_cat/health?h=status&v=false'
+    if [ "$status" -ne 0 ]; then
+        echo "error when checking cluster health. code=$status output="
+        echo $output
+        false
+    fi
+    echo $output | grep $desired_status || {
+        echo "unexpected status:  '$output' wanted '$desired_status'"
+        false
+    }
 }
 
 # Executes some very basic Elasticsearch tests
 run_elasticsearch_tests() {
+    # TODO this assertion is the same the one made when waiting for
+    # elasticsearch to start
     run curl -XGET 'http://localhost:9200/_cat/health?h=status&v=false'
     [ "$status" -eq 0 ]
     echo "$output" | grep -w "green"
 
-    run curl -XPOST 'http://localhost:9200/library/book/1?refresh=true' -d '{"title": "Elasticsearch - The Definitive Guide"}' 2>&1
-    [ "$status" -eq 0 ]
+    curl -s -XPOST 'http://localhost:9200/library/book/1?refresh=true&pretty' -d '{
+      "title": "Elasticsearch - The Definitive Guide"
+    }'
 
-    run curl -XGET 'http://localhost:9200/_cat/count?h=count&v=false'
-    [ "$status" -eq 0 ]
-    echo "$output" | grep -w "1"
+    curl -s -XGET 'http://localhost:9200/_cat/count?h=count&v=false&pretty' |
+      grep -w "1"
 
-    run curl -XDELETE 'http://localhost:9200/_all'
-    [ "$status" -eq 0 ]
+    curl -s -XDELETE 'http://localhost:9200/_all'
 }

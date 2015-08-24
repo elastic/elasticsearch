@@ -1006,38 +1006,6 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         return list.get(0);
     }
 
-    private void ensureStableCluster(int nodeCount) {
-        ensureStableCluster(nodeCount, TimeValue.timeValueSeconds(30));
-    }
-
-    private void ensureStableCluster(int nodeCount, TimeValue timeValue) {
-        ensureStableCluster(nodeCount, timeValue, false, null);
-    }
-
-    private void ensureStableCluster(int nodeCount, @Nullable String viaNode) {
-        ensureStableCluster(nodeCount, TimeValue.timeValueSeconds(30), false, viaNode);
-    }
-
-    private void ensureStableCluster(int nodeCount, TimeValue timeValue, boolean local, @Nullable String viaNode) {
-        if (viaNode == null) {
-            viaNode = randomFrom(internalCluster().getNodeNames());
-        }
-        logger.debug("ensuring cluster is stable with [{}] nodes. access node: [{}]. timeout: [{}]", nodeCount, viaNode, timeValue);
-        ClusterHealthResponse clusterHealthResponse = client(viaNode).admin().cluster().prepareHealth()
-                .setWaitForEvents(Priority.LANGUID)
-                .setWaitForNodes(Integer.toString(nodeCount))
-                .setTimeout(timeValue)
-                .setLocal(local)
-                .setWaitForRelocatingShards(0)
-                .get();
-        if (clusterHealthResponse.isTimedOut()) {
-            ClusterStateResponse stateResponse = client(viaNode).admin().cluster().prepareState().get();
-            fail("failed to reach a stable cluster of [" + nodeCount + "] nodes. Tried via [" + viaNode + "]. last cluster state:\n"
-                    + stateResponse.getState().prettyPrint());
-        }
-        assertThat(clusterHealthResponse.isTimedOut(), is(false));
-    }
-
     private ClusterState getNodeClusterState(String node) {
         return client(node).admin().cluster().prepareState().setLocal(true).get().getState();
     }

@@ -42,7 +42,6 @@ import org.elasticsearch.client.FilterClient;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.inject.PreProcessModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.http.HttpServerTransport;
@@ -405,22 +404,18 @@ public class ContextAndHeaderTransportIT extends ESIntegTestCase {
         public Collection<Module> nodeModules() {
             return Collections.<Module>singletonList(new ActionLoggingModule());
         }
+
+        public void onModule(ActionModule module) {
+            module.registerFilter(LoggingFilter.class);
+        }
     }
 
-    public static class ActionLoggingModule extends AbstractModule implements PreProcessModule {
-
-
+    public static class ActionLoggingModule extends AbstractModule {
         @Override
         protected void configure() {
             bind(LoggingFilter.class).asEagerSingleton();
         }
 
-        @Override
-        public void processModule(Module module) {
-            if (module instanceof ActionModule) {
-                ((ActionModule)module).registerFilter(LoggingFilter.class);
-            }
-        }
     }
 
     public static class LoggingFilter extends ActionFilter.Simple {

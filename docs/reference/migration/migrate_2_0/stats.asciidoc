@@ -55,3 +55,7 @@ headers by default. Verbosity can be turned off with the `v` parameter:
 GET _cat/shards?v=0
 -----------------
 
+==== Nodes Stats API
+
+Queue lengths are now reported as basic numeric so they can easily processed by code. Before we used a human
+readable format. For example, a queue with 1,000 items is now reported as `1000` instead of `1k`.

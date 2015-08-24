@@ -727,7 +727,7 @@ public class ThreadPool extends AbstractComponent {
             if (queueSize == null) {
                 builder.field(Fields.QUEUE_SIZE, -1);
             } else {
-                builder.field(Fields.QUEUE_SIZE, queueSize.toString());
+                builder.field(Fields.QUEUE_SIZE, queueSize.singles());
             }
             builder.endObject();
             return builder;

@@ -12,21 +12,19 @@ DESCRIPTION
 
     The argument can be a <name> of one of the official plugins, or refer to a github repository
 
-    The notation of just specifying a plugin name, downloads an officially supported plugin.
-
-    The notation of 'elasticsearch/plugin/version' allows to easily download a commercial elastic plugin.
+    The notation of just specifying a plugin name downloads an officially supported or commercial plugin
 
     The notation of 'groupId/artifactId/version' refers to community plugins using maven central or sonatype
 
-    The notation of 'username/repository' refers to a github repository.
+    The notation of 'username/repository' refers to a github repository
 
-    The argument can be an valid <url> which points to a download or file location for the plugin to be loaded from.
+    The argument can also be a valid <url> which points to a download or file location for the plugin to be loaded from
 
 EXAMPLES
 
     plugin install analysis-kuromoji
 
-    plugin install elasticsearch/shield/latest
+    plugin install shield
 
     plugin install lmenezes/elasticsearch-kopf
 

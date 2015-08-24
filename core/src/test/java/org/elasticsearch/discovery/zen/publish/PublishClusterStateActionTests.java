@@ -360,7 +360,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
     @Test
     public void testSimultaneousClusterStatePublishing() throws Exception {
         int numberOfNodes = randomIntBetween(2, 10);
-        int numberOfIterations = randomIntBetween(10, 50);
+        int numberOfIterations = scaledRandomIntBetween(5, 50);
         Settings settings = Settings.builder().put(DiscoverySettings.PUBLISH_DIFF_ENABLE, randomBoolean()).build();
         DiscoveryNodes.Builder discoveryNodesBuilder = DiscoveryNodes.builder();
         MockNode master = null;
@@ -490,7 +490,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
         Settings.Builder settings = Settings.builder();
         // make sure we have a reasonable timeout if we expect to timeout, o.w. one that will make the test "hang"
         settings.put(DiscoverySettings.COMMIT_TIMEOUT, expectingToCommit == false && timeOutNodes > 0 ? "100ms" : "1h")
-                .put(DiscoverySettings.PUBLISH_TIMEOUT, "5ms"); // test is about comitting
+                .put(DiscoverySettings.PUBLISH_TIMEOUT, "5ms"); // test is about committing
 
         MockNode master = createMockNode("master", settings.build());
 
@@ -655,6 +655,39 @@ public class PublishClusterStateActionTests extends ESTestCase {
         assertSameState(node.clusterState, state2);
     }
 
+    /**
+     * Tests that cluster is committed or times out. It should never be the case that we fail
+     * an update due to a commit timeout, but it ends up being committed anyway
+     */
+    public void testTimeoutOrCommit() throws Exception {
+        Settings settings = Settings.builder()
+                .put(DiscoverySettings.COMMIT_TIMEOUT, "1ms").build(); // short but so we will sometime commit sometime timeout
+
+        MockNode master = createMockNode("master", settings);
+        MockNode node = createMockNode("node", settings);
+        ClusterState state = ClusterState.builder(master.clusterState)
+                .nodes(DiscoveryNodes.builder(master.clusterState.nodes()).put(node.discoveryNode).masterNodeId(master.discoveryNode.id())).build();
+
+        for (int i = 0; i < 10; i++) {
+            state = ClusterState.builder(state).incrementVersion().build();
+            logger.debug("--> publishing version [{}], UUID [{}]", state.version(), state.stateUUID());
+            boolean success;
+            try {
+                publishState(master.action, state, master.clusterState, 2).await(1, TimeUnit.HOURS);
+                success = true;
+            } catch (PublishClusterStateAction.FailedToCommitException OK) {
+                success = false;
+            }
+            logger.debug("--> publishing [{}], verifying...", success ? "succeeded" : "failed");
+
+            if (success) {
+                assertSameState(node.clusterState, state);
+            } else {
+                assertThat(node.clusterState.stateUUID(), not(equalTo(state.stateUUID())));
+            }
+        }
+    }
+
 
     private MetaData buildMetaDataForVersion(MetaData metaData, long version) {
         ImmutableOpenMap.Builder<String, IndexMetaData> indices = ImmutableOpenMap.builder(metaData.indices());
@@ -693,7 +726,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
 
     public static class AssertingAckListener implements Discovery.AckListener {
         private final List<Tuple<DiscoveryNode, Throwable>> errors = new CopyOnWriteArrayList<>();
-        private final AtomicBoolean timeoutOccured = new AtomicBoolean();
+        private final AtomicBoolean timeoutOccurred = new AtomicBoolean();
         private final CountDownLatch countDown;
 
         public AssertingAckListener(int nodeCount) {
@@ -710,7 +743,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
 
         @Override
         public void onTimeout() {
-            timeoutOccured.set(true);
+            timeoutOccurred.set(true);
             // Fast forward the counter - no reason to wait here
             long currentCount = countDown.getCount();
             for (long i = 0; i < currentCount; i++) {
@@ -724,7 +757,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
 
         public List<Tuple<DiscoveryNode, Throwable>> awaitErrors(long timeout, TimeUnit unit) throws InterruptedException {
             countDown.await(timeout, unit);
-            assertFalse(timeoutOccured.get());
+            assertFalse(timeoutOccurred.get());
             return errors;
         }
 

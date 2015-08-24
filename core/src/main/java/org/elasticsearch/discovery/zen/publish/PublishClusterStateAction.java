@@ -459,13 +459,16 @@ public class PublishClusterStateAction extends AbstractComponent {
         }
 
         private final BlockingClusterStatePublishResponseHandler publishResponseHandler;
-        volatile int neededMastersToCommit;
-        int pendingMasterNodes;
         final ArrayList<DiscoveryNode> sendAckedBeforeCommit = new ArrayList<>();
-        final CountDownLatch comittedOrFailed;
-        final AtomicBoolean committed;
+        final CountDownLatch committedOrFailedLatch;
 
-        // an external marker to note that the publishing process is timed out. This is usefull for proper logging.
+        // writes and reads of these are protected under synchronization
+        boolean committedOrFailed; // true if a decision was made w.r.t committing or failing
+        boolean committed;  // true if cluster state was committed
+        int neededMastersToCommit; // number of master nodes acks still needed before committing
+        int pendingMasterNodes; // how many master node still need to respond
+
+        // an external marker to note that the publishing process is timed out. This is useful for proper logging.
         final AtomicBoolean publishingTimedOut = new AtomicBoolean();
 
         private SendingController(ClusterState clusterState, int minMasterNodes, int totalMasterNodes, BlockingClusterStatePublishResponseHandler publishResponseHandler) {
@@ -476,60 +479,66 @@ public class PublishClusterStateAction extends AbstractComponent {
             if (this.neededMastersToCommit > this.pendingMasterNodes) {
                 throw new FailedToCommitException("not enough masters to ack sent cluster state. [{}] needed , have [{}]", neededMastersToCommit, pendingMasterNodes);
             }
-            this.committed = new AtomicBoolean(neededMastersToCommit == 0);
-            this.comittedOrFailed = new CountDownLatch(committed.get() ? 0 : 1);
+            this.committed = neededMastersToCommit == 0;
+            this.committedOrFailed = committed;
+            this.committedOrFailedLatch = new CountDownLatch(committed ? 0 : 1);
         }
 
         public void waitForCommit(TimeValue commitTimeout) {
             boolean timedout = false;
             try {
-                timedout = comittedOrFailed.await(commitTimeout.millis(), TimeUnit.MILLISECONDS) == false;
+                timedout = committedOrFailedLatch.await(commitTimeout.millis(), TimeUnit.MILLISECONDS) == false;
             } catch (InterruptedException e) {
 
             }
-            //nocommit: make sure we prevent publishing successfully!
-            if (committed.get() == false) {
+
+            if (timedout) {
+                markAsFailed("timed out waiting for commit (commit timeout [" + commitTimeout + "]");
+            }
+            if (isCommitted() == false) {
                 throw new FailedToCommitException("{} enough masters to ack sent cluster state. [{}] left",
                         timedout ? "timed out while waiting for" : "failed to get", neededMastersToCommit);
             }
         }
 
+        synchronized public boolean isCommitted() {
+            return committed;
+        }
+
         synchronized public void onNodeSendAck(DiscoveryNode node) {
-            if (committed.get() == false) {
+            if (committed) {
+                assert sendAckedBeforeCommit.isEmpty();
+                sendCommitToNode(node, clusterState, this);
+            } else if (committedOrFailed) {
+                logger.trace("ignoring ack from [{}] for cluster state version [{}]. already failed", node, clusterState.version());
+            } else {
+                // we're still waiting
                 sendAckedBeforeCommit.add(node);
                 if (node.isMasterNode()) {
                     onMasterNodeSendAck(node);
                 }
-            } else {
-                assert sendAckedBeforeCommit.isEmpty();
-                sendCommitToNode(node, clusterState, this);
             }
-
         }
 
-        private void onMasterNodeSendAck(DiscoveryNode node) {
+        synchronized private void onMasterNodeSendAck(DiscoveryNode node) {
             logger.trace("master node {} acked cluster state version [{}]. processing ... (current pending [{}], needed [{}])",
                     node, clusterState.version(), pendingMasterNodes, neededMastersToCommit);
             neededMastersToCommit--;
             if (neededMastersToCommit == 0) {
-                logger.trace("committing version [{}]", clusterState.version());
-                for (DiscoveryNode nodeToCommit : sendAckedBeforeCommit) {
-                    sendCommitToNode(nodeToCommit, clusterState, this);
+                if (markAsCommitted()) {
+                    for (DiscoveryNode nodeToCommit : sendAckedBeforeCommit) {
+                        sendCommitToNode(nodeToCommit, clusterState, this);
+                    }
+                    sendAckedBeforeCommit.clear();
                 }
-                sendAckedBeforeCommit.clear();
-                boolean success = committed.compareAndSet(false, true);
-                assert success;
-                comittedOrFailed.countDown();
             }
             onMasterNodeDone(node);
         }
 
-        private void onMasterNodeDone(DiscoveryNode node) {
+        synchronized private void onMasterNodeDone(DiscoveryNode node) {
             pendingMasterNodes--;
             if (pendingMasterNodes == 0 && neededMastersToCommit > 0) {
-                logger.trace("failed to commit version [{}]. All master nodes acked or failed but [{}] acks are still needed",
-                        clusterState.version(), neededMastersToCommit);
-                comittedOrFailed.countDown();
+                markAsFailed("All master nodes acked or failed but [" + neededMastersToCommit + "] acks are still needed");
             }
         }
 
@@ -540,6 +549,38 @@ public class PublishClusterStateAction extends AbstractComponent {
                 onMasterNodeDone(node);
             }
             publishResponseHandler.onFailure(node, t);
+        }
+
+        /**
+         * tries and commit the current state, if a decision wasn't made yet
+         *
+         * @return true if successful
+         */
+        synchronized private boolean markAsCommitted() {
+            if (committedOrFailed) {
+                return committed;
+            }
+            logger.trace("committing version [{}]", clusterState.version());
+            committed = true;
+            committedOrFailed = true;
+            committedOrFailedLatch.countDown();
+            return true;
+        }
+
+        /**
+         * tries marking the publishing as failed, if a decision wasn't made yet
+         *
+         * @return true if the publishing was failed and the cluster state is *not* committed
+         **/
+        synchronized private boolean markAsFailed(String reason) {
+            if (committedOrFailed) {
+                return committed == false;
+            }
+            logger.trace("failed to commit version [{}]. {}", clusterState.version(), reason);
+            committedOrFailed = true;
+            committed = false;
+            committedOrFailedLatch.countDown();
+            return true;
         }
 
         public boolean getPublishingTimedOut() {

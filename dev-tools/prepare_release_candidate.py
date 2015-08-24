@@ -223,10 +223,10 @@ if __name__ == "__main__":
     shutil.rmtree(localRepoElasticsearch)
 
   if install_only:
-    mvn_targets = 'install'
+    mvn_target = 'install'
   else:
-    mvn_targets = 'install deploy'
-  install_command = 'mvn clean %s -Prelease -Dskip.integ.tests=true -Dgpg.keyname="%s" -Dpackaging.rpm.rpmbuild=/usr/bin/rpmbuild -Drpm.sign=true -Dmaven.repo.local=%s -Dno.commit.pattern="\\bno(n|)commit\\b" -Dforbidden.test.signatures=""' % (mvn_targets, gpg_key, localRepo)
+    mvn_target = 'deploy'
+  install_command = 'mvn clean %s -Prelease -Dskip.integ.tests=true -Dgpg.keyname="%s" -Dpackaging.rpm.rpmbuild=/usr/bin/rpmbuild -Drpm.sign=true -Dmaven.repo.local=%s -Dno.commit.pattern="\\bno(n|)commit\\b" -Dforbidden.test.signatures=""' % (mvn_target, gpg_key, localRepo)
   clean_repo_command = 'find %s -name _remote.repositories -exec rm {} \;' % (localRepoElasticsearch)
   rename_metadata_files_command = 'for i in $(find %s -name "maven-metadata-local.xml*") ; do mv "$i" "${i/-local/}" ; done' % (localRepoElasticsearch)
   s3_sync_command = 's3cmd sync %s s3://download.elasticsearch.org/elasticsearch/staging/%s-%s/org/' % (localRepoElasticsearch, release_version, shortHash)

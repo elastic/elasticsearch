@@ -321,6 +321,7 @@
         <module>smoke-test-watcher-with-shield</module>
         <module>shield-example-realm</module>
         <module>shield-tribe-node-tests</module>
+        <module>shield-client-tests</module>
     </modules>
 
     <profiles>

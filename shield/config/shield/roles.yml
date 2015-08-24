@@ -21,18 +21,9 @@ user:
 # Defines the required permissions for transport clients
 transport_client:
   cluster:
-    - cluster:monitor/nodes/info
-    #uncomment the following for sniffing
-    #- cluster:monitor/state
-
-# The required role for kibana 3 users
-kibana3:
-  cluster: cluster:monitor/nodes/info
-  indices:
-    '*':
-      privileges: indices:data/read/search, indices:data/read/get, indices:admin/get
-    'kibana-int':
-      privileges: indices:data/read/search, indices:data/read/get, indices:data/write/delete, indices:data/write/index, create_index
+      - cluster:monitor/nodes/liveness
+      #uncomment the following for sniffing
+      #- cluster:monitor/state
 
 # The required permissions for kibana 4 users.
 kibana4:
@@ -60,18 +51,3 @@ logstash:
   indices:
     'logstash-*':
       privileges: indices:data/write/bulk, indices:data/write/delete, indices:data/write/update, indices:data/read/search, indices:data/read/scroll, create_index
-
-# Marvel role, allowing all operations
-# on the marvel indices
-marvel_user:
-  cluster: cluster:monitor/nodes/info, cluster:admin/plugin/license/get
-  indices:
-    '.marvel-*':
-      privileges: all
-
-# Marvel Agent users
-marvel_agent:
-  cluster: indices:admin/template/get, indices:admin/template/put
-  indices:
-    '.marvel-*':
-      privileges: indices:data/write/bulk, create_index

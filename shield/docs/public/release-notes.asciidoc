@@ -4,10 +4,10 @@
 [float]
 [[version-compatibility]]
 === Version Compatibility
-Shield 2.x is compatible with:
+Shield {version} is compatible with:
 
-* Elasticsearch: 2.x
-* License plugin: 2.x
+* Elasticsearch: {version}
+* License plugin: {version}
 
 [float]
 [[upgrade-instructions]]
@@ -40,6 +40,11 @@ version of Shield. We recommend copying the changes listed below to your `roles.
 [float]
 [[changelist]]
 === Change List
+
+[float]
+==== 2.0.0-beta1
+
+This release is primarily for compatibility with Elasticsearch 2.0.0-beta1.
 
 [float]
 ==== 1.3.2

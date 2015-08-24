@@ -15,7 +15,7 @@ To use the transport client with Shield, you need to:
 `transport_client` role is defined in `roles.yml` that grants the `cluster:monitor/nodes/info` cluster permission. The transport client uses the node info API to fetch information about the nodes in the cluster. If the client is configured to use sniffing, you need to add the
 `cluster:monitor/state` cluster permission to the `transport_client` role.
 
-. Add the Shield JAR file (`elasticsearch-shield-2.0.0.jar`) to your CLASSPATH. You can download the Shield distribution and extract the JAR file manually or you can get it from the http://maven.elasticsearch.org/releases/org/elasticsearch/plugin/elasticsearch-shield/2.0.0/elasticsearch-shield-2.0.0.jar[Elasticsearch Maven repository].
+. Add the Shield JAR file (`shield-2.1.0.jar`) to your CLASSPATH. You can download the Shield distribution and extract the JAR file manually or you can get it from the http://maven.elasticsearch.org/releases/org/elasticsearch/plugin/shield/{version}/shield-{version}.jar[Elasticsearch Maven repository].
 +
 If you are using Maven, you need to add the Shield JAR file as a dependency in your project's `pom.xml` file:
 +
@@ -43,8 +43,8 @@ If you are using Maven, you need to add the Shield JAR file as a dependency in y
       <!-- add the shield jar as a dependency -->
       <dependency>
          <groupId>org.elasticsearch.plugin</groupId>
-         <artifactId>elasticsearch-shield</artifactId>
-         <version>2.0.0</version>
+         <artifactId>shield</artifactId>
+         <version>2.1.0</version>
       </dependency>
       ...
    </dependencies>
@@ -69,7 +69,7 @@ repositories {
 dependencies {
   // Provide the Shield jar on the classpath for compilation and at runtime
   // Note: Many projects can use the Shield jar as a runtime dependency
-  compile "org.elasticsearch.plugin:elasticsearch-shield:2.0.0"
+  compile "org.elasticsearch.plugin:shield:2.1.0"
 
   /* ... */
 }

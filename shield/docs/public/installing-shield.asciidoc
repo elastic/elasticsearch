@@ -9,11 +9,11 @@ node must be restarted after installation. Plan for a complete cluster restart b
 [float]
 === Shield Installation Prerequisites
 
-To install Shield 2.x, you need:
+To install Shield {version}, you need:
 
 * Java 7 or later
-* Elasticsearch 2.x
-* Elasticsearch License plugin 2.x
+* Elasticsearch {version}
+* Elasticsearch License plugin {version}
 
 For information about installing the latest Oracle JDK, see http://www.oracle.com/technetwork/java/javase/downloads/index-jsp-138363.html[Java SE Downloads]. For information about installing Elasticsearch, see http://www.elastic.co/guide/en/elasticsearch/reference/current/_installation.html[Installation] in the Elasticsearch Reference.
 
@@ -62,8 +62,8 @@ To install Shield on a machine that doesn't have Internet access:
 +
 [source,shell]
 ----------------------------------------------------------
-bin/plugin -i license -u file:///path/to/file/license-latest.zip <1>
-bin/plugin -i watcher -u file:///path/to/file/shield-1.3.2.zip
+bin/plugin -i license -u file:///path/to/file/license-2.1.0.zip <1>
+bin/plugin -i shield -u file:///path/to/file/shield-2.1.0.zip
 ----------------------------------------------------------
 <1> Note that you must specify an absolute path to the zip file after the `file://` protocol.
 

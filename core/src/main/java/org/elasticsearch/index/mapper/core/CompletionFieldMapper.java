@@ -104,7 +104,7 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
 
         @Override
         public Mapper.Builder<?, ?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            if (parserContext.indexVersionCreated().before(Version.V_2_0_0_beta1)) {
+            if (parserContext.indexVersionCreated().before(Version.V_2_1_0)) {
                 return new OldCompletionFieldMapper.TypeParser().parse(name, node, parserContext);
             }
             CompletionFieldMapper.Builder builder = completionField(name);

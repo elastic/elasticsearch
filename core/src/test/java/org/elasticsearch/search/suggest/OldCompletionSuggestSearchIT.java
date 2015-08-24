@@ -75,7 +75,7 @@ public class OldCompletionSuggestSearchIT extends ESIntegTestCase {
     private final String INDEX = RandomStrings.randomAsciiOfLength(getRandom(), 10).toLowerCase(Locale.ROOT);
     private final String TYPE = RandomStrings.randomAsciiOfLength(getRandom(), 10).toLowerCase(Locale.ROOT);
     private final String FIELD = RandomStrings.randomAsciiOfLength(getRandom(), 10).toLowerCase(Locale.ROOT);
-    private final Version PRE2X_VERSION = VersionUtils.randomVersionBetween(getRandom(), Version.V_1_0_0, Version.V_1_7_0);
+    private final Version PRE2X_VERSION = VersionUtils.randomVersionBetween(getRandom(), Version.V_1_0_0, Version.V_2_0_0);
     private final CompletionMappingBuilder completionMappingBuilder = new CompletionMappingBuilder();
 
     @Test

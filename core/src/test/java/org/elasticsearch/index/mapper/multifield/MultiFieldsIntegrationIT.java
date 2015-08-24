@@ -177,7 +177,7 @@ public class MultiFieldsIntegrationIT extends ESIntegTestCase {
 
     @Test
     public void testPre2xCompletionMultiField() throws Exception {
-        final Version PRE2X_VERSION = VersionUtils.randomVersionBetween(getRandom(), Version.V_1_0_0, Version.V_1_7_0);
+        final Version PRE2X_VERSION = VersionUtils.randomVersionBetween(getRandom(), Version.V_1_0_0, Version.V_2_0_0);
         assertAcked(
                 client().admin().indices().prepareCreate("my-index")
                         .setSettings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, PRE2X_VERSION.id))

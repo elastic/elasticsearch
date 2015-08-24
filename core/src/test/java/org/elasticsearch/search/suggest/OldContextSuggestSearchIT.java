@@ -60,7 +60,7 @@ public class OldContextSuggestSearchIT extends ESIntegTestCase {
     private static final String INDEX = "test";
     private static final String TYPE = "testType";
     private static final String FIELD = "testField";
-    private final Version PRE2X_VERSION = VersionUtils.randomVersionBetween(getRandom(), Version.V_1_0_0, Version.V_1_7_0);
+    private final Version PRE2X_VERSION = VersionUtils.randomVersionBetween(getRandom(), Version.V_1_0_0, Version.V_2_0_0);
 
     private static final String[][] HEROS = {
             { "Afari, Jamal", "Jamal Afari", "Jamal" },

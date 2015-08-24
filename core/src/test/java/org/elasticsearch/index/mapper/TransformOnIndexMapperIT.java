@@ -91,7 +91,7 @@ public class TransformOnIndexMapperIT extends ESIntegTestCase {
     // ever fix the completion suggester to reencode the payloads then we can remove this test.
     @Test
     public void contextSuggestPayloadTransformed() throws Exception {
-        Version PRE2X_VERSION = VersionUtils.randomVersionBetween(getRandom(), Version.V_1_0_0, Version.V_1_7_0);
+        Version PRE2X_VERSION = VersionUtils.randomVersionBetween(getRandom(), Version.V_1_0_0, Version.V_2_0_0);
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
         builder.startObject("properties");
         builder.startObject("suggest").field("type", "completion").field("payloads", true).endObject();

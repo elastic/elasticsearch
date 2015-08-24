@@ -220,21 +220,21 @@ public class CategoryContextMapping extends ContextMapping<CategoryQueryContext>
     }
 
     @Override
-    public boolean equals(Object obj) {
-        if (super.equals(obj)) {
-            if (obj instanceof CategoryContextMapping) {
-                CategoryContextMapping other = (CategoryContextMapping) obj;
-                return (this.fieldName.equals(other.fieldName));
-            }
-        }
-        return false;
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        if (!super.equals(o)) return false;
+
+        CategoryContextMapping mapping = (CategoryContextMapping) o;
+
+        return !(fieldName != null ? !fieldName.equals(mapping.fieldName) : mapping.fieldName != null);
+
     }
 
     @Override
     public int hashCode() {
-        final int prime = 31;
         int result = super.hashCode();
-        result = prime * result + ((fieldName == null) ? 0 : fieldName.hashCode());
+        result = 31 * result + (fieldName != null ? fieldName.hashCode() : 0);
         return result;
     }
 

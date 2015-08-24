@@ -394,32 +394,24 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
     }
 
     @Override
-    public int hashCode() {
-        final int prime = 31;
-        int result = super.hashCode();
-        result = prime * result + ((fieldName == null) ? 0 : fieldName.hashCode());
-        result = prime * result + precision;
-        return result;
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        if (!super.equals(o)) return false;
+
+        GeoContextMapping that = (GeoContextMapping) o;
+
+        if (precision != that.precision) return false;
+        return !(fieldName != null ? !fieldName.equals(that.fieldName) : that.fieldName != null);
+
     }
-   
+
     @Override
-    public boolean equals(Object obj) {
-        if (super.equals(obj)) {
-            if (obj instanceof GeoContextMapping) {
-                GeoContextMapping other = (GeoContextMapping) obj;
-                if (fieldName == null) {
-                    if (other.fieldName != null) {
-                        return false;
-                    }
-                } else if (!fieldName.equals(other.fieldName)) {
-                    return false;
-                } else if (precision != other.precision) {
-                    return false;
-                }
-                return true;
-            }
-        }
-        return false;
+    public int hashCode() {
+        int result = super.hashCode();
+        result = 31 * result + precision;
+        result = 31 * result + (fieldName != null ? fieldName.hashCode() : 0);
+        return result;
     }
 
     public static class Builder extends ContextBuilder<GeoContextMapping> {

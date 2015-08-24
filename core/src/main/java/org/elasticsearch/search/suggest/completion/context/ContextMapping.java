@@ -182,21 +182,22 @@ public abstract class ContextMapping<T extends ToXContent> implements ToXContent
     }
 
     @Override
-    public int hashCode() {
-        final int prime = 31;
-        int result = super.hashCode();
-        result = prime * result + name.hashCode();
-        result = prime * result + type.hashCode();
-        return result;
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        ContextMapping<?> that = (ContextMapping<?>) o;
+
+        if (type != that.type) return false;
+        return name.equals(that.name);
+
     }
 
     @Override
-    public boolean equals(Object obj) {
-        if (obj == null || (obj instanceof ContextMapping) == false) {
-            return false;
-        }
-        ContextMapping other = ((ContextMapping) obj);
-        return name.equals(other.name) && type == other.type;
+    public int hashCode() {
+        int result = type.hashCode();
+        result = 31 * result + name.hashCode();
+        return result;
     }
 
     @Override

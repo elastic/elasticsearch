@@ -394,7 +394,7 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
      *  "STRING" - interpreted as the field value (input)
      *  "OBJECT" - { "input": STRING|ARRAY, "weight": STRING|INT, "contexts": ARRAY|OBJECT }
      *
-     * NOTE: for "contexts" parsing see {@link ContextMappings#parseContext(ParseContext, XContentParser)}
+     * NOTE: for "contexts" parsing see {@link ContextMappingsParser#parseContext(ContextMappings, ParseContext, XContentParser)}
      */
     private void parse(ParseContext parseContext, Token token, XContentParser parser, CompletionInputs completionInputs) throws IOException {
         Set<String> inputs = new HashSet<>();

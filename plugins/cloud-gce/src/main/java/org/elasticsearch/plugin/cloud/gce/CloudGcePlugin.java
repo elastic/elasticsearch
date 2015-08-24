@@ -23,15 +23,18 @@ import org.elasticsearch.cloud.gce.GceModule;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.discovery.DiscoveryModule;
+import org.elasticsearch.discovery.gce.GceDiscovery;
+import org.elasticsearch.plugins.Plugin;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 
 /**
  *
  */
-public class CloudGcePlugin extends AbstractPlugin {
+public class CloudGcePlugin extends Plugin {
 
     private final Settings settings;
 
@@ -50,21 +53,25 @@ public class CloudGcePlugin extends AbstractPlugin {
     }
 
     @Override
-    public Collection<Class<? extends Module>> modules() {
-        Collection<Class<? extends Module>> modules = new ArrayList<>();
+    public Collection<Module> nodeModules() {
+        List<Module> modules = new ArrayList<>();
         if (settings.getAsBoolean("cloud.enabled", true)) {
-            modules.add(GceModule.class);
+            modules.add(new GceModule());
         }
         return modules;
     }
 
     @Override
-    public Collection<Class<? extends LifecycleComponent>> services() {
+    public Collection<Class<? extends LifecycleComponent>> nodeServices() {
         Collection<Class<? extends LifecycleComponent>> services = new ArrayList<>();
         if (settings.getAsBoolean("cloud.enabled", true)) {
-//            services.add(GceComputeServiceImpl.class);
+            services.add(GceModule.getComputeServiceImpl());
         }
         return services;
+    }
+
+    public void onModule(DiscoveryModule discoveryModule) {
+        discoveryModule.addDiscoveryType("gce", GceDiscovery.class);
     }
 
 }

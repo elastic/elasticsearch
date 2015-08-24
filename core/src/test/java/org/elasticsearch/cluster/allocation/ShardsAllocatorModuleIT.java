@@ -19,9 +19,9 @@
 
 package org.elasticsearch.cluster.allocation;
 
+import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
-import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocatorModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
@@ -40,19 +40,10 @@ public class ShardsAllocatorModuleIT extends ESIntegTestCase {
     }
 
     public void testLoadByShortKeyShardsAllocator() throws IOException {
-        Settings build = settingsBuilder().put(ShardsAllocatorModule.TYPE_KEY, "even_shard") // legacy just to make sure we don't barf
+        Settings build = settingsBuilder().put(ClusterModule.SHARDS_ALLOCATOR_TYPE_KEY, "even_shard") // legacy just to make sure we don't barf
                 .build();
         assertAllocatorInstance(build, BalancedShardsAllocator.class);
-        build = settingsBuilder().put(ShardsAllocatorModule.TYPE_KEY, ShardsAllocatorModule.BALANCED_ALLOCATOR_KEY).build();
-        assertAllocatorInstance(build, BalancedShardsAllocator.class);
-    }
-
-    public void testLoadByClassNameShardsAllocator() throws IOException {
-        Settings build = settingsBuilder().put(ShardsAllocatorModule.TYPE_KEY, "BalancedShards").build();
-        assertAllocatorInstance(build, BalancedShardsAllocator.class);
-
-        build = settingsBuilder().put(ShardsAllocatorModule.TYPE_KEY,
-                "org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator").build();
+        build = settingsBuilder().put(ClusterModule.SHARDS_ALLOCATOR_TYPE_KEY, ClusterModule.BALANCED_ALLOCATOR).build();
         assertAllocatorInstance(build, BalancedShardsAllocator.class);
     }
 

@@ -22,30 +22,14 @@ package org.elasticsearch.index.deletionpolicy;
 import org.apache.lucene.index.IndexDeletionPolicy;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.name.Names;
-import org.elasticsearch.common.settings.Settings;
 
-import static org.elasticsearch.index.deletionpolicy.DeletionPolicyModule.DeletionPolicySettings.TYPE;
-
-/**
- *
- */
 public class DeletionPolicyModule extends AbstractModule {
-
-    public static class DeletionPolicySettings {
-        public static final String TYPE = "index.deletionpolicy.type";
-    }
-
-    private final Settings settings;
-
-    public DeletionPolicyModule(Settings settings) {
-        this.settings = settings;
-    }
 
     @Override
     protected void configure() {
         bind(IndexDeletionPolicy.class)
                 .annotatedWith(Names.named("actual"))
-                .to(settings.getAsClass(TYPE, KeepOnlyLastDeletionPolicy.class))
+                .to(KeepOnlyLastDeletionPolicy.class)
                 .asEagerSingleton();
 
         bind(SnapshotDeletionPolicy.class)

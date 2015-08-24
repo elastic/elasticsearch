@@ -20,18 +20,13 @@
 package org.elasticsearch.search.scan;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.queries.MinDocQuery;
 import org.apache.lucene.search.CollectionTerminatedException;
-import org.apache.lucene.search.ConstantScoreScorer;
-import org.apache.lucene.search.ConstantScoreWeight;
-import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.SimpleCollector;
 import org.apache.lucene.search.TopDocs;
-import org.apache.lucene.search.Weight;
-import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -47,18 +42,23 @@ public class ScanContext {
 
     private volatile int docUpTo;
 
-    public TopDocs execute(SearchContext context) throws IOException {
-        return execute(context.searcher(), context.query(), context.size(), context.trackScores());
+    public ScanCollector collector(SearchContext context) {
+        return collector(context.size(), context.trackScores());
     }
 
-    TopDocs execute(IndexSearcher searcher, Query query, int size, boolean trackScores) throws IOException {
-        ScanCollector collector = new ScanCollector(size, trackScores);
-        Query q = Queries.filtered(query, new MinDocQuery(docUpTo));
-        searcher.search(q, collector);
-        return collector.topDocs();
+    /** Create a {@link ScanCollector} for the given page size. */
+    ScanCollector collector(int size, boolean trackScores) {
+        return new ScanCollector(size, trackScores);
     }
 
-    private class ScanCollector extends SimpleCollector {
+    /**
+     * Wrap the query so that it can skip directly to the right document.
+     */
+    public Query wrapQuery(Query query) {
+        return Queries.filtered(query, new MinDocQuery(docUpTo));
+    }
+
+    public class ScanCollector extends SimpleCollector {
 
         private final List<ScoreDoc> docs;
 
@@ -70,7 +70,7 @@ public class ScanContext {
 
         private int docBase;
 
-        ScanCollector(int size, boolean trackScores) {
+        private ScanCollector(int size, boolean trackScores) {
             this.trackScores = trackScores;
             this.docs = new ArrayList<>(size);
             this.size = size;
@@ -113,93 +113,4 @@ public class ScanContext {
         }
     }
 
-    /**
-     * A filtering query that matches all doc IDs that are not deleted and
-     * greater than or equal to the configured doc ID.
-     */
-    // pkg-private for testing
-    static class MinDocQuery extends Query {
-
-        private final int minDoc;
-
-        MinDocQuery(int minDoc) {
-            this.minDoc = minDoc;
-        }
-
-        @Override
-        public int hashCode() {
-            return 31 * super.hashCode() + minDoc;
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            if (super.equals(obj) == false) {
-                return false;
-            }
-            MinDocQuery that = (MinDocQuery) obj;
-            return minDoc == that.minDoc;
-        }
-
-        @Override
-        public Weight createWeight(IndexSearcher searcher, boolean needsScores) throws IOException {
-            return new ConstantScoreWeight(this) {
-                @Override
-                public Scorer scorer(LeafReaderContext context, final Bits acceptDocs) throws IOException {
-                    final int maxDoc = context.reader().maxDoc();
-                    if (context.docBase + maxDoc <= minDoc) {
-                        return null;
-                    }
-                    final int segmentMinDoc = Math.max(0, minDoc - context.docBase);
-                    final DocIdSetIterator disi = new DocIdSetIterator() {
-
-                        int doc = -1;
-
-                        @Override
-                        public int docID() {
-                            return doc;
-                        }
-
-                        @Override
-                        public int nextDoc() throws IOException {
-                            return advance(doc + 1);
-                        }
-
-                        @Override
-                        public int advance(int target) throws IOException {
-                            assert target > doc;
-                            if (doc == -1) {
-                                // skip directly to minDoc
-                                doc = Math.max(target, segmentMinDoc);
-                            } else {
-                                doc = target;
-                            }
-                            while (doc < maxDoc) {
-                                if (acceptDocs == null || acceptDocs.get(doc)) {
-                                    break;
-                                }
-                                doc += 1;
-                            }
-                            if (doc >= maxDoc) {
-                                doc = NO_MORE_DOCS;
-                            }
-                            return doc;
-                        }
-
-                        @Override
-                        public long cost() {
-                            return maxDoc - minDoc;
-                        }
-
-                    };
-                    return new ConstantScoreScorer(this, score(), disi);
-                }
-            };
-        }
-
-        @Override
-        public String toString(String field) {
-            return "MinDocQuery(minDoc=" + minDoc  + ")";
-        }
-
-    }
 }

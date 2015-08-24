@@ -102,7 +102,7 @@ public class RelocationIT extends ESIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
-                .put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, MockTransportService.class.getName()).build();
+            .put("plugin.types", MockTransportService.TestPlugin.class.getName()).build();
     }
 
 
@@ -395,14 +395,14 @@ public class RelocationIT extends ESIntegTestCase {
         ClusterStateResponse stateResponse = client().admin().cluster().prepareState().get();
         String blueNodeId = internalCluster().getInstance(DiscoveryService.class, blueNodeName).localNode().id();
 
-        assertFalse(stateResponse.getState().readOnlyRoutingNodes().node(blueNodeId).isEmpty());
+        assertFalse(stateResponse.getState().getRoutingNodes().node(blueNodeId).isEmpty());
 
         SearchResponse searchResponse = client().prepareSearch(indexName).get();
         assertHitCount(searchResponse, numDocs);
 
         // Slow down recovery in order to make recovery cancellations more likely
         IndicesStatsResponse statsResponse = client().admin().indices().prepareStats(indexName).get();
-        long chunkSize = statsResponse.getIndex(indexName).getShards()[0].getStats().getStore().size().bytes() / 10;
+        long chunkSize = Math.max(1, statsResponse.getIndex(indexName).getShards()[0].getStats().getStore().size().bytes() / 10);
         assertTrue(client().admin().cluster().prepareUpdateSettings()
                 .setTransientSettings(Settings.builder()
                                 // one chunk per sec..
@@ -445,7 +445,7 @@ public class RelocationIT extends ESIntegTestCase {
         assertHitCount(searchResponse, numDocs);
 
         stateResponse = client().admin().cluster().prepareState().get();
-        assertTrue(stateResponse.getState().readOnlyRoutingNodes().node(blueNodeId).isEmpty());
+        assertTrue(stateResponse.getState().getRoutingNodes().node(blueNodeId).isEmpty());
     }
 
     @Test

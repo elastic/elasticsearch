@@ -1,0 +1,29 @@
+[[security]]
+== Security Plugins
+
+Security plugins add a security layer to  Elasticsearch.
+
+[float]
+=== Core security plugins
+
+The core security plugins are:
+
+link:/products/shield[Shield]::
+
+Shield is the Elastic product that makes it easy for anyone to add
+enterprise-grade security to their ELK stack. Designed to address the growing security
+needs of thousands of enterprises using ELK today, Shield provides peace of
+mind when it comes to protecting your data.
+
+[float]
+=== Community contributed security plugins
+
+The following plugin has been contributed by our community:
+
+* https://github.com/sscarduzio/elasticsearch-readonlyrest-plugin[Readonly REST]:
+  High performance access control for Elasticsearch native REST API (by Simone Scarduzio)
+
+This community plugin appears to have been abandoned:
+
+* https://github.com/sonian/elasticsearch-jetty[Jetty HTTP transport plugin]:
+  Uses Jetty to provide SSL connections, basic authentication, and request logging (by Sonian Inc.)

@@ -21,13 +21,14 @@ package org.elasticsearch.common.util.concurrent;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
+import org.hamcrest.Matcher;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
@@ -275,7 +276,19 @@ public class EsExecutorsTests extends ESTestCase {
                 assertThat(message, containsString("on EsThreadPoolExecutor[testRejectionMessage"));
                 assertThat(message, containsString("queue capacity = " + queue));
                 assertThat(message, containsString("[Running"));
-                assertThat(message, containsString("active threads = " + pool));
+                /*
+                 * While you'd expect all threads in the pool to be active when the queue gets long enough to cause rejections this isn't
+                 * always the case. Sometimes you'll see "active threads = <pool - 1>", presumably because one of those threads has finished
+                 * its current task but has yet to pick up another task. You too can reproduce this by adding the @Repeat annotation to this
+                 * test with something like 10000 iterations. I suspect you could see "active threads = <any natural number <= to pool>". So
+                 * that is what we assert.
+                 */
+                @SuppressWarnings("unchecked")
+                Matcher<String>[] activeThreads = new Matcher[pool + 1];
+                for (int p = 0; p <= pool; p++) {
+                    activeThreads[p] = containsString("active threads = " + p);
+                }
+                assertThat(message, anyOf(activeThreads));
                 assertThat(message, containsString("queued tasks = " + queue));
                 assertThat(message, containsString("completed tasks = 0"));
             }

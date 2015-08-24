@@ -1,6 +1,5 @@
 <?xml version="1.0"?>
 <project name="elasticsearch-integration-tests">
-
   <!-- our pid file for easy cleanup -->
   <property name="integ.pidfile" location="${integ.scratch}/es.pid"/>
 
@@ -13,7 +12,6 @@
   <!-- runs an OS script -->
   <macrodef name="run-script">
       <attribute name="script"/>
-      <attribute name="args"/>
       <attribute name="spawn" default="false"/>
       <element name="nested" optional="true"/>
     <sequential>
@@ -23,23 +21,23 @@
       </condition>
 
       <!-- create a temp CWD, to enforce that commands don't rely on CWD -->
-      <mkdir dir="${integ.temp}"/>
+      <local name="temp.cwd"/>
+      <tempfile property="temp.cwd" destDir="${integ.temp}"/>
+      <mkdir dir="${temp.cwd}"/>
 
       <!-- print commands we run -->
       <local name="script.base"/>
       <basename file="@{script}" property="script.base"/>
-      <echo>execute: ${script.base} @{args}</echo>
-
-      <exec executable="cmd" osfamily="winnt" dir="${integ.temp}" failonerror="${failonerror}" spawn="@{spawn}" taskname="${script.base}">
+      <!-- crappy way to output, but we need it. make it nice later -->
+      <echoxml><exec script="${script.base}"><nested/></exec></echoxml>
+      <exec executable="cmd" osfamily="winnt" dir="${temp.cwd}" failonerror="${failonerror}" spawn="@{spawn}" taskname="${script.base}">
         <arg value="/c"/>
         <arg value="@{script}.bat"/>
-        <arg line="@{args}"/>
         <nested/>
       </exec>
 
-      <exec executable="sh" osfamily="unix" dir="${integ.temp}" failonerror="${failonerror}" spawn="@{spawn}" taskname="${script.base}">
+      <exec executable="sh" osfamily="unix" dir="${temp.cwd}" failonerror="${failonerror}" spawn="@{spawn}" taskname="${script.base}">
         <arg value="@{script}"/>
-        <arg line="@{args}"/>
         <nested/>
       </exec>
     </sequential>
@@ -86,23 +84,18 @@
 
       <!-- install plugin -->
       <echo>Installing plugin @{name}...</echo>
-      <run-script script="@{home}/bin/plugin" args="install @{name} -u ${url}"/>
+      <run-script script="@{home}/bin/plugin">
+        <nested>
+          <arg value="install"/>
+          <arg value="${url}"/>
+        </nested>
+      </run-script>
 
-      <!-- check that plugin was installed into correct place -->
-      <local name="longname"/>
-      <property name="longname" value="@{name}"/>
-      <local name="shortname"/>
-      <filter-property src="longname" dest="shortname">
-        <chain>
-          <replaceregex pattern="^elasticsearch-" replace=""/>
-        </chain>
-      </filter-property>
-
-      <fail message="did not find plugin installed as ${shortname}">
+      <fail message="did not find plugin installed as @{name}">
         <condition>
           <not>
             <resourceexists>
-              <file file="@{home}/plugins/${shortname}"/>
+              <file file="@{home}/plugins/@{name}"/>
             </resourceexists>
           </not>
         </condition>
@@ -119,7 +112,21 @@
       <waitfor maxwait="30" maxwaitunit="second"
                checkevery="500" checkeveryunit="millisecond"
                timeoutproperty="@{timeoutproperty}">
-        <http url="http://127.0.0.1:@{port}"/>
+        <http url="http://localhost:@{port}"/>
+      </waitfor>
+    </sequential>
+  </macrodef>
+
+  <!-- waits for cluster to form and have exactly two nodes -->
+  <macrodef name="waitfor-two-nodes">
+    <attribute name="port"/>
+    <attribute name="timeoutproperty"/>
+    <sequential>
+      <echo>Waiting for elasticsearch to form a cluster of two...</echo>
+      <waitfor maxwait="30" maxwaitunit="second"
+               checkevery="500" checkeveryunit="millisecond"
+               timeoutproperty="@{timeoutproperty}">
+        <http url="http://localhost:@{port}/_cluster/health?wait_for_nodes=2"/>
       </waitfor>
     </sequential>
   </macrodef>
@@ -129,36 +136,42 @@
       <attribute name="home" default="${integ.scratch}/elasticsearch-${elasticsearch.version}"/>
       <attribute name="spawn" default="true"/>
       <attribute name="args" default="${integ.args}"/>
+      <attribute name="es.unicast.hosts" default="localhost:${integ.transport.port}"/>
       <attribute name="es.cluster.name" default="${integ.cluster.name}"/>
       <attribute name="es.http.port" default="${integ.http.port}"/>
       <attribute name="es.transport.tcp.port" default="${integ.transport.port}"/>
       <attribute name="es.pidfile" default="${integ.pidfile}"/>
-      <attribute name="additional.args" default=""/>
-      <element name="nested.args" optional="true"/>
+      <attribute name="jvm.args" default="${tests.jvm.argline}"/>
+      <element name="additional-args" optional="true"/>
     <sequential>
-
-      <!-- build args to pass to es -->
-      <local name="integ.args"/>
-      <property name="integ.args" value="
--Des.cluster.name=@{es.cluster.name}
--Des.http.port=@{es.http.port}
--Des.transport.tcp.port=@{es.transport.tcp.port}
--Des.pidfile=@{es.pidfile}
--Des.path.repo=@{home}/repo
--Des.discovery.zen.ping.multicast.enabled=false
--Des.script.inline=on
--Des.script.indexed=on
--Des.repositories.url.allowed_urls=http://snapshot.test*
-@{additional.args}"
-      />
-
+      <!-- make sure no elasticsearch instance is currently running and listening on the port we need -->
+      <fail message="This test expects port @{es.http.port} to be free but an elasticsearch instance is already running and listening on that port.
+      Maybe the last test run did not manage to shut down the node correctly?
+      You must kill it before tests can run.">
+        <condition>
+          <socket server="localhost" port="@{es.http.port}"></socket>
+        </condition>
+      </fail>
       <!-- run bin/elasticsearch with args -->
       <echo>Starting up external cluster...</echo>
+
       <run-script script="@{home}/bin/elasticsearch" 
-                  spawn="@{spawn}"
-                  args="${integ.args}">
+                  spawn="@{spawn}">
         <nested>
-          <nested.args/>
+          <env key="JAVA_HOME" value="${java.home}"/>
+          <!-- we pass these as gc options, even if they arent, to avoid conflicting gc options -->
+          <env key="ES_GC_OPTS" value="@{jvm.args}"/>
+          <arg value="-Des.cluster.name=@{es.cluster.name}"/>
+          <arg value="-Des.http.port=@{es.http.port}"/>
+          <arg value="-Des.transport.tcp.port=@{es.transport.tcp.port}"/>
+          <arg value="-Des.pidfile=@{es.pidfile}"/>
+          <arg value="-Des.discovery.zen.ping.unicast.hosts=@{es.unicast.hosts}"/>
+          <arg value="-Des.path.repo=@{home}/repo"/>
+          <arg value="-Des.path.shared_data=@{home}/../"/>
+          <arg value="-Des.script.inline=on"/>
+          <arg value="-Des.script.indexed=on"/>
+          <arg value="-Des.repositories.url.allowed_urls=http://snapshot.test*"/>
+          <additional-args/>
         </nested>
       </run-script>
 
@@ -178,7 +191,58 @@
 
       <local name="integ.pid"/>
       <extract-pid file="@{es.pidfile}" property="integ.pid"/>
-      <echo>External cluster started PID ${integ.pid}</echo>
+      <echo>External node started PID ${integ.pid}</echo>
+    </sequential>
+  </macrodef>
+
+  <!-- Takes a plugin zip file and return the plugin name. For instance
+       'analysis-icu-2.0.0.zip' would return
+       'analysis-icu'. -->
+  <macrodef name="convert-plugin-name">
+      <attribute name="file"/>
+      <attribute name="outputproperty"/>
+    <sequential>
+      <local name="file.base"/>
+      <basename file="@{file}" property="file.base"/>
+      <filter-property src="file.base" dest="@{outputproperty}">
+        <chain>
+          <replacestring from="-${elasticsearch.version}.zip" to=""/>
+        </chain>
+      </filter-property>
+    </sequential>
+  </macrodef>
+
+  <macrodef name="stop-node">
+    <attribute name="es.pidfile" default="${integ.pidfile}"/>
+    <sequential>
+      <local name="integ.pid"/>
+
+      <extract-pid file="@{es.pidfile}" property="integ.pid"/>
+      <echo>Shutting down external node PID ${integ.pid}</echo>
+
+      <exec executable="taskkill" failonerror="true" osfamily="winnt">
+        <arg value="/F"/>
+        <arg value="/PID"/>
+        <arg value="${integ.pid}"/>
+      </exec>
+      <exec executable="kill" failonerror="true" osfamily="unix">
+        <arg value="-9"/>
+        <arg value="${integ.pid}"/>
+      </exec>
+      <delete file="@{es.pidfile}"/>
+    </sequential>
+  </macrodef>
+
+  <!-- starts a unicast node on an already setup workspace-->
+  <macrodef name="start-unicast-node">
+    <attribute name="es.http.port" default="${integ.http.port}"/>
+    <attribute name="es.transport.port" default="${integ.transport.port}"/>
+    <attribute name="es.pidfile" default="${integ.pidfile}"/>
+    <attribute name="es.peer.list" />
+    <sequential>
+    <startup-elasticsearch es.pidfile="@{es.pidfile}"
+                           es.transport.tcp.port="@{es.transport.port}" es.http.port="@{es.http.port}"
+                           es.unicast.hosts="@{es.peer.list}"/>
     </sequential>
   </macrodef>
 
@@ -197,11 +261,8 @@
       <unzip src="${project.build.directory}/releases/${project.artifactId}-${project.version}.zip" dest="${integ.scratch}"/>
       <local name="home"/>
       <property name="home" location="${integ.scratch}/${project.artifactId}-${elasticsearch.version}"/>
-      <startup-elasticsearch spawn="false" home="${home}">
-        <nested.args>
-          <env key="JAVA_OPTS" value="-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=8000"/>
-        </nested.args>
-      </startup-elasticsearch>
+      <startup-elasticsearch spawn="false" home="${home}"
+                             jvm.args="${tests.jvm.argline} -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=8000"/>
   </target>
 
   <!-- unzip core release artifact, install plugin, then start ES -->
@@ -213,21 +274,7 @@
   <!-- TODO, for some more safety, add back some of the old jps logic
        and verify the pid is really an ES process! (fail otherwise) -->
   <target name="stop-external-cluster" if="integ.pidfile.exists">
-    <local name="integ.pid"/>
-
-    <extract-pid file="${integ.pidfile}" property="integ.pid"/>
-    <echo>Shutting down external cluster PID ${integ.pid}</echo>
-
-    <exec executable="taskkill" failonerror="true" osfamily="winnt">
-      <arg value="/F"/>
-      <arg value="/PID"/>
-      <arg value="${integ.pid}"/>
-    </exec>
-    <exec executable="kill" failonerror="true" osfamily="unix">
-      <arg value="-9"/>
-      <arg value="${integ.pid}"/>
-    </exec>
-    <delete file="${integ.pidfile}"/>
+    <stop-node/>
   </target>
 
   <!-- distribution tests: .zip -->
@@ -235,7 +282,7 @@
   <target name="setup-workspace-zip" depends="stop-external-cluster">
     <sequential>
       <delete dir="${integ.scratch}"/>
-      <unzip src="${project.build.directory}/releases/${project.artifactId}-${project.version}.zip" 
+      <unzip src="${project.build.directory}/releases/${project.artifactId}-${project.version}.zip"
              dest="${integ.scratch}"/>
     </sequential>
   </target>
@@ -250,7 +297,7 @@
   <target name="setup-workspace-tar" depends="stop-external-cluster">
     <sequential>
       <delete dir="${integ.scratch}"/>
-      <untar src="${project.build.directory}/releases/${project.artifactId}-${project.version}.tar.gz" 
+      <untar src="${project.build.directory}/releases/${project.artifactId}-${project.version}.tar.gz"
              dest="${integ.scratch}"
              compression="gzip"/>
     </sequential>
@@ -271,13 +318,13 @@
       <!-- print some basic package info -->
       <exec executable="dpkg-deb" failonerror="true" taskname="deb-info">
          <arg value="-I"/>
-         <arg value="${debfile}"/> 
+         <arg value="${debfile}"/>
       </exec>
       <!-- extract contents from .deb package -->
       <exec executable="dpkg-deb" failonerror="true">
-         <arg value="-x"/> 
-         <arg value="${debfile}"/> 
-         <arg value="${integ.scratch}/deb-extracted"/> 
+         <arg value="-x"/>
+         <arg value="${debfile}"/>
+         <arg value="${integ.scratch}/deb-extracted"/>
       </exec>
     </sequential>
   </target>
@@ -304,7 +351,7 @@
          <arg value="-q"/>
          <arg value="-i"/>
          <arg value="-p"/>
-         <arg value="${rpm.file}"/> 
+         <arg value="${rpm.file}"/>
       </exec>
       <!-- extract contents from .rpm package -->
       <exec executable="rpm" failonerror="true" taskname="rpm">
@@ -313,11 +360,11 @@
          <arg value="--badreloc"/>
          <arg value="--relocate"/>
          <arg value="/=${rpm.extracted}"/>
-         <arg value="--nodeps"/> 
-         <arg value="--noscripts"/> 
-         <arg value="--notriggers"/> 
+         <arg value="--nodeps"/>
+         <arg value="--noscripts"/>
+         <arg value="--notriggers"/>
          <arg value="-i"/>
-         <arg value="${rpm.file}"/> 
+         <arg value="${rpm.file}"/>
       </exec>
     </sequential>
   </target>
@@ -357,5 +404,4 @@
        </condition>
     </fail>
   </target>
-
 </project>

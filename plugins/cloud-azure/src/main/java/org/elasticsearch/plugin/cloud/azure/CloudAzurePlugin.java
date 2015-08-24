@@ -24,20 +24,26 @@ import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.discovery.DiscoveryModule;
+import org.elasticsearch.discovery.azure.AzureDiscovery;
+import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardRepository;
+import org.elasticsearch.index.store.IndexStoreModule;
+import org.elasticsearch.index.store.smbmmapfs.SmbMmapFsIndexStore;
+import org.elasticsearch.index.store.smbsimplefs.SmbSimpleFsIndexStore;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesModule;
 import org.elasticsearch.repositories.azure.AzureRepository;
-import org.elasticsearch.repositories.azure.AzureRepositoryModule;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 
 import static org.elasticsearch.cloud.azure.AzureModule.isSnapshotReady;
 
 /**
  *
  */
-public class CloudAzurePlugin extends AbstractPlugin {
+public class CloudAzurePlugin extends Plugin {
 
     private final Settings settings;
     protected final ESLogger logger = Loggers.getLogger(CloudAzurePlugin.class);
@@ -58,19 +64,26 @@ public class CloudAzurePlugin extends AbstractPlugin {
     }
 
     @Override
-    public Collection<Class<? extends Module>> modules() {
-        Collection<Class<? extends Module>> modules = new ArrayList<>();
+    public Collection<Module> nodeModules() {
+        List<Module> modules = new ArrayList<>();
         if (AzureModule.isCloudReady(settings)) {
-            modules.add(AzureModule.class);
+            modules.add(new AzureModule(settings));
         }
         return modules;
     }
 
-    @Override
-    public void processModule(Module module) {
-        if (isSnapshotReady(settings, logger)
-                && module instanceof RepositoriesModule) {
-            ((RepositoriesModule)module).registerRepository(AzureRepository.TYPE, AzureRepositoryModule.class);
+    public void onModule(RepositoriesModule module) {
+        if (isSnapshotReady(settings, logger)) {
+            module.registerRepository(AzureRepository.TYPE, AzureRepository.class, BlobStoreIndexShardRepository.class);
         }
+    }
+
+    public void onModule(DiscoveryModule discoveryModule) {
+        discoveryModule.addDiscoveryType("azure", AzureDiscovery.class);
+    }
+
+    public void onModule(IndexStoreModule storeModule) {
+        storeModule.addIndexStore("smb_mmap_fs", SmbMmapFsIndexStore.class);
+        storeModule.addIndexStore("smb_simple_fs", SmbSimpleFsIndexStore.class);
     }
 }

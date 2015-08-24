@@ -5,14 +5,14 @@
     <modelVersion>4.0.0</modelVersion>
     <parent>
         <groupId>org.elasticsearch</groupId>
-        <artifactId>elasticsearch-parent</artifactId>
-        <version>2.0.0-beta1-SNAPSHOT</version>
+        <artifactId>parent</artifactId>
+        <version>2.1.0-SNAPSHOT</version>
     </parent>
 
     <groupId>org.elasticsearch.distribution</groupId>
-    <artifactId>elasticsearch-distribution</artifactId>
+    <artifactId>distributions</artifactId>
     <packaging>pom</packaging>
-    <name>Elasticsearch Distribution</name>
+    <name>Distribution: Parent POM</name>
 
     <properties>
         <!-- Properties used for building RPM & DEB packages (see common/packaging.properties) -->
@@ -29,8 +29,9 @@
         <packaging.elasticsearch.systemd.sysctl.dir>/usr/lib/sysctl.d</packaging.elasticsearch.systemd.sysctl.dir>
         <packaging.elasticsearch.tmpfilesd.dir>/usr/lib/tmpfiles.d</packaging.elasticsearch.tmpfilesd.dir>
 
-        <!-- rpmbuild location : default to /usr/bin/rpmbuild -->
-        <packaging.rpm.rpmbuild>/usr/bin/rpmbuild</packaging.rpm.rpmbuild>
+        <!-- Properties for the license checker -->
+        <project.licenses.dir>${project.basedir}/../licenses</project.licenses.dir>
+        <project.licenses.check_target>${integ.scratch}</project.licenses.check_target>
 
         <!-- we expect packaging formats to have integration tests, but not unit tests -->
         <skip.unit.tests>true</skip.unit.tests>
@@ -89,6 +90,15 @@
                     </execution>
                 </executions>
             </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-eclipse-plugin</artifactId>
+                <configuration>
+                    <!-- Many of the modules in this build have the artifactId "elasticsearch"
+                      which break importing into Eclipse without this. -->
+                    <projectNameTemplate>[groupId].[artifactId]</projectNameTemplate>
+                </configuration>
+            </plugin>
         </plugins>
 
         <pluginManagement>
@@ -97,31 +107,6 @@
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-antrun-plugin</artifactId>
                     <!-- checks integration test scratch area (where we extract the distribution) -->
-                    <executions>
-                        <execution>
-                            <id>check-license</id>
-                            <phase>verify</phase>
-                            <goals>
-                                <goal>run</goal>
-                            </goals>
-                            <configuration>
-                                <skip>${skip.integ.tests}</skip>
-                                <target>
-                                    <condition property="licenses.exists">
-                                        <available file="${basedir}/../licenses" type="dir"/>
-                                    </condition>
-                                    <echo taskName="license check">Running license check</echo>
-                                    <exec failonerror="${licenses.exists}" executable="perl"
-                                          dir="${elasticsearch.tools.directory}/license-check">
-                                        <arg value="check_license_and_sha.pl"/>
-                                        <arg value="--check"/>
-                                        <arg value="${basedir}/../licenses"/>
-                                        <arg value="${integ.scratch}"/>
-                                    </exec>
-                                </target>
-                            </configuration>
-                        </execution>
-                    </executions>
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
@@ -174,7 +159,7 @@
                                 <parallelism>1</parallelism>
                                 <systemProperties>
                                     <!-- use external cluster -->
-                                    <tests.cluster>127.0.0.1:${integ.transport.port}</tests.cluster>
+                                    <tests.cluster>localhost:${integ.transport.port}</tests.cluster>
                                 </systemProperties>
                             </configuration>
                         </execution>
@@ -193,6 +178,11 @@
     </modules>
 
     <profiles>
+        <!--
+            We include automatically RPM module when it's available in common locations.
+            If your rpmbuild is in another location (but in path), run maven with rpm profile:
+             mvn deploy -Prpm
+        -->
         <profile>
             <id>macos_brew</id>
             <activation>
@@ -211,7 +201,7 @@
             <activation>
                 <file>
                     <!-- Folks having /usr/bin/rpmbuild available will be able to build the rpm module -->
-                    <exists>${packaging.rpm.rpmbuild}</exists>
+                    <exists>/usr/bin/rpmbuild</exists>
                 </file>
             </activation>
             <modules>

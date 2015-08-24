@@ -20,12 +20,21 @@
 package org.elasticsearch.index.store;
 
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.plugin.cloud.azure.CloudAzurePlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
 import static org.hamcrest.Matchers.is;
 
 abstract public class AbstractAzureFsTest extends ESIntegTestCase {
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return Settings.settingsBuilder()
+            .put(super.nodeSettings(nodeOrdinal))
+            .extendArray("plugin.types", CloudAzurePlugin.class.getName()).build();
+    }
 
     @Test
     public void testAzureFs() {

@@ -19,46 +19,38 @@
 
 package org.elasticsearch.index.store;
 
-import com.google.common.collect.ImmutableList;
-import org.elasticsearch.common.inject.*;
+import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.settings.Settings;
+
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Locale;
 
 /**
  *
  */
-public class IndexStoreModule extends AbstractModule implements SpawnModules {
+public class IndexStoreModule extends AbstractModule {
 
     public static final String STORE_TYPE = "index.store.type";
 
     private final Settings settings;
+    private final Map<String, Class<? extends IndexStore>> storeTypes = new HashMap<>();
 
     public enum Type {
-        NIOFS {
-            @Override
-            public boolean match(String setting) {
-                return super.match(setting) || "nio_fs".equalsIgnoreCase(setting);
-            }
-        },
-        MMAPFS {
-            @Override
-            public boolean match(String setting) {
-                return super.match(setting) || "mmap_fs".equalsIgnoreCase(setting);
-            }
-        },
-
-        SIMPLEFS {
-            @Override
-            public boolean match(String setting) {
-                return super.match(setting) || "simple_fs".equalsIgnoreCase(setting);
-            }
-        },
+        NIOFS,
+        MMAPFS,
+        SIMPLEFS,
         FS,
-        DEFAULT,;
+        DEFAULT;
+
+        public String getSettingsKey() {
+            return this.name().toLowerCase(Locale.ROOT);
+        }
         /**
          * Returns true iff this settings matches the type.
          */
         public boolean match(String setting) {
-            return this.name().equalsIgnoreCase(setting);
+            return getSettingsKey().equals(setting);
         }
     }
 
@@ -66,25 +58,30 @@ public class IndexStoreModule extends AbstractModule implements SpawnModules {
         this.settings = settings;
     }
 
-    @Override
-    public Iterable<? extends Module> spawnModules() {
-        final String storeType = settings.get(STORE_TYPE, Type.DEFAULT.name());
+    public void addIndexStore(String type, Class<? extends IndexStore> clazz) {
+        storeTypes.put(type, clazz);
+    }
+
+    private static boolean isBuiltinType(String storeType) {
         for (Type type : Type.values()) {
             if (type.match(storeType)) {
-                return ImmutableList.of(new DefaultStoreModule());
+                return true;
             }
         }
-        final Class<? extends Module> indexStoreModule = settings.getAsClass(STORE_TYPE, null, "org.elasticsearch.index.store.", "IndexStoreModule");
-        return ImmutableList.of(Modules.createModule(indexStoreModule, settings));
+        return false;
     }
 
     @Override
-    protected void configure() {}
-
-    private static class DefaultStoreModule extends AbstractModule {
-        @Override
-        protected void configure() {
+    protected void configure() {
+        final String storeType = settings.get(STORE_TYPE);
+        if (storeType == null || isBuiltinType(storeType)) {
             bind(IndexStore.class).asEagerSingleton();
+        } else {
+            Class<? extends IndexStore> clazz = storeTypes.get(storeType);
+            if (clazz == null) {
+                throw new IllegalArgumentException("Unknown store type [" + storeType + "]");
+            }
+            bind(IndexStore.class).to(clazz).asEagerSingleton();
         }
     }
 }

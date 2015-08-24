@@ -78,9 +78,13 @@ public class ReproduceInfoPrinter extends RunListener {
 
         final StringBuilder b = new StringBuilder();
         if (inVerifyPhase()) {
-            b.append("REPRODUCE WITH: mvn verify -Pdev -Dskip.unit.tests");
+            b.append("REPRODUCE WITH: mvn verify -Pdev -Dskip.unit.tests" );
         } else {
             b.append("REPRODUCE WITH: mvn test -Pdev");
+        }
+        String project = System.getProperty("tests.project");
+        if (project != null) {
+            b.append(" -pl " + project);
         }
         MavenMessageBuilder mavenMessageBuilder = new MavenMessageBuilder(b);
         mavenMessageBuilder.appendAllOpts(failure.getDescription());
@@ -152,8 +156,8 @@ public class ReproduceInfoPrinter extends RunListener {
 
         public ReproduceErrorMessageBuilder appendESProperties() {
             appendProperties("es.logger.level");
-            if (!inVerifyPhase()) {
-                // these properties only make sense for unit tests
+            if (inVerifyPhase()) {
+                // these properties only make sense for integration tests
                 appendProperties("es.node.mode", "es.node.local", TESTS_CLUSTER, InternalTestCluster.TESTS_ENABLE_MOCK_MODULES);
             }
             appendProperties("tests.assertion.disabled", "tests.security.manager", "tests.nightly", "tests.jvms", 

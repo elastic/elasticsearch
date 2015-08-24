@@ -23,7 +23,7 @@ index :
         type : stop
         stopwords : [stop2-1, stop2-2]
       my :
-        type : org.elasticsearch.index.analysis.filter1.MyFilterTokenFilterFactory
+        type : myfilter
       dict_dec :
         type : dictionary_decompounder
         word_list : [donau, dampf, schiff, spargel, creme, suppe]

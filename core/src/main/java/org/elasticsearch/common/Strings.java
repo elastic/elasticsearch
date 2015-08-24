@@ -1093,4 +1093,28 @@ public class Strings {
             throw new AssertionError("Cannot happen", e);
         }
     }
+
+    /**
+     * Truncates string to a length less than length. Backtracks to throw out
+     * high surrogates.
+     */
+    public static String cleanTruncate(String s, int length) {
+        if (s == null) {
+            return s;
+        }
+        /*
+         * Its pretty silly for you to truncate to 0 length but just in case
+         * someone does this shouldn't break.
+         */
+        if (length == 0) {
+            return "";
+        }
+        if (length >= s.length()) {
+            return s;
+        }
+        if (Character.isHighSurrogate(s.charAt(length - 1))) {
+            length--;
+        }
+        return s.substring(0, length);
+    }
 }

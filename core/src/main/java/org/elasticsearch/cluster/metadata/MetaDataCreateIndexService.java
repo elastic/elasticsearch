@@ -24,7 +24,6 @@ import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.base.Charsets;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
-
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
@@ -46,24 +45,30 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.FileSystemUtils;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.IndexQueryParserService;
-import org.elasticsearch.index.IndexService;
-import org.elasticsearch.indices.*;
+import org.elasticsearch.indices.IndexAlreadyExistsException;
+import org.elasticsearch.indices.IndexCreationException;
+import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.joda.time.DateTime;
@@ -99,12 +104,14 @@ public class MetaDataCreateIndexService extends AbstractComponent {
     private final AliasValidator aliasValidator;
     private final IndexTemplateFilter indexTemplateFilter;
     private final NodeEnvironment nodeEnv;
+    private final Environment env;
 
     @Inject
     public MetaDataCreateIndexService(Settings settings, ThreadPool threadPool, ClusterService clusterService,
                                       IndicesService indicesService, AllocationService allocationService, MetaDataService metaDataService,
                                       Version version, AliasValidator aliasValidator,
-                                      Set<IndexTemplateFilter> indexTemplateFilters, NodeEnvironment nodeEnv) {
+                                      Set<IndexTemplateFilter> indexTemplateFilters, Environment env,
+                                      NodeEnvironment nodeEnv) {
         super(settings);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
@@ -114,6 +121,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         this.version = version;
         this.aliasValidator = aliasValidator;
         this.nodeEnv = nodeEnv;
+        this.env = env;
 
         if (indexTemplateFilters.isEmpty()) {
             this.indexTemplateFilter = DEFAULT_INDEX_TEMPLATE_FILTER;
@@ -509,10 +517,24 @@ public class MetaDataCreateIndexService extends AbstractComponent {
     }
 
     public void validateIndexSettings(String indexName, Settings settings) throws IndexCreationException {
+        List<String> validationErrors = getIndexSettingsValidationErrors(settings);
+        if (validationErrors.isEmpty() == false) {
+            ValidationException validationException = new ValidationException();
+            validationException.addValidationErrors(validationErrors);
+            throw new IndexCreationException(new Index(indexName), validationException);
+        }
+    }
+
+    List<String> getIndexSettingsValidationErrors(Settings settings) {
         String customPath = settings.get(IndexMetaData.SETTING_DATA_PATH, null);
         List<String> validationErrors = Lists.newArrayList();
-        if (customPath != null && nodeEnv.isCustomPathsEnabled() == false) {
-            validationErrors.add("custom data_paths for indices is disabled");
+        if (customPath != null && env.sharedDataFile() == null) {
+            validationErrors.add("path.shared_data must be set in order to use custom data paths");
+        } else if (customPath != null) {
+            Path resolvedPath = PathUtils.get(new Path[]{env.sharedDataFile()}, customPath);
+            if (resolvedPath == null) {
+                validationErrors.add("custom path [" + customPath + "] is not a sub-path of path.shared_data [" + env.sharedDataFile() + "]");
+            }
         }
         Integer number_of_primaries = settings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_SHARDS, null);
         Integer number_of_replicas = settings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, null);
@@ -520,22 +542,9 @@ public class MetaDataCreateIndexService extends AbstractComponent {
             validationErrors.add("index must have 1 or more primary shards");
         }
         if (number_of_replicas != null && number_of_replicas < 0) {
-           validationErrors.add("index must have 0 or more replica shards");
+            validationErrors.add("index must have 0 or more replica shards");
         }
-        if (validationErrors.isEmpty() == false) {
-            throw new IndexCreationException(new Index(indexName),
-                new IllegalArgumentException(getMessage(validationErrors)));
-        }
-    }
-
-    private String getMessage(List<String> validationErrors) {
-        StringBuilder sb = new StringBuilder();
-        sb.append("Validation Failed: ");
-        int index = 0;
-        for (String error : validationErrors) {
-            sb.append(++index).append(": ").append(error).append(";");
-        }
-        return sb.toString();
+        return validationErrors;
     }
 
     private static class DefaultIndexTemplateFilter implements IndexTemplateFilter {

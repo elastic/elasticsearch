@@ -45,12 +45,9 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
-import org.junit.Ignore;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.*;
 
 /**
  * A test that keep a singleton node started for all tests that can be used to get
@@ -118,16 +115,19 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
 
     private static Node newNode() {
         Node build = NodeBuilder.nodeBuilder().local(true).data(true).settings(Settings.builder()
-            .put(ClusterName.SETTING, InternalTestCluster.clusterName("single-node-cluster", randomLong()))
-            .put("path.home", createTempDir())
-            .put("node.name", nodeName())
-            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put("script.inline", "on")
-            .put("script.indexed", "on")
-            .put(EsExecutors.PROCESSORS, 1) // limit the number of threads created
-            .put("http.enabled", false)
-            .put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING, true) // make sure we get what we set :)
+                .put(ClusterName.SETTING, InternalTestCluster.clusterName("single-node-cluster", randomLong()))
+                .put("path.home", createTempDir())
+                // TODO: use a consistent data path for custom paths
+                // This needs to tie into the ESIntegTestCase#indexSettings() method
+                .put("path.shared_data", createTempDir().getParent())
+                .put("node.name", nodeName())
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put("script.inline", "on")
+                .put("script.indexed", "on")
+                .put(EsExecutors.PROCESSORS, 1) // limit the number of threads created
+                .put("http.enabled", false)
+                .put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING, true) // make sure we get what we set :)
         ).build();
         build.start();
         assertThat(DiscoveryNode.localNode(build.settings()), is(true));
@@ -221,7 +221,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         BigArrays bigArrays = indexService.injector().getInstance(BigArrays.class);
         ThreadPool threadPool = indexService.injector().getInstance(ThreadPool.class);
         PageCacheRecycler pageCacheRecycler = indexService.injector().getInstance(PageCacheRecycler.class);
-        return new TestSearchContext(threadPool, pageCacheRecycler, bigArrays, indexService, indexService.cache().query(), indexService.fieldData());
+        return new TestSearchContext(threadPool, pageCacheRecycler, bigArrays, indexService);
     }
 
     /**

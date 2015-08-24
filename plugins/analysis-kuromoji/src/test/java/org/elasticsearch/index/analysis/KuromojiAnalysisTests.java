@@ -35,17 +35,22 @@ import org.elasticsearch.env.EnvironmentModule;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNameModule;
 import org.elasticsearch.index.settings.IndexSettingsModule;
-import org.elasticsearch.indices.analysis.IndicesAnalysisModule;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 import org.elasticsearch.plugin.analysis.kuromoji.AnalysisKuromojiPlugin;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.Reader;
 import java.io.StringReader;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  */
@@ -189,19 +194,26 @@ public class KuromojiAnalysisTests extends ESTestCase {
         assertSimpleTSOutput(tokenFilter.create(tokenizer), expected);
     }
 
+    public AnalysisService createAnalysisService() throws IOException {
+        InputStream empty_dict = getClass().getResourceAsStream("empty_user_dict.txt");
+        InputStream dict = getClass().getResourceAsStream("user_dict.txt");
+        Path home = createTempDir();
+        Path config = home.resolve("config");
+        Files.createDirectory(config);
+        Files.copy(empty_dict, config.resolve("empty_user_dict.txt"));
+        Files.copy(dict, config.resolve("user_dict.txt"));
 
-    public AnalysisService createAnalysisService() {
+        String json = "/org/elasticsearch/index/analysis/kuromoji_analysis.json";
         Settings settings = Settings.settingsBuilder()
-                .put("path.home", createTempDir())
-                .loadFromClasspath("org/elasticsearch/index/analysis/kuromoji_analysis.json")
+                .put("path.home", home)
+                .loadFromStream(json, getClass().getResourceAsStream(json))
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .build();
 
         Index index = new Index("test");
 
         Injector parentInjector = new ModulesBuilder().add(new SettingsModule(settings),
-                new EnvironmentModule(new Environment(settings)),
-                new IndicesAnalysisModule())
+                new EnvironmentModule(new Environment(settings)))
                 .createInjector();
 
         AnalysisModule analysisModule = new AnalysisModule(settings, parentInjector.getInstance(IndicesAnalysisService.class));
@@ -258,7 +270,7 @@ public class KuromojiAnalysisTests extends ESTestCase {
 
     // fix #59
     @Test
-    public void testKuromojiEmptyUserDict() {
+    public void testKuromojiEmptyUserDict() throws IOException {
         AnalysisService analysisService = createAnalysisService();
         TokenizerFactory tokenizerFactory = analysisService.tokenizer("kuromoji_empty_user_dict");
         assertThat(tokenizerFactory, instanceOf(KuromojiTokenizerFactory.class));

@@ -19,14 +19,14 @@
 
 package org.elasticsearch.plugin.python;
 
-import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.python.PythonScriptEngineService;
 
 /**
  *
  */
-public class PythonPlugin extends AbstractPlugin {
+public class PythonPlugin extends Plugin {
 
     @Override
     public String name() {

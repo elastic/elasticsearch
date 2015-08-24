@@ -40,10 +40,7 @@ import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -130,9 +127,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
 
     // These need to be optional as they don't exist in the context of a transport client
     @Inject(optional = true)
-    public void setDynamicSettings(NodeSettingsService nodeSettingsService, @ClusterDynamicSettings DynamicSettings dynamicSettings) {
-        dynamicSettings.addDynamicSettings(SETTING_TRACE_LOG_INCLUDE, SETTING_TRACE_LOG_INCLUDE + ".*");
-        dynamicSettings.addDynamicSettings(SETTING_TRACE_LOG_EXCLUDE, SETTING_TRACE_LOG_EXCLUDE + ".*");
+    public void setDynamicSettings(NodeSettingsService nodeSettingsService) {
         nodeSettingsService.addListener(settingsListener);
     }
 
@@ -221,6 +216,10 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
 
     public BoundTransportAddress boundAddress() {
         return transport.boundAddress();
+    }
+
+    public List<String> getLocalAddresses() {
+        return transport.getLocalAddresses();
     }
 
     public boolean nodeConnected(DiscoveryNode node) {
@@ -385,8 +384,8 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
         return requestIds.getAndIncrement();
     }
 
-    public TransportAddress[] addressesFromString(String address) throws Exception {
-        return transport.addressesFromString(address);
+    public TransportAddress[] addressesFromString(String address, int perAddressLimit) throws Exception {
+        return transport.addressesFromString(address, perAddressLimit);
     }
 
     /**

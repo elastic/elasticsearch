@@ -20,11 +20,13 @@ package org.elasticsearch.cluster.metadata;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.lucene.analysis.Analyzer;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.routing.DjbHashFunction;
 import org.elasticsearch.cluster.routing.HashFunction;
 import org.elasticsearch.cluster.routing.SimpleHashFunction;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.common.Classes;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -34,8 +36,10 @@ import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.similarity.SimilarityLookupService;
+import org.elasticsearch.index.store.IndexStoreModule;
 import org.elasticsearch.script.ScriptService;
 
+import java.util.Locale;
 import java.util.Set;
 
 /**
@@ -64,14 +68,22 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
         // the hash function package has changed we replace the two hash functions if their fully qualified name is used.
         if (hasCustomPre20HashFunction) {
             switch (pre20HashFunctionName) {
+                case "Simple":
+                case "simple":
                 case "org.elasticsearch.cluster.routing.operation.hash.simple.SimpleHashFunction":
                     pre20HashFunction = SimpleHashFunction.class;
                     break;
+                case "Djb":
+                case "djb":
                 case "org.elasticsearch.cluster.routing.operation.hash.djb.DjbHashFunction":
                     pre20HashFunction = DjbHashFunction.class;
                     break;
                 default:
-                    pre20HashFunction = settings.getAsClass(DEPRECATED_SETTING_ROUTING_HASH_FUNCTION, DjbHashFunction.class, "org.elasticsearch.cluster.routing.", "HashFunction");
+                    try {
+                        pre20HashFunction = Class.forName(pre20HashFunctionName).asSubclass(HashFunction.class);
+                    } catch (ClassNotFoundException|NoClassDefFoundError e) {
+                        throw new ElasticsearchException("failed to load custom hash function [" + pre20HashFunctionName + "]", e);
+                    }
             }
         } else {
             pre20HashFunction = DjbHashFunction.class;
@@ -99,8 +111,48 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
         IndexMetaData newMetaData = upgradeLegacyRoutingSettings(indexMetaData);
         newMetaData = addDefaultUnitsIfNeeded(newMetaData);
         checkMappingsCompatibility(newMetaData);
+        newMetaData = upgradeSettings(newMetaData);
         newMetaData = markAsUpgraded(newMetaData);
         return newMetaData;
+    }
+
+    IndexMetaData upgradeSettings(IndexMetaData indexMetaData) {
+        final String storeType = indexMetaData.getSettings().get(IndexStoreModule.STORE_TYPE);
+        if (storeType != null) {
+            final String upgradeStoreType;
+            switch (storeType.toLowerCase(Locale.ROOT)) {
+                case "nio_fs":
+                case "niofs":
+                    upgradeStoreType = "niofs";
+                    break;
+                case "mmap_fs":
+                case "mmapfs":
+                    upgradeStoreType = "mmapfs";
+                    break;
+                case "simple_fs":
+                case "simplefs":
+                    upgradeStoreType = "simplefs";
+                    break;
+                case "default":
+                    upgradeStoreType = "default";
+                    break;
+                case "fs":
+                    upgradeStoreType = "fs";
+                    break;
+                default:
+                    upgradeStoreType = storeType;
+            }
+            if (storeType.equals(upgradeStoreType) == false) {
+                Settings indexSettings = Settings.builder().put(indexMetaData.settings())
+                        .put(IndexStoreModule.STORE_TYPE, upgradeStoreType)
+                        .build();
+                return IndexMetaData.builder(indexMetaData)
+                        .version(indexMetaData.version())
+                        .settings(indexSettings)
+                        .build();
+            }
+        }
+        return indexMetaData;
     }
 
     /**

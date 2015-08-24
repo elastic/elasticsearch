@@ -23,7 +23,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -81,6 +81,11 @@ public class ScriptFieldIT extends ESIntegTestCase {
         public ExecutableScript newScript(@Nullable Map<String, Object> params) {
             return new IntScript();
         }
+
+        @Override
+        public boolean needsScores() {
+            return false;
+        }
     }
 
     static class IntScript extends AbstractSearchScript {
@@ -94,6 +99,11 @@ public class ScriptFieldIT extends ESIntegTestCase {
         @Override
         public ExecutableScript newScript(@Nullable Map<String, Object> params) {
             return new LongScript();
+        }
+
+        @Override
+        public boolean needsScores() {
+            return false;
         }
     }
 
@@ -109,6 +119,11 @@ public class ScriptFieldIT extends ESIntegTestCase {
         public ExecutableScript newScript(@Nullable Map<String, Object> params) {
             return new FloatScript();
         }
+
+        @Override
+        public boolean needsScores() {
+            return false;
+        }
     }
 
     static class FloatScript extends AbstractSearchScript {
@@ -123,6 +138,11 @@ public class ScriptFieldIT extends ESIntegTestCase {
         public ExecutableScript newScript(@Nullable Map<String, Object> params) {
             return new DoubleScript();
         }
+
+        @Override
+        public boolean needsScores() {
+            return false;
+        }
     }
 
     static class DoubleScript extends AbstractSearchScript {
@@ -132,7 +152,7 @@ public class ScriptFieldIT extends ESIntegTestCase {
         }
     }
 
-    public static class CustomScriptPlugin extends AbstractPlugin {
+    public static class CustomScriptPlugin extends Plugin {
 
         @Override
         public String name() {

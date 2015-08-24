@@ -21,11 +21,13 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
+import org.elasticsearch.common.inject.multibindings.Multibinder;
 import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
@@ -37,12 +39,13 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNameModule;
 import org.elasticsearch.index.analysis.AnalysisModule;
 import org.elasticsearch.index.cache.IndexCacheModule;
-import org.elasticsearch.index.query.functionscore.FunctionScoreModule;
+import org.elasticsearch.index.query.functionscore.ScoreFunctionParser;
 import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.index.similarity.SimilarityModule;
+import org.elasticsearch.indices.IndicesModule;
+import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.indices.query.IndicesQueriesModule;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -76,17 +79,23 @@ public class TemplateQueryParserTest extends ESTestCase {
                 new EnvironmentModule(new Environment(settings)),
                 new SettingsModule(settings),
                 new ThreadPoolModule(new ThreadPool(settings)),
-                new IndicesQueriesModule(),
+                new IndicesModule(settings) {
+                    @Override
+                    public void configure() {
+                        // skip services
+                        bindQueryParsersExtension();
+                    }
+                },
                 new ScriptModule(settings),
                 new IndexSettingsModule(index, settings),
                 new IndexCacheModule(settings),
-                new AnalysisModule(settings),
+                new AnalysisModule(settings, new IndicesAnalysisService(settings)),
                 new SimilarityModule(settings),
                 new IndexNameModule(index),
-                new FunctionScoreModule(),
                 new AbstractModule() {
                     @Override
                     protected void configure() {
+                        Multibinder.newSetBinder(binder(), ScoreFunctionParser.class);
                         bind(ClusterService.class).toProvider(Providers.of((ClusterService) null));
                         bind(CircuitBreakerService.class).to(NoneCircuitBreakerService.class);
                     }

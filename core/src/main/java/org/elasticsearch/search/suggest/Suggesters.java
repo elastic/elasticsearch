@@ -18,31 +18,46 @@
  */
 package org.elasticsearch.search.suggest;
 
-import com.google.common.collect.ImmutableMap;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.ExtensionPoint;
+import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.suggest.completion.CompletionSuggester;
+import org.elasticsearch.search.suggest.phrase.PhraseSuggester;
+import org.elasticsearch.search.suggest.term.TermSuggester;
 
-import java.util.Set;
+import java.util.*;
 
 /**
  *
  */
-public class Suggesters {
-    private final ImmutableMap<String, Suggester> parsers;
+public final class Suggesters extends ExtensionPoint.ClassMap<Suggester> {
+    private final Map<String, Suggester> parsers;
+
+    public Suggesters() {
+        this(Collections.EMPTY_MAP);
+    }
+
+    public Suggesters(Map<String, Suggester> suggesters) {
+        super("suggester", Suggester.class, new HashSet<>(Arrays.asList("phrase", "term", "completion", "completion_old")), Suggesters.class, SuggestParseElement.class, SuggestPhase.class);
+        this.parsers = Collections.unmodifiableMap(suggesters);
+    }
 
     @Inject
-    public Suggesters(Set<Suggester> suggesters) {
-        MapBuilder<String, Suggester> builder = MapBuilder.newMapBuilder();
-        for (Suggester suggester : suggesters) {
-            for (String type : suggester.names()) {
-                builder.put(type, suggester);
-            }
-        }
-        this.parsers = builder.immutableMap();
+    public Suggesters(Map<String, Suggester> suggesters, ScriptService scriptService) {
+        this(addBuildIns(suggesters, scriptService));
+    }
+
+    private static Map<String, Suggester> addBuildIns(Map<String, Suggester> suggesters, ScriptService scriptService) {
+        final Map<String, Suggester> map = new HashMap<>();
+        map.put("phrase", new PhraseSuggester(scriptService));
+        map.put("term", new TermSuggester());
+        map.put("completion", new CompletionSuggester());
+        map.put("completion_old", new org.elasticsearch.search.suggest.completion.old.CompletionSuggester());
+        map.putAll(suggesters);
+        return map;
     }
 
     public Suggester get(String type) {
         return parsers.get(type);
     }
-
 }

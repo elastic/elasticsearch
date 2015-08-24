@@ -61,54 +61,23 @@ public class CardinalityIT extends ESIntegTestCase {
                 jsonBuilder().startObject().startObject("type").startObject("properties")
                     .startObject("str_value")
                         .field("type", "string")
-                        .startObject("fields")
-                            .startObject("hash")
-                                .field("type", "murmur3")
-                            .endObject()
-                        .endObject()
                     .endObject()
                     .startObject("str_values")
                         .field("type", "string")
-                        .startObject("fields")
-                            .startObject("hash")
-                                .field("type", "murmur3")
-                            .endObject()
-                        .endObject()
                     .endObject()
                     .startObject("l_value")
                         .field("type", "long")
-                        .startObject("fields")
-                            .startObject("hash")
-                                .field("type", "murmur3")
-                            .endObject()
-                        .endObject()
                     .endObject()
                     .startObject("l_values")
                         .field("type", "long")
-                        .startObject("fields")
-                            .startObject("hash")
-                                .field("type", "murmur3")
-                            .endObject()
-                        .endObject()
                     .endObject()
-                        .startObject("d_value")
-                            .field("type", "double")
-                            .startObject("fields")
-                                .startObject("hash")
-                                    .field("type", "murmur3")
-                                .endObject()
-                            .endObject()
-                        .endObject()
-                        .startObject("d_values")
-                            .field("type", "double")
-                                .startObject("fields")
-                                    .startObject("hash")
-                                        .field("type", "murmur3")
-                                    .endObject()
-                                .endObject()
-                            .endObject()
-                        .endObject()
-                        .endObject().endObject()).execute().actionGet();
+                    .startObject("d_value")
+                        .field("type", "double")
+                    .endObject()
+                    .startObject("d_values")
+                        .field("type", "double")
+                    .endObject()
+                    .endObject().endObject().endObject()).execute().actionGet();
 
         numDocs = randomIntBetween(2, 100);
         precisionThreshold = randomIntBetween(0, 1 << randomInt(20));
@@ -145,12 +114,12 @@ public class CardinalityIT extends ESIntegTestCase {
             assertThat(count.getValue(), greaterThan(0L));
         }
     }
-     private String singleNumericField(boolean hash) {
-        return (randomBoolean() ? "l_value" : "d_value") + (hash ? ".hash" : "");
+     private String singleNumericField() {
+        return randomBoolean() ? "l_value" : "d_value";
     }
 
     private String multiNumericField(boolean hash) {
-        return (randomBoolean() ? "l_values" : "d_values") + (hash ? ".hash" : "");
+        return randomBoolean() ? "l_values" : "d_values";
     }
 
     @Test
@@ -196,23 +165,9 @@ public class CardinalityIT extends ESIntegTestCase {
     }
 
     @Test
-    public void singleValuedStringHashed() throws Exception {
-        SearchResponse response = client().prepareSearch("idx").setTypes("type")
-                .addAggregation(cardinality("cardinality").precisionThreshold(precisionThreshold).field("str_value.hash"))
-                .execute().actionGet();
-
-        assertSearchResponse(response);
-
-        Cardinality count = response.getAggregations().get("cardinality");
-        assertThat(count, notNullValue());
-        assertThat(count.getName(), equalTo("cardinality"));
-        assertCount(count, numDocs);
-    }
-
-    @Test
     public void singleValuedNumeric() throws Exception {
         SearchResponse response = client().prepareSearch("idx").setTypes("type")
-                .addAggregation(cardinality("cardinality").precisionThreshold(precisionThreshold).field(singleNumericField(false)))
+                .addAggregation(cardinality("cardinality").precisionThreshold(precisionThreshold).field(singleNumericField()))
                 .execute().actionGet();
 
         assertSearchResponse(response);
@@ -229,7 +184,7 @@ public class CardinalityIT extends ESIntegTestCase {
         SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
                 .addAggregation(
                         global("global").subAggregation(
-                                cardinality("cardinality").precisionThreshold(precisionThreshold).field(singleNumericField(false))))
+                                cardinality("cardinality").precisionThreshold(precisionThreshold).field(singleNumericField())))
                 .execute().actionGet();
 
         assertSearchResponse(searchResponse);
@@ -254,7 +209,7 @@ public class CardinalityIT extends ESIntegTestCase {
     @Test
     public void singleValuedNumericHashed() throws Exception {
         SearchResponse response = client().prepareSearch("idx").setTypes("type")
-                .addAggregation(cardinality("cardinality").precisionThreshold(precisionThreshold).field(singleNumericField(true)))
+                .addAggregation(cardinality("cardinality").precisionThreshold(precisionThreshold).field(singleNumericField()))
                 .execute().actionGet();
 
         assertSearchResponse(response);
@@ -269,20 +224,6 @@ public class CardinalityIT extends ESIntegTestCase {
     public void multiValuedString() throws Exception {
         SearchResponse response = client().prepareSearch("idx").setTypes("type")
                 .addAggregation(cardinality("cardinality").precisionThreshold(precisionThreshold).field("str_values"))
-                .execute().actionGet();
-
-        assertSearchResponse(response);
-
-        Cardinality count = response.getAggregations().get("cardinality");
-        assertThat(count, notNullValue());
-        assertThat(count.getName(), equalTo("cardinality"));
-        assertCount(count, numDocs * 2);
-    }
-
-    @Test
-    public void multiValuedStringHashed() throws Exception {
-        SearchResponse response = client().prepareSearch("idx").setTypes("type")
-                .addAggregation(cardinality("cardinality").precisionThreshold(precisionThreshold).field("str_values.hash"))
                 .execute().actionGet();
 
         assertSearchResponse(response);
@@ -356,7 +297,7 @@ public class CardinalityIT extends ESIntegTestCase {
         SearchResponse response = client().prepareSearch("idx").setTypes("type")
                 .addAggregation(
                         cardinality("cardinality").precisionThreshold(precisionThreshold).script(
-                                new Script("doc['" + singleNumericField(false) + "'].value")))
+                                new Script("doc['" + singleNumericField() + "'].value")))
                 .execute().actionGet();
 
         assertSearchResponse(response);
@@ -417,7 +358,7 @@ public class CardinalityIT extends ESIntegTestCase {
     public void singleValuedNumericValueScript() throws Exception {
         SearchResponse response = client().prepareSearch("idx").setTypes("type")
                 .addAggregation(
-                        cardinality("cardinality").precisionThreshold(precisionThreshold).field(singleNumericField(false))
+                        cardinality("cardinality").precisionThreshold(precisionThreshold).field(singleNumericField())
                                 .script(new Script("_value")))
                 .execute().actionGet();
 
@@ -451,25 +392,6 @@ public class CardinalityIT extends ESIntegTestCase {
                 .addAggregation(terms("terms").field("str_value")
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
                         .subAggregation(cardinality("cardinality").precisionThreshold(precisionThreshold).field("str_values")))
-                .execute().actionGet();
-
-        assertSearchResponse(response);
-
-        Terms terms = response.getAggregations().get("terms");
-        for (Terms.Bucket bucket : terms.getBuckets()) {
-            Cardinality count = bucket.getAggregations().get("cardinality");
-            assertThat(count, notNullValue());
-            assertThat(count.getName(), equalTo("cardinality"));
-            assertCount(count, 2);
-        }
-    }
-
-    @Test
-    public void asSubAggHashed() throws Exception {
-        SearchResponse response = client().prepareSearch("idx").setTypes("type")
-                .addAggregation(terms("terms").field("str_value")
-                        .collectMode(randomFrom(SubAggCollectionMode.values()))
-                        .subAggregation(cardinality("cardinality").precisionThreshold(precisionThreshold).field("str_values.hash")))
                 .execute().actionGet();
 
         assertSearchResponse(response);

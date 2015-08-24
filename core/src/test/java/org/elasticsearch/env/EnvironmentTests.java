@@ -52,28 +52,6 @@ public class EnvironmentTests extends ESTestCase {
     }
 
     @Test
-    public void testResolveJaredResource() throws IOException {
-        Environment environment = newEnvironment();
-        URL url = environment.resolveConfig("META-INF/MANIFEST.MF"); // this works because there is one jar having this file in the classpath
-        assertNotNull(url);
-        try (BufferedReader reader = FileSystemUtils.newBufferedReader(url, Charsets.UTF_8)) {
-            String string = Streams.copyToString(reader);
-            assertTrue(string, string.contains("Manifest-Version"));
-        }
-    }
-
-    @Test
-    public void testResolveFileResource() throws IOException {
-        Environment environment = newEnvironment();
-        URL url = environment.resolveConfig("org/elasticsearch/common/cli/tool.help");
-        assertNotNull(url);
-        try (BufferedReader reader = FileSystemUtils.newBufferedReader(url, Charsets.UTF_8)) {
-            String string = Streams.copyToString(reader);
-            assertEquals(string, "tool help");
-        }
-    }
-
-    @Test
     public void testRepositoryResolution() throws IOException {
         Environment environment = newEnvironment();
         assertThat(environment.resolveRepoFile("/test/repos/repo1"), nullValue());

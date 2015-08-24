@@ -32,9 +32,11 @@ public class TermsQueryBuilder extends QueryBuilder implements BoostableQueryBui
 
     private final Object values;
 
-    private String queryName;
+    private String minimumShouldMatch;
 
-    private String execution;
+    private Boolean disableCoord;
+
+    private String queryName;
 
     private float boost = -1;
 
@@ -115,13 +117,22 @@ public class TermsQueryBuilder extends QueryBuilder implements BoostableQueryBui
     }
 
     /**
-     * Sets the execution mode for the terms filter. Cane be either "plain", "bool"
-     * "and". Defaults to "plain".
-     * @deprecated elasticsearch now makes better decisions on its own
+     * Sets the minimum number of matches across the provided terms. Defaults to <tt>1</tt>.
+     * @deprecated use [bool] query instead
      */
     @Deprecated
-    public TermsQueryBuilder execution(String execution) {
-        this.execution = execution;
+    public TermsQueryBuilder minimumShouldMatch(String minimumShouldMatch) {
+        this.minimumShouldMatch = minimumShouldMatch;
+        return this;
+    }
+
+    /**
+     * Disables <tt>Similarity#coord(int,int)</tt> in scoring. Defaults to <tt>false</tt>.
+     * @deprecated use [bool] query instead
+     */
+    @Deprecated
+    public TermsQueryBuilder disableCoord(boolean disableCoord) {
+        this.disableCoord = disableCoord;
         return this;
     }
 
@@ -144,8 +155,12 @@ public class TermsQueryBuilder extends QueryBuilder implements BoostableQueryBui
         builder.startObject(TermsQueryParser.NAME);
         builder.field(name, values);
 
-        if (execution != null) {
-            builder.field("execution", execution);
+        if (minimumShouldMatch != null) {
+            builder.field("minimum_should_match", minimumShouldMatch);
+        }
+
+        if (disableCoord != null) {
+            builder.field("disable_coord", disableCoord);
         }
 
         if (boost != -1) {

@@ -1,0 +1,58 @@
+=== Plugin and packaging changes
+
+==== Symbolic links and paths
+
+Elasticsearch 2.0 runs with the Java security manager enabled and is much more
+restrictive about which paths it is allowed to access.  Various paths can be
+configured, e.g. `path.data`, `path.scripts`, `path.repo`.  A configured path
+may itself be a symbolic link, but no symlinks under that path will be
+followed (with the exception of `path.scripts`, which does follow symlinks).
+
+==== Running `/bin/elasticsearch`
+
+The command line parameter parsing has been rewritten to deal properly with
+spaces in parameters. All config settings can still be specified on the
+command line when starting Elasticsearch, but they must appear after the
+built-in "static parameters", such as `-d` (to daemonize) and `-p` (the PID path).
+
+For instance:
+
+[source,sh]
+-----------
+/bin/elasticsearch -d -p /tmp/foo.pid --http.cors.enabled=true --http.cors.allow-origin='*'
+-----------
+
+For a list of static parameters, run `/bin/elasticsearch -h`
+
+==== `-f` removed
+
+The `-f` parameter, which used to indicate that Elasticsearch should be run in
+the foreground, was deprecated in 1.0 and removed in 2.0.
+
+==== `V` for version
+
+The `-v` parameter now means `--verbose` for both `bin/plugin` and
+`bin/elasticsearch` (although it has no effect on the latter).  To output the
+version, use `-V` or `--version` instead.
+
+==== Plugin manager should run as root
+
+The permissions of the `config`, `bin`, and `plugins` directories in the RPM
+and deb packages have been made more restrictive.  The plugin manager should
+be run as root otherwise it will not be able to install plugins.
+
+==== Support for official plugins
+
+Almost all of the official Elasticsearch plugins have been moved to the main
+`elasticsearch` repository. They will be released at the same time as
+Elasticsearch and have the same version number as Elasticsearch.
+
+Official plugins can be installed as follows:
+
+[source,sh]
+---------------
+sudo bin/plugin install analysis-icu
+---------------
+
+Community-provided plugins can be installed as before.
+

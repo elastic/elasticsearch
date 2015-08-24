@@ -46,6 +46,12 @@ public class SimilarityModule extends AbstractModule {
 
     public SimilarityModule(Settings settings) {
         this.settings = settings;
+        addSimilarity("default", DefaultSimilarityProvider.class);
+        addSimilarity("BM25", BM25SimilarityProvider.class);
+        addSimilarity("DFR", DFRSimilarityProvider.class);
+        addSimilarity("IB", IBSimilarityProvider.class);
+        addSimilarity("LMDirichlet", LMDirichletSimilarityProvider.class);
+        addSimilarity("LMJelinekMercer", LMJelinekMercerSimilarityProvider.class);
     }
 
     /**
@@ -60,30 +66,25 @@ public class SimilarityModule extends AbstractModule {
 
     @Override
     protected void configure() {
-        Map<String, Class<? extends SimilarityProvider>> providers = Maps.newHashMap(similarities);
+        MapBinder<String, SimilarityProvider.Factory> similarityBinder =
+            MapBinder.newMapBinder(binder(), String.class, SimilarityProvider.Factory.class);
 
         Map<String, Settings> similaritySettings = settings.getGroups(SIMILARITY_SETTINGS_PREFIX);
         for (Map.Entry<String, Settings> entry : similaritySettings.entrySet()) {
             String name = entry.getKey();
             Settings settings = entry.getValue();
 
-            Class<? extends SimilarityProvider> type =
-                    settings.getAsClass("type", null, "org.elasticsearch.index.similarity.", "SimilarityProvider");
-            if (type == null) {
-                throw new IllegalArgumentException("SimilarityProvider [" + name + "] must have an associated type");
+            String typeName = settings.get("type");
+            if (typeName == null) {
+                throw new IllegalArgumentException("Similarity [" + name + "] must have an associated type");
+            } else if (similarities.containsKey(typeName) == false) {
+                throw new IllegalArgumentException("Unknown Similarity type [" + typeName + "] for [" + name + "]");
             }
-            providers.put(name, type);
-        }
-
-        MapBinder<String, SimilarityProvider.Factory> similarityBinder =
-                MapBinder.newMapBinder(binder(), String.class, SimilarityProvider.Factory.class);
-
-        for (Map.Entry<String, Class<? extends SimilarityProvider>> entry : providers.entrySet()) {
-            similarityBinder.addBinding(entry.getKey()).toProvider(FactoryProvider.newFactory(SimilarityProvider.Factory.class, entry.getValue())).in(Scopes.SINGLETON);
+            similarityBinder.addBinding(entry.getKey()).toProvider(FactoryProvider.newFactory(SimilarityProvider.Factory.class, similarities.get(typeName))).in(Scopes.SINGLETON);
         }
 
         for (PreBuiltSimilarityProvider.Factory factory : Similarities.listFactories()) {
-            if (!providers.containsKey(factory.name())) {
+            if (!similarities.containsKey(factory.name())) {
                 similarityBinder.addBinding(factory.name()).toInstance(factory);
             }
         }

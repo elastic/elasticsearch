@@ -44,6 +44,7 @@ public class AnalyzerBackwardsCompatTests extends ESTokenStreamTestCase {
             builder.put("path.home", createTempDir().toString());
             AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromSettings(builder.build());
             NamedAnalyzer analyzer = analysisService.analyzer("foo");
+            assertNotNull(analyzer);
             if (version.onOrAfter(noStopwordVersion)) {
                 assertAnalyzesTo(analyzer, "this is bogus", new String[]{"this", "is", "bogus"});
             } else {

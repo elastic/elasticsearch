@@ -93,11 +93,6 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         searchResponse = client().prepareSearch().setQuery(simpleQueryStringQuery("spaghetti").field("*body")).get();
         assertHitCount(searchResponse, 2l);
         assertSearchHits(searchResponse, "5", "6");
-
-        // Have to bypass the builder here because the builder always uses "fields" instead of "field"
-        searchResponse = client().prepareSearch().setQuery("{\"simple_query_string\": {\"query\": \"spaghetti\", \"field\": \"_all\"}}").get();
-        assertHitCount(searchResponse, 2l);
-        assertSearchHits(searchResponse, "5", "6");
     }
 
     @Test

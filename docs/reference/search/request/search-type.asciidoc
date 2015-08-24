@@ -26,8 +26,8 @@ each shard using these global frequencies.
 Also, because of the need to sort the results, getting back a large
 document set, or even scrolling it, while maintaining the correct sorting
 behavior can be a very expensive operation. For large result set
-scrolling without sorting, the `scan` search type (explained below) is
-also available.
+scrolling, it is best to sort by `_doc` if the order in which documents
+are returned is not important.
 
 Elasticsearch is very flexible and allows to control the type of search
 to execute on a *per search request* basis. The type can be configured
@@ -65,7 +65,7 @@ scoring.
 [[count]]
 ==== Count
 
-deprecated[2.0.0, `count` does not provide any benefits over `query_then_fetch` with a `size` of `0`]
+deprecated[2.0.0-beta1, `count` does not provide any benefits over `query_then_fetch` with a `size` of `0`]
 
 Parameter value: *count*.
 
@@ -77,9 +77,11 @@ API as it provides more options.
 [[scan]]
 ==== Scan
 
+deprecated[2.1.0, `scan` does not provide any benefits over a regular `scroll` request sorted by `_doc`]
+
 Parameter value: *scan*.
 
 The `scan` search type disables sorting in order to allow very efficient
-scrolling through large result sets.  See <<scroll-scan>> for more.
+scrolling through large result sets.
 
 

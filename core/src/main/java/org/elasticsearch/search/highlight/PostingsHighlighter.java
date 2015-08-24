@@ -41,11 +41,6 @@ public class PostingsHighlighter implements Highlighter {
     private static final String CACHE_KEY = "highlight-postings";
 
     @Override
-    public String[] names() {
-        return new String[]{"postings", "postings-highlighter"};
-    }
-
-    @Override
     public HighlightField highlight(HighlighterContext highlighterContext) {
 
         FieldMapper fieldMapper = highlighterContext.mapper;

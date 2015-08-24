@@ -28,7 +28,6 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Booleans;
-import org.elasticsearch.common.Classes;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -79,9 +78,8 @@ public final class Settings implements ToXContent {
 
     private ImmutableMap<String, String> settings;
     private final ImmutableMap<String, String> forcedUnderscoreSettings;
-    private transient ClassLoader classLoader;
 
-    Settings(Map<String, String> settings, ClassLoader classLoader) {
+    Settings(Map<String, String> settings) {
         // we use a sorted map for consistent serialization when using getAsMap()
         // TODO: use Collections.unmodifiableMap with a TreeMap
         this.settings = ImmutableSortedMap.copyOf(settings);
@@ -96,22 +94,6 @@ public final class Settings implements ToXContent {
             }
         }
         this.forcedUnderscoreSettings = forcedUnderscoreSettings == null ? ImmutableMap.<String, String>of() : ImmutableMap.copyOf(forcedUnderscoreSettings);
-        this.classLoader = classLoader;
-    }
-
-    /**
-     * The class loader associated with this settings, or {@link org.elasticsearch.common.Classes#getDefaultClassLoader()}
-     * if not set.
-     */
-    public ClassLoader getClassLoader() {
-        return this.classLoader == null ? Classes.getDefaultClassLoader() : classLoader;
-    }
-
-    /**
-     * The class loader associated with this settings, but only if explicitly set, otherwise <tt>null</tt>.
-     */
-    public ClassLoader getClassLoaderIfSet() {
-        return this.classLoader;
     }
 
     /**
@@ -227,7 +209,6 @@ public final class Settings implements ToXContent {
                 builder.put(entry.getKey().substring(prefix.length()), entry.getValue());
             }
         }
-        builder.classLoader(classLoader);
         return builder.build();
     }
 
@@ -534,78 +515,6 @@ public final class Settings implements ToXContent {
     }
 
     /**
-     * Returns the setting value (as a class) associated with the setting key. If it does not exists,
-     * returns the default class provided.
-     *
-     * @param setting      The setting key
-     * @param defaultClazz The class to return if no value is associated with the setting
-     * @param <T>          The type of the class
-     * @return The class setting value, or the default class provided is no value exists
-     * @throws org.elasticsearch.common.settings.NoClassSettingsException Failure to load a class
-     */
-    @SuppressWarnings({"unchecked"})
-    public <T> Class<? extends T> getAsClass(String setting, Class<? extends T> defaultClazz) throws NoClassSettingsException {
-        String sValue = get(setting);
-        if (sValue == null) {
-            return defaultClazz;
-        }
-        try {
-            return (Class<? extends T>) getClassLoader().loadClass(sValue);
-        } catch (ClassNotFoundException e) {
-            throw new NoClassSettingsException("Failed to load class setting [" + setting + "] with value [" + sValue + "]", e);
-        }
-    }
-
-    /**
-     * Returns the setting value (as a class) associated with the setting key. If the value itself fails to
-     * represent a loadable class, the value will be appended to the <tt>prefixPackage</tt> and suffixed with the
-     * <tt>suffixClassName</tt> and it will try to be loaded with it.
-     *
-     * @param setting         The setting key
-     * @param defaultClazz    The class to return if no value is associated with the setting
-     * @param prefixPackage   The prefix package to prefix the value with if failing to load the class as is
-     * @param suffixClassName The suffix class name to prefix the value with if failing to load the class as is
-     * @param <T>             The type of the class
-     * @return The class represented by the setting value, or the default class provided if no value exists
-     * @throws org.elasticsearch.common.settings.NoClassSettingsException Failure to load the class
-     */
-    @SuppressWarnings({"unchecked"})
-    public <T> Class<? extends T> getAsClass(String setting, Class<? extends T> defaultClazz, String prefixPackage, String suffixClassName) throws NoClassSettingsException {
-        String sValue = get(setting);
-        if (sValue == null) {
-            return defaultClazz;
-        }
-        String fullClassName = sValue;
-        try {
-            return (Class<? extends T>) getClassLoader().loadClass(fullClassName);
-        } catch (ClassNotFoundException e) {
-            String prefixValue = prefixPackage;
-            int packageSeparator = sValue.lastIndexOf('.');
-            if (packageSeparator > 0) {
-                prefixValue = sValue.substring(0, packageSeparator + 1);
-                sValue = sValue.substring(packageSeparator + 1);
-            }
-            fullClassName = prefixValue + Strings.capitalize(toCamelCase(sValue)) + suffixClassName;
-            try {
-                return (Class<? extends T>) getClassLoader().loadClass(fullClassName);
-            } catch (ClassNotFoundException e1) {
-                return loadClass(prefixValue, sValue, suffixClassName, setting);
-            } catch (NoClassDefFoundError e1) {
-                return loadClass(prefixValue, sValue, suffixClassName, setting);
-            }
-        }
-    }
-
-    private <T> Class<? extends T> loadClass(String prefixValue, String sValue, String suffixClassName, String setting) {
-        String fullClassName = prefixValue + toCamelCase(sValue).toLowerCase(Locale.ROOT) + "." + Strings.capitalize(toCamelCase(sValue)) + suffixClassName;
-        try {
-            return (Class<? extends T>) getClassLoader().loadClass(fullClassName);
-        } catch (ClassNotFoundException e2) {
-            throw new NoClassSettingsException("Failed to load class setting [" + setting + "] with value [" + get(setting) + "]", e2);
-        }
-    }
-
-    /**
      * The values associated with a setting prefix as an array. The settings array is in the format of:
      * <tt>settingPrefix.[index]</tt>.
      * <p/>
@@ -720,7 +629,7 @@ public final class Settings implements ToXContent {
         }
         Map<String, Settings> retVal = new LinkedHashMap<>();
         for (Map.Entry<String, Map<String, String>> entry : map.entrySet()) {
-            retVal.put(entry.getKey(), new Settings(Collections.unmodifiableMap(entry.getValue()), classLoader));
+            retVal.put(entry.getKey(), new Settings(Collections.unmodifiableMap(entry.getValue())));
         }
         return Collections.unmodifiableMap(retVal);
     }
@@ -773,17 +682,13 @@ public final class Settings implements ToXContent {
         if (o == null || getClass() != o.getClass()) return false;
 
         Settings that = (Settings) o;
-
-        if (classLoader != null ? !classLoader.equals(that.classLoader) : that.classLoader != null) return false;
         if (settings != null ? !settings.equals(that.settings) : that.settings != null) return false;
-
         return true;
     }
 
     @Override
     public int hashCode() {
         int result = settings != null ? settings.hashCode() : 0;
-        result = 31 * result + (classLoader != null ? classLoader.hashCode() : 0);
         return result;
     }
 
@@ -840,8 +745,6 @@ public final class Settings implements ToXContent {
         public static final Settings EMPTY_SETTINGS = new Builder().build();
 
         private final Map<String, String> map = new LinkedHashMap<>();
-
-        private ClassLoader classLoader;
 
         private Builder() {
 
@@ -1029,6 +932,26 @@ public final class Settings implements ToXContent {
         }
 
         /**
+         * Sets the setting as an array of values, but keeps existing elements for the key.
+         */
+        public Builder extendArray(String setting, String... values) {
+            // check for a singular (non array) value
+            String oldSingle = remove(setting);
+            // find the highest array index
+            int counter = 0;
+            while (map.containsKey(setting + '.' + counter)) {
+                ++counter;
+            }
+            if (oldSingle != null) {
+                put(setting + '.' + counter++, oldSingle);
+            }
+            for (String value : values) {
+                put(setting + '.' + counter++, value);
+            }
+            return this;
+        }
+
+        /**
          * Sets the setting group.
          */
         public Builder put(String settingPrefix, String groupName, String[] settings, String[] values) throws SettingsException {
@@ -1050,7 +973,6 @@ public final class Settings implements ToXContent {
         public Builder put(Settings settings) {
             removeNonArraysFieldsIfNewSettingsContainsFieldAsArray(settings.getAsMap());
             map.putAll(settings.getAsMap());
-            classLoader = settings.getClassLoaderIfSet();
             return this;
         }
 
@@ -1135,18 +1057,6 @@ public final class Settings implements ToXContent {
          * Loads settings from a url that represents them using the
          * {@link SettingsLoaderFactory#loaderFromSource(String)}.
          */
-        public Builder loadFromUrl(URL url) throws SettingsException {
-            try {
-                return loadFromStream(url.toExternalForm(), url.openStream());
-            } catch (IOException e) {
-                throw new SettingsException("Failed to open stream for url [" + url.toExternalForm() + "]", e);
-            }
-        }
-
-        /**
-         * Loads settings from a url that represents them using the
-         * {@link SettingsLoaderFactory#loaderFromSource(String)}.
-         */
         public Builder loadFromPath(Path path) throws SettingsException {
             try {
                 return loadFromStream(path.getFileName().toString(), Files.newInputStream(path));
@@ -1167,31 +1077,6 @@ public final class Settings implements ToXContent {
             } catch (Exception e) {
                 throw new SettingsException("Failed to load settings from [" + resourceName + "]", e);
             }
-            return this;
-        }
-
-        /**
-         * Loads settings from classpath that represents them using the
-         * {@link SettingsLoaderFactory#loaderFromSource(String)}.
-         */
-        public Builder loadFromClasspath(String resourceName) throws SettingsException {
-            ClassLoader classLoader = this.classLoader;
-            if (classLoader == null) {
-                classLoader = Classes.getDefaultClassLoader();
-            }
-            InputStream is = classLoader.getResourceAsStream(resourceName);
-            if (is == null) {
-                return this;
-            }
-
-            return loadFromStream(resourceName, is);
-        }
-
-        /**
-         * Sets the class loader associated with the settings built.
-         */
-        public Builder classLoader(ClassLoader classLoader) {
-            this.classLoader = classLoader;
             return this;
         }
 
@@ -1322,7 +1207,7 @@ public final class Settings implements ToXContent {
          * set on this builder.
          */
         public Settings build() {
-            return new Settings(Collections.unmodifiableMap(map), classLoader);
+            return new Settings(Collections.unmodifiableMap(map));
         }
     }
 

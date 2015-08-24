@@ -43,11 +43,6 @@ import java.util.*;
 public class CompletionSuggester extends Suggester<CompletionSuggestionContext> {
 
     @Override
-    public String[] names() {
-        return new String[] { "completion" };
-    }
-
-    @Override
     public SuggestContextParser getContextParser() {
         return new CompletionSuggestParser(this);
     }

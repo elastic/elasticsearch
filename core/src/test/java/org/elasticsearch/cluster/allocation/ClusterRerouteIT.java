@@ -96,7 +96,7 @@ public class ClusterRerouteIT extends ESIntegTestCase {
                 .execute().actionGet();
 
         ClusterState state = client().admin().cluster().prepareState().execute().actionGet().getState();
-        assertThat(state.routingNodes().unassigned().size(), equalTo(2));
+        assertThat(state.getRoutingNodes().unassigned().size(), equalTo(2));
 
         logger.info("--> explicitly allocate shard 1, *under dry_run*");
         state = client().admin().cluster().prepareReroute()
@@ -104,28 +104,28 @@ public class ClusterRerouteIT extends ESIntegTestCase {
                 .add(new AllocateAllocationCommand(new ShardId("test", 0), node_1, true))
                 .setDryRun(true)
                 .execute().actionGet().getState();
-        assertThat(state.routingNodes().unassigned().size(), equalTo(1));
-        assertThat(state.routingNodes().node(state.nodes().resolveNode(node_1).id()).get(0).state(), equalTo(ShardRoutingState.INITIALIZING));
+        assertThat(state.getRoutingNodes().unassigned().size(), equalTo(1));
+        assertThat(state.getRoutingNodes().node(state.nodes().resolveNode(node_1).id()).get(0).state(), equalTo(ShardRoutingState.INITIALIZING));
 
         logger.info("--> get the state, verify nothing changed because of the dry run");
         state = client().admin().cluster().prepareState().execute().actionGet().getState();
-        assertThat(state.routingNodes().unassigned().size(), equalTo(2));
+        assertThat(state.getRoutingNodes().unassigned().size(), equalTo(2));
 
         logger.info("--> explicitly allocate shard 1, actually allocating, no dry run");
         state = client().admin().cluster().prepareReroute()
                 .setExplain(randomBoolean())
                 .add(new AllocateAllocationCommand(new ShardId("test", 0), node_1, true))
                 .execute().actionGet().getState();
-        assertThat(state.routingNodes().unassigned().size(), equalTo(1));
-        assertThat(state.routingNodes().node(state.nodes().resolveNode(node_1).id()).get(0).state(), equalTo(ShardRoutingState.INITIALIZING));
+        assertThat(state.getRoutingNodes().unassigned().size(), equalTo(1));
+        assertThat(state.getRoutingNodes().node(state.nodes().resolveNode(node_1).id()).get(0).state(), equalTo(ShardRoutingState.INITIALIZING));
 
         ClusterHealthResponse healthResponse = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
         assertThat(healthResponse.isTimedOut(), equalTo(false));
 
         logger.info("--> get the state, verify shard 1 primary allocated");
         state = client().admin().cluster().prepareState().execute().actionGet().getState();
-        assertThat(state.routingNodes().unassigned().size(), equalTo(1));
-        assertThat(state.routingNodes().node(state.nodes().resolveNode(node_1).id()).get(0).state(), equalTo(ShardRoutingState.STARTED));
+        assertThat(state.getRoutingNodes().unassigned().size(), equalTo(1));
+        assertThat(state.getRoutingNodes().node(state.nodes().resolveNode(node_1).id()).get(0).state(), equalTo(ShardRoutingState.STARTED));
 
         logger.info("--> move shard 1 primary from node1 to node2");
         state = client().admin().cluster().prepareReroute()
@@ -133,8 +133,8 @@ public class ClusterRerouteIT extends ESIntegTestCase {
                 .add(new MoveAllocationCommand(new ShardId("test", 0), node_1, node_2))
                 .execute().actionGet().getState();
 
-        assertThat(state.routingNodes().node(state.nodes().resolveNode(node_1).id()).get(0).state(), equalTo(ShardRoutingState.RELOCATING));
-        assertThat(state.routingNodes().node(state.nodes().resolveNode(node_2).id()).get(0).state(), equalTo(ShardRoutingState.INITIALIZING));
+        assertThat(state.getRoutingNodes().node(state.nodes().resolveNode(node_1).id()).get(0).state(), equalTo(ShardRoutingState.RELOCATING));
+        assertThat(state.getRoutingNodes().node(state.nodes().resolveNode(node_2).id()).get(0).state(), equalTo(ShardRoutingState.INITIALIZING));
 
 
         healthResponse = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().setWaitForRelocatingShards(0).execute().actionGet();
@@ -142,8 +142,8 @@ public class ClusterRerouteIT extends ESIntegTestCase {
 
         logger.info("--> get the state, verify shard 1 primary moved from node1 to node2");
         state = client().admin().cluster().prepareState().execute().actionGet().getState();
-        assertThat(state.routingNodes().unassigned().size(), equalTo(1));
-        assertThat(state.routingNodes().node(state.nodes().resolveNode(node_2).id()).get(0).state(), equalTo(ShardRoutingState.STARTED));
+        assertThat(state.getRoutingNodes().unassigned().size(), equalTo(1));
+        assertThat(state.getRoutingNodes().node(state.nodes().resolveNode(node_2).id()).get(0).state(), equalTo(ShardRoutingState.STARTED));
     }
 
     @Test
@@ -211,23 +211,23 @@ public class ClusterRerouteIT extends ESIntegTestCase {
                 .execute().actionGet();
 
         ClusterState state = client().admin().cluster().prepareState().execute().actionGet().getState();
-        assertThat(state.routingNodes().unassigned().size(), equalTo(2));
+        assertThat(state.getRoutingNodes().unassigned().size(), equalTo(2));
 
         logger.info("--> explicitly allocate shard 1, actually allocating, no dry run");
         state = client().admin().cluster().prepareReroute()
                 .setExplain(randomBoolean())
                 .add(new AllocateAllocationCommand(new ShardId("test", 0), node_1, true))
                 .execute().actionGet().getState();
-        assertThat(state.routingNodes().unassigned().size(), equalTo(1));
-        assertThat(state.routingNodes().node(state.nodes().resolveNode(node_1).id()).get(0).state(), equalTo(ShardRoutingState.INITIALIZING));
+        assertThat(state.getRoutingNodes().unassigned().size(), equalTo(1));
+        assertThat(state.getRoutingNodes().node(state.nodes().resolveNode(node_1).id()).get(0).state(), equalTo(ShardRoutingState.INITIALIZING));
 
         healthResponse = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
         assertThat(healthResponse.isTimedOut(), equalTo(false));
 
         logger.info("--> get the state, verify shard 1 primary allocated");
         state = client().admin().cluster().prepareState().execute().actionGet().getState();
-        assertThat(state.routingNodes().unassigned().size(), equalTo(1));
-        assertThat(state.routingNodes().node(state.nodes().resolveNode(node_1).id()).get(0).state(), equalTo(ShardRoutingState.STARTED));
+        assertThat(state.getRoutingNodes().unassigned().size(), equalTo(1));
+        assertThat(state.getRoutingNodes().node(state.nodes().resolveNode(node_1).id()).get(0).state(), equalTo(ShardRoutingState.STARTED));
 
         client().prepareIndex("test", "type", "1").setSource("field", "value").setRefresh(true).execute().actionGet();
 
@@ -252,16 +252,16 @@ public class ClusterRerouteIT extends ESIntegTestCase {
                 .setExplain(randomBoolean())
                 .add(new AllocateAllocationCommand(new ShardId("test", 0), node_1, true))
                 .execute().actionGet().getState();
-        assertThat(state.routingNodes().unassigned().size(), equalTo(1));
-        assertThat(state.routingNodes().node(state.nodes().resolveNode(node_1).id()).get(0).state(), equalTo(ShardRoutingState.INITIALIZING));
+        assertThat(state.getRoutingNodes().unassigned().size(), equalTo(1));
+        assertThat(state.getRoutingNodes().node(state.nodes().resolveNode(node_1).id()).get(0).state(), equalTo(ShardRoutingState.INITIALIZING));
 
         healthResponse = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
         assertThat(healthResponse.isTimedOut(), equalTo(false));
 
         logger.info("--> get the state, verify shard 1 primary allocated");
         state = client().admin().cluster().prepareState().execute().actionGet().getState();
-        assertThat(state.routingNodes().unassigned().size(), equalTo(1));
-        assertThat(state.routingNodes().node(state.nodes().resolveNode(node_1).id()).get(0).state(), equalTo(ShardRoutingState.STARTED));
+        assertThat(state.getRoutingNodes().unassigned().size(), equalTo(1));
+        assertThat(state.getRoutingNodes().node(state.nodes().resolveNode(node_1).id()).get(0).state(), equalTo(ShardRoutingState.STARTED));
 
     }
 

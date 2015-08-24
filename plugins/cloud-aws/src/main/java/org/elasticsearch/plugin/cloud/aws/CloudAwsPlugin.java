@@ -24,10 +24,12 @@ import org.elasticsearch.cloud.aws.AwsModule;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.discovery.DiscoveryModule;
+import org.elasticsearch.discovery.ec2.Ec2Discovery;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardRepository;
 import org.elasticsearch.repositories.RepositoriesModule;
 import org.elasticsearch.repositories.s3.S3Repository;
-import org.elasticsearch.repositories.s3.S3RepositoryModule;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -35,7 +37,7 @@ import java.util.Collection;
 /**
  *
  */
-public class CloudAwsPlugin extends AbstractPlugin {
+public class CloudAwsPlugin extends Plugin {
 
     private final Settings settings;
 
@@ -54,19 +56,19 @@ public class CloudAwsPlugin extends AbstractPlugin {
     }
 
     @Override
-    public Collection<Module> modules(Settings settings) {
+    public Collection<Module> nodeModules() {
         Collection<Module> modules = new ArrayList<>();
         if (settings.getAsBoolean("cloud.enabled", true)) {
-            modules.add(new AwsModule(settings));
+            modules.add(new AwsModule());
         }
         return modules;
     }
 
     @Override
-    public Collection<Class<? extends LifecycleComponent>> services() {
+    public Collection<Class<? extends LifecycleComponent>> nodeServices() {
         Collection<Class<? extends LifecycleComponent>> services = new ArrayList<>();
         if (settings.getAsBoolean("cloud.enabled", true)) {
-            services.add(AwsModule.getS3ServiceClass(settings));
+            services.add(AwsModule.getS3ServiceImpl());
             services.add(AwsEc2Service.class);
         }
         return services;
@@ -74,7 +76,11 @@ public class CloudAwsPlugin extends AbstractPlugin {
 
     public void onModule(RepositoriesModule repositoriesModule) {
         if (settings.getAsBoolean("cloud.enabled", true)) {
-            repositoriesModule.registerRepository(S3Repository.TYPE, S3RepositoryModule.class);
+            repositoriesModule.registerRepository(S3Repository.TYPE, S3Repository.class, BlobStoreIndexShardRepository.class);
         }
+    }
+
+    public void onModule(DiscoveryModule discoveryModule) {
+        discoveryModule.addDiscoveryType("ec2", Ec2Discovery.class);
     }
 }

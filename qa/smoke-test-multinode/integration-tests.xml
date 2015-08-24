@@ -1,0 +1,44 @@
+<?xml version="1.0"?>
+<project name="smoke-test-multinode"
+         xmlns:ac="antlib:net.sf.antcontrib">
+
+  <import file="${elasticsearch.integ.antfile.default}"/>
+  <property name="integ.pidfile.sec" location="${integ.scratch}/es-secondary.pid"/>
+  <available property="integ.pidfile.sec.exists" file="${integ.pidfile.sec}"/>
+
+  <target name="stop-secondary-node" if="integ.pidfile.sec.exists">
+    <stop-node es.pidfile="${integ.pidfile.sec}"/>
+  </target>
+  <target name="stop-primary-node" if="integ.pidfile.exists">
+    <stop-node es.pidfile="${integ.pidfile}"/>
+  </target>
+
+  <target name="stop-external-multi-node-cluster" depends="stop-primary-node, stop-secondary-node"/>
+  
+  <target name="start-external-multi-node-no-plugins" depends="stop-secondary-node, setup-workspace" unless="${shouldskip}">
+    <start-unicast-node es.peer.list="127.0.0.1:9700"/>
+    <ac:trycatch property="failure.message">
+      <ac:try>
+        <start-unicast-node es.http.port="9600" es.transport.port="9700"
+                            es.pidfile="${integ.pidfile.sec}"
+                            es.peer.list="127.0.0.1:${integ.transport.port}"/>
+      </ac:try>
+      <ac:catch>
+        <echo>Failed to start second node with message: ${failure.message}</echo>
+        <stop-node es.pidfile="${integ.pidfile}"/>
+      </ac:catch>
+    </ac:trycatch>
+    <ac:trycatch>
+      <ac:try>
+        <local name="failed.to.form.cluster"/>
+        <waitfor-two-nodes port="${integ.http.port}"
+                           timeoutproperty="failed.to.form.cluster"/>
+        <fail message="Instances did not form a cluster" if="failed.to.form.cluster"/>
+      </ac:try>
+      <ac:catch>
+        <stop-node es.pidfile="${integ.pidfile}"/>
+        <stop-node es.pidfile="${integ.pidfile.sec}"/>
+      </ac:catch>
+    </ac:trycatch>
+  </target>
+</project>

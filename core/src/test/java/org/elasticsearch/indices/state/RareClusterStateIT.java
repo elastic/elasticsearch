@@ -64,6 +64,7 @@ import static org.hamcrest.Matchers.*;
 /**
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0, transportClientRatio = 0)
+@ESIntegTestCase.SuppressLocalMode
 public class RareClusterStateIT extends ESIntegTestCase {
 
     @Override
@@ -89,7 +90,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
                 ClusterState.builder(current)
                         .routingTable(RoutingTable.builder(current.routingTable()).remove("a").addAsRecovery(current.metaData().index("a")))
                         .nodes(DiscoveryNodes.EMPTY_NODES)
-                        .build()
+                        .build(), false
         );
         RoutingAllocation routingAllocation = new RoutingAllocation(allocationDeciders, routingNodes, current.nodes(), ClusterInfo.EMPTY);
         allocator.allocateUnassigned(routingAllocation);

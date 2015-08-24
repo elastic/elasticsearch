@@ -26,9 +26,29 @@ import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.store.DirectoryService;
 import org.elasticsearch.index.store.IndexStore;
+import org.elasticsearch.index.store.IndexStoreModule;
 import org.elasticsearch.indices.store.IndicesStore;
+import org.elasticsearch.plugins.Plugin;
 
 public class MockFSIndexStore extends IndexStore {
+
+    public static class TestPlugin extends Plugin {
+        @Override
+        public String name() {
+            return "mock-index-store";
+        }
+        @Override
+        public String description() {
+            return "a mock index store for testing";
+        }
+        public void onModule(IndexStoreModule indexStoreModule) {
+            indexStoreModule.addIndexStore("mock", MockFSIndexStore.class);
+        }
+        @Override
+        public Settings additionalSettings() {
+            return Settings.builder().put(IndexStoreModule.STORE_TYPE, "mock").build();
+        }
+    }
 
     @Inject
     public MockFSIndexStore(Index index, @IndexSettings Settings indexSettings, IndexSettingsService indexSettingsService,

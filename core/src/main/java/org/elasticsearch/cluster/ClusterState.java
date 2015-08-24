@@ -231,14 +231,6 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
         return routingTable();
     }
 
-    public RoutingNodes routingNodes() {
-        return routingTable.routingNodes(this);
-    }
-
-    public RoutingNodes getRoutingNodes() {
-        return readOnlyRoutingNodes();
-    }
-
     public ClusterBlocks blocks() {
         return this.blocks;
     }
@@ -269,14 +261,13 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
     }
 
     /**
-     * Returns a built (on demand) routing nodes view of the routing table. <b>NOTE, the routing nodes
-     * are mutable, use them just for read operations</b>
+     * Returns a built (on demand) routing nodes view of the routing table.
      */
-    public RoutingNodes readOnlyRoutingNodes() {
+    public RoutingNodes getRoutingNodes() {
         if (routingNodes != null) {
             return routingNodes;
         }
-        routingNodes = routingTable.routingNodes(this);
+        routingNodes = new RoutingNodes(this);
         return routingNodes;
     }
 
@@ -288,7 +279,7 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
         sb.append("meta data version: ").append(metaData.version()).append("\n");
         sb.append(nodes().prettyPrint());
         sb.append(routingTable().prettyPrint());
-        sb.append(readOnlyRoutingNodes().prettyPrint());
+        sb.append(getRoutingNodes().prettyPrint());
         return sb.toString();
     }
 
@@ -509,13 +500,13 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
         if (metrics.contains(Metric.ROUTING_NODES)) {
             builder.startObject("routing_nodes");
             builder.startArray("unassigned");
-            for (ShardRouting shardRouting : readOnlyRoutingNodes().unassigned()) {
+            for (ShardRouting shardRouting : getRoutingNodes().unassigned()) {
                 shardRouting.toXContent(builder, params);
             }
             builder.endArray();
 
             builder.startObject("nodes");
-            for (RoutingNode routingNode : readOnlyRoutingNodes()) {
+            for (RoutingNode routingNode : getRoutingNodes()) {
                 builder.startArray(routingNode.nodeId() == null ? "null" : routingNode.nodeId(), XContentBuilder.FieldCaseConversion.NONE);
                 for (ShardRouting shardRouting : routingNode) {
                     shardRouting.toXContent(builder, params);

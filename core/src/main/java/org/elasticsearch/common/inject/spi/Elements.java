@@ -19,7 +19,6 @@ package org.elasticsearch.common.inject.spi;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
-import org.elasticsearch.bootstrap.Bootstrap;
 import org.elasticsearch.common.inject.*;
 import org.elasticsearch.common.inject.binder.AnnotatedBindingBuilder;
 import org.elasticsearch.common.inject.binder.AnnotatedConstantBindingBuilder;
@@ -211,6 +210,9 @@ public final class Elements {
 
                 try {
                     module.configure(binder);
+                } catch (IllegalArgumentException e) {
+                    // NOTE: This is not in the original guice. We rethrow here to expose any explicit errors in configure()
+                    throw e;
                 } catch (RuntimeException e) {
                     Collection<Message> messages = Errors.getMessagesFromThrowable(e);
                     if (!messages.isEmpty()) {
@@ -340,7 +342,7 @@ public final class Elements {
             return builder;
         }
 
-        private static ESLogger logger = Loggers.getLogger(Bootstrap.class);
+        private static ESLogger logger = Loggers.getLogger(Elements.class);
 
         protected Object getSource() {
             Object ret;

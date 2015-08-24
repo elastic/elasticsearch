@@ -24,20 +24,41 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.*;
+import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportModule;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportRequestOptions;
+import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.local.LocalTransport;
 
 import java.io.IOException;
 import java.util.Random;
 
-/**
- *
- */
 public class AssertingLocalTransport extends LocalTransport {
+
+    public static class TestPlugin extends Plugin {
+        @Override
+        public String name() {
+            return "asserting-local-transport";
+        }
+        @Override
+        public String description() {
+            return "an asserting transport for testing";
+        }
+        public void onModule(TransportModule transportModule) {
+            transportModule.addTransport("mock", AssertingLocalTransport.class);
+        }
+        @Override
+        public Settings additionalSettings() {
+            return Settings.builder().put(TransportModule.TRANSPORT_TYPE_KEY, "mock").build();
+        }
+    }
 
     public static final String ASSERTING_TRANSPORT_MIN_VERSION_KEY = "transport.asserting.version.min";
     public static final String ASSERTING_TRANSPORT_MAX_VERSION_KEY = "transport.asserting.version.max";

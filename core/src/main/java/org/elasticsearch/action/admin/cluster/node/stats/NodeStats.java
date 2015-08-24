@@ -33,6 +33,7 @@ import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.monitor.jvm.JvmStats;
 import org.elasticsearch.monitor.os.OsStats;
 import org.elasticsearch.monitor.process.ProcessStats;
+import org.elasticsearch.script.ScriptStats;
 import org.elasticsearch.threadpool.ThreadPoolStats;
 import org.elasticsearch.transport.TransportStats;
 
@@ -73,13 +74,17 @@ public class NodeStats extends BaseNodeResponse implements ToXContent {
     @Nullable
     private AllCircuitBreakerStats breaker;
 
+    @Nullable
+    private ScriptStats scriptStats;
+
     NodeStats() {
     }
 
     public NodeStats(DiscoveryNode node, long timestamp, @Nullable NodeIndicesStats indices,
                      @Nullable OsStats os, @Nullable ProcessStats process, @Nullable JvmStats jvm, @Nullable ThreadPoolStats threadPool,
                      @Nullable FsInfo fs, @Nullable TransportStats transport, @Nullable HttpStats http,
-                     @Nullable AllCircuitBreakerStats breaker) {
+                     @Nullable AllCircuitBreakerStats breaker,
+                     @Nullable ScriptStats scriptStats) {
         super(node);
         this.timestamp = timestamp;
         this.indices = indices;
@@ -91,6 +96,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContent {
         this.transport = transport;
         this.http = http;
         this.breaker = breaker;
+        this.scriptStats = scriptStats;
     }
 
     public long getTimestamp() {
@@ -165,6 +171,11 @@ public class NodeStats extends BaseNodeResponse implements ToXContent {
         return this.breaker;
     }
 
+    @Nullable
+    public ScriptStats getScriptStats() {
+        return this.scriptStats;
+    }
+
     public static NodeStats readNodeStats(StreamInput in) throws IOException {
         NodeStats nodeInfo = new NodeStats();
         nodeInfo.readFrom(in);
@@ -200,6 +211,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContent {
             http = HttpStats.readHttpStats(in);
         }
         breaker = AllCircuitBreakerStats.readOptionalAllCircuitBreakerStats(in);
+        scriptStats = in.readOptionalStreamable(new ScriptStats());
 
     }
 
@@ -256,6 +268,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContent {
             http.writeTo(out);
         }
         out.writeOptionalStreamable(breaker);
+        out.writeOptionalStreamable(scriptStats);
     }
 
     @Override
@@ -302,6 +315,9 @@ public class NodeStats extends BaseNodeResponse implements ToXContent {
         }
         if (getBreaker() != null) {
             getBreaker().toXContent(builder, params);
+        }
+        if (getScriptStats() != null) {
+            getScriptStats().toXContent(builder, params);
         }
 
         return builder;

@@ -56,6 +56,13 @@ public class RecoveryStatusTests extends ESSingleNodeTestCase {
             assertSame(openIndexOutput, indexOutput);
             openIndexOutput.writeInt(1);
         }
+        try {
+            status.openAndPutIndexOutput("foo.bar", new StoreFileMetaData("foo.bar", 8), status.store());
+            fail("file foo.bar is already opened and registered");
+        } catch (IllegalStateException ex) {
+            assertEquals("output for file [foo.bar] has already been created", ex.getMessage());
+            // all well = it's already registered
+        }
         status.removeOpenIndexOutputs("foo.bar");
         Set<String> strings = Sets.newHashSet(status.store().directory().listAll());
         String expectedFile = null;

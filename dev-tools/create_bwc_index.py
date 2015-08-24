@@ -141,7 +141,6 @@ def start_node(version, release_dir, data_dir, repo_dir, tcp_port=DEFAULT_TRANSP
     '-Des.path.logs=logs',
     '-Des.cluster.name=%s' % cluster_name,
     '-Des.network.host=localhost',
-    '-Des.discovery.zen.ping.multicast.enabled=false',
     '-Des.transport.tcp.port=%s' % tcp_port,
     '-Des.http.port=%s' % http_port,
     '-Des.path.repo=%s' % repo_dir

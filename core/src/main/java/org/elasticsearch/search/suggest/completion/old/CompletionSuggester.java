@@ -100,11 +100,6 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
     }
 
     @Override
-    public String[] names() {
-        return new String[] { "completion_old" };
-    }
-
-    @Override
     public SuggestContextParser getContextParser() {
         throw new IllegalStateException("This method should not be called");
     }

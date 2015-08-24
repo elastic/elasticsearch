@@ -62,6 +62,11 @@ public class NodesStatsRequestBuilder extends NodesOperationRequestBuilder<Nodes
         return this;
     }
 
+    public NodesStatsRequestBuilder setScript(boolean script) {
+        request.script(script);
+        return this;
+    }
+
     /**
      * Should the node indices stats be returned.
      */
@@ -99,14 +104,6 @@ public class NodesStatsRequestBuilder extends NodesOperationRequestBuilder<Nodes
      */
     public NodesStatsRequestBuilder setThreadPool(boolean threadPool) {
         request.threadPool(threadPool);
-        return this;
-    }
-
-    /**
-     * Should the node Network stats be returned.
-     */
-    public NodesStatsRequestBuilder setNetwork(boolean network) {
-        request.network(network);
         return this;
     }
 

@@ -5,11 +5,11 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>org.elasticsearch</groupId>
-    <artifactId>elasticsearch-parent</artifactId>
-    <version>2.0.0-beta1-SNAPSHOT</version>
+    <artifactId>parent</artifactId>
+    <version>2.1.0-SNAPSHOT</version>
     <packaging>pom</packaging>
-    <name>Elasticsearch Parent POM</name>
-    <description>Elasticsearch Parent POM</description>
+    <name>Elasticsearch: Parent POM</name>
+    <description>Parent POM</description>
     <inceptionYear>2009</inceptionYear>
 
     <parent>
@@ -27,9 +27,9 @@
     </licenses>
 
     <scm>
-        <connection>scm:git:git@github.com:elasticsearch/elasticsearch-parent.git</connection>
-        <developerConnection>scm:git:git@github.com:elasticsearch/elasticsearch-parent.git</developerConnection>
-        <url>http://github.com/elasticsearch/elasticsearch-parent</url>
+        <connection>scm:git:git@github.com:elastic/elasticsearch.git</connection>
+        <developerConnection>scm:git:git@github.com:elastic/elasticsearch.git</developerConnection>
+        <url>http://github.com/elastic/elasticsearch</url>
     </scm>
 
     <properties>
@@ -48,6 +48,7 @@
         <slf4j.version>1.6.2</slf4j.version>
         <log4j.version>1.2.17</log4j.version>
         <jacoco.version>0.7.2.201409121644</jacoco.version>
+        <elasticsearch.s3.repository>s3://download.elasticsearch.org/elasticsearch/staging/</elasticsearch.s3.repository>
 
         <!-- Build resources properties -->
         <elasticsearch.tools.directory>${project.build.directory}/dev-tools</elasticsearch.tools.directory>
@@ -56,6 +57,10 @@
         <elasticsearch.license.headerDefinition>${elasticsearch.tools.directory}/license-check/license_header_definition.xml</elasticsearch.license.headerDefinition>
         <elasticsearch.integ.antfile.default>${elasticsearch.tools.directory}/ant/integration-tests.xml</elasticsearch.integ.antfile.default>
         <elasticsearch.integ.antfile>${elasticsearch.integ.antfile.default}</elasticsearch.integ.antfile>
+
+        <!-- Properties for the license checker -->
+        <project.licenses.dir>${project.basedir}/licenses</project.licenses.dir>
+        <project.licenses.check_target>${basedir}/target/releases/${project.build.finalName}.zip</project.licenses.check_target>
 
         <!-- Test properties -->
         <tests.jvms>auto</tests.jvms>
@@ -98,6 +103,7 @@
         <tests.rest.spec></tests.rest.spec>
         <tests.rest.load_packaged></tests.rest.load_packaged>
         <tests.network></tests.network>
+        <tests.multicast></tests.multicast>
         <tests.cluster></tests.cluster>
         <tests.filter></tests.filter>
         <env.ES_TEST_LOCAL></env.ES_TEST_LOCAL>
@@ -111,6 +117,8 @@
         <integ.temp>${integ.scratch}/temp</integ.temp>
         <integ.http.port>9400</integ.http.port>
         <integ.transport.port>9500</integ.transport.port>
+        <integ.http.port.sec>9600</integ.http.port.sec>
+        <integ.transport.port.sec>9700</integ.transport.port.sec>
         <no.commit.pattern>\bno(n|)commit\b</no.commit.pattern>
     </properties>
 
@@ -136,7 +144,7 @@
         <dependencies>
             <dependency>
                 <groupId>org.elasticsearch</groupId>
-                <artifactId>elasticsearch-dev-tools</artifactId>
+                <artifactId>dev-tools</artifactId>
                 <version>${elasticsearch.version}</version>
             </dependency>
 
@@ -403,12 +411,6 @@
             </dependency>
 
             <dependency>
-                <groupId>org.apache.commons</groupId>
-                <artifactId>commons-lang3</artifactId>
-                <version>3.3.2</version>
-            </dependency>
-
-            <dependency>
                 <groupId>commons-cli</groupId>
                 <artifactId>commons-cli</artifactId>
                 <version>1.3.1</version>
@@ -616,6 +618,7 @@
                             <tests.appendseed>${tests.appendseed}</tests.appendseed>
                             <tests.cluster>${tests.cluster}</tests.cluster>
                             <tests.iters>${tests.iters}</tests.iters>
+                            <tests.project>${project.groupId}:${project.artifactId}</tests.project>
                             <tests.maxfailures>${tests.maxfailures}</tests.maxfailures>
                             <tests.failfast>${tests.failfast}</tests.failfast>
                             <tests.class>${tests.class}</tests.class>
@@ -789,8 +792,8 @@
                     <version>1.5</version>
                     <configuration>
                         <resourceBundles>
-                            <resourceBundle>org.elasticsearch:elasticsearch-dev-tools:${elasticsearch.version}</resourceBundle>
-                            <resourceBundle>org.elasticsearch:elasticsearch-rest-api-spec:${elasticsearch.version}</resourceBundle>
+                            <resourceBundle>org.elasticsearch:dev-tools:${elasticsearch.version}</resourceBundle>
+                            <resourceBundle>org.elasticsearch:rest-api-spec:${elasticsearch.version}</resourceBundle>
                         </resourceBundles>
                         <outputDirectory>${elasticsearch.tools.directory}</outputDirectory>
                         <!-- don't include dev-tools in artifacts -->
@@ -872,10 +875,16 @@
                     <version>2.4.1</version>
                 </plugin>
                 <plugin>
-                    <!-- We just declare which plugin version to use. Each project can have then its own settings -->
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-resources-plugin</artifactId>
                     <version>2.7</version>
+                    <!-- add some additonal binary types to prevent maven from 
+                         screwing them up with resource filtering  -->
+                    <configuration>
+                        <nonFilteredFileExtensions>
+                            <nonFilteredFileExtension>ico</nonFilteredFileExtension>
+                        </nonFilteredFileExtensions>
+                    </configuration>
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
@@ -973,7 +982,7 @@
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-eclipse-plugin</artifactId>
-                    <version>2.9</version>
+                    <version>2.10</version>
                     <configuration>
                         <buildOutputDirectory>eclipse-build</buildOutputDirectory>
                         <downloadSources>true</downloadSources>
@@ -1191,6 +1200,28 @@ org.eclipse.jdt.ui.text.custom_code_templates=<?xml version\="1.0" encoding\="UT
                                 <goal>run</goal>
                             </goals>
                         </execution>
+                        <execution>
+                            <id>check-license</id>
+                            <phase>verify</phase>
+                            <goals>
+                                <goal>run</goal>
+                            </goals>
+                            <configuration>
+                                <skip>${skip.integ.tests}</skip>
+                                <target>
+                                    <echo taskName="license check">Running license check</echo>
+                                    <!-- don't run on windows, because everyone hates it -->
+                                    <exec failonerror="true" executable="perl" osfamily="unix"
+                                          dir="${elasticsearch.tools.directory}/license-check">
+                                        <arg value="check_license_and_sha.pl"/>
+                                        <arg value="--check"/>
+                                        <arg value="${project.licenses.dir}"/>
+                                        <arg value="${project.licenses.check_target}"/>
+                                        <arg value="${project.build.finalName}"/>
+                                    </exec>
+                                </target>
+                            </configuration>
+                        </execution>
                     </executions>
                     <dependencies>
                         <dependency>
@@ -1233,13 +1264,6 @@ org.eclipse.jdt.ui.text.custom_code_templates=<?xml version\="1.0" encoding\="UT
                 </plugin>
             </plugins>
         </pluginManagement>
-        <extensions>
-            <extension>
-                <groupId>org.springframework.build</groupId>
-                <artifactId>aws-maven</artifactId>
-                <version>5.0.0.RELEASE</version>
-            </extension>
-        </extensions>
     </build>
     <profiles>
         <profile>
@@ -1287,18 +1311,6 @@ org.eclipse.jdt.ui.text.custom_code_templates=<?xml version\="1.0" encoding\="UT
                     </plugin>
                 </plugins>
             </build>
-            <distributionManagement>
-                <repository>
-                    <id>aws-release</id>
-                    <name>AWS Release Repository</name>
-                    <url>s3://download.elasticsearch.org/elasticsearch/release</url>
-                </repository>
-                <snapshotRepository>
-                    <id>aws-snapshot</id>
-                    <name>AWS Snapshot Repository</name>
-                    <url>s3://download.elasticsearch.org/elasticsearch/snapshot</url>
-                </snapshotRepository>
-            </distributionManagement>
         </profile>
         <!-- license profile, to generate third party license file -->
         <profile>

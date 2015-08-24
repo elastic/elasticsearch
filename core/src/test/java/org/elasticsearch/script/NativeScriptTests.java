@@ -21,7 +21,6 @@ package org.elasticsearch.script;
 
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
-
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
@@ -49,15 +48,16 @@ public class NativeScriptTests extends ESTestCase {
     @Test
     public void testNativeScript() throws InterruptedException {
         Settings settings = Settings.settingsBuilder()
-                .put("script.native.my.type", MyNativeScriptFactory.class.getName())
                 .put("name", "testNativeScript")
                 .put("path.home", createTempDir())
                 .build();
+        ScriptModule scriptModule = new ScriptModule(settings);
+        scriptModule.registerScript("my", MyNativeScriptFactory.class);
         Injector injector = new ModulesBuilder().add(
                 new EnvironmentModule(new Environment(settings)),
                 new ThreadPoolModule(new ThreadPool(settings)),
                 new SettingsModule(settings),
-                new ScriptModule(settings)).createInjector();
+                scriptModule).createInjector();
 
         ScriptService scriptService = injector.getInstance(ScriptService.class);
 
@@ -96,6 +96,11 @@ public class NativeScriptTests extends ESTestCase {
         @Override
         public ExecutableScript newScript(@Nullable Map<String, Object> params) {
             return new MyScript();
+        }
+
+        @Override
+        public boolean needsScores() {
+            return false;
         }
     }
 

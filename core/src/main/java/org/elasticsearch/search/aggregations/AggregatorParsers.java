@@ -50,7 +50,7 @@ public class AggregatorParsers {
      *
      * @param aggParsers
      *            The available aggregator parsers (dynamically injected by the
-     *            {@link org.elasticsearch.search.aggregations.AggregationModule}
+     *            {@link org.elasticsearch.search.SearchModule}
      *            ).
      */
     @Inject

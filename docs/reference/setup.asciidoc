@@ -59,13 +59,13 @@ There are added features when using the `elasticsearch` shell script.
 The first, which was explained earlier, is the ability to easily run the
 process either in the foreground or the background.
 
-Another feature is the ability to pass `-X` and `-D` or getopt long style
+Another feature is the ability to pass `-D` or getopt long style
 configuration parameters directly to the script. When set, all override
 anything set using either `JAVA_OPTS` or `ES_JAVA_OPTS`. For example:
 
 [source,sh]
 --------------------------------------------------
-$ bin/elasticsearch -Xmx2g -Xms2g -Des.index.store.type=memory --node.name=my-node
+$ bin/elasticsearch -Des.index.refresh_interval=5s --node.name=my-node
 --------------------------------------------------
 *************************************************************************
 

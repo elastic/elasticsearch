@@ -35,6 +35,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Injector;
+import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
@@ -47,7 +48,7 @@ import org.elasticsearch.monitor.MonitorService;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.plugins.PluginsModule;
 import org.elasticsearch.plugins.PluginsService;
-import org.elasticsearch.search.TransportSearchModule;
+import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolModule;
 import org.elasticsearch.transport.TransportModule;
@@ -132,17 +133,28 @@ public class TransportClient extends AbstractClient {
             try {
                 ModulesBuilder modules = new ModulesBuilder();
                 modules.add(new Version.Module(version));
-                modules.add(new PluginsModule(this.settings, pluginsService));
+                // plugin modules must be added here, before others or we can get crazy injection errors...
+                for (Module pluginModule : pluginsService.nodeModules()) {
+                    modules.add(pluginModule);
+                }
+                modules.add(new PluginsModule(pluginsService));
                 modules.add(new EnvironmentModule(environment));
                 modules.add(new SettingsModule(this.settings));
                 modules.add(new NetworkModule());
                 modules.add(new ClusterNameModule(this.settings));
                 modules.add(new ThreadPoolModule(threadPool));
-                modules.add(new TransportSearchModule());
                 modules.add(new TransportModule(this.settings));
+                modules.add(new SearchModule(this.settings) {
+                    @Override
+                    protected void configure() {
+                        // noop
+                    }
+                });
                 modules.add(new ActionModule(true));
                 modules.add(new ClientTransportModule());
                 modules.add(new CircuitBreakerModule(this.settings));
+
+                pluginsService.processModules(modules);
 
                 Injector injector = modules.createInjector();
                 injector.getInstance(TransportService.class).start();
@@ -255,7 +267,7 @@ public class TransportClient extends AbstractClient {
             // ignore, might not be bounded
         }
 
-        for (Class<? extends LifecycleComponent> plugin : injector.getInstance(PluginsService.class).services()) {
+        for (Class<? extends LifecycleComponent> plugin : injector.getInstance(PluginsService.class).nodeServices()) {
             injector.getInstance(plugin).close();
         }
         try {

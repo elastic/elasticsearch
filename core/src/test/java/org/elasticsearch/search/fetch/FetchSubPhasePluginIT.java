@@ -29,8 +29,9 @@ import org.elasticsearch.action.termvectors.TermVectorsResponse;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHitField;
+import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.InternalSearchHitField;
@@ -98,7 +99,7 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
         assertThat(((Map<String, Integer>) response.getHits().getAt(0).field("term_vectors_fetch").getValues().get(0)).get("sam"), equalTo(1));
     }
 
-    public static class FetchTermVectorsPlugin extends AbstractPlugin {
+    public static class FetchTermVectorsPlugin extends Plugin {
 
         @Override
         public String name() {
@@ -110,8 +111,8 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
             return "fetch plugin to test if the plugin mechanism works";
         }
 
-        public void onModule(FetchSubPhaseModule fetchSubPhaseModule) {
-            fetchSubPhaseModule.registerFetchSubPhase(TermVectorsFetchSubPhase.class);
+        public void onModule(SearchModule searchModule) {
+            searchModule.registerFetchSubPhase(TermVectorsFetchSubPhase.class);
         }
     }
 

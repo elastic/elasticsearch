@@ -21,56 +21,32 @@ package org.elasticsearch.common.transport;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.network.NetworkAddress;
 
 import java.io.IOException;
-import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 
 /**
  * A transport address used for IP socket address (wraps {@link java.net.InetSocketAddress}).
  */
-public class InetSocketTransportAddress implements TransportAddress {
-
-    private static boolean resolveAddress = false;
-
-    public static void setResolveAddress(boolean resolveAddress) {
-        InetSocketTransportAddress.resolveAddress = resolveAddress;
-    }
-
-    public static boolean getResolveAddress() {
-        return resolveAddress;
-    }
+public final class InetSocketTransportAddress implements TransportAddress {
 
     public static final InetSocketTransportAddress PROTO = new InetSocketTransportAddress();
 
     private final InetSocketAddress address;
 
     public InetSocketTransportAddress(StreamInput in) throws IOException {
-        if (in.readByte() == 0) {
-            int len = in.readByte();
-            byte[] a = new byte[len]; // 4 bytes (IPv4) or 16 bytes (IPv6)
-            in.readFully(a);
-            InetAddress inetAddress;
-            if (len == 16) {
-                int scope_id = in.readInt();
-                inetAddress = Inet6Address.getByAddress(null, a, scope_id);
-            } else {
-                inetAddress = InetAddress.getByAddress(a);
-            }
-            int port = in.readInt();
-            this.address = new InetSocketAddress(inetAddress, port);
-        } else {
-            this.address = new InetSocketAddress(in.readString(), in.readInt());
-        }
+        final int len = in.readByte();
+        final byte[] a = new byte[len]; // 4 bytes (IPv4) or 16 bytes (IPv6)
+        in.readFully(a);
+        InetAddress inetAddress = InetAddress.getByAddress(a);
+        int port = in.readInt();
+        this.address = new InetSocketAddress(inetAddress, port);
     }
 
     private InetSocketTransportAddress() {
         address = null;
-    }
-
-    public InetSocketTransportAddress(String hostname, int port) {
-        this(new InetSocketAddress(hostname, port));
     }
 
     public InetSocketTransportAddress(InetAddress address, int port) {
@@ -78,6 +54,12 @@ public class InetSocketTransportAddress implements TransportAddress {
     }
 
     public InetSocketTransportAddress(InetSocketAddress address) {
+        if (address == null) {
+            throw new IllegalArgumentException("InetSocketAddress must not be null");
+        }
+        if (address.getAddress() == null) {
+            throw new IllegalArgumentException("Address must be resolved but wasn't - InetSocketAddress#getAddress() returned null");
+        }
         this.address = address;
     }
 
@@ -92,6 +74,21 @@ public class InetSocketTransportAddress implements TransportAddress {
                 address.getAddress().equals(((InetSocketTransportAddress) other).address.getAddress());
     }
 
+    @Override
+    public String getHost() {
+       return getAddress(); // just delegate no resolving
+    }
+
+    @Override
+    public String getAddress() {
+        return NetworkAddress.formatAddress(address.getAddress());
+    }
+
+    @Override
+    public int getPort() {
+        return address.getPort();
+    }
+
     public InetSocketAddress address() {
         return this.address;
     }
@@ -103,19 +100,15 @@ public class InetSocketTransportAddress implements TransportAddress {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (!resolveAddress && address.getAddress() != null) {
-            out.writeByte((byte) 0);
-            byte[] bytes = address().getAddress().getAddress();  // 4 bytes (IPv4) or 16 bytes (IPv6)
-            out.writeByte((byte) bytes.length); // 1 byte
-            out.write(bytes, 0, bytes.length);
-            if (address().getAddress() instanceof Inet6Address)
-                out.writeInt(((Inet6Address) address.getAddress()).getScopeId());
-        } else {
-            out.writeByte((byte) 1);
-            out.writeString(address.getHostName());
-        }
+        byte[] bytes = address().getAddress().getAddress();  // 4 bytes (IPv4) or 16 bytes (IPv6)
+        out.writeByte((byte) bytes.length); // 1 byte
+        out.write(bytes, 0, bytes.length);
+        // don't serialize scope ids over the network!!!!
+        // these only make sense with respect to the local machine, and will only formulate
+        // the address incorrectly remotely.
         out.writeInt(address.getPort());
     }
+
 
     @Override
     public boolean equals(Object o) {
@@ -132,6 +125,6 @@ public class InetSocketTransportAddress implements TransportAddress {
 
     @Override
     public String toString() {
-        return "inet[" + address + "]";
+        return NetworkAddress.format(address);
     }
 }

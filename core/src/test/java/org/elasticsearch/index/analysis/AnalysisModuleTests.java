@@ -40,7 +40,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNameModule;
 import org.elasticsearch.index.analysis.filter1.MyFilterTokenFilterFactory;
 import org.elasticsearch.index.settings.IndexSettingsModule;
-import org.elasticsearch.indices.analysis.IndicesAnalysisModule;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.MatcherAssert;
@@ -55,7 +54,9 @@ import java.nio.file.Path;
 import java.util.Set;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 
 /**
  *
@@ -66,18 +67,20 @@ public class AnalysisModuleTests extends ESTestCase {
 
     public AnalysisService getAnalysisService(Settings settings) {
         Index index = new Index("test");
-        Injector parentInjector = new ModulesBuilder().add(new SettingsModule(settings), new EnvironmentModule(new Environment(settings)), new IndicesAnalysisModule()).createInjector();
+        Injector parentInjector = new ModulesBuilder().add(new SettingsModule(settings), new EnvironmentModule(new Environment(settings))).createInjector();
+        AnalysisModule analysisModule = new AnalysisModule(settings, parentInjector.getInstance(IndicesAnalysisService.class));
+        analysisModule.addTokenFilter("myfilter", MyFilterTokenFilterFactory.class);
         injector = new ModulesBuilder().add(
                 new IndexSettingsModule(index, settings),
                 new IndexNameModule(index),
-                new AnalysisModule(settings, parentInjector.getInstance(IndicesAnalysisService.class)))
-                .createChildInjector(parentInjector);
+                analysisModule)
+            .createChildInjector(parentInjector);
 
         return injector.getInstance(AnalysisService.class);
     }
 
     private Settings loadFromClasspath(String path) {
-        return settingsBuilder().loadFromClasspath(path)
+        return settingsBuilder().loadFromStream(path, getClass().getResourceAsStream(path))
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put("path.home", createTempDir().toString())
                 .build();
@@ -86,13 +89,13 @@ public class AnalysisModuleTests extends ESTestCase {
 
     @Test
     public void testSimpleConfigurationJson() {
-        Settings settings = loadFromClasspath("org/elasticsearch/index/analysis/test1.json");
+        Settings settings = loadFromClasspath("/org/elasticsearch/index/analysis/test1.json");
         testSimpleConfiguration(settings);
     }
 
     @Test
     public void testSimpleConfigurationYaml() {
-        Settings settings = loadFromClasspath("org/elasticsearch/index/analysis/test1.yml");
+        Settings settings = loadFromClasspath("/org/elasticsearch/index/analysis/test1.yml");
         testSimpleConfiguration(settings);
     }
 
@@ -105,8 +108,9 @@ public class AnalysisModuleTests extends ESTestCase {
 
     @Test
     public void testVersionedAnalyzers() throws Exception {
+        String yaml = "/org/elasticsearch/index/analysis/test1.yml";
         Settings settings2 = settingsBuilder()
-                .loadFromClasspath("org/elasticsearch/index/analysis/test1.yml")
+                .loadFromStream(yaml, getClass().getResourceAsStream(yaml))
                 .put("path.home", createTempDir().toString())
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_0_90_0)
                 .build();

@@ -1,0 +1,129 @@
+=== CRUD and routing changes
+
+==== Explicit custom routing
+
+Custom `routing` values can no longer be extracted from the document body, but
+must be specified explicitly as part of the query string, or in the metadata
+line in the <<docs-bulk,`bulk`>> API.  See <<migration-meta-fields>> for an
+example.
+
+==== Routing hash function
+
+The default hash function that is used for routing has been changed from
+`djb2` to `murmur3`. This change should be transparent unless you relied on
+very specific properties of `djb2`. This will help ensure a better balance of
+the document counts between shards.
+
+In addition, the following routing-related node settings have been deprecated:
+
+`cluster.routing.operation.hash.type`::
+
+  This was an undocumented setting that allowed to configure which hash function
+  to use for routing. `murmur3` is now enforced on new indices.
+
+`cluster.routing.operation.use_type`::
+
+  This was an undocumented setting that allowed to take the `_type` of the
+  document into account when computing its shard (default: `false`). `false` is
+  now enforced on new indices.
+
+==== Delete API with custom routing
+
+The delete API used to be broadcast to all shards in the index which meant
+that, when using custom routing, the `routing` parameter was optional. Now,
+the delete request is forwarded only to the document holding the shard. If you
+are using custom routing then you should specify the `routing` value when
+deleting a document, just as is already required for the `index`, `create`,
+and `update` APIs.
+
+To make sure that you never forget a routing value, make routing required with
+the following mapping:
+
+[source,js]
+---------------------------
+PUT my_index
+{
+  "mappings": {
+    "my_type": {
+      "_routing": {
+        "required": true
+      }
+    }
+  }
+}
+---------------------------
+
+==== All stored meta-fields returned by default
+
+Previously, meta-fields like `_routing`, `_timestamp`, etc would only be
+included in a GET request if specifically requested with the `fields`
+parameter.  Now, all meta-fields which have stored values will be returned by
+default.  Additionally, they are now returned at the top level (along with
+`_index`, `_type`, and `_id`) instead of in the `fields` element.
+
+For instance, the following request:
+
+[source,sh]
+---------------
+GET /my_index/my_type/1
+---------------
+
+might return:
+
+[source,js]
+---------------
+{
+  "_index":     "my_index",
+  "_type":      "my_type",
+  "_id":        "1",
+  "_timestamp": 10000000, <1>,
+  "_source": {
+    "foo" : [ "bar" ]
+  }
+}
+---------------
+<1> The `_timestamp` is returned by default, and at the top level.
+
+
+==== Async replication
+
+The `replication` parameter has been removed from all CRUD operations
+(`index`, `create`,  `update`, `delete`, `bulk`) as it interfered with the
+<<indices-synced-flush,synced flush>> feature.  These operations are now
+synchronous only and a request will only return once the changes have been
+replicated to all active shards in the shard group.
+
+Instead, use more client processes to send more requests in parallel.
+
+==== Documents must be specified without a type wrapper
+
+Previously, the document body could be wrapped in another object with the name
+of the `type`:
+
+[source,js]
+--------------------------
+PUT my_index/my_type/1
+{
+  "my_type": { <1>
+    "text": "quick brown fox"
+  }
+}
+--------------------------
+<1> This `my_type` wrapper is not part of the document itself, but represents the document type.
+
+This feature was deprecated before but could be reenabled with the
+`mapping.allow_type_wrapper` index setting.  This setting is no longer
+supported.  The above document should be indexed as follows:
+
+[source,js]
+--------------------------
+PUT my_index/my_type/1
+{
+  "text": "quick brown fox"
+}
+--------------------------
+
+==== Term Vectors API
+
+Usage of `/_termvector` is deprecated in favor of `/_termvectors`.
+

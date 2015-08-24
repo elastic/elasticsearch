@@ -87,7 +87,7 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
                 // which is between 1 and 2 sec can cause each of the shard deletion requests to timeout.
                 // to prevent this we are setting the timeout here to something highish ie. the default in practice
                 .put(IndicesStore.INDICES_STORE_DELETE_SHARD_TIMEOUT, new TimeValue(30, TimeUnit.SECONDS))
-                .put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, MockTransportService.class.getName())
+                .extendArray("plugin.types", MockTransportService.TestPlugin.class.getName())
                 .build();
     }
 
@@ -327,7 +327,7 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
         waitNoPendingTasksOnAll();
         ClusterStateResponse stateResponse = client().admin().cluster().prepareState().get();
 
-        RoutingNode routingNode = stateResponse.getState().routingNodes().node(nonMasterId);
+        RoutingNode routingNode = stateResponse.getState().getRoutingNodes().node(nonMasterId);
         final int[] node2Shards = new int[routingNode.numberOfOwningShards()];
         int i = 0;
         for (ShardRouting shardRouting : routingNode) {

@@ -22,7 +22,6 @@ import com.google.common.collect.Maps;
 import org.apache.lucene.search.highlight.Encoder;
 import org.apache.lucene.search.vectorhighlight.*;
 import org.apache.lucene.search.vectorhighlight.FieldPhraseList.WeightedPhraseInfo;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -46,14 +45,8 @@ public class FastVectorHighlighter implements Highlighter {
     private static final String CACHE_KEY = "highlight-fsv";
     private final Boolean termVectorMultiValue;
 
-    @Inject
     public FastVectorHighlighter(Settings settings) {
         this.termVectorMultiValue = settings.getAsBoolean("search.highlight.term_vector_multi_value", true);
-    }
-
-    @Override
-    public String[] names() {
-        return new String[]{"fvh", "fast-vector-highlighter"};
     }
 
     @Override

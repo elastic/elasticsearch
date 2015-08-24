@@ -1,0 +1,69 @@
+[[analysis]]
+== Analysis Plugins
+
+Analysis plugins extend Elasticsearch by adding new analyzers, tokenizers,
+token filters, or character filters to Elasticsearch.
+
+[float]
+==== Core analysis plugins
+
+The core analysis plugins are:
+
+<<analysis-icu,ICU>>::
+
+Adds extended Unicode support using the http://site.icu-project.org/[ICU]
+libraries, including better analysis of Asian languages, Unicode
+normalization, Unicode-aware case folding, collation support, and
+transliteration.
+
+<<analysis-kuromoji,Kuromoji>>::
+
+Advanced analysis of Japanese using the http://www.atilika.org/[Kuromoji analyzer].
+
+<<analysis-phonetic,Phonetic>>::
+
+Analyzes tokens into their phonetic equivalent using Soundex, Metaphone,
+Caverphone, and other codecs.
+
+<<analysis-smartcn,SmartCN>>::
+
+An analyzer for Chinese or mixed Chinese-English text. This analyzer uses
+probabilistic knowledge to find the optimal word segmentation for Simplified
+Chinese text. The text is first broken into sentences, then each sentence is
+segmented into words.
+
+<<analysis-stempel,Stempel>>::
+
+Provides high quality stemming for Polish.
+
+[float]
+==== Community contributed analysis plugins
+
+A number of analysis plugins have been contributed by our community:
+
+* https://github.com/yakaz/elasticsearch-analysis-combo/[Combo Analysis Plugin] (by Olivier Favre, Yakaz)
+* https://github.com/synhershko/elasticsearch-analysis-hebrew[Hebrew Analysis Plugin] (by Itamar Syn-Hershko)
+* https://github.com/medcl/elasticsearch-analysis-ik[IK Analysis Plugin] (by Medcl)
+* https://github.com/medcl/elasticsearch-analysis-mmseg[Mmseg Analysis Plugin] (by Medcl)
+* https://github.com/chytreg/elasticsearch-analysis-morfologik[Morfologik (Polish) Analysis plugin] (by chytreg)
+* https://github.com/imotov/elasticsearch-analysis-morphology[Russian and English Morphological Analysis Plugin] (by Igor Motov)
+* https://github.com/medcl/elasticsearch-analysis-pinyin[Pinyin Analysis Plugin] (by Medcl)
+* https://github.com/duydo/elasticsearch-analysis-vietnamese[Vietnamese Analysis Plugin] (by Duy Do)
+
+These community plugins appear to have been abandoned:
+
+* https://github.com/barminator/elasticsearch-analysis-annotation[Annotation Analysis Plugin] (by Michal Samek)
+* https://github.com/medcl/elasticsearch-analysis-string2int[String2Integer Analysis Plugin] (by Medcl)
+
+include::analysis-icu.asciidoc[]
+
+include::analysis-kuromoji.asciidoc[]
+
+include::analysis-phonetic.asciidoc[]
+
+include::analysis-smartcn.asciidoc[]
+
+include::analysis-stempel.asciidoc[]
+
+
+

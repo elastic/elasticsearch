@@ -70,7 +70,7 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
         config.addCompilationCustomizers(imports);
         // Add BigDecimal -> Double transformer
         config.addCompilationCustomizers(new GroovyBigDecimalTransformer(CompilePhase.CONVERSION));
-        this.loader = new GroovyClassLoader(settings.getClassLoader(), config);
+        this.loader = new GroovyClassLoader(getClass().getClassLoader(), config);
     }
 
     @Override
@@ -167,6 +167,12 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
                     throw new ScriptException("failed to build search " + compiledScript, e);
                 }
                 return new GroovyScript(compiledScript, scriptObject, leafLookup, logger);
+            }
+
+            @Override
+            public boolean needsScores() {
+                // TODO: can we reliably know if a groovy script makes use of _score
+                return true;
             }
         };
     }

@@ -33,9 +33,6 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.junit.listeners.LoggingListener;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportModule;
-import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.transport.netty.NettyTransport;
-import org.junit.Ignore;
 
 import java.io.IOException;
 import java.lang.annotation.ElementType;
@@ -247,9 +244,10 @@ public abstract class ESBackcompatTestCase extends ESIntegTestCase {
     }
 
     protected Settings commonNodeSettings(int nodeOrdinal) {
-        Settings.Builder builder = Settings.builder().put(requiredSettings())
-                .put(TransportModule.TRANSPORT_TYPE_KEY, NettyTransport.class.getName()) // run same transport  / disco as external
-                .put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, TransportService.class.getName());
+        Settings.Builder builder = Settings.builder().put(requiredSettings());
+        builder.put(TransportModule.TRANSPORT_TYPE_KEY, "netty"); // run same transport  / disco as external
+        builder.put("node.mode", "network");
+
         if (compatibilityVersion().before(Version.V_1_3_2)) {
             // if we test against nodes before 1.3.2 we disable all the compression due to a known bug
             // see #7210

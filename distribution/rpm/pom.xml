@@ -5,14 +5,15 @@
     <modelVersion>4.0.0</modelVersion>
     <parent>
         <groupId>org.elasticsearch.distribution</groupId>
-        <artifactId>elasticsearch-distribution</artifactId>
-        <version>2.0.0-beta1-SNAPSHOT</version>
+        <artifactId>distributions</artifactId>
+        <version>2.1.0-SNAPSHOT</version>
     </parent>
 
     <groupId>org.elasticsearch.distribution.rpm</groupId>
     <artifactId>elasticsearch</artifactId>
-    <name>Elasticsearch RPM Distribution</name>
+    <name>Distribution: RPM</name>
     <packaging>rpm</packaging>
+    <description>The RPM distribution of Elasticsearch</description>
 
     <dependencies>
         <dependency>
@@ -105,6 +106,13 @@
                     <group>Application/Internet</group>
                     <packager>Elasticsearch</packager>
                     <prefix>/usr</prefix>
+                    <!-- To get rpm-maven-plugin to pickup targetOS you need
+                         to specify needarch too.... If you don't specify
+                         targetOS then it'll just use whatever the current
+                         machine's OS is which means you can't build rpms for
+                         linux on OSX even if you have rpmbuild.... -->
+                    <needarch>noarch</needarch>
+                    <targetOS>linux</targetOS>
                     <changelogFile>src/changelog</changelogFile>
                     <defineStatements>
                         <defineStatement>_unpackaged_files_terminate_build 0</defineStatement>
@@ -115,6 +123,7 @@
                     <defaultUsername>root</defaultUsername>
                     <defaultGroupname>root</defaultGroupname>
                     <icon>${project.basedir}/src/main/resources/logo/elastic.gif</icon>
+                    <description>Elasticsearch is a distributed RESTful search engine built for the cloud. Reference documentation can be found at https://www.elastic.co/guide/en/elasticsearch/reference/current/index.html and the 'Elasticsearch: The Definitive Guide' book can be found at https://www.elastic.co/guide/en/elasticsearch/guide/current/index.html</description>
                     <mappings>
                         <!-- Add bin directory -->
                         <mapping>
@@ -133,6 +142,15 @@
                         </mapping>
                         <!-- Add configuration files -->
                         <mapping>
+                            <!-- Explicitly add conf.dir to the file list so
+                                 that it is removed when the package is removed.
+                                 This is required because the scripts
+                                 subdirectory is created outside of the mapping
+                                 that creates the conf.dir.-->
+                            <directory>${packaging.elasticsearch.conf.dir}</directory>
+                            <configuration>noreplace</configuration>
+                        </mapping>
+                        <mapping>
                             <directory>${packaging.elasticsearch.conf.dir}/</directory>
                             <configuration>noreplace</configuration>
                             <sources>
@@ -143,6 +161,10 @@
                                     </includes>
                                 </source>
                             </sources>
+                        </mapping>
+                        <mapping>
+                            <directory>${packaging.elasticsearch.conf.dir}/scripts</directory>
+                            <configuration>noreplace</configuration>
                         </mapping>
                         <!-- Add environment vars file -->
                         <mapping>
@@ -327,7 +349,9 @@
                         <configuration>
                             <skip>${skip.integ.tests}</skip>
                             <target>
-                                <ant antfile="${elasticsearch.integ.antfile}" target="start-external-cluster-rpm"/>
+                                <ant antfile="${elasticsearch.integ.antfile}" target="start-external-cluster-rpm">
+                                    <property name="tests.jvm.argline" value="${tests.jvm.argline}"/>
+                                </ant>
                             </target>
                         </configuration>
                     </execution>

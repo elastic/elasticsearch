@@ -18,21 +18,41 @@
  */
 package org.elasticsearch.test.engine;
 
+import org.apache.lucene.index.FilterDirectoryReader;
+import org.elasticsearch.common.inject.BindingAnnotation;
+import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineFactory;
 
-/**
- *
- */
+import java.lang.annotation.Retention;
+import java.lang.annotation.Target;
+
+import static java.lang.annotation.ElementType.FIELD;
+import static java.lang.annotation.ElementType.PARAMETER;
+import static java.lang.annotation.RetentionPolicy.RUNTIME;
+
 public final class MockEngineFactory implements EngineFactory {
+    @BindingAnnotation
+    @Target({FIELD, PARAMETER})
+    @Retention(RUNTIME)
+    public @interface MockReaderType {
+    }
+
+    private Class<? extends FilterDirectoryReader> wrapper;
+
+    @Inject
+    public MockEngineFactory(@MockReaderType Class wrapper) {
+        this.wrapper = wrapper;
+    }
+
     @Override
     public Engine newReadWriteEngine(EngineConfig config, boolean skipTranslogRecovery) {
-        return new MockInternalEngine(config, skipTranslogRecovery);
+        return new MockInternalEngine(config, skipTranslogRecovery, wrapper);
     }
 
     @Override
     public Engine newReadOnlyEngine(EngineConfig config) {
-        return new MockShadowEngine(config);
+        return new MockShadowEngine(config, wrapper);
     }
 }

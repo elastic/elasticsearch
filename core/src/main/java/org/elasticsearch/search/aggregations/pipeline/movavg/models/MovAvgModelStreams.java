@@ -19,11 +19,12 @@
 
 package org.elasticsearch.search.aggregations.pipeline.movavg.models;
 
-import com.google.common.collect.ImmutableMap;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * A registry for all moving average models. This is needed for reading them from a stream without knowing which
@@ -31,7 +32,17 @@ import java.io.IOException;
  */
 public class MovAvgModelStreams {
 
-    private static ImmutableMap<String, Stream> STREAMS = ImmutableMap.of();
+    private static Map<String, Stream> STREAMS = Collections.EMPTY_MAP;
+
+    static {
+        HashMap<String, Stream> map = new HashMap<>();
+        map.put(SimpleModel.STREAM.getName(), SimpleModel.STREAM);
+        map.put(LinearModel.STREAM.getName(), LinearModel.STREAM);
+        map.put(EwmaModel.STREAM.getName(), EwmaModel.STREAM);
+        map.put(HoltLinearModel.STREAM.getName(), HoltLinearModel.STREAM);
+        map.put(HoltWintersModel.STREAM.getName(), HoltWintersModel.STREAM);
+        STREAMS = Collections.unmodifiableMap(map);
+    }
 
     public static MovAvgModel read(StreamInput in) throws IOException {
         return stream(in.readString()).readResult(in);
@@ -40,7 +51,7 @@ public class MovAvgModelStreams {
     /**
      * A stream that knows how to read an heuristic from the input.
      */
-    public static interface Stream {
+    public interface Stream {
 
         MovAvgModel readResult(StreamInput in) throws IOException;
 
@@ -51,14 +62,15 @@ public class MovAvgModelStreams {
      * Registers the given stream and associate it with the given types.
      *
      * @param stream The stream to register
-     * @param names  The names associated with the streams
      */
-    public static synchronized void registerStream(Stream stream, String... names) {
-        MapBuilder<String, Stream> uStreams = MapBuilder.newMapBuilder(STREAMS);
-        for (String name : names) {
-            uStreams.put(name, stream);
+    public static synchronized void registerStream(Stream stream) {
+        if (STREAMS.containsKey(stream.getName())) {
+            throw new IllegalArgumentException("Can't register stream with name [" + stream.getName() + "] more than once");
         }
-        STREAMS = uStreams.immutableMap();
+        HashMap<String, Stream> map = new HashMap<>();
+        map.putAll(STREAMS);
+        map.put(stream.getName(), stream);
+        STREAMS = Collections.unmodifiableMap(map);
     }
 
     /**
@@ -67,7 +79,7 @@ public class MovAvgModelStreams {
      * @param name The given name
      * @return The associated stream
      */
-    public static Stream stream(String name) {
+    public static synchronized Stream stream(String name) {
         return STREAMS.get(name);
     }
 

@@ -75,36 +75,25 @@ public class ScriptModule extends AbstractModule {
             scriptsBinder.addBinding(entry.getKey()).to(entry.getValue()).asEagerSingleton();
         }
 
-        // now, check for config based ones
-        Map<String, Settings> nativeSettings = settings.getGroups("script.native");
-        for (Map.Entry<String, Settings> entry : nativeSettings.entrySet()) {
-            String name = entry.getKey();
-            Class<? extends NativeScriptFactory> type = entry.getValue().getAsClass("type", NativeScriptFactory.class);
-            if (type == NativeScriptFactory.class) {
-                throw new IllegalArgumentException("type is missing for native script [" + name + "]");
-            }
-            scriptsBinder.addBinding(name).to(type).asEagerSingleton();
-        }
-
         Multibinder<ScriptEngineService> multibinder = Multibinder.newSetBinder(binder(), ScriptEngineService.class);
         multibinder.addBinding().to(NativeScriptEngineService.class);
 
         try {
-            settings.getClassLoader().loadClass("groovy.lang.GroovyClassLoader");
+            Class.forName("groovy.lang.GroovyClassLoader");
             multibinder.addBinding().to(GroovyScriptEngineService.class).asEagerSingleton();
         } catch (Throwable t) {
             Loggers.getLogger(ScriptService.class, settings).debug("failed to load groovy", t);
         }
         
         try {
-            settings.getClassLoader().loadClass("com.github.mustachejava.Mustache");
+            Class.forName("com.github.mustachejava.Mustache");
             multibinder.addBinding().to(MustacheScriptEngineService.class).asEagerSingleton();
         } catch (Throwable t) {
             Loggers.getLogger(ScriptService.class, settings).debug("failed to load mustache", t);
         }
 
         try {
-            settings.getClassLoader().loadClass("org.apache.lucene.expressions.Expression");
+            Class.forName("org.apache.lucene.expressions.Expression");
             multibinder.addBinding().to(ExpressionScriptEngineService.class).asEagerSingleton();
         } catch (Throwable t) {
             Loggers.getLogger(ScriptService.class, settings).debug("failed to load lucene expressions", t);

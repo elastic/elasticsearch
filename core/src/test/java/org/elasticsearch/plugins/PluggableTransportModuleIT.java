@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.AssertingLocalTransport;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -49,6 +50,7 @@ public class PluggableTransportModuleIT extends ESIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         return settingsBuilder()
                 .put(super.nodeSettings(nodeOrdinal))
+                .put(DiscoveryModule.DISCOVERY_TYPE_KEY, "local")
                 .put("plugin.types", CountingSentRequestsPlugin.class.getName())
                 .build();
     }
@@ -73,7 +75,7 @@ public class PluggableTransportModuleIT extends ESIntegTestCase {
         assertThat("Expected send request counter to be greather than zero", countAfterRequest, is(greaterThan(countBeforeRequest)));
     }
 
-    public static class CountingSentRequestsPlugin extends AbstractPlugin {
+    public static class CountingSentRequestsPlugin extends Plugin {
         @Override
         public String name() {
             return "counting-pipelines-plugin";

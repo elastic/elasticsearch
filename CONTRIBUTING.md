@@ -6,7 +6,7 @@ Elasticsearch is an open source project and we love to receive contributions fro
 Bug reports
 -----------
 
-If you think you have found a bug in Elasticsearch, first make sure that you are testing against the [latest version of Elasticsearch](https://www.elastic.co/downloads/elasticsearch) - your issue may already have been fixed. If not, search our [issues list](https://github.com/elasticsearch/elasticsearch/issues) on GitHub in case a similar issue has already been opened.
+If you think you have found a bug in Elasticsearch, first make sure that you are testing against the [latest version of Elasticsearch](https://www.elastic.co/downloads/elasticsearch) - your issue may already have been fixed. If not, search our [issues list](https://github.com/elastic/elasticsearch/issues) on GitHub in case a similar issue has already been opened.
 
 It is very helpful if you can prepare a reproduction of the bug. In other words, provide a small test case which we can run to confirm your bug. It makes it easier to find the problem and to fix it. Test cases should be provided as `curl` commands which we can copy and paste into a terminal to run it locally, for example:
 
@@ -29,7 +29,7 @@ Feature requests
 ----------------
 
 If you find yourself wishing for a feature that doesn't exist in Elasticsearch, you are probably not alone. There are bound to be others out there with similar needs. Many of the features that Elasticsearch has today have been added because our users saw the need.
-Open an issue on our [issues list](https://github.com/elasticsearch/elasticsearch/issues) on GitHub which describes the feature you would like to see, why you need it, and how it should work.
+Open an issue on our [issues list](https://github.com/elastic/elasticsearch/issues) on GitHub which describes the feature you would like to see, why you need it, and how it should work.
 
 Contributing code and documentation changes
 -------------------------------------------
@@ -38,7 +38,7 @@ If you have a bugfix or new feature that you would like to contribute to Elastic
 
 We enjoy working with contributors to get their code accepted. There are many approaches to fixing a problem and it is important to find the best approach before writing too much code.
 
-The process for contributing to any of the [Elasticsearch repositories](https://github.com/elasticsearch/) is similar. Details for individual projects can be found below.
+The process for contributing to any of the [Elastic repositories](https://github.com/elastic/) is similar. Details for individual projects can be found below.
 
 ### Fork and clone the repository
 
@@ -58,7 +58,7 @@ Once your changes and tests are ready to submit for review:
 
 2. Sign the Contributor License Agreement
 
-    Please make sure you have signed our [Contributor License Agreement](http://www.elasticsearch.org/contributor-agreement/). We are not asking you to assign copyright to us, but to give us the right to distribute your code without restriction. We ask this of all contributors in order to assure our users of the origin and continuing existence of the code. You only need to sign the CLA once.
+    Please make sure you have signed our [Contributor License Agreement](https://www.elastic.co/contributor-agreement/). We are not asking you to assign copyright to us, but to give us the right to distribute your code without restriction. We ask this of all contributors in order to assure our users of the origin and continuing existence of the code. You only need to sign the CLA once.
 
 3. Rebase your changes
 
@@ -74,7 +74,7 @@ Then sit back and wait. There will probably be discussion about the pull request
 Contributing to the Elasticsearch codebase
 ------------------------------------------
 
-**Repository:** [https://github.com/elasticsearch/elasticsearch](https://github.com/elasticsearch/elasticsearch)
+**Repository:** [https://github.com/elasticsearch/elasticsearch](https://github.com/elastic/elasticsearch)
 
 Make sure you have [Maven](http://maven.apache.org) installed, as Elasticsearch uses it as its build system. Integration with IntelliJ and Eclipse should work out of the box. Eclipse users can automatically configure their IDE by running `mvn eclipse:eclipse` and then importing the project into their workspace: `File > Import > Existing project into workspace`.
 
@@ -103,4 +103,4 @@ Before submitting your changes, run the test suite to make sure that nothing is 
 mvn clean test -Dtests.slow=true
 ```
 
-Source: [Contributing to elasticsearch](http://www.elasticsearch.org/contributing-to-elasticsearch/)
+Source: [Contributing to elasticsearch](https://www.elastic.co/contributing-to-elasticsearch/)

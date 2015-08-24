@@ -20,6 +20,7 @@
 package org.elasticsearch.search.aggregations.support.format;
 
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
+import org.joda.time.DateTimeZone;
 
 /**
  *
@@ -67,21 +68,21 @@ public class ValueFormat {
 
         public static final DateTime DEFAULT = new DateTime(DateFieldMapper.Defaults.DATE_TIME_FORMATTER.format(), ValueFormatter.DateTime.DEFAULT, ValueParser.DateMath.DEFAULT);
 
-        public static DateTime format(String format) {
-            return new DateTime(format, new ValueFormatter.DateTime(format), new ValueParser.DateMath(format));
+        public static DateTime format(String format, DateTimeZone timezone) {
+            return new DateTime(format, new ValueFormatter.DateTime(format, timezone), new ValueParser.DateMath(format, timezone));
         }
 
-        public static DateTime mapper(DateFieldMapper.DateFieldType fieldType) {
-            return new DateTime(fieldType.dateTimeFormatter().format(), ValueFormatter.DateTime.mapper(fieldType), ValueParser.DateMath.mapper(fieldType));
+        public static DateTime mapper(DateFieldMapper.DateFieldType fieldType, DateTimeZone timezone) {
+            return new DateTime(fieldType.dateTimeFormatter().format(), ValueFormatter.DateTime.mapper(fieldType, timezone), ValueParser.DateMath.mapper(fieldType, timezone));
         }
 
-        public DateTime(String pattern, ValueFormatter formatter, ValueParser parser) {
+        private DateTime(String pattern, ValueFormatter formatter, ValueParser parser) {
             super(pattern, formatter, parser);
         }
 
         @Override
         public DateTime create(String pattern) {
-            return format(pattern);
+            return format(pattern, DateTimeZone.UTC);
         }
     }
 

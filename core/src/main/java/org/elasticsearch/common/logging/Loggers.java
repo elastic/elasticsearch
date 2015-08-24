@@ -20,6 +20,7 @@
 package org.elasticsearch.common.logging;
 
 import com.google.common.collect.Lists;
+import org.apache.lucene.util.SuppressForbidden;
 import org.elasticsearch.common.Classes;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
@@ -74,20 +75,28 @@ public class Loggers {
         return getLogger(buildClassLoggerName(clazz), settings, prefixes);
     }
 
+    @SuppressForbidden(reason = "using localhost for logging on which host it is is fine")
+    private static InetAddress getHostAddress() {
+        try {
+            return InetAddress.getLocalHost();
+        } catch (UnknownHostException e) {
+            return null;
+        }
+    }
+
+    @SuppressForbidden(reason = "do not know what this method does")
     public static ESLogger getLogger(String loggerName, Settings settings, String... prefixes) {
         List<String> prefixesList = newArrayList();
         if (settings.getAsBoolean("logger.logHostAddress", false)) {
-            try {
-                prefixesList.add(InetAddress.getLocalHost().getHostAddress());
-            } catch (UnknownHostException e) {
-                // ignore
+            final InetAddress addr = getHostAddress();
+            if (addr != null) {
+                prefixesList.add(addr.getHostAddress());
             }
         }
         if (settings.getAsBoolean("logger.logHostName", false)) {
-            try {
-                prefixesList.add(InetAddress.getLocalHost().getHostName());
-            } catch (UnknownHostException e) {
-                // ignore
+            final InetAddress addr = getHostAddress();
+            if (addr != null) {
+                prefixesList.add(addr.getHostName());
             }
         }
         String name = settings.get("name");

@@ -23,13 +23,17 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.client.transport.TransportClient;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.junit.annotations.Network;
+import org.elasticsearch.test.transport.AssertingLocalTransport;
+import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportModule;
 import org.junit.Test;
 
+import java.net.InetAddress;
 import java.util.Locale;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
@@ -49,27 +53,27 @@ public class NettyTransportMultiPortIntegrationIT extends ESIntegTestCase {
             randomPort = randomIntBetween(49152, 65525);
             randomPortRange = String.format(Locale.ROOT, "%s-%s", randomPort, randomPort+10);
         }
-        return settingsBuilder()
+        Settings.Builder builder = settingsBuilder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put("network.host", "127.0.0.1")
-                .put(TransportModule.TRANSPORT_TYPE_KEY, NettyTransport.class.getName())
+                .put(TransportModule.TRANSPORT_TYPE_KEY, "netty")
                 .put("node.mode", "network")
                 .put("transport.profiles.client1.port", randomPortRange)
                 .put("transport.profiles.client1.publish_host", "127.0.0.7")
                 .put("transport.profiles.client1.publish_port", "4321")
-                .put("transport.profiles.client1.reuse_address", true)
-                .build();
+                .put("transport.profiles.client1.reuse_address", true);
+        return builder.build();
     }
 
     @Test
     public void testThatTransportClientCanConnect() throws Exception {
         Settings settings = settingsBuilder()
                 .put("cluster.name", internalCluster().getClusterName())
-                .put(TransportModule.TRANSPORT_TYPE_KEY, NettyTransport.class.getName())
+                .put(TransportModule.TRANSPORT_TYPE_KEY, "netty")
                 .put("path.home", createTempDir().toString())
                 .build();
         try (TransportClient transportClient = TransportClient.builder().settings(settings).loadConfigSettings(false).build()) {
-            transportClient.addTransportAddress(new InetSocketTransportAddress("127.0.0.1", randomPort));
+            transportClient.addTransportAddress(new InetSocketTransportAddress(InetAddress.getByName("127.0.0.1"), randomPort));
             ClusterHealthResponse response = transportClient.admin().cluster().prepareHealth().get();
             assertThat(response.getStatus(), is(ClusterHealthStatus.GREEN));
         }
@@ -91,7 +95,7 @@ public class NettyTransportMultiPortIntegrationIT extends ESIntegTestCase {
             // publish address
             assertThat(nodeInfo.getTransport().getProfileAddresses().get("client1").publishAddress(), instanceOf(InetSocketTransportAddress.class));
             InetSocketTransportAddress publishAddress = (InetSocketTransportAddress) nodeInfo.getTransport().getProfileAddresses().get("client1").publishAddress();
-            assertThat(publishAddress.address().getHostName(), is("127.0.0.7"));
+            assertThat(NetworkAddress.formatAddress(publishAddress.address().getAddress()), is("127.0.0.7"));
             assertThat(publishAddress.address().getPort(), is(4321));
         }
     }

@@ -36,6 +36,11 @@ public class NativeConstantScoreScript extends AbstractSearchScript {
         public ExecutableScript newScript(@Nullable Map<String, Object> params) {
             return new NativeConstantScoreScript();
         }
+
+        @Override
+        public boolean needsScores() {
+            return false;
+        }
     }
 
     private NativeConstantScoreScript() {

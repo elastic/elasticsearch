@@ -19,45 +19,7 @@
 
 package org.elasticsearch.action;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.ValidationException;
 
-
-import java.util.ArrayList;
-import java.util.List;
-
-/**
- *
- */
-public class ActionRequestValidationException extends IllegalArgumentException {
-
-    private final List<String> validationErrors = new ArrayList<>();
-
-    public ActionRequestValidationException() {
-        super("validation failed");
-    }
-
-    public void addValidationError(String error) {
-        validationErrors.add(error);
-    }
-
-    public void addValidationErrors(Iterable<String> errors) {
-        for (String error : errors) {
-            validationErrors.add(error);
-        }
-    }
-
-    public List<String> validationErrors() {
-        return validationErrors;
-    }
-
-    @Override
-    public String getMessage() {
-        StringBuilder sb = new StringBuilder();
-        sb.append("Validation Failed: ");
-        int index = 0;
-        for (String error : validationErrors) {
-            sb.append(++index).append(": ").append(error).append(";");
-        }
-        return sb.toString();
-    }
+public class ActionRequestValidationException extends ValidationException {
 }

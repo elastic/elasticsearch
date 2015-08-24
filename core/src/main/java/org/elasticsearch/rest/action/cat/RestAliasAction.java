@@ -49,7 +49,7 @@ public class RestAliasAction extends AbstractCatAction {
 
 
     @Override
-    void doRequest(final RestRequest request, final RestChannel channel, final Client client) {
+    protected void doRequest(final RestRequest request, final RestChannel channel, final Client client) {
         final GetAliasesRequest getAliasesRequest = request.hasParam("alias") ?
                 new GetAliasesRequest(request.param("alias")) :
                 new GetAliasesRequest();
@@ -65,13 +65,13 @@ public class RestAliasAction extends AbstractCatAction {
     }
 
     @Override
-    void documentation(StringBuilder sb) {
+    protected void documentation(StringBuilder sb) {
         sb.append("/_cat/aliases\n");
         sb.append("/_cat/aliases/{alias}\n");
     }
 
     @Override
-    Table getTableWithHeader(RestRequest request) {
+    protected Table getTableWithHeader(RestRequest request) {
         final Table table = new Table();
         table.startHeaders();
         table.addCell("alias", "alias:a;desc:alias name");

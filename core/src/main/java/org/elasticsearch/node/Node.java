@@ -23,7 +23,6 @@ import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
-import org.elasticsearch.cache.recycler.PageCacheRecyclerModule;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.node.NodeClientModule;
 import org.elasticsearch.cluster.ClusterModule;
@@ -36,6 +35,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Injector;
+import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
@@ -44,7 +44,6 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
-import org.elasticsearch.common.util.BigArraysModule;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.DiscoveryService;
@@ -71,7 +70,6 @@ import org.elasticsearch.monitor.MonitorModule;
 import org.elasticsearch.monitor.MonitorService;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
-import org.elasticsearch.node.internal.NodeModule;
 import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.percolator.PercolatorModule;
 import org.elasticsearch.percolator.PercolatorService;
@@ -161,10 +159,12 @@ public class Node implements Releasable {
         try {
             ModulesBuilder modules = new ModulesBuilder();
             modules.add(new Version.Module(version));
-            modules.add(new PageCacheRecyclerModule(settings));
             modules.add(new CircuitBreakerModule(settings));
-            modules.add(new BigArraysModule(settings));
-            modules.add(new PluginsModule(settings, pluginsService));
+            // plugin modules must be added here, before others or we can get crazy injection errors...
+            for (Module pluginModule : pluginsService.nodeModules()) {
+                modules.add(pluginModule);
+            }
+            modules.add(new PluginsModule(pluginsService));
             modules.add(new SettingsModule(settings));
             modules.add(new NodeModule(this));
             modules.add(new NetworkModule());
@@ -191,6 +191,9 @@ public class Node implements Releasable {
             modules.add(new ResourceWatcherModule());
             modules.add(new RepositoriesModule());
             modules.add(new TribeModule());
+
+
+            pluginsService.processModules(modules);
 
             injector = modules.createInjector();
 
@@ -235,7 +238,7 @@ public class Node implements Releasable {
         // hack around dependency injection problem (for now...)
         injector.getInstance(Discovery.class).setRoutingService(injector.getInstance(RoutingService.class));
 
-        for (Class<? extends LifecycleComponent> plugin : pluginsService.services()) {
+        for (Class<? extends LifecycleComponent> plugin : pluginsService.nodeServices()) {
             injector.getInstance(plugin).start();
         }
 
@@ -302,7 +305,7 @@ public class Node implements Releasable {
         injector.getInstance(RestController.class).stop();
         injector.getInstance(TransportService.class).stop();
 
-        for (Class<? extends LifecycleComponent> plugin : pluginsService.services()) {
+        for (Class<? extends LifecycleComponent> plugin : pluginsService.nodeServices()) {
             injector.getInstance(plugin).stop();
         }
         // we should stop this last since it waits for resources to get released
@@ -369,7 +372,7 @@ public class Node implements Releasable {
         stopWatch.stop().start("percolator_service");
         injector.getInstance(PercolatorService.class).close();
 
-        for (Class<? extends LifecycleComponent> plugin : pluginsService.services()) {
+        for (Class<? extends LifecycleComponent> plugin : pluginsService.nodeServices()) {
             stopWatch.stop().start("plugin(" + plugin.getName() + ")");
             injector.getInstance(plugin).close();
         }

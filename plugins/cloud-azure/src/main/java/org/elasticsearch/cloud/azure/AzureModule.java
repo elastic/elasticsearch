@@ -23,9 +23,11 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cloud.azure.management.AzureComputeService;
 import org.elasticsearch.cloud.azure.management.AzureComputeService.Management;
 import org.elasticsearch.cloud.azure.management.AzureComputeServiceImpl;
+import org.elasticsearch.cloud.azure.management.AzureComputeSettingsFilter;
 import org.elasticsearch.cloud.azure.storage.AzureStorageService;
 import org.elasticsearch.cloud.azure.storage.AzureStorageService.Storage;
 import org.elasticsearch.cloud.azure.storage.AzureStorageServiceImpl;
+import org.elasticsearch.cloud.azure.storage.AzureStorageSettingsFilter;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Inject;
@@ -51,6 +53,18 @@ public class AzureModule extends AbstractModule {
     protected final ESLogger logger;
     private Settings settings;
 
+    // pkg private so it is settable by tests
+    static Class<? extends AzureComputeService> computeServiceImpl = AzureComputeServiceImpl.class;
+    static Class<? extends AzureStorageService> storageServiceImpl = AzureStorageServiceImpl.class;
+
+    public static Class<? extends AzureComputeService> getComputeServiceImpl() {
+        return computeServiceImpl;
+    }
+
+    public static Class<? extends AzureStorageService> getStorageServiceImpl() {
+        return storageServiceImpl;
+    }
+
     @Inject
     public AzureModule(Settings settings) {
         this.settings = settings;
@@ -60,21 +74,19 @@ public class AzureModule extends AbstractModule {
     @Override
     protected void configure() {
         logger.debug("starting azure services");
+        bind(AzureStorageSettingsFilter.class).asEagerSingleton();
+        bind(AzureComputeSettingsFilter.class).asEagerSingleton();
 
         // If we have set discovery to azure, let's start the azure compute service
         if (isDiscoveryReady(settings, logger)) {
             logger.debug("starting azure discovery service");
-            bind(AzureComputeService.class)
-                    .to(settings.getAsClass(Management.API_IMPLEMENTATION, AzureComputeServiceImpl.class))
-                    .asEagerSingleton();
+            bind(AzureComputeService.class).to(computeServiceImpl).asEagerSingleton();
         }
 
         // If we have settings for azure repository, let's start the azure storage service
         if (isSnapshotReady(settings, logger)) {
             logger.debug("starting azure repository service");
-            bind(AzureStorageService.class)
-                .to(settings.getAsClass(Storage.API_IMPLEMENTATION, AzureStorageServiceImpl.class))
-                .asEagerSingleton();
+            bind(AzureStorageService.class).to(storageServiceImpl).asEagerSingleton();
         }
     }
 

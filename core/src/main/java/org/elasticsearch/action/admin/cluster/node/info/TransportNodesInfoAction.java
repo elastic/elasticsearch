@@ -80,7 +80,7 @@ public class TransportNodesInfoAction extends TransportNodesAction<NodesInfoRequ
     protected NodeInfo nodeOperation(NodeInfoRequest nodeRequest) {
         NodesInfoRequest request = nodeRequest.request;
         return nodeService.info(request.settings(), request.os(), request.process(), request.jvm(), request.threadPool(),
-                request.network(), request.transport(), request.http(), request.plugins());
+                request.transport(), request.http(), request.plugins());
     }
 
     @Override

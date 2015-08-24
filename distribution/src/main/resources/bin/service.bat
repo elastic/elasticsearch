@@ -13,7 +13,15 @@ if not exist "%JAVA_HOME%\bin\java.exe" (
 echo JAVA_HOME points to an invalid Java installation (no java.exe found in "%JAVA_HOME%"^). Exiting...
 goto:eof
 )
-"%JAVA_HOME%\bin\java" -version 2>&1 | "%windir%\System32\find" "64-Bit" >nul:
+
+"%JAVA_HOME%\bin\java" -Xmx50M -version > nul 2>&1
+
+if errorlevel 1 (
+	echo Warning: Could not start JVM to detect version, defaulting to x86:
+	goto x86
+)
+
+"%JAVA_HOME%\bin\java" -Xmx50M -version 2>&1 | "%windir%\System32\find" "64-Bit" >nul:
 
 if errorlevel 1 goto x86
 set EXECUTABLE=%ES_HOME%\bin\elasticsearch-service-x64.exe

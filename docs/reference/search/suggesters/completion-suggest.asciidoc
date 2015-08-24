@@ -132,7 +132,7 @@ POST music/_suggest?pretty
   "song-suggest" : [ {
     "text" : "n",
     "offset" : 0,
-    "length" : 4,
+    "length" : 1,
     "options" : [ {
       "text" : "Nirvana",
       "score" : 34.0

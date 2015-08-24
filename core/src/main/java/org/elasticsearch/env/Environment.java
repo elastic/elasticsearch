@@ -19,6 +19,7 @@
 
 package org.elasticsearch.env;
 
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
@@ -56,6 +57,8 @@ public class Environment {
     private final Path scriptsFile;
 
     private final Path pluginsFile;
+
+    private final Path sharedDataFile;
 
     /** location of bin/, used by plugin manager */
     private final Path binFile;
@@ -126,6 +129,11 @@ public class Environment {
             dataFiles = new Path[]{homeFile.resolve("data")};
             dataWithClusterFiles = new Path[]{homeFile.resolve("data").resolve(ClusterName.clusterNameFromSettings(settings).value())};
         }
+        if (settings.get("path.shared_data") != null) {
+            sharedDataFile = PathUtils.get(cleanPath(settings.get("path.shared_data")));
+        } else {
+            sharedDataFile = null;
+        }
         String[] repoPaths = settings.getAsArray("path.repo");
         if (repoPaths.length > 0) {
             repoFiles = new Path[repoPaths.length];
@@ -163,6 +171,13 @@ public class Environment {
      */
     public Path[] dataFiles() {
         return dataFiles;
+    }
+
+    /**
+     * The shared data location
+     */
+    public Path sharedDataFile() {
+        return sharedDataFile;
     }
 
     /**
@@ -288,34 +303,37 @@ public class Environment {
      *   <li>Only requires the security permissions of {@link Files#getFileStore(Path)},
      *       no permissions to the actual mount point are required.
      *   <li>Exception handling has the same semantics as {@link Files#getFileStore(Path)}.
+     *   <li>Works around https://bugs.openjdk.java.net/browse/JDK-8034057.
      * </ul>
      */
-    public FileStore getFileStore(Path path) throws IOException {
+    public static FileStore getFileStore(Path path) throws IOException {
         return ESFileStore.getMatchingFileStore(path, fileStores);
     }
+    
+    /**
+     * Returns true if the path is writable.
+     * Acts just like {@link Files#isWritable(Path)}, except won't
+     * falsely return false for paths on SUBST'd drive letters
+     * See https://bugs.openjdk.java.net/browse/JDK-8034057
+     * Note this will set the file modification time (to its already-set value)
+     * to test access.
+     */
+    @SuppressForbidden(reason = "works around https://bugs.openjdk.java.net/browse/JDK-8034057")
+    public static boolean isWritable(Path path) throws IOException {
+        boolean v = Files.isWritable(path);
+        if (v || Constants.WINDOWS == false) {
+            return v;
+        }
 
-    public URL resolveConfig(String path) throws FailedToResolveConfigException {
-        // first, try it as a path in the config directory
-        Path f = configFile.resolve(path);
-        if (Files.exists(f)) {
-            try {
-                return f.toUri().toURL();
-            } catch (MalformedURLException e) {
-                throw new FailedToResolveConfigException("Failed to resolve path [" + f + "]", e);
-            }
+        // isWritable returned false on windows, the hack begins!!!!!!
+        // resetting the modification time is the least destructive/simplest
+        // way to check for both files and directories, and fails early just
+        // in getting the current value if file doesn't exist, etc
+        try {
+            Files.setLastModifiedTime(path, Files.getLastModifiedTime(path));
+            return true;
+        } catch (Throwable e) {
+            return false;
         }
-        // try and load it from the classpath directly
-        URL resource = settings.getClassLoader().getResource(path);
-        if (resource != null) {
-            return resource;
-        }
-        // try and load it from the classpath with config/ prefix
-        if (!path.startsWith("config/")) {
-            resource = settings.getClassLoader().getResource("config/" + path);
-            if (resource != null) {
-                return resource;
-            }
-        }
-        throw new FailedToResolveConfigException("Failed to resolve config path [" + path + "], tried config path [" + f + "] and classpath");
     }
 }

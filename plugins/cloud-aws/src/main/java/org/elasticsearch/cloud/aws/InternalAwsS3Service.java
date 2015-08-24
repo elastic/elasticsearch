@@ -55,8 +55,8 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent<AwsS3Servic
     @Override
     public synchronized AmazonS3 client() {
         String endpoint = getDefaultEndpoint();
-        String account = settings.get("cloud.aws.access_key", settings.get("cloud.account"));
-        String key = settings.get("cloud.aws.secret_key", settings.get("cloud.key"));
+        String account = settings.get("cloud.aws.access_key");
+        String key = settings.get("cloud.aws.secret_key");
 
         return getClient(endpoint, null, account, key, null);
     }
@@ -75,8 +75,8 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent<AwsS3Servic
             endpoint = getDefaultEndpoint();
         }
         if (account == null || key == null) {
-            account = settings.get("cloud.aws.access_key", settings.get("cloud.account"));
-            key = settings.get("cloud.aws.secret_key", settings.get("cloud.key"));
+            account = settings.get("cloud.aws.access_key");
+            key = settings.get("cloud.aws.secret_key");
         }
 
         return getClient(endpoint, protocol, account, key, maxRetries);

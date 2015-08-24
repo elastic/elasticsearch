@@ -110,21 +110,21 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
                 List<String> conflicts = new ArrayList<>();
                 ref.get().checkTypeName(fieldMapper.fieldType(), conflicts);
                 if (conflicts.isEmpty()) { // only check compat if they are the same type
-                    boolean strict = ref.getNumAssociatedMappers() > 1 && updateAllTypes == false;
+                    boolean strict = updateAllTypes == false;
                     ref.get().checkCompatibility(fieldMapper.fieldType(), conflicts, strict);
                 }
                 if (conflicts.isEmpty() == false) {
-                    throw new IllegalArgumentException("Mapper for [" + fieldMapper.fieldType().names().fullName() + "] conflicts with existing mapping in other types" + conflicts.toString());
+                    throw new IllegalArgumentException("Mapper for [" + fieldMapper.fieldType().names().fullName() + "] conflicts with existing mapping in other types:\n" + conflicts.toString());
                 }
             }
 
             // field type for the index name must be compatible too
-            MappedFieldTypeReference indexNameRef = fullNameToFieldType.get(fieldMapper.fieldType().names().indexName());
+            MappedFieldTypeReference indexNameRef = indexNameToFieldType.get(fieldMapper.fieldType().names().indexName());
             if (indexNameRef != null) {
                 List<String> conflicts = new ArrayList<>();
-                ref.get().checkTypeName(fieldMapper.fieldType(), conflicts);
+                indexNameRef.get().checkTypeName(fieldMapper.fieldType(), conflicts);
                 if (conflicts.isEmpty()) { // only check compat if they are the same type
-                    boolean strict = indexNameRef.getNumAssociatedMappers() > 1 && updateAllTypes == false;
+                    boolean strict = updateAllTypes == false;
                     indexNameRef.get().checkCompatibility(fieldMapper.fieldType(), conflicts, strict);
                 }
                 if (conflicts.isEmpty() == false) {

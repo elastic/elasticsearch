@@ -18,30 +18,33 @@
  */
 package org.elasticsearch.test;
 
-import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterInfoService;
+import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNode;
-import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocators;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
-import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecidersModule;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.test.gateway.NoopGatewayAllocator;
 import org.elasticsearch.node.settings.NodeSettingsService;
+import org.elasticsearch.test.gateway.NoopGatewayAllocator;
 
 import java.lang.reflect.Constructor;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
 
 import static com.google.common.collect.Lists.newArrayList;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
@@ -61,7 +64,7 @@ public abstract class ESAllocationTestCase extends ESTestCase {
     }
 
     public static AllocationService createAllocationService(Settings settings, Random random) {
-        return createAllocationService(settings,  new NodeSettingsService(Settings.Builder.EMPTY_SETTINGS), random);
+        return createAllocationService(settings, new NodeSettingsService(Settings.Builder.EMPTY_SETTINGS), random);
     }
 
     public static AllocationService createAllocationService(Settings settings, NodeSettingsService nodeSettingsService, Random random) {
@@ -70,11 +73,18 @@ public abstract class ESAllocationTestCase extends ESTestCase {
                 new ShardsAllocators(settings, NoopGatewayAllocator.INSTANCE), EmptyClusterInfoService.INSTANCE);
     }
 
+    public static AllocationService createAllocationService(Settings settings, ClusterInfoService clusterInfoService) {
+        return new AllocationService(settings,
+                randomAllocationDeciders(settings, new NodeSettingsService(Settings.Builder.EMPTY_SETTINGS), getRandom()),
+                new ShardsAllocators(settings, NoopGatewayAllocator.INSTANCE), clusterInfoService);
+    }
+
+
 
     public static AllocationDeciders randomAllocationDeciders(Settings settings, NodeSettingsService nodeSettingsService, Random random) {
-        final ImmutableSet<Class<? extends AllocationDecider>> defaultAllocationDeciders = AllocationDecidersModule.DEFAULT_ALLOCATION_DECIDERS;
+        final List<Class<? extends AllocationDecider>> defaultAllocationDeciders = ClusterModule.DEFAULT_ALLOCATION_DECIDERS;
         final List<AllocationDecider> list = new ArrayList<>();
-        for (Class<? extends AllocationDecider> deciderClass : defaultAllocationDeciders) {
+        for (Class<? extends AllocationDecider> deciderClass : ClusterModule.DEFAULT_ALLOCATION_DECIDERS) {
             try {
                 try {
                     Constructor<? extends AllocationDecider> constructor = deciderClass.getConstructor(Settings.class, NodeSettingsService.class);
@@ -118,7 +128,7 @@ public abstract class ESAllocationTestCase extends ESTestCase {
     }
 
     public static ClusterState startRandomInitializingShard(ClusterState clusterState, AllocationService strategy) {
-        List<ShardRouting> initializingShards = clusterState.routingNodes().shardsWithState(INITIALIZING);
+        List<ShardRouting> initializingShards = clusterState.getRoutingNodes().shardsWithState(INITIALIZING);
         if (initializingShards.isEmpty()) {
             return clusterState;
         }

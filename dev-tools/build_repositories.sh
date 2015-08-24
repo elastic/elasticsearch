@@ -158,7 +158,7 @@ mkdir -p $centosdir
 echo "RPM: Syncing repository for version $version into $centosdir"
 $s3cmd sync s3://$S3_BUCKET_SYNC_FROM/elasticsearch/$version/centos/ $centosdir
 
-rpm=distribution/rpm/target/releases/signed/elasticsearch*.rpm
+rpm=distribution/rpm/target/releases/elasticsearch*.rpm
 echo "RPM: Copying signed $rpm into $centosdir"
 cp $rpm $centosdir
 

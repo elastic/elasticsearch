@@ -51,7 +51,7 @@ Elasticsearch 2.0.  Upgrading will:
 
 * Rewrite old segments in the latest Lucene format.
 * Add the `index.version.minimum_compatible` setting to the index, to mark it as
-  2.0 compatible coming[1.6.0].
+  2.0 compatible
 
 Instead of upgrading all segments that weren't written with the most recent
 version of Lucene, you can choose to do the minimum work required before

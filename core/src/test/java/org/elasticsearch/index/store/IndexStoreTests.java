@@ -28,6 +28,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.Locale;
 
 /**
  */
@@ -37,7 +38,7 @@ public class IndexStoreTests extends ESTestCase {
         final Path tempDir = createTempDir();
         final IndexStoreModule.Type[] values = IndexStoreModule.Type.values();
         final IndexStoreModule.Type type = RandomPicks.randomFrom(random(), values);
-        Settings settings = Settings.settingsBuilder().put(IndexStoreModule.STORE_TYPE, type.name()).build();
+        Settings settings = Settings.settingsBuilder().put(IndexStoreModule.STORE_TYPE, type.name().toLowerCase(Locale.ROOT)).build();
         FsDirectoryService service = new FsDirectoryService(settings, null, new ShardPath(tempDir, tempDir, "foo", new ShardId("foo", 0)));
         try (final Directory directory = service.newFSDirectory(tempDir, NoLockFactory.INSTANCE)) {
             switch (type) {
@@ -80,6 +81,4 @@ public class IndexStoreTests extends ESTestCase {
             }
         }
     }
-
-
 }

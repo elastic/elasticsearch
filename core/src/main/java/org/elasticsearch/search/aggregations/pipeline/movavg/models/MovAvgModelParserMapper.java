@@ -19,12 +19,12 @@
 
 package org.elasticsearch.search.aggregations.pipeline.movavg.models;
 
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
 
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -32,15 +32,20 @@ import java.util.Set;
  */
 public class MovAvgModelParserMapper {
 
-    protected ImmutableMap<String, MovAvgModel.AbstractModelParser> movAvgParsers;
+    protected Map<String, MovAvgModel.AbstractModelParser> movAvgParsers;
 
     @Inject
     public MovAvgModelParserMapper(Set<MovAvgModel.AbstractModelParser> parsers) {
-        MapBuilder<String, MovAvgModel.AbstractModelParser> builder = MapBuilder.newMapBuilder();
+        Map<String, MovAvgModel.AbstractModelParser> map = new HashMap<>();
+        add(map, new SimpleModel.SimpleModelParser());
+        add(map, new LinearModel.LinearModelParser());
+        add(map, new EwmaModel.SingleExpModelParser());
+        add(map, new HoltLinearModel.DoubleExpModelParser());
+        add(map, new HoltWintersModel.HoltWintersModelParser());
         for (MovAvgModel.AbstractModelParser parser : parsers) {
-            builder.put(parser.getName(), parser);
+            add(map, parser);
         }
-        movAvgParsers = builder.immutableMap();
+        movAvgParsers = Collections.unmodifiableMap(map);
     }
 
     public @Nullable
@@ -48,7 +53,11 @@ public class MovAvgModelParserMapper {
         return movAvgParsers.get(parserName);
     }
 
-    public ImmutableSet<String> getAllNames() {
+    public Set<String> getAllNames() {
         return movAvgParsers.keySet();
+    }
+
+    private void add(Map<String, MovAvgModel.AbstractModelParser> map, MovAvgModel.AbstractModelParser parser) {
+        map.put(parser.getName(), parser);
     }
 }

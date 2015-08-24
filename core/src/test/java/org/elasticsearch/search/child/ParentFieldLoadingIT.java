@@ -57,7 +57,8 @@ public class ParentFieldLoadingIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test")
                 .setSettings(indexSettings)
                 .addMapping("parent")
-                .addMapping("child", childMapping(MappedFieldType.Loading.LAZY)));
+                .addMapping("child", childMapping(MappedFieldType.Loading.LAZY))
+                .setUpdateAllTypes(true));
         ensureGreen();
 
         client().prepareIndex("test", "parent", "1").setSource("{}").get();
@@ -72,7 +73,8 @@ public class ParentFieldLoadingIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test")
                 .setSettings(indexSettings)
                 .addMapping("parent")
-                .addMapping("child", "_parent", "type=parent"));
+                .addMapping("child", "_parent", "type=parent")
+                .setUpdateAllTypes(true));
         ensureGreen();
 
         client().prepareIndex("test", "parent", "1").setSource("{}").get();
@@ -87,7 +89,8 @@ public class ParentFieldLoadingIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test")
                 .setSettings(indexSettings)
                 .addMapping("parent")
-                .addMapping("child", childMapping(MappedFieldType.Loading.EAGER)));
+                .addMapping("child", childMapping(MappedFieldType.Loading.EAGER))
+                .setUpdateAllTypes(true));
         ensureGreen();
 
         client().prepareIndex("test", "parent", "1").setSource("{}").get();
@@ -102,7 +105,8 @@ public class ParentFieldLoadingIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test")
                 .setSettings(indexSettings)
                 .addMapping("parent")
-                .addMapping("child", childMapping(MappedFieldType.Loading.EAGER_GLOBAL_ORDINALS)));
+                .addMapping("child", childMapping(MappedFieldType.Loading.EAGER_GLOBAL_ORDINALS))
+                .setUpdateAllTypes(true));
         ensureGreen();
 
         // Need to do 2 separate refreshes, otherwise we have 1 segment and then we can't measure if global ordinals

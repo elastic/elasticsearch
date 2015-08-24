@@ -23,15 +23,15 @@ import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.index.analysis.AnalysisModule;
 import org.elasticsearch.index.analysis.SmartChineseAnalysisBinderProcessor;
 import org.elasticsearch.indices.analysis.smartcn.SmartChineseIndicesAnalysisModule;
-import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.plugins.Plugin;
 
-import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 
 /**
  *
  */
-public class AnalysisSmartChinesePlugin extends AbstractPlugin {
+public class AnalysisSmartChinesePlugin extends Plugin {
 
     @Override
     public String name() {
@@ -44,10 +44,8 @@ public class AnalysisSmartChinesePlugin extends AbstractPlugin {
     }
 
     @Override
-    public Collection<Class<? extends Module>> modules() {
-        Collection<Class<? extends Module>> classes = new ArrayList<>();
-        classes.add(SmartChineseIndicesAnalysisModule.class);
-        return classes;
+    public Collection<Module> nodeModules() {
+        return Collections.<Module>singletonList(new SmartChineseIndicesAnalysisModule());
     }
 
     public void onModule(AnalysisModule module) {

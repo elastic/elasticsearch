@@ -19,20 +19,13 @@
 
 package org.elasticsearch.repositories;
 
-import com.google.common.collect.ImmutableList;
-import org.elasticsearch.common.Classes;
 import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.inject.Modules;
-import org.elasticsearch.common.inject.SpawnModules;
 import org.elasticsearch.common.settings.Settings;
 
-import static org.elasticsearch.common.Strings.toCamelCase;
-
 /**
- * This module spawns specific repository module
+ * Binds repository classes for the specific repository type.
  */
-public class RepositoryModule extends AbstractModule implements SpawnModules {
+public class RepositoryModule extends AbstractModule {
 
     private RepositoryName repositoryName;
 
@@ -58,31 +51,11 @@ public class RepositoryModule extends AbstractModule implements SpawnModules {
     }
 
     /**
-     * Returns repository module.
-     * <p/>
-     * First repository type is looked up in typesRegistry and if it's not found there, this module tries to
-     * load repository by it's class name.
-     *
-     * @return repository module
-     */
-    @Override
-    public Iterable<? extends Module> spawnModules() {
-        return ImmutableList.of(Modules.createModule(loadTypeModule(repositoryName.type(), "org.elasticsearch.repositories.", "RepositoryModule"), globalSettings));
-    }
-
-    /**
      * {@inheritDoc}
      */
     @Override
     protected void configure() {
+        typesRegistry.bindType(binder(), repositoryName.type());
         bind(RepositorySettings.class).toInstance(new RepositorySettings(globalSettings, settings));
-    }
-
-    private Class<? extends Module> loadTypeModule(String type, String prefixPackage, String suffixClassName) {
-        Class<? extends Module> registered = typesRegistry.type(type);
-        if (registered != null) {
-            return registered;
-        }
-        return Classes.loadClass(globalSettings.getClassLoader(), type, prefixPackage, suffixClassName);
     }
 }

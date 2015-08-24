@@ -1,0 +1,257 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>org.elasticsearch.qa</groupId>
+        <artifactId>elasticsearch-qa</artifactId>
+        <version>2.1.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>qa-vagrant</artifactId>
+    <name>QA: Elasticsearch Vagrant Tests</name>
+    <description>Tests the Elasticsearch distribution artifacts on virtual
+      machines using vagrant and bats.</description>
+    <packaging>pom</packaging>
+
+    <!-- The documentation for how to run this is in ../../Vagrantfile -->
+    <properties>
+      <testScripts>*.bats</testScripts>
+      <testCommand>sudo bats $BATS/${testScripts}</testCommand>
+
+      <allDebBoxes>precise, trusty, vivid, wheezy, jessie</allDebBoxes>
+      <allRpmBoxes>centos-6, centos-7, fedora-22, oel-7</allRpmBoxes>
+
+      <defaultDebBoxes>trusty</defaultDebBoxes>
+      <defaultRpmBoxes>centos-7</defaultRpmBoxes>
+
+      <!-- Unless rpmbuild is available on the host we can't test rpm based
+           boxes because we can't build the rpm and they fail without the rpm.
+           So to get good coverage you'll need to run this on a system with
+           rpmbuild installed - either osx via homebrew or fedora/centos/rhel.
+           -->
+
+      <!-- rpmbuild location : default to /usr/bin/rpmbuild -->
+      <packaging.rpm.rpmbuild>/usr/bin/rpmbuild</packaging.rpm.rpmbuild>
+    </properties>
+
+    <build>
+        <plugins>
+            <!-- Clean the location where we keep the distribution artifacts
+                 to make sure that there aren't any old versions in there. -->
+            <plugin>
+                <artifactId>maven-clean-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>clean-testroot</id>
+                        <phase>pre-integration-test</phase>
+                        <goals>
+                            <goal>clean</goal>
+                        </goals>
+                        <configuration>
+                            <excludeDefaultDirectories>true</excludeDefaultDirectories>
+                            <filesets>
+                                <fileset>
+                                    <directory>${project.build.directory}/testroot</directory>
+                                </fileset>
+                            </filesets>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <!-- Put the distribution artifacts some place the test can get at
+                 them -->
+            <plugin>
+                <artifactId>maven-dependency-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>copy-common-to-testroot</id>
+                        <phase>pre-integration-test</phase>
+                        <goals>
+                            <goal>copy</goal>
+                        </goals>
+                        <configuration>
+                            <outputDirectory>${project.build.directory}/testroot</outputDirectory>
+                            <artifactItems>
+                                <artifactItem>
+                                    <groupId>org.elasticsearch.distribution.zip</groupId>
+                                    <artifactId>elasticsearch</artifactId>
+                                    <version>${elasticsearch.version}</version>
+                                    <type>zip</type>
+                                </artifactItem>
+                                <artifactItem>
+                                    <groupId>org.elasticsearch.distribution.tar</groupId>
+                                    <artifactId>elasticsearch</artifactId>
+                                    <version>${elasticsearch.version}</version>
+                                    <type>tar.gz</type>
+                                </artifactItem>
+                                <artifactItem>
+                                    <groupId>org.elasticsearch.distribution.deb</groupId>
+                                    <artifactId>elasticsearch</artifactId>
+                                    <version>${elasticsearch.version}</version>
+                                    <type>deb</type>
+                                </artifactItem>
+                                <artifactItem>
+                                    <groupId>org.elasticsearch.plugin</groupId>
+                                    <artifactId>jvm-example</artifactId>
+                                    <version>${elasticsearch.version}</version>
+                                    <type>zip</type>
+                                </artifactItem>
+                            </artifactItems>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-antrun-plugin</artifactId>
+                <dependencies>
+                    <dependency>
+                        <groupId>ant-contrib</groupId>
+                        <artifactId>ant-contrib</artifactId>
+                        <version>1.0b3</version>
+                        <exclusions>
+                            <exclusion>
+                                <groupId>ant</groupId>
+                                <artifactId>ant</artifactId>
+                            </exclusion>
+                        </exclusions>
+                    </dependency>
+                </dependencies>
+                <executions>
+                    <execution>
+                        <id>check-vagrant-version</id>
+                        <phase>validate</phase>
+                        <goals>
+                            <goal>run</goal>
+                        </goals>
+                        <configuration>
+                            <target>
+                                <taskdef resource="net/sf/antcontrib/antlib.xml"
+                                    classpathref="maven.dependency.classpath" />
+                                <ant antfile="src/dev/ant/vagrant-integration-tests.xml"
+                                    target="check-vagrant-version"/>
+                            </target>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>test-vms</id>
+                        <phase>integration-test</phase>
+                        <goals>
+                            <goal>run</goal>
+                        </goals>
+                        <configuration>
+                            <target unless="${skipTests}">
+                                <taskdef resource="net/sf/antcontrib/antlib.xml"
+                                    classpathref="maven.dependency.classpath" />
+                                <ant antfile="src/dev/ant/vagrant-integration-tests.xml"
+                                    target="vagrant-test-all-boxes"/>
+                            </target>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+
+    <profiles>
+        <profile>
+            <!-- Enable the rpm artifact and rpm-boxes because we're on an
+                 rpm-based distribution. -->
+            <id>rpm</id>
+            <activation>
+                <file>
+                    <exists>${packaging.rpm.rpmbuild}</exists>
+                </file>
+            </activation>
+            <build>
+                <plugins>
+                    <plugin>
+                        <artifactId>maven-dependency-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>copy-rpm-to-testroot</id>
+                                <phase>pre-integration-test</phase>
+                                <goals>
+                                    <goal>copy</goal>
+                                </goals>
+                                <configuration>
+                                    <outputDirectory>${project.build.directory}/testroot</outputDirectory>
+                                    <artifactItems>
+                                        <artifactItem>
+                                            <groupId>org.elasticsearch.distribution.rpm</groupId>
+                                            <artifactId>elasticsearch</artifactId>
+                                            <version>${elasticsearch.version}</version>
+                                            <type>rpm</type>
+                                        </artifactItem>
+                                    </artifactItems>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+            <dependencies>
+                <dependency>
+                    <groupId>org.elasticsearch.distribution</groupId>
+                    <artifactId>elasticsearch-rpm</artifactId>
+                    <version>${elasticsearch.version}</version>
+                    <type>rpm</type>
+                </dependency>
+            </dependencies>
+            <properties>
+                <rpmOk>ok</rpmOk>
+            </properties>
+        </profile>
+        <profile>
+            <!-- Enable the rpm artifact and rpm-boxes because we're on an
+               rpm-based distribution. -->
+            <id>rpm-via-homebrew</id>
+            <activation>
+                <file>
+                    <exists>/usr/local/bin/rpmbuild</exists>
+                </file>
+            </activation>
+            <build>
+                <plugins>
+                    <plugin>
+                        <artifactId>maven-dependency-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>copy-rpm-to-testroot</id>
+                                <phase>pre-integration-test</phase>
+                                <goals>
+                                    <goal>copy</goal>
+                                </goals>
+                                <configuration>
+                                    <outputDirectory>${project.build.directory}/testroot</outputDirectory>
+                                    <artifactItems>
+                                        <artifactItem>
+                                            <groupId>org.elasticsearch.distribution.rpm</groupId>
+                                            <artifactId>elasticsearch</artifactId>
+                                            <version>${elasticsearch.version}</version>
+                                            <type>rpm</type>
+                                        </artifactItem>
+                                    </artifactItems>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+            <properties>
+                <rpmOk>ok</rpmOk>
+            </properties>
+        </profile>
+
+        <!-- This profile manipulates what is run. -->
+        <profile>
+            <!-- Smoke tests the VMs but doesn't actually run the bats tests -->
+            <id>smoke-vms</id>
+            <properties>
+              <testCommand>echo skipping tests</testCommand>
+            </properties>
+        </profile>
+    </profiles>
+</project>

@@ -27,12 +27,12 @@ import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.QueryUtils;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.search.scan.ScanContext.MinDocQuery;
+import org.elasticsearch.search.scan.ScanContext.ScanCollector;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -42,31 +42,11 @@ import java.util.List;
 
 public class ScanContextTests extends ESTestCase {
 
-    public void testMinDocQueryBasics() {
-        MinDocQuery query1 = new MinDocQuery(42);
-        MinDocQuery query2 = new MinDocQuery(42);
-        MinDocQuery query3 = new MinDocQuery(43);
-        QueryUtils.check(query1);
-        QueryUtils.checkEqual(query1, query2);
-        QueryUtils.checkUnequal(query1, query3);
-    }
-
-    public void testMinDocQueryRandom() throws IOException {
-        final int numDocs = randomIntBetween(10, 200);
-        final Document doc = new Document();
-        final Directory dir = newDirectory();
-        final RandomIndexWriter w = new RandomIndexWriter(getRandom(), dir);
-        for (int i = 0; i < numDocs; ++i) {
-            w.addDocument(doc);
-        }
-        final IndexReader reader = w.getReader();
-        final IndexSearcher searcher = newSearcher(reader);
-        for (int i = 0; i <= numDocs; ++i) {
-            assertEquals(numDocs - i, searcher.count(new MinDocQuery(i)));
-        }
-        w.close();
-        reader.close();
-        dir.close();
+    private static TopDocs execute(IndexSearcher searcher, ScanContext ctx, Query query, int pageSize, boolean trackScores) throws IOException {
+        query = ctx.wrapQuery(query);
+        ScanCollector collector = ctx.collector(pageSize, trackScores);
+        searcher.search(query, collector);
+        return collector.topDocs();
     }
 
     public void testRandom() throws Exception {
@@ -93,10 +73,10 @@ public class ScanContextTests extends ESTestCase {
         final List<ScoreDoc> actual = new ArrayList<>();
         ScanContext context = new ScanContext();
         while (true) {
-            final ScoreDoc[] page = context.execute(searcher, query, pageSize, trackScores).scoreDocs;
+            final ScoreDoc[] page = execute(searcher,context, query, pageSize, trackScores).scoreDocs;
             assertTrue(page.length <= pageSize);
             if (page.length == 0) {
-                assertEquals(0, context.execute(searcher, query, pageSize, trackScores).scoreDocs.length);
+                assertEquals(0, execute(searcher, context, query, pageSize, trackScores).scoreDocs.length);
                 break;
             }
             actual.addAll(Arrays.asList(page));

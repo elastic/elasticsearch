@@ -112,7 +112,6 @@ public class ExpressionScriptEngineService extends AbstractComponent implements 
             for (String variable : expr.variables) {
                 if (variable.equals("_score")) {
                     bindings.add(new SortField("_score", SortField.Type.SCORE));
-
                 } else if (variable.equals("_value")) {
                     specialValue = new ReplaceableConstValueSource();
                     bindings.add("_value", specialValue);
@@ -173,7 +172,8 @@ public class ExpressionScriptEngineService extends AbstractComponent implements 
                 }
             }
 
-            return new ExpressionSearchScript(compiledScript, bindings, specialValue);
+            final boolean needsScores = expr.getSortField(bindings, false).needsScores();
+            return new ExpressionSearchScript(compiledScript, bindings, specialValue, needsScores);
         } catch (Exception exception) {
             throw new ScriptException("Error during search with " + compiledScript, exception);
         }

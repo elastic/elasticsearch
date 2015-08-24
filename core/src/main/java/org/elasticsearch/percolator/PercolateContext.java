@@ -20,19 +20,19 @@ package org.elasticsearch.percolator;
 
 import com.carrotsearch.hppc.ObjectObjectAssociativeContainer;
 import com.google.common.collect.ImmutableList;
+
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Counter;
 import org.elasticsearch.action.percolate.PercolateShardRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.common.*;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.lease.Releasables;
@@ -52,7 +52,6 @@ import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
@@ -67,6 +66,7 @@ import org.elasticsearch.search.highlight.SearchContextHighlight;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.InternalSearchHitField;
+import org.elasticsearch.search.internal.ScrollContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
@@ -111,13 +111,13 @@ public class PercolateContext extends SearchContext {
     private SearchLookup searchLookup;
     private ParsedQuery parsedQuery;
     private Query query;
-    private boolean queryRewritten;
     private Query percolateQuery;
     private FetchSubPhase.HitContext hitContext;
     private SearchContextAggregations aggregations;
     private QuerySearchResult querySearchResult;
     private Sort sort;
     private final Map<String, FetchSubPhaseContext> subPhaseContexts = new HashMap<>();
+    private final Map<Class<?>, Collector> queryCollectors = new HashMap<>();
 
     public PercolateContext(PercolateShardRequest request, SearchShardTarget searchShardTarget, IndexShard indexShard,
                             IndexService indexService, PageCacheRecycler pageCacheRecycler,
@@ -232,7 +232,6 @@ public class PercolateContext extends SearchContext {
     public SearchContext parsedQuery(ParsedQuery query) {
         this.parsedQuery = query;
         this.query = query.query();
-        this.queryRewritten = false;
         return this;
     }
 
@@ -244,18 +243,6 @@ public class PercolateContext extends SearchContext {
     @Override
     public Query query() {
         return query;
-    }
-
-    @Override
-    public boolean queryRewritten() {
-        return queryRewritten;
-    }
-
-    @Override
-    public SearchContext updateRewriteQuery(Query rewriteQuery) {
-        queryRewritten = true;
-        query = rewriteQuery;
-        return this;
     }
 
     @Override
@@ -360,12 +347,12 @@ public class PercolateContext extends SearchContext {
     }
 
     @Override
-    public Scroll scroll() {
+    public ScrollContext scrollContext() {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public SearchContext scroll(Scroll scroll) {
+    public SearchContext scrollContext(ScrollContext scroll) {
         throw new UnsupportedOperationException();
     }
 
@@ -634,16 +621,6 @@ public class PercolateContext extends SearchContext {
     }
 
     @Override
-    public void lastEmittedDoc(ScoreDoc doc) {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public ScoreDoc lastEmittedDoc() {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
     public DfsSearchResult dfsResult() {
         throw new UnsupportedOperationException();
     }
@@ -767,5 +744,10 @@ public class PercolateContext extends SearchContext {
     @Override
     public void copyContextAndHeadersFrom(HasContextAndHeaders other) {
         assert false : "percolatecontext does not support contexts & headers";
+    }
+
+    @Override
+    public Map<Class<?>, Collector> queryCollectors() {
+        return queryCollectors;
     }
 }

@@ -79,7 +79,7 @@ public class TransportIndicesShardStoresAction extends TransportMasterNodeReadAc
     @Override
     protected void masterOperation(IndicesShardStoresRequest request, ClusterState state, ActionListener<IndicesShardStoresResponse> listener) {
         final RoutingTable routingTables = state.routingTable();
-        final RoutingNodes routingNodes = state.routingNodes();
+        final RoutingNodes routingNodes = state.getRoutingNodes();
         final String[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, request);
         final Set<ShardId> shardIdsToFetch = new HashSet<>();
 

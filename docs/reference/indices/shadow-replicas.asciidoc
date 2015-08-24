@@ -9,31 +9,26 @@ as how Elasticsearch should replay operations on all the replica shards of an
 index.
 
 In order to fully utilize the `index.data_path` and `index.shadow_replicas`
-settings, you need to enable using it in elasticsearch.yml:
+settings, you need to allow Elasticsearch to use the same data directory for
+multiple instances by setting `node.add_id_to_custom_path` to false in
+elasticsearch.yml:
 
 [source,yaml]
 --------------------------------------------------
-node.enable_custom_paths: true
+node.add_id_to_custom_path: false
 --------------------------------------------------
 
-You will also need to disable the default security manager that Elasticsearch
-runs with. You can do this by either passing
-`-Des.security.manager.enabled=false` with the parameters while starting
-Elasticsearch, or you can disable it in elasticsearch.yml:
+You will also need to indicate to the security manager where the custom indices
+will be, so that the correct permissions can be applied. You can do this by
+setting the `path.shared_data` setting in elasticsearch.yml:
 
 [source,yaml]
 --------------------------------------------------
-security.manager.enabled: false
+path.shared_data: /opt/data
 --------------------------------------------------
 
-[WARNING]
-========================
-Disabling the security manager means that the Elasticsearch process is not
-limited to the directories and files that it can read and write. However,
-because the `index.data_path` setting is set when creating the index, the
-security manager would prevent writing or reading from the index's location, so
-it must be disabled.
-========================
+This means that Elasticsearch can read and write to files in any subdirectory of
+the `path.shared_data` setting.
 
 You can then create an index with a custom data path, where each node will use
 this path for the data:
@@ -54,7 +49,7 @@ curl -XPUT 'localhost:9200/my_index' -d '
     "index" : {
         "number_of_shards" : 1,
         "number_of_replicas" : 4,
-        "data_path": "/var/data/my_index",
+        "data_path": "/opt/data/my_index",
         "shadow_replicas": true
     } 
 }'
@@ -62,7 +57,7 @@ curl -XPUT 'localhost:9200/my_index' -d '
 
 [WARNING]
 ========================
-In the above example, the "/var/data/my_index" path is a shared filesystem that
+In the above example, the "/opt/data/my_index" path is a shared filesystem that
 must be available on every node in the Elasticsearch cluster. You must also
 ensure that the Elasticsearch process has the correct permissions to read from
 and write to the directory used in the `index.data_path` setting.
@@ -123,8 +118,3 @@ These are non-dynamic settings that need to be configured in `elasticsearch.yml`
     of "/tmp/foo" is used, the first locally-running node will use "/tmp/foo/0",
     the second will use "/tmp/foo/1", the third "/tmp/foo/2", etc. Defaults to
     `true`.
-
-`node.enable_custom_paths`::
-    Boolean value that must be set to `true` in order to use the
-    `index.data_path` setting. Defaults to `false`.
-

@@ -175,8 +175,7 @@ case "$1" in
 	# Start Daemon
 	start-stop-daemon -d $ES_HOME --start -b --user "$ES_USER" -c "$ES_USER" --pidfile "$PID_FILE" --exec $DAEMON -- $DAEMON_OPTS
 	return=$?
-	if [ $return -eq 0 ]
-	then
+	if [ $return -eq 0 ]; then
 		i=0
 		timeout=10
 		# Wait for the process to be properly started before exiting
@@ -189,9 +188,9 @@ case "$1" in
 				exit 1
 			fi
 		done
-	else
-		log_end_msg $return
 	fi
+	log_end_msg $return
+	exit $return
 	;;
   stop)
 	log_daemon_msg "Stopping $DESC"
@@ -199,7 +198,8 @@ case "$1" in
 	if [ -f "$PID_FILE" ]; then
 		start-stop-daemon --stop --pidfile "$PID_FILE" \
 			--user "$ES_USER" \
-			--retry=TERM/20/KILL/5 >/dev/null
+			--quiet \
+			--retry forever/TERM/20 > /dev/null
 		if [ $? -eq 1 ]; then
 			log_progress_msg "$DESC is not running but pid file exists, cleaning up"
 		elif [ $? -eq 3 ]; then

@@ -70,7 +70,7 @@ public class AllocationService extends AbstractComponent {
     }
 
     public RoutingAllocation.Result applyStartedShards(ClusterState clusterState, List<? extends ShardRouting> startedShards, boolean withReroute) {
-        RoutingNodes routingNodes = clusterState.routingNodes();
+        RoutingNodes routingNodes = getMutableRoutingNodes(clusterState);
         // shuffle the unassigned nodes, just so we won't have things like poison failed shards
         routingNodes.unassigned().shuffle();
         StartedRerouteAllocation allocation = new StartedRerouteAllocation(allocationDeciders, routingNodes, clusterState.nodes(), startedShards, clusterInfoService.getClusterInfo());
@@ -95,7 +95,7 @@ public class AllocationService extends AbstractComponent {
      * <p>If the same instance of the routing table is returned, then no change has been made.</p>
      */
     public RoutingAllocation.Result applyFailedShards(ClusterState clusterState, List<FailedRerouteAllocation.FailedShard> failedShards) {
-        RoutingNodes routingNodes = clusterState.routingNodes();
+        RoutingNodes routingNodes = getMutableRoutingNodes(clusterState);
         // shuffle the unassigned nodes, just so we won't have things like poison failed shards
         routingNodes.unassigned().shuffle();
         FailedRerouteAllocation allocation = new FailedRerouteAllocation(allocationDeciders, routingNodes, clusterState.nodes(), failedShards, clusterInfoService.getClusterInfo());
@@ -116,7 +116,7 @@ public class AllocationService extends AbstractComponent {
     }
 
     public RoutingAllocation.Result reroute(ClusterState clusterState, AllocationCommands commands, boolean explain) {
-        RoutingNodes routingNodes = clusterState.routingNodes();
+        RoutingNodes routingNodes = getMutableRoutingNodes(clusterState);
         // we don't shuffle the unassigned shards here, to try and get as close as possible to
         // a consistent result of the effect the commands have on the routing
         // this allows systems to dry run the commands, see the resulting cluster state, and act on it
@@ -149,7 +149,7 @@ public class AllocationService extends AbstractComponent {
      * <p>If the same instance of the routing table is returned, then no change has been made.
      */
     public RoutingAllocation.Result reroute(ClusterState clusterState, boolean debug) {
-        RoutingNodes routingNodes = clusterState.routingNodes();
+        RoutingNodes routingNodes = getMutableRoutingNodes(clusterState);
         // shuffle the unassigned nodes, just so we won't have things like poison failed shards
         routingNodes.unassigned().shuffle();
         RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, routingNodes, clusterState.nodes(), clusterInfoService.getClusterInfo());
@@ -460,5 +460,10 @@ public class AllocationService extends AbstractComponent {
         }
         assert matchedNode.isRemoved() : "failedShard " + failedShard + " was matched but wasn't removed";
         return true;
+    }
+
+    private RoutingNodes getMutableRoutingNodes(ClusterState clusterState) {
+        RoutingNodes routingNodes = new RoutingNodes(clusterState, false); // this is a costly operation - only call this once!
+        return routingNodes;
     }
 }

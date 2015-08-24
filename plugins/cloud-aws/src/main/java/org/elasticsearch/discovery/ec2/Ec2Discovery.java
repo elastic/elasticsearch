@@ -42,8 +42,8 @@ public class Ec2Discovery extends ZenDiscovery {
     public Ec2Discovery(Settings settings, ClusterName clusterName, ThreadPool threadPool, TransportService transportService,
                         ClusterService clusterService, NodeSettingsService nodeSettingsService, ZenPingService pingService,
                         DiscoverySettings discoverySettings,
-                        ElectMasterService electMasterService, @ClusterDynamicSettings DynamicSettings dynamicSettings) {
+                        ElectMasterService electMasterService) {
         super(settings, clusterName, threadPool, transportService, clusterService, nodeSettingsService,
-                pingService, electMasterService, discoverySettings, dynamicSettings);
+                pingService, electMasterService, discoverySettings);
     }
 }

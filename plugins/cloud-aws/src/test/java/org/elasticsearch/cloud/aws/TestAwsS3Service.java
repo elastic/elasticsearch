@@ -22,13 +22,24 @@ import com.amazonaws.services.s3.AmazonS3;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.plugins.Plugin;
 
 import java.util.IdentityHashMap;
 
-/**
- *
- */
 public class TestAwsS3Service extends InternalAwsS3Service {
+    public static class TestPlugin extends Plugin {
+        @Override
+        public String name() {
+            return "mock-s3-service";
+        }
+        @Override
+        public String description() {
+            return "plugs in mock s3 service";
+        }
+        public void onModule(AwsModule awsModule) {
+            awsModule.s3ServiceImpl = TestAwsS3Service.class;
+        }
+    }
 
     IdentityHashMap<AmazonS3, TestAmazonS3> clients = new IdentityHashMap<AmazonS3, TestAmazonS3>();
 

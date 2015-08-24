@@ -8,8 +8,8 @@ ${packaging.scripts.header}
 #       $1=purge     : indicates an upgrade
 #
 #   On RedHat,
-#       $1=1         : indicates an new install
-#       $1=2         : indicates an upgrade
+#       $1=0         : indicates a removal
+#       $1=1         : indicates an upgrade
 
 
 
@@ -39,7 +39,7 @@ case "$1" in
         REMOVE_SERVICE=true
         REMOVE_USER_AND_GROUP=true
     ;;
-    2)
+    1)
         # If $1=1 this is an upgrade
         IS_UPGRADE=true
     ;;
@@ -68,7 +68,7 @@ fi
 
 if [ "$REMOVE_SERVICE" = "true" ]; then
     if command -v systemctl >/dev/null; then
-        systemctl --no-reload disable elasticsearch.service > /dev/null 2>&1 || true
+        systemctl disable elasticsearch.service > /dev/null 2>&1 || true
     fi
 
     if command -v chkconfig >/dev/null; then

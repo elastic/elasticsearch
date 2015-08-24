@@ -22,8 +22,8 @@ package org.elasticsearch.transport.netty;
 import com.google.common.base.Charsets;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
+
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -42,6 +42,7 @@ import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.netty.NettyUtils;
 import org.elasticsearch.common.netty.OpenChannelsHandler;
 import org.elasticsearch.common.netty.ReleaseChannelFutureListener;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.common.settings.Settings;
@@ -75,6 +76,7 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
+import java.net.UnknownHostException;
 import java.nio.channels.CancelledKeyException;
 import java.util.*;
 import java.util.concurrent.*;
@@ -82,6 +84,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static org.elasticsearch.common.network.NetworkService.TcpSettings.*;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
@@ -146,8 +150,8 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
     // node id to actual channel
     protected final ConcurrentMap<DiscoveryNode, NodeChannels> connectedNodes = newConcurrentMap();
     protected final Map<String, ServerBootstrap> serverBootstraps = newConcurrentMap();
-    protected final Map<String, Channel> serverChannels = newConcurrentMap();
-    protected final Map<String, BoundTransportAddress> profileBoundAddresses = newConcurrentMap();
+    protected final Map<String, List<Channel>> serverChannels = newConcurrentMap();
+    protected final ConcurrentMap<String, BoundTransportAddress> profileBoundAddresses = newConcurrentMap();
     protected volatile TransportServiceAdapter transportServiceAdapter;
     protected volatile BoundTransportAddress boundAddress;
     protected final KeyedLock<String> connectionLock = new KeyedLock<>();
@@ -286,7 +290,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
                     bindServerBootstrap(name, mergedSettings);
                 }
 
-                InetSocketAddress boundAddress = (InetSocketAddress) serverChannels.get(DEFAULT_PROFILE).getLocalAddress();
+                InetSocketAddress boundAddress = (InetSocketAddress) serverChannels.get(DEFAULT_PROFILE).get(0).getLocalAddress();
                 int publishPort = settings.getAsInt("transport.netty.publish_port", settings.getAsInt("transport.publish_port", boundAddress.getPort()));
                 String publishHost = settings.get("transport.netty.publish_host", settings.get("transport.publish_host", settings.get("transport.host")));
                 InetSocketAddress publishAddress = createPublishAddress(publishHost, publishPort);
@@ -397,23 +401,45 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
 
     private void bindServerBootstrap(final String name, final Settings settings) {
         // Bind and start to accept incoming connections.
-        InetAddress hostAddressX;
+        InetAddress hostAddresses[];
         String bindHost = settings.get("bind_host");
         try {
-            hostAddressX = networkService.resolveBindHostAddress(bindHost);
+            hostAddresses = networkService.resolveBindHostAddress(bindHost);
         } catch (IOException e) {
             throw new BindTransportException("Failed to resolve host [" + bindHost + "]", e);
         }
-        final InetAddress hostAddress = hostAddressX;
+        if (logger.isDebugEnabled()) {
+            String[] addresses = new String[hostAddresses.length];
+            for (int i = 0; i < hostAddresses.length; i++) {
+                addresses[i] = NetworkAddress.format(hostAddresses[i]);
+            }
+            logger.debug("binding server bootstrap to: {}", addresses);
+        }
+        for (InetAddress hostAddress : hostAddresses) {
+            bindServerBootstrap(name, hostAddress, settings);
+        }
+    }
+        
+    private void bindServerBootstrap(final String name, final InetAddress hostAddress, Settings settings) {
 
         String port = settings.get("port");
         PortsRange portsRange = new PortsRange(port);
         final AtomicReference<Exception> lastException = new AtomicReference<>();
+        final AtomicReference<InetSocketAddress> boundSocket = new AtomicReference<>();
         boolean success = portsRange.iterate(new PortsRange.PortCallback() {
             @Override
             public boolean onPortNumber(int portNumber) {
                 try {
-                    serverChannels.put(name, serverBootstraps.get(name).bind(new InetSocketAddress(hostAddress, portNumber)));
+                    Channel channel = serverBootstraps.get(name).bind(new InetSocketAddress(hostAddress, portNumber));
+                    synchronized (serverChannels) {
+                        List<Channel> list = serverChannels.get(name);
+                        if (list == null) {
+                            list = new ArrayList<>();
+                            serverChannels.put(name, list);
+                        }
+                        list.add(channel);
+                        boundSocket.set((InetSocketAddress)channel.getLocalAddress());
+                    }
                 } catch (Exception e) {
                     lastException.set(e);
                     return false;
@@ -426,14 +452,15 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         }
 
         if (!DEFAULT_PROFILE.equals(name)) {
-            InetSocketAddress boundAddress = (InetSocketAddress) serverChannels.get(name).getLocalAddress();
+            InetSocketAddress boundAddress = boundSocket.get();
             int publishPort = settings.getAsInt("publish_port", boundAddress.getPort());
             String publishHost = settings.get("publish_host", boundAddress.getHostString());
             InetSocketAddress publishAddress = createPublishAddress(publishHost, publishPort);
-            profileBoundAddresses.put(name, new BoundTransportAddress(new InetSocketTransportAddress(boundAddress), new InetSocketTransportAddress(publishAddress)));
+            // TODO: support real multihoming with publishing. Today we use putIfAbsent so only the prioritized address is published
+            profileBoundAddresses.putIfAbsent(name, new BoundTransportAddress(new InetSocketTransportAddress(boundAddress), new InetSocketTransportAddress(publishAddress)));
         }
 
-        logger.debug("Bound profile [{}] to address [{}]", name, serverChannels.get(name).getLocalAddress());
+        logger.info("Bound profile [{}] to address {{}}", name, NetworkAddress.format(boundSocket.get()));
     }
 
     private void createServerBootstrap(String name, Settings settings) {
@@ -481,7 +508,6 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         serverBootstrap.setOption("child.receiveBufferSizePredictorFactory", receiveBufferSizePredictorFactory);
         serverBootstrap.setOption("reuseAddress", reuseAddress);
         serverBootstrap.setOption("child.reuseAddress", reuseAddress);
-
         serverBootstraps.put(name, serverBootstrap);
     }
 
@@ -500,15 +526,17 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
                         nodeChannels.close();
                     }
 
-                    Iterator<Map.Entry<String, Channel>> serverChannelIterator = serverChannels.entrySet().iterator();
+                    Iterator<Map.Entry<String, List<Channel>>> serverChannelIterator = serverChannels.entrySet().iterator();
                     while (serverChannelIterator.hasNext()) {
-                        Map.Entry<String, Channel> serverChannelEntry = serverChannelIterator.next();
+                        Map.Entry<String, List<Channel>> serverChannelEntry = serverChannelIterator.next();
                         String name = serverChannelEntry.getKey();
-                        Channel serverChannel = serverChannelEntry.getValue();
-                        try {
-                            serverChannel.close().awaitUninterruptibly();
-                        } catch (Throwable t) {
-                            logger.debug("Error closing serverChannel for profile [{}]", t, name);
+                        List<Channel> serverChannels = serverChannelEntry.getValue();
+                        for (Channel serverChannel : serverChannels) {
+                            try {
+                                serverChannel.close().awaitUninterruptibly();
+                            } catch (Throwable t) {
+                                logger.debug("Error closing serverChannel for profile [{}]", t, name);
+                            }
                         }
                         serverChannelIterator.remove();
                     }
@@ -562,35 +590,65 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
     }
 
     @Override
-    public TransportAddress[] addressesFromString(String address) throws Exception {
-        int index = address.indexOf('[');
-        if (index != -1) {
-            String host = address.substring(0, index);
-            Set<String> ports = Strings.commaDelimitedListToSet(address.substring(index + 1, address.indexOf(']')));
-            List<TransportAddress> addresses = Lists.newArrayList();
-            for (String port : ports) {
-                int[] iPorts = new PortsRange(port).ports();
-                for (int iPort : iPorts) {
-                    addresses.add(new InetSocketTransportAddress(host, iPort));
-                }
-            }
-            return addresses.toArray(new TransportAddress[addresses.size()]);
+    public TransportAddress[] addressesFromString(String address, int perAddressLimit) throws Exception {
+        return parse(address, settings.get("transport.profiles.default.port", 
+                              settings.get("transport.netty.port", 
+                              settings.get("transport.tcp.port", 
+                              DEFAULT_PORT_RANGE))), perAddressLimit);
+    }
+    
+    // this code is a take on guava's HostAndPort, like a HostAndPortRange
+    
+    // pattern for validating ipv6 bracked addresses. 
+    // not perfect, but PortsRange should take care of any port range validation, not a regex
+    private static final Pattern BRACKET_PATTERN = Pattern.compile("^\\[(.*:.*)\\](?::([\\d\\-]*))?$");
+
+    /** parse a hostname+port range spec into its equivalent addresses */
+    static TransportAddress[] parse(String hostPortString, String defaultPortRange, int perAddressLimit) throws UnknownHostException {
+        Objects.requireNonNull(hostPortString);
+        String host;
+        String portString = null;
+
+        if (hostPortString.startsWith("[")) {
+          // Parse a bracketed host, typically an IPv6 literal.
+          Matcher matcher = BRACKET_PATTERN.matcher(hostPortString);
+          if (!matcher.matches()) {
+              throw new IllegalArgumentException("Invalid bracketed host/port range: " + hostPortString);
+          }
+          host = matcher.group(1);
+          portString = matcher.group(2);  // could be null
         } else {
-            index = address.lastIndexOf(':');
-            if (index == -1) {
-                List<TransportAddress> addresses = Lists.newArrayList();
-                String defaultPort = settings.get("transport.profiles.default.port", settings.get("transport.netty.port", this.settings.get("transport.tcp.port", DEFAULT_PORT_RANGE)));
-                int[] iPorts = new PortsRange(defaultPort).ports();
-                for (int iPort : iPorts) {
-                    addresses.add(new InetSocketTransportAddress(address, iPort));
-                }
-                return addresses.toArray(new TransportAddress[addresses.size()]);
-            } else {
-                String host = address.substring(0, index);
-                int port = Integer.parseInt(address.substring(index + 1));
-                return new TransportAddress[]{new InetSocketTransportAddress(host, port)};
+          int colonPos = hostPortString.indexOf(':');
+          if (colonPos >= 0 && hostPortString.indexOf(':', colonPos + 1) == -1) {
+            // Exactly 1 colon.  Split into host:port.
+            host = hostPortString.substring(0, colonPos);
+            portString = hostPortString.substring(colonPos + 1);
+          } else {
+            // 0 or 2+ colons.  Bare hostname or IPv6 literal.
+            host = hostPortString;
+            // 2+ colons and not bracketed: exception
+            if (colonPos >= 0) {
+                throw new IllegalArgumentException("IPv6 addresses must be bracketed: " + hostPortString);
+            }
+          }
+        }
+        
+        // if port isn't specified, fill with the default
+        if (portString == null || portString.isEmpty()) {
+            portString = defaultPortRange;
+        }
+        
+        // generate address for each port in the range
+        Set<InetAddress> addresses = new HashSet<>(Arrays.asList(InetAddress.getAllByName(host)));
+        List<TransportAddress> transportAddresses = new ArrayList<>();
+        int[] ports = new PortsRange(portString).ports();
+        int limit = Math.min(ports.length, perAddressLimit);
+        for (int i = 0; i < limit; i++) {
+            for (InetAddress address : addresses) {
+                transportAddresses.add(new InetSocketTransportAddress(address, ports[i]));
             }
         }
+        return transportAddresses.toArray(new TransportAddress[transportAddresses.size()]);
     }
 
     @Override
@@ -651,6 +709,17 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
     public long serverOpen() {
         OpenChannelsHandler channels = serverOpenChannels;
         return channels == null ? 0 : channels.numberOfOpenChannels();
+    }
+
+    @Override
+    public List<String> getLocalAddresses() {
+        List<String> local = new ArrayList<>();
+        local.add("127.0.0.1");
+        // check if v6 is supported, if so, v4 will also work via mapped addresses.
+        if (NetworkUtils.SUPPORTS_V6) {
+            local.add("[::1]"); // may get ports appended!
+        }
+        return local;
     }
 
     @Override

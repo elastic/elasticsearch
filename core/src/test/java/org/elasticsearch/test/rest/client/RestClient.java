@@ -22,6 +22,13 @@ import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
+
+import org.apache.http.config.Registry;
+import org.apache.http.config.RegistryBuilder;
+import org.apache.http.conn.socket.ConnectionSocketFactory;
+import org.apache.http.conn.socket.PlainConnectionSocketFactory;
+import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
+import org.apache.http.conn.ssl.SSLContexts;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
@@ -29,8 +36,10 @@ import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.support.Headers;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
 import org.elasticsearch.test.rest.client.http.HttpResponse;
@@ -39,11 +48,21 @@ import org.elasticsearch.test.rest.spec.RestSpec;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.InetSocketAddress;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.security.KeyManagementException;
+import java.security.KeyStore;
+import java.security.KeyStoreException;
+import java.security.NoSuchAlgorithmException;
+import java.security.cert.CertificateException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+
+import javax.net.ssl.SSLContext;
 
 /**
  * REST client used to test the elasticsearch REST layer
@@ -51,10 +70,15 @@ import java.util.concurrent.TimeUnit;
  */
 public class RestClient implements Closeable {
 
+    public static final String PROTOCOL = "protocol";
+    public static final String TRUSTSTORE_PATH = "truststore.path";
+    public static final String TRUSTSTORE_PASSWORD = "truststore.password";
+
     private static final ESLogger logger = Loggers.getLogger(RestClient.class);
     //query_string params that don't need to be declared in the spec, thay are supported by default
     private static final Set<String> ALWAYS_ACCEPTED_QUERY_STRING_PARAMS = Sets.newHashSet("pretty", "source", "filter_path");
 
+    private final String protocol;
     private final RestSpec restSpec;
     private final CloseableHttpClient httpClient;
     private final Headers headers;
@@ -65,7 +89,8 @@ public class RestClient implements Closeable {
         assert addresses.length > 0;
         this.restSpec = restSpec;
         this.headers = new Headers(settings);
-        this.httpClient = createHttpClient();
+        this.protocol = settings.get(PROTOCOL, "http");
+        this.httpClient = createHttpClient(settings);
         this.addresses = addresses;
         this.esVersion = readAndCheckVersion();
         logger.info("REST client initialized {}, elasticsearch version: [{}]", addresses, esVersion);
@@ -80,8 +105,7 @@ public class RestClient implements Closeable {
 
         String version = null;
         for (InetSocketAddress address : addresses) {
-            RestResponse restResponse = new RestResponse(new HttpRequestBuilder(httpClient).addHeaders(headers)
-                    .host(address.getHostName()).port(address.getPort())
+            RestResponse restResponse = new RestResponse(httpRequestBuilder(address)
                     .path(restApi.getPaths().get(0))
                     .method(restApi.getMethods().get(0)).execute());
             checkStatusCode(restResponse);
@@ -132,7 +156,7 @@ public class RestClient implements Closeable {
         logger.debug("calling api [{}]", apiName);
         HttpResponse httpResponse = httpRequestBuilder.execute();
 
-        //http HEAD doesn't support response body
+        // http HEAD doesn't support response body
         // For the few api (exists class of api) that use it we need to accept 404 too
         if (!httpResponse.supportsBody()) {
             ignores.add(404);
@@ -220,14 +244,52 @@ public class RestClient implements Closeable {
         return restApi;
     }
 
+    protected HttpRequestBuilder httpRequestBuilder(InetSocketAddress address) {
+        return new HttpRequestBuilder(httpClient)
+                .addHeaders(headers)
+                .protocol(protocol)
+                .host(NetworkAddress.formatAddress(address.getAddress())).port(address.getPort());
+    }
+
     protected HttpRequestBuilder httpRequestBuilder() {
         //the address used is randomized between the available ones
         InetSocketAddress address = RandomizedTest.randomFrom(addresses);
-        return new HttpRequestBuilder(httpClient).addHeaders(headers).host(address.getHostName()).port(address.getPort());
+        return httpRequestBuilder(address);
     }
 
-    protected CloseableHttpClient createHttpClient() {
-        return HttpClients.createMinimal(new PoolingHttpClientConnectionManager(15, TimeUnit.SECONDS));
+    protected CloseableHttpClient createHttpClient(Settings settings) throws IOException {
+        SSLConnectionSocketFactory sslsf;
+        String keystorePath = settings.get(TRUSTSTORE_PATH);
+        if (keystorePath != null) {
+            final String keystorePass = settings.get(TRUSTSTORE_PASSWORD);
+            if (keystorePass == null) {
+                throw new IllegalStateException(TRUSTSTORE_PATH + " is provided but not " + TRUSTSTORE_PASSWORD);
+            }
+            Path path = PathUtils.get(keystorePath);
+            if (!Files.exists(path)) {
+                throw new IllegalStateException(TRUSTSTORE_PATH + " is set but points to a non-existing file");
+            }
+            try {
+                KeyStore keyStore = KeyStore.getInstance("jks");
+                try (InputStream is = Files.newInputStream(path)) {
+                    keyStore.load(is, keystorePass.toCharArray());
+                }
+                SSLContext sslcontext = SSLContexts.custom()
+                        .loadTrustMaterial(keyStore, null)
+                        .build();
+                sslsf = new SSLConnectionSocketFactory(sslcontext);
+            } catch (KeyStoreException|NoSuchAlgorithmException|KeyManagementException|CertificateException e) {
+                throw new RuntimeException(e);
+            }
+        } else {
+            sslsf = SSLConnectionSocketFactory.getSocketFactory();
+        }
+
+        Registry<ConnectionSocketFactory> socketFactoryRegistry = RegistryBuilder.<ConnectionSocketFactory>create()
+                .register("http", PlainConnectionSocketFactory.getSocketFactory())
+                .register("https", sslsf)
+                .build();
+        return HttpClients.createMinimal(new PoolingHttpClientConnectionManager(socketFactoryRegistry, null, null, null, 15, TimeUnit.SECONDS));
     }
 
     /**

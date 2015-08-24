@@ -105,6 +105,7 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
     }
 
     private final NodePath[] nodePaths;
+    private final Path sharedDataPath;
     private final Lock[] locks;
 
     private final boolean addNodeId;
@@ -113,12 +114,8 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final Map<ShardId, InternalShardLock> shardLocks = new HashMap<>();
 
-    private final boolean customPathsEnabled;
-
     // Setting to automatically append node id to custom data paths
     public static final String ADD_NODE_ID_TO_CUSTOM_PATH = "node.add_id_to_custom_path";
-    // Setting to enable custom index.data_path setting for new indices
-    public static final String SETTING_CUSTOM_DATA_PATH_ENABLED = "node.enable_custom_paths";
 
     // If enabled, the [verbose] SegmentInfos.infoStream logging is sent to System.out:
     public static final String SETTING_ENABLE_LUCENE_SEGMENT_INFOS_TRACE = "node.enable_lucene_segment_infos_trace";
@@ -133,10 +130,10 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
         super(settings);
 
         this.addNodeId = settings.getAsBoolean(ADD_NODE_ID_TO_CUSTOM_PATH, true);
-        this.customPathsEnabled = settings.getAsBoolean(SETTING_CUSTOM_DATA_PATH_ENABLED, false);
 
         if (!DiscoveryNode.nodeRequiresLocalStorage(settings)) {
             nodePaths = null;
+            sharedDataPath = null;
             locks = null;
             localNodeId = -1;
             return;
@@ -144,6 +141,7 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
 
         final NodePath[] nodePaths = new NodePath[environment.dataWithClusterFiles().length];
         final Lock[] locks = new Lock[nodePaths.length];
+        sharedDataPath = environment.sharedDataFile();
 
         int localNodeId = -1;
         IOException lastException = null;
@@ -772,11 +770,6 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
         return settings;
     }
 
-    /** return true if custom paths are allowed for indices */
-    public boolean isCustomPathsEnabled() {
-        return customPathsEnabled;
-    }
-
     /**
      * @param indexSettings settings for an index
      * @return true if the index has a custom data path
@@ -792,17 +785,16 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
      *
      * @param indexSettings settings for the index
      */
-    @SuppressForbidden(reason = "Lee is working on it: https://github.com/elastic/elasticsearch/pull/11065")
     private Path resolveCustomLocation(@IndexSettings Settings indexSettings) {
         assert indexSettings != Settings.EMPTY;
         String customDataDir = indexSettings.get(IndexMetaData.SETTING_DATA_PATH);
         if (customDataDir != null) {
             // This assert is because this should be caught by MetaDataCreateIndexService
-            assert customPathsEnabled;
+            assert sharedDataPath != null;
             if (addNodeId) {
-                return PathUtils.get(customDataDir).resolve(Integer.toString(this.localNodeId));
+                return sharedDataPath.resolve(customDataDir).resolve(Integer.toString(this.localNodeId));
             } else {
-                return PathUtils.get(customDataDir);
+                return sharedDataPath.resolve(customDataDir);
             }
         } else {
             throw new IllegalArgumentException("no custom " + IndexMetaData.SETTING_DATA_PATH + " setting available");

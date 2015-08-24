@@ -21,25 +21,39 @@ package org.elasticsearch.index.cache;
 
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.cache.bitset.BitsetFilterCacheModule;
-import org.elasticsearch.index.cache.query.QueryCacheModule;
+import org.elasticsearch.common.util.ExtensionPoint;
+import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
+import org.elasticsearch.index.cache.query.QueryCache;
+import org.elasticsearch.index.cache.query.index.IndexQueryCache;
+import org.elasticsearch.index.cache.query.none.NoneQueryCache;
 
-/**
- *
- */
 public class IndexCacheModule extends AbstractModule {
 
-    private final Settings settings;
+    public static final String INDEX_QUERY_CACHE = "index";
+    public static final String NONE_QUERY_CACHE = "none";
+    public static final String QUERY_CACHE_TYPE = "index.queries.cache.type";
+    // for test purposes only
+    public static final String QUERY_CACHE_EVERYTHING = "index.queries.cache.everything";
+
+    private final Settings indexSettings;
+    private final ExtensionPoint.SelectedType<QueryCache> queryCaches;
 
     public IndexCacheModule(Settings settings) {
-        this.settings = settings;
+        this.indexSettings = settings;
+        this.queryCaches = new ExtensionPoint.SelectedType<>("query_cache", QueryCache.class);
+
+        registerQueryCache(INDEX_QUERY_CACHE, IndexQueryCache.class);
+        registerQueryCache(NONE_QUERY_CACHE, NoneQueryCache.class);
+    }
+
+    public void registerQueryCache(String name, Class<? extends QueryCache> clazz) {
+        queryCaches.registerExtension(name, clazz);
     }
 
     @Override
     protected void configure() {
-        new QueryCacheModule(settings).configure(binder());
-        new BitsetFilterCacheModule(settings).configure(binder());
-
+        queryCaches.bindType(binder(), indexSettings, QUERY_CACHE_TYPE, INDEX_QUERY_CACHE);
+        bind(BitsetFilterCache.class).asEagerSingleton();
         bind(IndexCache.class).asEagerSingleton();
     }
 }

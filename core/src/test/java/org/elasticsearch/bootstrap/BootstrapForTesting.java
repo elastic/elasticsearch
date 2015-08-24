@@ -101,7 +101,7 @@ public class BootstrapForTesting {
                     }
                 }
                 // java.io.tmpdir
-                Security.addPath(perms, javaTmpDir, "read,readlink,write,delete");
+                Security.addPath(perms, "java.io.tmpdir", javaTmpDir, "read,readlink,write,delete");
                 // custom test config file
                 if (Strings.hasLength(System.getProperty("tests.config"))) {
                     perms.add(new FilePermission(System.getProperty("tests.config"), "read,readlink"));

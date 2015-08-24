@@ -48,7 +48,6 @@ The shard stores information is grouped by indices and shard ids.
                     "name": "node_t0",
                     "transport_address": "local[1]",
                     "attributes": {
-                        "enable_custom_paths": "true",
                         "mode": "local"
                     }
                 },

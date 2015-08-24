@@ -24,6 +24,7 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.netty.NettyUtils;
 import org.elasticsearch.common.netty.OpenChannelsHandler;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.common.settings.Settings;
@@ -51,6 +52,10 @@ import org.jboss.netty.handler.timeout.ReadTimeoutException;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.net.SocketAddress;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -128,7 +133,7 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
 
     protected volatile BoundTransportAddress boundAddress;
 
-    protected volatile Channel serverChannel;
+    protected volatile List<Channel> serverChannels = new ArrayList<>();
 
     protected OpenChannelsHandler serverOpenChannels;
 
@@ -243,33 +248,18 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
         serverBootstrap.setOption("child.reuseAddress", reuseAddress);
 
         // Bind and start to accept incoming connections.
-        InetAddress hostAddressX;
+        InetAddress hostAddresses[];
         try {
-            hostAddressX = networkService.resolveBindHostAddress(bindHost);
+            hostAddresses = networkService.resolveBindHostAddress(bindHost);
         } catch (IOException e) {
             throw new BindHttpException("Failed to resolve host [" + bindHost + "]", e);
         }
-        final InetAddress hostAddress = hostAddressX;
-
-        PortsRange portsRange = new PortsRange(port);
-        final AtomicReference<Exception> lastException = new AtomicReference<>();
-        boolean success = portsRange.iterate(new PortsRange.PortCallback() {
-            @Override
-            public boolean onPortNumber(int portNumber) {
-                try {
-                    serverChannel = serverBootstrap.bind(new InetSocketAddress(hostAddress, portNumber));
-                } catch (Exception e) {
-                    lastException.set(e);
-                    return false;
-                }
-                return true;
-            }
-        });
-        if (!success) {
-            throw new BindHttpException("Failed to bind to [" + port + "]", lastException.get());
+        
+        for (InetAddress address : hostAddresses) {
+            bindAddress(address);
         }
 
-        InetSocketAddress boundAddress = (InetSocketAddress) serverChannel.getLocalAddress();
+        InetSocketAddress boundAddress = (InetSocketAddress) serverChannels.get(0).getLocalAddress();
         InetSocketAddress publishAddress;
         if (0 == publishPort) {
             publishPort = boundAddress.getPort();
@@ -281,12 +271,42 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
         }
         this.boundAddress = new BoundTransportAddress(new InetSocketTransportAddress(boundAddress), new InetSocketTransportAddress(publishAddress));
     }
+    
+    private void bindAddress(final InetAddress hostAddress) {
+        PortsRange portsRange = new PortsRange(port);
+        final AtomicReference<Exception> lastException = new AtomicReference<>();
+        final AtomicReference<InetSocketAddress> boundSocket = new AtomicReference<>();
+        boolean success = portsRange.iterate(new PortsRange.PortCallback() {
+            @Override
+            public boolean onPortNumber(int portNumber) {
+                try {
+                    synchronized (serverChannels) {
+                        Channel channel = serverBootstrap.bind(new InetSocketAddress(hostAddress, portNumber));
+                        serverChannels.add(channel);
+                        boundSocket.set((InetSocketAddress) channel.getLocalAddress());
+                    }
+                } catch (Exception e) {
+                    lastException.set(e);
+                    return false;
+                }
+                return true;
+            }
+        });
+        if (!success) {
+            throw new BindHttpException("Failed to bind to [" + port + "]", lastException.get());
+        }
+        logger.info("Bound http to address {{}}", NetworkAddress.format(boundSocket.get()));
+    }
 
     @Override
     protected void doStop() {
-        if (serverChannel != null) {
-            serverChannel.close().awaitUninterruptibly();
-            serverChannel = null;
+        synchronized (serverChannels) {
+            if (serverChannels != null) {
+                for (Channel channel : serverChannels) {
+                    channel.close().awaitUninterruptibly();
+                }
+                serverChannels = null;
+            }
         }
 
         if (serverOpenChannels != null) {

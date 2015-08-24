@@ -58,7 +58,7 @@ public class RestRecoveryAction extends AbstractCatAction {
     }
 
     @Override
-    void documentation(StringBuilder sb) {
+    protected void documentation(StringBuilder sb) {
         sb.append("/_cat/recovery\n");
         sb.append("/_cat/recovery/{index}\n");
     }
@@ -79,7 +79,7 @@ public class RestRecoveryAction extends AbstractCatAction {
     }
 
     @Override
-    Table getTableWithHeader(RestRequest request) {
+    protected Table getTableWithHeader(RestRequest request) {
         Table t = new Table();
         t.startHeaders()
                 .addCell("index", "alias:i,idx;desc:index name")

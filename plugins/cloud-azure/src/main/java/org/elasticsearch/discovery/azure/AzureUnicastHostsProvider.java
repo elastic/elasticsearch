@@ -20,6 +20,7 @@
 package org.elasticsearch.discovery.azure;
 
 import com.microsoft.windowsazure.management.compute.models.*;
+
 import org.elasticsearch.Version;
 import org.elasticsearch.cloud.azure.AzureServiceDisableException;
 import org.elasticsearch.cloud.azure.AzureServiceRemoteException;
@@ -28,6 +29,7 @@ import org.elasticsearch.cloud.azure.management.AzureComputeService.Discovery;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -37,6 +39,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.Locale;
 import java.util.List;
@@ -216,9 +219,9 @@ public class AzureUnicastHostsProvider extends AbstractComponent implements Unic
 
                         if (privateIp != null) {
                             if (privateIp.equals(ipAddress)) {
-                                logger.trace("adding ourselves {}", ipAddress);
+                                logger.trace("adding ourselves {}", NetworkAddress.format(ipAddress));
                             }
-                            networkAddress = privateIp.getHostAddress();
+                            networkAddress = NetworkAddress.formatAddress(privateIp);
                         } else {
                             logger.trace("no private ip provided. ignoring [{}]...", instance.getInstanceName());
                         }
@@ -231,7 +234,7 @@ public class AzureUnicastHostsProvider extends AbstractComponent implements Unic
                                 continue;
                             }
 
-                            networkAddress = endpoint.getVirtualIPAddress().getHostAddress() + ":" + endpoint.getPort();
+                            networkAddress = NetworkAddress.formatAddress(new InetSocketAddress(endpoint.getVirtualIPAddress(), endpoint.getPort()));
                         }
 
                         if (networkAddress == null) {
@@ -251,11 +254,13 @@ public class AzureUnicastHostsProvider extends AbstractComponent implements Unic
                 }
 
                 try {
-                    TransportAddress[] addresses = transportService.addressesFromString(networkAddress);
-                    // we only limit to 1 addresses, makes no sense to ping 100 ports
-                    logger.trace("adding {}, transport_address {}", networkAddress, addresses[0]);
-                    cachedDiscoNodes.add(new DiscoveryNode("#cloud-" + instance.getInstanceName(), addresses[0],
+                    // we only limit to 1 port per address, makes no sense to ping 100 ports
+                    TransportAddress[] addresses = transportService.addressesFromString(networkAddress, 1);
+                    for (TransportAddress address : addresses) {
+                        logger.trace("adding {}, transport_address {}", networkAddress, address);
+                        cachedDiscoNodes.add(new DiscoveryNode("#cloud-" + instance.getInstanceName(), address,
                             version.minimumCompatibilityVersion()));
+                    }
                 } catch (Exception e) {
                     logger.warn("can not convert [{}] to transport address. skipping. [{}]", networkAddress, e.getMessage());
                 }

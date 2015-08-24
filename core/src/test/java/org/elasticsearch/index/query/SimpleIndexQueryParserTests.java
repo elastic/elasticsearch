@@ -21,7 +21,6 @@ package org.elasticsearch.index.query;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
-
 import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.index.*;
 import org.apache.lucene.index.memory.MemoryIndex;
@@ -39,6 +38,7 @@ import org.apache.lucene.util.CharsRefBuilder;
 import org.apache.lucene.util.NumericUtils;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.action.termvectors.*;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -54,6 +54,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
@@ -72,17 +73,19 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Locale;
 
-import static org.elasticsearch.test.StreamsUtils.copyToBytesFromClasspath;
-import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.*;
+import static org.elasticsearch.test.StreamsUtils.copyToBytesFromClasspath;
+import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBooleanSubQuery;
 import static org.hamcrest.Matchers.*;
 
 public class SimpleIndexQueryParserTests extends ESSingleNodeTestCase {
 
     private IndexQueryParserService queryParser;
+    private IndexService indexService;
 
     @Before
     public void setup() throws IOException {
@@ -99,6 +102,7 @@ public class SimpleIndexQueryParserTests extends ESSingleNodeTestCase {
         assertNotNull(doc.dynamicMappingsUpdate());
         client().admin().indices().preparePutMapping("test").setType("person").setSource(doc.dynamicMappingsUpdate().toString()).get();
 
+        this.indexService = indexService;
         queryParser = indexService.queryParserService();
     }
 
@@ -1070,6 +1074,33 @@ public class SimpleIndexQueryParserTests extends ESSingleNodeTestCase {
 
         assertThat(((TermQuery) clauses[1].getQuery()).getTerm(), equalTo(new Term("name.first", "test")));
         assertThat(clauses[1].getOccur(), equalTo(BooleanClause.Occur.SHOULD));
+
+        assertFalse("terms query disable_coord disabled by default", booleanQuery.isCoordDisabled());
+    }
+
+    @Test
+    public void testTermsQueryOptions() throws IOException {
+        IndexQueryParserService queryParser = queryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/terms-query-options.json");
+        Query parsedQuery = queryParser.parse(query).query();
+        assertThat(parsedQuery, instanceOf(BooleanQuery.class));
+        BooleanQuery booleanQuery = (BooleanQuery) parsedQuery;
+        BooleanClause[] clauses = booleanQuery.getClauses();
+
+        assertThat(clauses.length, equalTo(3));
+
+        assertThat(((TermQuery) clauses[0].getQuery()).getTerm(), equalTo(new Term("name.first", "shay")));
+        assertThat(clauses[0].getOccur(), equalTo(BooleanClause.Occur.SHOULD));
+
+        assertThat(((TermQuery) clauses[1].getQuery()).getTerm(), equalTo(new Term("name.first", "test")));
+        assertThat(clauses[1].getOccur(), equalTo(BooleanClause.Occur.SHOULD));
+
+        assertThat(((TermQuery) clauses[2].getQuery()).getTerm(), equalTo(new Term("name.first", "elasticsearch")));
+        assertThat(clauses[2].getOccur(), equalTo(BooleanClause.Occur.SHOULD));
+
+        assertTrue("terms query disable_coord option mismatch", booleanQuery.isCoordDisabled());
+        assertThat(booleanQuery.getBoost(), equalTo(2.0f));
+        assertThat(booleanQuery.getMinimumNumberShouldMatch(), equalTo(2));
     }
 
     @Test
@@ -2269,6 +2300,23 @@ public class SimpleIndexQueryParserTests extends ESSingleNodeTestCase {
         assertThat(parsedQuery, instanceOf(BooleanQuery.class));
     }
 
+    public void testCrossFieldMultiMatchQuery() throws IOException {
+        IndexQueryParserService queryParser = queryParser();
+        Query parsedQuery = queryParser.parse(multiMatchQuery("banon", "name.first^2", "name.last^3", "foobar").type(MultiMatchQueryBuilder.Type.CROSS_FIELDS)).query();
+        try (Engine.Searcher searcher = indexService.shardSafe(0).acquireSearcher("test")) {
+            Query rewrittenQuery = searcher.searcher().rewrite(parsedQuery);
+
+            BooleanQuery expected = new BooleanQuery();
+            expected.add(new TermQuery(new Term("foobar", "banon")), Occur.SHOULD);
+            TermQuery tq1 = new TermQuery(new Term("name.first", "banon"));
+            tq1.setBoost(2);
+            TermQuery tq2 = new TermQuery(new Term("name.last", "banon"));
+            tq2.setBoost(3);
+            expected.add(new DisjunctionMaxQuery(Arrays.<Query>asList(tq1, tq2), 0f), Occur.SHOULD);
+            assertEquals(expected, rewrittenQuery);
+        }
+    }
+
     @Test
     public void testSimpleQueryString() throws Exception {
         IndexQueryParserService queryParser = queryParser();
@@ -2359,7 +2407,7 @@ public class SimpleIndexQueryParserTests extends ESSingleNodeTestCase {
         IndexQueryParserService queryParser = queryParser();
         String query = jsonBuilder().startObject().startObject("function_score")
                 .startArray("functions")
-                .startObject().field("weight", 2).field("boost_factor",2).endObject()
+                .startObject().field("weight", 2).field("boost_factor", 2).endObject()
                 .endArray()
                 .endObject().endObject().string();
         try {
@@ -2459,5 +2507,20 @@ public class SimpleIndexQueryParserTests extends ESSingleNodeTestCase {
             assertThat(prefixQuery.getPrefix(), equalTo(new Term("field", "val")));
             assertThat(prefixQuery.getRewriteMethod(), instanceOf(MultiTermQuery.TopTermsBlendedFreqScoringRewrite.class));
         }
+    }
+
+    @Test
+    public void testSimpleQueryStringNoFields() throws Exception {
+        IndexQueryParserService queryParser = queryParser();
+        String queryText = randomAsciiOfLengthBetween(1, 10).toLowerCase(Locale.ROOT);
+        String query = "{\n" +
+                "    \"simple_query_string\" : {\n" +
+                "        \"query\" : \"" + queryText + "\"\n" +
+                "    }\n" +
+                "}";
+        Query parsedQuery = queryParser.parse(query).query();
+        assertThat(parsedQuery, instanceOf(TermQuery.class));
+        TermQuery termQuery = (TermQuery) parsedQuery;
+        assertThat(termQuery.getTerm(), equalTo(new Term(MetaData.ALL, queryText)));
     }
 }

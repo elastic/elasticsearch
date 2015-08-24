@@ -49,7 +49,7 @@ public class RestSegmentsAction extends AbstractCatAction {
     }
 
     @Override
-    void doRequest(final RestRequest request, final RestChannel channel, final Client client) {
+    protected void doRequest(final RestRequest request, final RestChannel channel, final Client client) {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
 
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
@@ -75,13 +75,13 @@ public class RestSegmentsAction extends AbstractCatAction {
     }
 
     @Override
-    void documentation(StringBuilder sb) {
+    protected void documentation(StringBuilder sb) {
         sb.append("/_cat/segments\n");
         sb.append("/_cat/segments/{index}\n");
     }
 
     @Override
-    Table getTableWithHeader(RestRequest request) {
+    protected Table getTableWithHeader(RestRequest request) {
         Table table = new Table();
         table.startHeaders();
         table.addCell("index", "default:true;alias:i,idx;desc:index name");

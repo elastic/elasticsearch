@@ -69,13 +69,13 @@ public class RestNodesStatsAction extends BaseRestHandler {
             nodesStatsRequest.os(metrics.contains("os"));
             nodesStatsRequest.jvm(metrics.contains("jvm"));
             nodesStatsRequest.threadPool(metrics.contains("thread_pool"));
-            nodesStatsRequest.network(metrics.contains("network"));
             nodesStatsRequest.fs(metrics.contains("fs"));
             nodesStatsRequest.transport(metrics.contains("transport"));
             nodesStatsRequest.http(metrics.contains("http"));
             nodesStatsRequest.indices(metrics.contains("indices"));
             nodesStatsRequest.process(metrics.contains("process"));
             nodesStatsRequest.breaker(metrics.contains("breaker"));
+            nodesStatsRequest.script(metrics.contains("script"));
 
             // check for index specific metrics
             if (metrics.contains("indices")) {

@@ -20,13 +20,14 @@ package org.elasticsearch.benchmark.search.aggregations;
 
 import com.carrotsearch.hppc.ObjectScatterSet;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
+
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.bootstrap.Bootstrap;
+import org.elasticsearch.bootstrap.BootstrapForTesting;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.settings.Settings;
@@ -71,7 +72,7 @@ public class TermsAggregationSearchAndIndexingBenchmark {
     static Node[] nodes;
 
     public static void main(String[] args) throws Exception {
-        Bootstrap.initializeNatives(true, false);
+        BootstrapForTesting.ensureInitialized();
         Settings settings = settingsBuilder()
                 .put("refresh_interval", "-1")
                 .put(SETTING_NUMBER_OF_SHARDS, 1)

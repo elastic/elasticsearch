@@ -1030,9 +1030,6 @@ public class GetActionIT extends ESIntegTestCase {
             "    \"doc\": {\n" +
             "      \"_timestamp\": {\n" +
             "        \"enabled\": true\n" +
-            "      },\n" +
-            "      \"_size\": {\n" +
-            "        \"enabled\": true\n" +
             "      }\n" +
             "    }\n" +
             "  }\n" +
@@ -1044,7 +1041,7 @@ public class GetActionIT extends ESIntegTestCase {
             "  \"text\": \"some text.\"\n" +
             "}\n";
         client().prepareIndex("test", "doc").setId("1").setSource(doc).setRouting("1").get();
-        String[] fieldsList = {"_timestamp", "_size", "_routing"};
+        String[] fieldsList = {"_timestamp", "_routing"};
         // before refresh - document is only in translog
         assertGetFieldsAlwaysWorks(indexOrAlias(), "doc", "1", fieldsList, "1");
         refresh();
@@ -1118,7 +1115,7 @@ public class GetActionIT extends ESIntegTestCase {
     @Test
     public void testGeneratedNumberFieldsUnstored() throws IOException {
         indexSingleDocumentWithNumericFieldsGeneratedFromText(false, randomBoolean());
-        String[] fieldsList = {"token_count", "text.token_count", "murmur", "text.murmur"};
+        String[] fieldsList = {"token_count", "text.token_count"};
         // before refresh - document is only in translog
         assertGetFieldsAlwaysNull(indexOrAlias(), "doc", "1", fieldsList);
         refresh();
@@ -1132,7 +1129,7 @@ public class GetActionIT extends ESIntegTestCase {
     @Test
     public void testGeneratedNumberFieldsStored() throws IOException {
         indexSingleDocumentWithNumericFieldsGeneratedFromText(true, randomBoolean());
-        String[] fieldsList = {"token_count", "text.token_count", "murmur", "text.murmur"};
+        String[] fieldsList = {"token_count", "text.token_count"};
         // before refresh - document is only in translog
         assertGetFieldsNull(indexOrAlias(), "doc", "1", fieldsList);
         assertGetFieldsException(indexOrAlias(), "doc", "1", fieldsList);
@@ -1161,20 +1158,12 @@ public class GetActionIT extends ESIntegTestCase {
                 "          \"analyzer\": \"standard\",\n" +
                 "          \"store\": \"" + storedString + "\"" +
                 "        },\n" +
-                "        \"murmur\": {\n" +
-                "          \"type\": \"murmur3\",\n" +
-                "          \"store\": \"" + storedString + "\"" +
-                "        },\n" +
                 "        \"text\": {\n" +
                 "          \"type\": \"string\",\n" +
                 "          \"fields\": {\n" +
                 "            \"token_count\": {\n" +
                 "              \"type\": \"token_count\",\n" +
                 "              \"analyzer\": \"standard\",\n" +
-                "              \"store\": \"" + storedString + "\"" +
-                "            },\n" +
-                "            \"murmur\": {\n" +
-                "              \"type\": \"murmur3\",\n" +
                 "              \"store\": \"" + storedString + "\"" +
                 "            }\n" +
                 "          }\n" +
@@ -1187,7 +1176,6 @@ public class GetActionIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias")).setSource(createIndexSource));
         ensureGreen();
         String doc = "{\n" +
-                "  \"murmur\": \"Some value that can be hashed\",\n" +
                 "  \"token_count\": \"A text with five words.\",\n" +
                 "  \"text\": \"A text with five words.\"\n" +
                 "}\n";

@@ -34,41 +34,42 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.unit.TimeValue;
 
 import java.io.IOException;
-import java.util.ArrayList;
+import java.security.GeneralSecurityException;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 
 /**
  *
  */
-public class GceComputeServiceImpl extends AbstractLifecycleComponent<GceComputeServiceImpl>
+public class GceComputeServiceImpl extends AbstractLifecycleComponent<GceComputeService>
     implements GceComputeService {
 
     private final String project;
-    private final List<String> zoneList;
+    private final List<String> zones;
 
     // Forcing Google Token API URL as set in GCE SDK to
     //      http://metadata/computeMetadata/v1/instance/service-accounts/default/token
     // See https://developers.google.com/compute/docs/metadata#metadataserver
-    private static final String TOKEN_SERVER_ENCODED_URL = "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token";
+    public static final String TOKEN_SERVER_ENCODED_URL = "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token";
 
     @Override
     public Collection<Instance> instances() {
 
-            logger.debug("get instances for project [{}], zoneList [{}]", project, zoneList);
+            logger.debug("get instances for project [{}], zones [{}]", project, zones);
 
-            List<List<Instance>> instanceListByZone = Lists.transform(zoneList, new Function<String, List<Instance>>() {
+            List<List<Instance>> instanceListByZone = Lists.transform(zones, new Function<String, List<Instance>>() {
                 @Override
                 public List<Instance> apply(String zoneId) {
                     try {
                         Compute.Instances.List list = client().instances().list(project, zoneId);
                         InstanceList instanceList = list.execute();
                         if (instanceList.isEmpty()) {
-                            return new ArrayList();
+                            return Collections.EMPTY_LIST;
                         }
 
                         return instanceList.getItems();
@@ -76,12 +77,12 @@ public class GceComputeServiceImpl extends AbstractLifecycleComponent<GceCompute
                         logger.warn("Problem fetching instance list for zone {}", zoneId);
                         logger.debug("Full exception:", e);
 
-                        return new ArrayList();
+                        return Collections.EMPTY_LIST;
                     }
                 }
             });
 
-            //Collapse instances from all zones into one neat list
+            // Collapse instances from all zones into one neat list
             List<Instance> instanceList = Lists.newArrayList(Iterables.concat(instanceListByZone));
 
             if (instanceList.size() == 0) {
@@ -96,17 +97,24 @@ public class GceComputeServiceImpl extends AbstractLifecycleComponent<GceCompute
     private long lastRefresh;
 
     /** Global instance of the HTTP transport. */
-    private static HttpTransport HTTP_TRANSPORT;
+    private HttpTransport gceHttpTransport;
 
     /** Global instance of the JSON factory. */
-    private static JsonFactory JSON_FACTORY;
+    private JsonFactory gceJsonFactory;
 
     @Inject
-    public GceComputeServiceImpl(Settings settings, SettingsFilter settingsFilter) {
+    public GceComputeServiceImpl(Settings settings) {
         super(settings);
         this.project = settings.get(Fields.PROJECT);
         String[] zoneList = settings.getAsArray(Fields.ZONE);
-        this.zoneList = Lists.newArrayList(zoneList);
+        this.zones = Arrays.asList(zoneList);
+    }
+
+    protected synchronized HttpTransport getGceHttpTransport() throws GeneralSecurityException, IOException {
+        if (gceHttpTransport == null) {
+            gceHttpTransport = GoogleNetHttpTransport.newTrustedTransport();
+        }
+        return gceHttpTransport;
     }
 
     public synchronized Compute client() {
@@ -120,27 +128,27 @@ public class GceComputeServiceImpl extends AbstractLifecycleComponent<GceCompute
         }
 
         try {
-            HTTP_TRANSPORT = GoogleNetHttpTransport.newTrustedTransport();
-            JSON_FACTORY = new JacksonFactory();
+            gceJsonFactory = new JacksonFactory();
 
             logger.info("starting GCE discovery service");
-
-            ComputeCredential credential = new ComputeCredential.Builder(HTTP_TRANSPORT, JSON_FACTORY)
-                    .setTokenServerEncodedUrl(TOKEN_SERVER_ENCODED_URL)
+            ComputeCredential credential = new ComputeCredential.Builder(getGceHttpTransport(), gceJsonFactory)
+                        .setTokenServerEncodedUrl(TOKEN_SERVER_ENCODED_URL)
                     .build();
 
             credential.refreshToken();
 
             logger.debug("token [{}] will expire in [{}] s", credential.getAccessToken(), credential.getExpiresInSeconds());
-            refreshInterval = TimeValue.timeValueSeconds(credential.getExpiresInSeconds()-1);
+            if (credential.getExpiresInSeconds() != null) {
+                refreshInterval = TimeValue.timeValueSeconds(credential.getExpiresInSeconds()-1);
+            }
 
             // Once done, let's use this token
-            this.client = new Compute.Builder(HTTP_TRANSPORT, JSON_FACTORY, null)
+            this.client = new Compute.Builder(getGceHttpTransport(), gceJsonFactory, null)
                     .setApplicationName(Fields.VERSION)
                     .setHttpRequestInitializer(credential)
                     .build();
         } catch (Exception e) {
-            logger.warn("unable to start GCE discovery service: {} : {}", e.getClass().getName(), e.getMessage());
+            logger.warn("unable to start GCE discovery service", e);
             throw new IllegalArgumentException("unable to start GCE discovery service", e);
         }
 
@@ -153,6 +161,14 @@ public class GceComputeServiceImpl extends AbstractLifecycleComponent<GceCompute
 
     @Override
     protected void doStop() throws ElasticsearchException {
+        if (gceHttpTransport != null) {
+            try {
+                gceHttpTransport.shutdown();
+            } catch (IOException e) {
+                logger.warn("unable to shutdown GCE Http Transport", e);
+            }
+            gceHttpTransport = null;
+        }
     }
 
     @Override

@@ -19,28 +19,41 @@
 
 package org.elasticsearch.index.query.functionscore;
 
-import com.google.common.collect.ImmutableMap;
-
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryParsingException;
+import org.elasticsearch.index.query.functionscore.exp.ExponentialDecayFunctionParser;
+import org.elasticsearch.index.query.functionscore.factor.FactorParser;
+import org.elasticsearch.index.query.functionscore.fieldvaluefactor.FieldValueFactorFunctionParser;
+import org.elasticsearch.index.query.functionscore.gauss.GaussDecayFunctionParser;
+import org.elasticsearch.index.query.functionscore.lin.LinearDecayFunctionParser;
+import org.elasticsearch.index.query.functionscore.random.RandomScoreFunctionParser;
+import org.elasticsearch.index.query.functionscore.script.ScriptScoreFunctionParser;
 
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Set;
 
 public class ScoreFunctionParserMapper {
 
-    protected ImmutableMap<String, ScoreFunctionParser> functionParsers;
+    protected Map<String, ScoreFunctionParser> functionParsers;
 
     @Inject
     public ScoreFunctionParserMapper(Set<ScoreFunctionParser> parsers) {
-        MapBuilder<String, ScoreFunctionParser> builder = MapBuilder.newMapBuilder();
+        Map<String, ScoreFunctionParser> map = new HashMap<>();
+        // build-in parsers
+        addParser(new FactorParser(), map);
+        addParser(new ScriptScoreFunctionParser(), map);
+        addParser(new GaussDecayFunctionParser(), map);
+        addParser(new LinearDecayFunctionParser(), map);
+        addParser(new ExponentialDecayFunctionParser(), map);
+        addParser(new RandomScoreFunctionParser(), map);
+        addParser(new FieldValueFactorFunctionParser(), map);
         for (ScoreFunctionParser scoreFunctionParser : parsers) {
-            for (String name : scoreFunctionParser.getNames()) {
-                builder.put(name, scoreFunctionParser);
-            }
+            addParser(scoreFunctionParser, map);
         }
-        this.functionParsers = builder.immutableMap();
+        this.functionParsers = Collections.unmodifiableMap(map);
     }
 
     public ScoreFunctionParser get(QueryParseContext parseContext, String parserName) {
@@ -53,6 +66,12 @@ public class ScoreFunctionParserMapper {
 
     private ScoreFunctionParser get(String parserName) {
         return functionParsers.get(parserName);
+    }
+
+    private void addParser(ScoreFunctionParser scoreFunctionParser, Map<String, ScoreFunctionParser> map) {
+        for (String name : scoreFunctionParser.getNames()) {
+            map.put(name, scoreFunctionParser);
+        }
     }
 
 }

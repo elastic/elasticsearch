@@ -37,11 +37,11 @@ public abstract class AbstractCatAction extends BaseRestHandler {
         super(settings, controller, client);
     }
 
-    abstract void doRequest(final RestRequest request, final RestChannel channel, final Client client);
+    protected abstract void doRequest(final RestRequest request, final RestChannel channel, final Client client);
 
-    abstract void documentation(StringBuilder sb);
+    protected abstract void documentation(StringBuilder sb);
 
-    abstract Table getTableWithHeader(final RestRequest request);
+    protected abstract Table getTableWithHeader(final RestRequest request);
 
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) throws Exception {

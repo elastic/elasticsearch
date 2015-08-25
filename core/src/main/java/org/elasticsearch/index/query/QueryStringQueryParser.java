@@ -222,8 +222,6 @@ public class QueryStringQueryParser extends BaseQueryParserTemp {
             qpSettings.queryString(org.apache.lucene.queryparser.classic.QueryParser.escape(qpSettings.queryString()));
         }
 
-        qpSettings.queryTypes(context.queryTypes());
-
         MapperQueryParser queryParser = context.queryParser(qpSettings);
 
         try {

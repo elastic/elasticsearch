@@ -76,6 +76,11 @@ gpgcheck=1
 gpgkey=http://packages.elastic.co/GPG-KEY-elasticsearch
 enabled=1
 
+To smoke-test the release please run:
+
+ python3 -B ./dev-tools/smoke_tests_rc.py --version %(version)s --hash %(hash)s --plugins license,shield,watcher
+
+NOTE: this script requires JAVA_HOME to point to a Java 7 Runtime 
 
 [1] https://github.com/elastic/elasticsearch/commit/%(hash)s
 [2] http://download.elasticsearch.org/elasticsearch/staging/%(version)s-%(hash)s/org/elasticsearch/distribution/zip/elasticsearch/%(version)s/elasticsearch-%(version)s.zip

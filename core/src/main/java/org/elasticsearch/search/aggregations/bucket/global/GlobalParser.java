@@ -41,10 +41,9 @@ public class GlobalParser implements Aggregator.Parser {
         return new GlobalAggregator.Factory(aggregationName);
     }
 
-    // NORELEASE implement this method when refactoring this aggregation
     @Override
     public AggregatorFactory getFactoryPrototype() {
-        return null;
+        return new GlobalAggregator.Factory(null);
     }
 
 }

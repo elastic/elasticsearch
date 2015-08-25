@@ -98,7 +98,7 @@ public class TransportDeleteWarmerAction extends TransportMasterNodeAction<Delet
                         deleteAll = true;
                     }
                 }
-                
+
                 for (String index : concreteIndices) {
                     IndexMetaData indexMetaData = currentState.metaData().index(index);
                     if (indexMetaData == null) {
@@ -150,7 +150,7 @@ public class TransportDeleteWarmerAction extends TransportMasterNodeAction<Delet
                                 }
                             }
                         } else if(deleteAll){
-                            logger.info("no warmers to delete on indice [{}]", index);
+                            logger.debug("no warmers to delete on index [{}]", index);
                         }
                     }
                 }

@@ -22,6 +22,7 @@
     <properties>
         <elasticsearch.assembly.descriptor>${elasticsearch.tools.directory}/plugin-metadata/plugin-assembly.xml</elasticsearch.assembly.descriptor>
         <elasticsearch.assembly.appendId>false</elasticsearch.assembly.appendId>
+        <elasticsearch.plugin.name>${project.artifactId}</elasticsearch.plugin.name>
         <elasticsearch.plugin.jvm>true</elasticsearch.plugin.jvm>
         <elasticsearch.plugin.isolated>true</elasticsearch.plugin.isolated>
         <elasticsearch.plugin.site>false</elasticsearch.plugin.site>
@@ -282,6 +283,9 @@
                     <include>api/indices.refresh.json</include>
                     <include>api/nodes.info.json</include>
                     <include>api/count.json</include>
+                    <!-- used in repository plugin REST tests -->
+                    <include>api/snapshot.create_repository.json</include>
+                    <include>api/snapshot.get_repository.json</include>
                 </includes>
             </testResource>
             <!-- shared test resources like log4j.properties -->
@@ -365,6 +369,7 @@
                                 <rules>
                                     <requireProperty>
                                         <property>elasticsearch.plugin.classname</property>
+                                        <property>elasticsearch.plugin.name</property>
                                     </requireProperty>
                                 </rules>
                             </configuration>
@@ -429,6 +434,7 @@
         <module>cloud-azure</module>
         <module>cloud-aws</module>
         <module>delete-by-query</module>
+        <module>discovery-multicast</module>
         <module>lang-python</module>
         <module>lang-javascript</module>
         <module>mapper-murmur3</module>

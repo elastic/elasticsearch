@@ -27,8 +27,8 @@ The old delete-by-query functionality was fast but unsafe.  It could lead to
 document differences between the primary and replica shards, and could even
 produce out of memory exceptions and cause the cluster to crash.
 
-This feature has been reimplemented using the <<scroll-scan,scroll/scan>> and
-the <<docs-bulk,`bulk`>> API, which may be slower for queries which match
+This feature has been reimplemented using the <<search-request-scroll,scroll>> and
+<<docs-bulk,`bulk`>> APIs, which may be slower for queries which match
 large numbers of documents, but is safe.
 
 Currently, a long running delete-by-query job cannot be cancelled, which is

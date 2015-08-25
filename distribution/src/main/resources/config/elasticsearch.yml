@@ -71,13 +71,10 @@
 #
 # --------------------------------- Discovery ----------------------------------
 #
-# Elasticsearch nodes will find each other via multicast, by default.
-#
-# To use the unicast discovery, disable the multicast discovery:
-#
-# discovery.zen.ping.multicast.enabled: false
+# Elasticsearch nodes will find each other via unicast, by default.
 #
 # Pass an initial list of hosts to perform discovery when new node is started:
+# The default list of hosts is ["127.0.0.1", "[::1]"]
 #
 # discovery.zen.ping.unicast.hosts: ["host1", "host2"]
 #

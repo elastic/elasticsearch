@@ -20,6 +20,7 @@
 package org.elasticsearch.node.internal;
 
 import com.google.common.base.Charsets;
+import com.google.common.collect.Sets;
 import com.google.common.collect.UnmodifiableIterator;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.Booleans;
@@ -40,6 +41,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
 
 import static org.elasticsearch.common.Strings.cleanPath;
@@ -113,12 +115,20 @@ public class InternalSettingsPreparer {
                 }
             }
             if (loadFromEnv) {
+                boolean settingsFileFound = false;
+                Set<String> foundSuffixes = Sets.newHashSet();
                 for (String allowedSuffix : ALLOWED_SUFFIXES) {
-                    try {
-                        settingsBuilder.loadFromPath(environment.configFile().resolve("elasticsearch" + allowedSuffix));
-                    } catch (SettingsException e) {
-                        // ignore
+                    Path path = environment.configFile().resolve("elasticsearch" + allowedSuffix);
+                    if (Files.exists(path)) {
+                        if (!settingsFileFound) {
+                            settingsBuilder.loadFromPath(path);
+                        }
+                        settingsFileFound = true;
+                        foundSuffixes.add(allowedSuffix);
                     }
+                }
+                if (foundSuffixes.size() > 1) {
+                    throw new SettingsException("multiple settings files found with suffixes: " + Strings.collectionToDelimitedString(foundSuffixes, ","));
                 }
             }
         }

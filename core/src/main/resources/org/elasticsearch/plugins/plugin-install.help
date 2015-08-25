@@ -4,29 +4,30 @@ NAME
 
 SYNOPSIS
 
-    plugin install <name>
+    plugin install <name or url>
 
 DESCRIPTION
 
-    This command installs an elasticsearch plugin
+    This command installs an elasticsearch plugin. It can be used as follows:
 
-    <name> can be one of the official plugins, or refer to a github repository, or to one of the official plugins
+    Officially supported or commercial plugins require just the plugin name:
 
-    The notation of just specifying a plugin name, downloads an officially supported plugin.
+        plugin install analysis-icu
+        plugin install shield
 
-    The notation of 'elasticsearch/plugin/version' allows to easily download a commercial elastic plugin.
+    Plugins from GitHub require 'username/repository' or 'username/repository/version':
 
-    The notation of 'groupId/artifactId/version' refers to community plugins using maven central or sonatype
+        plugin install lmenezes/elasticsearch-kopf
+        plugin install lmenezes/elasticsearch-kopf/1.5.7
 
-    The notation of 'username/repository' refers to a github repository.
+    Plugins from Maven Central or Sonatype require 'groupId/artifactId/version':
 
-EXAMPLES
+        plugin install org.elasticsearch/elasticsearch-mapper-attachments/2.6.0
 
-    plugin install analysis-kuromoji
+    Plugins can be installed from a custom URL or file location as follows:
 
-    plugin install elasticsearch/shield/latest
-
-    plugin install lmenezes/elasticsearch-kopf
+        plugin install http://some.domain.name//my-plugin-1.0.0.zip
+        plugin install file:/path/to/my-plugin-1.0.0.zip
 
 OFFICIAL PLUGINS
 
@@ -41,6 +42,7 @@ OFFICIAL PLUGINS
     - cloud-azure
     - cloud-gce
     - delete-by-query
+    - discovery-multicast
     - lang-javascript
     - lang-python
     - mapper-murmur3
@@ -48,8 +50,6 @@ OFFICIAL PLUGINS
 
 
 OPTIONS
-
-    -u,--url                     URL to retrieve the plugin from
 
     -t,--timeout                 Timeout until the plugin download is abort
 

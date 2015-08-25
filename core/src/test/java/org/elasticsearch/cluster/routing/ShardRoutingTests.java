@@ -103,12 +103,12 @@ public class ShardRoutingTests extends ESTestCase {
         ShardRouting startedShard1 = new ShardRouting(initializingShard1);
         startedShard1.moveToStarted();
         ShardRouting sourceShard0a = new ShardRouting(startedShard0);
-        sourceShard0a.relocate("node2");
+        sourceShard0a.relocate("node2", -1);
         ShardRouting targetShard0a = sourceShard0a.buildTargetRelocatingShard();
         ShardRouting sourceShard0b = new ShardRouting(startedShard0);
-        sourceShard0b.relocate("node2");
+        sourceShard0b.relocate("node2", -1);
         ShardRouting sourceShard1 = new ShardRouting(startedShard1);
-        sourceShard1.relocate("node2");
+        sourceShard1.relocate("node2", -1);
 
         // test true scenarios
         assertTrue(targetShard0a.isRelocationTargetOf(sourceShard0a));
@@ -254,7 +254,7 @@ public class ShardRoutingTests extends ESTestCase {
             }
 
             try {
-                routing.initialize("boom");
+                routing.initialize("boom", -1);
                 fail("must be frozen");
             } catch (IllegalStateException ex) {
                 // expected
@@ -273,7 +273,7 @@ public class ShardRoutingTests extends ESTestCase {
             }
 
             try {
-                routing.relocate("foobar");
+                routing.relocate("foobar", -1);
                 fail("must be frozen");
             } catch (IllegalStateException ex) {
                 // expected
@@ -285,6 +285,41 @@ public class ShardRoutingTests extends ESTestCase {
                 // expected
             }
             assertEquals(version, routing.version());
+        }
+    }
+
+    public void testExpectedSize() throws IOException {
+        final int iters = randomIntBetween(10, 100);
+        for (int i = 0; i < iters; i++) {
+            ShardRouting routing = randomShardRouting("test", 0);
+            long byteSize = randomIntBetween(0, Integer.MAX_VALUE);
+            if (routing.unassigned()) {
+                ShardRoutingHelper.initialize(routing, "foo", byteSize);
+            } else if (routing.started()) {
+                ShardRoutingHelper.relocate(routing, "foo", byteSize);
+            } else {
+                byteSize = -1;
+            }
+            if (randomBoolean()) {
+                BytesStreamOutput out = new BytesStreamOutput();
+                routing.writeTo(out);
+                routing = ShardRouting.readShardRoutingEntry(StreamInput.wrap(out.bytes()));
+            }
+            if (routing.initializing() || routing.relocating()) {
+                assertEquals(routing.toString(), byteSize, routing.getExpectedShardSize());
+                if (byteSize >= 0) {
+                    assertTrue(routing.toString(), routing.toString().contains("expected_shard_size[" + byteSize + "]"));
+                }
+                if (routing.initializing()) {
+                    routing = new ShardRouting(routing);
+                    routing.moveToStarted();
+                    assertEquals(-1, routing.getExpectedShardSize());
+                    assertFalse(routing.toString(), routing.toString().contains("expected_shard_size[" + byteSize + "]"));
+                }
+            } else {
+                assertFalse(routing.toString(), routing.toString().contains("expected_shard_size [" + byteSize + "]"));
+                assertEquals(byteSize, routing.getExpectedShardSize());
+            }
         }
     }
 }

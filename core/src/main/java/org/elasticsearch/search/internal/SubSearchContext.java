@@ -20,13 +20,10 @@ package org.elasticsearch.search.internal;
 
 import com.google.common.collect.Lists;
 import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.util.Counter;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.index.query.ParsedQuery;
-import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.innerhits.InnerHitsContext;
@@ -101,7 +98,7 @@ public class SubSearchContext extends FilteredSearchContext {
     }
 
     @Override
-    public SearchContext scroll(Scroll scroll) {
+    public SearchContext scrollContext(ScrollContext scrollContext) {
         throw new UnsupportedOperationException("Not supported");
     }
 
@@ -301,11 +298,6 @@ public class SubSearchContext extends FilteredSearchContext {
 
     @Override
     public void keepAlive(long keepAlive) {
-        throw new UnsupportedOperationException("Not supported");
-    }
-
-    @Override
-    public void lastEmittedDoc(ScoreDoc doc) {
         throw new UnsupportedOperationException("Not supported");
     }
 

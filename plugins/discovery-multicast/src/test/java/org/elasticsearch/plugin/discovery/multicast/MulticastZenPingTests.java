@@ -17,12 +17,13 @@
  * under the License.
  */
 
-package org.elasticsearch.discovery.zen.ping.multicast;
+package org.elasticsearch.plugin.discovery.multicast;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
@@ -36,20 +37,21 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.local.LocalTransport;
+import org.hamcrest.Matchers;
+import org.junit.Assert;
 import org.junit.Test;
 
 import java.net.DatagramPacket;
 import java.net.InetAddress;
 import java.net.MulticastSocket;
 
-import static org.hamcrest.Matchers.equalTo;
-
-public class MulticastZenPingIT extends ESTestCase {
+public class MulticastZenPingTests extends ESTestCase {
 
     private Settings buildRandomMulticast(Settings settings) {
         Settings.Builder builder = Settings.builder().put(settings);
         builder.put("discovery.zen.ping.multicast.group", "224.2.3." + randomIntBetween(0, 255));
         builder.put("discovery.zen.ping.multicast.port", randomIntBetween(55000, 56000));
+        builder.put("discovery.zen.ping.multicast.enabled", true);
         if (randomBoolean()) {
             builder.put("discovery.zen.ping.multicast.shared", randomBoolean());
         }
@@ -60,6 +62,7 @@ public class MulticastZenPingIT extends ESTestCase {
     public void testSimplePings() throws InterruptedException {
         Settings settings = Settings.EMPTY;
         settings = buildRandomMulticast(settings);
+        Thread.sleep(30000);
 
         ThreadPool threadPool = new ThreadPool("testSimplePings");
         final ClusterName clusterName = new ClusterName("test");
@@ -110,15 +113,15 @@ public class MulticastZenPingIT extends ESTestCase {
         try {
             logger.info("ping from A");
             ZenPing.PingResponse[] pingResponses = zenPingA.pingAndWait(TimeValue.timeValueSeconds(1));
-            assertThat(pingResponses.length, equalTo(1));
-            assertThat(pingResponses[0].node().id(), equalTo("B"));
-            assertTrue(pingResponses[0].hasJoinedOnce());
+            Assert.assertThat(pingResponses.length, Matchers.equalTo(1));
+            Assert.assertThat(pingResponses[0].node().id(), Matchers.equalTo("B"));
+            Assert.assertTrue(pingResponses[0].hasJoinedOnce());
 
             logger.info("ping from B");
             pingResponses = zenPingB.pingAndWait(TimeValue.timeValueSeconds(1));
-            assertThat(pingResponses.length, equalTo(1));
-            assertThat(pingResponses[0].node().id(), equalTo("A"));
-            assertFalse(pingResponses[0].hasJoinedOnce());
+            Assert.assertThat(pingResponses.length, Matchers.equalTo(1));
+            Assert.assertThat(pingResponses[0].node().id(), Matchers.equalTo("A"));
+            Assert.assertFalse(pingResponses[0].hasJoinedOnce());
 
         } finally {
             zenPingA.close();
@@ -129,7 +132,7 @@ public class MulticastZenPingIT extends ESTestCase {
         }
     }
 
-    @Test
+    @Test @SuppressForbidden(reason = "I bind to wildcard addresses. I am a total nightmare")
     public void testExternalPing() throws Exception {
         Settings settings = Settings.EMPTY;
         settings = buildRandomMulticast(settings);

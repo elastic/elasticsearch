@@ -192,8 +192,6 @@ public final class InternalTestCluster extends TestCluster {
 
     static final boolean DEFAULT_ENABLE_HTTP_PIPELINING = true;
 
-    public static final String NODE_MODE = nodeMode();
-
     /* sorted map to make traverse order reproducible, concurrent since we do checks on it not within a sync block */
     private final NavigableMap<String, NodeAndClient> nodes = new TreeMap<>();
 
@@ -227,16 +225,16 @@ public final class InternalTestCluster extends TestCluster {
     private final Path baseDir;
 
     private ServiceDisruptionScheme activeDisruptionScheme;
+    private String nodeMode;
 
-    public InternalTestCluster(long clusterSeed, Path baseDir, int minNumDataNodes, int maxNumDataNodes, String clusterName, int numClientNodes,
-                               boolean enableHttpPipelining, String nodePrefix) {
-        this(clusterSeed, baseDir, minNumDataNodes, maxNumDataNodes, clusterName, DEFAULT_SETTINGS_SOURCE, numClientNodes, enableHttpPipelining, nodePrefix);
-    }
-
-    public InternalTestCluster(long clusterSeed, Path baseDir,
+    public InternalTestCluster(String nodeMode, long clusterSeed, Path baseDir,
                                int minNumDataNodes, int maxNumDataNodes, String clusterName, SettingsSource settingsSource, int numClientNodes,
                                boolean enableHttpPipelining, String nodePrefix) {
         super(clusterSeed);
+        if ("network".equals(nodeMode) == false && "local".equals(nodeMode) == false) {
+            throw new IllegalArgumentException("Unknown nodeMode: " + nodeMode);
+        }
+        this.nodeMode = nodeMode;
         this.baseDir = baseDir;
         this.clusterName = clusterName;
         if (minNumDataNodes < 0 || maxNumDataNodes < 0) {
@@ -300,7 +298,7 @@ public final class InternalTestCluster extends TestCluster {
         builder.put("transport.tcp.port", BASE_PORT + "-" + (BASE_PORT + 100));
         builder.put("http.port", BASE_PORT + 101 + "-" + (BASE_PORT + 200));
         builder.put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING, true);
-        builder.put("node.mode", NODE_MODE);
+        builder.put("node.mode", nodeMode);
         builder.put("http.pipelining", enableHttpPipelining);
         if (Strings.hasLength(System.getProperty("es.logger.level"))) {
             builder.put("logger.level", System.getProperty("es.logger.level"));
@@ -327,7 +325,7 @@ public final class InternalTestCluster extends TestCluster {
         executor = EsExecutors.newCached("test runner", 0, TimeUnit.SECONDS, EsExecutors.daemonThreadFactory("test_" + clusterName));
     }
 
-    public static String nodeMode() {
+    public static String configuredNodeMode() {
         Builder builder = Settings.builder();
         if (Strings.isEmpty(System.getProperty("es.node.mode")) && Strings.isEmpty(System.getProperty("es.node.local"))) {
             return "local"; // default if nothing is specified
@@ -354,11 +352,8 @@ public final class InternalTestCluster extends TestCluster {
         return nodes.keySet().toArray(Strings.EMPTY_ARRAY);
     }
 
-    private static boolean isLocalTransportConfigured() {
-        if ("local".equals(System.getProperty("es.node.mode", "network"))) {
-            return true;
-        }
-        return Boolean.parseBoolean(System.getProperty("es.node.local", "false"));
+    private boolean isLocalTransportConfigured() {
+        return "local".equals(nodeMode);
     }
 
     private Settings getSettings(int nodeOrdinal, long nodeSeed, Settings others) {
@@ -378,7 +373,7 @@ public final class InternalTestCluster extends TestCluster {
         return builder.build();
     }
 
-    private static Settings getRandomNodeSettings(long seed) {
+    private Settings getRandomNodeSettings(long seed) {
         Random random = new Random(seed);
         Builder builder = Settings.settingsBuilder()
                 .put(SETTING_CLUSTER_NODE_SEED, seed);
@@ -782,6 +777,10 @@ public final class InternalTestCluster extends TestCluster {
         }
     }
 
+    public String getNodeMode() {
+        return nodeMode;
+    }
+
     private final class NodeAndClient implements Closeable {
         private Node node;
         private Client nodeClient;
@@ -844,7 +843,7 @@ public final class InternalTestCluster extends TestCluster {
             /* no sniff client for now - doesn't work will all tests since it might throw NoNodeAvailableException if nodes are shut down.
              * we first need support of transportClientRatio as annotations or so
              */
-            return transportClient = new TransportClientFactory(false, settingsSource.transportClient(), baseDir).client(node, clusterName);
+            return transportClient = new TransportClientFactory(false, settingsSource.transportClient(), baseDir, nodeMode).client(node, clusterName);
         }
 
         void resetClient() throws IOException {
@@ -901,11 +900,13 @@ public final class InternalTestCluster extends TestCluster {
         private final boolean sniff;
         private final Settings settings;
         private final Path baseDir;
+        private final String nodeMode;
 
-        TransportClientFactory(boolean sniff, Settings settings, Path baseDir) {
+        TransportClientFactory(boolean sniff, Settings settings, Path baseDir, String nodeMode) {
             this.sniff = sniff;
             this.settings = settings != null ? settings : Settings.EMPTY;
             this.baseDir = baseDir;
+            this.nodeMode = nodeMode;
         }
 
         public Client client(Node node, String clusterName) {
@@ -916,7 +917,7 @@ public final class InternalTestCluster extends TestCluster {
                     .put("path.home", baseDir)
                     .put("name", TRANSPORT_CLIENT_PREFIX + node.settings().get("name"))
                     .put(ClusterName.SETTING, clusterName).put("client.transport.sniff", sniff)
-                    .put("node.mode", nodeSettings.get("node.mode", NODE_MODE))
+                    .put("node.mode", nodeSettings.get("node.mode", nodeMode))
                     .put("node.local", nodeSettings.get("node.local", ""))
                     .put("logger.prefix", nodeSettings.get("logger.prefix", ""))
                     .put("logger.level", nodeSettings.get("logger.level", "INFO"))

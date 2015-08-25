@@ -26,7 +26,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Counter;
@@ -52,7 +51,6 @@ import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
@@ -67,6 +65,7 @@ import org.elasticsearch.search.highlight.SearchContextHighlight;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.InternalSearchHitField;
+import org.elasticsearch.search.internal.ScrollContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
@@ -347,12 +346,12 @@ public class PercolateContext extends SearchContext {
     }
 
     @Override
-    public Scroll scroll() {
+    public ScrollContext scrollContext() {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public SearchContext scroll(Scroll scroll) {
+    public SearchContext scrollContext(ScrollContext scroll) {
         throw new UnsupportedOperationException();
     }
 
@@ -617,16 +616,6 @@ public class PercolateContext extends SearchContext {
 
     @Override
     public void keepAlive(long keepAlive) {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public void lastEmittedDoc(ScoreDoc doc) {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public ScoreDoc lastEmittedDoc() {
         throw new UnsupportedOperationException();
     }
 

@@ -103,6 +103,7 @@
         <tests.rest.spec></tests.rest.spec>
         <tests.rest.load_packaged></tests.rest.load_packaged>
         <tests.network></tests.network>
+        <tests.multicast></tests.multicast>
         <tests.cluster></tests.cluster>
         <tests.filter></tests.filter>
         <env.ES_TEST_LOCAL></env.ES_TEST_LOCAL>
@@ -874,10 +875,16 @@
                     <version>2.4.1</version>
                 </plugin>
                 <plugin>
-                    <!-- We just declare which plugin version to use. Each project can have then its own settings -->
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-resources-plugin</artifactId>
                     <version>2.7</version>
+                    <!-- add some additonal binary types to prevent maven from 
+                         screwing them up with resource filtering  -->
+                    <configuration>
+                        <nonFilteredFileExtensions>
+                            <nonFilteredFileExtension>ico</nonFilteredFileExtension>
+                        </nonFilteredFileExtensions>
+                    </configuration>
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>

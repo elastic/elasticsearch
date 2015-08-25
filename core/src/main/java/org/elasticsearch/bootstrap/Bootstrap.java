@@ -21,15 +21,12 @@ package org.elasticsearch.bootstrap;
 
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.StringHelper;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.PidFile;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.cli.CliTool;
 import org.elasticsearch.common.cli.Terminal;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.inject.CreationException;
-import org.elasticsearch.common.inject.spi.Message;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
@@ -44,16 +41,14 @@ import org.elasticsearch.node.NodeBuilder;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
 
 import java.util.Locale;
-import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 
-import static com.google.common.collect.Sets.newHashSet;
 import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 
 /**
- * A main entry point when starting from the command line.
+ * Internal startup code.
  */
-public class Bootstrap {
+final class Bootstrap {
 
     private static volatile Bootstrap INSTANCE;
 
@@ -137,10 +132,6 @@ public class Bootstrap {
         OsProbe.getInstance();
     }
 
-    public static boolean isMemoryLocked() {
-        return Natives.isMemoryLocked();
-    }
-
     private void setup(boolean addShutdownHook, Settings settings, Environment environment) throws Exception {
         initializeNatives(settings.getAsBoolean("bootstrap.mlockall", false),
                 settings.getAsBoolean("bootstrap.ctrlhandler", true));
@@ -222,7 +213,11 @@ public class Bootstrap {
         }
     }
 
-    public static void main(String[] args) throws Throwable {
+    /**
+     * This method is invoked by {@link Elasticsearch#main(String[])}
+     * to startup elasticsearch.
+     */
+    static void init(String[] args) throws Throwable {
         BootstrapCLIParser bootstrapCLIParser = new BootstrapCLIParser();
         CliTool.ExitStatus status = bootstrapCLIParser.execute(args);
 
@@ -277,11 +272,19 @@ public class Bootstrap {
                 closeSysError();
             }
         } catch (Throwable e) {
+            // disable console logging, so user does not see the exception twice (jvm will show it already)
+            if (foreground) {
+                Loggers.disableConsoleLogging();
+            }
             ESLogger logger = Loggers.getLogger(Bootstrap.class);
             if (INSTANCE.node != null) {
                 logger = Loggers.getLogger(Bootstrap.class, INSTANCE.node.settings().get("name"));
             }
             logger.error("Exception", e);
+            // re-enable it if appropriate, so they can see any logging during the shutdown process
+            if (foreground) {
+                Loggers.enableConsoleLogging();
+            }
             
             throw e;
         }

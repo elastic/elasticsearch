@@ -87,8 +87,6 @@
       <run-script script="@{home}/bin/plugin">
         <nested>
           <arg value="install"/>
-          <arg value="@{name}"/>
-          <arg value="-u"/>
           <arg value="${url}"/>
         </nested>
       </run-script>
@@ -138,8 +136,7 @@
       <attribute name="home" default="${integ.scratch}/elasticsearch-${elasticsearch.version}"/>
       <attribute name="spawn" default="true"/>
       <attribute name="args" default="${integ.args}"/>
-      <attribute name="es.unicast.enabled" default="false"/>
-      <attribute name="es.unicast.hosts" default=""/>
+      <attribute name="es.unicast.hosts" default="localhost:${integ.transport.port}"/>
       <attribute name="es.cluster.name" default="${integ.cluster.name}"/>
       <attribute name="es.http.port" default="${integ.http.port}"/>
       <attribute name="es.transport.tcp.port" default="${integ.transport.port}"/>
@@ -147,6 +144,14 @@
       <attribute name="jvm.args" default="${tests.jvm.argline}"/>
       <element name="additional-args" optional="true"/>
     <sequential>
+      <!-- make sure no elasticsearch instance is currently running and listening on the port we need -->
+      <fail message="This test expects port @{es.http.port} to be free but an elasticsearch instance is already running and listening on that port.
+      Maybe the last test run did not manage to shut down the node correctly?
+      You must kill it before tests can run.">
+        <condition>
+          <socket server="localhost" port="@{es.http.port}"></socket>
+        </condition>
+      </fail>
       <!-- run bin/elasticsearch with args -->
       <echo>Starting up external cluster...</echo>
 
@@ -160,11 +165,9 @@
           <arg value="-Des.http.port=@{es.http.port}"/>
           <arg value="-Des.transport.tcp.port=@{es.transport.tcp.port}"/>
           <arg value="-Des.pidfile=@{es.pidfile}"/>
-          <arg value="-Des.discovery.zen.ping.unicast.enabled=@{es.unicast.enabled}"/>
           <arg value="-Des.discovery.zen.ping.unicast.hosts=@{es.unicast.hosts}"/>
           <arg value="-Des.path.repo=@{home}/repo"/>
           <arg value="-Des.path.shared_data=@{home}/../"/>
-          <arg value="-Des.discovery.zen.ping.multicast.enabled=false"/>
           <arg value="-Des.script.inline=on"/>
           <arg value="-Des.script.indexed=on"/>
           <arg value="-Des.repositories.url.allowed_urls=http://snapshot.test*"/>
@@ -237,7 +240,7 @@
     <attribute name="es.pidfile" default="${integ.pidfile}"/>
     <attribute name="es.peer.list" />
     <sequential>
-    <startup-elasticsearch es.pidfile="@{es.pidfile}" es.unicast.enabled="true"
+    <startup-elasticsearch es.pidfile="@{es.pidfile}"
                            es.transport.tcp.port="@{es.transport.port}" es.http.port="@{es.http.port}"
                            es.unicast.hosts="@{es.peer.list}"/>
     </sequential>

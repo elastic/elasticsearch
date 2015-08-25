@@ -35,7 +35,7 @@ import java.util.List;
 /**
  * Library for Windows/Kernel32
  */
-class JNAKernel32Library {
+final class JNAKernel32Library {
 
     private static final ESLogger logger = Loggers.getLogger(JNAKernel32Library.class);
 
@@ -148,7 +148,7 @@ class JNAKernel32Library {
         public NativeLong Type;
 
         @Override
-        protected List getFieldOrder() {
+        protected List<String> getFieldOrder() {
             return Arrays.asList(new String[]{"BaseAddress", "AllocationBase", "AllocationProtect", "RegionSize", "State", "Protect", "Type"});
         }
     }

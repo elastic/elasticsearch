@@ -29,9 +29,11 @@ import com.google.common.base.Predicate;
 import com.google.common.collect.Lists;
 
 import org.apache.http.impl.client.HttpClients;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.index.shard.MergeSchedulerConfig;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.LuceneTestCase;
@@ -117,6 +119,7 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.client.RandomizingClient;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
+import org.elasticsearch.transport.TransportModule;
 import org.hamcrest.Matchers;
 import org.joda.time.DateTimeZone;
 import org.junit.*;
@@ -124,7 +127,9 @@ import org.junit.*;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.annotation.*;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.net.UnknownHostException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -1042,40 +1047,34 @@ public abstract class ESIntegTestCase extends ESTestCase {
      */
     protected void ensureClusterStateConsistency() throws IOException {
         if (cluster() != null) {
-            boolean getResolvedAddress = InetSocketTransportAddress.getResolveAddress();
-            try {
-                InetSocketTransportAddress.setResolveAddress(false);
-                ClusterState masterClusterState = client().admin().cluster().prepareState().all().get().getState();
-                byte[] masterClusterStateBytes = ClusterState.Builder.toBytes(masterClusterState);
+            ClusterState masterClusterState = client().admin().cluster().prepareState().all().get().getState();
+            byte[] masterClusterStateBytes = ClusterState.Builder.toBytes(masterClusterState);
+            // remove local node reference
+            masterClusterState = ClusterState.Builder.fromBytes(masterClusterStateBytes, null);
+            Map<String, Object> masterStateMap = convertToMap(masterClusterState);
+            int masterClusterStateSize = masterClusterState.toString().length();
+            String masterId = masterClusterState.nodes().masterNodeId();
+            for (Client client : cluster()) {
+                ClusterState localClusterState = client.admin().cluster().prepareState().all().setLocal(true).get().getState();
+                byte[] localClusterStateBytes = ClusterState.Builder.toBytes(localClusterState);
                 // remove local node reference
-                masterClusterState = ClusterState.Builder.fromBytes(masterClusterStateBytes, null);
-                Map<String, Object> masterStateMap = convertToMap(masterClusterState);
-                int masterClusterStateSize = masterClusterState.toString().length();
-                String masterId = masterClusterState.nodes().masterNodeId();
-                for (Client client : cluster()) {
-                    ClusterState localClusterState = client.admin().cluster().prepareState().all().setLocal(true).get().getState();
-                    byte[] localClusterStateBytes = ClusterState.Builder.toBytes(localClusterState);
-                    // remove local node reference
-                    localClusterState = ClusterState.Builder.fromBytes(localClusterStateBytes, null);
-                    final Map<String, Object> localStateMap = convertToMap(localClusterState);
-                    final int localClusterStateSize = localClusterState.toString().length();
-                    // Check that the non-master node has the same version of the cluster state as the master and that this node didn't disconnect from the master
-                    if (masterClusterState.version() == localClusterState.version() && localClusterState.nodes().nodes().containsKey(masterId)) {
-                        try {
-                            assertEquals("clusterstate UUID does not match", masterClusterState.stateUUID(), localClusterState.stateUUID());
-                            // We cannot compare serialization bytes since serialization order of maps is not guaranteed
-                            // but we can compare serialization sizes - they should be the same
-                            assertEquals("clusterstate size does not match", masterClusterStateSize, localClusterStateSize);
-                            // Compare JSON serialization
-                            assertNull("clusterstate JSON serialization does not match", differenceBetweenMapsIgnoringArrayOrder(masterStateMap, localStateMap));
-                        } catch (AssertionError error) {
-                            logger.error("Cluster state from master:\n{}\nLocal cluster state:\n{}", masterClusterState.toString(), localClusterState.toString());
-                            throw error;
-                        }
+                localClusterState = ClusterState.Builder.fromBytes(localClusterStateBytes, null);
+                final Map<String, Object> localStateMap = convertToMap(localClusterState);
+                final int localClusterStateSize = localClusterState.toString().length();
+                // Check that the non-master node has the same version of the cluster state as the master and that this node didn't disconnect from the master
+                if (masterClusterState.version() == localClusterState.version() && localClusterState.nodes().nodes().containsKey(masterId)) {
+                    try {
+                        assertEquals("clusterstate UUID does not match", masterClusterState.stateUUID(), localClusterState.stateUUID());
+                        // We cannot compare serialization bytes since serialization order of maps is not guaranteed
+                        // but we can compare serialization sizes - they should be the same
+                        assertEquals("clusterstate size does not match", masterClusterStateSize, localClusterStateSize);
+                        // Compare JSON serialization
+                        assertNull("clusterstate JSON serialization does not match", differenceBetweenMapsIgnoringArrayOrder(masterStateMap, localStateMap));
+                    } catch (AssertionError error) {
+                        logger.error("Cluster state from master:\n{}\nLocal cluster state:\n{}", masterClusterState.toString(), localClusterState.toString());
+                        throw error;
                     }
                 }
-            } finally {
-                InetSocketTransportAddress.setResolveAddress(getResolvedAddress);
             }
         }
 
@@ -1088,6 +1087,38 @@ public abstract class ESIntegTestCase extends ESTestCase {
     protected ClusterHealthStatus ensureSearchable(String... indices) {
         // this is just a temporary thing but it's easier to change if it is encapsulated.
         return ensureGreen(indices);
+    }
+
+    protected void ensureStableCluster(int nodeCount) {
+        ensureStableCluster(nodeCount, TimeValue.timeValueSeconds(30));
+    }
+
+    protected void ensureStableCluster(int nodeCount, TimeValue timeValue) {
+        ensureStableCluster(nodeCount, timeValue, false, null);
+    }
+
+    protected void ensureStableCluster(int nodeCount, @Nullable String viaNode) {
+        ensureStableCluster(nodeCount, TimeValue.timeValueSeconds(30), false, viaNode);
+    }
+
+    protected void ensureStableCluster(int nodeCount, TimeValue timeValue, boolean local, @Nullable String viaNode) {
+        if (viaNode == null) {
+            viaNode = randomFrom(internalCluster().getNodeNames());
+        }
+        logger.debug("ensuring cluster is stable with [{}] nodes. access node: [{}]. timeout: [{}]", nodeCount, viaNode, timeValue);
+        ClusterHealthResponse clusterHealthResponse = client(viaNode).admin().cluster().prepareHealth()
+                .setWaitForEvents(Priority.LANGUID)
+                .setWaitForNodes(Integer.toString(nodeCount))
+                .setTimeout(timeValue)
+                .setLocal(local)
+                .setWaitForRelocatingShards(0)
+                .get();
+        if (clusterHealthResponse.isTimedOut()) {
+            ClusterStateResponse stateResponse = client(viaNode).admin().cluster().prepareState().get();
+            fail("failed to reach a stable cluster of [" + nodeCount + "] nodes. Tried via [" + viaNode + "]. last cluster state:\n"
+                    + stateResponse.getState().prettyPrint());
+        }
+        assertThat(clusterHealthResponse.isTimedOut(), is(false));
     }
 
     /**
@@ -1553,49 +1584,51 @@ public abstract class ESIntegTestCase extends ESTestCase {
         assertThat(clearResponse.isSucceeded(), equalTo(true));
     }
 
-    private static ClusterScope getAnnotation(Class<?> clazz) {
+    private static <A extends Annotation> A getAnnotation(Class<?> clazz, Class<A> annotationClass) {
         if (clazz == Object.class || clazz == ESIntegTestCase.class) {
             return null;
         }
-        ClusterScope annotation = clazz.getAnnotation(ClusterScope.class);
+        A annotation = clazz.getAnnotation(annotationClass);
         if (annotation != null) {
             return annotation;
         }
-        return getAnnotation(clazz.getSuperclass());
+        return getAnnotation(clazz.getSuperclass(), annotationClass);
     }
+
+
 
     private Scope getCurrentClusterScope() {
         return getCurrentClusterScope(this.getClass());
     }
 
     private static Scope getCurrentClusterScope(Class<?> clazz) {
-        ClusterScope annotation = getAnnotation(clazz);
+        ClusterScope annotation = getAnnotation(clazz, ClusterScope.class);
         // if we are not annotated assume suite!
         return annotation == null ? Scope.SUITE : annotation.scope();
     }
 
     private int getNumDataNodes() {
-        ClusterScope annotation = getAnnotation(this.getClass());
+        ClusterScope annotation = getAnnotation(this.getClass(), ClusterScope.class);
         return annotation == null ? -1 : annotation.numDataNodes();
     }
 
     private int getMinNumDataNodes() {
-        ClusterScope annotation = getAnnotation(this.getClass());
+        ClusterScope annotation = getAnnotation(this.getClass(), ClusterScope.class);
         return annotation == null || annotation.minNumDataNodes() == -1 ? InternalTestCluster.DEFAULT_MIN_NUM_DATA_NODES : annotation.minNumDataNodes();
     }
 
     private int getMaxNumDataNodes() {
-        ClusterScope annotation = getAnnotation(this.getClass());
+        ClusterScope annotation = getAnnotation(this.getClass(), ClusterScope.class);
         return annotation == null || annotation.maxNumDataNodes() == -1 ? InternalTestCluster.DEFAULT_MAX_NUM_DATA_NODES : annotation.maxNumDataNodes();
     }
 
     private int getNumClientNodes() {
-        ClusterScope annotation = getAnnotation(this.getClass());
+        ClusterScope annotation = getAnnotation(this.getClass(), ClusterScope.class);
         return annotation == null ? InternalTestCluster.DEFAULT_NUM_CLIENT_NODES : annotation.numClientNodes();
     }
 
     private boolean randomDynamicTemplates() {
-        ClusterScope annotation = getAnnotation(this.getClass());
+        ClusterScope annotation = getAnnotation(this.getClass(), ClusterScope.class);
         return annotation == null || annotation.randomDynamicTemplates();
     }
 
@@ -1607,7 +1640,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * In other words subclasses must ensure this method is idempotent.
      */
     protected Settings nodeSettings(int nodeOrdinal) {
-        return settingsBuilder()
+        Settings.Builder builder = settingsBuilder()
                 // Default the watermarks to absurdly low to prevent the tests
                 // from failing on nodes without enough disk space
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK, "1b")
@@ -1615,8 +1648,8 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 .put("script.indexed", "on")
                 .put("script.inline", "on")
                         // wait short time for other active shards before actually deleting, default 30s not needed in tests
-                .put(IndicesStore.INDICES_STORE_DELETE_SHARD_TIMEOUT, new TimeValue(1, TimeUnit.SECONDS))
-                .build();
+                .put(IndicesStore.INDICES_STORE_DELETE_SHARD_TIMEOUT, new TimeValue(1, TimeUnit.SECONDS));
+        return builder.build();
     }
 
     /**
@@ -1629,7 +1662,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         return Settings.EMPTY;
     }
 
-    private ExternalTestCluster buildExternalCluster(String clusterAddresses) {
+    private ExternalTestCluster buildExternalCluster(String clusterAddresses) throws UnknownHostException {
         String[] stringAddresses = clusterAddresses.split(",");
         TransportAddress[] transportAddresses = new TransportAddress[stringAddresses.length];
         int i = 0;
@@ -1639,7 +1672,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 throw new IllegalArgumentException("address [" + clusterAddresses + "] not valid");
             }
             try {
-                transportAddresses[i++] = new InetSocketTransportAddress(split[0], Integer.valueOf(split[1]));
+                transportAddresses[i++] = new InetSocketTransportAddress(InetAddress.getByName(split[0]), Integer.valueOf(split[1]));
             } catch (NumberFormatException e) {
                 throw new IllegalArgumentException("port is not valid, expected number but was [" + split[1] + "]");
             }
@@ -1693,7 +1726,18 @@ public abstract class ESIntegTestCase extends ESTestCase {
             minNumDataNodes = getMinNumDataNodes();
             maxNumDataNodes = getMaxNumDataNodes();
         }
-        return new InternalTestCluster(seed, createTempDir(), minNumDataNodes, maxNumDataNodes,
+        SuppressLocalMode noLocal = getAnnotation(this.getClass(), SuppressLocalMode.class);
+        SuppressNetworkMode noNetwork = getAnnotation(this.getClass(), SuppressNetworkMode.class);
+        String nodeMode = InternalTestCluster.configuredNodeMode();
+        if (noLocal != null && noNetwork != null) {
+            throw new IllegalStateException("Can't suppress both network and local mode");
+        } else if (noLocal != null){
+            nodeMode = "network";
+        } else if (noNetwork != null) {
+            nodeMode = "local";
+        }
+
+        return new InternalTestCluster(nodeMode, seed, createTempDir(), minNumDataNodes, maxNumDataNodes,
                 InternalTestCluster.clusterName(scope.name(), seed) + "-cluster", settingsSource, getNumClientNodes(),
                 InternalTestCluster.DEFAULT_ENABLE_HTTP_PIPELINING, nodePrefix);
     }
@@ -1715,7 +1759,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * return a random ratio in the interval <tt>[0..1]</tt>
      */
     protected double getPerTestTransportClientRatio() {
-        final ClusterScope annotation = getAnnotation(this.getClass());
+        final ClusterScope annotation = getAnnotation(this.getClass(), ClusterScope.class);
         double perTestRatio = -1;
         if (annotation != null) {
             perTestRatio = annotation.transportClientRatio();
@@ -1947,7 +1991,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         TransportAddress publishAddress = randomFrom(nodes).getHttp().address().publishAddress();
         assertEquals(1, publishAddress.uniqueAddressTypeId());
         InetSocketAddress address = ((InetSocketTransportAddress) publishAddress).address();
-        return new HttpRequestBuilder(HttpClients.createDefault()).host(address.getHostName()).port(address.getPort());
+        return new HttpRequestBuilder(HttpClients.createDefault()).host(NetworkAddress.formatAddress(address.getAddress())).port(address.getPort());
     }
 
     /**
@@ -1973,4 +2017,19 @@ public abstract class ESIntegTestCase extends ESTestCase {
     @Inherited
     public @interface SuiteScopeTestCase {
     }
+
+    /**
+     * If used the test will never run in local mode.
+     */
+    @Retention(RetentionPolicy.RUNTIME)
+    @Inherited
+    public @interface SuppressLocalMode {}
+
+    /**
+     * If used the test will never run in network mode
+     */
+    @Retention(RetentionPolicy.RUNTIME)
+    @Inherited
+    public @interface SuppressNetworkMode {}
+
 }

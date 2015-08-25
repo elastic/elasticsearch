@@ -21,6 +21,7 @@ package org.elasticsearch.test.discovery;
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.google.common.primitives.Ints;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.InternalTestCluster;
@@ -28,6 +29,8 @@ import org.elasticsearch.test.SettingsSource;
 import org.elasticsearch.transport.local.LocalTransport;
 
 import java.io.IOException;
+import java.net.Inet4Address;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.util.HashSet;
@@ -36,6 +39,7 @@ import java.util.Set;
 public class ClusterDiscoveryConfiguration extends SettingsSource {
 
     static Settings DEFAULT_NODE_SETTINGS = Settings.settingsBuilder().put("discovery.type", "zen").build();
+    private static final String IP_ADDR = "127.0.0.1";
 
     final int numOfNodes;
     final Settings nodeSettings;
@@ -64,18 +68,9 @@ public class ClusterDiscoveryConfiguration extends SettingsSource {
 
         private final int[] unicastHostOrdinals;
         private final int[] unicastHostPorts;
-        private final boolean localMode;
-
-        public UnicastZen(int numOfNodes) {
-            this(numOfNodes, numOfNodes);
-        }
 
         public UnicastZen(int numOfNodes, Settings extraSettings) {
             this(numOfNodes, numOfNodes, extraSettings);
-        }
-
-        public UnicastZen(int numOfNodes, int numOfUnicastHosts) {
-            this(numOfNodes, numOfUnicastHosts, Settings.EMPTY);
         }
 
         public UnicastZen(int numOfNodes, int numOfUnicastHosts, Settings extraSettings) {
@@ -92,9 +87,8 @@ public class ClusterDiscoveryConfiguration extends SettingsSource {
                 }
                 unicastHostOrdinals = Ints.toArray(ordinals);
             }
-            this.localMode = nodeSettings.get("node.mode", InternalTestCluster.NODE_MODE).equals("local");
-            this.unicastHostPorts = localMode ? new int[0] : unicastHostPorts(numOfNodes);
-            assert localMode || unicastHostOrdinals.length <= unicastHostPorts.length;
+            this.unicastHostPorts = unicastHostPorts(numOfNodes);
+            assert unicastHostOrdinals.length <= unicastHostPorts.length;
         }
 
         public UnicastZen(int numOfNodes, int[] unicastHostOrdinals) {
@@ -104,9 +98,8 @@ public class ClusterDiscoveryConfiguration extends SettingsSource {
         public UnicastZen(int numOfNodes, Settings extraSettings, int[] unicastHostOrdinals) {
             super(numOfNodes, extraSettings);
             this.unicastHostOrdinals = unicastHostOrdinals;
-            this.localMode = nodeSettings.get("node.mode", InternalTestCluster.NODE_MODE).equals("local");
-            this.unicastHostPorts = localMode ? new int[0] : unicastHostPorts(numOfNodes);
-            assert localMode || unicastHostOrdinals.length <= unicastHostPorts.length;
+            this.unicastHostPorts = unicastHostPorts(numOfNodes);
+            assert unicastHostOrdinals.length <= unicastHostPorts.length;
         }
 
         private static int calcBasePort() {
@@ -115,29 +108,27 @@ public class ClusterDiscoveryConfiguration extends SettingsSource {
 
         @Override
         public Settings node(int nodeOrdinal) {
-            Settings.Builder builder = Settings.builder()
-                    .put("discovery.zen.ping.multicast.enabled", false);
+            Settings.Builder builder = Settings.builder();
 
             String[] unicastHosts = new String[unicastHostOrdinals.length];
-            if (localMode) {
-                builder.put(LocalTransport.TRANSPORT_LOCAL_ADDRESS, "node_" + nodeOrdinal);
-                for (int i = 0; i < unicastHosts.length; i++) {
-                    unicastHosts[i] = "node_" + unicastHostOrdinals[i];
-                }
-            } else if (nodeOrdinal >= unicastHostPorts.length) {
+            if (nodeOrdinal >= unicastHostPorts.length) {
                 throw new ElasticsearchException("nodeOrdinal [" + nodeOrdinal + "] is greater than the number unicast ports [" + unicastHostPorts.length + "]");
             } else {
                 // we need to pin the node port & host so we'd know where to point things
                 builder.put("transport.tcp.port", unicastHostPorts[nodeOrdinal]);
-                builder.put("transport.host", "localhost");
+                builder.put("transport.host", IP_ADDR); // only bind on one IF we use v4 here by default
+                builder.put("transport.bind_host", IP_ADDR);
+                builder.put("transport.publish_host", IP_ADDR);
+                builder.put("http.enabled", false);
                 for (int i = 0; i < unicastHostOrdinals.length; i++) {
-                    unicastHosts[i] = "localhost:" + (unicastHostPorts[unicastHostOrdinals[i]]);
+                    unicastHosts[i] = IP_ADDR + ":" + (unicastHostPorts[unicastHostOrdinals[i]]);
                 }
             }
             builder.putArray("discovery.zen.ping.unicast.hosts", unicastHosts);
             return builder.put(super.node(nodeOrdinal)).build();
         }
 
+        @SuppressForbidden(reason = "we know we pass a IP address")
         protected synchronized static int[] unicastHostPorts(int numHosts) {
             int[] unicastHostPorts = new int[numHosts];
 
@@ -150,7 +141,7 @@ public class ClusterDiscoveryConfiguration extends SettingsSource {
                     try (ServerSocket serverSocket = new ServerSocket()) {
                         // Set SO_REUSEADDR as we may bind here and not be able to reuse the address immediately without it.
                         serverSocket.setReuseAddress(NetworkUtils.defaultReuseAddress());
-                        serverSocket.bind(new InetSocketAddress("127.0.0.1", nextPort));
+                        serverSocket.bind(new InetSocketAddress(IP_ADDR, nextPort));
                         // bind was a success
                         foundPortInRange = true;
                         unicastHostPorts[i] = nextPort;

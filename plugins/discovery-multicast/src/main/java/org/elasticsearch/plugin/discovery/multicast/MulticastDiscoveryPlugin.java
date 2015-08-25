@@ -17,39 +17,37 @@
  * under the License.
  */
 
-package org.elasticsearch.plugins;
+package org.elasticsearch.plugin.discovery.multicast;
 
-import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.inject.PreProcessModule;
-import org.elasticsearch.common.inject.SpawnModules;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.discovery.DiscoveryModule;
+import org.elasticsearch.plugin.discovery.multicast.MulticastZenPing;
+import org.elasticsearch.plugins.Plugin;
 
-/**
- *
- */
-public class ShardsPluginsModule extends AbstractModule implements SpawnModules, PreProcessModule {
+import java.util.Collection;
+
+public class MulticastDiscoveryPlugin extends Plugin {
 
     private final Settings settings;
 
-    private final PluginsService pluginsService;
-
-    public ShardsPluginsModule(Settings settings, PluginsService pluginsService) {
+    public MulticastDiscoveryPlugin(Settings settings) {
         this.settings = settings;
-        this.pluginsService = pluginsService;
     }
 
     @Override
-    public Iterable<? extends Module> spawnModules() {
-        return pluginsService.shardModules(settings);
+    public String name() {
+        return "discovery-multicast";
     }
 
     @Override
-    public void processModule(Module module) {
-        pluginsService.processModule(module);
+    public String description() {
+        return "Multicast Discovery Plugin";
     }
-
-    @Override
-    protected void configure() {
+    
+    public void onModule(DiscoveryModule module) {
+        if (settings.getAsBoolean("discovery.zen.ping.multicast.enabled", false)) {
+            module.addZenPing(MulticastZenPing.class);
+        }
     }
 }

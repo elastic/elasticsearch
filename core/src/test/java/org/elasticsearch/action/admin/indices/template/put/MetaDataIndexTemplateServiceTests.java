@@ -33,13 +33,47 @@ import org.elasticsearch.indices.InvalidIndexTemplateException;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.Matchers.contains;
+
 public class MetaDataIndexTemplateServiceTests extends ESTestCase {
     @Test
-    public void testIndexTemplateInvalidNumberOfShards() throws IOException {
+    public void testIndexTemplateInvalidNumberOfShards() {
+        PutRequest request = new PutRequest("test", "test_shards");
+        request.template("test_shards*");
+
+        Map<String, Object> map = Maps.newHashMap();
+        map.put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "0");
+        request.settings(Settings.settingsBuilder().put(map).build());
+
+        List<Throwable> throwables = putTemplate(request);
+        assertEquals(throwables.size(), 1);
+        assertThat(throwables.get(0), instanceOf(InvalidIndexTemplateException.class));
+        assertThat(throwables.get(0).getMessage(), containsString("index must have 1 or more primary shards"));
+    }
+
+    @Test
+    public void testIndexTemplateValidationAccumulatesValidationErrors() {
+        PutRequest request = new PutRequest("test", "putTemplate shards");
+        request.template("_test_shards*");
+
+        Map<String, Object> map = Maps.newHashMap();
+        map.put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "0");
+        request.settings(Settings.settingsBuilder().put(map).build());
+
+        List<Throwable> throwables = putTemplate(request);
+        assertEquals(throwables.size(), 1);
+        assertThat(throwables.get(0), instanceOf(InvalidIndexTemplateException.class));
+        assertThat(throwables.get(0).getMessage(), containsString("name must not contain a space"));
+        assertThat(throwables.get(0).getMessage(), containsString("template must not start with '_'"));
+        assertThat(throwables.get(0).getMessage(), containsString("index must have 1 or more primary shards"));
+    }
+
+    private static List<Throwable> putTemplate(PutRequest request) {
         MetaDataCreateIndexService createIndexService = new MetaDataCreateIndexService(
                 Settings.EMPTY,
                 null,
@@ -55,13 +89,6 @@ public class MetaDataIndexTemplateServiceTests extends ESTestCase {
         );
         MetaDataIndexTemplateService service = new MetaDataIndexTemplateService(Settings.EMPTY, null, createIndexService, null);
 
-        PutRequest request = new PutRequest("test", "test_shards");
-        request.template("test_shards*");
-
-        Map<String, Object> map = Maps.newHashMap();
-        map.put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "0");
-        request.settings(Settings.settingsBuilder().put(map).build());
-
         final List<Throwable> throwables = Lists.newArrayList();
         service.putTemplate(request, new MetaDataIndexTemplateService.PutListener() {
             @Override
@@ -74,8 +101,7 @@ public class MetaDataIndexTemplateServiceTests extends ESTestCase {
                 throwables.add(t);
             }
         });
-        assertEquals(throwables.size(), 1);
-        assertTrue(throwables.get(0) instanceof InvalidIndexTemplateException);
-        assertTrue(throwables.get(0).getMessage().contains("index must have 1 or more primary shards"));
+
+        return throwables;
     }
 }

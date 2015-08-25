@@ -163,10 +163,8 @@ public class GeoDistanceParser implements Aggregator.Parser {
     }
 
     private static String getSearchParseExceptionMessage(String currentFieldName, String aggregationName) {
-        return "Failed when parsing field with name '" +  currentFieldName +
-                "' found inside aggregation with name '" + aggregationName + "'." + " Few Possible Causes for the error:" +
-                "1)Misspelling the field name.  2)Giving a field name which is not recognized by Geo Distance Aggregator." +
-                "3)Assigning the field to a value with unallowed object type. ";
+        return "Failed when parsing field: '" +  currentFieldName +
+                "' found inside aggregation: '" + aggregationName + "'.";
     }
 
     private static class GeoDistanceFactory extends ValuesSourceAggregatorFactory<ValuesSource.GeoPoint> {

@@ -8,31 +8,26 @@ SYNOPSIS
 
 DESCRIPTION
 
-    This command installs an elasticsearch plugin
+    This command installs an elasticsearch plugin. It can be used as follows:
 
-    The argument can be a <name> of one of the official plugins, or refer to a github repository
+    Officially supported or commercial plugins require just the plugin name:
 
-    The notation of just specifying a plugin name, downloads an officially supported plugin.
+        plugin install analysis-icu
+        plugin install shield
 
-    The notation of 'elasticsearch/plugin/version' allows to easily download a commercial elastic plugin.
+    Plugins from GitHub require 'username/repository' or 'username/repository/version':
 
-    The notation of 'groupId/artifactId/version' refers to community plugins using maven central or sonatype
+        plugin install lmenezes/elasticsearch-kopf
+        plugin install lmenezes/elasticsearch-kopf/1.5.7
 
-    The notation of 'username/repository' refers to a github repository.
+    Plugins from Maven Central or Sonatype require 'groupId/artifactId/version':
 
-    The argument can be an valid <url> which points to a download or file location for the plugin to be loaded from.
+        plugin install org.elasticsearch/elasticsearch-mapper-attachments/2.6.0
 
-EXAMPLES
+    Plugins can be installed from a custom URL or file location as follows:
 
-    plugin install analysis-kuromoji
-
-    plugin install elasticsearch/shield/latest
-
-    plugin install lmenezes/elasticsearch-kopf
-
-    plugin install http://download.elasticsearch.org/elasticsearch/elasticsearch-analysis-kuromoji/elasticsearch-analysis-kuromoji-2.7.0.zip
-
-    plugin install file:/path/to/plugin/elasticsearch-analysis-kuromoji-2.7.0.zip
+        plugin install http://some.domain.name//my-plugin-1.0.0.zip
+        plugin install file:/path/to/my-plugin-1.0.0.zip
 
 OFFICIAL PLUGINS
 

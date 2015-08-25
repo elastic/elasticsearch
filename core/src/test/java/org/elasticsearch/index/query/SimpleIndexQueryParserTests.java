@@ -2437,7 +2437,7 @@ public class SimpleIndexQueryParserTests extends ESSingleNodeTestCase {
         Query parsedQuery = queryParser.parse(query).query();
         assertThat(parsedQuery, instanceOf(ConstantScoreQuery.class));
         assertThat(((ConstantScoreQuery) parsedQuery).getQuery(), instanceOf(ToParentBlockJoinQuery.class));
-        assertThat(((ConstantScoreQuery) parsedQuery).getQuery().toString(), equalTo("ToParentBlockJoinQuery (+*:* #random_access(QueryWrapperFilter(_type:__nested)))"));
+        assertThat(((ConstantScoreQuery) parsedQuery).getQuery().toString(), equalTo("ToParentBlockJoinQuery (+*:* #QueryWrapperFilter(_type:__nested))"));
         SearchContext.removeCurrent();
     }
 

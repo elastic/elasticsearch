@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.mapper;
+package org.elasticsearch.plugin.mappingtransform;
 
 import com.google.common.collect.ImmutableMap;
 
@@ -116,8 +116,8 @@ public class TransformOnIndexMapperIT extends ESIntegTestCase {
      * transforms but all but one of the transforms is a noop. The other is a
      * script that fills the 'destination' field with the 'content' field only
      * if the 'title' field starts with 't' and then always removes the
-     * 'content' field regarless of the contents of 't'. The actual script
-     * randomly uses parameters or not.
+     * 'content' field regardless of its contents. The actual script randomly
+     * uses parameters or not.
      *
      * @param forceRefresh
      *            should the data be flushed to disk? Set to false to test real

@@ -10,6 +10,8 @@ import org.elasticsearch.watcher.actions.email.service.EmailTemplate;
 import org.elasticsearch.watcher.actions.hipchat.HipChatAction;
 import org.elasticsearch.watcher.actions.index.IndexAction;
 import org.elasticsearch.watcher.actions.logging.LoggingAction;
+import org.elasticsearch.watcher.actions.slack.SlackAction;
+import org.elasticsearch.watcher.actions.slack.service.message.SlackMessage;
 import org.elasticsearch.watcher.actions.webhook.WebhookAction;
 import org.elasticsearch.watcher.support.http.HttpRequestTemplate;
 import org.elasticsearch.watcher.support.text.TextTemplate;
@@ -76,5 +78,13 @@ public final class ActionBuilders {
 
     public static HipChatAction.Builder hipchatAction(String account, TextTemplate body) {
         return HipChatAction.builder(account, body);
+    }
+
+    public static SlackAction.Builder slackAction(String account, SlackMessage.Template.Builder message) {
+        return slackAction(account, message.build());
+    }
+
+    public static SlackAction.Builder slackAction(String account, SlackMessage.Template message) {
+        return SlackAction.builder(account, message);
     }
 }

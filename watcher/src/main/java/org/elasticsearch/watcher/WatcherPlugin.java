@@ -20,6 +20,7 @@ import org.elasticsearch.shield.authz.AuthorizationModule;
 import org.elasticsearch.watcher.actions.WatcherActionModule;
 import org.elasticsearch.watcher.actions.email.service.InternalEmailService;
 import org.elasticsearch.watcher.actions.hipchat.service.InternalHipChatService;
+import org.elasticsearch.watcher.actions.slack.service.InternalSlackService;
 import org.elasticsearch.watcher.client.WatcherClientModule;
 import org.elasticsearch.watcher.condition.ConditionModule;
 import org.elasticsearch.watcher.execution.ExecutionModule;
@@ -136,6 +137,7 @@ public class WatcherPlugin extends Plugin {
             LicenseService.class,
             InternalEmailService.class,
             InternalHipChatService.class,
+            InternalSlackService.class,
             HttpClient.class,
             WatcherSettingsValidation.class);
     }

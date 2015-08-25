@@ -45,6 +45,8 @@ public class WatcherF {
         settings.put("watcher.actions.hipchat.service.account.v1.profile", "v1");
         settings.put("watcher.actions.hipchat.service.account.v1.auth_token", "a734baf62df618b96dda55b323fc30");
 
+        System.setProperty("es.watcher.actions.slack.service.account.a1.url", "https://hooks.slack.com/services/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");
+
         final CountDownLatch latch = new CountDownLatch(1);
         final Node node = new MockNode(settings.build(), false, Version.CURRENT, Arrays.asList(WatcherPlugin.class, LicensePlugin.class));
         Runtime.getRuntime().addShutdownHook(new Thread() {

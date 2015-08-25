@@ -384,6 +384,69 @@
                       }
                     }
                   }
+                },
+                "slack" : {
+                  "type": "object",
+                  "dynamic": true,
+                  "properties": {
+                    "account": {
+                      "type": "string",
+                      "index": "not_analyzed"
+                    },
+                    "sent_messages": {
+                      "type": "nested",
+                      "include_in_parent": true,
+                      "dynamic": true,
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "index": "not_analyzed"
+                        },
+                        "reason": {
+                          "type": "string"
+                        },
+                        "request" : {
+                          "type" : "object",
+                          "enabled" : false
+                        },
+                        "response" : {
+                          "type" : "object",
+                          "enabled" : false
+                        },
+                        "to" : {
+                          "type": "string",
+                          "index": "not_analyzed"
+                        },
+                        "message" : {
+                          "type" : "object",
+                          "dynamic" : true,
+                          "properties" : {
+                            "from" : {
+                              "type" : "string"
+                            },
+                            "icon" : {
+                              "type" : "string",
+                              "index" : "not_analyzed"
+                            },
+                            "text" : {
+                              "type" : "string"
+                            },
+                            "attachments" : {
+                              "type" : "nested",
+                              "include_in_parent": true,
+                              "dynamic" : true,
+                              "properties" : {
+                                "color" : {
+                                  "type" : "string",
+                                  "index" : "not_analyzed"
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
                 }
               }
             }

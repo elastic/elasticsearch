@@ -1,1 +1,6 @@
+rootProject.name = 'elasticsearch'
+
+include 'dev-tools'
+include 'rest-api-spec'
 include 'core'
+

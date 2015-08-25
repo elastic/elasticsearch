@@ -1,8 +1,13 @@
 import groovy.xml.NamespaceBuilder
 
 apply plugin: 'java'
+apply plugin: 'org.elasticsearch.devtools.randomizedtesting'
 
 sourceCompatibility = '1.7'
+
+configurations {
+  restSpec {}
+}
 
 repositories {
   mavenCentral()
@@ -68,12 +73,18 @@ dependencies {
   // remove this for java 8
   compile group: 'com.twitter', name: 'jsr166e', version: '1.1.0'
 
-  testCompile group: 'junit', name: 'junit', version: '4.11'
+  testCompile(group: 'junit', name: 'junit', version: '4.11') {
+    transitive = false
+  }
   testCompile group: 'com.carrotsearch.randomizedtesting', name: 'junit4-ant', version: '2.1.16'
   testCompile group: 'org.apache.lucene', name: 'lucene-test-framework', version: luceneVersion
-  testCompile group: 'org.hamcrest', name: 'hamcrest-all', version: '1.3'
+  testCompile(group: 'org.hamcrest', name: 'hamcrest-all', version: '1.3') {
+    exclude group: 'org.hamcrest', module: 'hamcrest-core'
+  }
   testCompile group: 'com.google.jimfs', name: 'jimfs', version: '1.0'
   testCompile group: 'org.apache.httpcomponents', name: 'httpclient', version: '4.3.6'
+
+  restSpec project(':rest-api-spec') // for rest tests
 }
 
 sourceSets {
@@ -91,9 +102,32 @@ sourceSets {
   }
 }
 
-task sourcesJar(type: Jar, dependsOn: classes) {
-    classifier = 'sources'
+task sourcesJar(type: Jar) {
+    dependsOn classes
     from sourceSets.main.java
+    classifier = 'sources'
+}
+
+/*
+ * A hack because the rest test framework apparently cannot read spec files directly
+ * from a jar, but need them to be on the local filesystem.
+ * NOTE: the failure looks like this:
+ * [ant:junit4]    > Throwable #1: java.lang.RuntimeException: couldn't retrieve URL: jar:file:/Users/rjernst/Code/es-gradle/rest-api-spec/build/libs/rest-api-spec-2.0.0-SNAPSHOT.jar!/rest-api-spec/test/get
+[ant:junit4]    >   at __randomizedtesting.SeedInfo.seed([AEA98D31B204924E:364AFBD58E86E8E5]:0)
+[ant:junit4]    >   at org.elasticsearch.test.rest.support.FileUtils.resolveFile(FileUtils.java:119)
+[ant:junit4]    >   at org.elasticsearch.test.rest.support.FileUtils.findYamlSuites(FileUtils.java:86)
+[ant:junit4]    >   at org.elasticsearch.test.rest.test.FileUtilsTests.testLoadMultipleYamlSuites(FileUtilsTests.java:53)
+   ...
+  [ant:junit4]    > Caused by: java.nio.file.FileSystemNotFoundException
+[ant:junit4]    >   at com.sun.nio.zipfs.ZipFileSystemProvider.getFileSystem(ZipFileSystemProvider.java:171)
+[ant:junit4]    >   at com.sun.nio.zipfs.ZipFileSystemProvider.getPath(ZipFileSystemProvider.java:157)
+[ant:junit4]    >   at java.nio.file.Paths.get(Paths.java:143)
+[ant:junit4]    >   at org.elasticsearch.common.io.PathUtils.get(PathUtils.java:75)
+[ant:junit4]    >   at org.elasticsearch.test.rest.support.FileUtils.resolveFile(FileUtils.java:115)
+ */
+task copyRestSpec(type: Copy, dependsOn: configurations.testRuntime.buildDependencies) {
+  from zipTree(configurations.restSpec.asPath)
+  into sourceSets.test.output.classesDir
 }
 
 // TODO: how to have task know about this global?
@@ -102,12 +136,12 @@ ant.taskdef(resource: 'com/carrotsearch/junit4/antlib.xml',
             classpath: configurations.testCompile.asPath)
 def junit4runner = NamespaceBuilder.newInstance(ant, 'junit4')
 
-task test(type: RandomizedRunnerTask, overwrite:true, dependsOn: testClasses) {
+task test(type: RandomizedRunnerTask, overwrite:true, dependsOn: [testClasses, copyRestSpec]) {
+  logging.setLevel(LogLevel.INFO)
   sourceSet = sourceSets.test
   workingDir = new File(buildDir, 'run-tests')
   junit4 = junit4runner
 }
-
 
 class RandomizedRunnerTask extends DefaultTask {
   @Input
@@ -120,20 +154,19 @@ class RandomizedRunnerTask extends DefaultTask {
   @TaskAction
   def run() {
     junit4.pickseed(property: 'tests.seed')
-    println "Seed: " + ant.properties['tests.seed']
     junit4.junit4(
         taskName: 'junit4',
+        parallelism: 8,
         dir: workingDir)
     {
-      println "Classpath: " + sourceSet.runtimeClasspath.asPath
       classpath {
         pathElement(path: sourceSet.runtimeClasspath.asPath)
       }
       jvmarg(line: '-ea -esa')
       fileset(dir: sourceSet.output.classesDir) {
-        //include(name:'**/*IT.class') // temp
-        include(name:'**/*Test.class')
-        include(name:'**/*Tests.class')
+        include(name:'**/*IT.class') // temp
+        //include(name:'**/*Test.class')
+        //include(name:'**/*Tests.class')
         exclude(name:'**/Abstract*.class')
         exclude(name:'**/*StressTest.class')
       }
@@ -156,4 +189,8 @@ class RandomizedRunnerTask extends DefaultTask {
 
 artifacts {
     archives sourcesJar
+}
+
+jar {
+  baseName = 'elasticsearch'
 }

@@ -74,6 +74,25 @@ public abstract class SessionFactory {
      */
     public abstract LdapSession session(String user, SecuredString password) throws Exception;
 
+    /**
+     * Returns a flag to indicate if this session factory supports unauthenticated sessions. This means that a session can
+     * be established without providing any credentials in a call to {@link SessionFactory#unauthenticatedSession(String)}
+     * @return true if the factory supports unauthenticated sessions
+     */
+    public boolean supportsUnauthenticatedSession() {
+        return false;
+    }
+
+    /**
+     * Returns an {@link LdapSession} for the user identified by the String parameter
+     * @param username the identifier for the user
+     * @return LdapSession representing a connection to LDAP for the provided user.
+     * @throws Exception if an error occurs when creating the session or unauthenticated sessions are not supported
+     */
+    public LdapSession unauthenticatedSession(String username) throws Exception {
+        throw new UnsupportedOperationException("unauthenticated sessions are not supported");
+    }
+
     protected static LDAPConnectionOptions connectionOptions(Settings settings) {
         LDAPConnectionOptions options = new LDAPConnectionOptions();
         options.setConnectTimeoutMillis(Ints.checkedCast(settings.getAsTime(TIMEOUT_TCP_CONNECTION_SETTING, TIMEOUT_DEFAULT).millis()));

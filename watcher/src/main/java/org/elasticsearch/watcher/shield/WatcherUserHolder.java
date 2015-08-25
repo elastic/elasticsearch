@@ -18,7 +18,7 @@ public class WatcherUserHolder {
     static final String[] ROLE_NAMES = new String[] { "__watcher_role" };
 
     public static final Permission.Global.Role ROLE = Permission.Global.Role.builder(ROLE_NAMES[0])
-        .set(Privilege.Cluster.action("indices:admin/template/put"))
+        .cluster(Privilege.Cluster.action("indices:admin/template/put"))
 
             // for now, the watches will be executed under the watcher user, meaning, all actions
             // taken as part of the execution will be executed on behalf of this user. this includes

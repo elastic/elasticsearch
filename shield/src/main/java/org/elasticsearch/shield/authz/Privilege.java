@@ -110,7 +110,7 @@ public abstract class Privilege<P extends Privilege<P>> {
 
     public static class General extends AutomatonPrivilege<General> {
 
-        private static final General NONE = new General(Name.NONE, BasicAutomata.makeEmpty());
+        public static final General NONE = new General(Name.NONE, BasicAutomata.makeEmpty());
 
         public General(String name, String... patterns) {
             super(name, patterns);

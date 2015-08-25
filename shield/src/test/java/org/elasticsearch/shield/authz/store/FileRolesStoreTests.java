@@ -42,7 +42,7 @@ public class FileRolesStoreTests extends ESTestCase {
         Path path = getDataPath("roles.yml");
         Map<String, Permission.Global.Role> roles = FileRolesStore.parseFile(path, Collections.<Permission.Global.Role>emptySet(), logger);
         assertThat(roles, notNullValue());
-        assertThat(roles.size(), is(5));
+        assertThat(roles.size(), is(7));
 
         Permission.Global.Role role = roles.get("role1");
         assertThat(role, notNullValue());
@@ -52,6 +52,7 @@ public class FileRolesStoreTests extends ESTestCase {
         assertThat(role.indices(), notNullValue());
         assertThat(role.indices().groups(), notNullValue());
         assertThat(role.indices().groups().length, is(2));
+        assertThat(role.runAs(), is(Permission.RunAs.Core.NONE));
 
         Permission.Global.Indices.Group group = role.indices().groups()[0];
         assertThat(group.indices(), notNullValue());
@@ -76,6 +77,7 @@ public class FileRolesStoreTests extends ESTestCase {
         assertThat(role.indices(), notNullValue());
         assertThat(role.indices().groups(), notNullValue());
         assertThat(role.indices().groups().length, is(0));
+        assertThat(role.runAs(), is(Permission.RunAs.Core.NONE));
 
         role = roles.get("role2");
         assertThat(role, notNullValue());
@@ -84,6 +86,7 @@ public class FileRolesStoreTests extends ESTestCase {
         assertThat(role.cluster().privilege(), is(Privilege.Cluster.ALL)); // MONITOR is collapsed into ALL
         assertThat(role.indices(), notNullValue());
         assertThat(role.indices(), is(Permission.Indices.Core.NONE));
+        assertThat(role.runAs(), is(Permission.RunAs.Core.NONE));
 
         role = roles.get("role3");
         assertThat(role, notNullValue());
@@ -93,6 +96,7 @@ public class FileRolesStoreTests extends ESTestCase {
         assertThat(role.indices(), notNullValue());
         assertThat(role.indices().groups(), notNullValue());
         assertThat(role.indices().groups().length, is(1));
+        assertThat(role.runAs(), is(Permission.RunAs.Core.NONE));
 
         group = role.indices().groups()[0];
         assertThat(group.indices(), notNullValue());
@@ -107,6 +111,29 @@ public class FileRolesStoreTests extends ESTestCase {
         assertThat(role.cluster(), notNullValue());
         assertThat(role.cluster(), is(Permission.Cluster.Core.NONE));
         assertThat(role.indices(), is(Permission.Indices.Core.NONE));
+        assertThat(role.runAs(), is(Permission.RunAs.Core.NONE));
+
+        role = roles.get("role_run_as");
+        assertThat(role, notNullValue());
+        assertThat(role.name(), equalTo("role_run_as"));
+        assertThat(role.cluster(), notNullValue());
+        assertThat(role.cluster(), is(Permission.Cluster.Core.NONE));
+        assertThat(role.indices(), is(Permission.Indices.Core.NONE));
+        assertThat(role.runAs(), notNullValue());
+        assertThat(role.runAs().check("user1"), is(true));
+        assertThat(role.runAs().check("user2"), is(true));
+        assertThat(role.runAs().check("user" + randomIntBetween(3, 9)), is(false));
+
+        role = roles.get("role_run_as1");
+        assertThat(role, notNullValue());
+        assertThat(role.name(), equalTo("role_run_as1"));
+        assertThat(role.cluster(), notNullValue());
+        assertThat(role.cluster(), is(Permission.Cluster.Core.NONE));
+        assertThat(role.indices(), is(Permission.Indices.Core.NONE));
+        assertThat(role.runAs(), notNullValue());
+        assertThat(role.runAs().check("user1"), is(true));
+        assertThat(role.runAs().check("user2"), is(true));
+        assertThat(role.runAs().check("user" + randomIntBetween(3, 9)), is(false));
     }
 
     /**
@@ -236,7 +263,7 @@ public class FileRolesStoreTests extends ESTestCase {
     public void testReservedRoles() throws Exception {
         Set<Permission.Global.Role> reservedRoles = ImmutableSet.<Permission.Global.Role>builder()
                 .add(Permission.Global.Role.builder("reserved")
-                        .set(Privilege.Cluster.ALL)
+                        .cluster(Privilege.Cluster.ALL)
                         .build())
                 .build();
 

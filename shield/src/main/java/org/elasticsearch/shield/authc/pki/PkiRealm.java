@@ -81,6 +81,16 @@ public class PkiRealm extends Realm<X509AuthenticationToken> {
         return new User.Simple(token.principal(), roles.toArray(new String[roles.size()]));
     }
 
+    @Override
+    public User lookupUser(String username) {
+        return null;
+    }
+
+    @Override
+    public boolean userLookupSupported() {
+        return false;
+    }
+
     static X509AuthenticationToken token(Object pkiHeaderValue, Pattern principalPattern, ESLogger logger) {
         if (pkiHeaderValue == null) {
             return null;

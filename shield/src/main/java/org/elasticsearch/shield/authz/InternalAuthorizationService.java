@@ -108,12 +108,35 @@ public class InternalAuthorizationService extends AbstractComponent implements A
             throw denial(user, action, request);
         }
 
-        Permission.Global permission = permission(user);
-
+        Permission.Global permission = permission(user.roles());
+        final boolean isRunAs = user.runAs() != null;
         // permission can be null as it might be that the user's role
         // is unknown
         if (permission == null || permission.isEmpty()) {
-            throw denial(user, action, request);
+            if (isRunAs) {
+                // the request is a run as request so we should call the specific audit event for a denied run as attempt
+                throw denyRunAs(user, action, request);
+            } else {
+                throw denial(user, action, request);
+            }
+        }
+
+        // check if the request is a run as request
+        if (isRunAs) {
+            // first we must authorize for the RUN_AS action
+            Permission.RunAs runAs = permission.runAs();
+            if (runAs != null && runAs.check(user.runAs().principal())) {
+                grantRunAs(user, action, request);
+                permission = permission(user.runAs().roles());
+
+                // permission can be null as it might be that the user's role
+                // is unknown
+                if (permission == null || permission.isEmpty()) {
+                    throw denial(user, action, request);
+                }
+            } else {
+                throw denyRunAs(user, action, request);
+            }
         }
 
         // first, we'll check if the action is a cluster action. If it is, we'll only check it
@@ -187,8 +210,7 @@ public class InternalAuthorizationService extends AbstractComponent implements A
         grant(user, action, request);
     }
 
-    private Permission.Global permission(User user) {
-        String[] roleNames = user.roles();
+    private Permission.Global permission(String[] roleNames) {
         if (roleNames.length == 0) {
             return Permission.Global.NONE;
         }
@@ -233,17 +255,32 @@ public class InternalAuthorizationService extends AbstractComponent implements A
 
     private ElasticsearchSecurityException denial(User user, String action, TransportRequest request) {
         auditTrail.accessDenied(user, action, request);
-        // Special case for anonymous user
-        if (anonymousService.isAnonymous(user)) {
-            if (!anonymousService.authorizationExceptionsEnabled()) {
-                throw authcFailureHandler.authenticationRequired(action);
-            }
-        }
-        return authorizationError("action [{}] is unauthorized for user [{}]", action, user.principal());
+        return denialException(user, action);
+    }
+
+    private ElasticsearchSecurityException denyRunAs(User user, String action, TransportRequest request) {
+        auditTrail.runAsDenied(user, action, request);
+        return denialException(user, action);
     }
 
     private void grant(User user, String action, TransportRequest request) {
         auditTrail.accessGranted(user, action, request);
     }
 
+    private void grantRunAs(User user, String action, TransportRequest request) {
+        auditTrail.runAsGranted(user, action, request);
+    }
+
+    private ElasticsearchSecurityException denialException(User user, String action) {
+        // Special case for anonymous user
+        if (anonymousService.isAnonymous(user)) {
+            if (!anonymousService.authorizationExceptionsEnabled()) {
+                throw authcFailureHandler.authenticationRequired(action);
+            }
+        }
+        if (user.runAs() != null) {
+            return authorizationError("action [{}] is unauthorized for user [{}] run as [{}]", action, user.principal(), user.runAs().principal());
+        }
+        return authorizationError("action [{}] is unauthorized for user [{}]", action, user.principal());
+    }
 }

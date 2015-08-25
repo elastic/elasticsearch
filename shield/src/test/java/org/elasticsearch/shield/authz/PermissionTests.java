@@ -55,7 +55,7 @@ public class PermissionTests extends ESTestCase {
     @Test
     public void testIndicesGlobalsIterator() {
         Permission.Global.Role.Builder builder = Permission.Global.Role.builder("tc_role");
-        builder.set(Cluster.action("cluster:monitor/nodes/info"));
+        builder.cluster(Cluster.action("cluster:monitor/nodes/info"));
         Permission.Global.Role noIndicesPermission = builder.build();
 
         Permission.Indices.Globals indicesGlobals = new Permission.Indices.Globals(Collections.<Permission.Global>unmodifiableList(Arrays.asList(noIndicesPermission, permission)));
@@ -74,6 +74,19 @@ public class PermissionTests extends ESTestCase {
         Permission.Global.Role.Builder permission = Permission.Global.Role.builder("some_role");
         Permission.Global.Role role = permission.build();
         assertThat(role, notNullValue());
+        assertThat(role.cluster(), notNullValue());
+        assertThat(role.indices(), notNullValue());
+        assertThat(role.runAs(), notNullValue());
+    }
+
+    @Test
+    public void testRunAs() {
+        Permission.Global.Role permission = Permission.Global.Role.builder("some_role")
+                .runAs(new Privilege.General("name", "user1", "run*"))
+                .build();
+        assertThat(permission.runAs().check("user1"), is(true));
+        assertThat(permission.runAs().check("user"), is(false));
+        assertThat(permission.runAs().check("run" + randomAsciiOfLengthBetween(1, 10)), is(true));
     }
 
     // "baz_*foo", "/fool.*bar/"
@@ -84,6 +97,4 @@ public class PermissionTests extends ESTestCase {
         assertThat(indicesMatcher.test("baz_foo"), is(true));
         assertThat(indicesMatcher.test("barbapapa"), is(false));
     }
-
-
 }

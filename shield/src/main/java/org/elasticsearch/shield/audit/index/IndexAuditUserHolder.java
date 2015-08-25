@@ -21,7 +21,7 @@ public class IndexAuditUserHolder {
 
     private final User user;
     public static final Permission.Global.Role ROLE = Permission.Global.Role.builder(ROLE_NAMES[0])
-        .set(Privilege.Cluster.action(PutIndexTemplateAction.NAME))
+        .cluster(Privilege.Cluster.action(PutIndexTemplateAction.NAME))
         .add(Privilege.Index.CREATE_INDEX, IndexAuditTrail.INDEX_NAME_PREFIX + "*")
         .add(Privilege.Index.INDEX, IndexAuditTrail.INDEX_NAME_PREFIX + "*")
         .add(Privilege.Index.action(BulkAction.NAME), IndexAuditTrail.INDEX_NAME_PREFIX + "*")

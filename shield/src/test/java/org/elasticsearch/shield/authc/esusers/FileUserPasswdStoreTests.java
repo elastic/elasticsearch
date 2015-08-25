@@ -103,6 +103,7 @@ public class FileUserPasswdStoreTests extends ESTestCase {
             }
         });
 
+        assertThat(store.userExists("bcrypt"), is(true));
         assertThat(store.verifyPassword("bcrypt", SecuredStringTests.build("test123")), is(true));
 
         watcherService.start();
@@ -116,8 +117,8 @@ public class FileUserPasswdStoreTests extends ESTestCase {
             fail("Waited too long for the updated file to be picked up");
         }
 
+        assertThat(store.userExists("foobar"), is(true));
         assertThat(store.verifyPassword("foobar", SecuredStringTests.build("barfoo")), is(true));
-
     }
 
     @Test
@@ -232,4 +233,12 @@ public class FileUserPasswdStoreTests extends ESTestCase {
         assertThat(msgs.get(0).text, containsString("failed to parse users file"));
     }
 
+    @Test
+    public void testParseFileWithLineWithEmptyPasswordAndWhitespace() throws Exception {
+        Path file = createTempFile();
+        Files.write(file, Collections.singletonList("user: "), Charsets.UTF_8);
+        Map<String, char[]> users = FileUserPasswdStore.parseFile(file, null);
+        assertThat(users, notNullValue());
+        assertThat(users.keySet(), is(empty()));
+    }
 }

@@ -70,6 +70,24 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
     }
 
     @Test
+    public void supportsUnauthenticatedSessions() throws Exception {
+        RealmConfig config = new RealmConfig("ldap_realm", settingsBuilder()
+                .put(buildLdapSettings(ldapUrl(), Strings.EMPTY_ARRAY, "", LdapSearchScope.SUB_TREE))
+                .put("user_search.base_dn", "")
+                .put("bind_dn", "cn=Horatio Hornblower,ou=people,o=sevenSeas")
+                .put("bind_password", "pass")
+                .put("user_search.attribute", "cn")
+                .build(), globalSettings);
+
+        LdapUserSearchSessionFactory sessionFactory = new LdapUserSearchSessionFactory(config, null);
+        try {
+            assertThat(sessionFactory.supportsUnauthenticatedSession(), is(true));
+        } finally {
+            sessionFactory.shutdown();
+        }
+    }
+
+    @Test
     public void testUserSearchSubTree() throws Exception {
         String groupSearchBase = "o=sevenSeas";
         String userSearchBase = "o=sevenSeas";
@@ -87,9 +105,18 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
         String user = "William Bush";
         SecuredString userPass = SecuredStringTests.build("pass");
 
-        try (LdapSession ldap = sessionFactory.session(user, userPass)) {
-            String dn = ldap.userDn();
-            assertThat(dn, containsString(user));
+        try {
+            // auth
+            try (LdapSession ldap = sessionFactory.session(user, userPass)) {
+                String dn = ldap.userDn();
+                assertThat(dn, containsString(user));
+            }
+
+            //lookup
+            try (LdapSession ldap = sessionFactory.unauthenticatedSession(user)) {
+                String dn = ldap.userDn();
+                assertThat(dn, containsString(user));
+            }
         } finally {
             sessionFactory.shutdown();
         }
@@ -114,10 +141,20 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
         String user = "William Bush";
         SecuredString userPass = SecuredStringTests.build("pass");
 
-        try (LdapSession ldap = sessionFactory.session(user, userPass)) {
-            fail("the user should not have been found");
-        } catch (ElasticsearchSecurityException e) {
-            assertAuthenticationException(e, containsString("failed to find user [William Bush] with search base [o=sevenSeas] scope [base]"));
+        try {
+            //auth
+            try (LdapSession ldap = sessionFactory.session(user, userPass)) {
+                fail("the user should not have been found");
+            } catch (ElasticsearchSecurityException e) {
+                assertAuthenticationException(e, containsString("failed to find user [William Bush] with search base [o=sevenSeas] scope [base]"));
+            }
+
+            //lookup
+            try (LdapSession ldap = sessionFactory.unauthenticatedSession(user)) {
+                fail("the user should not have been found");
+            } catch (ElasticsearchSecurityException e) {
+                assertAuthenticationException(e, containsString("failed to find user [William Bush] with search base [o=sevenSeas] scope [base]"));
+            }
         } finally {
             sessionFactory.shutdown();
         }
@@ -142,9 +179,18 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
         String user = "William Bush";
         SecuredString userPass = SecuredStringTests.build("pass");
 
-        try (LdapSession ldap = sessionFactory.session(user, userPass)) {
-            String dn = ldap.userDn();
-            assertThat(dn, containsString(user));
+        try {
+            // auth
+            try (LdapSession ldap = sessionFactory.session(user, userPass)) {
+                String dn = ldap.userDn();
+                assertThat(dn, containsString(user));
+            }
+
+            //lookup
+            try (LdapSession ldap = sessionFactory.unauthenticatedSession(user)) {
+                String dn = ldap.userDn();
+                assertThat(dn, containsString(user));
+            }
         } finally {
             sessionFactory.shutdown();
         }
@@ -169,10 +215,20 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
         String user = "William Bush";
         SecuredString userPass = SecuredStringTests.build("pass");
 
-        try (LdapSession ldap = sessionFactory.session(user, userPass)) {
-            fail("the user should not have been found");
-        } catch (ElasticsearchSecurityException e) {
-            assertAuthenticationException(e, containsString("failed to find user [William Bush] with search base [o=sevenSeas] scope [one_level]"));
+        try {
+            // auth
+            try (LdapSession ldap = sessionFactory.session(user, userPass)) {
+                fail("the user should not have been found");
+            } catch (ElasticsearchSecurityException e) {
+                assertAuthenticationException(e, containsString("failed to find user [William Bush] with search base [o=sevenSeas] scope [one_level]"));
+            }
+
+            //lookup
+            try (LdapSession ldap = sessionFactory.unauthenticatedSession(user)) {
+                fail("the user should not have been found");
+            } catch (ElasticsearchSecurityException e) {
+                assertAuthenticationException(e, containsString("failed to find user [William Bush] with search base [o=sevenSeas] scope [one_level]"));
+            }
         } finally {
             sessionFactory.shutdown();
         }
@@ -197,9 +253,18 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
         String user = "William Bush";
         SecuredString userPass = SecuredStringTests.build("pass");
 
-        try (LdapSession ldap = sessionFactory.session(user, userPass)) {
-            String dn = ldap.userDn();
-            assertThat(dn, containsString(user));
+        try {
+            //auth
+            try (LdapSession ldap = sessionFactory.session(user, userPass)) {
+                String dn = ldap.userDn();
+                assertThat(dn, containsString(user));
+            }
+
+            //lookup
+            try (LdapSession ldap = sessionFactory.unauthenticatedSession(user)) {
+                String dn = ldap.userDn();
+                assertThat(dn, containsString(user));
+            }
         } finally {
             sessionFactory.shutdown();
         }
@@ -223,11 +288,21 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
         String user = "William Bush";
         SecuredString userPass = SecuredStringTests.build("pass");
 
-        try (LdapSession ldap = sessionFactory.session(user, userPass)) {
-            fail("the user should not have been found");
-        } catch (ElasticsearchSecurityException e) {
-            assertAuthenticationException(e, containsString("failed to find user [William Bush] with search base [o=sevenSeas] scope [sub_tree]"));
-        } finally {
+        try {
+            //auth
+            try (LdapSession ldap = sessionFactory.session(user, userPass)) {
+                fail("the user should not have been found");
+            } catch (ElasticsearchSecurityException e) {
+                assertAuthenticationException(e, containsString("failed to find user [William Bush] with search base [o=sevenSeas] scope [sub_tree]"));
+            }
+
+            //lookup
+            try (LdapSession ldap = sessionFactory.unauthenticatedSession(user)) {
+                fail("the user should not have been found");
+            } catch (ElasticsearchSecurityException e) {
+                assertAuthenticationException(e, containsString("failed to find user [William Bush] with search base [o=sevenSeas] scope [sub_tree]"));
+            }
+        }finally {
             sessionFactory.shutdown();
         }
     }
@@ -249,9 +324,18 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
         String user = "wbush";
         SecuredString userPass = SecuredStringTests.build("pass");
 
-        try (LdapSession ldap = sessionFactory.session(user, userPass)) {
-            String dn = ldap.userDn();
-            assertThat(dn, containsString("William Bush"));
+        try {
+            //auth
+            try (LdapSession ldap = sessionFactory.session(user, userPass)) {
+                String dn = ldap.userDn();
+                assertThat(dn, containsString("William Bush"));
+            }
+
+            //lookup
+            try (LdapSession ldap = sessionFactory.unauthenticatedSession(user)) {
+                String dn = ldap.userDn();
+                assertThat(dn, containsString("William Bush"));
+            }
         } finally {
             sessionFactory.shutdown();
         }
@@ -272,14 +356,28 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
         LdapUserSearchSessionFactory sessionFactory = new LdapUserSearchSessionFactory(config, clientSSLService);
 
         String user = "Bruce Banner";
-        try (LdapSession ldap = sessionFactory.session(user, SecuredStringTests.build(ActiveDirectorySessionFactoryTests.PASSWORD))) {
-            List<String> groups = ldap.groups();
+        try {
+            //auth
+            try (LdapSession ldap = sessionFactory.session(user, SecuredStringTests.build(ActiveDirectorySessionFactoryTests.PASSWORD))) {
+                List<String> groups = ldap.groups();
 
-            assertThat(groups, containsInAnyOrder(
-                    containsString("Avengers"),
-                    containsString("SHIELD"),
-                    containsString("Geniuses"),
-                    containsString("Philanthropists")));
+                assertThat(groups, containsInAnyOrder(
+                        containsString("Avengers"),
+                        containsString("SHIELD"),
+                        containsString("Geniuses"),
+                        containsString("Philanthropists")));
+            }
+
+            //lookup
+            try (LdapSession ldap = sessionFactory.unauthenticatedSession(user)) {
+                List<String> groups = ldap.groups();
+
+                assertThat(groups, containsInAnyOrder(
+                        containsString("Avengers"),
+                        containsString("SHIELD"),
+                        containsString("Geniuses"),
+                        containsString("Philanthropists")));
+            }
         } finally {
             sessionFactory.shutdown();
         }
@@ -300,10 +398,17 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
         String[] users = new String[] { "cap", "hawkeye", "hulk", "ironman", "thor" };
         try {
             for (String user : users) {
-                LdapSession ldap = sessionFactory.session(user, SecuredStringTests.build(OpenLdapTests.PASSWORD));
-                assertThat(ldap.userDn(), is(equalTo(new MessageFormat("uid={0},ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com", Locale.ROOT).format(new Object[] { user }, new StringBuffer(), null).toString())));
-                assertThat(ldap.groups(), hasItem(containsString("Avengers")));
-                ldap.close();
+                //auth
+                try (LdapSession ldap = sessionFactory.session(user, SecuredStringTests.build(OpenLdapTests.PASSWORD))) {
+                    assertThat(ldap.userDn(), is(equalTo(new MessageFormat("uid={0},ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com", Locale.ROOT).format(new Object[]{user}, new StringBuffer(), null).toString())));
+                    assertThat(ldap.groups(), hasItem(containsString("Avengers")));
+                }
+
+                //lookup
+                try (LdapSession ldap = sessionFactory.unauthenticatedSession(user)) {
+                    assertThat(ldap.userDn(), is(equalTo(new MessageFormat("uid={0},ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com", Locale.ROOT).format(new Object[]{user}, new StringBuffer(), null).toString())));
+                    assertThat(ldap.groups(), hasItem(containsString("Avengers")));
+                }
             }
         } finally {
             sessionFactory.shutdown();
@@ -394,6 +499,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
     }
 
     @Test
+    @Network
     public void testThatLDAPServerConnectErrorDoesNotPreventNodeFromStarting() {
         String groupSearchBase = "DC=ad,DC=test,DC=elasticsearch,DC=com";
         String userSearchBase = "CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com";

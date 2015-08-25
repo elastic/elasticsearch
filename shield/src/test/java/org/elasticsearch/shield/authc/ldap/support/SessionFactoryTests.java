@@ -47,6 +47,20 @@ public class SessionFactoryTests extends ESTestCase {
         assertThat(options.getSSLSocketVerifier(), is(instanceOf(TrustAllSSLSocketVerifier.class)));
     }
 
+    @Test
+    public void sessionFactoryDoesNotSupportUnauthenticated() {
+        assertThat(createSessionFactory().supportsUnauthenticatedSession(), is(false));
+    }
+
+    @Test
+    public void unauthenticatedSessionThrowsUnsupportedOperationException() throws Exception {
+        try {
+            createSessionFactory().unauthenticatedSession(randomAsciiOfLength(5));
+            fail("session factory should throw an unsupported operation exception");
+        } catch (UnsupportedOperationException e) {
+            // expected...
+        }
+    }
     private SessionFactory createSessionFactory() {
         Settings global = settingsBuilder().put("path.home", createTempDir()).build();
         return new SessionFactory(new RealmConfig("_name", Settings.EMPTY, global)) {

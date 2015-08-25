@@ -210,7 +210,7 @@ public class FileRolesStore extends AbstractLifecycleComponent<RolesStore> imple
                                 }
                                 if (name != null) {
                                     try {
-                                        permission.set(Privilege.Cluster.get(name));
+                                        permission.cluster(Privilege.Cluster.get(name));
                                     } catch (IllegalArgumentException e) {
                                         logger.error("invalid role definition [{}] in roles file [{}]. could not resolve cluster privileges [{}]. skipping role...", roleName, path.toAbsolutePath(), name);
                                         return null;
@@ -324,6 +324,37 @@ public class FileRolesStore extends AbstractLifecycleComponent<RolesStore> imple
                                             roleName, path.toAbsolutePath(), token);
                                     return null;
                                 }
+                            } else if ("run_as".equals(currentFieldName)) {
+                                Set<String> names = new HashSet<>();
+                                if (token == XContentParser.Token.VALUE_STRING) {
+                                    String namesStr = parser.text().trim();
+                                    if (Strings.hasLength(namesStr)) {
+                                        String[] namesArr = COMMA_DELIM.split(namesStr);
+                                        names.addAll(Arrays.asList(namesArr));
+                                    }
+                                } else if (token == XContentParser.Token.START_ARRAY) {
+                                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                                        if (token == XContentParser.Token.VALUE_STRING) {
+                                            names.add(parser.text());
+                                        }
+                                    }
+                                } else {
+                                    logger.error("invalid role definition [{}] in roles file [{}]. [run_as] field value can either " +
+                                                    "be a string or a list of strings, but [{}] was found instead. skipping role...",
+                                            roleName, path.toAbsolutePath(), token);
+                                    return null;
+                                }
+                                if (!names.isEmpty()) {
+                                    Privilege.Name name = new Privilege.Name(names);
+                                    try {
+                                        permission.runAs(new Privilege.General(new Privilege.Name(names), names.toArray(new String[names.size()])));
+                                    } catch (IllegalArgumentException e) {
+                                        logger.error("invalid role definition [{}] in roles file [{}]. could not resolve run_as privileges [{}]. skipping role...", roleName, path.toAbsolutePath(), name);
+                                        return null;
+                                    }
+                                }
+                            } else {
+                                logger.warn("unknown field [{}] found in role definition [{}] in roles file [{}]", currentFieldName, roleName, path.toAbsolutePath());
                             }
                         }
                         return permission.build();

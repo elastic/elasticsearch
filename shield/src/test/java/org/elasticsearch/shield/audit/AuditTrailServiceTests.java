@@ -106,7 +106,7 @@ public class AuditTrailServiceTests extends ESTestCase {
 
     @Test
     public void testAccessGranted() throws Exception {
-        User user = new User.Simple("_username", "r1");
+        User user = new User.Simple("_username", new String[] { "r1" });
         service.accessGranted(user, "_action", message);
         for (AuditTrail auditTrail : auditTrails) {
             verify(auditTrail).accessGranted(user, "_action", message);
@@ -115,7 +115,7 @@ public class AuditTrailServiceTests extends ESTestCase {
 
     @Test
     public void testAccessDenied() throws Exception {
-        User user = new User.Simple("_username", "r1");
+        User user = new User.Simple("_username", new String[] { "r1" });
         service.accessDenied(user, "_action", message);
         for (AuditTrail auditTrail : auditTrails) {
             verify(auditTrail).accessDenied(user, "_action", message);

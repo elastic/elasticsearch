@@ -31,6 +31,8 @@ import static org.elasticsearch.shield.support.Exceptions.authenticationError;
 public class InternalAuthenticationService extends AbstractComponent implements AuthenticationService {
 
     public static final String SETTING_SIGN_USER_HEADER = "shield.authc.sign_user_header";
+    public static final String SETTING_RUN_AS_ENABLED = "shield.authc.run_as.enabled";
+    public static final String RUN_AS_USER_HEADER = "es-shield-runas-user";
 
     static final String TOKEN_KEY = "_shield_token";
     public static final String USER_KEY = "_shield_user";
@@ -41,6 +43,7 @@ public class InternalAuthenticationService extends AbstractComponent implements 
     private final AnonymousService anonymousService;
     private final AuthenticationFailureHandler failureHandler;
     private final boolean signUserHeader;
+    private final boolean runAsEnabled;
 
     @Inject
     public InternalAuthenticationService(Settings settings, Realms realms, AuditTrail auditTrail, CryptoService cryptoService,
@@ -52,6 +55,7 @@ public class InternalAuthenticationService extends AbstractComponent implements 
         this.anonymousService = anonymousService;
         this.failureHandler = failureHandler;
         this.signUserHeader = settings.getAsBoolean(SETTING_SIGN_USER_HEADER, true);
+        this.runAsEnabled = settings.getAsBoolean(SETTING_RUN_AS_ENABLED, true);
     }
 
     @Override
@@ -94,6 +98,44 @@ public class InternalAuthenticationService extends AbstractComponent implements 
         if (user == null) {
             throw failureHandler.unsuccessfulAuthentication(request, token);
         }
+        if (runAsEnabled) {
+            String runAsUsername = request.header(RUN_AS_USER_HEADER);
+            if (runAsUsername != null) {
+                if (runAsUsername.isEmpty()) {
+                    logger.warn("user [{}] attempted to runAs with an empty username", user.principal());
+                    auditTrail.authenticationFailed(token, request);
+                    throw failureHandler.unsuccessfulAuthentication(request, token);
+                }
+
+                User runAsUser;
+                try {
+                    runAsUser = lookupUser(runAsUsername);
+                } catch (Exception e) {
+                    if (logger.isDebugEnabled()) {
+                        logger.debug("lookup of run as user failed for principal [{}], uri [{}], run as username [{}]", e, token.principal(), request.uri(), runAsUsername);
+                    }
+                    auditTrail.authenticationFailed(token, request);
+                    throw failureHandler.exceptionProcessingRequest(request, e);
+                }
+
+                // wrap in a try catch because the user constructor could throw an exception if we are trying to runAs the system user
+                try {
+                    if (runAsUser != null) {
+                        user = new User.Simple(user.principal(), user.roles(), runAsUser);
+                    } else {
+                        // the requested run as user does not exist, but we don't throw an error here otherwise this could let information leak about users in the system... instead we'll just let the authz service fail throw an authorization error
+                        user = new User.Simple(user.principal(), user.roles(), new User.Simple(runAsUsername, null));
+                    }
+                } catch (Exception e) {
+                    if (logger.isDebugEnabled()) {
+                        logger.debug("user creation failed for principal [{}], uri [{}], run as username [{}]", e, token.principal(), request.uri(), runAsUsername);
+                    }
+                    auditTrail.authenticationFailed(token, request);
+                    throw failureHandler.exceptionProcessingRequest(request, e);
+                }
+            }
+        }
+
         // we must put the user in the request context, so it'll be copied to the
         // transport request - without it, the transport will assume system user
         request.putInContext(USER_KEY, user);
@@ -221,6 +263,43 @@ public class InternalAuthenticationService extends AbstractComponent implements 
         if (user == null) {
             throw failureHandler.unsuccessfulAuthentication(message, token, action);
         }
+
+        if (runAsEnabled) {
+            String runAsUsername = message.getHeader(RUN_AS_USER_HEADER);
+            if (runAsUsername != null) {
+                if (runAsUsername.isEmpty()) {
+                    logger.warn("user [{}] attempted to runAs with an empty username", user.principal());
+                    auditTrail.authenticationFailed(token, action, message);
+                    throw failureHandler.unsuccessfulAuthentication(message, token, action);
+                }
+                User runAsUser;
+                try {
+                    runAsUser = lookupUser(runAsUsername);
+                } catch (Exception e) {
+                    if (logger.isDebugEnabled()) {
+                        logger.debug("lookup of run as user failed for principal [{}], action [{}], run as username [{}]", e, token.principal(), action, runAsUsername);
+                    }
+                    auditTrail.authenticationFailed(token, action, message);
+                    throw failureHandler.exceptionProcessingRequest(message, e);
+                }
+
+                // wrap in a try catch because the user constructor could throw an exception if we are trying to runAs the system user
+                try {
+                    if (runAsUser != null) {
+                        user = new User.Simple(user.principal(), user.roles(), runAsUser);
+                    } else {
+                        // the requested run as user does not exist, but we don't throw an error here otherwise this could let information leak about users in the system... instead we'll just let the authz service fail throw an authorization error
+                        user = new User.Simple(user.principal(), user.roles(), new User.Simple(runAsUsername, null));
+                    }
+                } catch (Exception e) {
+                    if (logger.isDebugEnabled()) {
+                        logger.debug("user creation failed for principal [{}], action [{}], run as username [{}]", e, token.principal(), action, runAsUsername);
+                    }
+                    auditTrail.authenticationFailed(token, action, message);
+                    throw failureHandler.exceptionProcessingRequest(message, e);
+                }
+            }
+        }
         return user;
     }
 
@@ -289,6 +368,18 @@ public class InternalAuthenticationService extends AbstractComponent implements 
 
                 message.putInContext(TOKEN_KEY, token);
                 return token;
+            }
+        }
+        return null;
+    }
+
+    User lookupUser(String username) {
+        for (Realm realm : realms) {
+            if (realm.userLookupSupported()) {
+                User user = realm.lookupUser(username);
+                if (user != null) {
+                    return user;
+                }
             }
         }
         return null;

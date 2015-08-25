@@ -89,6 +89,10 @@ public class FileUserPasswdStore {
         return hash != null && hasher.verify(password, hash);
     }
 
+    public boolean userExists(String username) {
+        return users != null && users.containsKey(username);
+    }
+
     public static Path resolveFile(Settings settings, Environment env) {
         String location = settings.get("files.users");
         if (location == null) {
@@ -139,18 +143,22 @@ public class FileUserPasswdStore {
             if (line.startsWith("#")) { // comment
                 continue;
             }
+
+            // only trim the line because we have a format, our tool generates the formatted text and we shouldn't be lenient
+            // and allow spaces in the format
+            line = line.trim();
             int i = line.indexOf(":");
             if (i <= 0 || i == line.length() - 1) {
                 logger.error("invalid entry in users file [{}], line [{}]. skipping...", path.toAbsolutePath(), lineNr);
                 continue;
             }
-            String username = line.substring(0, i).trim();
+            String username = line.substring(0, i);
             Validation.Error validationError = Validation.ESUsers.validateUsername(username);
             if (validationError != null) {
                 logger.error("invalid username [{}] in users file [{}], skipping... ({})", username, path.toAbsolutePath(), validationError);
                 continue;
             }
-            String hash = line.substring(i + 1).trim();
+            String hash = line.substring(i + 1);
             users.put(username, hash.toCharArray());
         }
 

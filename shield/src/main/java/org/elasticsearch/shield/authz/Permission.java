@@ -44,6 +44,9 @@ import java.util.function.Predicate;
  *         Indices -    a permission that is based on privileges for index related actions executed
  *                      on specific indices
  *     </li>
+ *     <li>RunAs  -     a permissions that is based on a general privilege that contains patterns of users that this
+ *                      user can execute a request as
+ *     </li>
  *     <li>
  *         Global -     a composite permission that combines a both cluster & indices permissions
  *     </li>
@@ -55,14 +58,16 @@ public interface Permission {
 
     static class Global implements Permission {
 
-        public static final Global NONE = new Global(Cluster.Core.NONE, Indices.Core.NONE);
+        public static final Global NONE = new Global(Cluster.Core.NONE, Indices.Core.NONE, RunAs.Core.NONE);
 
         private final Cluster cluster;
         private final Indices indices;
+        private final RunAs runAs;
 
-        Global(Cluster cluster, Indices indices) {
+        Global(Cluster cluster, Indices indices, RunAs runAs) {
             this.cluster = cluster;
             this.indices = indices;
+            this.runAs = runAs;
         }
 
         public Cluster cluster() {
@@ -73,9 +78,13 @@ public interface Permission {
             return indices;
         }
 
+        public RunAs runAs() {
+            return runAs;
+        }
+
         @Override
         public boolean isEmpty() {
-            return (cluster == null || cluster.isEmpty()) && (indices == null || indices.isEmpty());
+            return (cluster == null || cluster.isEmpty()) && (indices == null || indices.isEmpty()) && (runAs == null || runAs.isEmpty());
         }
 
         /**
@@ -103,8 +112,8 @@ public interface Permission {
 
             private final String name;
 
-            private Role(String name, Cluster.Core cluster, Indices.Core indices) {
-                super(cluster, indices);
+            private Role(String name, Cluster.Core cluster, Indices.Core indices, RunAs.Core runAs) {
+                super(cluster, indices, runAs);
                 this.name = name;
             }
 
@@ -122,6 +131,11 @@ public interface Permission {
                 return (Indices.Core) super.indices();
             }
 
+            @Override
+            public RunAs.Core runAs() {
+                return (RunAs.Core) super.runAs();
+            }
+
             public static Builder builder(String name) {
                 return new Builder(name);
             }
@@ -130,14 +144,21 @@ public interface Permission {
 
                 private final String name;
                 private Cluster.Core cluster = Cluster.Core.NONE;
+                private RunAs.Core runAs = RunAs.Core.NONE;
                 private List<Indices.Group> groups = new ArrayList<>();
 
                 private Builder(String name) {
                     this.name = name;
                 }
 
-                public Builder set(Privilege.Cluster privilege) {
+                // FIXME we should throw an exception if we have already set cluster or runAs...
+                public Builder cluster(Privilege.Cluster privilege) {
                     cluster = new Cluster.Core(privilege);
+                    return this;
+                }
+
+                public Builder runAs(Privilege.General privilege) {
+                    runAs = new RunAs.Core(privilege);
                     return this;
                 }
 
@@ -153,7 +174,7 @@ public interface Permission {
 
                 public Role build() {
                     Indices.Core indices = groups.isEmpty() ? Indices.Core.NONE : new Indices.Core(groups.toArray(new Indices.Group[groups.size()]));
-                    return new Role(name, cluster, indices);
+                    return new Role(name, cluster, indices, runAs);
                 }
             }
         }
@@ -161,7 +182,7 @@ public interface Permission {
         static class Compound extends Global {
 
             public Compound(List<Global> globals) {
-                super(new Cluster.Globals(globals), new Indices.Globals(globals));
+                super(new Cluster.Globals(globals), new Indices.Globals(globals), new RunAs.Globals(globals));
             }
 
             public static Builder builder() {
@@ -551,4 +572,69 @@ public interface Permission {
         }
     }
 
+    // FIXME let's split this up, 11 classes before this in a single file that aren't documented and are extremely important
+    static interface RunAs extends Permission {
+
+        /**
+         * Checks if this permission grants run as to the specified user
+         */
+        boolean check(String username);
+
+        class Core implements RunAs {
+
+            public static final Core NONE = new Core(Privilege.General.NONE);
+
+            private final Privilege.General privilege;
+            private final Predicate<String> predicate;
+
+            public Core(Privilege.General privilege) {
+                this.privilege = privilege;
+                this.predicate = privilege.predicate();
+            }
+
+            @Override
+            public boolean check(String username) {
+                return predicate.test(username);
+            }
+
+            @Override
+            public boolean isEmpty() {
+                return this == NONE;
+            }
+        }
+
+        class Globals implements RunAs {
+            private final List<Global> globals;
+
+            public Globals(List<Global> globals) {
+                this.globals = globals;
+            }
+
+            @Override
+            public boolean check(String username) {
+                if (globals == null) {
+                    return false;
+                }
+                for (Global global : globals) {
+                    if (global.runAs().check(username)) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+
+            @Override
+            public boolean isEmpty() {
+                if (globals == null || globals.isEmpty()) {
+                    return true;
+                }
+                for (Global global : globals) {
+                    if (!global.isEmpty()) {
+                        return false;
+                    }
+                }
+                return true;
+            }
+        }
+    }
 }

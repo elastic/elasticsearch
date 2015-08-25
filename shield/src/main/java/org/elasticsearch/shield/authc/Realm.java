@@ -86,6 +86,21 @@ public abstract class Realm<T extends AuthenticationToken> implements Comparable
      */
     public abstract User authenticate(T token);
 
+    /**
+     * Looks up the user identified the String identifier. A successful lookup will return the {@link User} identified
+     * by the username. An unsuccessful lookup returns {@code null}.
+     *
+     * @param username the String identifier for the user
+     * @return         the {@link User} or {@code null} if lookup failed
+     */
+    public abstract User lookupUser(String username);
+
+    /**
+     * Indicates whether this realm supports user lookup.
+     * @return true if the realm supports user lookup
+     */
+    public abstract boolean userLookupSupported();
+
     @Override
     public String toString() {
         return type + "/" + config.name;

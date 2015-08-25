@@ -44,6 +44,20 @@ public class ESUsersRealm extends CachingUsernamePasswordRealm {
         return new User.Simple(token.principal(), roles);
     }
 
+    @Override
+    public User doLookupUser(String username) {
+        if (userPasswdStore.userExists(username)){
+            String[] roles = userRolesStore.roles(username);
+            return new User.Simple(username, roles);
+        }
+        return null;
+    }
+
+    @Override
+    public boolean userLookupSupported() {
+        return true;
+    }
+
     class Listener implements RefreshListener {
         @Override
         public void onRefresh() {

@@ -13,7 +13,7 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * Supporting class for JNDI-based Realms
+ * Supporting class for LDAP realms
  */
 public abstract class AbstractLdapRealm extends CachingUsernamePasswordRealm {
 
@@ -36,22 +36,47 @@ public abstract class AbstractLdapRealm extends CachingUsernamePasswordRealm {
     @Override
     protected User doAuthenticate(UsernamePasswordToken token) {
         try (LdapSession session = sessionFactory.session(token.principal(), token.credentials())) {
-            List<String> groupDNs = session.groups();
-            Set<String> roles = roleMapper.resolveRoles(session.userDn(), groupDNs);
-            return new User.Simple(token.principal(), roles.toArray(new String[roles.size()]));
-        } catch (Throwable e) {
-            if (logger.isDebugEnabled()) {
-                logger.debug("authentication failed for user [{}]", e, token.principal());
-            } else {
-                String causeMessage = (e.getCause() == null) ? null : e.getCause().getMessage();
-                if (causeMessage == null) {
-                    logger.warn("authentication failed for user [{}]: {}", token.principal(), e.getMessage());
-                } else {
-                    logger.warn("authentication failed for user [{}]: {}\ncause: {}: {}", token.principal(), e.getMessage(), e.getCause().getClass().getName(), causeMessage);
-                }
-            }
+            return createUser(token.principal(), session);
+        } catch (Exception e) {
+            logException("authentication", e, token.principal());
             return null;
         }
+    }
+
+    @Override
+    public User doLookupUser(String username) {
+        if (sessionFactory.supportsUnauthenticatedSession()) {
+            try (LdapSession session = sessionFactory.unauthenticatedSession(username)) {
+                return createUser(username, session);
+            } catch (Exception e) {
+                logException("lookup", e, username);
+            }
+        }
+        return null;
+    }
+
+    @Override
+    public boolean userLookupSupported() {
+        return sessionFactory.supportsUnauthenticatedSession();
+    }
+
+    private void logException(String action, Exception e, String principal) {
+        if (logger.isDebugEnabled()) {
+            logger.debug("{} failed for user [{}]", e, action, principal);
+        } else {
+            String causeMessage = (e.getCause() == null) ? null : e.getCause().getMessage();
+            if (causeMessage == null) {
+                logger.warn("{} failed for user [{}]: {}", action, principal, e.getMessage());
+            } else {
+                logger.warn("{} failed for user [{}]: {}\ncause: {}: {}", action, principal, e.getMessage(), e.getCause().getClass().getName(), causeMessage);
+            }
+        }
+    }
+
+    private User createUser(String principal, LdapSession session) {
+        List<String> groupDNs = session.groups();
+        Set<String> roles = roleMapper.resolveRoles(session.userDn(), groupDNs);
+        return new User.Simple(principal, roles.toArray(new String[roles.size()]));
     }
 
     class Listener implements RefreshListener {

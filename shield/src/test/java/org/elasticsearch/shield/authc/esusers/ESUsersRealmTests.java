@@ -79,13 +79,14 @@ public class ESUsersRealmTests extends ESTestCase {
                 .build();
         RealmConfig config = new RealmConfig("esusers-test", settings, globalSettings);
         when(userPasswdStore.verifyPassword("user1", SecuredStringTests.build("test123"))).thenReturn(true);
-        when(userRolesStore.roles("user1")).thenReturn(new String[] { "role1", "role2" });
+        when(userRolesStore.roles("user1")).thenReturn(new String[]{"role1", "role2"});
         ESUsersRealm realm = new ESUsersRealm(config, userPasswdStore, userRolesStore);
         User user1 = realm.authenticate(new UsernamePasswordToken("user1", SecuredStringTests.build("test123")));
         User user2 = realm.authenticate(new UsernamePasswordToken("user1", SecuredStringTests.build("test123")));
         assertThat(user1, sameInstance(user2));
     }
 
+    @Test
     public void testAuthenticate_Caching_Refresh() throws Exception {
         RealmConfig config = new RealmConfig("esusers-test", Settings.EMPTY, globalSettings);
         userPasswdStore = spy(new UserPasswdStore(config));
@@ -112,7 +113,7 @@ public class ESUsersRealmTests extends ESTestCase {
     public void testToken() throws Exception {
         RealmConfig config = new RealmConfig("esusers-test", Settings.EMPTY, globalSettings);
         when(userPasswdStore.verifyPassword("user1", SecuredStringTests.build("test123"))).thenReturn(true);
-        when(userRolesStore.roles("user1")).thenReturn(new String[] { "role1", "role2" });
+        when(userRolesStore.roles("user1")).thenReturn(new String[]{"role1", "role2"});
         ESUsersRealm realm = new ESUsersRealm(config, userPasswdStore, userRolesStore);
 
         TransportRequest request = new TransportRequest() {};
@@ -123,6 +124,59 @@ public class ESUsersRealmTests extends ESTestCase {
         assertThat(token.principal(), equalTo("user1"));
         assertThat(token.credentials(), notNullValue());
         assertThat(new String(token.credentials().internalChars()), equalTo("test123"));
+    }
+
+    @Test
+    public void testLookup() throws Exception {
+        when(userPasswdStore.userExists("user1")).thenReturn(true);
+        when(userRolesStore.roles("user1")).thenReturn(new String[] { "role1", "role2" });
+        RealmConfig config = new RealmConfig("esusers-test", Settings.EMPTY, globalSettings);
+        ESUsersRealm realm = new ESUsersRealm(config, userPasswdStore, userRolesStore);
+
+        User user = realm.lookupUser("user1");
+
+        assertThat(user, notNullValue());
+        assertThat(user.principal(), equalTo("user1"));
+        assertThat(user.roles(), notNullValue());
+        assertThat(user.roles().length, equalTo(2));
+        assertThat(user.roles(), arrayContaining("role1", "role2"));
+    }
+
+    @Test
+    public void testLookupCaching() throws Exception {
+        when(userPasswdStore.userExists("user1")).thenReturn(true);
+        when(userRolesStore.roles("user1")).thenReturn(new String[] { "role1", "role2" });
+        RealmConfig config = new RealmConfig("esusers-test", Settings.EMPTY, globalSettings);
+        ESUsersRealm realm = new ESUsersRealm(config, userPasswdStore, userRolesStore);
+
+        User user = realm.lookupUser("user1");
+        User user1 = realm.lookupUser("user1");
+        assertThat(user, sameInstance(user1));
+        verify(userPasswdStore).userExists("user1");
+        verify(userRolesStore).roles("user1");
+    }
+
+    @Test
+    public void testLookupCachingWithRefresh() throws Exception {
+        RealmConfig config = new RealmConfig("esusers-test", Settings.EMPTY, globalSettings);
+        userPasswdStore = spy(new UserPasswdStore(config));
+        userRolesStore = spy(new UserRolesStore(config));
+        doReturn(true).when(userPasswdStore).userExists("user1");
+        doReturn(new String[] { "role1", "role2" }).when(userRolesStore).roles("user1");
+        ESUsersRealm realm = new ESUsersRealm(config, userPasswdStore, userRolesStore);
+        User user1 = realm.lookupUser("user1");
+        User user2 = realm.lookupUser("user1");
+        assertThat(user1, sameInstance(user2));
+        userPasswdStore.notifyRefresh();
+        User user3 = realm.lookupUser("user1");
+        assertThat(user2, not(sameInstance(user3)));
+        User user4 = realm.lookupUser("user1");
+        assertThat(user3, sameInstance(user4));
+        userRolesStore.notifyRefresh();
+        User user5 = realm.lookupUser("user1");
+        assertThat(user4, not(sameInstance(user5)));
+        User user6 = realm.lookupUser("user1");
+        assertThat(user5, sameInstance(user6));
     }
 
     @Test @SuppressWarnings("unchecked")

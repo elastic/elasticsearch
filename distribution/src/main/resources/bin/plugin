@@ -103,6 +103,9 @@ if [ -e "$CONF_FILE" ]; then
   esac
 fi
 
-export HOSTNAME=`hostname -s`
+# full hostname passed through cut for portability on systems that do not support hostname -s
+# export on separate line for shells that do not support combining definition and export
+HOSTNAME=`hostname | cut -d. -f1`
+export HOSTNAME
 
 eval "$JAVA" $JAVA_OPTS $ES_JAVA_OPTS -Xmx64m -Xms16m -Delasticsearch -Des.path.home="\"$ES_HOME\"" $properties -cp "\"$ES_HOME/lib/*\"" org.elasticsearch.plugins.PluginManagerCliParser $args

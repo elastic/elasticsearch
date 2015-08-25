@@ -65,20 +65,20 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
         // NOTE, when adding defaults here, make sure you add them in the builder
         public static final String NULL_VALUE = null;
         /**
-         * Post 2.1 default for position_offset_gap. Set to 100 so that
+         * Post 2.0 default for position_offset_gap. Set to 100 so that
          * phrase queries of reasonably high slop will not match across field
          * values.
          */
         public static final int POSITION_OFFSET_GAP = 100;
-        public static final int POSITION_OFFSET_GAP_PRE_2_1 = 0;
+        public static final int POSITION_OFFSET_GAP_PRE_2_0 = 0;
         public static final int IGNORE_ABOVE = -1;
 
         /**
          * The default position_offset_gap for a particular version of Elasticsearch.
          */
         public static int positionOffsetGap(Version version) {
-            if (version.before(Version.V_2_1_0)) {
-                return POSITION_OFFSET_GAP_PRE_2_1;
+            if (version.before(Version.V_2_0_0_beta1)) {
+                return POSITION_OFFSET_GAP_PRE_2_0;
             }
             return POSITION_OFFSET_GAP;
         }

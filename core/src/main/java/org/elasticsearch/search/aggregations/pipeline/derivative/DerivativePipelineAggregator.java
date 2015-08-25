@@ -21,6 +21,9 @@ package org.elasticsearch.search.aggregations.pipeline.derivative;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.rounding.DateTimeUnit;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -33,6 +36,7 @@ import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorFactory;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorStreams;
+import org.elasticsearch.search.aggregations.support.format.ValueFormat;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
 import org.joda.time.DateTime;
@@ -41,6 +45,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -154,19 +159,46 @@ public class DerivativePipelineAggregator extends PipelineAggregator {
 
     public static class Factory extends PipelineAggregatorFactory {
 
-        private final ValueFormatter formatter;
-        private GapPolicy gapPolicy;
-        private Long xAxisUnits;
+        private String format;
+        private GapPolicy gapPolicy = GapPolicy.SKIP;
+        private String units;
 
-        public Factory(String name, String[] bucketsPaths, ValueFormatter formatter, GapPolicy gapPolicy, Long xAxisUnits) {
+        public Factory(String name, String[] bucketsPaths) {
             super(name, TYPE.name(), bucketsPaths);
-            this.formatter = formatter;
+        }
+
+        public void format(String format) {
+            this.format = format;
+        }
+
+        public void gapPolicy(GapPolicy gapPolicy) {
             this.gapPolicy = gapPolicy;
-            this.xAxisUnits = xAxisUnits;
+        }
+
+        public void units(String units) {
+            this.units = units;
         }
 
         @Override
         protected PipelineAggregator createInternal(Map<String, Object> metaData) throws IOException {
+            ValueFormatter formatter;
+            if (format != null) {
+                formatter = ValueFormat.Patternable.Number.format(format).formatter();
+            } else {
+                formatter = ValueFormatter.RAW;
+            }
+            Long xAxisUnits = null;
+            if (units != null) {
+                DateTimeUnit dateTimeUnit = HistogramAggregator.DateHistogramFactory.DATE_FIELD_UNITS.get(units);
+                if (dateTimeUnit != null) {
+                    xAxisUnits = dateTimeUnit.field().getDurationField().getUnitMillis();
+                } else {
+                    TimeValue timeValue = TimeValue.parseTimeValue(units, null, getClass().getSimpleName() + ".unit");
+                    if (timeValue != null) {
+                        xAxisUnits = timeValue.getMillis();
+                    }
+                }
+            }
             return new DerivativePipelineAggregator(name, bucketsPaths, formatter, gapPolicy, xAxisUnits, metaData);
         }
 
@@ -186,6 +218,62 @@ public class DerivativePipelineAggregator extends PipelineAggregator {
                             + "] must have min_doc_count of 0");
                 }
             }
+        }
+
+        @Override
+        protected PipelineAggregatorFactory doReadFrom(String name, String[] bucketsPaths, StreamInput in) throws IOException {
+            Factory factory = new Factory(name, bucketsPaths);
+            factory.format = in.readOptionalString();
+            if (in.readBoolean()) {
+                factory.gapPolicy = GapPolicy.readFrom(in);
+            }
+            factory.units = in.readOptionalString();
+            return factory;
+        }
+
+        @Override
+        protected void doWriteTo(StreamOutput out) throws IOException {
+            out.writeOptionalString(format);
+            boolean hasGapPolicy = gapPolicy != null;
+            out.writeBoolean(hasGapPolicy);
+            if (hasGapPolicy) {
+                gapPolicy.writeTo(out);
+            }
+            out.writeOptionalString(units);
+        }
+
+        @Override
+        protected XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {
+            if (format != null) {
+                builder.field(DerivativeParser.FORMAT.getPreferredName(), format);
+            }
+            if (gapPolicy != null) {
+                builder.field(DerivativeParser.GAP_POLICY.getPreferredName(), gapPolicy.getName());
+            }
+            if (units != null) {
+                builder.field(DerivativeParser.UNIT.getPreferredName(), units);
+            }
+            return builder;
+        }
+
+        @Override
+        protected boolean doEquals(Object obj) {
+            Factory other = (Factory) obj;
+            if (!Objects.equals(format, other.format)) {
+                return false;
+            }
+            if (!Objects.equals(gapPolicy, other.gapPolicy)) {
+                return false;
+            }
+            if (!Objects.equals(units, other.units)) {
+                return false;
+            }
+            return true;
+        }
+
+        @Override
+        protected int doHashCode() {
+            return Objects.hash(format, gapPolicy, units);
         }
 
     }

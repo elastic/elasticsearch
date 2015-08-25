@@ -141,7 +141,7 @@ public class DanglingIndicesState extends AbstractComponent {
             return;
         }
         try {
-            allocateDangledIndices.allocateDangled(Collections.unmodifiableCollection(danglingIndices.values()), new LocalAllocateDangledIndices.Listener() {
+            allocateDangledIndices.allocateDangled(Collections.unmodifiableCollection(new ArrayList<>(danglingIndices.values())), new LocalAllocateDangledIndices.Listener() {
                 @Override
                 public void onResponse(LocalAllocateDangledIndices.AllocateDangledResponse response) {
                     logger.trace("allocated dangled");

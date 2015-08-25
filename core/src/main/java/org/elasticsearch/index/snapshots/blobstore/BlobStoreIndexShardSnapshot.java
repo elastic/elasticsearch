@@ -32,6 +32,7 @@ import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.index.store.StoreFileMetaData;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
@@ -342,7 +343,7 @@ public class BlobStoreIndexShardSnapshot implements ToXContent, FromXContentBuil
         assert indexVersion >= 0;
         this.snapshot = snapshot;
         this.indexVersion = indexVersion;
-        this.indexFiles = Collections.unmodifiableList(indexFiles);
+        this.indexFiles = Collections.unmodifiableList(new ArrayList<>(indexFiles));
         this.startTime = startTime;
         this.time = time;
         this.numberOfFiles = numberOfFiles;

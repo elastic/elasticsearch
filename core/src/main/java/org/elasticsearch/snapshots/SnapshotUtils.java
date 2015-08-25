@@ -116,7 +116,7 @@ public class SnapshotUtils {
             }
         }
         if (result == null) {
-            return Arrays.asList(selectedIndices);
+            return Collections.unmodifiableList(new ArrayList<>(Arrays.asList(selectedIndices)));
         }
         return Collections.unmodifiableList(new ArrayList<>(result));
     }

@@ -22,6 +22,7 @@ package org.elasticsearch.index.shard;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.store.StoreFileMetaData;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
@@ -89,8 +90,8 @@ public class CommitPoint {
         this.version = version;
         this.name = name;
         this.type = type;
-        this.indexFiles = Collections.unmodifiableList(indexFiles);
-        this.translogFiles = Collections.unmodifiableList(translogFiles);
+        this.indexFiles = Collections.unmodifiableList(new ArrayList<>(indexFiles));
+        this.translogFiles = Collections.unmodifiableList(new ArrayList<>(translogFiles));
     }
 
     public long version() {

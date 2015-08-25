@@ -27,6 +27,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Iterator;
@@ -46,7 +47,7 @@ public class CommitPoints implements Iterable<CommitPoint> {
                 return (o2.version() < o1.version() ? -1 : (o2.version() == o1.version() ? 0 : 1));
             }
         });
-        this.commitPoints = Collections.unmodifiableList(commitPoints);
+        this.commitPoints = Collections.unmodifiableList(new ArrayList<>(commitPoints));
     }
 
     public List<CommitPoint> commits() {

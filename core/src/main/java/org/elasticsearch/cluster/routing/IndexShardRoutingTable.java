@@ -611,7 +611,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         }
 
         public IndexShardRoutingTable build() {
-            return new IndexShardRoutingTable(shardId, Collections.unmodifiableList(shards));
+            return new IndexShardRoutingTable(shardId, Collections.unmodifiableList(new ArrayList<>(shards)));
         }
 
         public static IndexShardRoutingTable readFrom(StreamInput in) throws IOException {

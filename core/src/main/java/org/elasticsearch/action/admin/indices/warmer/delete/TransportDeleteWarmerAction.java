@@ -124,7 +124,7 @@ public class TransportDeleteWarmerAction extends TransportMasterNodeAction<Delet
                     }
                 }
 
-                if (!globalFoundAtLeastOne && deleteAll == false) {
+                if (globalFoundAtLeastOne == false && deleteAll == false) {
                     throw new IndexWarmerMissingException(request.names());
                 }
 

@@ -11,8 +11,8 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.watcher.support.template.Template;
-import org.elasticsearch.watcher.support.template.TemplateEngine;
+import org.elasticsearch.watcher.support.text.TextTemplate;
+import org.elasticsearch.watcher.support.text.TextTemplateEngine;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -31,25 +31,25 @@ public class EmailTemplateTests extends ESTestCase {
 
     @Test
     public void testEmailTemplate_Parser_SelfGenerated() throws Exception {
-        Template from = randomFrom(Template.inline("from@from.com").build(), null);
-        List<Template> addresses = new ArrayList<>();
+        TextTemplate from = randomFrom(TextTemplate.inline("from@from.com").build(), null);
+        List<TextTemplate> addresses = new ArrayList<>();
         for( int i = 0; i < randomIntBetween(1, 5); ++i){
-            addresses.add(Template.inline("address" + i + "@test.com").build());
+            addresses.add(TextTemplate.inline("address" + i + "@test.com").build());
         }
-        Template[] possibleList = addresses.toArray(new Template[addresses.size()]);
-        Template[] replyTo = randomFrom(possibleList, null);
-        Template[] to = randomFrom(possibleList, null);
-        Template[] cc = randomFrom(possibleList, null);
-        Template[] bcc = randomFrom(possibleList, null);
-        Template priority = Template.inline(randomFrom(Email.Priority.values()).name()).build();
+        TextTemplate[] possibleList = addresses.toArray(new TextTemplate[addresses.size()]);
+        TextTemplate[] replyTo = randomFrom(possibleList, null);
+        TextTemplate[] to = randomFrom(possibleList, null);
+        TextTemplate[] cc = randomFrom(possibleList, null);
+        TextTemplate[] bcc = randomFrom(possibleList, null);
+        TextTemplate priority = TextTemplate.inline(randomFrom(Email.Priority.values()).name()).build();
 
-        Template subjectTemplate = Template.inline("Templated Subject {{foo}}").build();
+        TextTemplate subjectTemplate = TextTemplate.inline("Templated Subject {{foo}}").build();
         String subject = "Templated Subject bar";
 
-        Template textBodyTemplate = Template.inline("Templated Body {{foo}}").build();
+        TextTemplate textBodyTemplate = TextTemplate.inline("Templated Body {{foo}}").build();
         String textBody = "Templated Body bar";
 
-        Template htmlBodyTemplate = Template.inline("Templated Html Body <script>nefarious scripting</script>").build();
+        TextTemplate htmlBodyTemplate = TextTemplate.inline("Templated Html Body <script>nefarious scripting</script>").build();
         String htmlBody = "Templated Html Body <script>nefarious scripting</script>";
         String sanitizedHtmlBody = "Templated Html Body";
 
@@ -79,11 +79,11 @@ public class EmailTemplateTests extends ESTestCase {
         HtmlSanitizer htmlSanitizer = mock(HtmlSanitizer.class);
         when(htmlSanitizer.sanitize(htmlBody)).thenReturn(sanitizedHtmlBody);
 
-        TemplateEngine templateEngine = mock(TemplateEngine.class);
+        TextTemplateEngine templateEngine = mock(TextTemplateEngine.class);
         when(templateEngine.render(subjectTemplate, model)).thenReturn(subject);
         when(templateEngine.render(textBodyTemplate, model)).thenReturn(textBody);
         when(templateEngine.render(htmlBodyTemplate, model)).thenReturn(htmlBody);
-        for (Template possibleAddress : possibleList) {
+        for (TextTemplate possibleAddress : possibleList) {
             when(templateEngine.render(possibleAddress, model)).thenReturn(possibleAddress.getTemplate());
         }
         if (from != null) {

@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.watcher.support.template;
+package org.elasticsearch.watcher.support.text;
 
 
 import com.google.common.collect.ImmutableMap;
@@ -17,7 +17,7 @@ import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
-import org.elasticsearch.watcher.support.template.xmustache.XMustacheTemplateEngine;
+import org.elasticsearch.watcher.support.text.xmustache.XMustacheTextTemplateEngine;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -32,10 +32,10 @@ import static org.mockito.Mockito.when;
 /**
  *
  */
-public class TemplateTests extends ESTestCase {
+public class TextTemplateTests extends ESTestCase {
 
     private ScriptServiceProxy proxy;
-    private TemplateEngine engine;
+    private TextTemplateEngine engine;
     private ExecutableScript script;
     private final String lang = "xmustache";
 
@@ -43,7 +43,7 @@ public class TemplateTests extends ESTestCase {
     public void init() throws Exception {
         proxy = mock(ScriptServiceProxy.class);
         script = mock(ExecutableScript.class);
-        engine = new XMustacheTemplateEngine(Settings.EMPTY, proxy);
+        engine = new XMustacheTextTemplateEngine(Settings.EMPTY, proxy);
     }
 
     @Test
@@ -57,7 +57,7 @@ public class TemplateTests extends ESTestCase {
         when(proxy.executable(new org.elasticsearch.script.Template(templateText, type, lang, null, merged))).thenReturn(script);
         when(script.run()).thenReturn("rendered_text");
 
-        Template template = templateBuilder(type, templateText).params(params).build();
+        TextTemplate template = templateBuilder(type, templateText).params(params).build();
         assertThat(engine.render(template, model), is("rendered_text"));
     }
 
@@ -71,7 +71,7 @@ public class TemplateTests extends ESTestCase {
         when(proxy.executable(new org.elasticsearch.script.Template(templateText, scriptType, lang, null, model))).thenReturn(script);
         when(script.run()).thenReturn("rendered_text");
 
-        Template template = templateBuilder(scriptType, templateText).params(params).build();
+        TextTemplate template = templateBuilder(scriptType, templateText).params(params).build();
         assertThat(engine.render(template, model), is("rendered_text"));
     }
 
@@ -83,14 +83,14 @@ public class TemplateTests extends ESTestCase {
         when(proxy.executable(new org.elasticsearch.script.Template(templateText, ScriptType.INLINE, lang, null, model))).thenReturn(script);
         when(script.run()).thenReturn("rendered_text");
 
-        Template template = new Template(templateText);
+        TextTemplate template = new TextTemplate(templateText);
         assertThat(engine.render(template, model), is("rendered_text"));
     }
 
     @Test
     public void testParser() throws Exception {
         ScriptType type = randomScriptType();
-        Template template = templateBuilder(type, "_template").params(ImmutableMap.<String, Object>of("param_key", "param_val")).build();
+        TextTemplate template = templateBuilder(type, "_template").params(ImmutableMap.<String, Object>of("param_key", "param_val")).build();
         XContentBuilder builder = jsonBuilder().startObject();
         switch (type) {
             case INLINE:
@@ -107,20 +107,20 @@ public class TemplateTests extends ESTestCase {
         BytesReference bytes = builder.bytes();
         XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
         parser.nextToken();
-        Template parsed = Template.parse(parser);
+        TextTemplate parsed = TextTemplate.parse(parser);
         assertThat(parsed, notNullValue());
         assertThat(parsed, equalTo(template));
     }
 
     @Test
     public void testParser_ParserSelfGenerated() throws Exception {
-        Template template = templateBuilder(randomScriptType(), "_template").params(ImmutableMap.<String, Object>of("param_key", "param_val")).build();
+        TextTemplate template = templateBuilder(randomScriptType(), "_template").params(ImmutableMap.<String, Object>of("param_key", "param_val")).build();
 
         XContentBuilder builder = jsonBuilder().value(template);
         BytesReference bytes = builder.bytes();
         XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
         parser.nextToken();
-        Template parsed = Template.parse(parser);
+        TextTemplate parsed = TextTemplate.parse(parser);
         assertThat(parsed, notNullValue());
         assertThat(parsed, equalTo(template));
     }
@@ -133,7 +133,7 @@ public class TemplateTests extends ESTestCase {
         BytesReference bytes = builder.bytes();
         XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
         parser.nextToken();
-        Template.parse(parser);
+        TextTemplate.parse(parser);
         fail("expected parse exception when encountering an unknown field");
     }
 
@@ -147,7 +147,7 @@ public class TemplateTests extends ESTestCase {
         BytesReference bytes = builder.bytes();
         XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
         parser.nextToken();
-        Template.parse(parser);
+        TextTemplate.parse(parser);
         fail("expected parse exception when script type is unknown");
     }
 
@@ -160,15 +160,15 @@ public class TemplateTests extends ESTestCase {
         BytesReference bytes = builder.bytes();
         XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
         parser.nextToken();
-        Template.parse(parser);
+        TextTemplate.parse(parser);
         fail("expected parse exception when template text is missing");
     }
 
-    private Template.Builder templateBuilder(ScriptType type, String text) {
+    private TextTemplate.Builder templateBuilder(ScriptType type, String text) {
         switch (type) {
-            case INLINE:    return Template.inline(text);
-            case FILE:      return Template.file(text);
-            case INDEXED:   return Template.indexed(text);
+            case INLINE:    return TextTemplate.inline(text);
+            case FILE:      return TextTemplate.file(text);
+            case INDEXED:   return TextTemplate.indexed(text);
             default:
                 throw illegalArgument("unsupported script type [{}]", type);
         }

@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.watcher.support.template;
+package org.elasticsearch.watcher.support.text;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
@@ -20,18 +20,18 @@ import java.util.Map;
 /**
  *
  */
-public class Template implements ToXContent {
+public class TextTemplate implements ToXContent {
 
     private final String template;
     private final @Nullable XContentType contentType;
     private final @Nullable ScriptType type;
     private final @Nullable Map<String, Object> params;
 
-    Template(String template) {
+    TextTemplate(String template) {
         this(template, null, null, null);
     }
 
-    Template(String template, @Nullable XContentType contentType, @Nullable ScriptType type, @Nullable Map<String, Object> params) {
+    TextTemplate(String template, @Nullable XContentType contentType, @Nullable ScriptType type, @Nullable Map<String, Object> params) {
         this.template = template;
         this.contentType = contentType;
         this.type = type;
@@ -59,7 +59,7 @@ public class Template implements ToXContent {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
 
-        Template template1 = (Template) o;
+        TextTemplate template1 = (TextTemplate) o;
 
         if (!template.equals(template1.template)) return false;
         if (contentType != template1.contentType) return false;
@@ -104,10 +104,10 @@ public class Template implements ToXContent {
         return builder.endObject();
     }
 
-    public static Template parse(XContentParser parser) throws IOException {
+    public static TextTemplate parse(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.currentToken();
         if (token.isValue()) {
-            return new Template(String.valueOf(parser.objectText()));
+            return new TextTemplate(String.valueOf(parser.objectText()));
         }
         if (token != XContentParser.Token.START_OBJECT) {
             throw new ElasticsearchParseException("expected a string value or an object, but found [{}] instead", token);
@@ -159,7 +159,7 @@ public class Template implements ToXContent {
             throw new ElasticsearchParseException("expected one of [{}], [{}] or [{}] fields, but found none", Field.INLINE.getPreferredName(), Field.FILE.getPreferredName(), Field.ID.getPreferredName());
         }
         assert type != null : "if template is not null, type should definitely not be null";
-        return new Template(template, contentType, type, params);
+        return new TextTemplate(template, contentType, type, params);
     }
 
     public static Builder inline(XContentBuilder template) {
@@ -198,7 +198,7 @@ public class Template implements ToXContent {
             return (B) this;
         }
 
-        public abstract Template build();
+        public abstract TextTemplate build();
 
         public static class Inline extends Builder<Inline> {
 
@@ -214,8 +214,8 @@ public class Template implements ToXContent {
             }
 
             @Override
-            public Template build() {
-                return new Template(template, contentType, type, params);
+            public TextTemplate build() {
+                return new TextTemplate(template, contentType, type, params);
             }
         }
 
@@ -226,8 +226,8 @@ public class Template implements ToXContent {
             }
 
             @Override
-            public Template build() {
-                return new Template(template, null, type, params);
+            public TextTemplate build() {
+                return new TextTemplate(template, null, type, params);
             }
         }
 
@@ -238,8 +238,8 @@ public class Template implements ToXContent {
             }
 
             @Override
-            public Template build() {
-                return new Template(template, null, type, params);
+            public TextTemplate build() {
+                return new TextTemplate(template, null, type, params);
             }
         }
 
@@ -250,8 +250,8 @@ public class Template implements ToXContent {
             }
 
             @Override
-            public Template build() {
-                return new Template(template, null, type, params);
+            public TextTemplate build() {
+                return new TextTemplate(template, null, type, params);
             }
         }
     }

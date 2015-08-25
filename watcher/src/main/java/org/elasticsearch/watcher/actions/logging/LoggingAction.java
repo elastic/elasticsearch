@@ -12,7 +12,7 @@ import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.watcher.actions.Action;
-import org.elasticsearch.watcher.support.template.Template;
+import org.elasticsearch.watcher.support.text.TextTemplate;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -24,11 +24,11 @@ public class LoggingAction implements Action {
 
     public static final String TYPE = "logging";
 
-    final Template text;
+    final TextTemplate text;
     final @Nullable LoggingLevel level;
     final @Nullable String category;
 
-    public LoggingAction(Template text, @Nullable LoggingLevel level, @Nullable String category) {
+    public LoggingAction(TextTemplate text, @Nullable LoggingLevel level, @Nullable String category) {
         this.text = text;
         this.level = level != null ? level : LoggingLevel.INFO;
         this.category = category;
@@ -73,7 +73,7 @@ public class LoggingAction implements Action {
     public static LoggingAction parse(String watchId, String actionId, XContentParser parser) throws IOException {
         String category = null;
         LoggingLevel level = null;
-        Template text = null;
+        TextTemplate text = null;
 
         String currentFieldName = null;
         XContentParser.Token token;
@@ -82,7 +82,7 @@ public class LoggingAction implements Action {
                 currentFieldName = parser.currentName();
             } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.TEXT)) {
                 try {
-                    text = Template.parse(parser);
+                    text = TextTemplate.parse(parser);
                 } catch (ElasticsearchParseException pe) {
                     throw new ElasticsearchParseException("failed to parse [{}] action [{}/{}]. failed to parse [{}] field", pe, TYPE, watchId, actionId, Field.TEXT.getPreferredName());
                 }
@@ -110,7 +110,7 @@ public class LoggingAction implements Action {
         return new LoggingAction(text, level, category);
     }
 
-    public static Builder builder(Template template) {
+    public static Builder builder(TextTemplate template) {
         return new Builder(template);
     }
 
@@ -161,11 +161,11 @@ public class LoggingAction implements Action {
 
     public static class Builder implements Action.Builder<LoggingAction> {
 
-        final Template text;
+        final TextTemplate text;
         LoggingLevel level;
         @Nullable String category;
 
-        private Builder(Template text) {
+        private Builder(TextTemplate text) {
             this.text = text;
         }
 

@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.watcher.support.template;
+package org.elasticsearch.watcher.support.text.xmustache;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -11,7 +11,8 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
-import org.elasticsearch.watcher.support.template.xmustache.XMustacheScriptEngineService;
+import org.elasticsearch.watcher.support.text.TextTemplate;
+import org.elasticsearch.watcher.support.text.TextTemplateEngine;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -19,23 +20,22 @@ import java.util.Map;
 /**
  *
  */
-public class MustacheTemplateEngine extends AbstractComponent implements TemplateEngine {
+public class XMustacheTextTemplateEngine extends AbstractComponent implements TextTemplateEngine {
 
     private final ScriptServiceProxy service;
 
     @Inject
-    public MustacheTemplateEngine(Settings settings, ScriptServiceProxy service) {
+    public XMustacheTextTemplateEngine(Settings settings, ScriptServiceProxy service) {
         super(settings);
         this.service = service;
     }
 
     @Override
-    public String render(Template template, Map<String, Object> model) {
+    public String render(TextTemplate template, Map<String, Object> model) {
         Map<String, Object> mergedModel = new HashMap<>();
         mergedModel.putAll(template.getParams());
         mergedModel.putAll(model);
-        String script = XMustacheScriptEngineService.prepareTemplate(template.getTemplate(), template.getContentType());
-        ExecutableScript executable = service.executable(new org.elasticsearch.script.Template(script, template.getType(), XMustacheScriptEngineService.NAME , template.getContentType(), mergedModel));
+        ExecutableScript executable = service.executable(new org.elasticsearch.script.Template(template.getTemplate(), template.getType(), XMustacheScriptEngineService.NAME, template.getContentType(), mergedModel));
         Object result = executable.run();
         if (result instanceof BytesReference) {
             return ((BytesReference) result).toUtf8();

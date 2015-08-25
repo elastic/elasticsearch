@@ -13,7 +13,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.watcher.actions.ActionFactory;
 import org.elasticsearch.watcher.actions.hipchat.service.HipChatAccount;
 import org.elasticsearch.watcher.actions.hipchat.service.HipChatService;
-import org.elasticsearch.watcher.support.template.TemplateEngine;
+import org.elasticsearch.watcher.support.text.TextTemplateEngine;
 
 import java.io.IOException;
 
@@ -22,11 +22,11 @@ import java.io.IOException;
  */
 public class HipChatActionFactory extends ActionFactory<HipChatAction, ExecutableHipChatAction> {
 
-    private final TemplateEngine templateEngine;
+    private final TextTemplateEngine templateEngine;
     private final HipChatService hipchatService;
 
     @Inject
-    public HipChatActionFactory(Settings settings, TemplateEngine templateEngine, HipChatService hipchatService) {
+    public HipChatActionFactory(Settings settings, TextTemplateEngine templateEngine, HipChatService hipchatService) {
         super(Loggers.getLogger(ExecutableHipChatAction.class, settings));
         this.templateEngine = templateEngine;
         this.hipchatService = hipchatService;

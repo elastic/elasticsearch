@@ -19,7 +19,7 @@ import org.elasticsearch.watcher.actions.ActionBuilders;
 import org.elasticsearch.watcher.history.WatchRecord;
 import org.elasticsearch.watcher.support.http.HttpRequestTemplate;
 import org.elasticsearch.watcher.support.http.auth.basic.BasicAuth;
-import org.elasticsearch.watcher.support.template.Template;
+import org.elasticsearch.watcher.support.text.TextTemplate;
 import org.elasticsearch.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
 import org.junit.After;
@@ -70,10 +70,10 @@ public class WebhookIntegrationTests extends AbstractWatcherIntegrationTests {
     public void testWebhook() throws Exception {
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody("body"));
         HttpRequestTemplate.Builder builder = HttpRequestTemplate.builder("localhost", webPort)
-                .path(Template.inline("/test/{{ctx.watch_id}}"))
-                .putParam("param1", Template.inline("value1"))
-                .putParam("watch_id", Template.inline("{{ctx.watch_id}}"))
-                .body(Template.inline("{{ctx.payload}}"));
+                .path(TextTemplate.inline("/test/{{ctx.watch_id}}"))
+                .putParam("param1", TextTemplate.inline("value1"))
+                .putParam("watch_id", TextTemplate.inline("{{ctx.watch_id}}"))
+                .body(TextTemplate.inline("{{ctx.payload}}"));
 
         watcherClient().preparePutWatch("_id")
                 .setSource(watchBuilder()
@@ -115,10 +115,10 @@ public class WebhookIntegrationTests extends AbstractWatcherIntegrationTests {
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody("body"));
         HttpRequestTemplate.Builder builder = HttpRequestTemplate.builder("localhost", webPort)
                 .auth(new BasicAuth("_username", "_password".toCharArray()))
-                .path(Template.inline("/test/{{ctx.watch_id}}").build())
-                .putParam("param1", Template.inline("value1").build())
-                .putParam("watch_id", Template.inline("{{ctx.watch_id}}").build())
-                .body(Template.inline("{{ctx.payload}}").build());
+                .path(TextTemplate.inline("/test/{{ctx.watch_id}}").build())
+                .putParam("param1", TextTemplate.inline("value1").build())
+                .putParam("watch_id", TextTemplate.inline("{{ctx.watch_id}}").build())
+                .body(TextTemplate.inline("{{ctx.payload}}").build());
 
         watcherClient().preparePutWatch("_id")
                 .setSource(watchBuilder()

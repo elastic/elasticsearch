@@ -11,7 +11,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.watcher.support.template.Template;
+import org.elasticsearch.watcher.support.text.TextTemplate;
 import org.elasticsearch.watcher.support.xcontent.WatcherXContentUtils;
 import org.junit.Test;
 
@@ -166,24 +166,24 @@ public class HipChatMessageTests extends ESTestCase {
         XContentBuilder jsonBuilder = jsonBuilder();
         jsonBuilder.startObject();
 
-        Template body = Template.inline(randomAsciiOfLength(200)).build();
+        TextTemplate body = TextTemplate.inline(randomAsciiOfLength(200)).build();
         jsonBuilder.field("body", body, ToXContent.EMPTY_PARAMS);
-        Template[] rooms = null;
+        TextTemplate[] rooms = null;
         if (randomBoolean()) {
             jsonBuilder.startArray("room");
-            rooms = new Template[randomIntBetween(1, 3)];
+            rooms = new TextTemplate[randomIntBetween(1, 3)];
             for (int i = 0; i < rooms.length; i++) {
-                rooms[i] = Template.inline(randomAsciiOfLength(10)).build();
+                rooms[i] = TextTemplate.inline(randomAsciiOfLength(10)).build();
                 rooms[i].toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);
             }
             jsonBuilder.endArray();
         }
-        Template[] users = null;
+        TextTemplate[] users = null;
         if (randomBoolean()) {
             jsonBuilder.startArray("user");
-            users = new Template[randomIntBetween(1, 3)];
+            users = new TextTemplate[randomIntBetween(1, 3)];
             for (int i = 0; i < users.length; i++) {
-                users[i] = Template.inline(randomAsciiOfLength(10)).build();
+                users[i] = TextTemplate.inline(randomAsciiOfLength(10)).build();
                 users[i].toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);
             }
             jsonBuilder.endArray();
@@ -193,9 +193,9 @@ public class HipChatMessageTests extends ESTestCase {
             from = randomAsciiOfLength(10);
             jsonBuilder.field("from", from);
         }
-        Template color = null;
+        TextTemplate color = null;
         if (randomBoolean()) {
-            color = Template.inline(randomAsciiOfLength(10)).build();
+            color = TextTemplate.inline(randomAsciiOfLength(10)).build();
             jsonBuilder.field("color", color, ToXContent.EMPTY_PARAMS);
         }
         HipChatMessage.Format format = null;
@@ -235,26 +235,26 @@ public class HipChatMessageTests extends ESTestCase {
 
     @Test
     public void testTemplate_ParseSelfGenerated() throws Exception {
-        Template body = Template.inline(randomAsciiOfLength(10)).build();
+        TextTemplate body = TextTemplate.inline(randomAsciiOfLength(10)).build();
         HipChatMessage.Template.Builder templateBuilder = new HipChatMessage.Template.Builder(body);
 
         if (randomBoolean()) {
             int count = randomIntBetween(1, 3);
             for (int i = 0; i < count; i++) {
-                templateBuilder.addRooms(Template.inline(randomAsciiOfLength(10)).build());
+                templateBuilder.addRooms(TextTemplate.inline(randomAsciiOfLength(10)).build());
             }
         }
         if (randomBoolean()) {
             int count = randomIntBetween(1, 3);
             for (int i = 0; i < count; i++) {
-                templateBuilder.addUsers(Template.inline(randomAsciiOfLength(10)).build());
+                templateBuilder.addUsers(TextTemplate.inline(randomAsciiOfLength(10)).build());
             }
         }
         if (randomBoolean()) {
             templateBuilder.setFrom(randomAsciiOfLength(10));
         }
         if (randomBoolean()) {
-            templateBuilder.setColor(Template.inline(randomAsciiOfLength(5)).build());
+            templateBuilder.setColor(TextTemplate.inline(randomAsciiOfLength(5)).build());
         }
         if (randomBoolean()) {
             templateBuilder.setFormat(randomFrom(HipChatMessage.Format.values()));

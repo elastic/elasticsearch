@@ -16,8 +16,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.actions.hipchat.service.HipChatAccount;
 import org.elasticsearch.watcher.actions.hipchat.service.HipChatMessage;
 import org.elasticsearch.watcher.actions.hipchat.service.HipChatService;
-import org.elasticsearch.watcher.support.template.Template;
-import org.elasticsearch.watcher.support.template.TemplateEngine;
+import org.elasticsearch.watcher.support.text.TextTemplate;
+import org.elasticsearch.watcher.support.text.TextTemplateEngine;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -38,7 +38,7 @@ public class HipChatActionFactoryTests extends ESTestCase {
     @Before
     public void init() throws Exception {
         hipchatService = mock(HipChatService.class);
-        factory = new HipChatActionFactory(Settings.EMPTY, mock(TemplateEngine.class), hipchatService);
+        factory = new HipChatActionFactory(Settings.EMPTY, mock(TextTemplateEngine.class), hipchatService);
     }
 
     @Test
@@ -79,21 +79,21 @@ public class HipChatActionFactoryTests extends ESTestCase {
         builder.field("account", accountName);
         builder.startObject("message");
 
-        Template body = Template.inline("_body").build();
+        TextTemplate body = TextTemplate.inline("_body").build();
         builder.field("body", body);
 
-        Template[] rooms = null;
+        TextTemplate[] rooms = null;
         if (randomBoolean()) {
-            Template r1 = Template.inline("_r1").build();
-            Template r2 = Template.inline("_r2").build();
-            rooms = new Template[] { r1, r2 };
+            TextTemplate r1 = TextTemplate.inline("_r1").build();
+            TextTemplate r2 = TextTemplate.inline("_r2").build();
+            rooms = new TextTemplate[] { r1, r2 };
             builder.array("room", r1, r2);
         }
-        Template[] users = null;
+        TextTemplate[] users = null;
         if (randomBoolean()) {
-            Template u1 = Template.inline("_u1").build();
-            Template u2 = Template.inline("_u2").build();
-            users = new Template[] { u1, u2 };
+            TextTemplate u1 = TextTemplate.inline("_u1").build();
+            TextTemplate u2 = TextTemplate.inline("_u2").build();
+            users = new TextTemplate[] { u1, u2 };
             builder.array("user", u1, u2);
         }
         String from = null;
@@ -106,9 +106,9 @@ public class HipChatActionFactoryTests extends ESTestCase {
             format = randomFrom(HipChatMessage.Format.values());
             builder.field("format", format.value());
         }
-        Template color = null;
+        TextTemplate color = null;
         if (randomBoolean()) {
-            color = Template.inline(randomFrom(HipChatMessage.Color.values()).value()).build();
+            color = TextTemplate.inline(randomFrom(HipChatMessage.Color.values()).value()).build();
             builder.field("color", color);
         }
         Boolean notify = null;
@@ -138,7 +138,7 @@ public class HipChatActionFactoryTests extends ESTestCase {
     public void testParser_SelfGenerated() throws Exception {
 
         String accountName = randomAsciiOfLength(10);
-        Template body = Template.inline("_body").build();
+        TextTemplate body = TextTemplate.inline("_body").build();
         HipChatMessage.Template.Builder templateBuilder = new HipChatMessage.Template.Builder(body);
 
         XContentBuilder builder = jsonBuilder().startObject();
@@ -147,14 +147,14 @@ public class HipChatActionFactoryTests extends ESTestCase {
         builder.field("body", body);
 
         if (randomBoolean()) {
-            Template r1 = Template.inline("_r1").build();
-            Template r2 = Template.inline("_r2").build();
+            TextTemplate r1 = TextTemplate.inline("_r1").build();
+            TextTemplate r2 = TextTemplate.inline("_r2").build();
             templateBuilder.addRooms(r1, r2);
             builder.array("room", r1, r2);
         }
         if (randomBoolean()) {
-            Template u1 = Template.inline("_u1").build();
-            Template u2 = Template.inline("_u2").build();
+            TextTemplate u1 = TextTemplate.inline("_u1").build();
+            TextTemplate u2 = TextTemplate.inline("_u2").build();
             templateBuilder.addUsers(u1, u2);
             builder.array("user", u1, u2);
         }
@@ -169,7 +169,7 @@ public class HipChatActionFactoryTests extends ESTestCase {
             builder.field("format", format.value());
         }
         if (randomBoolean()) {
-            Template color = Template.inline(randomFrom(HipChatMessage.Color.values()).value()).build();
+            TextTemplate color = TextTemplate.inline(randomFrom(HipChatMessage.Color.values()).value()).build();
             templateBuilder.setColor(color);
             builder.field("color", color);
         }

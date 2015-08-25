@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.watcher.support.template.xmustache;
+package org.elasticsearch.watcher.support.text.xmustache;
 
 import com.github.mustachejava.Mustache;
 import org.elasticsearch.common.Nullable;

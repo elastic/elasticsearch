@@ -3,15 +3,15 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.watcher.support.template;
+package org.elasticsearch.watcher.support.text;
 
 import java.util.Map;
 
 /**
  *
  */
-public interface TemplateEngine {
+public interface TextTemplateEngine {
 
-    String render(Template template, Map<String, Object> model);
+    String render(TextTemplate template, Map<String, Object> model);
 }
 

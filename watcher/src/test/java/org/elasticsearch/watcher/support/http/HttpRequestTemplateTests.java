@@ -18,8 +18,8 @@ import org.elasticsearch.watcher.support.http.auth.HttpAuthRegistry;
 import org.elasticsearch.watcher.support.http.auth.basic.BasicAuth;
 import org.elasticsearch.watcher.support.http.auth.basic.BasicAuthFactory;
 import org.elasticsearch.watcher.support.secret.SecretService;
-import org.elasticsearch.watcher.support.template.Template;
-import org.elasticsearch.watcher.support.template.TemplateEngine;
+import org.elasticsearch.watcher.support.text.TextTemplate;
+import org.elasticsearch.watcher.support.text.TextTemplateEngine;
 import org.jboss.netty.handler.codec.http.HttpHeaders;
 import org.junit.Test;
 
@@ -39,7 +39,7 @@ public class HttpRequestTemplateTests extends ESTestCase {
         HttpRequestTemplate template = HttpRequestTemplate.builder("_host", 1234)
                 .body(XContentBuilder.builder(type.xContent()).startObject().endObject())
                 .build();
-        HttpRequest request = template.render(new MockTemplateEngine(), ImmutableMap.<String, Object>of());
+        HttpRequest request = template.render(new MockTextTemplateEngine(), ImmutableMap.<String, Object>of());
         assertThat(request.headers, hasEntry(HttpHeaders.Names.CONTENT_TYPE, type.restContentType()));
     }
 
@@ -48,7 +48,7 @@ public class HttpRequestTemplateTests extends ESTestCase {
         HttpRequestTemplate template = HttpRequestTemplate.builder("_host", 1234)
                 .body("_body")
                 .build();
-        HttpRequest request = template.render(new MockTemplateEngine(), ImmutableMap.<String, Object>of());
+        HttpRequest request = template.render(new MockTextTemplateEngine(), ImmutableMap.<String, Object>of());
         assertThat(request.headers.size(), is(0));
     }
 
@@ -74,10 +74,10 @@ public class HttpRequestTemplateTests extends ESTestCase {
             builder.auth(new BasicAuth("_username", "_password".toCharArray()));
         }
         if (randomBoolean()) {
-            builder.putParam("_key", Template.inline("_value"));
+            builder.putParam("_key", TextTemplate.inline("_value"));
         }
         if (randomBoolean()) {
-            builder.putHeader("_key", Template.inline("_value"));
+            builder.putHeader("_key", TextTemplate.inline("_value"));
         }
         long connectionTimeout = randomBoolean() ? 0 : randomIntBetween(5, 10);
         if (connectionTimeout > 0) {
@@ -101,9 +101,9 @@ public class HttpRequestTemplateTests extends ESTestCase {
         assertThat(parsed, equalTo(template));
     }
 
-    static class MockTemplateEngine implements TemplateEngine {
+    static class MockTextTemplateEngine implements TextTemplateEngine {
         @Override
-        public String render(Template template, Map<String, Object> model) {
+        public String render(TextTemplate template, Map<String, Object> model) {
             return template.getTemplate();
         }
     }

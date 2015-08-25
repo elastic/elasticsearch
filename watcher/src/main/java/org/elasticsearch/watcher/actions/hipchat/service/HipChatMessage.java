@@ -12,7 +12,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.watcher.support.template.TemplateEngine;
+import org.elasticsearch.watcher.support.text.TextTemplateEngine;
+import org.elasticsearch.watcher.support.text.TextTemplate;
 
 import javax.annotation.Nullable;
 import java.io.IOException;
@@ -135,20 +136,21 @@ public class HipChatMessage implements ToXContent {
 
     public static class Template implements ToXContent {
 
-        final org.elasticsearch.watcher.support.template.Template body;
-        final @Nullable org.elasticsearch.watcher.support.template.Template[] rooms;
-        final @Nullable org.elasticsearch.watcher.support.template.Template[] users;
+        final TextTemplate body;
+        final @Nullable TextTemplate[] rooms;
+        final @Nullable TextTemplate[] users;
         final @Nullable String from;
         final @Nullable Format format;
-        final @Nullable org.elasticsearch.watcher.support.template.Template color;
+        final @Nullable
+        TextTemplate color;
         final @Nullable Boolean notify;
 
-        public Template(org.elasticsearch.watcher.support.template.Template body,
-                        org.elasticsearch.watcher.support.template.Template[] rooms,
-                        org.elasticsearch.watcher.support.template.Template[] users,
+        public Template(TextTemplate body,
+                        TextTemplate[] rooms,
+                        TextTemplate[] users,
                         String from,
                         Format format,
-                        org.elasticsearch.watcher.support.template.Template color,
+                        TextTemplate color,
                         Boolean notify) {
             this.rooms = rooms;
             this.users = users;
@@ -187,7 +189,7 @@ public class HipChatMessage implements ToXContent {
             return result;
         }
 
-        public HipChatMessage render(TemplateEngine engine, Map<String, Object> model) {
+        public HipChatMessage render(TextTemplateEngine engine, Map<String, Object> model) {
             String body = engine.render(this.body, model);
             String[] rooms = null;
             if (this.rooms != null) {
@@ -215,14 +217,14 @@ public class HipChatMessage implements ToXContent {
             }
             if (rooms != null && rooms.length > 0) {
                 builder.startArray(Field.ROOM.getPreferredName());
-                for (org.elasticsearch.watcher.support.template.Template room : rooms) {
+                for (TextTemplate room : rooms) {
                     room.toXContent(builder, params);
                 }
                 builder.endArray();
             }
             if (users != null && users.length > 0) {
                 builder.startArray(Field.USER.getPreferredName());
-                for (org.elasticsearch.watcher.support.template.Template user : users) {
+                for (TextTemplate user : users) {
                     user.toXContent(builder, params);
                 }
                 builder.endArray();
@@ -241,11 +243,11 @@ public class HipChatMessage implements ToXContent {
         }
 
         public static Template parse(XContentParser parser) throws IOException {
-            org.elasticsearch.watcher.support.template.Template body = null;
-            org.elasticsearch.watcher.support.template.Template[] rooms = null;
-            org.elasticsearch.watcher.support.template.Template[] users = null;
+            TextTemplate body = null;
+            TextTemplate[] rooms = null;
+            TextTemplate[] users = null;
             String from = null;
-            org.elasticsearch.watcher.support.template.Template color = null;
+            TextTemplate color = null;
             Boolean notify = null;
             HipChatMessage.Format messageFormat = null;
 
@@ -257,44 +259,44 @@ public class HipChatMessage implements ToXContent {
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.FROM)) {
                     from = parser.text();
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.ROOM)) {
-                    List<org.elasticsearch.watcher.support.template.Template> templates = new ArrayList<>();
+                    List<TextTemplate> templates = new ArrayList<>();
                     if (token == XContentParser.Token.START_ARRAY) {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                             try {
-                                templates.add(org.elasticsearch.watcher.support.template.Template.parse(parser));
+                                templates.add(TextTemplate.parse(parser));
                             } catch (ElasticsearchParseException epe) {
                                 throw new ElasticsearchParseException("failed to parse hipchat message. failed to parse [{}] field", epe, Field.ROOM.getPreferredName());
                             }
                         }
                     } else {
                         try {
-                            templates.add(org.elasticsearch.watcher.support.template.Template.parse(parser));
+                            templates.add(TextTemplate.parse(parser));
                         } catch (ElasticsearchParseException epe) {
                             throw new ElasticsearchParseException("failed to parse hipchat message. failed to parse [{}] field", epe, Field.ROOM.getPreferredName());
                         }
                     }
-                    rooms = templates.toArray(new org.elasticsearch.watcher.support.template.Template[templates.size()]);
+                    rooms = templates.toArray(new TextTemplate[templates.size()]);
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.USER)) {
-                    List<org.elasticsearch.watcher.support.template.Template> templates = new ArrayList<>();
+                    List<TextTemplate> templates = new ArrayList<>();
                     if (token == XContentParser.Token.START_ARRAY) {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                             try {
-                                templates.add(org.elasticsearch.watcher.support.template.Template.parse(parser));
+                                templates.add(TextTemplate.parse(parser));
                             } catch (ElasticsearchParseException epe) {
                                 throw new ElasticsearchParseException("failed to parse hipchat message. failed to parse [{}] field", epe, Field.USER.getPreferredName());
                             }
                         }
                     } else {
                         try {
-                            templates.add(org.elasticsearch.watcher.support.template.Template.parse(parser));
+                            templates.add(TextTemplate.parse(parser));
                         } catch (ElasticsearchParseException epe) {
                             throw new ElasticsearchParseException("failed to parse hipchat message. failed to parse [{}] field", epe, Field.USER.getPreferredName());
                         }
                     }
-                    users = templates.toArray(new org.elasticsearch.watcher.support.template.Template[templates.size()]);
+                    users = templates.toArray(new TextTemplate[templates.size()]);
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.COLOR)) {
                     try {
-                        color = org.elasticsearch.watcher.support.template.Template.parse(parser);
+                        color = TextTemplate.parse(parser);
                     } catch (ElasticsearchParseException | IllegalArgumentException e) {
                         throw new ElasticsearchParseException("failed to parse hipchat message. failed to parse [{}] field", e, Field.COLOR.getPreferredName());
                     }
@@ -306,7 +308,7 @@ public class HipChatMessage implements ToXContent {
                     }
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.BODY)) {
                     try {
-                        body = org.elasticsearch.watcher.support.template.Template.parse(parser);
+                        body = TextTemplate.parse(parser);
                     } catch (ElasticsearchParseException pe) {
                         throw new ElasticsearchParseException("failed to parse hipchat message. failed to parse [{}] field", pe, Field.BODY.getPreferredName());
                     }
@@ -330,24 +332,25 @@ public class HipChatMessage implements ToXContent {
 
         public static class Builder {
 
-            final org.elasticsearch.watcher.support.template.Template body;
-            final List<org.elasticsearch.watcher.support.template.Template> rooms = new ArrayList<>();
-            final List<org.elasticsearch.watcher.support.template.Template> users = new ArrayList<>();
+            final TextTemplate body;
+            final List<TextTemplate> rooms = new ArrayList<>();
+            final List<TextTemplate> users = new ArrayList<>();
             @Nullable String from;
             @Nullable Format format;
-            @Nullable org.elasticsearch.watcher.support.template.Template color;
+            @Nullable
+            TextTemplate color;
             @Nullable Boolean notify;
 
-            public Builder(org.elasticsearch.watcher.support.template.Template body) {
+            public Builder(TextTemplate body) {
                 this.body = body;
             }
 
-            public Builder addRooms(org.elasticsearch.watcher.support.template.Template... rooms) {
+            public Builder addRooms(TextTemplate... rooms) {
                 this.rooms.addAll(Arrays.asList(rooms));
                 return this;
             }
 
-            public Builder addUsers(org.elasticsearch.watcher.support.template.Template... users) {
+            public Builder addUsers(TextTemplate... users) {
                 this.users.addAll(Arrays.asList(users));
                 return this;
             }
@@ -362,7 +365,7 @@ public class HipChatMessage implements ToXContent {
                 return this;
             }
 
-            public Builder setColor(org.elasticsearch.watcher.support.template.Template color) {
+            public Builder setColor(TextTemplate color) {
                 this.color = color;
                 return this;
             }
@@ -375,8 +378,8 @@ public class HipChatMessage implements ToXContent {
             public Template build() {
                 return new Template(
                         body,
-                        rooms.isEmpty() ? null : rooms.toArray(new org.elasticsearch.watcher.support.template.Template[rooms.size()]),
-                        users.isEmpty() ? null : users.toArray(new org.elasticsearch.watcher.support.template.Template[users.size()]),
+                        rooms.isEmpty() ? null : rooms.toArray(new TextTemplate[rooms.size()]),
+                        users.isEmpty() ? null : users.toArray(new TextTemplate[users.size()]),
                         from,
                         format,
                         color,
@@ -389,9 +392,9 @@ public class HipChatMessage implements ToXContent {
     public enum Color implements ToXContent {
         YELLOW, GREEN, RED, PURPLE, GRAY, RANDOM;
 
-        private final org.elasticsearch.watcher.support.template.Template template = org.elasticsearch.watcher.support.template.Template.inline(name()).build();
+        private final TextTemplate template = TextTemplate.inline(name()).build();
 
-        public org.elasticsearch.watcher.support.template.Template asTemplate() {
+        public TextTemplate asTemplate() {
             return template;
         }
 
@@ -437,9 +440,9 @@ public class HipChatMessage implements ToXContent {
         TEXT,
         HTML;
 
-        private final org.elasticsearch.watcher.support.template.Template template = org.elasticsearch.watcher.support.template.Template.inline(name()).build();
+        private final TextTemplate template = TextTemplate.inline(name()).build();
 
-        public org.elasticsearch.watcher.support.template.Template asTemplate() {
+        public TextTemplate asTemplate() {
             return template;
         }
 

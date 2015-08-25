@@ -21,7 +21,7 @@ import org.elasticsearch.watcher.execution.ManualExecutionContext;
 import org.elasticsearch.watcher.history.WatchRecord;
 import org.elasticsearch.watcher.support.clock.SystemClock;
 import org.elasticsearch.watcher.support.http.HttpRequestTemplate;
-import org.elasticsearch.watcher.support.template.Template;
+import org.elasticsearch.watcher.support.text.TextTemplate;
 import org.elasticsearch.watcher.support.xcontent.ObjectPath;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
 import org.elasticsearch.watcher.transport.actions.execute.ExecuteWatchResponse;
@@ -394,7 +394,7 @@ public class ActionThrottleTests extends AbstractWatcherIntegrationTests {
         LOGGING {
             @Override
             public Action.Builder action() throws Exception {
-                Template.Builder templateBuilder = new Template.Builder.Inline("{{ctx.watch_id}}");
+                TextTemplate.Builder templateBuilder = new TextTemplate.Builder.Inline("{{ctx.watch_id}}");
                 return LoggingAction.builder(templateBuilder.build());
             }
 

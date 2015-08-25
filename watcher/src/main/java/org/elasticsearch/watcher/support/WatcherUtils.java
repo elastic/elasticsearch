@@ -18,7 +18,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
-import org.elasticsearch.watcher.support.template.Template;
+import org.elasticsearch.watcher.support.text.TextTemplate;
 import org.elasticsearch.watcher.watch.Payload;
 import org.joda.time.DateTime;
 
@@ -89,7 +89,7 @@ public final class WatcherUtils {
             BytesReference templateSource = requestPrototype.templateSource();
             try (XContentParser sourceParser = XContentFactory.xContent(templateSource).createParser(templateSource)) {
                 sourceParser.nextToken();
-                Template template = Template.parse(sourceParser);
+                TextTemplate template = TextTemplate.parse(sourceParser);
 
                 // Convert to the ES template format:
                 XContentBuilder builder = jsonBuilder();

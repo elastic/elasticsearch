@@ -12,7 +12,7 @@ import org.elasticsearch.watcher.actions.logging.LoggingLevel;
 import org.elasticsearch.watcher.condition.always.AlwaysCondition;
 import org.elasticsearch.watcher.execution.ActionExecutionMode;
 import org.elasticsearch.watcher.history.HistoryStore;
-import org.elasticsearch.watcher.support.template.Template;
+import org.elasticsearch.watcher.support.text.TextTemplate;
 import org.elasticsearch.watcher.support.xcontent.ObjectPath;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
 import org.elasticsearch.watcher.test.WatcherTestUtils;
@@ -83,7 +83,7 @@ public class WatchMetadataTests extends AbstractWatcherIntegrationTests {
         metadata.put("foo", "bar");
         metadata.put("logtext", "This is a test");
 
-        LoggingAction.Builder loggingAction = loggingAction(Template.inline("{{ctx.metadata.logtext}}"))
+        LoggingAction.Builder loggingAction = loggingAction(TextTemplate.inline("{{ctx.metadata.logtext}}"))
                 .setLevel(LoggingLevel.DEBUG)
                 .setCategory("test");
 

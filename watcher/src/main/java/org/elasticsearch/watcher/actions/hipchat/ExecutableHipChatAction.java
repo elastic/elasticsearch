@@ -14,7 +14,7 @@ import org.elasticsearch.watcher.actions.hipchat.service.HipChatService;
 import org.elasticsearch.watcher.actions.hipchat.service.SentMessages;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.support.Variables;
-import org.elasticsearch.watcher.support.template.TemplateEngine;
+import org.elasticsearch.watcher.support.text.TextTemplateEngine;
 import org.elasticsearch.watcher.watch.Payload;
 
 import java.util.Map;
@@ -24,10 +24,10 @@ import java.util.Map;
  */
 public class ExecutableHipChatAction extends ExecutableAction<HipChatAction> {
 
-    private final TemplateEngine templateEngine;
+    private final TextTemplateEngine templateEngine;
     private final HipChatService hipchatService;
 
-    public ExecutableHipChatAction(HipChatAction action, ESLogger logger, HipChatService hipchatService, TemplateEngine templateEngine) {
+    public ExecutableHipChatAction(HipChatAction action, ESLogger logger, HipChatService hipchatService, TextTemplateEngine templateEngine) {
         super(action, logger);
         this.hipchatService = hipchatService;
         this.templateEngine = templateEngine;

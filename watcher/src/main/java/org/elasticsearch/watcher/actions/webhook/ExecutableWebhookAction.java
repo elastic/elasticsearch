@@ -13,7 +13,7 @@ import org.elasticsearch.watcher.support.Variables;
 import org.elasticsearch.watcher.support.http.HttpClient;
 import org.elasticsearch.watcher.support.http.HttpRequest;
 import org.elasticsearch.watcher.support.http.HttpResponse;
-import org.elasticsearch.watcher.support.template.TemplateEngine;
+import org.elasticsearch.watcher.support.text.TextTemplateEngine;
 import org.elasticsearch.watcher.watch.Payload;
 
 import java.util.Map;
@@ -23,9 +23,9 @@ import java.util.Map;
 public class ExecutableWebhookAction extends ExecutableAction<WebhookAction> {
 
     private final HttpClient httpClient;
-    private final TemplateEngine templateEngine;
+    private final TextTemplateEngine templateEngine;
 
-    public ExecutableWebhookAction(WebhookAction action, ESLogger logger, HttpClient httpClient, TemplateEngine templateEngine) {
+    public ExecutableWebhookAction(WebhookAction action, ESLogger logger, HttpClient httpClient, TextTemplateEngine templateEngine) {
         super(action, logger);
         this.httpClient = httpClient;
         this.templateEngine = templateEngine;

@@ -13,7 +13,7 @@ import org.elasticsearch.watcher.actions.hipchat.HipChatAction;
 import org.elasticsearch.watcher.actions.hipchat.service.HipChatMessage.Color;
 import org.elasticsearch.watcher.actions.hipchat.service.HipChatMessage.Format;
 import org.elasticsearch.watcher.support.http.*;
-import org.elasticsearch.watcher.support.template.TemplateEngine;
+import org.elasticsearch.watcher.support.text.TextTemplateEngine;
 
 import javax.annotation.Nullable;
 import java.io.IOException;
@@ -51,7 +51,7 @@ public class V1Account extends HipChatAccount {
     }
 
     @Override
-    public HipChatMessage render(String watchId, String actionId, TemplateEngine engine, HipChatMessage.Template template, Map<String, Object> model) {
+    public HipChatMessage render(String watchId, String actionId, TextTemplateEngine engine, HipChatMessage.Template template, Map<String, Object> model) {
         String message = engine.render(template.body, model);
         String[] rooms = defaults.rooms;
         if (template.rooms != null) {

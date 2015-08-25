@@ -3,19 +3,19 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.watcher.support.template;
+package org.elasticsearch.watcher.support.text;
 
 import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.watcher.support.template.xmustache.XMustacheTemplateEngine;
+import org.elasticsearch.watcher.support.text.xmustache.XMustacheTextTemplateEngine;
 
 /**
  *
  */
-public class TemplateModule extends AbstractModule {
+public class TextTemplateModule extends AbstractModule {
 
     @Override
     protected void configure() {
-        bind(XMustacheTemplateEngine.class).asEagerSingleton();
-        bind(TemplateEngine.class).to(XMustacheTemplateEngine.class);
+        bind(XMustacheTextTemplateEngine.class).asEagerSingleton();
+        bind(TextTemplateEngine.class).to(XMustacheTextTemplateEngine.class);
     }
 }

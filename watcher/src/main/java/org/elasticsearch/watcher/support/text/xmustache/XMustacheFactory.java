@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.watcher.support.template.xmustache;
+package org.elasticsearch.watcher.support.text.xmustache;
 
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
 import com.github.mustachejava.DefaultMustacheFactory;

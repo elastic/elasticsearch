@@ -19,8 +19,8 @@ import org.elasticsearch.watcher.support.WatcherDateTimeUtils;
 import org.elasticsearch.watcher.support.http.HttpRequest.Field;
 import org.elasticsearch.watcher.support.http.auth.HttpAuth;
 import org.elasticsearch.watcher.support.http.auth.HttpAuthRegistry;
-import org.elasticsearch.watcher.support.template.Template;
-import org.elasticsearch.watcher.support.template.TemplateEngine;
+import org.elasticsearch.watcher.support.text.TextTemplate;
+import org.elasticsearch.watcher.support.text.TextTemplateEngine;
 import org.jboss.netty.handler.codec.http.HttpHeaders;
 
 import java.io.IOException;
@@ -35,24 +35,24 @@ public class HttpRequestTemplate implements ToXContent {
     private final String host;
     private final int port;
     private final HttpMethod method;
-    private final Template path;
-    private final ImmutableMap<String, Template> params;
-    private final ImmutableMap<String, Template> headers;
+    private final TextTemplate path;
+    private final ImmutableMap<String, TextTemplate> params;
+    private final ImmutableMap<String, TextTemplate> headers;
     private final HttpAuth auth;
-    private final Template body;
+    private final TextTemplate body;
     private final @Nullable TimeValue connectionTimeout;
     private final @Nullable TimeValue readTimeout;
 
-    public HttpRequestTemplate(String host, int port, @Nullable Scheme scheme, @Nullable HttpMethod method, @Nullable Template path,
-                               Map<String, Template> params, Map<String, Template> headers, HttpAuth auth,
-                               Template body, @Nullable TimeValue connectionTimeout, @Nullable TimeValue readTimeout) {
+    public HttpRequestTemplate(String host, int port, @Nullable Scheme scheme, @Nullable HttpMethod method, @Nullable TextTemplate path,
+                               Map<String, TextTemplate> params, Map<String, TextTemplate> headers, HttpAuth auth,
+                               TextTemplate body, @Nullable TimeValue connectionTimeout, @Nullable TimeValue readTimeout) {
         this.host = host;
         this.port = port;
         this.scheme = scheme != null ? scheme :Scheme.HTTP;
         this.method = method != null ? method : HttpMethod.GET;
         this.path = path;
-        this.params = params != null ? ImmutableMap.copyOf(params) : ImmutableMap.<String, Template>of();
-        this.headers = headers != null ? ImmutableMap.copyOf(headers) : ImmutableMap.<String, Template>of();
+        this.params = params != null ? ImmutableMap.copyOf(params) : ImmutableMap.<String, TextTemplate>of();
+        this.headers = headers != null ? ImmutableMap.copyOf(headers) : ImmutableMap.<String, TextTemplate>of();
         this.auth = auth;
         this.body = body;
         this.connectionTimeout = connectionTimeout;
@@ -75,15 +75,15 @@ public class HttpRequestTemplate implements ToXContent {
         return method;
     }
 
-    public Template path() {
+    public TextTemplate path() {
         return path;
     }
 
-    public Map<String, Template> params() {
+    public Map<String, TextTemplate> params() {
         return params;
     }
 
-    public Map<String, Template> headers() {
+    public Map<String, TextTemplate> headers() {
         return headers;
     }
 
@@ -91,7 +91,7 @@ public class HttpRequestTemplate implements ToXContent {
         return auth;
     }
 
-    public Template body() {
+    public TextTemplate body() {
         return body;
     }
 
@@ -103,7 +103,7 @@ public class HttpRequestTemplate implements ToXContent {
         return readTimeout;
     }
 
-    public HttpRequest render(TemplateEngine engine, Map<String, Object> model) {
+    public HttpRequest render(TextTemplateEngine engine, Map<String, Object> model) {
         HttpRequest.Builder request = HttpRequest.builder(host, port);
         request.method(method);
         request.scheme(scheme);
@@ -112,7 +112,7 @@ public class HttpRequestTemplate implements ToXContent {
         }
         if (params != null && !params.isEmpty()) {
             MapBuilder<String, String> mapBuilder = MapBuilder.newMapBuilder();
-            for (Map.Entry<String, Template> entry : params.entrySet()) {
+            for (Map.Entry<String, TextTemplate> entry : params.entrySet()) {
                 mapBuilder.put(entry.getKey(), engine.render(entry.getValue(), model));
             }
             request.setParams(mapBuilder.map());
@@ -125,7 +125,7 @@ public class HttpRequestTemplate implements ToXContent {
                 // putting the content type first, so it can be overridden by custom headers
                 mapBuilder.put(HttpHeaders.Names.CONTENT_TYPE, body.getContentType().restContentType());
             }
-            for (Map.Entry<String, Template> entry : headers.entrySet()) {
+            for (Map.Entry<String, TextTemplate> entry : headers.entrySet()) {
                 mapBuilder.put(entry.getKey(), engine.render(entry.getValue(), model));
             }
             request.setHeaders(mapBuilder.map());
@@ -156,14 +156,14 @@ public class HttpRequestTemplate implements ToXContent {
         }
         if (this.params != null) {
             builder.startObject(Field.PARAMS.getPreferredName());
-            for (Map.Entry<String, Template> entry : this.params.entrySet()) {
+            for (Map.Entry<String, TextTemplate> entry : this.params.entrySet()) {
                 builder.field(entry.getKey(), entry.getValue(), params);
             }
             builder.endObject();
         }
         if (headers != null) {
             builder.startObject(Field.HEADERS.getPreferredName());
-            for (Map.Entry<String, Template> entry : headers.entrySet()) {
+            for (Map.Entry<String, TextTemplate> entry : headers.entrySet()) {
                 builder.field(entry.getKey(), entry.getValue(), params);
             }
             builder.endObject();
@@ -300,16 +300,16 @@ public class HttpRequestTemplate implements ToXContent {
             return builder.build();
         }
 
-        private static Template parseFieldTemplate(String field, XContentParser parser) throws IOException {
+        private static TextTemplate parseFieldTemplate(String field, XContentParser parser) throws IOException {
             try {
-                return Template.parse(parser);
+                return TextTemplate.parse(parser);
             } catch (ElasticsearchParseException pe) {
                 throw new ElasticsearchParseException("could not parse http request template. could not parse value for [{}] field", pe, field);
             }
         }
 
-        private static Map<String, Template> parseFieldTemplates(String field, XContentParser parser) throws IOException {
-            Map<String, Template> templates = new HashMap<>();
+        private static Map<String, TextTemplate> parseFieldTemplates(String field, XContentParser parser) throws IOException {
+            Map<String, TextTemplate> templates = new HashMap<>();
 
             String currentFieldName = null;
             XContentParser.Token token;
@@ -330,11 +330,11 @@ public class HttpRequestTemplate implements ToXContent {
         private int port;
         private Scheme scheme;
         private HttpMethod method;
-        private Template path;
-        private final ImmutableMap.Builder<String, Template> params = ImmutableMap.builder();
-        private final ImmutableMap.Builder<String, Template> headers = ImmutableMap.builder();
+        private TextTemplate path;
+        private final ImmutableMap.Builder<String, TextTemplate> params = ImmutableMap.builder();
+        private final ImmutableMap.Builder<String, TextTemplate> headers = ImmutableMap.builder();
         private HttpAuth auth;
-        private Template body;
+        private TextTemplate body;
         private TimeValue connectionTimeout;
         private TimeValue readTimeout;
 
@@ -357,42 +357,42 @@ public class HttpRequestTemplate implements ToXContent {
         }
 
         public Builder path(String path) {
-            return path(Template.inline(path));
+            return path(TextTemplate.inline(path));
         }
 
-        public Builder path(Template.Builder path) {
+        public Builder path(TextTemplate.Builder path) {
             return path(path.build());
         }
 
-        public Builder path(Template path) {
+        public Builder path(TextTemplate path) {
             this.path = path;
             return this;
         }
 
-        public Builder putParams(Map<String, Template> params) {
+        public Builder putParams(Map<String, TextTemplate> params) {
             this.params.putAll(params);
             return this;
         }
 
-        public Builder putParam(String key, Template.Builder value) {
+        public Builder putParam(String key, TextTemplate.Builder value) {
             return putParam(key, value.build());
         }
 
-        public Builder putParam(String key, Template value) {
+        public Builder putParam(String key, TextTemplate value) {
             this.params.put(key, value);
             return this;
         }
 
-        public Builder putHeaders(Map<String, Template> headers) {
+        public Builder putHeaders(Map<String, TextTemplate> headers) {
             this.headers.putAll(headers);
             return this;
         }
 
-        public Builder putHeader(String key, Template.Builder value) {
+        public Builder putHeader(String key, TextTemplate.Builder value) {
             return putHeader(key, value.build());
         }
 
-        public Builder putHeader(String key, Template value) {
+        public Builder putHeader(String key, TextTemplate value) {
             this.headers.put(key, value);
             return this;
         }
@@ -403,20 +403,20 @@ public class HttpRequestTemplate implements ToXContent {
         }
 
         public Builder body(String body) {
-            return body(Template.inline(body));
+            return body(TextTemplate.inline(body));
         }
 
-        public Builder body(Template.Builder body) {
+        public Builder body(TextTemplate.Builder body) {
             return body(body.build());
         }
 
-        public Builder body(Template body) {
+        public Builder body(TextTemplate body) {
             this.body = body;
             return this;
         }
 
         public Builder body(XContentBuilder content) {
-            return body(Template.inline(content));
+            return body(TextTemplate.inline(content));
         }
 
         public Builder connectionTimeout(TimeValue timeout) {

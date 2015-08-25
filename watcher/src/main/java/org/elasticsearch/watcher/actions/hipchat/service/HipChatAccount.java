@@ -12,7 +12,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.watcher.support.http.HttpClient;
-import org.elasticsearch.watcher.support.template.TemplateEngine;
+import org.elasticsearch.watcher.support.text.TextTemplateEngine;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -55,7 +55,7 @@ public abstract class HipChatAccount  {
 
     public abstract void validateParsedTemplate(String watchId, String actionId, HipChatMessage.Template message) throws SettingsException;
 
-    public abstract HipChatMessage render(String watchId, String actionId, TemplateEngine engine, HipChatMessage.Template template, Map<String, Object> model);
+    public abstract HipChatMessage render(String watchId, String actionId, TextTemplateEngine engine, HipChatMessage.Template template, Map<String, Object> model);
 
     public abstract SentMessages send(HipChatMessage message);
 

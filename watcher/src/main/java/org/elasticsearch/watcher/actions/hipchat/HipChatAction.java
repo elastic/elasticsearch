@@ -14,7 +14,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.watcher.actions.Action;
 import org.elasticsearch.watcher.actions.hipchat.service.HipChatMessage;
 import org.elasticsearch.watcher.actions.hipchat.service.SentMessages;
-import org.elasticsearch.watcher.support.template.Template;
+import org.elasticsearch.watcher.support.text.TextTemplate;
 
 import javax.annotation.Nullable;
 import java.io.IOException;
@@ -100,7 +100,7 @@ public class HipChatAction implements Action {
         return new HipChatAction(account, message);
     }
 
-    public static Builder builder(String account, Template body) {
+    public static Builder builder(String account, TextTemplate body) {
         return new Builder(account, body);
     }
 
@@ -168,18 +168,18 @@ public class HipChatAction implements Action {
         final String account;
         final HipChatMessage.Template.Builder messageBuilder;
 
-        public Builder(String account, Template body) {
+        public Builder(String account, TextTemplate body) {
             this.account = account;
             this.messageBuilder = new HipChatMessage.Template.Builder(body);
         }
 
-        public Builder addRooms(org.elasticsearch.watcher.support.template.Template... rooms) {
+        public Builder addRooms(TextTemplate... rooms) {
             messageBuilder.addRooms(rooms);
             return this;
         }
 
-        public Builder addRooms(org.elasticsearch.watcher.support.template.Template.Builder... rooms) {
-            org.elasticsearch.watcher.support.template.Template[] templates = new org.elasticsearch.watcher.support.template.Template[rooms.length];
+        public Builder addRooms(TextTemplate.Builder... rooms) {
+            TextTemplate[] templates = new TextTemplate[rooms.length];
             for (int i = 0; i < rooms.length; i++) {
                 templates[i] = rooms[i].build();
             }
@@ -187,21 +187,21 @@ public class HipChatAction implements Action {
         }
 
         public Builder addRooms(String... rooms) {
-            org.elasticsearch.watcher.support.template.Template[] templates = new org.elasticsearch.watcher.support.template.Template[rooms.length];
+            TextTemplate[] templates = new TextTemplate[rooms.length];
             for (int i = 0; i < rooms.length; i++) {
-                templates[i] = Template.inline(rooms[i]).build();
+                templates[i] = TextTemplate.inline(rooms[i]).build();
             }
             return addRooms(templates);
         }
 
 
-        public Builder addUsers(org.elasticsearch.watcher.support.template.Template... users) {
+        public Builder addUsers(TextTemplate... users) {
             messageBuilder.addUsers(users);
             return this;
         }
 
-        public Builder addUsers(org.elasticsearch.watcher.support.template.Template.Builder... users) {
-            org.elasticsearch.watcher.support.template.Template[] templates = new org.elasticsearch.watcher.support.template.Template[users.length];
+        public Builder addUsers(TextTemplate.Builder... users) {
+            TextTemplate[] templates = new TextTemplate[users.length];
             for (int i = 0; i < users.length; i++) {
                 templates[i] = users[i].build();
             }
@@ -209,9 +209,9 @@ public class HipChatAction implements Action {
         }
 
         public Builder addUsers(String... users) {
-            org.elasticsearch.watcher.support.template.Template[] templates = new org.elasticsearch.watcher.support.template.Template[users.length];
+            TextTemplate[] templates = new TextTemplate[users.length];
             for (int i = 0; i < users.length; i++) {
-                templates[i] = Template.inline(users[i]).build();
+                templates[i] = TextTemplate.inline(users[i]).build();
             }
             return addUsers(templates);
         }
@@ -226,12 +226,12 @@ public class HipChatAction implements Action {
             return this;
         }
 
-        public Builder setColor(org.elasticsearch.watcher.support.template.Template color) {
+        public Builder setColor(TextTemplate color) {
             messageBuilder.setColor(color);
             return this;
         }
 
-        public Builder setColor(org.elasticsearch.watcher.support.template.Template.Builder color) {
+        public Builder setColor(TextTemplate.Builder color) {
             return setColor(color.build());
         }
 

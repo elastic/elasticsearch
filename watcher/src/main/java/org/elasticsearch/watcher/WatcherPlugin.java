@@ -40,8 +40,8 @@ import org.elasticsearch.watcher.support.init.InitializingModule;
 import org.elasticsearch.watcher.support.init.InitializingService;
 import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
 import org.elasticsearch.watcher.support.secret.SecretModule;
-import org.elasticsearch.watcher.support.template.TemplateModule;
-import org.elasticsearch.watcher.support.template.xmustache.XMustacheScriptEngineService;
+import org.elasticsearch.watcher.support.text.TextTemplateModule;
+import org.elasticsearch.watcher.support.text.xmustache.XMustacheScriptEngineService;
 import org.elasticsearch.watcher.support.validation.WatcherSettingsValidation;
 import org.elasticsearch.watcher.transform.TransformModule;
 import org.elasticsearch.watcher.transport.actions.ack.AckWatchAction;
@@ -105,7 +105,7 @@ public class WatcherPlugin extends Plugin {
                 new InitializingModule(),
                 new LicenseModule(),
                 new WatchModule(),
-                new TemplateModule(),
+                new TextTemplateModule(),
                 new HttpClientModule(),
                 new ClockModule(),
                 new WatcherClientModule(),

@@ -33,7 +33,7 @@ import org.elasticsearch.watcher.input.simple.ExecutableSimpleInput;
 import org.elasticsearch.watcher.input.simple.SimpleInput;
 import org.elasticsearch.watcher.support.DynamicIndexName;
 import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
-import org.elasticsearch.watcher.support.template.Template;
+import org.elasticsearch.watcher.support.text.TextTemplate;
 import org.elasticsearch.watcher.transform.Transform;
 import org.elasticsearch.watcher.transform.TransformBuilders;
 import org.elasticsearch.watcher.trigger.schedule.IntervalSchedule;
@@ -253,7 +253,7 @@ public class SearchTransformTests extends ESIntegTestCase {
             builder.field("search_type", searchType.name());
         }
         if (templateName != null) {
-            Template template = Template.file(templateName).build();
+            TextTemplate template = TextTemplate.file(templateName).build();
             builder.field("template", template);
         }
 
@@ -405,7 +405,7 @@ public class SearchTransformTests extends ESIntegTestCase {
         params.put("seconds_param", "30s");
 
         BytesReference templateSource = jsonBuilder()
-                .value(Template.inline(templateQuery).params(params).build())
+                .value(TextTemplate.inline(templateQuery).params(params).build())
                 .bytes();
         SearchRequest request = client()
                 .prepareSearch()
@@ -435,7 +435,7 @@ public class SearchTransformTests extends ESIntegTestCase {
         params.put("seconds_param", "30s");
 
         BytesReference templateSource = jsonBuilder()
-                .value(Template.indexed("test-script").params(params).build())
+                .value(TextTemplate.indexed("test-script").params(params).build())
                 .bytes();
         SearchRequest request = client()
                 .prepareSearch()
@@ -457,7 +457,7 @@ public class SearchTransformTests extends ESIntegTestCase {
         params.put("seconds_param", "30s");
 
         BytesReference templateSource = jsonBuilder()
-                .value(Template.file("test_disk_template").params(params).build())
+                .value(TextTemplate.file("test_disk_template").params(params).build())
                 .bytes();
         SearchRequest request = client()
                 .prepareSearch()

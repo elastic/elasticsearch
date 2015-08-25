@@ -16,8 +16,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.actions.Action;
 import org.elasticsearch.watcher.actions.email.service.Attachment;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
-import org.elasticsearch.watcher.support.template.Template;
-import org.elasticsearch.watcher.support.template.TemplateEngine;
+import org.elasticsearch.watcher.support.text.TextTemplate;
+import org.elasticsearch.watcher.support.text.TextTemplateEngine;
 import org.elasticsearch.watcher.test.WatcherTestUtils;
 import org.elasticsearch.watcher.watch.Payload;
 import org.joda.time.DateTime;
@@ -43,13 +43,13 @@ public class LoggingActionTests extends ESTestCase {
 
     private ESLogger actionLogger;
     private LoggingLevel level;
-    private TemplateEngine engine;
+    private TextTemplateEngine engine;
 
     @Before
     public void init() throws IOException {
         actionLogger = mock(ESLogger.class);
         level = randomFrom(LoggingLevel.values());
-        engine = mock(TemplateEngine.class);
+        engine = mock(TextTemplateEngine.class);
     }
 
     @Test
@@ -76,7 +76,7 @@ public class LoggingActionTests extends ESTestCase {
                 .build();
 
         String text = randomAsciiOfLength(10);
-        Template template = Template.inline(text).build();
+        TextTemplate template = TextTemplate.inline(text).build();
         LoggingAction action = new LoggingAction(template, level, "_category");
         ExecutableLoggingAction executable = new ExecutableLoggingAction(action, logger, actionLogger, engine);
         when(engine.render(template, expectedModel)).thenReturn(text);
@@ -98,7 +98,7 @@ public class LoggingActionTests extends ESTestCase {
         LoggingActionFactory parser = new LoggingActionFactory(settings, engine);
 
         String text = randomAsciiOfLength(10);
-        Template template = Template.inline(text).build();
+        TextTemplate template = TextTemplate.inline(text).build();
 
         XContentBuilder builder = jsonBuilder().startObject();
         builder.field("text", template);
@@ -133,7 +133,7 @@ public class LoggingActionTests extends ESTestCase {
         LoggingActionFactory parser = new LoggingActionFactory(settings, engine);
 
         String text = randomAsciiOfLength(10);
-        Template template = Template.inline(text).build();
+        TextTemplate template = TextTemplate.inline(text).build();
         String category = randomAsciiOfLength(10);
         LoggingAction action = new LoggingAction(template, level, category);
         ExecutableLoggingAction executable = new ExecutableLoggingAction(action, logger, settings, engine);
@@ -154,7 +154,7 @@ public class LoggingActionTests extends ESTestCase {
         LoggingActionFactory parser = new LoggingActionFactory(settings, engine);
 
         String text = randomAsciiOfLength(10);
-        Template template = Template.inline(text).build();
+        TextTemplate template = TextTemplate.inline(text).build();
         LoggingAction.Builder actionBuilder = loggingAction(template);
         if (randomBoolean()) {
             actionBuilder.setCategory(randomAsciiOfLength(10));

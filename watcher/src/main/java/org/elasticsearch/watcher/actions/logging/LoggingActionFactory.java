@@ -10,7 +10,7 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.watcher.actions.ActionFactory;
-import org.elasticsearch.watcher.support.template.TemplateEngine;
+import org.elasticsearch.watcher.support.text.TextTemplateEngine;
 
 import java.io.IOException;
 
@@ -20,10 +20,10 @@ import java.io.IOException;
 public class LoggingActionFactory extends ActionFactory<LoggingAction, ExecutableLoggingAction> {
 
     private final Settings settings;
-    private final TemplateEngine templateEngine;
+    private final TextTemplateEngine templateEngine;
 
     @Inject
-    public LoggingActionFactory(Settings settings, TemplateEngine templateEngine) {
+    public LoggingActionFactory(Settings settings, TextTemplateEngine templateEngine) {
         super(Loggers.getLogger(ExecutableLoggingAction.class, settings));
         this.settings = settings;
         this.templateEngine = templateEngine;

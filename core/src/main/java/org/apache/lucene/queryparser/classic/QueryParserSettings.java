@@ -20,7 +20,6 @@
 package org.apache.lucene.queryparser.classic;
 
 import com.carrotsearch.hppc.ObjectFloatHashMap;
-
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MultiTermQuery;
@@ -28,7 +27,6 @@ import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.joda.time.DateTimeZone;
 
-import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 
@@ -69,15 +67,9 @@ public class QueryParserSettings {
     private DateTimeZone timeZone;
 
     List<String> fields = null;
-    Collection<String> queryTypes = null;
     ObjectFloatHashMap<String> boosts = null;
     float tieBreaker = 0.0f;
     boolean useDisMax = true;
-
-    public boolean isCacheable() {
-        // a hack for now :) to determine if a query string is cacheable
-        return !queryString.contains("now");
-    }
 
     public String queryString() {
         return queryString;
@@ -271,14 +263,6 @@ public class QueryParserSettings {
         this.fields = fields;
     }
 
-    public Collection<String> queryTypes() {
-        return queryTypes;
-    }
-
-    public void queryTypes(Collection<String> queryTypes) {
-        this.queryTypes = queryTypes;
-    }
-
     public ObjectFloatHashMap<String> boosts() {
         return boosts;
     }
@@ -371,7 +355,6 @@ public class QueryParserSettings {
         if (useDisMax != that.useDisMax) return false;
         if (boosts != null ? !boosts.equals(that.boosts) : that.boosts != null) return false;
         if (fields != null ? !fields.equals(that.fields) : that.fields != null) return false;
-        if (queryTypes != null ? !queryTypes.equals(that.queryTypes) : that.queryTypes != null) return false;
 
         return true;
     }
@@ -398,7 +381,6 @@ public class QueryParserSettings {
         result = 31 * result + (analyzeWildcard ? 1 : 0);
 
         result = 31 * result + (fields != null ? fields.hashCode() : 0);
-        result = 31 * result + (queryTypes != null ? queryTypes.hashCode() : 0);
         result = 31 * result + (boosts != null ? boosts.hashCode() : 0);
         result = 31 * result + (tieBreaker != +0.0f ? Float.floatToIntBits(tieBreaker) : 0);
         result = 31 * result + (useDisMax ? 1 : 0);

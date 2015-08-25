@@ -23,7 +23,7 @@
 #
 # python3 ./dev-tools/prepare-release.py
 #
-# Note: Ensure the script is run from the root directory
+# Note: Ensure the script is run from the elasticsearch top level directory
 #
 
 import fnmatch
@@ -83,12 +83,14 @@ enabled=1
 [4] http://download.elasticsearch.org/elasticsearch/staging/%(version)s-%(hash)s/org/elasticsearch/distribution/rpm/elasticsearch/%(version)s/elasticsearch-%(version)s.rpm
 [5] http://download.elasticsearch.org/elasticsearch/staging/%(version)s-%(hash)s/org/elasticsearch/distribution/deb/elasticsearch/%(version)s/elasticsearch-%(version)s.deb
 """
-
-def run(command, env_vars=None):
+VERBOSE=True
+def run(command, env_vars=None, verbose=VERBOSE):
   if env_vars:
     for key, value in env_vars.items():
       os.putenv(key, value)
-  if os.system('%s' % (command)):
+  if not verbose:
+    command = '%s >> /dev/null 2>&1' % (command)
+  if os.system(command):
     raise RuntimeError('    FAILED: %s' % (command))
 
 def ensure_checkout_is_clean():
@@ -181,16 +183,20 @@ if __name__ == "__main__":
                       help='Only runs a maven install to skip the remove deployment step')
   parser.add_argument('--gpg-key', '-k', dest='gpg_key', default="D88E42B4",
                       help='Allows you to specify a different gpg_key to be used instead of the default release key')
+  parser.add_argument('--verbose', '-b', dest='verbose',
+                      help='Runs the script in verbose mode')
   parser.set_defaults(deploy=False)
   parser.set_defaults(skip_doc_check=False)
   parser.set_defaults(push=False)
   parser.set_defaults(install_only=False)
+  parser.set_defaults(verbose=False)
   args = parser.parse_args()
   install_and_deploy = args.deploy
   skip_doc_check = args.skip_doc_check
   push = args.push
   gpg_key = args.gpg_key
   install_only = args.install_only
+  VERBOSE = args.verbose
 
   ensure_checkout_is_clean()
   release_version = find_release_version()

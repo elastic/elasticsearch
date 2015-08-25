@@ -75,11 +75,6 @@ except KeyError:
   Please set JAVA_HOME in the env before running release tool
   On OSX use: export JAVA_HOME=`/usr/libexec/java_home -v '1.7*'`""")
 
-try:
-  JAVA_HOME = os.environ['JAVA7_HOME']
-except KeyError:
-  pass #no JAVA7_HOME - we rely on JAVA_HOME
-
 def java_exe():
   path = JAVA_HOME
   return 'export JAVA_HOME="%s" PATH="%s/bin:$PATH" JAVACMD="%s/bin/java"' % (path, path, path)

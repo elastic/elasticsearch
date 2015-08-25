@@ -11,6 +11,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.license.core.License;
 import org.elasticsearch.license.plugin.LicensePlugin;
 import org.elasticsearch.marvel.MarvelPlugin;
 import org.elasticsearch.marvel.agent.collector.licenses.LicensesCollector;
@@ -110,10 +111,10 @@ public class LicensesRendererIT extends ESIntegTestCase {
                 .setIndices(MarvelSettings.MARVEL_DATA_INDEX_NAME)
                 .setTypes(LicensesCollector.TYPE)
                 .setQuery(QueryBuilders.boolQuery()
-                        .should(QueryBuilders.matchQuery(LicensesRenderer.Fields.STATUS.underscore().toString(), "active"))
-                        .should(QueryBuilders.matchQuery(LicensesRenderer.Fields.STATUS.underscore().toString(), "inactive"))
-                        .should(QueryBuilders.matchQuery(LicensesRenderer.Fields.STATUS.underscore().toString(), "expired"))
-                        .minimumNumberShouldMatch(1)
+                                .should(QueryBuilders.matchQuery(LicensesRenderer.Fields.STATUS.underscore().toString(), License.Status.ACTIVE.label()))
+                                .should(QueryBuilders.matchQuery(LicensesRenderer.Fields.STATUS.underscore().toString(), License.Status.INVALID.label()))
+                                .should(QueryBuilders.matchQuery(LicensesRenderer.Fields.STATUS.underscore().toString(), License.Status.EXPIRED.label()))
+                                .minimumNumberShouldMatch(1)
                 ).get(), 0L);
 
     }

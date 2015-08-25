@@ -35,7 +35,7 @@ public class LicensesRenderer extends AbstractRenderer<LicensesMarvelDoc> {
         if (licenses != null) {
             for (License license : licenses) {
                 builder.startObject();
-                builder.field(Fields.STATUS, status(license));
+                builder.field(Fields.STATUS, license.status().label());
                 builder.field(Fields.UID, license.uid());
                 builder.field(Fields.TYPE, license.type());
                 builder.dateValueField(Fields.ISSUE_DATE_IN_MILLIS, Fields.ISSUE_DATE, license.issueDate());
@@ -52,20 +52,8 @@ public class LicensesRenderer extends AbstractRenderer<LicensesMarvelDoc> {
         builder.endArray();
     }
 
-    // TODO (tlrx): move status as a calculated getter in License class then remove this method
-    public static String status(License license) {
-        String status = "active";
-        long now = System.currentTimeMillis();
-        if (license.issueDate() > now) {
-            status = "invalid";
-        } else if (license.expiryDate() < now) {
-            status = "expired";
-        }
-        return status;
-    }
-
     public static String hash(License license, String clusterName) {
-        return hash(status(license), license.uid(), license.type(), String.valueOf(license.expiryDate()), clusterName);
+        return hash(license.status().label(), license.uid(), license.type(), String.valueOf(license.expiryDate()), clusterName);
     }
 
     public static String hash(String licenseStatus, String licenseUid, String licenseType, String licenseExpiryDate, String clusterUUID) {

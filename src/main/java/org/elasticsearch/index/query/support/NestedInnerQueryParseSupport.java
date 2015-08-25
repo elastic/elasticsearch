@@ -56,7 +56,7 @@ public class NestedInnerQueryParseSupport {
     protected boolean filterFound = false;
 
     protected FixedBitSetFilter parentFilter;
-    protected FixedBitSetFilter childFilter;
+    protected Filter childFilter;
 
     protected DocumentMapper childDocumentMapper;
     protected ObjectMapper nestedObjectMapper;
@@ -199,7 +199,7 @@ public class NestedInnerQueryParseSupport {
         } else {
             parentFilter = parseContext.fixedBitSetFilter(objectMapper.nestedTypeFilter());
         }
-        childFilter = parseContext.fixedBitSetFilter(nestedObjectMapper.nestedTypeFilter());
+        childFilter = parseContext.cacheFilter(nestedObjectMapper.nestedTypeFilter(), null);
         parentObjectMapper = parseContext.nestedScope().nextLevel(nestedObjectMapper);
     }
 

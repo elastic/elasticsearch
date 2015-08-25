@@ -144,7 +144,7 @@ public class TransportDeleteWarmerAction extends TransportMasterNodeAction<Delet
                         if (warmers != null) {
                             for (IndexWarmersMetaData.Entry entry : warmers.entries()) {
                                 for (String warmer : request.names()) {
-                                    if (Regex.simpleMatch(warmer, entry.name()) || warmer.equals("_all")) {
+                                    if (Regex.simpleMatch(warmer, entry.name()) || warmer.equals(MetaData.ALL)) {
                                         logger.info("[{}] delete warmer [{}]", index, entry.name());
                                     }
                                 }

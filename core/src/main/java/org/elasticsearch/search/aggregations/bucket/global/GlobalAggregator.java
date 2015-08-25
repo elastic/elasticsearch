@@ -19,6 +19,9 @@
 package org.elasticsearch.search.aggregations.bucket.global;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -85,6 +88,33 @@ public class GlobalAggregator extends SingleBucketAggregator {
                 throw new IllegalStateException();
             }
             return new GlobalAggregator(name, factories, context, pipelineAggregators, metaData);
+        }
+
+        @Override
+        protected AggregatorFactory doReadFrom(String name, StreamInput in) throws IOException {
+            return new Factory(name);
+        }
+
+        @Override
+        protected void doWriteTo(StreamOutput out) throws IOException {
+            // Nothing to write
+        }
+
+        @Override
+        protected XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.endObject();
+            return builder;
+        }
+
+        @Override
+        protected boolean doEquals(Object obj) {
+            return true;
+        }
+
+        @Override
+        protected int doHashCode() {
+            return 0;
         }
 
     }

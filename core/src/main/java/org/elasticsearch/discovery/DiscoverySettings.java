@@ -69,7 +69,7 @@ public class DiscoverySettings extends AbstractComponent {
         nodeSettingsService.addListener(new ApplySettings());
         this.noMasterBlock = parseNoMasterBlock(settings.get(NO_MASTER_BLOCK, DEFAULT_NO_MASTER_BLOCK));
         this.publishTimeout = settings.getAsTime(PUBLISH_TIMEOUT, DEFAULT_PUBLISH_TIMEOUT);
-        this.commitTimeout = settings.getAsTime(COMMIT_TIMEOUT, DEFAULT_COMMIT_TIMEOUT);
+        this.commitTimeout = settings.getAsTime(COMMIT_TIMEOUT, new TimeValue(Math.min(DEFAULT_COMMIT_TIMEOUT.millis(), publishTimeout.millis())));
         this.publishDiff = settings.getAsBoolean(PUBLISH_DIFF_ENABLE, DEFAULT_PUBLISH_DIFF_ENABLE);
     }
 
@@ -98,6 +98,10 @@ public class DiscoverySettings extends AbstractComponent {
                 if (newPublishTimeout.millis() != publishTimeout.millis()) {
                     logger.info("updating [{}] from [{}] to [{}]", PUBLISH_TIMEOUT, publishTimeout, newPublishTimeout);
                     publishTimeout = newPublishTimeout;
+                    if (settings.getAsTime(COMMIT_TIMEOUT, null) == null && commitTimeout.millis() > publishTimeout.millis()) {
+                        logger.info("reducing default [{}] to [{}] due to publish timeout change", COMMIT_TIMEOUT, publishTimeout);
+                        commitTimeout = publishTimeout;
+                    }
                 }
             }
             TimeValue newCommitTimeout = settings.getAsTime(COMMIT_TIMEOUT, null);

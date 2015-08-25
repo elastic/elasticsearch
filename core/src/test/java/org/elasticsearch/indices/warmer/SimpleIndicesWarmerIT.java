@@ -173,6 +173,16 @@ public class SimpleIndicesWarmerIT extends ESIntegTestCase {
         }
     }
 
+    @Test // issue 8991
+    public void deleteAllIndexWarmerDoesNotThrowWhenNoWarmers() {
+        createIndex("test");
+        try {
+            client().admin().indices().prepareDeleteWarmer().setIndices("test").setNames("_all").execute().actionGet();
+        } catch (Exception ex) {
+            fail("should not throw exception when deleting _all warmers");
+        }
+    }
+
     @Test
     public void deleteIndexWarmerTest() {
         createIndex("test");

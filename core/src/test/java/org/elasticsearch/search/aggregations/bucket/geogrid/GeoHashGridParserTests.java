@@ -31,6 +31,8 @@ public class GeoHashGridParserTests extends ESTestCase {
         int precision = randomIntBetween(1, 12);
         XContentParser stParser = JsonXContent.jsonXContent.createParser(
                 "{\"field\":\"my_loc\", \"precision\":" + precision + ", \"size\": 500, \"shard_size\": 550}");
+        XContentParser.Token token = stParser.nextToken();
+        assertSame(XContentParser.Token.START_OBJECT, token);
         GeoHashGridParser parser = new GeoHashGridParser();
         // can create a factory
         assertNotNull(parser.parse("geohash_grid", stParser, searchContext));
@@ -41,6 +43,8 @@ public class GeoHashGridParserTests extends ESTestCase {
         int precision = randomIntBetween(1, 12);
         XContentParser stParser = JsonXContent.jsonXContent.createParser(
                 "{\"field\":\"my_loc\", \"precision\":\"" + precision + "\", \"size\": \"500\", \"shard_size\": \"550\"}");
+        XContentParser.Token token = stParser.nextToken();
+        assertSame(XContentParser.Token.START_OBJECT, token);
         GeoHashGridParser parser = new GeoHashGridParser();
         // can create a factory
         assertNotNull(parser.parse("geohash_grid", stParser, searchContext));
@@ -49,6 +53,8 @@ public class GeoHashGridParserTests extends ESTestCase {
     public void testParseErrorOnNonIntPrecision() throws Exception {
         SearchContext searchContext = new TestSearchContext();
         XContentParser stParser = JsonXContent.jsonXContent.createParser("{\"field\":\"my_loc\", \"precision\":\"2.0\"}");
+        XContentParser.Token token = stParser.nextToken();
+        assertSame(XContentParser.Token.START_OBJECT, token);
         GeoHashGridParser parser = new GeoHashGridParser();
         try {
             parser.parse("geohash_grid", stParser, searchContext);
@@ -61,18 +67,22 @@ public class GeoHashGridParserTests extends ESTestCase {
     public void testParseErrorOnBooleanPrecision() throws Exception {
         SearchContext searchContext = new TestSearchContext();
         XContentParser stParser = JsonXContent.jsonXContent.createParser("{\"field\":\"my_loc\", \"precision\":false}");
+        XContentParser.Token token = stParser.nextToken();
+        assertSame(XContentParser.Token.START_OBJECT, token);
         GeoHashGridParser parser = new GeoHashGridParser();
         try {
             parser.parse("geohash_grid", stParser, searchContext);
             fail();
         } catch (SearchParseException ex) {
-            assertEquals("Unexpected token VALUE_BOOLEAN in [geohash_grid].", ex.getMessage());
+            assertEquals("Unexpected token VALUE_BOOLEAN [precision] in [geohash_grid].", ex.getMessage());
         }
     }
 
     public void testParseErrorOnPrecisionOutOfRange() throws Exception {
         SearchContext searchContext = new TestSearchContext();
         XContentParser stParser = JsonXContent.jsonXContent.createParser("{\"field\":\"my_loc\", \"precision\":\"13\"}");
+        XContentParser.Token token = stParser.nextToken();
+        assertSame(XContentParser.Token.START_OBJECT, token);
         GeoHashGridParser parser = new GeoHashGridParser();
         try {
             parser.parse("geohash_grid", stParser, searchContext);

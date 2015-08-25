@@ -29,7 +29,7 @@ my $Issue_URL  = "http://github.com/${User_Repo}issues/";
 
 my @Groups = qw(
     breaking deprecation feature
-    enhancement bug regression build doc test
+    enhancement bug regression upgrade build doc test
 );
 my %Group_Labels = (
     breaking    => 'Breaking changes',
@@ -39,8 +39,9 @@ my %Group_Labels = (
     feature     => 'New features',
     enhancement => 'Enhancements',
     bug         => 'Bug fixes',
-    regression  => 'Regression',
+    regression  => 'Regressions',
     test        => 'Tests',
+    upgrade     => 'Upgrades',
     other       => 'NOT CLASSIFIED',
 );
 

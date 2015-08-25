@@ -45,10 +45,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -329,7 +326,7 @@ public class PublishClusterStateAction extends AbstractComponent {
                 throw new IncompatibleClusterStateVersionException("have no local cluster state");
             }
             // sanity check incoming state
-            validateIncomingState(incomingState);
+            validateIncomingState(incomingState, lastSeenClusterState);
 
             lastSeenClusterState = incomingState;
             lastSeenClusterState.status(ClusterState.ClusterStateStatus.RECEIVED);
@@ -338,25 +335,32 @@ public class PublishClusterStateAction extends AbstractComponent {
     }
 
     // package private for testing
-
     /**
      * does simple sanity check of the incoming cluster state. Throws an exception on rejections.
      */
-    void validateIncomingState(ClusterState state) {
-        final ClusterName incomingClusterName = state.getClusterName();
+    void validateIncomingState(ClusterState incomingState, ClusterState lastSeenClusterState) {
+        final ClusterName incomingClusterName = incomingState.getClusterName();
         if (!incomingClusterName.equals(PublishClusterStateAction.this.clusterName)) {
-            logger.warn("received cluster state from [{}] which is also master but with a different cluster name [{}]", state.nodes().masterNode(), incomingClusterName);
+            logger.warn("received cluster state from [{}] which is also master but with a different cluster name [{}]", incomingState.nodes().masterNode(), incomingClusterName);
             throw new IllegalStateException("received state from a node that is not part of the cluster");
         }
         final DiscoveryNodes currentNodes = nodesProvider.nodes();
 
-        if (currentNodes.localNode().equals(state.nodes().localNode()) == false) {
-            logger.warn("received a cluster state from [{}] and not part of the cluster, should not happen", state.nodes().masterNode());
+        if (currentNodes.localNode().equals(incomingState.nodes().localNode()) == false) {
+            logger.warn("received a cluster state from [{}] and not part of the cluster, should not happen", incomingState.nodes().masterNode());
             throw new IllegalStateException("received state from a node that is not part of the cluster");
         }
         // state from another master requires more subtle checks, so we let it pass for now (it will be checked in ZenDiscovery)
         if (currentNodes.localNodeMaster() == false) {
-            ZenDiscovery.validateStateIsFromCurrentMaster(logger, currentNodes, state);
+            ZenDiscovery.validateStateIsFromCurrentMaster(logger, currentNodes, incomingState);
+        }
+
+        if (lastSeenClusterState != null
+                && Objects.equals(lastSeenClusterState.nodes().masterNodeId(), incomingState.nodes().masterNodeId())
+                && lastSeenClusterState.version() > incomingState.version()) {
+            logger.debug("received an older cluster state from master, rejecting (received version [{}], last version is [{}])",
+                    incomingState.version(), lastSeenClusterState.version());
+            throw new IllegalStateException("cluster state version [" + incomingState.version() + "] is old (last seen version [" + lastSeenClusterState.version() + "])");
         }
     }
 

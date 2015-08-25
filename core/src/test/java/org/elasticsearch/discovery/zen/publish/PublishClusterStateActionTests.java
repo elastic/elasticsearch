@@ -19,7 +19,6 @@
 
 package org.elasticsearch.discovery.zen.publish;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import com.google.common.collect.Maps;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
@@ -564,39 +563,41 @@ public class PublishClusterStateActionTests extends ESTestCase {
         }
     }
 
-    public void testIncomingClusterStateVerification() throws Exception {
+    public void testIncomingClusterStateValidation() throws Exception {
         MockNode node = createMockNode("node");
 
         logger.info("--> testing acceptances of any master when having no master");
         ClusterState state = ClusterState.builder(node.clusterState)
-                .nodes(DiscoveryNodes.builder(node.nodes()).masterNodeId(randomAsciiOfLength(10))).build();
-        node.action.validateIncomingState(state);
+                .nodes(DiscoveryNodes.builder(node.nodes()).masterNodeId(randomAsciiOfLength(10))).incrementVersion().build();
+        node.action.validateIncomingState(state, null);
 
         // now set a master node
         node.clusterState = ClusterState.builder(node.clusterState).nodes(DiscoveryNodes.builder(node.nodes()).masterNodeId("master")).build();
         logger.info("--> testing rejection of another master");
         try {
-            node.action.validateIncomingState(state);
+            node.action.validateIncomingState(state, node.clusterState);
             fail("node accepted state from another master");
         } catch (IllegalStateException OK) {
         }
 
         logger.info("--> test state from the current master is accepted");
         node.action.validateIncomingState(ClusterState.builder(node.clusterState)
-                .nodes(DiscoveryNodes.builder(node.nodes()).masterNodeId("master")).build());
+                .nodes(DiscoveryNodes.builder(node.nodes()).masterNodeId("master")).build(), node.clusterState);
 
 
         logger.info("--> testing rejection of another cluster name");
         try {
-            node.action.validateIncomingState(ClusterState.builder(new ClusterName(randomAsciiOfLength(10))).nodes(node.nodes()).build());
+            node.action.validateIncomingState(ClusterState.builder(new ClusterName(randomAsciiOfLength(10))).nodes(node.nodes()).build(), node.clusterState);
             fail("node accepted state with another cluster name");
         } catch (IllegalStateException OK) {
         }
 
         logger.info("--> testing rejection of a cluster state with wrong local node");
         try {
-            state = ClusterState.builder(node.clusterState).nodes(DiscoveryNodes.builder(node.nodes()).localNodeId("_non_existing_").build()).build();
-            node.action.validateIncomingState(state);
+            state = ClusterState.builder(node.clusterState)
+                    .nodes(DiscoveryNodes.builder(node.nodes()).localNodeId("_non_existing_").build())
+                    .incrementVersion().build();
+            node.action.validateIncomingState(state, node.clusterState);
             fail("node accepted state with non-existence local node");
         } catch (IllegalStateException OK) {
         }
@@ -605,11 +606,32 @@ public class PublishClusterStateActionTests extends ESTestCase {
             MockNode otherNode = createMockNode("otherNode");
             state = ClusterState.builder(node.clusterState).nodes(
                     DiscoveryNodes.builder(node.nodes()).put(otherNode.discoveryNode).localNodeId(otherNode.discoveryNode.id()).build()
-            ).build();
-            node.action.validateIncomingState(state);
+            ).incrementVersion().build();
+            node.action.validateIncomingState(state, node.clusterState);
             fail("node accepted state with existent but wrong local node");
         } catch (IllegalStateException OK) {
         }
+
+        logger.info("--> testing rejection of an old cluster state");
+        state = node.clusterState;
+        node.clusterState = ClusterState.builder(node.clusterState).incrementVersion().build();
+        try {
+            node.action.validateIncomingState(state, node.clusterState);
+            fail("node accepted state with an older version");
+        } catch (IllegalStateException OK) {
+        }
+
+        // an older version from a *new* master is OK!
+        ClusterState previousState = ClusterState.builder(node.clusterState).incrementVersion().build();
+        state = ClusterState.builder(node.clusterState)
+                .nodes(DiscoveryNodes.builder(node.clusterState.nodes()).masterNodeId("_new_master_").build())
+                .build();
+        // remove the master of the node (but still have a previous cluster state with it)!
+        node.clusterState = ClusterState.builder(node.clusterState)
+                .nodes(DiscoveryNodes.builder(node.clusterState.nodes()).masterNodeId(null).build())
+                .build();
+
+        node.action.validateIncomingState(state, previousState);
     }
 
     public void testInterleavedPublishCommit() throws Throwable {

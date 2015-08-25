@@ -293,6 +293,8 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
         @Override
         protected void doRun() throws Exception {
             final ShardRouting primary = request.internalShardRouting;
+            // Although this gets executed locally, this more of an assertion, but if change the primary action
+            // to be performed remotely this check is important to check before performing the action:
             if (clusterService.localNode().id().equals(primary.currentNodeId()) == false) {
                 throw new NoShardAvailableActionException(primary.shardId(), "shard [{}] not assigned to this node [{}], but node [{}]", primary.shardId(), clusterService.localNode().id(), primary.currentNodeId());
             }
@@ -563,7 +565,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                 retryBecauseUnavailable(shardIt.shardId(), "Primary shard is not active or isn't assigned to a known node.");
                 return;
             }
-            moveToPrimaryAction(primary);
+            routeRequestOrPerformPrimaryActionLocally(primary);
         }
 
         /**
@@ -618,52 +620,92 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
         /**
          * send the request to the node holding the primary or execute if local
          */
-        protected void moveToPrimaryAction(final ShardRouting primary) {
+        protected void routeRequestOrPerformPrimaryActionLocally(final ShardRouting primary) {
             DiscoveryNode node = observer.observedState().nodes().get(primary.currentNodeId());
-            Request request = internalRequest.request();
-            request.internalShardRouting = primary;
-            transportService.sendRequest(node, transportPrimaryAction, request, transportOptions, new BaseTransportResponseHandler<Response>() {
+            if (primary.currentNodeId().equals(observer.observedState().nodes().localNodeId())) {
+                Request request = internalRequest.request();
+                request.internalShardRouting = primary;
+                // this call is always local, but in the future we can send to remote nodes as well
+                transportService.sendRequest(node, transportPrimaryAction, request, transportOptions, new BaseTransportResponseHandler<Response>() {
 
-                @Override
-                public Response newInstance() {
-                    return newResponseInstance();
-                }
-
-                @Override
-                public String executor() {
-                    return ThreadPool.Names.SAME;
-                }
-
-                @Override
-                public void handleResponse(Response response) {
-                    finishOnRemoteSuccess(response);
-                }
-
-                @Override
-                public void handleException(TransportException exp) {
-                    try {
-                        Throwable cause = exp.getCause();
-                        // if we got disconnected from the node, or the node / shard is not in the right state (being closed)
-                        if (cause instanceof ConnectTransportException || cause instanceof NodeClosedException ||
-                                cause instanceof UnavailableShardsException || retryPrimaryException(cause)) {
-                            internalRequest.request().setCanHaveDuplicates();
-                            // we already marked it as started when we executed it (removed the listener) so pass false
-                            // to re-add to the cluster listener
-                            logger.trace("received an error from node the primary was assigned to ({}), scheduling a retry", exp.getMessage());
-                            if (cause instanceof UnavailableShardsException) {
-                                UnavailableShardsException use = (UnavailableShardsException) cause;
-                                retryBecauseUnavailable(use.getShardId(), use.getMessage());
-                            } else {
-                                retry(exp);
-                            }
-                        } else {
-                            finishAsFailed(exp);
-                        }
-                    } catch (Throwable t) {
-                        finishWithUnexpectedFailure(t);
+                    @Override
+                    public Response newInstance() {
+                        return newResponseInstance();
                     }
-                }
-            });
+
+                    @Override
+                    public String executor() {
+                        return ThreadPool.Names.SAME;
+                    }
+
+                    @Override
+                    public void handleResponse(Response response) {
+                        finishOnRemoteSuccess(response);
+                    }
+
+                    @Override
+                    public void handleException(TransportException exp) {
+                        try {
+                            Throwable cause = exp.getCause();
+                            // if we got disconnected from the node, or the node / shard is not in the right state (being closed)
+                            if (cause instanceof ConnectTransportException || cause instanceof NodeClosedException ||
+                                    cause instanceof UnavailableShardsException || retryPrimaryException(cause)) {
+                                internalRequest.request().setCanHaveDuplicates();
+                                // we already marked it as started when we executed it (removed the listener) so pass false
+                                // to re-add to the cluster listener
+                                logger.trace("received an error from node the primary was assigned to ({}), scheduling a retry", exp.getMessage());
+                                if (cause instanceof UnavailableShardsException) {
+                                    UnavailableShardsException use = (UnavailableShardsException) cause;
+                                    retryBecauseUnavailable(use.getShardId(), use.getMessage());
+                                } else {
+                                    retry(exp);
+                                }
+                            } else {
+                                finishAsFailed(exp);
+                            }
+                        } catch (Throwable t) {
+                            finishWithUnexpectedFailure(t);
+                        }
+                    }
+                });
+            } else {
+                transportService.sendRequest(node, actionName, internalRequest.request(), transportOptions, new BaseTransportResponseHandler<Response>() {
+
+                    @Override
+                    public Response newInstance() {
+                        return newResponseInstance();
+                    }
+
+                    @Override
+                    public String executor() {
+                        return ThreadPool.Names.SAME;
+                    }
+
+                    @Override
+                    public void handleResponse(Response response) {
+                        finishOnRemoteSuccess(response);
+                    }
+
+                    @Override
+                    public void handleException(TransportException exp) {
+                        try {
+                            // if we got disconnected from the node, or the node / shard is not in the right state (being closed)
+                            if (exp.unwrapCause() instanceof ConnectTransportException || exp.unwrapCause() instanceof NodeClosedException ||
+                                    retryPrimaryException(exp)) {
+                                internalRequest.request().setCanHaveDuplicates();
+                                // we already marked it as started when we executed it (removed the listener) so pass false
+                                // to re-add to the cluster listener
+                                logger.trace("received an error from node the primary was assigned to ({}), scheduling a retry", exp.getMessage());
+                                retry(exp);
+                            } else {
+                                finishAsFailed(exp);
+                            }
+                        } catch (Throwable t) {
+                            finishWithUnexpectedFailure(t);
+                        }
+                    }
+                });
+            }
         }
 
         void retry(Throwable failure) {

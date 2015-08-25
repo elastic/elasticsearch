@@ -66,6 +66,7 @@ import org.junit.Test;
 
 import java.io.IOException;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
@@ -342,9 +343,9 @@ public class ShardReplicationTests extends ESTestCase {
 
         TransportReplicationAction<Request, Request, Response>.PrimaryPhase primaryPhase = action.new PrimaryPhase(request, listener);
         assertTrue(primaryPhase.checkBlocks());
+        primaryPhase.routeRequestOrPerformPrimaryActionLocally(shardRoutingTable.primaryShard());
         if (primaryNodeId.equals(clusterService.localNode().id())) {
             logger.info("--> primary is assigned locally, testing for execution");
-            primaryPhase.moveToPrimaryAction(shardRoutingTable.primaryShard());
             assertTrue("request failed to be processed on a local primary", request.processedOnPrimary.get());
             if (transport.capturedRequests().length > 0) {
                 assertIndexShardCounter(2);
@@ -352,14 +353,11 @@ public class ShardReplicationTests extends ESTestCase {
                 assertIndexShardCounter(1);
             }
         } else {
-            // The coordinating node says primary shard is on the local node, but the local node doesn' have it,
-            // We need to retry, something has changed in time between the coordination node received the request
-            // and the node holding the primary shard processing the write request.
-            // So we fail and retry (wait on a new cluster update or the timeout to expire) again from the coordinating node.
-            logger.info("--> primary is assigned to [{}], checking request is going to be retried at some point", primaryNodeId);
-            assertThat(clusterService.getListeners().size(), equalTo(0));
-            primaryPhase.moveToPrimaryAction(shardRoutingTable.primaryShard());
-            assertThat(clusterService.getListeners().size(), equalTo(1));
+            logger.info("--> primary is assigned to [{}], checking request forwarded", primaryNodeId);
+            final List<CapturingTransport.CapturedRequest> capturedRequests = transport.capturedRequestsByTargetNode().get(primaryNodeId);
+            assertThat(capturedRequests, notNullValue());
+            assertThat(capturedRequests.size(), equalTo(1));
+            assertThat(capturedRequests.get(0).action, equalTo("testAction"));
             assertIndexShardUninitialized();
         }
     }

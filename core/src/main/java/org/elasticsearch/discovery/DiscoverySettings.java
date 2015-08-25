@@ -59,17 +59,17 @@ public class DiscoverySettings extends AbstractComponent {
     public final static ClusterBlock NO_MASTER_BLOCK_WRITES = new ClusterBlock(NO_MASTER_BLOCK_ID, "no master", true, false, RestStatus.SERVICE_UNAVAILABLE, EnumSet.of(ClusterBlockLevel.WRITE, ClusterBlockLevel.METADATA_WRITE));
 
     private volatile ClusterBlock noMasterBlock;
-    private volatile TimeValue publishTimeout = DEFAULT_PUBLISH_TIMEOUT;
-    private volatile TimeValue commitTimeout = DEFAULT_COMMIT_TIMEOUT;
-    private volatile boolean publishDiff = DEFAULT_PUBLISH_DIFF_ENABLE;
+    private volatile TimeValue publishTimeout;
+    private volatile TimeValue commitTimeout;
+    private volatile boolean publishDiff;
 
     @Inject
     public DiscoverySettings(Settings settings, NodeSettingsService nodeSettingsService) {
         super(settings);
         nodeSettingsService.addListener(new ApplySettings());
         this.noMasterBlock = parseNoMasterBlock(settings.get(NO_MASTER_BLOCK, DEFAULT_NO_MASTER_BLOCK));
-        this.publishTimeout = settings.getAsTime(PUBLISH_TIMEOUT, publishTimeout);
-        this.commitTimeout = settings.getAsTime(COMMIT_TIMEOUT, publishTimeout);
+        this.publishTimeout = settings.getAsTime(PUBLISH_TIMEOUT, DEFAULT_PUBLISH_TIMEOUT);
+        this.commitTimeout = settings.getAsTime(COMMIT_TIMEOUT, DEFAULT_COMMIT_TIMEOUT);
         this.publishDiff = settings.getAsBoolean(PUBLISH_DIFF_ENABLE, DEFAULT_PUBLISH_DIFF_ENABLE);
     }
 

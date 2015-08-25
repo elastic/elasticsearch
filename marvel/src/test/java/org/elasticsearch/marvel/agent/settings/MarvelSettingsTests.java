@@ -69,7 +69,6 @@ public class MarvelSettingsTests extends ESIntegTestCase {
             assertThat(marvelSettings.recoveryTimeout().millis(), equalTo(recoveryTimeout.millis()));
             assertThat(marvelSettings.recoveryActiveOnly(), equalTo(recoveryActiveOnly));
             assertArrayEquals(marvelSettings.collectors(), collectors);
-            assertThat(marvelSettings.licenseExpirationGracePeriod().millis(), equalTo(licenseGracePeriod.millis()));
             assertThat(marvelSettings.licenseExpirationGracePeriod().millis(), allOf(greaterThanOrEqualTo(0L), lessThanOrEqualTo(MarvelSettings.MAX_LICENSE_GRACE_PERIOD.millis())));
 
             for (final MarvelSetting setting : MarvelSettings.dynamicSettings()) {

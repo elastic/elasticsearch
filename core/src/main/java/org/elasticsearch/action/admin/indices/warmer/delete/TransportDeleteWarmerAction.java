@@ -92,7 +92,7 @@ public class TransportDeleteWarmerAction extends TransportMasterNodeAction<Delet
                 MetaData.Builder mdBuilder = MetaData.builder(currentState.metaData());
 
                 boolean globalFoundAtLeastOne = false;
-                boolean deleteAll = Arrays.asList(request.names()).contains("_all");
+                boolean deleteAll = Arrays.asList(request.names()).contains(MetaData.ALL);
                 for (String index : concreteIndices) {
                     IndexMetaData indexMetaData = currentState.metaData().index(index);
                     if (indexMetaData == null) {
@@ -104,7 +104,7 @@ public class TransportDeleteWarmerAction extends TransportMasterNodeAction<Delet
                         for (IndexWarmersMetaData.Entry entry : warmers.entries()) {
                             boolean keepWarmer = true;
                             for (String warmer : request.names()) {
-                                if (Regex.simpleMatch(warmer, entry.name()) || warmer.equals("_all")) {
+                                if (Regex.simpleMatch(warmer, entry.name()) || warmer.equals(MetaData.ALL)) {
                                     globalFoundAtLeastOne = true;
                                     keepWarmer =  false;
                                     // don't add it...

@@ -3,7 +3,7 @@ Mapper Attachments Type for Elasticsearch
 
 The mapper attachments plugin adds the `attachment` type to Elasticsearch using [Apache Tika](http://lucene.apache.org/tika/).
 The `attachment` type allows to index different "attachment" type field (encoded as `base64`), for example,
-microsoft office formats, open document formats, ePub, HTML, and so on (full list can be found [here](http://tika.apache.org/1.8/formats.html)).
+microsoft office formats, open document formats, ePub, HTML, and so on (full list can be found [here](http://tika.apache.org/1.10/formats.html)).
 
 In order to install the plugin, run:
 
@@ -16,6 +16,7 @@ You need to install a version matching your Elasticsearch version:
 |       Elasticsearch    | Attachments Plugin|                                                             Docs                                                                   |
 |------------------------|-------------------|------------------------------------------------------------------------------------------------------------------------------------|
 |    master              | Build from source | See below                                                                                                                          |
+|    es-2.0              | Build from source | [3.0.0-SNAPSHOT](https://github.com/elastic/elasticsearch-mapper-attachments/tree/es-2.0/#version-300-SNAPSHOT-for-elasticsearch-20)                  |
 |    es-1.7              |     2.7.0         | [2.7.0](https://github.com/elastic/elasticsearch-mapper-attachments/tree/v2.7.0/#version-270-for-elasticsearch-17)                  |
 |    es-1.6              |     2.6.0         | [2.6.0](https://github.com/elastic/elasticsearch-mapper-attachments/tree/v2.6.0/#version-260-for-elasticsearch-16)                  |
 |    es-1.5              |     2.5.0         | [2.5.0](https://github.com/elastic/elasticsearch-mapper-attachments/tree/v2.5.0/#version-250-for-elasticsearch-15)                  |

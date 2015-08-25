@@ -446,7 +446,7 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
     }
 
     void assertPositionOffsetGapDefaults(String indexName, Version version) throws Exception {
-        if (version.before(Version.V_2_1_0)) {
+        if (version.before(Version.V_2_0_0_beta1)) {
             StringFieldMapperPositionOffsetGapTests.assertGapIsZero(client(), indexName, "doc");
         } else {
             StringFieldMapperPositionOffsetGapTests.assertGapIsOneHundred(client(), indexName, "doc");

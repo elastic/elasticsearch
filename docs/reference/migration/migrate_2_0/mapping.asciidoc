@@ -384,7 +384,10 @@ The `compress` and `compress_threshold` options have been removed from the
 default.  If you would like to increase compression levels, use the new
 <<index-codec,`index.codec: best_compression`>> setting instead.
 
-
-
-
-
+==== position_offset_gap
+The default `position_offset_gap` is now 100. Indexes created in Elasticsearch
+2.0.0 will default to using 100 and indexes created before that will continue
+to use the old default of 0. This was done to prevent phrase queries from
+matching across different values of the same term unexpectedly. Specifically,
+100 was chosen to cause phrase queries with slops up to 99 to match only within
+a single value of a field.

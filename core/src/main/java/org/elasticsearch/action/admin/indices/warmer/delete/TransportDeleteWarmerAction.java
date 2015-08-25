@@ -92,7 +92,13 @@ public class TransportDeleteWarmerAction extends TransportMasterNodeAction<Delet
                 MetaData.Builder mdBuilder = MetaData.builder(currentState.metaData());
 
                 boolean globalFoundAtLeastOne = false;
-                boolean deleteAll = Arrays.asList(request.names()).contains(MetaData.ALL);
+                boolean deleteAll = false;
+                for (int i=0; i<request.names().length; i++){
+                    if (request.names()[i].equals(MetaData.ALL)) {
+                        deleteAll = true;
+                    }
+                }
+                
                 for (String index : concreteIndices) {
                     IndexMetaData indexMetaData = currentState.metaData().index(index);
                     if (indexMetaData == null) {

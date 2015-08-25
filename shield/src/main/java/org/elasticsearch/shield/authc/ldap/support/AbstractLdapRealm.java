@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.shield.authc.ldap.support;
 
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.authc.RealmConfig;
 import org.elasticsearch.shield.authc.support.*;
@@ -64,8 +63,8 @@ public abstract class AbstractLdapRealm extends CachingUsernamePasswordRealm {
 
     public static abstract class Factory<R extends AbstractLdapRealm> extends UsernamePasswordRealm.Factory<R> {
 
-        public Factory(String type, RestController restController) {
-            super(type, false, restController);
+        public Factory(String type) {
+            super(type, false);
         }
 
         /**

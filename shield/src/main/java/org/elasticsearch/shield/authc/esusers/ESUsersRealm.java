@@ -8,7 +8,6 @@ package org.elasticsearch.shield.authc.esusers;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.authc.Realm;
 import org.elasticsearch.shield.authc.RealmConfig;
@@ -59,12 +58,11 @@ public class ESUsersRealm extends CachingUsernamePasswordRealm {
         private final ResourceWatcherService watcherService;
 
         @Inject
-        public Factory(Settings settings, Environment env, ResourceWatcherService watcherService, RestController restController) {
+        public Factory(Settings settings, Environment env, ResourceWatcherService watcherService) {
             super(TYPE, true);
             this.settings = settings;
             this.env = env;
             this.watcherService = watcherService;
-            restController.registerRelevantHeaders(UsernamePasswordToken.BASIC_AUTH_HEADER);
         }
 
         @Override

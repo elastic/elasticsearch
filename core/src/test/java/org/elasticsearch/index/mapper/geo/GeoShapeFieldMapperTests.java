@@ -377,10 +377,10 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(mergeResult.hasConflicts(), equalTo(true));
         assertThat(mergeResult.buildConflicts().length, equalTo(4));
         ArrayList conflicts = new ArrayList<>(Arrays.asList(mergeResult.buildConflicts()));
-        assertThat("mapper [shape] has different strategy", isIn(conflicts));
-        assertThat("mapper [shape] has different tree", isIn(conflicts));
-        assertThat("mapper [shape] has different tree_levels", isIn(conflicts));
-        assertThat("mapper [shape] has different precision", isIn(conflicts));
+        assertThat("mapper [shape] has different [strategy]", isIn(conflicts));
+        assertThat("mapper [shape] has different [tree]", isIn(conflicts));
+        assertThat("mapper [shape] has different [tree_levels]", isIn(conflicts));
+        assertThat("mapper [shape] has different [precision]", isIn(conflicts));
 
         // verify nothing changed
         FieldMapper fieldMapper = stage1.mappers().getMapper("shape");

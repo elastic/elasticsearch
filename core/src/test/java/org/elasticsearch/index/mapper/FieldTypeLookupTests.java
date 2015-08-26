@@ -182,14 +182,14 @@ public class FieldTypeLookupTests extends ESTestCase {
             lookup.checkCompatibility(newList(f3), false);
             fail("expected conflict");
         } catch (IllegalArgumentException e) {
-            assertTrue(e.getMessage().contains("has different store values"));
+            assertTrue(e.getMessage().contains("has different [store] values"));
         }
         // even with updateAllTypes == true, incompatible
         try {
             lookup.checkCompatibility(newList(f3), true);
             fail("expected conflict");
         } catch (IllegalArgumentException e) {
-            assertTrue(e.getMessage().contains("has different store values"));
+            assertTrue(e.getMessage().contains("has different [store] values"));
         }
     }
 

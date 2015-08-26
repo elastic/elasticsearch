@@ -22,6 +22,7 @@ import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.core.DoubleFieldMapper;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
+import org.junit.Before;
 
 public class GeoPointFieldTypeTests extends FieldTypeTestCase {
     @Override
@@ -29,20 +30,33 @@ public class GeoPointFieldTypeTests extends FieldTypeTestCase {
         return new GeoPointFieldMapper.GeoPointFieldType();
     }
 
-    @Override
-    protected int numProperties() {
-        return 4 + super.numProperties();
-    }
-
-    @Override
-    protected void modifyProperty(MappedFieldType ft, int propNum) {
-        GeoPointFieldMapper.GeoPointFieldType gft = (GeoPointFieldMapper.GeoPointFieldType)ft;
-        switch (propNum) {
-            case 0: gft.setGeohashEnabled(new StringFieldMapper.StringFieldType(), 1, true); break;
-            case 1: gft.setLatLonEnabled(new DoubleFieldMapper.DoubleFieldType(), new DoubleFieldMapper.DoubleFieldType()); break;
-            case 2: gft.setIgnoreMalformed(!gft.ignoreMalformed()); break;
-            case 3: gft.setCoerce(!gft.coerce()); break;
-            default: super.modifyProperty(ft, propNum - 4);
-        }
+    @Before
+    public void setupProperties() {
+        addModifier(new Modifier("geohash", false, true) {
+            @Override
+            public void modify(MappedFieldType ft) {
+                ((GeoPointFieldMapper.GeoPointFieldType)ft).setGeohashEnabled(new StringFieldMapper.StringFieldType(), 1, true);
+            }
+        });
+        addModifier(new Modifier("lat_lon", false, true) {
+            @Override
+            public void modify(MappedFieldType ft) {
+                ((GeoPointFieldMapper.GeoPointFieldType)ft).setLatLonEnabled(new DoubleFieldMapper.DoubleFieldType(), new DoubleFieldMapper.DoubleFieldType());
+            }
+        });
+        addModifier(new Modifier("ignore_malformed", false, true) {
+            @Override
+            public void modify(MappedFieldType ft) {
+                GeoPointFieldMapper.GeoPointFieldType gft = (GeoPointFieldMapper.GeoPointFieldType)ft;
+                gft.setIgnoreMalformed(!gft.ignoreMalformed());
+            }
+        });
+        addModifier(new Modifier("coerce", false, true) {
+            @Override
+            public void modify(MappedFieldType ft) {
+                GeoPointFieldMapper.GeoPointFieldType gft = (GeoPointFieldMapper.GeoPointFieldType)ft;
+                gft.setCoerce(!gft.coerce());
+            }
+        });
     }
 }

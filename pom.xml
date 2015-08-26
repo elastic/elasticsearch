@@ -164,6 +164,20 @@
                     <url>http://maven.elasticsearch.org/artifactory/public-releases</url>
                 </repository>
             </distributionManagement>
+            <pluginRepositories>
+                <pluginRepository>
+                    <id>oss-snapshots</id>
+                    <name>Sonatype OSS Snapshots</name>
+                    <url>https://oss.sonatype.org/content/repositories/snapshots/</url>
+                    <releases>
+                        <enabled>false</enabled>
+                    </releases>
+                    <snapshots>
+                        <enabled>true</enabled>
+                        <updatePolicy>always</updatePolicy>
+                    </snapshots>
+                </pluginRepository>
+            </pluginRepositories>
             <build>
                 <plugins>
                     <plugin>

@@ -65,7 +65,7 @@ def main():
     # 1.2.0 was pulled from download.elasticsearch.org because of routing bug:
     url = 'http://central.maven.org/maven2/org/elasticsearch/elasticsearch/1.2.0/%s' % filename
   else:
-    url = 'https://download.elasticsearch.org/elasticsearch/elasticsearch/%s' % filename
+    url = 'http://download.elasticsearch.org/elasticsearch/release/org/elasticsearch/distribution/tar/elasticsearch/%s/%s' % (c.version, filename)
   print('Downloading %s' % url)
   urllib.request.urlretrieve(url, filename)
 

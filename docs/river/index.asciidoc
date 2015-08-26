@@ -1,6 +1,0 @@
-[[river]]
-= Rivers
-
-Rivers were deprecated in Elasticsearch 1.5 and removed in Elasticsearch 2.0.
-
-See https://www.elastic.co/blog/deprecating_rivers for more details.

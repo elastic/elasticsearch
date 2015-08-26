@@ -28,7 +28,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.search.termslookup.TermsLookupFetchService;
 import org.elasticsearch.indices.cache.query.terms.TermsLookup;
 import org.hamcrest.Matchers;
-import org.junit.BeforeClass;
+import org.junit.Before;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -40,10 +40,10 @@ import static org.hamcrest.Matchers.*;
 
 public class TermsQueryBuilderTest extends BaseQueryTestCase<TermsQueryBuilder> {
 
-    private static MockTermsLookupFetchService termsLookupFetchService;
+    private MockTermsLookupFetchService termsLookupFetchService;
 
-    @BeforeClass
-    public static void mockTermsLookupFetchService() throws IOException {
+    @Before
+    public void mockTermsLookupFetchService() {
         termsLookupFetchService = new MockTermsLookupFetchService();
         queryParserService().setTermsLookupFetchService(termsLookupFetchService);
     }

@@ -3,34 +3,33 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.marvel.agent.renderer.licenses;
+package org.elasticsearch.marvel.agent.renderer.cluster;
 
 import com.google.common.base.Charsets;
 import com.google.common.hash.Hashing;
-import org.elasticsearch.common.Strings;
+import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.license.core.License;
-import org.elasticsearch.marvel.agent.collector.licenses.LicensesMarvelDoc;
+import org.elasticsearch.marvel.agent.collector.cluster.ClusterInfoMarvelDoc;
 import org.elasticsearch.marvel.agent.renderer.AbstractRenderer;
 
 import java.io.IOException;
 import java.util.List;
 
-public class LicensesRenderer extends AbstractRenderer<LicensesMarvelDoc> {
+public class ClusterInfoRenderer extends AbstractRenderer<ClusterInfoMarvelDoc> {
 
-    public LicensesRenderer() {
-        super(Strings.EMPTY_ARRAY, false);
+    public ClusterInfoRenderer() {
+        super(null, false);
     }
 
     @Override
-    protected void doRender(LicensesMarvelDoc marvelDoc, XContentBuilder builder, ToXContent.Params params) throws IOException {
-
+    protected void doRender(ClusterInfoMarvelDoc marvelDoc, XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.field(Fields.CLUSTER_NAME, marvelDoc.getClusterName());
         builder.field(Fields.VERSION, marvelDoc.getVersion());
-        builder.startArray(Fields.LICENSES);
 
+        builder.startArray(Fields.LICENSES);
         List<License> licenses = marvelDoc.getLicenses();
         if (licenses != null) {
             for (License license : licenses) {
@@ -50,6 +49,13 @@ public class LicensesRenderer extends AbstractRenderer<LicensesMarvelDoc> {
             }
         }
         builder.endArray();
+
+        builder.startObject(Fields.CLUSTER_STATS);
+        ClusterStatsResponse clusterStats = marvelDoc.getClusterStats();
+        if (clusterStats != null) {
+            clusterStats.toXContent(builder, params);
+        }
+        builder.endObject();
     }
 
     public static String hash(License license, String clusterName) {
@@ -65,6 +71,7 @@ public class LicensesRenderer extends AbstractRenderer<LicensesMarvelDoc> {
         static final XContentBuilderString CLUSTER_NAME = new XContentBuilderString("cluster_name");
         static final XContentBuilderString LICENSES = new XContentBuilderString("licenses");
         static final XContentBuilderString VERSION = new XContentBuilderString("version");
+        static final XContentBuilderString CLUSTER_STATS = new XContentBuilderString("cluster_stats");
 
         static final XContentBuilderString HKEY = new XContentBuilderString("hkey");
 

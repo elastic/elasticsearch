@@ -186,7 +186,7 @@
         }
       }
     },
-    "cluster_licenses": {
+    "cluster_info": {
       "enabled": false
     },
     "marvel_node_stats": {

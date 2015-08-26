@@ -7,6 +7,8 @@ package org.elasticsearch.marvel.agent.collector;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.carrotsearch.randomizedtesting.SysGlobals;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.AbstractModule;
@@ -16,9 +18,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.license.core.License;
 import org.elasticsearch.license.plugin.core.LicensesClientService;
+import org.elasticsearch.license.plugin.core.LicensesManagerService;
+import org.elasticsearch.license.plugin.core.LicensesService;
 import org.elasticsearch.marvel.MarvelPlugin;
 import org.elasticsearch.marvel.agent.settings.MarvelSettings;
-import org.elasticsearch.marvel.license.LicenseIntegrationTests;
 import org.elasticsearch.marvel.license.LicenseService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -72,7 +75,7 @@ public class AbstractCollectorTestCase extends ESIntegTestCase {
                 .signature("_signature")
                 .type("standard")
                 .subscriptionType("all_is_good")
-                .uid(String.valueOf(RandomizedTest.systemPropertyAsInt(SysGlobals.CHILDVM_SYSPROP_JVM_ID, 0)) + System.identityHashCode(LicenseIntegrationTests.class))
+                .uid(String.valueOf(RandomizedTest.systemPropertyAsInt(SysGlobals.CHILDVM_SYSPROP_JVM_ID, 0)) + System.identityHashCode(AbstractCollectorTestCase.class))
                 .build();
     }
 
@@ -84,6 +87,9 @@ public class AbstractCollectorTestCase extends ESIntegTestCase {
         for (LicenseServiceForCollectors service : internalCluster().getInstances(LicenseServiceForCollectors.class)) {
             service.enable(license);
         }
+        for (LicensesManagerServiceForCollectors service : internalCluster().getInstances(LicensesManagerServiceForCollectors.class)) {
+            service.update(license);
+        }
     }
 
     protected static void beginGracefulPeriod() {
@@ -93,6 +99,9 @@ public class AbstractCollectorTestCase extends ESIntegTestCase {
         final License license = createTestingLicense(issueDate, expiryDate);
         for (LicenseServiceForCollectors service : internalCluster().getInstances(LicenseServiceForCollectors.class)) {
             service.disable(license);
+        }
+        for (LicensesManagerServiceForCollectors service : internalCluster().getInstances(LicensesManagerServiceForCollectors.class)) {
+            service.update(license);
         }
     }
 
@@ -104,6 +113,9 @@ public class AbstractCollectorTestCase extends ESIntegTestCase {
         for (LicenseServiceForCollectors service : internalCluster().getInstances(LicenseServiceForCollectors.class)) {
             service.disable(license);
         }
+        for (LicensesManagerServiceForCollectors service : internalCluster().getInstances(LicensesManagerServiceForCollectors.class)) {
+            service.update(license);
+        }
     }
 
     protected static void disableLicense() {
@@ -113,6 +125,9 @@ public class AbstractCollectorTestCase extends ESIntegTestCase {
         final License license = createTestingLicense(issueDate, expiryDate);
         for (LicenseServiceForCollectors service : internalCluster().getInstances(LicenseServiceForCollectors.class)) {
             service.disable(license);
+        }
+        for (LicensesManagerServiceForCollectors service : internalCluster().getInstances(LicensesManagerServiceForCollectors.class)) {
+            service.update(license);
         }
     }
 
@@ -163,12 +178,14 @@ public class AbstractCollectorTestCase extends ESIntegTestCase {
 
         @Override
         public Collection<Module> nodeModules() {
-            return Collections.<Module>singletonList(new AbstractModule(){
+            return Collections.<Module>singletonList(new AbstractModule() {
 
                 @Override
                 protected void configure() {
                     bind(LicenseServiceForCollectors.class).asEagerSingleton();
                     bind(LicensesClientService.class).to(LicenseServiceForCollectors.class);
+                    bind(LicensesManagerServiceForCollectors.class).asEagerSingleton();
+                    bind(LicensesManagerService.class).to(LicensesManagerServiceForCollectors.class);
                 }
             });
         }
@@ -198,6 +215,33 @@ public class AbstractCollectorTestCase extends ESIntegTestCase {
             for (Listener listener : listeners) {
                 listener.onDisabled(license);
             }
+        }
+    }
+
+    public static class LicensesManagerServiceForCollectors implements LicensesManagerService {
+
+        private final Map<String, License> licenses = Collections.synchronizedMap(new HashMap<String, License>());
+
+        @Override
+        public void registerLicenses(LicensesService.PutLicenseRequestHolder requestHolder, ActionListener<LicensesService.LicensesUpdateResponse> listener) {
+        }
+
+        @Override
+        public void removeLicenses(LicensesService.DeleteLicenseRequestHolder requestHolder, ActionListener<ClusterStateUpdateResponse> listener) {
+        }
+
+        @Override
+        public Set<String> enabledFeatures() {
+            return null;
+        }
+
+        @Override
+        public List<License> getLicenses() {
+            return new ArrayList<>(licenses.values());
+        }
+
+        public void update(License license) {
+            licenses.put(license.uid(), license);
         }
     }
 }

@@ -280,5 +280,14 @@ if __name__ == "__main__":
     """)
     print('NOTE: Running s3cmd might require you to create a config file with your credentials, if the s3cmd does not support suppliying them via the command line!')
   print('*** Once the release is deployed and published send out the following mail to dev@elastic.co:')
-  print(MAIL_TEMPLATE % ({'version' : release_version, 'hash': shortHash, 'major_minor_version' : major_minor_version}))
+  string_format_dict = {'version' : release_version, 'hash': shortHash, 'major_minor_version' : major_minor_version}
+  print(MAIL_TEMPLATE % string_format_dict)
+
+  print('To publish the release and the repo on S3 execute the following commands:')
+  print('   s3cmd cp --recursive s3://download.elasticsearch.org/elasticsearch/staging/%(version)s-%(hash)s/repos/elasticsearch/%(major_minor_version)s/ s3://packages.elasticsearch.org/elasticsearch/%(major_minor_version)s'  % string_format_dict)
+  print('   s3cmd cp --recursive s3://download.elasticsearch.org/elasticsearch/staging/%(version)s-%(hash)s/org/ s3://download.elasticsearch.org/elasticsearch/release/org'  % string_format_dict)
+  print('Now go ahead and tag the release:')
+  print('   git tag -a v%(version)s %(hash)s'  % string_format_dict)
+  print('   git push origin v%(version)s' % string_format_dict )
+
 

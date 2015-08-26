@@ -462,6 +462,7 @@
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-enforcer-plugin</artifactId>
+                    <version>1.4.1</version>
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
@@ -526,7 +527,6 @@
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-enforcer-plugin</artifactId>
-                    <version>1.4.1</version>
                     <executions>
                         <execution>
                             <id>enforce-versions</id>
@@ -560,6 +560,21 @@
                             <goals>
                                 <goal>display-info</goal>
                             </goals>
+                        </execution>
+                        <execution>
+                            <id>enforce-java-home-is-set</id>
+                            <goals>
+                                <goal>enforce</goal>
+                            </goals>
+                            <configuration>
+                                <rules>
+                                    <requireEnvironmentVariable>
+                                        <variableName>JAVA_HOME</variableName>
+                                        <message>"JAVA_HOME must be set and point to the jdk to run the tests"</message>
+                                    </requireEnvironmentVariable>
+                                </rules>
+                                <fail>true</fail>
+                            </configuration>
                         </execution>
                     </executions>
                 </plugin>

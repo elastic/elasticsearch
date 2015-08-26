@@ -28,13 +28,17 @@
 #
 # USAGE:
 #
-# python3 -B ./dev-tools/smoke_tests_rc.py --version 2.0.0-beta1 --hash bfa3e47
+# python3 -B ./dev-tools/smoke_test_rc.py --version 2.0.0-beta1 --hash bfa3e47
 #
 # to also test other plugins try run
 #
-# python3 -B ./dev-tools/smoke_tests_rc.py --version 2.0.0-beta1 --hash bfa3e47 --plugins license,shield,watcher
+# python3 -B ./dev-tools/smoke_test_rc.py --version 2.0.0-beta1 --hash bfa3e47 --plugins license,shield,watcher
 #
 # Note: Ensure the script is run from the elasticsearch top level directory
+#
+# For testing a release from sonatype try this:
+#
+# python3 -B dev-tools/smoke_test_rc.py --version 2.0.0-beta1 --hash bfa3e47 --fetch_url https://oss.sonatype.org/content/repositories/releases/
 #
 
 import argparse
@@ -111,8 +115,7 @@ def wait_for_node_startup(host='127.0.0.1', port=9200, timeout=60, header={}):
       conn.close()
   return False
 
-def download_and_verify(version, hash, files, base_url='http://download.elasticsearch.org/elasticsearch/staging', plugins=DEFAULT_PLUGINS, verbose=False):
-  base_url = '%s/%s-%s' % (base_url, version, hash)
+def download_and_verify(version, hash, files, base_url, plugins=DEFAULT_PLUGINS, verbose=False):
   print('Downloading and verifying release %s from %s' % (version, base_url))
   tmp_dir = tempfile.mkdtemp()
   try:
@@ -249,15 +252,19 @@ if __name__ == "__main__":
                       help='A list of additional plugins to smoketest')
   parser.add_argument('--verbose', '-b', dest='verbose',
                     help='Runs the script in verbose mode')
+  parser.add_argument('--fetch_url', '-u', dest='url', default=None,
+                      help='Runs the script in verbose mode')
   parser.set_defaults(hash=None)
   parser.set_defaults(plugins=[])
   parser.set_defaults(version=None)
   parser.set_defaults(verbose=False)
+  parser.set_defaults(url=None)
   args = parser.parse_args()
   plugins = args.plugins
   version = args.version
   hash = args.hash
   verbose = args.verbose
+  url = args.url
   files = [
     'org/elasticsearch/distribution/tar/elasticsearch/2.0.0-beta1/elasticsearch-2.0.0-beta1.tar.gz',
     'org/elasticsearch/distribution/zip/elasticsearch/2.0.0-beta1/elasticsearch-2.0.0-beta1.zip',
@@ -265,7 +272,11 @@ if __name__ == "__main__":
     'org/elasticsearch/distribution/rpm/elasticsearch/2.0.0-beta1/elasticsearch-2.0.0-beta1.rpm'
   ]
   verify_java_version('1.7')
-  download_and_verify(version, hash, files, plugins= DEFAULT_PLUGINS + plugins, verbose=verbose)
+  if url:
+    download_url = url
+  else:
+    download_url = '%s/%s-%s' % ('http://download.elasticsearch.org/elasticsearch/staging', version, hash)
+  download_and_verify(version, hash, files, download_url, plugins=DEFAULT_PLUGINS + plugins, verbose=verbose)
 
 
 

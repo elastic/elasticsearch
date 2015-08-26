@@ -64,6 +64,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
@@ -1315,6 +1316,63 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         getSnapshotsResponse = client.admin().cluster().prepareGetSnapshots("url-repo").get();
         assertThat(getSnapshotsResponse.getSnapshots(), notNullValue());
         assertThat(getSnapshotsResponse.getSnapshots().size(), equalTo(0));
+    }
+
+
+    @Test
+    public void readonlyRepositoryTest() throws Exception {
+        Client client = client();
+
+        logger.info("-->  creating repository");
+        Path repositoryLocation = randomRepoPath();
+        assertAcked(client.admin().cluster().preparePutRepository("test-repo")
+                .setType("fs").setSettings(Settings.settingsBuilder()
+                        .put("location", repositoryLocation)
+                        .put("compress", randomBoolean())
+                        .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
+
+        createIndex("test-idx");
+        ensureGreen();
+
+        logger.info("--> indexing some data");
+        for (int i = 0; i < 100; i++) {
+            index("test-idx", "doc", Integer.toString(i), "foo", "bar" + i);
+        }
+        refresh();
+
+        logger.info("--> snapshot");
+        CreateSnapshotResponse createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap").setWaitForCompletion(true).setIndices("test-idx").get();
+        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
+        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
+
+        assertThat(client.admin().cluster().prepareGetSnapshots("test-repo").setSnapshots("test-snap").get().getSnapshots().get(0).state(), equalTo(SnapshotState.SUCCESS));
+
+        logger.info("--> delete index");
+        cluster().wipeIndices("test-idx");
+
+        logger.info("--> create read-only URL repository");
+        assertAcked(client.admin().cluster().preparePutRepository("readonly-repo")
+                .setType("fs").setSettings(Settings.settingsBuilder()
+                        .put("location", repositoryLocation)
+                        .put("compress", randomBoolean())
+                        .put("readonly", true)
+                        .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
+        logger.info("--> restore index after deletion");
+        RestoreSnapshotResponse restoreSnapshotResponse = client.admin().cluster().prepareRestoreSnapshot("readonly-repo", "test-snap").setWaitForCompletion(true).setIndices("test-idx").execute().actionGet();
+        assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
+
+        assertThat(client.prepareCount("test-idx").get().getCount(), equalTo(100L));
+
+        logger.info("--> list available shapshots");
+        GetSnapshotsResponse getSnapshotsResponse = client.admin().cluster().prepareGetSnapshots("readonly-repo").get();
+        assertThat(getSnapshotsResponse.getSnapshots(), notNullValue());
+        assertThat(getSnapshotsResponse.getSnapshots().size(), equalTo(1));
+
+        logger.info("--> try deleting snapshot");
+        assertThrows(client.admin().cluster().prepareDeleteSnapshot("readonly-repo", "test-snap"), RepositoryException.class, "cannot delete snapshot from a readonly repository");
+
+        logger.info("--> try making another snapshot");
+        assertThrows(client.admin().cluster().prepareCreateSnapshot("readonly-repo", "test-snap-2").setWaitForCompletion(true).setIndices("test-idx"), RepositoryException.class, "cannot create snapshot in a readonly repository");
     }
 
     @Test

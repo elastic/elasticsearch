@@ -179,6 +179,10 @@ public class SimpleIndicesWarmerIT extends ESIntegTestCase {
         DeleteWarmerResponse deleteWarmerResponse = client().admin().indices().prepareDeleteWarmer()
                 .setIndices("test").setNames("_all").execute().actionGet();
         assertThat(deleteWarmerResponse.isAcknowledged(), equalTo(true));
+
+        deleteWarmerResponse = client().admin().indices().prepareDeleteWarmer()
+                .setIndices("test").setNames("foo", "_all", "bar").execute().actionGet();
+        assertThat(deleteWarmerResponse.isAcknowledged(), equalTo(true));
     }
 
     @Test

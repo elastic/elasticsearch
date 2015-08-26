@@ -354,7 +354,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
 
 
     /**
-     * Test concurrent publishing works correctly (although not strictly required, it's a good testamne
+     * Test not waiting publishing works correctly (i.e., publishing times out)
      */
     @Test
     public void testSimultaneousClusterStatePublishing() throws Exception {
@@ -447,9 +447,9 @@ public class PublishClusterStateActionTests extends ESTestCase {
         try {
             publishStateAndWait(nodeA.action, unserializableClusterState, previousClusterState);
             fail("cluster state published despite of diff errors");
-        } catch (ElasticsearchException e) {
+        } catch (Discovery.FailedToCommitClusterStateException e) {
             assertThat(e.getCause(), notNullValue());
-            assertThat(e.getCause().getMessage(), containsString("Simulated"));
+            assertThat(e.getCause().getMessage(), containsString("failed to serialize"));
         }
     }
 
@@ -475,7 +475,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
         try {
             publishState(master.action, clusterState, previousState, masterNodes + randomIntBetween(1, 5));
             fail("cluster state publishing didn't fail despite of not having enough nodes");
-        } catch (PublishClusterStateAction.FailedToCommitException expected) {
+        } catch (Discovery.FailedToCommitClusterStateException expected) {
             logger.debug("failed to publish as expected", expected);
         }
     }
@@ -554,7 +554,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
             if (expectingToCommit == false) {
                 fail("cluster state publishing didn't fail despite of not have enough nodes");
             }
-        } catch (PublishClusterStateAction.FailedToCommitException exception) {
+        } catch (Discovery.FailedToCommitClusterStateException exception) {
             logger.debug("failed to publish as expected", exception);
             if (expectingToCommit) {
                 throw exception;
@@ -697,7 +697,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
             try {
                 publishState(master.action, state, master.clusterState, 2).await(1, TimeUnit.HOURS);
                 success = true;
-            } catch (PublishClusterStateAction.FailedToCommitException OK) {
+            } catch (Discovery.FailedToCommitClusterStateException OK) {
                 success = false;
             }
             logger.debug("--> publishing [{}], verifying...", success ? "succeeded" : "failed");

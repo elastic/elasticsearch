@@ -26,6 +26,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.support.LoggerMessageFormat;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
@@ -597,7 +598,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
                 IndexNotFoundException.class,
                 ShardNotFoundException.class,
                 NotSerializableExceptionWrapper.class,
-                org.elasticsearch.discovery.zen.publish.PublishClusterStateAction.FailedToCommitException.class
+                Discovery.FailedToCommitClusterStateException.class
         };
         Map<String, Constructor<? extends ElasticsearchException>> mapping = new HashMap<>(exceptions.length);
         for (Class<? extends ElasticsearchException> e : exceptions) {

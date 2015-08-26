@@ -40,7 +40,6 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.StringText;
-import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.*;
@@ -485,8 +484,8 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                     logger.debug("publishing cluster state version [{}]", newClusterState.version());
                     try {
                         discoveryService.publish(clusterChangedEvent, ackListener);
-                    } catch (Throwable t) {
-                        logger.warn("failing [{}]: failed to publish cluster state version [{}]", t, source, newClusterState.version());
+                    } catch (Discovery.FailedToCommitClusterStateException t) {
+                        logger.warn("failing [{}]: failed to commit cluster state version [{}]", t, source, newClusterState.version());
                         updateTask.onFailure(source, t);
                         return;
                     }

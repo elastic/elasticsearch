@@ -27,16 +27,15 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.discovery.zen.fd.FaultDetection;
-import org.elasticsearch.discovery.zen.publish.PublishClusterStateAction;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.disruption.NetworkDelaysPartition;
-import org.elasticsearch.test.disruption.NetworkUnresponsivePartition;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.junit.Test;
@@ -393,7 +392,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
         logger.debug("--> waiting for cluster state to be processed/rejected");
         latch.await();
 
-        assertThat(failure.get(), instanceOf(PublishClusterStateAction.FailedToCommitException.class));
+        assertThat(failure.get(), instanceOf(Discovery.FailedToCommitClusterStateException.class));
         assertBusy(new Runnable() {
             @Override
             public void run() {

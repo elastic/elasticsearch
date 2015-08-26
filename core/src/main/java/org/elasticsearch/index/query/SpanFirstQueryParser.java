@@ -89,6 +89,6 @@ public class SpanFirstQueryParser extends BaseQueryParser<SpanFirstQueryBuilder>
 
     @Override
     public SpanFirstQueryBuilder getBuilderPrototype() {
-        return SpanFirstQueryBuilder.SPAN_FIRST_QUERY_BUILDER;
+        return SpanFirstQueryBuilder.PROTOTYPE;
     }
 }

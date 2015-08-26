@@ -137,13 +137,7 @@ public class IndexQueryParserService extends AbstractIndexComponent {
         return this.queryStringLenient;
     }
 
-    //norelease we might want to get rid of this as it was temporarily introduced for our default doToQuery impl
-    //seems to be used only in tests
-    public QueryParser<?> queryParser(String name) {
-        return indicesQueriesRegistry.queryParsers().get(name);
-    }
-
-    public IndicesQueriesRegistry indicesQueriesRegistry() {
+    IndicesQueriesRegistry indicesQueriesRegistry() {
         return indicesQueriesRegistry;
     }
 

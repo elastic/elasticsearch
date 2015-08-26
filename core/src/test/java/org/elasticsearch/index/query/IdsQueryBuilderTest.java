@@ -24,8 +24,6 @@ import org.apache.lucene.queries.TermsQuery;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -44,11 +42,7 @@ public class IdsQueryBuilderTest extends BaseQueryTestCase<IdsQueryBuilder> {
     @Test(expected=QueryParsingException.class)
     public void testIdsNotProvided() throws IOException {
         String noIdsFieldQuery = "{\"ids\" : { \"type\" : \"my_type\"  }";
-        XContentParser parser = XContentFactory.xContent(noIdsFieldQuery).createParser(noIdsFieldQuery);
-        QueryParseContext context = createParseContext();
-        context.reset(parser);
-        assertQueryHeader(parser, "ids");
-        context.queryParser("ids").fromXContent(context);
+        parseQuery(noIdsFieldQuery, IdsQueryBuilder.NAME);
     }
 
     @Override

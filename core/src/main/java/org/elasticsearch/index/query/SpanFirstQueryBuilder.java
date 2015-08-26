@@ -37,7 +37,7 @@ public class SpanFirstQueryBuilder extends AbstractQueryBuilder<SpanFirstQueryBu
 
     private final int end;
 
-    static final SpanFirstQueryBuilder SPAN_FIRST_QUERY_BUILDER = new SpanFirstQueryBuilder(null, -1);
+    static final SpanFirstQueryBuilder PROTOTYPE = new SpanFirstQueryBuilder(null, -1);
 
     /**
      * Query that matches spans queries defined in <code>matchBuilder</code>

@@ -30,7 +30,7 @@ public class MissingQueryBuilderTest extends BaseQueryTestCase<MissingQueryBuild
 
     @Override
     protected MissingQueryBuilder doCreateTestQueryBuilder() {
-        MissingQueryBuilder query  = new MissingQueryBuilder(randomBoolean() ? randomFrom(mappedFieldNames) : randomAsciiOfLengthBetween(1, 10));
+        MissingQueryBuilder query  = new MissingQueryBuilder(randomBoolean() ? randomFrom(MAPPED_FIELD_NAMES) : randomAsciiOfLengthBetween(1, 10));
         if (randomBoolean()) {
             query.nullValue(randomBoolean());
         }

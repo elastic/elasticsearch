@@ -35,7 +35,7 @@ public class FieldMaskingSpanQueryBuilderTest extends BaseQueryTestCase<FieldMas
     protected FieldMaskingSpanQueryBuilder doCreateTestQueryBuilder() {
         String fieldName;
         if (randomBoolean()) {
-            fieldName = randomFrom(mappedFieldNames);
+            fieldName = randomFrom(MAPPED_FIELD_NAMES);
         } else {
             fieldName = randomAsciiOfLengthBetween(1, 10);
         }

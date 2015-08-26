@@ -94,7 +94,7 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder> exte
 
     //norelease to be made abstract once all query builders override doToQuery providing their own specific implementation.
     protected Query doToQuery(QueryShardContext context) throws IOException {
-        return context.indexQueryParserService().queryParser(getName()).parse(context);
+        return context.indexQueryParserService().indicesQueriesRegistry().queryParsers().get(getName()).parse(context);
     }
 
     @Override

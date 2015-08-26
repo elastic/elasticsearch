@@ -21,15 +21,11 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.junit.Test;
 
 import java.io.IOException;
 
-import static org.hamcrest.CoreMatchers.equalTo;
-import static org.hamcrest.CoreMatchers.instanceOf;
-import static org.hamcrest.CoreMatchers.nullValue;
+import static org.hamcrest.CoreMatchers.*;
 
 @SuppressWarnings("deprecation")
 public class QueryFilterBuilderTest extends BaseQueryTestCase<QueryFilterBuilder> {
@@ -62,15 +58,9 @@ public class QueryFilterBuilderTest extends BaseQueryTestCase<QueryFilterBuilder
      */
     @Test
     public void testInnerQueryReturnsNull() throws IOException {
-        QueryParseContext context = createParseContext();
-
         // create inner filter
         String queryString = "{ \"constant_score\" : { \"filter\" : {} }";
-        XContentParser parser = XContentFactory.xContent(queryString).createParser(queryString);
-        context.reset(parser);
-        assertQueryHeader(parser, ConstantScoreQueryBuilder.NAME);
-        QueryBuilder innerQuery = context.queryParser(ConstantScoreQueryBuilder.NAME).fromXContent(context);
-
+        QueryBuilder<?> innerQuery = parseQuery(queryString, ConstantScoreQueryBuilder.NAME);
         // check that when wrapping this filter, toQuery() returns null
         QueryFilterBuilder queryFilterQuery = new QueryFilterBuilder(innerQuery);
         assertNull(queryFilterQuery.toQuery(createShardContext()));

@@ -21,8 +21,6 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -31,9 +29,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 
-import static org.hamcrest.CoreMatchers.equalTo;
-import static org.hamcrest.CoreMatchers.instanceOf;
-import static org.hamcrest.CoreMatchers.nullValue;
+import static org.hamcrest.CoreMatchers.*;
 
 public class DisMaxQueryBuilderTest extends BaseQueryTestCase<DisMaxQueryBuilder> {
 
@@ -104,14 +100,8 @@ public class DisMaxQueryBuilderTest extends BaseQueryTestCase<DisMaxQueryBuilder
      */
     @Test
     public void testInnerQueryReturnsNull() throws IOException {
-        QueryParseContext context = createParseContext();
-        String queryId = ConstantScoreQueryBuilder.NAME;
-        String queryString = "{ \""+queryId+"\" : { \"filter\" : { } }";
-        XContentParser parser = XContentFactory.xContent(queryString).createParser(queryString);
-        context.reset(parser);
-        assertQueryHeader(parser, queryId);
-        ConstantScoreQueryBuilder innerQueryBuilder = (ConstantScoreQueryBuilder) context.queryParser(queryId).fromXContent(context);
-
+        String queryString = "{ \"" + ConstantScoreQueryBuilder.NAME + "\" : { \"filter\" : { } }";
+        QueryBuilder<?> innerQueryBuilder = parseQuery(queryString, ConstantScoreQueryBuilder.NAME);
         DisMaxQueryBuilder disMaxBuilder = new DisMaxQueryBuilder().add(innerQueryBuilder);
         assertNull(disMaxBuilder.toQuery(createShardContext()));
     }

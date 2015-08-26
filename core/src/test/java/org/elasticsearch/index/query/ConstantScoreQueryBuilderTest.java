@@ -21,15 +21,11 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.junit.Test;
 
 import java.io.IOException;
 
-import static org.hamcrest.CoreMatchers.equalTo;
-import static org.hamcrest.CoreMatchers.instanceOf;
-import static org.hamcrest.CoreMatchers.nullValue;
+import static org.hamcrest.CoreMatchers.*;
 
 public class ConstantScoreQueryBuilderTest extends BaseQueryTestCase<ConstantScoreQueryBuilder> {
 
@@ -58,13 +54,8 @@ public class ConstantScoreQueryBuilderTest extends BaseQueryTestCase<ConstantSco
      */
     @Test(expected=QueryParsingException.class)
     public void testFilterElement() throws IOException {
-        QueryParseContext context = createParseContext();
-        String queryId = ConstantScoreQueryBuilder.NAME;
-        String queryString = "{ \""+queryId+"\" : {}";
-        XContentParser parser = XContentFactory.xContent(queryString).createParser(queryString);
-        context.reset(parser);
-        assertQueryHeader(parser, queryId);
-        context.queryParser(queryId).fromXContent(context);
+        String queryString = "{ \"" + ConstantScoreQueryBuilder.NAME + "\" : {}";
+        parseQuery(queryString, ConstantScoreQueryBuilder.NAME);
     }
 
     @Test

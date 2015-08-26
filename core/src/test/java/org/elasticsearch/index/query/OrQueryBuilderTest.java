@@ -22,16 +22,12 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.junit.Test;
 
 import java.io.IOException;
 import java.util.*;
 
-import static org.hamcrest.CoreMatchers.equalTo;
-import static org.hamcrest.CoreMatchers.instanceOf;
-import static org.hamcrest.CoreMatchers.nullValue;
+import static org.hamcrest.CoreMatchers.*;
 
 @SuppressWarnings("deprecation")
 public class OrQueryBuilderTest extends BaseQueryTestCase<OrQueryBuilder> {
@@ -98,12 +94,8 @@ public class OrQueryBuilderTest extends BaseQueryTestCase<OrQueryBuilder> {
 
     @Test(expected=QueryParsingException.class)
     public void testMissingFiltersSection() throws IOException {
-        QueryParseContext context = createParseContext();
         String queryString = "{ \"or\" : {}";
-        XContentParser parser = XContentFactory.xContent(queryString).createParser(queryString);
-        context.reset(parser);
-        assertQueryHeader(parser, OrQueryBuilder.NAME);
-        context.queryParser(OrQueryBuilder.NAME).fromXContent(context);
+        parseQuery(queryString, OrQueryBuilder.NAME);
     }
 
     @Test

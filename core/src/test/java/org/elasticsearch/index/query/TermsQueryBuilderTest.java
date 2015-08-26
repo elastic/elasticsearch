@@ -24,17 +24,29 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.search.termslookup.TermsLookupFetchService;
 import org.elasticsearch.indices.cache.query.terms.TermsLookup;
 import org.hamcrest.Matchers;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 
 import static org.hamcrest.Matchers.*;
 
 public class TermsQueryBuilderTest extends BaseQueryTestCase<TermsQueryBuilder> {
+
+    private static MockTermsLookupFetchService termsLookupFetchService;
+
+    @BeforeClass
+    public static void mockTermsLookupFetchService() throws IOException {
+        termsLookupFetchService = new MockTermsLookupFetchService();
+        queryParserService().setTermsLookupFetchService(termsLookupFetchService);
+    }
 
     @Override
     protected TermsQueryBuilder doCreateTestQueryBuilder() {
@@ -77,14 +89,15 @@ public class TermsQueryBuilderTest extends BaseQueryTestCase<TermsQueryBuilder> 
         BooleanQuery booleanQuery = (BooleanQuery) query;
 
         // we only do the check below for string fields (otherwise we'd have to decode the values)
-        if (!queryBuilder.fieldName().equals(STRING_FIELD_NAME) && queryBuilder.termsLookup() == null) {
+        if (queryBuilder.fieldName().equals(INT_FIELD_NAME) || queryBuilder.fieldName().equals(DOUBLE_FIELD_NAME)
+                || queryBuilder.fieldName().equals(BOOLEAN_FIELD_NAME) || queryBuilder.fieldName().equals(DATE_FIELD_NAME)) {
             return;
         }
 
         // expected returned terms depending on whether we have a terms query or a terms lookup query
         List<Object> terms;
         if (queryBuilder.termsLookup() != null) {
-            terms = MockTermsLookupFetchService.getRandomTerms();
+            terms = termsLookupFetchService.getRandomTerms();
         } else {
             terms = queryBuilder.values();
         }
@@ -141,7 +154,7 @@ public class TermsQueryBuilderTest extends BaseQueryTestCase<TermsQueryBuilder> 
         try {
             switch (randomInt(6)) {
                 case 0:
-                    new TermsQueryBuilder("field", (String) null);
+                    new TermsQueryBuilder("field", (String[]) null);
                     break;
                 case 1:
                     new TermsQueryBuilder("field", (int[]) null);
@@ -156,10 +169,10 @@ public class TermsQueryBuilderTest extends BaseQueryTestCase<TermsQueryBuilder> 
                     new TermsQueryBuilder("field", (double[]) null);
                     break;
                 case 5:
-                    new TermsQueryBuilder("field", (Object) null);
+                    new TermsQueryBuilder("field", (Object[]) null);
                     break;
                 default:
-                    new TermsQueryBuilder("field", (Iterable) null);
+                    new TermsQueryBuilder("field", (Iterable<?>) null);
                     break;
             }
             fail("should have failed with IllegalArgumentException");
@@ -184,7 +197,32 @@ public class TermsQueryBuilderTest extends BaseQueryTestCase<TermsQueryBuilder> 
                 "    }\n" +
                 "  }\n" +
                 "}";
-        QueryBuilder termsQueryBuilder = parseQuery(query, TermsQueryBuilder.PROTOTYPE);
+        QueryBuilder termsQueryBuilder = parseQuery(query, TermsQueryBuilder.NAME);
         assertThat(termsQueryBuilder.validate().validationErrors().size(), is(1));
+    }
+
+    private static class MockTermsLookupFetchService extends TermsLookupFetchService {
+
+        private List<Object> randomTerms = new ArrayList<>();
+
+        MockTermsLookupFetchService() {
+            super(null, Settings.Builder.EMPTY_SETTINGS);
+            String[] strings = generateRandomStringArray(10, 10, false, true);
+            for (String string : strings) {
+                randomTerms.add(string);
+                if (rarely()) {
+                    randomTerms.add(null);
+                }
+            }
+        }
+
+        @Override
+        public List<Object> fetch(TermsLookup termsLookup) {
+            return randomTerms;
+        }
+
+        List<Object> getRandomTerms() {
+            return randomTerms;
+        }
     }
 }

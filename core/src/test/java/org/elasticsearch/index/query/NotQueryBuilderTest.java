@@ -23,17 +23,13 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.junit.Test;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.hamcrest.CoreMatchers.equalTo;
-import static org.hamcrest.CoreMatchers.instanceOf;
-import static org.hamcrest.CoreMatchers.nullValue;
+import static org.hamcrest.CoreMatchers.*;
 
 public class NotQueryBuilderTest extends BaseQueryTestCase<NotQueryBuilder> {
 
@@ -66,12 +62,8 @@ public class NotQueryBuilderTest extends BaseQueryTestCase<NotQueryBuilder> {
      */
     @Test(expected=QueryParsingException.class)
     public void testMissingFilterSection() throws IOException {
-        QueryParseContext context = createParseContext();
         String queryString = "{ \"not\" : {}";
-        XContentParser parser = XContentFactory.xContent(queryString).createParser(queryString);
-        context.reset(parser);
-        assertQueryHeader(parser, NotQueryBuilder.NAME);
-        context.queryParser(NotQueryBuilder.NAME).fromXContent(context);
+        parseQuery(queryString, NotQueryBuilder.NAME);
     }
 
     @Override

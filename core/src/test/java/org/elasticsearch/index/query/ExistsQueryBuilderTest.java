@@ -38,7 +38,7 @@ public class ExistsQueryBuilderTest extends BaseQueryTestCase<ExistsQueryBuilder
     protected ExistsQueryBuilder doCreateTestQueryBuilder() {
         String fieldPattern;
         if (randomBoolean()) {
-            fieldPattern = randomFrom(mappedFieldNames);
+            fieldPattern = randomFrom(MAPPED_FIELD_NAMES);
         } else {
             fieldPattern = randomAsciiOfLengthBetween(1, 10);
         }

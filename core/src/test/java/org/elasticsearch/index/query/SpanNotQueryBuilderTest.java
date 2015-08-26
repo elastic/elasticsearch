@@ -23,16 +23,13 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.spans.SpanNotQuery;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.junit.Test;
 
 import java.io.IOException;
 
 import static org.elasticsearch.index.query.QueryBuilders.spanNearQuery;
 import static org.elasticsearch.index.query.QueryBuilders.spanTermQuery;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.*;
 
 public class SpanNotQueryBuilderTest extends BaseQueryTestCase<SpanNotQueryBuilder> {
 
@@ -133,12 +130,7 @@ public class SpanNotQueryBuilderTest extends BaseQueryTestCase<SpanNotQueryBuild
         builder.field("dist", 3);
         builder.endObject();
         builder.endObject();
-
-        QueryParseContext context = createParseContext();
-        XContentParser parser = XContentFactory.xContent(builder.string()).createParser(builder.string());
-        context.reset(parser);
-        assertQueryHeader(parser, SpanNotQueryBuilder.NAME);
-        SpanNotQueryBuilder query = (SpanNotQueryBuilder) new SpanNotQueryParser().fromXContent(context);
+        SpanNotQueryBuilder query = (SpanNotQueryBuilder)parseQuery(builder.string(), SpanNotQueryBuilder.NAME);
         assertThat(query.pre(), equalTo(3));
         assertThat(query.post(), equalTo(3));
         assertNotNull(query.includeQuery());
@@ -150,7 +142,8 @@ public class SpanNotQueryBuilderTest extends BaseQueryTestCase<SpanNotQueryBuild
      */
     @Test
     public void testParserExceptions() throws IOException {
-        try {
+
+        {
             XContentBuilder builder = XContentFactory.jsonBuilder();
             builder.startObject();
             builder.startObject(SpanNotQueryBuilder.NAME);
@@ -160,44 +153,40 @@ public class SpanNotQueryBuilderTest extends BaseQueryTestCase<SpanNotQueryBuild
             builder.endObject();
             builder.endObject();
 
-            QueryParseContext context = createParseContext();
-            XContentParser parser = XContentFactory.xContent(builder.string()).createParser(builder.string());
-            context.reset(parser);
-            assertQueryHeader(parser, SpanNotQueryBuilder.NAME);
-            new SpanNotQueryParser().fromXContent(context);
-            fail("QueryParsingException should have been caught");
-        } catch (QueryParsingException e) {
-            assertThat("QueryParsingException should have been caught", e.getDetailedMessage(), containsString("spanNot must have [include]"));
+            try {
+                parseQuery(builder.string(), SpanNotQueryBuilder.NAME);
+                fail("QueryParsingException should have been caught");
+            } catch (QueryParsingException e) {
+                assertThat("QueryParsingException should have been caught", e.getDetailedMessage(), containsString("spanNot must have [include]"));
+            }
         }
 
-        try {
+        {
             XContentBuilder builder = XContentFactory.jsonBuilder();
             builder.startObject();
             builder.startObject(SpanNotQueryBuilder.NAME);
             builder.field("include");
             spanNearQuery(1).clause(QueryBuilders.spanTermQuery("description", "quick"))
-                .clause(QueryBuilders.spanTermQuery("description", "fox")).toXContent(builder, null);
+                    .clause(QueryBuilders.spanTermQuery("description", "fox")).toXContent(builder, null);
             builder.field("dist", 2);
             builder.endObject();
             builder.endObject();
 
-            QueryParseContext context = createParseContext();
-            XContentParser parser = XContentFactory.xContent(builder.string()).createParser(builder.string());
-            context.reset(parser);
-            assertQueryHeader(parser, SpanNotQueryBuilder.NAME);
-            new SpanNotQueryParser().fromXContent(context);
-            fail("QueryParsingException should have been caught");
-        } catch (QueryParsingException e) {
-            assertThat("QueryParsingException should have been caught", e.getDetailedMessage(), containsString("spanNot must have [exclude]"));
+            try {
+                parseQuery(builder.string(), SpanNotQueryBuilder.NAME);
+                fail("QueryParsingException should have been caught");
+            } catch (QueryParsingException e) {
+                assertThat("QueryParsingException should have been caught", e.getDetailedMessage(), containsString("spanNot must have [exclude]"));
+            }
         }
 
-        try {
+        {
             XContentBuilder builder = XContentFactory.jsonBuilder();
             builder.startObject();
             builder.startObject(SpanNotQueryBuilder.NAME);
             builder.field("include");
             spanNearQuery(1).clause(QueryBuilders.spanTermQuery("description", "quick"))
-                .clause(QueryBuilders.spanTermQuery("description", "fox")).toXContent(builder, null);
+                    .clause(QueryBuilders.spanTermQuery("description", "fox")).toXContent(builder, null);
             builder.field("exclude");
             spanTermQuery("description", "jumped").toXContent(builder, null);
             builder.field("dist", 2);
@@ -205,14 +194,12 @@ public class SpanNotQueryBuilderTest extends BaseQueryTestCase<SpanNotQueryBuild
             builder.endObject();
             builder.endObject();
 
-            QueryParseContext context = createParseContext();
-            XContentParser parser = XContentFactory.xContent(builder.string()).createParser(builder.string());
-            context.reset(parser);
-            assertQueryHeader(parser, SpanNotQueryBuilder.NAME);
-            new SpanNotQueryParser().fromXContent(context);
-            fail("QueryParsingException should have been caught");
-        } catch (QueryParsingException e) {
-            assertThat("QueryParsingException should have been caught", e.getDetailedMessage(), containsString("spanNot can either use [dist] or [pre] & [post] (or none)"));
+            try {
+                parseQuery(builder.string(), SpanNotQueryBuilder.NAME);
+                fail("QueryParsingException should have been caught");
+            } catch (QueryParsingException e) {
+                assertThat("QueryParsingException should have been caught", e.getDetailedMessage(), containsString("spanNot can either use [dist] or [pre] & [post] (or none)"));
+            }
         }
     }
 }

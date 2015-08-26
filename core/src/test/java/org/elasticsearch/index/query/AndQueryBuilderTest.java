@@ -22,8 +22,6 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -85,12 +83,7 @@ public class AndQueryBuilderTest extends BaseQueryTestCase<AndQueryBuilder> {
 
     @Test(expected=QueryParsingException.class)
     public void testMissingFiltersSection() throws IOException {
-        QueryParseContext context = createParseContext();
-        String queryString = "{ \"and\" : {}";
-        XContentParser parser = XContentFactory.xContent(queryString).createParser(queryString);
-        context.reset(parser);
-        assertQueryHeader(parser, AndQueryBuilder.NAME);
-        context.queryParser(AndQueryBuilder.NAME).fromXContent(context);
+        parseQuery("{ \"and\" : {}", AndQueryBuilder.NAME);
     }
 
     @Test
@@ -125,11 +118,7 @@ public class AndQueryBuilderTest extends BaseQueryTestCase<AndQueryBuilder> {
 
     @Test(expected=QueryParsingException.class)
     public void testParsingExceptionNonFiltersElementArray() throws IOException {
-        QueryParseContext context = createParseContext();
         String queryString = "{ \"and\" : { \"whatever_filters\" : [ { \"match_all\" : {} } ] } }";
-        XContentParser parser = XContentFactory.xContent(queryString).createParser(queryString);
-        context.reset(parser);
-        assertQueryHeader(parser, AndQueryBuilder.NAME);
-        context.queryParser(AndQueryBuilder.NAME).fromXContent(context);
+        parseQuery(queryString, AndQueryBuilder.NAME);
     }
 }

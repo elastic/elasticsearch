@@ -52,11 +52,11 @@ public class LicensesRendererIT extends ESIntegTestCase {
             @Override
             public GetResponse call() throws Exception {
                 // Checks if the marvel data index exists (it should have been created by the LicenseCollector)
-                assertTrue(client().admin().indices().prepareExists(MarvelSettings.MARVEL_DATA_INDEX_NAME).get().isExists());
+                assertTrue(MarvelSettings.MARVEL_DATA_INDEX_NAME + " index does not exist", client().admin().indices().prepareExists(MarvelSettings.MARVEL_DATA_INDEX_NAME).get().isExists());
                 ensureYellow(MarvelSettings.MARVEL_DATA_INDEX_NAME);
 
                 GetResponse response = client().prepareGet(MarvelSettings.MARVEL_DATA_INDEX_NAME, LicensesCollector.TYPE, clusterUUID).get();
-                assertTrue(response.isExists());
+                assertTrue(MarvelSettings.MARVEL_DATA_INDEX_NAME + " document does not exist", response.isExists());
                 return response;
             }
         });

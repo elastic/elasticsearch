@@ -41,6 +41,7 @@ import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.global;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.percentileRanks;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -166,7 +167,7 @@ public class HDRPercentileRanksIT extends AbstractNumericTestCase {
                         percentileRanks("percentile_ranks").method(PercentilesMethod.HDR).numberOfSignificantValueDigits(sigDigits)
                                 .field("value").percentiles(pcts)).execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         final PercentileRanks percentiles = searchResponse.getAggregations().get("percentile_ranks");
         assertConsistent(pcts, percentiles, minValue, maxValue, sigDigits);
@@ -185,7 +186,7 @@ public class HDRPercentileRanksIT extends AbstractNumericTestCase {
                                 percentileRanks("percentile_ranks").method(PercentilesMethod.HDR).numberOfSignificantValueDigits(sigDigits)
                                         .field("value").percentiles(pcts))).execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         Global global = searchResponse.getAggregations().get("global");
         assertThat(global, notNullValue());
@@ -212,7 +213,7 @@ public class HDRPercentileRanksIT extends AbstractNumericTestCase {
                         percentileRanks("percentile_ranks").method(PercentilesMethod.HDR).numberOfSignificantValueDigits(sigDigits)
                                 .field("value").percentiles(pcts)).execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         final PercentileRanks percentiles = searchResponse.getAggregations().get("percentile_ranks");
         assertConsistent(pcts, percentiles, minValue, maxValue, sigDigits);
@@ -230,7 +231,7 @@ public class HDRPercentileRanksIT extends AbstractNumericTestCase {
                         percentileRanks("percentile_ranks").method(PercentilesMethod.HDR).numberOfSignificantValueDigits(sigDigits)
                                 .field("value").percentiles(pcts)).execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         final PercentileRanks percentiles = searchResponse.getAggregations().get("percentile_ranks");
         assertConsistent(pcts, percentiles, minValue, maxValue, sigDigits);
@@ -248,7 +249,7 @@ public class HDRPercentileRanksIT extends AbstractNumericTestCase {
                         percentileRanks("percentile_ranks").method(PercentilesMethod.HDR).numberOfSignificantValueDigits(sigDigits)
                                 .field("value").script(new Script("_value - 1")).percentiles(pcts)).execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         final PercentileRanks percentiles = searchResponse.getAggregations().get("percentile_ranks");
         assertConsistent(pcts, percentiles, minValue - 1, maxValue - 1, sigDigits);
@@ -269,7 +270,7 @@ public class HDRPercentileRanksIT extends AbstractNumericTestCase {
                                 .field("value").script(new Script("_value - dec", ScriptType.INLINE, null, params)).percentiles(pcts))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         final PercentileRanks percentiles = searchResponse.getAggregations().get("percentile_ranks");
         assertConsistent(pcts, percentiles, minValue - 1, maxValue - 1, sigDigits);
@@ -287,7 +288,7 @@ public class HDRPercentileRanksIT extends AbstractNumericTestCase {
                         percentileRanks("percentile_ranks").method(PercentilesMethod.HDR).numberOfSignificantValueDigits(sigDigits)
                                 .field("values").percentiles(pcts)).execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         final PercentileRanks percentiles = searchResponse.getAggregations().get("percentile_ranks");
         assertConsistent(pcts, percentiles, minValues, maxValues, sigDigits);
@@ -305,7 +306,7 @@ public class HDRPercentileRanksIT extends AbstractNumericTestCase {
                         percentileRanks("percentile_ranks").method(PercentilesMethod.HDR).numberOfSignificantValueDigits(sigDigits)
                                 .field("values").script(new Script("_value - 1")).percentiles(pcts)).execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         final PercentileRanks percentiles = searchResponse.getAggregations().get("percentile_ranks");
         assertConsistent(pcts, percentiles, minValues - 1, maxValues - 1, sigDigits);
@@ -322,7 +323,7 @@ public class HDRPercentileRanksIT extends AbstractNumericTestCase {
                         percentileRanks("percentile_ranks").method(PercentilesMethod.HDR).numberOfSignificantValueDigits(sigDigits)
                                 .field("values").script(new Script("20 - _value")).percentiles(pcts)).execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         final PercentileRanks percentiles = searchResponse.getAggregations().get("percentile_ranks");
         assertConsistent(pcts, percentiles, 20 - maxValues, 20 - minValues, sigDigits);
@@ -343,7 +344,7 @@ public class HDRPercentileRanksIT extends AbstractNumericTestCase {
                                 .field("values").script(new Script("_value - dec", ScriptType.INLINE, null, params)).percentiles(pcts))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         final PercentileRanks percentiles = searchResponse.getAggregations().get("percentile_ranks");
         assertConsistent(pcts, percentiles, minValues - 1, maxValues - 1, sigDigits);
@@ -361,7 +362,7 @@ public class HDRPercentileRanksIT extends AbstractNumericTestCase {
                         percentileRanks("percentile_ranks").method(PercentilesMethod.HDR).numberOfSignificantValueDigits(sigDigits)
                                 .script(new Script("doc['value'].value")).percentiles(pcts)).execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         final PercentileRanks percentiles = searchResponse.getAggregations().get("percentile_ranks");
         assertConsistent(pcts, percentiles, minValue, maxValue, sigDigits);
@@ -382,7 +383,7 @@ public class HDRPercentileRanksIT extends AbstractNumericTestCase {
                                 .script(new Script("doc['value'].value - dec", ScriptType.INLINE, null, params)).percentiles(pcts))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         final PercentileRanks percentiles = searchResponse.getAggregations().get("percentile_ranks");
         assertConsistent(pcts, percentiles, minValue - 1, maxValue - 1, sigDigits);
@@ -403,7 +404,7 @@ public class HDRPercentileRanksIT extends AbstractNumericTestCase {
                                 .script(new Script("doc['value'].value - dec", ScriptType.INLINE, null, params)).percentiles(pcts))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         final PercentileRanks percentiles = searchResponse.getAggregations().get("percentile_ranks");
         assertConsistent(pcts, percentiles, minValue - 1, maxValue - 1, sigDigits);
@@ -421,7 +422,7 @@ public class HDRPercentileRanksIT extends AbstractNumericTestCase {
                         percentileRanks("percentile_ranks").method(PercentilesMethod.HDR).numberOfSignificantValueDigits(sigDigits)
                                 .script(new Script("doc['values'].values")).percentiles(pcts)).execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         final PercentileRanks percentiles = searchResponse.getAggregations().get("percentile_ranks");
         assertConsistent(pcts, percentiles, minValues, maxValues, sigDigits);
@@ -439,7 +440,7 @@ public class HDRPercentileRanksIT extends AbstractNumericTestCase {
                         percentileRanks("percentile_ranks").method(PercentilesMethod.HDR).numberOfSignificantValueDigits(sigDigits)
                                 .script(new Script("doc['values'].values")).percentiles(pcts)).execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         final PercentileRanks percentiles = searchResponse.getAggregations().get("percentile_ranks");
         assertConsistent(pcts, percentiles, minValues, maxValues, sigDigits);
@@ -463,7 +464,7 @@ public class HDRPercentileRanksIT extends AbstractNumericTestCase {
                                         "List values = doc['values'].values; double[] res = new double[values.size()]; for (int i = 0; i < res.length; i++) { res[i] = values.get(i) - dec; }; return res;",
                                         ScriptType.INLINE, null, params)).percentiles(pcts)).execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         final PercentileRanks percentiles = searchResponse.getAggregations().get("percentile_ranks");
         assertConsistent(pcts, percentiles, minValues - 1, maxValues - 1, sigDigits);
@@ -483,7 +484,7 @@ public class HDRPercentileRanksIT extends AbstractNumericTestCase {
                                                 .numberOfSignificantValueDigits(sigDigits).percentiles(99))
                                 .order(Order.aggregation("percentile_ranks", "99", asc))).execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         Histogram histo = searchResponse.getAggregations().get("histo");
         double previous = asc ? Double.NEGATIVE_INFINITY : Double.POSITIVE_INFINITY;

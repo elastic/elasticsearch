@@ -333,9 +333,9 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
                         }
                         try {
                             newNodeSpecificClusterState = discovery.lastProcessedClusterState.readDiffFrom(StreamInput.wrap(clusterStateDiffBytes)).apply(discovery.lastProcessedClusterState);
-                            logger.debug("sending diff cluster state version with size {} to [{}]", clusterStateDiffBytes.length, discovery.localNode.getName());
+                            logger.trace("sending diff cluster state version [{}] with size {} to [{}]", clusterState.version(), clusterStateDiffBytes.length, discovery.localNode.getName());
                         } catch (IncompatibleClusterStateVersionException ex) {
-                            logger.warn("incompatible cluster state version - resending complete cluster state", ex);
+                            logger.warn("incompatible cluster state version [{}] - resending complete cluster state", ex, clusterState.version());
                         }
                     }
                     if (newNodeSpecificClusterState == null) {

@@ -28,7 +28,7 @@ The following mapping parameters are common to some or all field datatypes:
 * <<multi-fields,`fields`>>
 * <<norms,`norms`>>
 * <<null-value,`null_value`>>
-* <<position-offset-gap,`position_offset_gap`>>
+* <<position-increment-gap,`position_increment_gap`>>
 * <<properties,`properties`>>
 * <<search-analyzer,`search_analyzer`>>
 * <<similarity,`similarity`>>
@@ -78,7 +78,7 @@ include::params/norms.asciidoc[]
 
 include::params/null-value.asciidoc[]
 
-include::params/position-offset-gap.asciidoc[]
+include::params/position-increment-gap.asciidoc[]
 
 include::params/precision-step.asciidoc[]
 

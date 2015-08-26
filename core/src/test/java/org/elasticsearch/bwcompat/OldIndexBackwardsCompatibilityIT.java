@@ -41,7 +41,7 @@ import org.elasticsearch.common.util.MultiDataPathUpgrader;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.engine.EngineConfig;
-import org.elasticsearch.index.mapper.string.StringFieldMapperPositionOffsetGapTests;
+import org.elasticsearch.index.mapper.string.StringFieldMapperPositionIncrementGapTests;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.MergePolicyConfig;
 import org.elasticsearch.indices.recovery.RecoverySettings;
@@ -332,7 +332,7 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
         assertNewReplicasWork(indexName);
         assertUpgradeWorks(indexName, isLatestLuceneVersion(version));
         assertDeleteByQueryWorked(indexName, version);
-        assertPositionOffsetGapDefaults(indexName, version);
+        assertPositionIncrementGapDefaults(indexName, version);
         unloadIndex(indexName);
     }
 
@@ -445,11 +445,11 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
         assertEquals(0, searchReq.get().getHits().getTotalHits());
     }
 
-    void assertPositionOffsetGapDefaults(String indexName, Version version) throws Exception {
+    void assertPositionIncrementGapDefaults(String indexName, Version version) throws Exception {
         if (version.before(Version.V_2_0_0_beta1)) {
-            StringFieldMapperPositionOffsetGapTests.assertGapIsZero(client(), indexName, "doc");
+            StringFieldMapperPositionIncrementGapTests.assertGapIsZero(client(), indexName, "doc");
         } else {
-            StringFieldMapperPositionOffsetGapTests.assertGapIsOneHundred(client(), indexName, "doc");
+            StringFieldMapperPositionIncrementGapTests.assertGapIsOneHundred(client(), indexName, "doc");
         }
     }
 

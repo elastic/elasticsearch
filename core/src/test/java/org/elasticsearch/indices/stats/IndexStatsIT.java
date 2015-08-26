@@ -19,7 +19,9 @@
 
 package org.elasticsearch.indices.stats;
 
+import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.cache.IndexCacheModule;
+import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.shard.MergeSchedulerConfig;
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
 import org.apache.lucene.util.Version;
@@ -41,7 +43,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
-import org.elasticsearch.index.cache.query.index.IndexQueryCache;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.MergePolicyConfig;
 import org.elasticsearch.index.store.IndexStore;
@@ -368,7 +369,6 @@ public class IndexStatsIT extends ESIntegTestCase {
         client().prepareIndex("test1", "type1", Integer.toString(1)).setSource("field", "value").execute().actionGet();
         client().prepareIndex("test1", "type2", Integer.toString(1)).setSource("field", "value").execute().actionGet();
         client().prepareIndex("test2", "type", Integer.toString(1)).setSource("field", "value").execute().actionGet();
-
         refresh();
 
         NumShards test1 = getNumShards("test1");
@@ -381,6 +381,7 @@ public class IndexStatsIT extends ESIntegTestCase {
         assertThat(stats.getPrimaries().getDocs().getCount(), equalTo(3l));
         assertThat(stats.getTotal().getDocs().getCount(), equalTo(totalExpectedWrites));
         assertThat(stats.getPrimaries().getIndexing().getTotal().getIndexCount(), equalTo(3l));
+        assertThat(stats.getPrimaries().getIndexing().getTotal().getIndexFailedCount(), equalTo(0l));
         assertThat(stats.getPrimaries().getIndexing().getTotal().isThrottled(), equalTo(false));
         assertThat(stats.getPrimaries().getIndexing().getTotal().getThrottleTimeInMillis(), equalTo(0l));
         assertThat(stats.getTotal().getIndexing().getTotal().getIndexCount(), equalTo(totalExpectedWrites));
@@ -423,9 +424,11 @@ public class IndexStatsIT extends ESIntegTestCase {
         stats = client().admin().indices().prepareStats().setTypes("type1", "type").execute().actionGet();
         assertThat(stats.getPrimaries().getIndexing().getTypeStats().get("type1").getIndexCount(), equalTo(1l));
         assertThat(stats.getPrimaries().getIndexing().getTypeStats().get("type").getIndexCount(), equalTo(1l));
+        assertThat(stats.getPrimaries().getIndexing().getTypeStats().get("type1").getIndexFailedCount(), equalTo(0l));
         assertThat(stats.getPrimaries().getIndexing().getTypeStats().get("type2"), nullValue());
         assertThat(stats.getPrimaries().getIndexing().getTypeStats().get("type1").getIndexCurrent(), equalTo(0l));
         assertThat(stats.getPrimaries().getIndexing().getTypeStats().get("type1").getDeleteCurrent(), equalTo(0l));
+
 
         assertThat(stats.getTotal().getGet().getCount(), equalTo(0l));
         // check get
@@ -462,6 +465,30 @@ public class IndexStatsIT extends ESIntegTestCase {
         assertThat(stats.getTotal().getIndexing(), nullValue());
         assertThat(stats.getTotal().getGet(), nullValue());
         assertThat(stats.getTotal().getSearch(), nullValue());
+
+        // index failed
+        try {
+            client().prepareIndex("test1", "type1", Integer.toString(1)).setSource("field", "value").setVersion(1)
+                    .setVersionType(VersionType.EXTERNAL).execute().actionGet();
+            fail("Expected a version conflict");
+        } catch (VersionConflictEngineException e) {}
+        try {
+            client().prepareIndex("test1", "type2", Integer.toString(1)).setSource("field", "value").setVersion(1)
+                    .setVersionType(VersionType.EXTERNAL).execute().actionGet();
+            fail("Expected a version conflict");
+        } catch (VersionConflictEngineException e) {}
+        try {
+            client().prepareIndex("test2", "type", Integer.toString(1)).setSource("field", "value").setVersion(1)
+                    .setVersionType(VersionType.EXTERNAL).execute().actionGet();
+            fail("Expected a version conflict");
+        } catch (VersionConflictEngineException e) {}
+
+        stats = client().admin().indices().prepareStats().setTypes("type1", "type2").execute().actionGet();
+        assertThat(stats.getIndex("test1").getTotal().getIndexing().getTotal().getIndexFailedCount(), equalTo(2l));
+        assertThat(stats.getIndex("test2").getTotal().getIndexing().getTotal().getIndexFailedCount(), equalTo(1l));
+        assertThat(stats.getPrimaries().getIndexing().getTypeStats().get("type1").getIndexFailedCount(), equalTo(1L));
+        assertThat(stats.getPrimaries().getIndexing().getTypeStats().get("type2").getIndexFailedCount(), equalTo(1L));
+        assertThat(stats.getTotal().getIndexing().getTotal().getIndexFailedCount(), equalTo(3L));
     }
 
     @Test

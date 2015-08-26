@@ -171,6 +171,8 @@ public class ShardIndexingService extends AbstractIndexShardComponent {
     public void postIndex(Engine.Index index, Throwable ex) {
         totalStats.indexCurrent.dec();
         typeStats(index.type()).indexCurrent.dec();
+        totalStats.indexFailed.inc();
+        typeStats(index.type()).indexFailed.inc();
     }
 
     public Engine.Delete preDelete(Engine.Delete delete) {
@@ -256,6 +258,7 @@ public class ShardIndexingService extends AbstractIndexShardComponent {
         public final MeanMetric indexMetric = new MeanMetric();
         public final MeanMetric deleteMetric = new MeanMetric();
         public final CounterMetric indexCurrent = new CounterMetric();
+        public final CounterMetric indexFailed = new CounterMetric();
         public final CounterMetric deleteCurrent = new CounterMetric();
         public final CounterMetric noopUpdates = new CounterMetric();
         public final CounterMetric throttleTimeMillisMetric = new CounterMetric();
@@ -272,7 +275,7 @@ public class ShardIndexingService extends AbstractIndexShardComponent {
                 }
             }
             return new IndexingStats.Stats(
-                    indexMetric.count(), TimeUnit.NANOSECONDS.toMillis(indexMetric.sum()), indexCurrent.count(),
+                    indexMetric.count(), TimeUnit.NANOSECONDS.toMillis(indexMetric.sum()), indexCurrent.count(), indexFailed.count(),
                     deleteMetric.count(), TimeUnit.NANOSECONDS.toMillis(deleteMetric.sum()), deleteCurrent.count(),
                     noopUpdates.count(), isThrottled, TimeUnit.MILLISECONDS.toMillis(throttleTimeMillisMetric.count() + TimeValue.nsecToMSec(currentThrottleNS)));
         }

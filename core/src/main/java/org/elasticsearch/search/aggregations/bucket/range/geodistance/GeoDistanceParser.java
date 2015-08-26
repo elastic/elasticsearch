@@ -99,13 +99,13 @@ public class GeoDistanceParser implements Aggregator.Parser {
                 } else if ("distance_type".equals(currentFieldName) || "distanceType".equals(currentFieldName)) {
                     distanceType = GeoDistance.fromString(parser.text());
                 } else {
-                    throw new SearchParseException(context, getSearchParseExceptionMessage(currentFieldName, aggregationName), parser.getTokenLocation());
+                    throw new SearchParseException(context, getSearchParseExceptionMessage(token, currentFieldName, aggregationName), parser.getTokenLocation());
                 }
             } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
                 if ("keyed".equals(currentFieldName)) {
                     keyed = parser.booleanValue();
                 } else {
-                    throw new SearchParseException(context, getSearchParseExceptionMessage(currentFieldName, aggregationName), parser.getTokenLocation());
+                    throw new SearchParseException(context, getSearchParseExceptionMessage(token, currentFieldName, aggregationName), parser.getTokenLocation());
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if ("ranges".equals(currentFieldName)) {
@@ -139,11 +139,11 @@ public class GeoDistanceParser implements Aggregator.Parser {
                         ranges.add(new RangeAggregator.Range(key(key, from, to), from, fromAsStr, to, toAsStr));
                     }
                 } else  {
-                    throw new SearchParseException(context, getSearchParseExceptionMessage(currentFieldName, aggregationName),
+                    throw new SearchParseException(context, getSearchParseExceptionMessage(token, currentFieldName, aggregationName),
                             parser.getTokenLocation());
                 }
             } else {
-                throw new SearchParseException(context, getSearchParseExceptionMessage(currentFieldName, aggregationName),
+                throw new SearchParseException(context, getSearchParseExceptionMessage(token, currentFieldName, aggregationName),
                         parser.getTokenLocation());
             }
         }
@@ -162,9 +162,9 @@ public class GeoDistanceParser implements Aggregator.Parser {
         return new GeoDistanceFactory(aggregationName, vsParser.config(), InternalGeoDistance.FACTORY, origin, unit, distanceType, ranges, keyed);
     }
 
-    private static String getSearchParseExceptionMessage(String currentFieldName, String aggregationName) {
-        return "Failed when parsing field: '" +  currentFieldName +
-                "' found inside aggregation: '" + aggregationName + "'.";
+    private static String getSearchParseExceptionMessage(XContentParser.Token token, String currentFieldName, String aggregationName) {
+        return "Unexpected token " + token + " found when parsing field: '" +  currentFieldName +
+                "' inside aggregation: '" + aggregationName + "'.";
     }
 
     private static class GeoDistanceFactory extends ValuesSourceAggregatorFactory<ValuesSource.GeoPoint> {

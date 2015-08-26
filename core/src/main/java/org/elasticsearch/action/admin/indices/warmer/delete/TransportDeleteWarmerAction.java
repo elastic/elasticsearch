@@ -96,6 +96,7 @@ public class TransportDeleteWarmerAction extends TransportMasterNodeAction<Delet
                 for (int i=0; i<request.names().length; i++){
                     if (request.names()[i].equals(MetaData.ALL)) {
                         deleteAll = true;
+                        break;
                     }
                 }
 

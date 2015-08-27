@@ -20,12 +20,7 @@
 package org.elasticsearch.indices;
 
 import com.google.common.base.Function;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Iterables;
-import com.google.common.collect.Iterators;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
+import com.google.common.collect.*;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.IOUtils;
@@ -38,14 +33,8 @@ import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.inject.CreationException;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.inject.Injector;
-import org.elasticsearch.common.inject.Injectors;
-import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.inject.ModulesBuilder;
+import org.elasticsearch.common.inject.*;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -53,12 +42,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.gateway.MetaDataStateFormat;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexModule;
-import org.elasticsearch.index.IndexNameModule;
-import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.LocalNodeIdModule;
+import org.elasticsearch.index.*;
 import org.elasticsearch.index.aliases.IndexAliasesServiceModule;
 import org.elasticsearch.index.analysis.AnalysisModule;
 import org.elasticsearch.index.analysis.AnalysisService;
@@ -91,11 +75,7 @@ import org.elasticsearch.plugins.PluginsService;
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.file.Files;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -124,7 +104,26 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
     private final NodeEnvironment nodeEnv;
     private final TimeValue shardsClosedTimeout;
 
-    private volatile Map<String, Tuple<IndexService, Injector>> indices = ImmutableMap.of();
+    private volatile Map<String, IndexServiceInjectorPair> indices = ImmutableMap.of();
+    
+    static class IndexServiceInjectorPair {
+        private final IndexService indexService;
+        private final Injector injector;
+
+        public IndexServiceInjectorPair(IndexService indexService, Injector injector) {
+            this.indexService = indexService;
+            this.injector = injector;
+        }
+
+        public IndexService getIndexService() {
+            return indexService;
+        }
+
+        public Injector getInjector() {
+            return injector;
+        }
+    }
+    
     private final Map<Index, List<PendingDelete>> pendingDeletes = new HashMap<>();
 
     private final OldShardsStats oldShardsStats = new OldShardsStats();
@@ -229,8 +228,8 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         }
 
         Map<Index, List<IndexShardStats>> statsByShard = Maps.newHashMap();
-        for (Tuple<IndexService, Injector> value : indices.values()) {
-            IndexService indexService = value.v1();
+        for (IndexServiceInjectorPair value : indices.values()) {
+            IndexService indexService = value.getIndexService();
             for (IndexShard indexShard : indexService) {
                 try {
                     if (indexShard.routingEntry() == null) {
@@ -261,10 +260,10 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
 
     @Override
     public Iterator<IndexService> iterator() {
-        return Iterators.transform(indices.values().iterator(), new Function<Tuple<IndexService, Injector>, IndexService>() {
+        return Iterators.transform(indices.values().iterator(), new Function<IndexServiceInjectorPair, IndexService>() {
             @Override
-            public IndexService apply(Tuple<IndexService, Injector> input) {
-                return input.v1();
+            public IndexService apply(IndexServiceInjectorPair input) {
+                return input.getIndexService();
             }
         });
     }
@@ -279,11 +278,11 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
      */
     @Nullable
     public IndexService indexService(String index) {
-        Tuple<IndexService, Injector> indexServiceInjectorTuple = indices.get(index);
-        if (indexServiceInjectorTuple == null) {
+        IndexServiceInjectorPair indexServiceInjectorPair = indices.get(index);
+        if (indexServiceInjectorPair == null) {
             return null;
         } else {
-            return indexServiceInjectorTuple.v1();
+            return indexServiceInjectorPair.getIndexService();
         }
     }
 
@@ -352,7 +351,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
 
         indicesLifecycle.afterIndexCreated(indexService);
 
-        indices = newMapBuilder(indices).put(index.name(), new Tuple<>(indexService, indexInjector)).immutableMap();
+        indices = newMapBuilder(indices).put(index.name(), new IndexServiceInjectorPair(indexService, indexInjector)).immutableMap();
 
         return indexService;
     }
@@ -377,10 +376,10 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
                 }
 
                 logger.debug("[{}] closing ... (reason [{}])", index, reason);
-                Map<String, Tuple<IndexService, Injector>> tmpMap = newHashMap(indices);
-                Tuple<IndexService, Injector> remove = tmpMap.remove(index);
-                indexService = remove.v1();
-                indexInjector = remove.v2();
+                Map<String, IndexServiceInjectorPair> tmpMap = newHashMap(indices);
+                IndexServiceInjectorPair remove = tmpMap.remove(index);
+                indexService = remove.getIndexService();
+                indexInjector = remove.getInjector();
                 indices = ImmutableMap.copyOf(tmpMap);
             }
 
@@ -488,7 +487,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
             synchronized (this) {
                 String indexName = metaData.index();
                 if (indices.containsKey(indexName)) {
-                    String localUUid = indices.get(indexName).v1().indexUUID();
+                    String localUUid = indices.get(indexName).getIndexService().indexUUID();
                     throw new IllegalStateException("Can't delete index store for [" + indexName + "] - it's still part of the indices service [" + localUUid + "] [" + metaData.getIndexUUID() + "]");
                 }
                 if (clusterState.metaData().hasIndex(indexName) && (clusterState.nodes().localNode().masterNode() == true)) {
@@ -589,9 +588,9 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
      * @return true if the index can be deleted on this node
      */
     public boolean canDeleteIndexContents(Index index, Settings indexSettings) {
-        final Tuple<IndexService, Injector> indexServiceInjectorTuple = this.indices.get(index.name());
+        final IndexServiceInjectorPair indexServiceInjectorPair = this.indices.get(index.name());
         if (IndexMetaData.isOnSharedFilesystem(indexSettings) == false) {
-            if (indexServiceInjectorTuple == null && nodeEnv.hasNodeFile()) {
+            if (indexServiceInjectorPair == null && nodeEnv.hasNodeFile()) {
                 return true;
             }
         } else {
@@ -622,10 +621,10 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
     }
 
     private boolean canDeleteShardContent(ShardId shardId, @IndexSettings Settings indexSettings) {
-        final Tuple<IndexService, Injector> indexServiceInjectorTuple = this.indices.get(shardId.getIndex());
+        final IndexServiceInjectorPair indexServiceInjectorPair = this.indices.get(shardId.getIndex());
         if (IndexMetaData.isOnSharedFilesystem(indexSettings) == false) {
-            if (indexServiceInjectorTuple != null && nodeEnv.hasNodeFile()) {
-                final IndexService indexService = indexServiceInjectorTuple.v1();
+            if (indexServiceInjectorPair != null && nodeEnv.hasNodeFile()) {
+                final IndexService indexService = indexServiceInjectorPair.getIndexService();
                 return indexService.hasShard(shardId.id()) == false;
             } else if (nodeEnv.hasNodeFile()) {
                 if (NodeEnvironment.hasCustomDataPath(indexSettings)) {

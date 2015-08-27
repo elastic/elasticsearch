@@ -20,6 +20,7 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.search.type.ScrollIdForNode;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.ClusterService;
@@ -27,7 +28,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.CountDown;
@@ -69,7 +69,7 @@ public class TransportClearScrollAction extends HandledTransportAction<ClearScro
         final DiscoveryNodes nodes;
         final CountDown expectedOps;
         final ClearScrollRequest request;
-        final List<Tuple<String, Long>[]> contexts = new ArrayList<>();
+        final List<ScrollIdForNode[]> contexts = new ArrayList<>();
         final ActionListener<ClearScrollResponse> listener;
         final AtomicReference<Throwable> expHolder;
         final AtomicInteger numberOfFreedSearchContexts = new AtomicInteger(0);
@@ -81,7 +81,7 @@ public class TransportClearScrollAction extends HandledTransportAction<ClearScro
                 expectedOps = nodes.size();
             } else {
                 for (String parsedScrollId : request.getScrollIds()) {
-                    Tuple<String, Long>[] context = parseScrollId(parsedScrollId).getContext();
+                    ScrollIdForNode[] context = parseScrollId(parsedScrollId).getContext();
                     expectedOps += context.length;
                     this.contexts.add(context);
                 }
@@ -114,15 +114,15 @@ public class TransportClearScrollAction extends HandledTransportAction<ClearScro
                     });
                 }
             } else {
-                for (Tuple<String, Long>[] context : contexts) {
-                    for (Tuple<String, Long> target : context) {
-                        final DiscoveryNode node = nodes.get(target.v1());
+                for (ScrollIdForNode[] context : contexts) {
+                    for (ScrollIdForNode target : context) {
+                        final DiscoveryNode node = nodes.get(target.getNode());
                         if (node == null) {
                             onFreedContext(false);
                             continue;
                         }
 
-                        searchServiceTransportAction.sendFreeContext(node, target.v2(), request, new ActionListener<SearchServiceTransportAction.SearchFreeContextResponse>() {
+                        searchServiceTransportAction.sendFreeContext(node, target.getScrollId(), request, new ActionListener<SearchServiceTransportAction.SearchFreeContextResponse>() {
                             @Override
                             public void onResponse(SearchServiceTransportAction.SearchFreeContextResponse freed) {
                                 onFreedContext(freed.isFreed());

@@ -16,6 +16,8 @@ import org.junit.Test;
 
 import java.util.Collection;
 import java.util.Iterator;
+import java.util.concurrent.Callable;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.*;
@@ -34,7 +36,7 @@ public class IndexStatsCollectorTests extends AbstractCollectorTestCase {
     public void testIndexStatsCollectorOneIndex() throws Exception {
         waitForNoBlocksOnNodes();
 
-        final String indexName = "test_" + randomInt();
+        final String indexName = "one-index";
 
         final int nbDocs = randomIntBetween(1, 20);
         for (int i = 0; i < nbDocs; i++) {
@@ -45,8 +47,14 @@ public class IndexStatsCollectorTests extends AbstractCollectorTestCase {
 
         waitForRelocation();
 
-        Collection<MarvelDoc> results = newIndexStatsCollector().doCollect();
-        assertThat(results, hasSize(1));
+        Collection<MarvelDoc> results = assertBusy(new Callable<Collection<MarvelDoc>>() {
+            @Override
+            public Collection<MarvelDoc> call() throws Exception {
+                Collection<MarvelDoc> results = newIndexStatsCollector().doCollect();
+                assertThat(results, hasSize(1));
+                return results;
+            }
+        }, 30L, TimeUnit.SECONDS);
 
         MarvelDoc marvelDoc = results.iterator().next();
         assertNotNull(marvelDoc);
@@ -73,8 +81,8 @@ public class IndexStatsCollectorTests extends AbstractCollectorTestCase {
     public void testIndexStatsCollectorMultipleIndices() throws Exception {
         waitForNoBlocksOnNodes();
 
-        final String indexPrefix = "test_" + randomInt() + "_";
-        int nbIndices = randomIntBetween(1, 5);
+        final String indexPrefix = "multi-indices-";
+        final int nbIndices = randomIntBetween(1, 5);
         int[] docsPerIndex = new int[nbIndices];
 
         for (int i = 0; i < nbIndices; i++) {
@@ -92,8 +100,14 @@ public class IndexStatsCollectorTests extends AbstractCollectorTestCase {
 
         waitForRelocation();
 
-        Collection<MarvelDoc> results = newIndexStatsCollector().doCollect();
-        assertThat(results, hasSize(nbIndices));
+        Collection<MarvelDoc> results = assertBusy(new Callable<Collection<MarvelDoc>>() {
+            @Override
+            public Collection<MarvelDoc> call() throws Exception {
+                Collection<MarvelDoc> results = newIndexStatsCollector().doCollect();
+                assertThat(results, hasSize(nbIndices));
+                return results;
+            }
+        }, 30L, TimeUnit.SECONDS);
 
         for (int i = 0; i < nbIndices; i++) {
             String indexName = indexPrefix + i;

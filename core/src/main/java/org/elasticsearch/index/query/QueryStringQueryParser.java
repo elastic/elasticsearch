@@ -222,8 +222,6 @@ public class QueryStringQueryParser implements QueryParser {
             qpSettings.queryString(org.apache.lucene.queryparser.classic.QueryParser.escape(qpSettings.queryString()));
         }
 
-        qpSettings.queryTypes(parseContext.queryTypes());
-
         MapperQueryParser queryParser = parseContext.queryParser(qpSettings);
 
         try {

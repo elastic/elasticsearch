@@ -131,7 +131,6 @@ public class UpdateHelper extends AbstractComponent {
                     .routing(request.routing())
                     .parent(request.parent())
                     .consistencyLevel(request.consistencyLevel());
-            indexRequest.operationThreaded(false);
             if (request.versionType() != VersionType.INTERNAL) {
                 // in all but the internal versioning mode, we want to create the new document using the given version.
                 indexRequest.version(request.version()).versionType(request.versionType());
@@ -227,13 +226,11 @@ public class UpdateHelper extends AbstractComponent {
                     .consistencyLevel(request.consistencyLevel())
                     .timestamp(timestamp).ttl(ttl)
                     .refresh(request.refresh());
-            indexRequest.operationThreaded(false);
             return new Result(indexRequest, Operation.INDEX, updatedSourceAsMap, updateSourceContentType);
         } else if ("delete".equals(operation)) {
             DeleteRequest deleteRequest = Requests.deleteRequest(request.index()).type(request.type()).id(request.id()).routing(routing).parent(parent)
                     .version(updateVersion).versionType(request.versionType())
                     .consistencyLevel(request.consistencyLevel());
-            deleteRequest.operationThreaded(false);
             return new Result(deleteRequest, Operation.DELETE, updatedSourceAsMap, updateSourceContentType);
         } else if ("none".equals(operation)) {
             UpdateResponse update = new UpdateResponse(getResult.getIndex(), getResult.getType(), getResult.getId(), getResult.getVersion(), false);

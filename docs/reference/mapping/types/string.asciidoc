@@ -141,10 +141,15 @@ Defaults depend on the <<mapping-index,`index`>> setting:
     values.  Defaults to `null`, which means the field is treated as missing.
     If the field is `analyzed`, the `null_value` will also be analyzed.
 
-<<position-offset-gap,`position_offset_gap`>>::
+<<position-increment-gap,`position_increment_gap`>>::
 
     The number of fake term positions which should be inserted between
     each element of an array of strings. Defaults to 0.
+    The number of fake term position which should be inserted between each
+    element of an array of strings. Defaults to the position_increment_gap
+    configured on the analyzer which defaults to 100. 100 was chosen because it
+    prevents phrase queries with reasonably large slops (less than 100) from
+    matching terms across field values.
 
 <<mapping-store,`store`>>::
 
@@ -166,5 +171,3 @@ Defaults depend on the <<mapping-index,`index`>> setting:
 
     Whether term vectors should be stored for an <<mapping-index,`analyzed`>>
     field. Defaults to `no`.
-
-

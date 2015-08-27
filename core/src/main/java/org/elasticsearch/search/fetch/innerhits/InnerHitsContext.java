@@ -135,7 +135,11 @@ public final class InnerHitsContext {
                 } else {
                     topDocsCollector = TopScoreDocCollector.create(topN);
                 }
-                context.searcher().search(q, topDocsCollector);
+                try {
+                    context.searcher().search(q, topDocsCollector);
+                } finally {
+                    clearReleasables(Lifetime.COLLECTION);
+                }
                 return topDocsCollector.topDocs(from(), size());
             }
         }
@@ -306,7 +310,11 @@ public final class InnerHitsContext {
                 } else {
                     topDocsCollector = TopScoreDocCollector.create(topN);
                 }
-                context.searcher().search( q, topDocsCollector);
+                try {
+                    context.searcher().search(q, topDocsCollector);
+                } finally {
+                    clearReleasables(Lifetime.COLLECTION);
+                }
                 return topDocsCollector.topDocs(from(), size());
             }
         }

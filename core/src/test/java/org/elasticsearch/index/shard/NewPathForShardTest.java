@@ -53,10 +53,10 @@ import com.carrotsearch.randomizedtesting.annotations.Repeat;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 
+/** Separate test class from ShardPathTests because we need static (BeforeClass) setup to install mock filesystems... */
 public class NewPathForShardTest extends ESTestCase {
 
-    // Sneakiness to install a mock filesystem to pretend how much free space we have on each path.data:
-
+    // Sneakiness to install mock file stores so we can pretend how much free space we have on each path.data:
     private static MockFileStore aFileStore = new MockFileStore("mocka");
     private static MockFileStore bFileStore = new MockFileStore("mockb");
     private static FileSystem origFileSystem;
@@ -64,11 +64,10 @@ public class NewPathForShardTest extends ESTestCase {
     @BeforeClass
     public static void installMockUsableSpaceFS() throws Exception {
         // Necessary so when Environment.clinit runs, to gather all FileStores, it sees ours:
+        origFileSystem = FileSystems.getDefault();
+
         Field field = PathUtils.class.getDeclaredField("DEFAULT");
         field.setAccessible(true);
-        // nocommit can't double Filter maybe?
-        // origFileSystem = (FileSystem) field.get(null);
-        origFileSystem = FileSystems.getDefault();
         FileSystem mock = new MockUsableSpaceFileSystemProvider().getFileSystem(getBaseTempDirForTestClass().toUri());
         field.set(null, mock);
         assertEquals(mock, PathUtils.getDefaultFileSystem());
@@ -135,8 +134,6 @@ public class NewPathForShardTest extends ESTestCase {
             return desc;
         }
 
-        // TODO: we can enable mocking of these when we need them later:
-
         @Override
         public boolean isReadOnly() {
             return false;
@@ -197,7 +194,7 @@ public class NewPathForShardTest extends ESTestCase {
         assertEquals("mocka", nodePaths[0].fileStore.name());
         assertEquals("mockb", nodePaths[1].fileStore.name());
 
-        // a has lots of free space, but b has little, so new shard should go to a:
+        // Path a has lots of free space, but b has little, so new shard should go to a:
         aFileStore.usableSpace = 100000;
         bFileStore.usableSpace = 1000;
 
@@ -205,7 +202,7 @@ public class NewPathForShardTest extends ESTestCase {
         ShardPath result = ShardPath.selectNewPathForShard(nodeEnv, shardId, Settings.EMPTY, 100, Collections.<Path,Integer>emptyMap());
         assertTrue(result.getDataPath().toString().contains("/a/"));
 
-        // test the reverse: b has lots of free space, but a has little, so new shard should go to b:
+        // Test the reverse: b has lots of free space, but a has little, so new shard should go to b:
         aFileStore.usableSpace = 1000;
         bFileStore.usableSpace = 100000;
 
@@ -213,7 +210,7 @@ public class NewPathForShardTest extends ESTestCase {
         result = ShardPath.selectNewPathForShard(nodeEnv, shardId, Settings.EMPTY, 100, Collections.<Path,Integer>emptyMap());
         assertTrue(result.getDataPath().toString().contains("/b/"));
 
-        // now a and be have equal usable space; we allocate two shards to the node, and each should go to different paths:
+        // Now a and be have equal usable space; we allocate two shards to the node, and each should go to different paths:
         aFileStore.usableSpace = 100000;
         bFileStore.usableSpace = 100000;
 
@@ -223,8 +220,9 @@ public class NewPathForShardTest extends ESTestCase {
         ShardPath result2 = ShardPath.selectNewPathForShard(nodeEnv, shardId, Settings.EMPTY, 100, dataPathToShardCount);
 
         // This was the original failure: on a node with 2 disks that have nearly equal
-        // free space, we would always allocate all incoming shards to the one path that
-        // had the most free space:
+        // free space, we would always allocate all N incoming shards to the one path that
+        // had the most free space, never using the other drive unless new shards arrive
+        // after the first shards started using storage:
         assertNotEquals(result1.getDataPath(), result2.getDataPath());
     }
 }

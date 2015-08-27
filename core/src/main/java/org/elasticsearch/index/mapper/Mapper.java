@@ -94,18 +94,16 @@ public abstract class Mapper implements ToXContent, Iterable<Mapper> {
             private final Version indexVersionCreated;
 
             private final ParseFieldMatcher parseFieldMatcher;
-            private final ScriptService scriptService;
 
             public ParserContext(AnalysisService analysisService, SimilarityLookupService similarityLookupService,
                                  MapperService mapperService, ImmutableMap<String, TypeParser> typeParsers,
-                                Version indexVersionCreated, ParseFieldMatcher parseFieldMatcher, ScriptService scriptService) {
+                                Version indexVersionCreated, ParseFieldMatcher parseFieldMatcher) {
                 this.analysisService = analysisService;
                 this.similarityLookupService = similarityLookupService;
                 this.mapperService = mapperService;
                 this.typeParsers = typeParsers;
                 this.indexVersionCreated = indexVersionCreated;
                 this.parseFieldMatcher = parseFieldMatcher;
-                this.scriptService = scriptService;
             }
 
             public AnalysisService analysisService() {
@@ -130,10 +128,6 @@ public abstract class Mapper implements ToXContent, Iterable<Mapper> {
 
             public ParseFieldMatcher parseFieldMatcher() {
                 return parseFieldMatcher;
-            }
-
-            public ScriptService scriptService() {
-                return scriptService;
             }
         }
 

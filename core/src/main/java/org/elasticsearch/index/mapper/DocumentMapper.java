@@ -23,6 +23,7 @@ import com.google.common.base.Function;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
+
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -60,7 +61,6 @@ import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -81,7 +81,7 @@ public class DocumentMapper implements ToXContent {
 
         private Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> rootMappers = new LinkedHashMap<>();
 
-        private List<SourceTransform> sourceTransforms = new ArrayList<>(1);
+        private final List<SourceTransform> sourceTransforms = new ArrayList<>(1);
 
         private final Settings indexSettings;
 
@@ -128,18 +128,8 @@ public class DocumentMapper implements ToXContent {
             return this;
         }
 
-        public Builder transform(ScriptService scriptService, Script script) {
-            sourceTransforms.add(new ScriptTransform(scriptService, script));
-            return this;
-        }
-
-        /**
-         * @deprecated Use {@link #transform(ScriptService, Script)} instead.
-         */
-        @Deprecated
-        public Builder transform(ScriptService scriptService, String script, ScriptType scriptType, String language,
-                Map<String, Object> parameters) {
-            sourceTransforms.add(new ScriptTransform(scriptService, new Script(script, scriptType, language, parameters)));
+        public Builder transform(SourceTransform sourceTransform) {
+            sourceTransforms.add(sourceTransform);
             return this;
         }
 
@@ -430,43 +420,5 @@ public class DocumentMapper implements ToXContent {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         return mapping.toXContent(builder, params);
-    }
-
-    /**
-     * Script based source transformation.
-     */
-    private static class ScriptTransform implements SourceTransform {
-        private final ScriptService scriptService;
-        /**
-         * The script to transform the source document before indexing.
-         */
-        private final Script script;
-
-        public ScriptTransform(ScriptService scriptService, Script script) {
-            this.scriptService = scriptService;
-            this.script = script;
-        }
-
-        @Override
-        @SuppressWarnings("unchecked")
-        public Map<String, Object> transformSourceAsMap(Map<String, Object> sourceAsMap) {
-            try {
-                // We use the ctx variable and the _source name to be consistent with the update api.
-                ExecutableScript executable = scriptService.executable(script, ScriptContext.Standard.MAPPING);
-                Map<String, Object> ctx = new HashMap<>(1);
-                ctx.put("_source", sourceAsMap);
-                executable.setNextVar("ctx", ctx);
-                executable.run();
-                ctx = (Map<String, Object>) executable.unwrap(ctx);
-                return (Map<String, Object>) ctx.get("_source");
-            } catch (Exception e) {
-                throw new IllegalArgumentException("failed to execute script", e);
-            }
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return script.toXContent(builder, params);
-        }
     }
 }

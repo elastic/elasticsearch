@@ -151,7 +151,7 @@ public class DocumentMapperParser {
 
     public Mapper.TypeParser.ParserContext parserContext() {
         return new Mapper.TypeParser.ParserContext(analysisService, similarityLookupService, mapperService, typeParsers,
-                indexVersionCreated, parseFieldMatcher, scriptService);
+                indexVersionCreated, parseFieldMatcher);
     }
 
     public DocumentMapper parse(String source) throws MapperParsingException {

@@ -19,18 +19,35 @@
 
 package org.elasticsearch.plugin.mappingtransform;
 
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapper.Builder;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.DocumentMapperRootParser;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.Mapping.SourceTransform;
+import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.script.ScriptService;
 
+import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Parses transform scripts.
+ */
 public class TransformParser implements DocumentMapperRootParser {
+    private final ScriptService scriptService;
+
+    @Inject
+    public TransformParser(ScriptService scriptService) {
+        this.scriptService = scriptService;
+    }
 
     @Override
     @SuppressWarnings("unchecked")
@@ -38,7 +55,7 @@ public class TransformParser implements DocumentMapperRootParser {
         if (field instanceof Map) {
             parseTransform(docBuilder, (Map<String, Object>) field, context);
         } else if (field instanceof List) {
-            for (Object transformItem: (List<Object>)field) {
+            for (Object transformItem : (List<Object>) field) {
                 if (!(transformItem instanceof Map)) {
                     throw new MapperParsingException("Elements of transform list must be objects but one was:  " + field);
                 }
@@ -49,12 +66,53 @@ public class TransformParser implements DocumentMapperRootParser {
         }
     }
 
-    private void parseTransform(DocumentMapper.Builder docBuilder, Map<String, Object> transformConfig, Mapper.TypeParser.ParserContext context) {
+    private void parseTransform(DocumentMapper.Builder docBuilder, Map<String, Object> transformConfig,
+            Mapper.TypeParser.ParserContext context) {
         Script script = Script.parse(transformConfig, true, context.parseFieldMatcher());
         if (script != null) {
-            docBuilder.transform(context.scriptService(), script);
+            docBuilder.transform(new ScriptTransform(scriptService, script));
         }
         DocumentMapperParser.checkNoRemainingFields(transformConfig, context.indexVersionCreated(),
                 "Transform config has unsupported parameters: ");
     }
+
+    /**
+     * Script based source transformation.
+     */
+    private static class ScriptTransform implements SourceTransform {
+        private final ScriptService scriptService;
+        /**
+         * The script to transform the source document before indexing.
+         */
+        private final Script script;
+
+        public ScriptTransform(ScriptService scriptService, Script script) {
+            this.scriptService = scriptService;
+            this.script = script;
+        }
+
+        @Override
+        @SuppressWarnings("unchecked")
+        public Map<String, Object> transformSourceAsMap(Map<String, Object> sourceAsMap) {
+            try {
+                // We use the ctx variable and the _source name to be consistent
+                // with the update api.
+                ExecutableScript executable = scriptService.executable(script, ScriptContext.Standard.MAPPING);
+                Map<String, Object> ctx = new HashMap<>(1);
+                ctx.put("_source", sourceAsMap);
+                executable.setNextVar("ctx", ctx);
+                executable.run();
+                ctx = (Map<String, Object>) executable.unwrap(ctx);
+                return (Map<String, Object>) ctx.get("_source");
+            } catch (Exception e) {
+                throw new IllegalArgumentException("failed to execute script", e);
+            }
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return script.toXContent(builder, params);
+        }
+    }
+
 }

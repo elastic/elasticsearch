@@ -1,17 +1,16 @@
 package org.elasticsearch.devtools
 
 import com.carrotsearch.ant.tasks.junit4.JUnit4
-import com.carrotsearch.ant.tasks.junit4.ListenersList
 import com.carrotsearch.ant.tasks.junit4.dependencies.com.google.common.eventbus.Subscribe
 import com.carrotsearch.ant.tasks.junit4.events.aggregated.AggregatedStartEvent
 import com.carrotsearch.ant.tasks.junit4.listeners.AggregatedEventListener
-import com.carrotsearch.ant.tasks.junit4.listeners.TextReport
 import groovy.xml.NamespaceBuilder
+import org.apache.tools.ant.RuntimeConfigurable
+import org.apache.tools.ant.UnknownElement
 import org.gradle.api.DefaultTask
 import org.gradle.api.logging.Logger
 import org.gradle.api.tasks.SourceSetContainer
 import org.gradle.api.tasks.TaskAction
-import org.gradle.api.tasks.testing.TestReport
 import org.gradle.logging.ProgressLogger
 import org.gradle.logging.ProgressLoggerFactory
 
@@ -55,6 +54,7 @@ class RandomizedTest extends DefaultTask {
                 classpath: getProject().configurations.testCompile.asPath)
         def junit4 = NamespaceBuilder.newInstance(ant, 'junit4')
         logger.lifecycle('RUNNING TESTS')
+        logger.info('Junit4: ' + junit4)
         junit4.junit4(
                 taskName: 'junit4',
                 parallelism: 8,
@@ -82,9 +82,15 @@ class RandomizedTest extends DefaultTask {
                         showSuiteSummary: true,
                         timestamps: false
                 )
-                //logger.info('DELGATE: ' + delegate)
-                //delegate.addConfigured(new JUnit4ProgressLogger(factory: getProgressLoggerFactory(), logger: getLogger()))
+                delegate.current.addChild(makeProgressListener())
             }
         }
+    }
+
+    def makeProgressListener() {
+        UnknownElement element = new UnknownElement('gradle-progress-reporter')
+        def logger = new JUnit4ProgressLogger(factory: getProgressLoggerFactory(), logger: getLogger())
+        element.setRuntimeConfigurableWrapper(new RuntimeConfigurable(logger, 'gradle-progress-reporter'))
+        return element
     }
 }

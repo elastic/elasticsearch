@@ -38,7 +38,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
 
 public class DefaultSourceMappingTests extends ESSingleNodeTestCase {
 
@@ -202,7 +202,7 @@ public class DefaultSourceMappingTests extends ESSingleNodeTestCase {
         MapperService mapperService = createIndex("test").mapperService();
         mapperService.merge(MapperService.DEFAULT_MAPPING, new CompressedXContent(defaultMapping), true, false);
 
-        DocumentMapper mapper = mapperService.documentMapperWithAutoCreate("my_type").v1();
+        DocumentMapper mapper = mapperService.documentMapperWithAutoCreate("my_type").getDocumentMapper();
         assertThat(mapper.type(), equalTo("my_type"));
         assertThat(mapper.sourceMapper().enabled(), equalTo(false));
     }

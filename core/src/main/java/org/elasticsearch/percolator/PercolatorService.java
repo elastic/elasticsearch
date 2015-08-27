@@ -38,7 +38,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -275,10 +274,10 @@ public class PercolatorService extends AbstractComponent {
                         }
 
                         MapperService mapperService = documentIndexService.mapperService();
-                        Tuple<DocumentMapper, Mapping> docMapper = mapperService.documentMapperWithAutoCreate(request.documentType());
-                        doc = docMapper.v1().parse(source(parser).index(index).type(request.documentType()).flyweight(true));
-                        if (docMapper.v2() != null) {
-                            doc.addDynamicMappingsUpdate(docMapper.v2());
+                        DocumentMapperForType docMapper = mapperService.documentMapperWithAutoCreate(request.documentType());
+                        doc = docMapper.getDocumentMapper().parse(source(parser).index(index).type(request.documentType()).flyweight(true));
+                        if (docMapper.getMapping() != null) {
+                            doc.addDynamicMappingsUpdate(docMapper.getMapping());
                         }
                         if (doc.dynamicMappingsUpdate() != null) {
                             mappingUpdatedAction.updateMappingOnMasterSynchronously(request.shardId().getIndex(), request.documentType(), doc.dynamicMappingsUpdate());
@@ -384,8 +383,8 @@ public class PercolatorService extends AbstractComponent {
         try {
             parser = XContentFactory.xContent(fetchedDoc).createParser(fetchedDoc);
             MapperService mapperService = documentIndexService.mapperService();
-            Tuple<DocumentMapper, Mapping> docMapper = mapperService.documentMapperWithAutoCreate(type);
-            doc = docMapper.v1().parse(source(parser).index(index).type(type).flyweight(true));
+            DocumentMapperForType docMapper = mapperService.documentMapperWithAutoCreate(type);
+            doc = docMapper.getDocumentMapper().parse(source(parser).index(index).type(type).flyweight(true));
 
             if (context.highlight() != null) {
                 doc.setSource(fetchedDoc);

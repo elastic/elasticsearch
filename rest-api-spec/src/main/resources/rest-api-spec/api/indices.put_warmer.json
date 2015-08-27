@@ -41,7 +41,7 @@
         },
         "request_cache": {
           "type" : "boolean",
-          "description" : "Specify whether the request to be wamred shoyd use the request cache, defaults to index level setting"
+          "description" : "Specify whether the request to be warmed should use the request cache, defaults to index level setting"
         }
       }
     },

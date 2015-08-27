@@ -19,16 +19,11 @@
 package org.elasticsearch.index.mapper;
 
 import com.google.common.collect.ImmutableMap;
-
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.core.IntegerFieldMapper;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
@@ -368,7 +363,7 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
 
         // Even if the dynamic type of our new field is long, we already have a mapping for the same field
         // of type string so it should be mapped as a string
-        DocumentMapper newMapper = indexService.mapperService().documentMapperWithAutoCreate("type2").v1();
+        DocumentMapper newMapper = indexService.mapperService().documentMapperWithAutoCreate("type2").getDocumentMapper();
         Mapper update = parse(newMapper, indexService.mapperService().documentMapperParser(),
                 XContentFactory.jsonBuilder().startObject().field("my_field1", 42).endObject());
         Mapper myField1Mapper = null;

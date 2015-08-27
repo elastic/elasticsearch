@@ -22,14 +22,12 @@ package org.elasticsearch.index;
 import com.google.common.base.Function;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterators;
-
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.*;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
@@ -40,7 +38,6 @@ import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.deletionpolicy.DeletionPolicyModule;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
-import org.elasticsearch.index.shard.StoreRecoveryService;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.settings.IndexSettings;
@@ -102,7 +99,25 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
     private final NodeEnvironment nodeEnv;
     private final IndicesService indicesServices;
 
-    private volatile ImmutableMap<Integer, Tuple<IndexShard, Injector>> shards = ImmutableMap.of();
+    private volatile ImmutableMap<Integer, IndexShardInjectorPair> shards = ImmutableMap.of();
+
+    private static class IndexShardInjectorPair {
+        private final IndexShard indexShard;
+        private final Injector injector;
+
+        public IndexShardInjectorPair(IndexShard indexShard, Injector injector) {
+            this.indexShard = indexShard;
+            this.injector = injector;
+        }
+
+        public IndexShard getIndexShard() {
+            return indexShard;
+        }
+
+        public Injector getInjector() {
+            return injector;
+        }
+    }
 
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final AtomicBoolean deleted = new AtomicBoolean(false);
@@ -147,10 +162,10 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
 
     @Override
     public Iterator<IndexShard> iterator() {
-        return Iterators.transform(shards.values().iterator(), new Function<Tuple<IndexShard, Injector>, IndexShard>() {
+        return Iterators.transform(shards.values().iterator(), new Function<IndexShardInjectorPair, IndexShard>() {
             @Override
-            public IndexShard apply(Tuple<IndexShard, Injector> input) {
-                return input.v1();
+            public IndexShard apply(IndexShardInjectorPair input) {
+                return input.getIndexShard();
             }
         });
     }
@@ -164,9 +179,9 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
      */
     @Nullable
     public IndexShard shard(int shardId) {
-        Tuple<IndexShard, Injector> indexShardInjectorTuple = shards.get(shardId);
-        if (indexShardInjectorTuple != null) {
-            return indexShardInjectorTuple.v1();
+        IndexShardInjectorPair indexShardInjectorPair = shards.get(shardId);
+        if (indexShardInjectorPair != null) {
+            return indexShardInjectorPair.getIndexShard();
         }
         return null;
     }
@@ -244,11 +259,11 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
      * Return the shard injector for the provided id, or throw an exception if there is no such shard.
      */
     public Injector shardInjectorSafe(int shardId)  {
-        Tuple<IndexShard, Injector> tuple = shards.get(shardId);
-        if (tuple == null) {
+        IndexShardInjectorPair indexShardInjectorPair = shards.get(shardId);
+        if (indexShardInjectorPair == null) {
             throw new ShardNotFoundException(new ShardId(index, shardId));
         }
-        return tuple.v2();
+        return indexShardInjectorPair.getInjector();
     }
 
     public String indexUUID() {
@@ -286,6 +301,7 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
         Injector shardInjector = null;
         try {
             lock = nodeEnv.shardLock(shardId, TimeUnit.SECONDS.toMillis(5));
+            indicesLifecycle.beforeIndexShardCreated(shardId, indexSettings);
             ShardPath path;
             try {
                 path = ShardPath.loadShardPath(logger, nodeEnv, shardId, indexSettings);
@@ -310,7 +326,6 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
                 throw new IndexShardAlreadyExistsException(shardId + " already exists");
             }
 
-            indicesLifecycle.beforeIndexShardCreated(shardId, indexSettings);
             logger.debug("creating shard_id {}", shardId);
             // if we are on a shared FS we only own the shard (ie. we can safely delete it) if we are the primary.
             final boolean canDeleteShardContent = IndexMetaData.isOnSharedFilesystem(indexSettings) == false ||
@@ -348,7 +363,7 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
             indicesLifecycle.indexShardStateChanged(indexShard, null, "shard created");
             indicesLifecycle.afterIndexShardCreated(indexShard);
 
-            shards = newMapBuilder(shards).put(shardId.id(), new Tuple<>(indexShard, shardInjector)).immutableMap();
+            shards = newMapBuilder(shards).put(shardId.id(), new IndexShardInjectorPair(indexShard, shardInjector)).immutableMap();
             success = true;
             return indexShard;
         } catch (IOException e) {
@@ -374,10 +389,10 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
             return;
         }
         logger.debug("[{}] closing... (reason: [{}])", shardId, reason);
-        HashMap<Integer, Tuple<IndexShard, Injector>> tmpShardsMap = newHashMap(shards);
-        Tuple<IndexShard, Injector> tuple = tmpShardsMap.remove(shardId);
-        indexShard = tuple.v1();
-        shardInjector = tuple.v2();
+        HashMap<Integer, IndexShardInjectorPair> tmpShardsMap = newHashMap(shards);
+        IndexShardInjectorPair indexShardInjectorPair = tmpShardsMap.remove(shardId);
+        indexShard = indexShardInjectorPair.getIndexShard();
+        shardInjector = indexShardInjectorPair.getInjector();
         shards = ImmutableMap.copyOf(tmpShardsMap);
         closeShardInjector(reason, sId, shardInjector, indexShard);
         logger.debug("[{}] closed (reason: [{}])", shardId, reason);

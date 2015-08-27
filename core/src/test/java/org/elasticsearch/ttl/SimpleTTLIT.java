@@ -20,17 +20,21 @@
 package org.elasticsearch.ttl;
 
 import com.google.common.base.Predicate;
+
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.update.UpdateRequestBuilder;
+import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.get.GetField;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
-import org.junit.Test;
+import org.elasticsearch.test.ESIntegTestCase.Scope;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -39,9 +43,17 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.test.ESIntegTestCase.Scope;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.hamcrest.Matchers.both;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 @ClusterScope(scope= Scope.SUITE, numDataNodes = 1)
 public class SimpleTTLIT extends ESIntegTestCase {
@@ -63,7 +75,6 @@ public class SimpleTTLIT extends ESIntegTestCase {
                 .build();
     }
 
-    @Test
     public void testSimpleTTL() throws Exception {
         assertAcked(prepareCreate("test")
                 .addMapping("type1", XContentFactory.jsonBuilder()
@@ -200,7 +211,7 @@ public class SimpleTTLIT extends ESIntegTestCase {
         assertThat(getResponse.isExists(), equalTo(false));
     }
 
-    @Test // issue 5053
+    // issue 5053
     public void testThatUpdatingMappingShouldNotRemoveTTLConfiguration() throws Exception {
         String index = "foo";
         String type = "mytype";
@@ -218,6 +229,63 @@ public class SimpleTTLIT extends ESIntegTestCase {
 
         // make sure timestamp field is still in mapping
         assertTTLMappingEnabled(index, type);
+    }
+
+    /**
+     * Test that updates with detect_noop set to true (the default) that don't
+     * change the source don't change the ttl. This is unexpected behavior and
+     * documented in ttl-field.asciidoc. If this behavior changes it is safe to
+     * rewrite this test to reflect the new behavior and to change the
+     * documentation.
+     */
+    public void testNoopUpdate() throws IOException {
+        assertAcked(prepareCreate("test")
+                .addMapping("type1", XContentFactory.jsonBuilder()
+                        .startObject()
+                        .startObject("type1")
+                        .startObject("_timestamp").field("enabled", true).endObject()
+                        .startObject("_ttl").field("enabled", true).endObject()
+                        .endObject()
+                        .endObject()));
+        ensureYellow("test");
+
+        long aLongTime = 10000000;
+        long firstTtl = aLongTime * 3;
+        long secondTtl = aLongTime * 2;
+        long thirdTtl = aLongTime * 1;
+        IndexResponse indexResponse = client().prepareIndex("test", "type1", "1").setSource("field1", "value1")
+                .setTTL(firstTtl).setRefresh(true).get();
+        assertTrue(indexResponse.isCreated());
+        assertThat(getTtl("type1", 1), both(lessThan(firstTtl)).and(greaterThan(secondTtl)));
+
+        // Updating with the default detect_noop without a change to the document doesn't change the ttl.
+        UpdateRequestBuilder update = client().prepareUpdate("test", "type1", "1").setDoc("field1", "value1").setTtl(secondTtl);
+        assertThat(updateAndGetTtl(update), both(lessThan(firstTtl)).and(greaterThan(secondTtl)));
+
+        // Updating with the default detect_noop with a change to the document does change the ttl.
+        update = client().prepareUpdate("test", "type1", "1").setDoc("field1", "value2").setTtl(secondTtl);
+        assertThat(updateAndGetTtl(update), both(lessThan(secondTtl)).and(greaterThan(thirdTtl)));
+
+        // Updating with detect_noop=true without a change to the document doesn't change the ttl.
+        update = client().prepareUpdate("test", "type1", "1").setDoc("field1", "value2").setTtl(secondTtl).setDetectNoop(true);
+        assertThat(updateAndGetTtl(update), both(lessThan(secondTtl)).and(greaterThan(thirdTtl)));
+
+        // Updating with detect_noop=false without a change to the document does change the ttl.
+        update = client().prepareUpdate("test", "type1", "1").setDoc("field1", "value2").setTtl(thirdTtl).setDetectNoop(false);
+        assertThat(updateAndGetTtl(update), lessThan(thirdTtl));
+    }
+
+    private long updateAndGetTtl(UpdateRequestBuilder update) {
+        UpdateResponse updateResponse = update.setFields("_ttl").get();
+        assertThat(updateResponse.getShardInfo().getFailed(), equalTo(0));
+        // You can't actually fetch _ttl from an update so we use a get.
+        return getTtl(updateResponse.getType(), updateResponse.getId());
+    }
+
+    private long getTtl(String type, Object id) {
+        GetResponse getResponse = client().prepareGet("test", type, id.toString()).setFields("_ttl").setRealtime(true).execute()
+                .actionGet();
+        return ((Number) getResponse.getField("_ttl").getValue()).longValue();
     }
 
     private void assertTTLMappingEnabled(String index, String type) throws IOException {

@@ -29,6 +29,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.ShardPath;
 
 import java.io.IOException;
 
@@ -37,20 +38,23 @@ import static org.elasticsearch.cluster.routing.ShardRouting.readShardRoutingEnt
 /**
  */
 public class ShardStats extends BroadcastShardResponse implements ToXContent {
-
     private ShardRouting shardRouting;
-
-    CommonStats commonStats;
-
+    private CommonStats commonStats;
     @Nullable
-    CommitStats commitStats;
+    private CommitStats commitStats;
+    private String dataPath;
+    private String statePath;
+    private boolean isCustomDataPath;
 
     ShardStats() {
     }
 
-    public ShardStats(IndexShard indexShard, ShardRouting shardRouting, CommonStatsFlags flags) {
+    public ShardStats(IndexShard indexShard, CommonStatsFlags flags) {
         super(indexShard.shardId());
-        this.shardRouting = shardRouting;
+        this.shardRouting = indexShard.routingEntry();
+        this.dataPath = indexShard.shardPath().getRootDataPath().toString();
+        this.statePath = indexShard.shardPath().getRootStatePath().toString();
+        this.isCustomDataPath = indexShard.shardPath().isCustomDataPath();
         this.commonStats = new CommonStats(indexShard, flags);
         this.commitStats = indexShard.commitStats();
     }
@@ -70,6 +74,18 @@ public class ShardStats extends BroadcastShardResponse implements ToXContent {
         return this.commitStats;
     }
 
+    public String getDataPath() {
+        return dataPath;
+    }
+
+    public String getStatePath() {
+        return statePath;
+    }
+
+    public boolean isCustomDataPath() {
+        return isCustomDataPath;
+    }
+
     public static ShardStats readShardStats(StreamInput in) throws IOException {
         ShardStats stats = new ShardStats();
         stats.readFrom(in);
@@ -82,6 +98,9 @@ public class ShardStats extends BroadcastShardResponse implements ToXContent {
         shardRouting = readShardRoutingEntry(in);
         commonStats = CommonStats.readCommonStats(in);
         commitStats = CommitStats.readOptionalCommitStatsFrom(in);
+        statePath = in.readString();
+        dataPath = in.readString();
+        isCustomDataPath = in.readBoolean();
     }
 
     @Override
@@ -90,6 +109,9 @@ public class ShardStats extends BroadcastShardResponse implements ToXContent {
         shardRouting.writeTo(out);
         commonStats.writeTo(out);
         out.writeOptionalStreamable(commitStats);
+        out.writeString(statePath);
+        out.writeString(dataPath);
+        out.writeBoolean(isCustomDataPath);
     }
 
     @Override
@@ -105,12 +127,21 @@ public class ShardStats extends BroadcastShardResponse implements ToXContent {
         if (commitStats != null) {
             commitStats.toXContent(builder, params);
         }
+        builder.startObject(Fields.SHARD_PATH);
+        builder.field(Fields.STATE_PATH, statePath);
+        builder.field(Fields.DATA_PATH, dataPath);
+        builder.field(Fields.IS_CUSTOM_DATA_PATH, isCustomDataPath);
+        builder.endObject();
         return builder;
     }
 
     static final class Fields {
         static final XContentBuilderString ROUTING = new XContentBuilderString("routing");
         static final XContentBuilderString STATE = new XContentBuilderString("state");
+        static final XContentBuilderString STATE_PATH = new XContentBuilderString("state_path");
+        static final XContentBuilderString DATA_PATH = new XContentBuilderString("data_path");
+        static final XContentBuilderString IS_CUSTOM_DATA_PATH = new XContentBuilderString("is_custom_data_path");
+        static final XContentBuilderString SHARD_PATH = new XContentBuilderString("shard_path");
         static final XContentBuilderString PRIMARY = new XContentBuilderString("primary");
         static final XContentBuilderString NODE = new XContentBuilderString("node");
         static final XContentBuilderString RELOCATING_NODE = new XContentBuilderString("relocating_node");

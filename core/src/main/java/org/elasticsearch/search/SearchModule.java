@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search;
 
-import org.elasticsearch.common.Classes;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.multibindings.Multibinder;
 import org.elasticsearch.common.settings.Settings;
@@ -143,10 +142,9 @@ import org.elasticsearch.search.highlight.HighlightPhase;
 import org.elasticsearch.search.highlight.Highlighter;
 import org.elasticsearch.search.highlight.Highlighters;
 import org.elasticsearch.search.query.QueryPhase;
-import org.elasticsearch.search.suggest.SuggestParseElement;
-import org.elasticsearch.search.suggest.SuggestPhase;
 import org.elasticsearch.search.suggest.Suggester;
 import org.elasticsearch.search.suggest.Suggesters;
+import org.elasticsearch.search.suggest.completion.NamedDocIdsFetchPhase;
 
 import java.util.*;
 
@@ -241,6 +239,7 @@ public class SearchModule extends AbstractModule {
             fetchSubPhaseMultibinder.addBinding().to(clazz);
         }
         bind(InnerHitsFetchSubPhase.class).asEagerSingleton();
+        bind(NamedDocIdsFetchPhase.class).asEagerSingleton();
     }
 
     protected void configureSuggesters() {

@@ -23,10 +23,7 @@ import com.carrotsearch.hppc.IntArrayList;
 import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
-import org.elasticsearch.action.search.ReduceSearchPhaseException;
-import org.elasticsearch.action.search.SearchPhaseExecutionException;
-import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.*;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -167,7 +164,7 @@ public class TransportSearchDfsQueryThenFetchAction extends TransportSearchTypeA
             for (final AtomicArray.Entry<IntArrayList> entry : docIdsToLoad.asList()) {
                 QuerySearchResult queryResult = queryResults.get(entry.index);
                 DiscoveryNode node = nodes.get(queryResult.shardTarget().nodeId());
-                ShardFetchSearchRequest fetchSearchRequest = createFetchRequest(queryResult, entry, lastEmittedDocPerShard);
+                ShardFetchSearchRequest fetchSearchRequest = createFetchRequest(queryResult, entry, null, lastEmittedDocPerShard);
                 executeFetch(entry.index, queryResult.shardTarget(), counter, fetchSearchRequest, node);
             }
         }

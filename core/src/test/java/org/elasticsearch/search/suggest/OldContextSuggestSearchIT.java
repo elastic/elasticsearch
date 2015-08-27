@@ -664,13 +664,15 @@ public class OldContextSuggestSearchIT extends ESIntegTestCase {
 
         SuggestRequest suggestRequest = new SuggestRequest(INDEX);
         XContentBuilder builder = jsonBuilder().startObject()
-            .startObject("suggest")
-                .field("text", "m")
-                .startObject("completion")
-                    .field("field", "suggest")
-                    .startObject("context").startObject("location").startObject("value").field("lat", 0).field("lon", 0).endObject().field("precision", "1km").endObject().endObject()
+                .startObject("suggest")
+                    .startObject("suggest")
+                        .field("text", "m")
+                        .startObject("completion")
+                            .field("field", "suggest")
+                            .startObject("context").startObject("location").startObject("value").field("lat", 0).field("lon", 0).endObject().field("precision", "1km").endObject().endObject()
+                        .endObject()
+                    .endObject()
                 .endObject()
-            .endObject()
             .endObject();
         suggestRequest.suggest(builder.bytes());
 
@@ -853,13 +855,38 @@ public class OldContextSuggestSearchIT extends ESIntegTestCase {
         index("test", "test", "2", doc2);
         refresh();
 
-        XContentBuilder source = jsonBuilder().startObject().startObject("suggestion").field("text", "h").startObject("completion").field("field", "suggest_geo").startObject("context").field("location", geohash).endObject().endObject().endObject().endObject();
+        XContentBuilder source = jsonBuilder().startObject()
+                .startObject("suggest")
+                .startObject("suggestion")
+                    .field("text", "h")
+                    .startObject("completion")
+                        .field("field", "suggest_geo")
+                        .startObject("context")
+                            .field("location", geohash)
+                        .endObject()
+                    .endObject()
+                .endObject()
+                .endObject().endObject();
         SuggestRequest suggestRequest = new SuggestRequest(INDEX).suggest(source.bytes());
         SuggestResponse suggestResponse = client().suggest(suggestRequest).get();
         assertSuggestion(suggestResponse.getSuggest(), 0, "suggestion", "Hotel Marriot in Amsterdam");
 
         // this is exact the same request, but using lat/lon instead of geohash
-        source = jsonBuilder().startObject().startObject("suggestion").field("text", "h").startObject("completion").field("field", "suggest_geo").startObject("context").startObject("location").field("lat", latitude).field("lon", longitude).endObject().endObject().endObject().endObject().endObject();
+        source = jsonBuilder().startObject()
+                .startObject("suggest")
+                .startObject("suggestion")
+                    .field("text", "h")
+                    .startObject("completion")
+                        .field("field", "suggest_geo")
+                        .startObject("context")
+                            .startObject("location")
+                                .field("lat", latitude)
+                                .field("lon", longitude)
+                            .endObject()
+                        .endObject()
+                    .endObject()
+                .endObject()
+                .endObject().endObject();
         suggestRequest = new SuggestRequest(INDEX).suggest(source.bytes());
         suggestResponse = client().suggest(suggestRequest).get();
         assertSuggestion(suggestResponse.getSuggest(), 0, "suggestion", "Hotel Marriot in Amsterdam");

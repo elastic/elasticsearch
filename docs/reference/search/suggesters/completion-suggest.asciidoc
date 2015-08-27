@@ -109,7 +109,9 @@ a weight with suggestion(s).
 ==== Querying
 
 Suggesting works as usual, except that you have to specify the suggest
-type as `completion`.
+type as `completion`. Suggestions are near real-time, which means
+new suggestions can be made visible by <<indices-refresh,refresh>> and
+documents once deleted are never shown.
 
 [source,js]
 --------------------------------------------------
@@ -135,14 +137,22 @@ POST music/_suggest?pretty
     "length" : 1,
     "options" : [ {
       "text" : "Nirvana",
-      "score" : 34.0
+      "_index": "music",
+      "_type": "song",
+      "_id": "52",
+      "_score": 34.0,
+      "_source": {
+        ...
+      }
     } ]
   } ]
 }
 --------------------------------------------------
 
-The configured weight for a suggestion is returned as `score`.
-The `text` field uses the `input` of your indexed suggestion.
+Suggestions are returned as document hits enriched with a `text`
+field which is the value of the indexed suggestion.
+<<search-request-source-filtering,source filtering>> parameters
+are supported for source filtering.
 
 The basic completion suggester query supports the following two parameters:
 
@@ -152,9 +162,6 @@ The basic completion suggester query supports the following two parameters:
 NOTE: The completion suggester considers all documents in the index.
 See <<suggester-context>> for an explanation of how to query a subset of
 documents instead.
-
-NOTE: It will be possible to return the associated documents
-with each suggestion in the future (TODO).
 
 [[fuzzy]]
 ==== Fuzzy queries

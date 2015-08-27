@@ -54,14 +54,10 @@ import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.query.QuerySearchResultProvider;
 import org.elasticsearch.search.suggest.Suggest;
+import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import static org.elasticsearch.common.util.CollectionUtils.eagerTransform;
 
@@ -426,4 +422,179 @@ public class SearchPhaseController extends AbstractComponent {
         return new InternalSearchResponse(searchHits, aggregations, suggest, timedOut, terminatedEarly);
     }
 
+    /**
+     * Enriches suggestion docs from <code>queryResultsArr</code> with hits from <code>fetchResultsArr</code>
+     * using <code>sortedDocs</code>
+     */
+    public InternalSearchResponse mergeSuggestions(Map<String, ScoreDoc[]> sortedDocs, AtomicArray<? extends QuerySearchResultProvider> queryResultsArr, AtomicArray<? extends FetchSearchResultProvider> fetchResultsArr) {
+
+        List<? extends AtomicArray.Entry<? extends QuerySearchResultProvider>> queryResults = queryResultsArr.asList();
+        List<? extends AtomicArray.Entry<? extends FetchSearchResultProvider>> fetchResults = fetchResultsArr.asList();
+
+        if (queryResults.isEmpty()) {
+            return InternalSearchResponse.empty();
+        }
+
+        Suggest suggest = null;
+        final Map<String, List<Suggest.Suggestion>> groupedSuggestions = new HashMap<>();
+        boolean hasSuggestions = false;
+        // reduce suggestions
+        for (AtomicArray.Entry<? extends QuerySearchResultProvider> entry : queryResults) {
+            Suggest shardResult = entry.value.queryResult().queryResult().suggest();
+
+            if (shardResult == null) {
+                continue;
+            }
+            hasSuggestions = true;
+            Suggest.group(groupedSuggestions, shardResult);
+        }
+        if (hasSuggestions) {
+            List<Suggest.Suggestion<? extends Suggest.Suggestion.Entry<? extends Suggest.Suggestion.Entry.Option>>> suggestions = Suggest.reduce(groupedSuggestions);
+            suggest = new Suggest(Suggest.Fields.SUGGEST, suggestions);
+            if (!fetchResults.isEmpty()) {
+                // enrich suggestions
+                for (Map.Entry<String, ScoreDoc[]> entry : sortedDocs.entrySet()) {
+                    String suggestionName = entry.getKey();
+                    ScoreDoc[] scoreDocs = entry.getValue();
+                    Suggest.Suggestion<?> completionSuggestion = suggest.getCompletionSuggestion(suggestionName);
+                    List<? extends Suggest.Suggestion.Entry.Option> options = completionSuggestion.options();
+                    assert options.size() == scoreDocs.length;
+                    int[] counters = new int[queryResults.size()];
+                    for (int i = 0; i < scoreDocs.length; i++) {
+                        ScoreDoc doc = scoreDocs[i];
+                        FetchSearchResultProvider fetchSearchResultProvider = fetchResultsArr.get(doc.shardIndex);
+                        FetchSearchResult fetchSearchResult = fetchSearchResultProvider.fetchResult();
+                        Map<String, InternalSearchHits> namedHits = fetchSearchResult.namedHits();
+                        InternalSearchHit[] hits = namedHits.get(suggestionName).internalHits();
+                        CompletionSuggestion.Entry.Option option = (CompletionSuggestion.Entry.Option) options.get(i);
+                        InternalSearchHit hit = hits[counters[doc.shardIndex]];
+                        hit.score(doc.score);
+                        hit.shard(fetchSearchResult.shardTarget());
+                        option.hit(hit);
+                        counters[doc.shardIndex]++;
+                    }
+                }
+            }
+        }
+        return new InternalSearchResponse(InternalSearchHits.empty(), null, suggest, false, false);
+    }
+
+    public void fillNamedDocIdSets(AtomicArray<Map<String, IntArrayList>> namedDocIdSets, Map<String, ScoreDoc[]> sortedShardList) {
+        for (Map.Entry<String, ScoreDoc[]> entry : sortedShardList.entrySet()) {
+            for (ScoreDoc doc : entry.getValue()) {
+                Map<String, IntArrayList> namedDocIds = namedDocIdSets.get(doc.shardIndex);
+                if (namedDocIds == null) {
+                    namedDocIds = new HashMap<>();
+                    namedDocIdSets.set(doc.shardIndex, namedDocIds);
+                }
+                IntArrayList docIds = namedDocIds.get(entry.getKey());
+                if (docIds == null) {
+                    docIds = new IntArrayList();
+                    namedDocIds.put(entry.getKey(), docIds);
+                }
+                docIds.add(doc.doc);
+            }
+        }
+    }
+
+    /**
+     * Merges suggestion docs and retrieves top N suggestions by name
+     * The suggestion query results are trimmed as a side-effect
+     *
+     * @return a map of suggestion name and Top-n docs
+     */
+    public Map<String, ScoreDoc[]> sortSuggestDocs(AtomicArray<? extends QuerySearchResultProvider> resultSet) throws IOException {
+        List<? extends AtomicArray.Entry<? extends QuerySearchResultProvider>> results = resultSet.asList();
+        if (results.isEmpty()) {
+            return Collections.emptyMap();
+        } else if (results.size() == 1) {
+            Suggest suggest = results.get(0).value.queryResult().suggest();
+            if (suggest == null || suggest.hasScoreDocs() == false) {
+                return Collections.emptyMap();
+            }
+            return suggest.toNamedScoreDocs(results.get(0).index);
+        } else if (optimizeSingleShard) {
+            boolean canOptimize = false;
+            boolean noFetchRequired = true;
+            Suggest result = null;
+            int shardIndex = -1;
+            // optimize in case of finding single shard query result
+            for (AtomicArray.Entry<? extends QuerySearchResultProvider> entry : results) {
+                Suggest suggest = entry.value.queryResult().suggest();
+                if (suggest != null && suggest.hasScoreDocs()) {
+                    noFetchRequired = false;
+                    if (result != null) { // we already have one, can't really optimize
+                        canOptimize = false;
+                        break;
+                    }
+                    canOptimize = true;
+                    result = suggest;
+                    shardIndex = entry.index;
+                }
+            }
+            if (canOptimize) {
+                return result.toNamedScoreDocs(shardIndex);
+            } else if (noFetchRequired) {
+                return Collections.emptyMap();
+            }
+        }
+
+        final Map<String, Map.Entry<Integer, TopDocs[]>> namedTopDocs = new HashMap<>(2);
+        // collect top n docs for every shard by suggestion name
+        for (AtomicArray.Entry<? extends QuerySearchResultProvider> result : results) {
+            Suggest suggest = result.value.queryResult().suggest();
+            if (suggest == null) {
+                continue;
+            }
+            Map<String, ScoreDoc[]> namedShardScoreDocs = suggest.toNamedScoreDocs(result.index);
+            for (Map.Entry<String, ScoreDoc[]> entry : namedShardScoreDocs.entrySet()) {
+                String suggestionName = entry.getKey();
+                ScoreDoc[] scoreDocs = entry.getValue();
+                if (scoreDocs.length == 0) {
+                    continue;
+                }
+                Map.Entry<Integer, TopDocs[]> topDocsAndTopN = namedTopDocs.get(suggestionName);
+                if (topDocsAndTopN == null) {
+                    topDocsAndTopN = new AbstractMap.SimpleEntry<>(suggest.topN(suggestionName), new TopDocs[results.size()]);
+                }
+                TopDocs[] topDocSet = topDocsAndTopN.getValue();
+                topDocSet[result.index] = new TopDocs(scoreDocs.length, scoreDocs, scoreDocs[0].score);
+                namedTopDocs.put(suggestionName, topDocsAndTopN);
+            }
+        }
+        if (namedTopDocs.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        final Map<String, ScoreDoc[]> namedScoreDocs = new HashMap<>(namedTopDocs.size());
+        final int[] optionSizes = new int[results.size()];
+        // get global top n docs for every suggestion name
+        // trim suggestions in query result to reflect the global top n
+        for (Map.Entry<String, Map.Entry<Integer, TopDocs[]>> entry : namedTopDocs.entrySet()) {
+            String suggestionName = entry.getKey();
+            Map.Entry<Integer, TopDocs[]> topDocsAndTopN = entry.getValue();
+            if (topDocsAndTopN == null) {
+                continue;
+            }
+            TopDocs[] topDocsList = topDocsAndTopN.getValue();
+            Integer topN = topDocsAndTopN.getKey();
+            if (topDocsList != null) {
+                for (int i = 0; i < topDocsList.length; i++) {
+                    if (topDocsList[i] == null) {
+                        topDocsList[i] = Lucene.EMPTY_TOP_DOCS;
+                    }
+                }
+                ScoreDoc[] scoreDocs = TopDocs.merge(topN, topDocsList).scoreDocs;
+                namedScoreDocs.put(suggestionName, scoreDocs);
+                for (ScoreDoc scoreDoc : scoreDocs) {
+                    optionSizes[scoreDoc.shardIndex]++;
+                }
+                for (int i = 0; i < optionSizes.length; i++) {
+                    Suggest suggest = results.get(i).value.queryResult().suggest();
+                    suggest.trim(suggestionName, optionSizes[i]);
+                    optionSizes[i] = 0;
+                }
+            }
+        }
+        return namedScoreDocs;
+    }
 }

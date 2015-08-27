@@ -19,142 +19,90 @@
 
 package org.elasticsearch.action.suggest;
 
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.ShardOperationFailedException;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.DefaultShardOperationFailedException;
-import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
-import org.elasticsearch.action.support.broadcast.TransportBroadcastAction;
+import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.block.ClusterBlockException;
-import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.routing.GroupShardsIterator;
-import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.suggest.stats.ShardSuggestMetric;
-import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.indices.IndexClosedException;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.suggest.Suggest;
-import org.elasticsearch.search.suggest.SuggestPhase;
-import org.elasticsearch.search.suggest.SuggestionSearchContext;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.atomic.AtomicReferenceArray;
+import java.util.*;
 
 /**
- * Defines the transport of a suggestion request across the cluster
+ * Defines the transport of a suggestion request across the cluster.
+ * Delegates to {@link TransportSuggestThenFetchAction} in case of multiple shards
+ * and {@link TransportSuggestAndFetchAction} for single shard
  */
-public class TransportSuggestAction extends TransportBroadcastAction<SuggestRequest, SuggestResponse, ShardSuggestRequest, ShardSuggestResponse> {
+public class TransportSuggestAction extends HandledTransportAction<SuggestRequest, SuggestResponse> {
 
-    private final IndicesService indicesService;
-    private final SuggestPhase suggestPhase;
+    private final TransportSuggestThenFetchAction suggestThenFetchAction;
+    private final TransportSuggestAndFetchAction suggestAndFetchAction;
+    private final ClusterService clusterService;
 
     @Inject
-    public TransportSuggestAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
-                                  IndicesService indicesService, SuggestPhase suggestPhase, ActionFilters actionFilters,
-                                  IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, SuggestAction.NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
-                SuggestRequest.class, ShardSuggestRequest.class, ThreadPool.Names.SUGGEST);
-        this.indicesService = indicesService;
-        this.suggestPhase = suggestPhase;
+    public TransportSuggestAction(Settings settings, ThreadPool threadPool, TransportService transportService, ActionFilters actionFilters,
+                                  IndexNameExpressionResolver indexNameExpressionResolver, ClusterService clusterService,
+                                  TransportSuggestThenFetchAction suggestThenFetchAction, TransportSuggestAndFetchAction suggestAndFetchAction) {
+        super(settings, SuggestAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, SuggestRequest.class);
+        this.clusterService = clusterService;
+        this.suggestThenFetchAction = suggestThenFetchAction;
+        this.suggestAndFetchAction = suggestAndFetchAction;
     }
 
     @Override
-    protected ShardSuggestRequest newShardRequest(int numShards, ShardRouting shard, SuggestRequest request) {
-        return new ShardSuggestRequest(shard.shardId(), request);
-    }
-
-    @Override
-    protected ShardSuggestResponse newShardResponse() {
-        return new ShardSuggestResponse();
-    }
-
-    @Override
-    protected GroupShardsIterator shards(ClusterState clusterState, SuggestRequest request, String[] concreteIndices) {
-        Map<String, Set<String>> routingMap = indexNameExpressionResolver.resolveSearchRouting(clusterState, request.routing(), request.indices());
-        return clusterService.operationRouting().searchShards(clusterState, concreteIndices, routingMap, request.preference());
-    }
-
-    @Override
-    protected ClusterBlockException checkGlobalBlock(ClusterState state, SuggestRequest request) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.READ);
-    }
-
-    @Override
-    protected ClusterBlockException checkRequestBlock(ClusterState state, SuggestRequest countRequest, String[] concreteIndices) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.READ, concreteIndices);
-    }
-
-    @Override
-    protected SuggestResponse newResponse(SuggestRequest request, AtomicReferenceArray shardsResponses, ClusterState clusterState) {
-        int successfulShards = 0;
-        int failedShards = 0;
-
-        final Map<String, List<Suggest.Suggestion>> groupedSuggestions = new HashMap<>();
-
-        List<ShardOperationFailedException> shardFailures = null;
-        for (int i = 0; i < shardsResponses.length(); i++) {
-            Object shardResponse = shardsResponses.get(i);
-            if (shardResponse == null) {
-                // simply ignore non active shards
-            } else if (shardResponse instanceof BroadcastShardOperationFailedException) {
-                failedShards++;
-                if (shardFailures == null) {
-                    shardFailures = new ArrayList<>();
-                }
-                shardFailures.add(new DefaultShardOperationFailedException((BroadcastShardOperationFailedException) shardResponse));
-            } else {
-                Suggest suggest = ((ShardSuggestResponse) shardResponse).getSuggest();
-                Suggest.group(groupedSuggestions, suggest);
-                successfulShards++;
-            }
+    protected void doExecute(SuggestRequest request, final ActionListener<SuggestResponse> listener) {
+        final SearchRequest searchRequest = new SearchRequest(request.indices());
+        if (request.suggest() != null) {
+            searchRequest.source(request.suggest());
         }
-
-        return new SuggestResponse(new Suggest(Suggest.reduce(groupedSuggestions)), shardsResponses.length(), successfulShards, failedShards, shardFailures);
-    }
-
-    @Override
-    protected ShardSuggestResponse shardOperation(ShardSuggestRequest request) {
-        IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
-        IndexShard indexShard = indexService.shardSafe(request.shardId().id());
-        ShardSuggestMetric suggestMetric = indexShard.getSuggestMetric();
-        suggestMetric.preSuggest();
-        long startTime = System.nanoTime();
-        XContentParser parser = null;
-        try (Engine.Searcher searcher = indexShard.acquireSearcher("suggest")) {
-            BytesReference suggest = request.suggest();
-            if (suggest != null && suggest.length() > 0) {
-                parser = XContentFactory.xContent(suggest).createParser(suggest);
-                if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
-                    throw new IllegalArgumentException("suggest content missing");
+        searchRequest.preference(request.preference());
+        searchRequest.routing(request.routing());
+        searchRequest.indicesOptions(request.indicesOptions());
+        final ActionListener<SearchResponse> searchResponseActionListener = new ActionListener<SearchResponse>() {
+            @Override
+            public void onResponse(SearchResponse searchResponse) {
+                Suggest suggest = searchResponse.getSuggest();
+                if (suggest != null) {
+                    listener.onResponse(new SuggestResponse(suggest));
+                } else {
+                    listener.onResponse(new SuggestResponse(new Suggest(Collections.<Suggest.Suggestion<? extends Suggest.Suggestion.Entry<? extends Suggest.Suggestion.Entry.Option>>>emptyList())));
                 }
-                final SuggestionSearchContext context = suggestPhase.parseElement().parseInternal(parser, indexService.mapperService(),
-                        indexService.queryParserService(), request.shardId().getIndex(), request.shardId().id());
-                final Suggest result = suggestPhase.execute(context, searcher.searcher());
-                return new ShardSuggestResponse(request.shardId(), result);
             }
-            return new ShardSuggestResponse(request.shardId(), new Suggest());
-        } catch (Throwable ex) {
-            throw new ElasticsearchException("failed to execute suggest", ex);
-        } finally {
-            if (parser != null) {
-                parser.close();
+
+            @Override
+            public void onFailure(Throwable e) {
+                listener.onFailure(e);
             }
-            suggestMetric.postSuggest(System.nanoTime() - startTime);
+        };
+        boolean singleShard = false;
+        try {
+            ClusterState clusterState = clusterService.state();
+            String[] concreteIndices = indexNameExpressionResolver.concreteIndices(clusterState, searchRequest);
+            Map<String, Set<String>> routingMap = indexNameExpressionResolver.resolveSearchRouting(clusterState, searchRequest.routing(), searchRequest.indices());
+            int shardCount = clusterService.operationRouting().searchShardsCount(clusterState, concreteIndices, routingMap);
+            if (shardCount == 1) {
+                singleShard = true;
+            }
+        } catch (IndexNotFoundException | IndexClosedException e) {
+            // ignore these failures, we will notify the search response if its really the case from the actual action
+        } catch (Exception e) {
+            logger.debug("failed to optimize search type, continue as normal", e);
+        }
+        if (singleShard) {
+            suggestAndFetchAction.doExecute(searchRequest, searchResponseActionListener);
+        } else {
+            suggestThenFetchAction.doExecute(searchRequest, searchResponseActionListener);
         }
     }
+
 }

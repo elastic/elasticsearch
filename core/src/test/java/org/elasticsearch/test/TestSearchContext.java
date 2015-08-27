@@ -508,6 +508,16 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
+    public Map<String, int[]> namedDocIdsToLoad() {
+        return null;
+    }
+
+    @Override
+    public SearchContext namedDocIdsToLoad(Map<String, int[]> namedDocIds) {
+        return null;
+    }
+
+    @Override
     public void accessed(long accessTime) {
     }
 

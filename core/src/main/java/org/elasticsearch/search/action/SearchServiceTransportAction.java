@@ -57,6 +57,8 @@ public class SearchServiceTransportAction extends AbstractComponent {
     public static final String CLEAR_SCROLL_CONTEXTS_ACTION_NAME = "indices:data/read/search[clear_scroll_contexts]";
     public static final String DFS_ACTION_NAME = "indices:data/read/search[phase/dfs]";
     public static final String QUERY_ACTION_NAME = "indices:data/read/search[phase/query]";
+    public static final String SUGGEST_ACTION_NAME = "indices:data/read/search[phase/suggest]";
+    public static final String SUGGEST_FETCH_ACTION_NAME = "indices:data/read/search[phase/suggest+fetch]";
     public static final String QUERY_ID_ACTION_NAME = "indices:data/read/search[phase/query/id]";
     public static final String QUERY_SCROLL_ACTION_NAME = "indices:data/read/search[phase/query/scroll]";
     public static final String QUERY_FETCH_ACTION_NAME = "indices:data/read/search[phase/query+fetch]";
@@ -81,6 +83,8 @@ public class SearchServiceTransportAction extends AbstractComponent {
         transportService.registerRequestHandler(CLEAR_SCROLL_CONTEXTS_ACTION_NAME, ClearScrollContextsRequest.class, ThreadPool.Names.SAME, new ClearScrollContextsTransportHandler());
         transportService.registerRequestHandler(DFS_ACTION_NAME, ShardSearchTransportRequest.class, ThreadPool.Names.SEARCH, new SearchDfsTransportHandler());
         transportService.registerRequestHandler(QUERY_ACTION_NAME, ShardSearchTransportRequest.class, ThreadPool.Names.SEARCH, new SearchQueryTransportHandler());
+        transportService.registerRequestHandler(SUGGEST_ACTION_NAME, ShardSearchTransportRequest.class, ThreadPool.Names.SEARCH, new SearchSuggestTransportHandler());
+        transportService.registerRequestHandler(SUGGEST_FETCH_ACTION_NAME, ShardSearchTransportRequest.class, ThreadPool.Names.SEARCH, new SearchSuggestFetchTransportHandler());
         transportService.registerRequestHandler(QUERY_ID_ACTION_NAME, QuerySearchRequest.class, ThreadPool.Names.SEARCH, new SearchQueryByIdTransportHandler());
         transportService.registerRequestHandler(QUERY_SCROLL_ACTION_NAME, InternalScrollSearchRequest.class, ThreadPool.Names.SEARCH, new SearchQueryScrollTransportHandler());
         transportService.registerRequestHandler(QUERY_FETCH_ACTION_NAME, ShardSearchTransportRequest.class, ThreadPool.Names.SEARCH, new SearchQueryFetchTransportHandler());
@@ -134,6 +138,24 @@ public class SearchServiceTransportAction extends AbstractComponent {
             @Override
             public DfsSearchResult newInstance() {
                 return new DfsSearchResult();
+            }
+        });
+    }
+
+    public void sendExecuteSuggest(DiscoveryNode node, final ShardSearchTransportRequest request, final ActionListener<QuerySearchResultProvider> listener) {
+        transportService.sendRequest(node, SUGGEST_ACTION_NAME, request, new ActionListenerResponseHandler<QuerySearchResultProvider>(listener) {
+            @Override
+            public QuerySearchResult newInstance() {
+                return new QuerySearchResult();
+            }
+        });
+    }
+
+    public void sendExecuteSuggestFetch(DiscoveryNode node, final ShardSearchTransportRequest request, final ActionListener<QueryFetchSearchResult> listener) {
+        transportService.sendRequest(node, SUGGEST_FETCH_ACTION_NAME, request, new ActionListenerResponseHandler<QueryFetchSearchResult>(listener) {
+            @Override
+            public QueryFetchSearchResult newInstance() {
+                return new QueryFetchSearchResult();
             }
         });
     }
@@ -366,6 +388,22 @@ public class SearchServiceTransportAction extends AbstractComponent {
         @Override
         public void messageReceived(ShardSearchTransportRequest request, TransportChannel channel) throws Exception {
             QuerySearchResultProvider result = searchService.executeQueryPhase(request);
+            channel.sendResponse(result);
+        }
+    }
+
+    class SearchSuggestTransportHandler implements TransportRequestHandler<ShardSearchTransportRequest> {
+        @Override
+        public void messageReceived(ShardSearchTransportRequest request, TransportChannel channel) throws Exception {
+            QuerySearchResultProvider result = searchService.executeSuggestPhase(request);
+            channel.sendResponse(result);
+        }
+    }
+
+    class SearchSuggestFetchTransportHandler implements TransportRequestHandler<ShardSearchTransportRequest> {
+        @Override
+        public void messageReceived(ShardSearchTransportRequest request, TransportChannel channel) throws Exception {
+            QueryFetchSearchResult result = searchService.executeSuggestFetchPhase(request);
             channel.sendResponse(result);
         }
     }

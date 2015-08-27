@@ -26,6 +26,7 @@ import org.elasticsearch.search.internal.InternalSearchHits;
 import org.elasticsearch.transport.TransportResponse;
 
 import java.io.IOException;
+import java.util.*;
 
 import static org.elasticsearch.search.internal.InternalSearchHits.StreamContext;
 
@@ -37,6 +38,7 @@ public class FetchSearchResult extends TransportResponse implements FetchSearchR
     private long id;
     private SearchShardTarget shardTarget;
     private InternalSearchHits hits;
+    private Map<String, InternalSearchHits> namedHits;
     // client side counter
     private transient int counter;
 
@@ -77,6 +79,17 @@ public class FetchSearchResult extends TransportResponse implements FetchSearchR
         return hits;
     }
 
+    public Map<String, InternalSearchHits> namedHits() {
+        return namedHits;
+    }
+
+    public void namedHits(String name, InternalSearchHits hits) {
+        if (namedHits == null) {
+            namedHits = new HashMap<>();
+        }
+        namedHits.put(name, hits);
+    }
+
     public FetchSearchResult initCounter() {
         counter = 0;
         return this;
@@ -97,6 +110,16 @@ public class FetchSearchResult extends TransportResponse implements FetchSearchR
         super.readFrom(in);
         id = in.readLong();
         hits = InternalSearchHits.readSearchHits(in, InternalSearchHits.streamContext().streamShardTarget(StreamContext.ShardTargetType.NO_STREAM));
+        if (in.readBoolean()) {
+            int namedHitsSize = in.readVInt();
+            namedHits = new HashMap<>(namedHitsSize);
+            for (int i = 0; i < namedHitsSize; i++) {
+                String name = in.readString();
+                InternalSearchHits namedHitList = InternalSearchHits.readSearchHits(in, InternalSearchHits.streamContext().streamShardTarget(StreamContext.ShardTargetType.NO_STREAM));
+                namedHits.put(name, namedHitList);
+            }
+        }
+
     }
 
     @Override
@@ -104,5 +127,15 @@ public class FetchSearchResult extends TransportResponse implements FetchSearchR
         super.writeTo(out);
         out.writeLong(id);
         hits.writeTo(out, InternalSearchHits.streamContext().streamShardTarget(StreamContext.ShardTargetType.NO_STREAM));
+        if (namedHits != null) {
+            out.writeBoolean(true);
+            out.writeVInt(namedHits.size());
+            for (Map.Entry<String, InternalSearchHits> entry : namedHits.entrySet()) {
+                out.writeString(entry.getKey());
+                entry.getValue().writeTo(out, InternalSearchHits.streamContext().streamShardTarget(StreamContext.ShardTargetType.NO_STREAM));
+            }
+        } else {
+            out.writeBoolean(false);
+        }
     }
 }

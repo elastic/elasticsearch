@@ -56,6 +56,7 @@ import org.elasticsearch.search.internal.InternalSearchHitField;
 import org.elasticsearch.search.internal.InternalSearchHits;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.suggest.completion.NamedDocIdsFetchPhase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -75,10 +76,12 @@ public class FetchPhase implements SearchPhase {
     private final FetchSubPhase[] fetchSubPhases;
 
     @Inject
-    public FetchPhase(Set<FetchSubPhase> fetchSubPhases, InnerHitsFetchSubPhase innerHitsFetchSubPhase) {
+    public FetchPhase(Set<FetchSubPhase> fetchSubPhases, InnerHitsFetchSubPhase innerHitsFetchSubPhase, NamedDocIdsFetchPhase namedDocIdsFetchPhase) {
         innerHitsFetchSubPhase.setFetchPhase(this);
-        this.fetchSubPhases = fetchSubPhases.toArray(new FetchSubPhase[fetchSubPhases.size() + 1]);
+        namedDocIdsFetchPhase.setFetchPhase(this);
+        this.fetchSubPhases = fetchSubPhases.toArray(new FetchSubPhase[fetchSubPhases.size() + 2]);
         this.fetchSubPhases[fetchSubPhases.size()] = innerHitsFetchSubPhase;
+        this.fetchSubPhases[fetchSubPhases.size() + 1] = namedDocIdsFetchPhase;
     }
 
     @Override

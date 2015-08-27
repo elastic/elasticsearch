@@ -22,15 +22,14 @@ package org.elasticsearch.search.fetch;
 import com.carrotsearch.hppc.IntArrayList;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.ScoreDoc;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchScrollRequest;
-import org.elasticsearch.action.search.type.ParsedScrollId;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
+import java.util.*;
 
 /**
  * Shard level fetch base request. Holds all the info needed to execute a fetch.
@@ -41,6 +40,8 @@ public class ShardFetchRequest extends TransportRequest {
     private long id;
 
     private int[] docIds;
+
+    private Map<String, int[]> namedDocIds;
 
     private int size;
 
@@ -57,12 +58,19 @@ public class ShardFetchRequest extends TransportRequest {
         this.lastEmittedDoc = lastEmittedDoc;
     }
 
-    protected ShardFetchRequest(TransportRequest originalRequest, long id, IntArrayList list, ScoreDoc lastEmittedDoc) {
+    protected ShardFetchRequest(TransportRequest originalRequest, long id, IntArrayList list, Map<String, IntArrayList> namedList, ScoreDoc lastEmittedDoc) {
         super(originalRequest);
         this.id = id;
         this.docIds = list.buffer;
         this.size = list.size();
         this.lastEmittedDoc = lastEmittedDoc;
+        if (namedList != null) {
+            this.namedDocIds = new HashMap<>(namedList.size());
+            for (Map.Entry<String, IntArrayList> entry : namedList.entrySet()) {
+                IntArrayList docIdList = entry.getValue();
+                namedDocIds.put(entry.getKey(), Arrays.copyOfRange(docIdList.buffer, 0, docIdList.size()));
+            }
+        }
     }
 
     public long id() {
@@ -72,6 +80,11 @@ public class ShardFetchRequest extends TransportRequest {
     public int[] docIds() {
         return docIds;
     }
+
+    public Map<String, int[]> namedDocIds() {
+        return namedDocIds;
+    }
+
 
     public int docIdsSize() {
         return size;
@@ -98,6 +111,19 @@ public class ShardFetchRequest extends TransportRequest {
         } else if (flag != 0) {
             throw new IOException("Unknown flag: " + flag);
         }
+        if (in.readBoolean()) {
+            int namedDocIdSize = in.readVInt();
+            namedDocIds = new HashMap<>(namedDocIdSize);
+            for (int i = 0; i < namedDocIdSize; i++) {
+                String name = in.readString();
+                int docIdSize = in.readVInt();
+                int[] docIds = new int[docIdSize];
+                for (int j = 0; j < docIdSize; j++) {
+                    docIds[j] = in.readVInt();
+                }
+                namedDocIds.put(name, docIds);
+            }
+        }
     }
 
     @Override
@@ -116,6 +142,20 @@ public class ShardFetchRequest extends TransportRequest {
         } else {
             out.writeByte((byte) 2);
             Lucene.writeScoreDoc(out, lastEmittedDoc);
+        }
+        if (namedDocIds != null) {
+            out.writeBoolean(true);
+            out.writeVInt(namedDocIds.size());
+            for (Map.Entry<String, int[]> entry : namedDocIds.entrySet()) {
+                int[] docIds = entry.getValue();
+                out.writeString(entry.getKey());
+                out.writeVInt(docIds.length);
+                for (int docId : docIds) {
+                    out.writeVInt(docId);
+                }
+            }
+        } else {
+            out.writeBoolean(false);
         }
     }
 }

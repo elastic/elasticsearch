@@ -127,6 +127,7 @@ public class DefaultSearchContext extends SearchContext {
     private int[] docIdsToLoad;
     private int docsIdsToLoadFrom;
     private int docsIdsToLoadSize;
+    private Map<String, int[]> namedDocIds;
     private SearchContextAggregations aggregations;
     private SearchContextHighlight highlight;
     private SuggestionSearchContext suggest;
@@ -640,6 +641,17 @@ public class DefaultSearchContext extends SearchContext {
         this.docIdsToLoad = docIdsToLoad;
         this.docsIdsToLoadFrom = docsIdsToLoadFrom;
         this.docsIdsToLoadSize = docsIdsToLoadSize;
+        return this;
+    }
+
+    @Override
+    public Map<String, int[]> namedDocIdsToLoad() {
+        return namedDocIds;
+    }
+
+    @Override
+    public SearchContext namedDocIdsToLoad(Map<String, int[]> namedDocIds) {
+        this.namedDocIds = namedDocIds;
         return this;
     }
 

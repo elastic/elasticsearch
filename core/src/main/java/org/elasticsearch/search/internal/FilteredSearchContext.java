@@ -462,6 +462,17 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
+    public Map<String, int[]> namedDocIdsToLoad() {
+        return in.namedDocIdsToLoad();
+    }
+
+    @Override
+    public SearchContext namedDocIdsToLoad(Map<String, int[]> namedDocIds) {
+        in.namedDocIdsToLoad(namedDocIds);
+        return this;
+    }
+
+    @Override
     public void accessed(long accessTime) {
         in.accessed(accessTime);
     }

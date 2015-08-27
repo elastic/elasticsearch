@@ -34,6 +34,7 @@ import org.elasticsearch.search.dfs.DfsPhase;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.query.QueryPhase;
+import org.elasticsearch.search.suggest.SuggestPhase;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.HashMap;
@@ -69,9 +70,9 @@ public class MockSearchService extends SearchService {
     @Inject
     public MockSearchService(Settings settings, NodeSettingsService nodeSettingsService, ClusterService clusterService, IndicesService indicesService, IndicesWarmer indicesWarmer,
             ThreadPool threadPool, ScriptService scriptService, PageCacheRecycler pageCacheRecycler, BigArrays bigArrays,
-            DfsPhase dfsPhase, QueryPhase queryPhase, FetchPhase fetchPhase, IndicesRequestCache indicesQueryCache) {
+            DfsPhase dfsPhase, QueryPhase queryPhase, FetchPhase fetchPhase, SuggestPhase suggestPhase, IndicesRequestCache indicesQueryCache) {
         super(settings, nodeSettingsService, clusterService, indicesService, indicesWarmer, threadPool, scriptService, pageCacheRecycler, bigArrays, dfsPhase,
-                queryPhase, fetchPhase, indicesQueryCache);
+                queryPhase, fetchPhase, suggestPhase, indicesQueryCache);
     }
  
     @Override

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action.search.type;
+package org.elasticsearch.action.suggest;
 
 import com.carrotsearch.hppc.IntArrayList;
 import org.apache.lucene.search.ScoreDoc;
@@ -26,6 +26,7 @@ import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.search.ReduceSearchPhaseException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.type.TransportSearchTypeAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -33,6 +34,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.action.SearchServiceTransportAction;
 import org.elasticsearch.search.controller.SearchPhaseController;
@@ -41,20 +43,27 @@ import org.elasticsearch.search.fetch.ShardFetchSearchRequest;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.ShardSearchTransportRequest;
 import org.elasticsearch.search.query.QuerySearchResultProvider;
+import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
+ * Two phased Transport action for suggest then fetch
  *
+ * Executes suggest by {@link SearchService#executeSuggestPhase(org.elasticsearch.search.internal.ShardSearchRequest)}
+ * on relevant shards followed by {@link org.elasticsearch.search.SearchService#executeFetchPhase(org.elasticsearch.search.fetch.ShardFetchRequest)}
+ * to fetch suggest documents
  */
-public class TransportSearchQueryThenFetchAction extends TransportSearchTypeAction {
+public class TransportSuggestThenFetchAction extends TransportSearchTypeAction {
 
     @Inject
-    public TransportSearchQueryThenFetchAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
-                                               SearchServiceTransportAction searchService, SearchPhaseController searchPhaseController,
-                                               ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
+    public TransportSuggestThenFetchAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
+                                           SearchServiceTransportAction searchService, SearchPhaseController searchPhaseController,
+                                           ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
         super(settings, threadPool, clusterService, searchService, searchPhaseController, actionFilters, indexNameExpressionResolver);
     }
 
@@ -63,46 +72,45 @@ public class TransportSearchQueryThenFetchAction extends TransportSearchTypeActi
         new AsyncAction(searchRequest, listener).start();
     }
 
+
     private class AsyncAction extends BaseAsyncAction<QuerySearchResultProvider> {
 
         final AtomicArray<FetchSearchResult> fetchResults;
-        final AtomicArray<IntArrayList> docIdsToLoad;
+        final AtomicArray<Map<String, IntArrayList>> namedDocIdSets;
+        private Map<String, ScoreDoc[]> sortedShardList;
+        private AtomicArray.Entry<IntArrayList> scratch = new AtomicArray.Entry<>(0, new IntArrayList(0));
 
         private AsyncAction(SearchRequest request, ActionListener<SearchResponse> listener) {
             super(request, listener);
             fetchResults = new AtomicArray<>(firstResults.length());
-            docIdsToLoad = new AtomicArray<>(firstResults.length());
+            namedDocIdSets = new AtomicArray<>(firstResults.length());
         }
 
         @Override
         protected String firstPhaseName() {
-            return "query";
+            return "suggest";
         }
 
         @Override
-        protected void sendExecuteFirstPhase(DiscoveryNode node, ShardSearchTransportRequest request, ActionListener<QuerySearchResultProvider> listener) {
-            searchService.sendExecuteQuery(node, request, listener);
+        protected void sendExecuteFirstPhase(DiscoveryNode node, ShardSearchTransportRequest request, final ActionListener<QuerySearchResultProvider> listener) {
+            searchService.sendExecuteSuggest(node, request, listener);
         }
 
         @Override
         protected void moveToSecondPhase() throws Exception {
-            boolean useScroll = request.scroll() != null;
-            sortedShardList = searchPhaseController.sortDocs(useScroll, firstResults);
-            searchPhaseController.fillDocIdsToLoad(docIdsToLoad, sortedShardList);
-
-            if (docIdsToLoad.asList().isEmpty()) {
+            sortedShardList = searchPhaseController.sortSuggestDocs(firstResults);
+            searchPhaseController.fillNamedDocIdSets(namedDocIdSets, sortedShardList);
+            List<AtomicArray.Entry<Map<String, IntArrayList>>> namedDocIdList = namedDocIdSets.asList();
+            if (namedDocIdList.isEmpty()) {
                 finishHim();
                 return;
             }
 
-            final ScoreDoc[] lastEmittedDocPerShard = searchPhaseController.getLastEmittedDocPerShard(
-                    request, sortedShardList, firstResults.length()
-            );
-            final AtomicInteger counter = new AtomicInteger(docIdsToLoad.asList().size());
-            for (AtomicArray.Entry<IntArrayList> entry : docIdsToLoad.asList()) {
+            final AtomicInteger counter = new AtomicInteger(namedDocIdList.size());
+            for (AtomicArray.Entry<Map<String, IntArrayList>> entry : namedDocIdList) {
                 QuerySearchResultProvider queryResult = firstResults.get(entry.index);
                 DiscoveryNode node = nodes.get(queryResult.shardTarget().nodeId());
-                ShardFetchSearchRequest fetchSearchRequest = createFetchRequest(queryResult.queryResult(), entry, null, lastEmittedDocPerShard);
+                ShardFetchSearchRequest fetchSearchRequest = createFetchRequest(queryResult.queryResult(), scratch, entry.value, null);
                 executeFetch(entry.index, queryResult.shardTarget(), counter, fetchSearchRequest, node);
             }
         }
@@ -123,8 +131,8 @@ public class TransportSearchQueryThenFetchAction extends TransportSearchTypeActi
                     // the search context might not be cleared on the node where the fetch was executed for example
                     // because the action was rejected by the thread pool. in this case we need to send a dedicated
                     // request to clear the search context. by setting docIdsToLoad to null, the context will be cleared
-                    // in TransportSearchTypeAction.releaseIrrelevantSearchContexts() after the search request is done.
-                    docIdsToLoad.set(shardIndex, null);
+                    // in releaseSearchContexts() after the search request is done.
+                    namedDocIdSets.set(shardIndex, null);
                     onFetchFailure(t, fetchSearchRequest, shardIndex, shardTarget, counter);
                 }
             });
@@ -145,13 +153,14 @@ public class TransportSearchQueryThenFetchAction extends TransportSearchTypeActi
             threadPool.executor(ThreadPool.Names.SEARCH).execute(new ActionRunnable<SearchResponse>(listener) {
                 @Override
                 public void doRun() throws IOException {
-                    final InternalSearchResponse internalResponse = searchPhaseController.merge(sortedShardList, firstResults, fetchResults);
-                    String scrollId = null;
-                    if (request.scroll() != null) {
-                        scrollId = TransportSearchHelper.buildScrollId(request.searchType(), firstResults, null);
+                    try {
+                        final InternalSearchResponse internalResponse = searchPhaseController.mergeSuggestions(sortedShardList, firstResults, fetchResults);
+                        listener.onResponse(new SearchResponse(internalResponse, null, expectedSuccessfulOps, successfulOps.get(), buildTookInMillis(), buildShardFailures()));
+                    } catch (IllegalArgumentException e) {
+                        listener.onFailure(e);
+                    } finally {
+                        releaseSearchContexts(firstResults, namedDocIdSets);
                     }
-                    listener.onResponse(new SearchResponse(internalResponse, scrollId, expectedSuccessfulOps, successfulOps.get(), buildTookInMillis(), buildShardFailures()));
-                    releaseIrrelevantSearchContexts(firstResults, docIdsToLoad);
                 }
 
                 @Override
@@ -163,10 +172,26 @@ public class TransportSearchQueryThenFetchAction extends TransportSearchTypeActi
                         }
                         super.onFailure(failure);
                     } finally {
-                        releaseIrrelevantSearchContexts(firstResults, docIdsToLoad);
+                        releaseSearchContexts(firstResults, namedDocIdSets);
                     }
                 }
             });
+        }
+
+        private void releaseSearchContexts(AtomicArray<? extends QuerySearchResultProvider> queryResults,
+                                                       AtomicArray<Map<String, IntArrayList>> namedDocIdsToLoad) {
+            for (AtomicArray.Entry<? extends QuerySearchResultProvider> entry : queryResults.asList()) {
+                Suggest suggest = entry.value.queryResult().suggest();
+                if (suggest != null && suggest.hasScoreDocs() // had some hits
+                        && namedDocIdsToLoad.get(entry.index) == null) { // but did not make it to global hits
+                    try {
+                        DiscoveryNode node = nodes.get(entry.value.queryResult().shardTarget().nodeId());
+                        sendReleaseSearchContext(entry.value.queryResult().id(), node);
+                    } catch (Throwable t1) {
+                        logger.trace("failed to release context", t1);
+                    }
+                }
+            }
         }
     }
 }

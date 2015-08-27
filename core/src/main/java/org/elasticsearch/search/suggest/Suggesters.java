@@ -38,7 +38,7 @@ public final class Suggesters extends ExtensionPoint.ClassMap<Suggester> {
     }
 
     public Suggesters(Map<String, Suggester> suggesters) {
-        super("suggester", Suggester.class, new HashSet<>(Arrays.asList("phrase", "term", "completion", "completion_old")), Suggesters.class, SuggestParseElement.class, SuggestPhase.class);
+        super("suggester", Suggester.class, new HashSet<>(Arrays.asList("phrase", "term", "completion", "completion_old")), Suggesters.class, SuggestParseElement.class, SuggestBinaryParseElement.class, SuggestPhase.class);
         this.parsers = Collections.unmodifiableMap(suggesters);
     }
 

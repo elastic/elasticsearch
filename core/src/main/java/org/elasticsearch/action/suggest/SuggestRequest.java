@@ -19,17 +19,13 @@
 
 package org.elasticsearch.action.suggest;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.broadcast.BroadcastRequest;
-import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.search.suggest.SuggestBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -39,8 +35,7 @@ import java.util.Arrays;
  * {@link org.elasticsearch.client.Requests#suggestRequest(String...)}.
  * <p/>
  * <p>The request requires the suggest query source to be set either using
- * {@link #suggest(org.elasticsearch.common.bytes.BytesReference)} / {@link #suggest(org.elasticsearch.common.bytes.BytesReference)}
- * or by using {@link #suggest(org.elasticsearch.search.suggest.SuggestBuilder)}
+ * {@link #suggest(org.elasticsearch.common.bytes.BytesReference)}
  * (Best created using the {link @org.elasticsearch.search.suggest.SuggestBuilders)}).
  *
  * @see SuggestResponse
@@ -69,12 +64,6 @@ public final class SuggestRequest extends BroadcastRequest<SuggestRequest> {
         super(indices);
     }
 
-    @Override
-    public ActionRequestValidationException validate() {
-        ActionRequestValidationException validationException = super.validate();
-        return validationException;
-    }
-
     /**
      * The Phrase to get correction suggestions for 
      */
@@ -88,26 +77,6 @@ public final class SuggestRequest extends BroadcastRequest<SuggestRequest> {
     public SuggestRequest suggest(BytesReference suggestSource) {
         this.suggestSource = suggestSource;
         return this;
-    }
-
-    /**
-     * set a new source using a {@link org.elasticsearch.search.suggest.SuggestBuilder}
-     * for phrase and term suggestion lookup
-     */
-    public SuggestRequest suggest(SuggestBuilder suggestBuilder) {
-        return suggest(suggestBuilder.buildAsBytes(Requests.CONTENT_TYPE));
-    }
-
-    /**
-     * set a new source using a {@link org.elasticsearch.search.suggest.SuggestBuilder.SuggestionBuilder}
-     * for completion suggestion lookup
-     */
-    public SuggestRequest suggest(SuggestBuilder.SuggestionBuilder suggestionBuilder) {
-        return suggest(suggestionBuilder.buildAsBytes(Requests.CONTENT_TYPE));
-    }
-
-    public SuggestRequest suggest(String source) {
-        return suggest(new BytesArray(source));
     }
 
     /**
@@ -147,7 +116,7 @@ public final class SuggestRequest extends BroadcastRequest<SuggestRequest> {
         super.readFrom(in);
         routing = in.readOptionalString();
         preference = in.readOptionalString();
-        suggest(in.readBytesReference());
+        suggestSource = in.readBytesReference();
     }
 
     @Override

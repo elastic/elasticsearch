@@ -176,6 +176,8 @@ import org.elasticsearch.action.search.type.TransportSearchScrollQueryAndFetchAc
 import org.elasticsearch.action.search.type.TransportSearchScrollQueryThenFetchAction;
 import org.elasticsearch.action.search.type.TransportSearchScrollScanAction;
 import org.elasticsearch.action.suggest.SuggestAction;
+import org.elasticsearch.action.suggest.TransportSuggestAndFetchAction;
+import org.elasticsearch.action.suggest.TransportSuggestThenFetchAction;
 import org.elasticsearch.action.suggest.TransportSuggestAction;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilters;
@@ -315,7 +317,7 @@ public class ActionModule extends AbstractModule {
                 TransportShardMultiTermsVectorAction.class);
         registerAction(DeleteAction.INSTANCE, TransportDeleteAction.class);
         registerAction(ExistsAction.INSTANCE, TransportExistsAction.class);
-        registerAction(SuggestAction.INSTANCE, TransportSuggestAction.class);
+        registerAction(SuggestAction.INSTANCE, TransportSuggestAction.class, TransportSuggestThenFetchAction.class, TransportSuggestAndFetchAction.class);
         registerAction(UpdateAction.INSTANCE, TransportUpdateAction.class);
         registerAction(MultiGetAction.INSTANCE, TransportMultiGetAction.class,
                 TransportShardMultiGetAction.class);

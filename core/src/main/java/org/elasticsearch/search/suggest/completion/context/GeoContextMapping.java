@@ -23,7 +23,6 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.suggest.xdocument.ContextQuery;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;

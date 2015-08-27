@@ -27,6 +27,8 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchPhase;
+import org.elasticsearch.search.fetch.ShardFetchRequest;
+import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.suggest.Suggest.Suggestion;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry;
@@ -44,21 +46,21 @@ public class SuggestPhase extends AbstractComponent implements SearchPhase {
 
     private final SuggestParseElement parseElement;
 
+    private final SuggestBinaryParseElement binaryParseElement;
+
     @Inject
-    public SuggestPhase(Settings settings, SuggestParseElement suggestParseElement) {
+    public SuggestPhase(Settings settings, SuggestParseElement suggestParseElement, SuggestBinaryParseElement binaryParseElement) {
         super(settings);
         this.parseElement = suggestParseElement;
+        this.binaryParseElement = binaryParseElement;
     }
 
     @Override
     public Map<String, ? extends SearchParseElement> parseElements() {
         ImmutableMap.Builder<String, SearchParseElement> parseElements = ImmutableMap.builder();
         parseElements.put("suggest", parseElement);
+        parseElements.put("suggest_binary", binaryParseElement);
         return parseElements.build();
-    }
-
-    public SuggestParseElement parseElement() {
-        return parseElement;
     }
 
     @Override
@@ -67,29 +69,23 @@ public class SuggestPhase extends AbstractComponent implements SearchPhase {
 
     @Override
     public void execute(SearchContext context) {
-        final SuggestionSearchContext suggest = context.suggest();
-        if (suggest == null) {
-            return;
-        }
-        context.queryResult().suggest(execute(suggest, context.searcher()));
-    }
-
-    public Suggest execute(SuggestionSearchContext suggest, IndexSearcher searcher) {
         try {
-            CharsRefBuilder spare = new CharsRefBuilder();
-            final List<Suggestion<? extends Entry<? extends Option>>> suggestions = new ArrayList<>(suggest.suggestions().size());
-
-            for (Map.Entry<String, SuggestionSearchContext.SuggestionContext> entry : suggest.suggestions().entrySet()) {
-                SuggestionSearchContext.SuggestionContext suggestion = entry.getValue();
-                Suggester<SuggestionContext> suggester = suggestion.getSuggester();
-                Suggestion<? extends Entry<? extends Option>> result = suggester.execute(entry.getKey(), suggestion, searcher, spare);
-                if (result != null) {
-                    assert entry.getKey().equals(result.name);
-                    suggestions.add(result);
+            final ContextIndexSearcher searcher = context.searcher();
+            final SuggestionSearchContext suggest = context.suggest();
+            if (suggest != null) {
+                CharsRefBuilder spare = new CharsRefBuilder();
+                final List<Suggestion<? extends Entry<? extends Option>>> suggestions = new ArrayList<>(suggest.suggestions().size());
+                for (Map.Entry<String, SuggestionSearchContext.SuggestionContext> entry : suggest.suggestions().entrySet()) {
+                    SuggestionSearchContext.SuggestionContext suggestion = entry.getValue();
+                    Suggester<SuggestionContext> suggester = suggestion.getSuggester();
+                    Suggestion<? extends Entry<? extends Option>> result = suggester.execute(entry.getKey(), suggestion, searcher, spare);
+                    if (result != null) {
+                        assert entry.getKey().equals(result.name);
+                        suggestions.add(result);
+                    }
                 }
+                context.queryResult().suggest(new Suggest(Suggest.Fields.SUGGEST, suggestions));
             }
-
-            return new Suggest(Suggest.Fields.SUGGEST, suggestions);
         } catch (IOException e) {
             throw new ElasticsearchException("I/O exception during suggest phase", e);
         }

@@ -49,6 +49,7 @@ import org.elasticsearch.search.suggest.completion.CompletionSuggestionBuilder;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestionBuilder.FuzzyOptionsBuilder;
 import org.elasticsearch.search.suggest.completion.context.*;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -185,6 +186,113 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
             fail("querying on mixed completion suggester should throw an error");
         } catch (IllegalArgumentException e) {
             // expected
+        }
+    }
+
+    @Test
+    public void testSuggestDocument() throws Exception {
+        final CompletionMappingBuilder mapping = new CompletionMappingBuilder();
+        createIndexAndMapping(mapping);
+        int numDocs = randomIntBetween(10, 100);
+        List<IndexRequestBuilder> indexRequestBuilders = new ArrayList<>();
+        for (int i = 1; i <= numDocs; i++) {
+            indexRequestBuilders.add(client().prepareIndex(INDEX, TYPE, "" + i)
+                    .setSource(jsonBuilder()
+                                    .startObject()
+                                    .startObject(FIELD)
+                                    .field("input", "suggestion" + i)
+                                    .field("weight", i)
+                                    .endObject()
+                                    .endObject()
+                    ));
+        }
+        indexRandom(true, indexRequestBuilders);
+        CompletionSuggestionBuilder prefix = SuggestBuilders.completionSuggestion("foo").field(FIELD).prefix("sugg").size(numDocs);
+
+        SuggestResponse suggestResponse = client().prepareSuggest(INDEX).addSuggestion(prefix).execute().actionGet();
+        CompletionSuggestion completionSuggestion = suggestResponse.getSuggest().getSuggestion("foo");
+        CompletionSuggestion.Entry options = completionSuggestion.getEntries().get(0);
+        assertThat(options.getOptions().size(), equalTo(numDocs));
+        int id = numDocs;
+        for (CompletionSuggestion.Entry.Option option : options) {
+            assertThat(option.getText().toString(), equalTo("suggestion" + id));
+            assertSearchHit(option.hit(), hasId("" + id));
+            assertSearchHit(option.hit(), hasScore(((float) id)));
+            assertNotNull(option.hit().source());
+            id--;
+        }
+    }
+
+    @Test
+    public void testSuggestDocumentNoSource() throws Exception {
+        final CompletionMappingBuilder mapping = new CompletionMappingBuilder();
+        createIndexAndMapping(mapping);
+        int numDocs = randomIntBetween(10, 100);
+        List<IndexRequestBuilder> indexRequestBuilders = new ArrayList<>();
+        for (int i = 1; i <= numDocs; i++) {
+            indexRequestBuilders.add(client().prepareIndex(INDEX, TYPE, "" + i)
+                    .setSource(jsonBuilder()
+                                    .startObject()
+                                    .startObject(FIELD)
+                                    .field("input", "suggestion" + i)
+                                    .field("weight", i)
+                                    .endObject()
+                                    .endObject()
+                    ));
+        }
+        indexRandom(true, indexRequestBuilders);
+        CompletionSuggestionBuilder prefix = SuggestBuilders.completionSuggestion("foo").field(FIELD).prefix("sugg").size(numDocs);
+
+        SuggestResponse suggestResponse = client().prepareSuggest(INDEX).addSuggestion(prefix).fetchSource(false).execute().actionGet();
+        CompletionSuggestion completionSuggestion = suggestResponse.getSuggest().getSuggestion("foo");
+        CompletionSuggestion.Entry options = completionSuggestion.getEntries().get(0);
+        assertThat(options.getOptions().size(), equalTo(numDocs));
+        int id = numDocs;
+        for (CompletionSuggestion.Entry.Option option : options) {
+            assertThat(option.getText().toString(), equalTo("suggestion" + id));
+            assertSearchHit(option.hit(), hasId("" + id));
+            assertSearchHit(option.hit(), hasScore(((float) id)));
+            assertNull(option.hit().source());
+            id--;
+        }
+    }
+
+    @Test
+    public void testSuggestDocumentSourceFiltering() throws Exception {
+        final CompletionMappingBuilder mapping = new CompletionMappingBuilder();
+        createIndexAndMapping(mapping);
+        int numDocs = randomIntBetween(10, 100);
+        List<IndexRequestBuilder> indexRequestBuilders = new ArrayList<>();
+        for (int i = 1; i <= numDocs; i++) {
+            indexRequestBuilders.add(client().prepareIndex(INDEX, TYPE, "" + i)
+                    .setSource(jsonBuilder()
+                                    .startObject()
+                                    .startObject(FIELD)
+                                    .field("input", "suggestion" + i)
+                                    .field("weight", i)
+                                    .endObject()
+                                    .field("a", "include")
+                                    .field("b", "exclude")
+                                    .endObject()
+                    ));
+        }
+        indexRandom(true, indexRequestBuilders);
+        CompletionSuggestionBuilder prefix = SuggestBuilders.completionSuggestion("foo").field(FIELD).prefix("sugg").size(numDocs);
+
+        SuggestResponse suggestResponse = client().prepareSuggest(INDEX).addSuggestion(prefix).fetchSource("a", "b").execute().actionGet();
+        CompletionSuggestion completionSuggestion = suggestResponse.getSuggest().getSuggestion("foo");
+        CompletionSuggestion.Entry options = completionSuggestion.getEntries().get(0);
+        assertThat(options.getOptions().size(), equalTo(numDocs));
+        int id = numDocs;
+        for (CompletionSuggestion.Entry.Option option : options) {
+            assertThat(option.getText().toString(), equalTo("suggestion" + id));
+            assertSearchHit(option.hit(), hasId("" + id));
+            assertSearchHit(option.hit(), hasScore(((float) id)));
+            assertNotNull(option.hit().source());
+            Set<String> sourceFields = option.hit().sourceAsMap().keySet();
+            assertThat(sourceFields, contains("a"));
+            assertThat(sourceFields, not(contains("b")));
+            id--;
         }
     }
 

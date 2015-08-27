@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.suggest;
 
+import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ElasticsearchException;
 
@@ -64,6 +65,8 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
 
     private Map<String, Suggestion<? extends Entry<? extends Option>>> suggestMap;
 
+    private Map<String, CompletionSuggestion> completionSuggestionMap;
+
     public Suggest() {
         this.name = null;
     }
@@ -92,7 +95,92 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
     public int size() {
         return suggestions.size();
     }
-    
+
+    /**
+     * Get the request size of suggestions for <code>name</code>
+     * TODO: only works for CompletionSuggestion
+     */
+    public int topN(String name) {
+        loadCompletionMap();
+        CompletionSuggestion suggestion = completionSuggestionMap.get(name);
+        if (suggestion != null) {
+            return suggestion.getSize();
+        }
+        throw new IllegalStateException("[" + name + "] is not found");
+    }
+
+    /**
+     * Trim <code>name</code> suggestions to a size of <code>size</code>
+     * TODO: only works for CompletionSuggestion
+     */
+    public void trim(String name, int size) {
+        loadCompletionMap();
+        CompletionSuggestion completionSuggestion = completionSuggestionMap.get(name);
+        if (completionSuggestion != null) {
+            completionSuggestion.trim(size);
+        }
+    }
+
+    public Suggestion<? extends Entry<? extends Option>> getCompletionSuggestion(String name) {
+        loadCompletionMap();
+        return completionSuggestionMap.get(name);
+    }
+
+    /**
+     * Whether any suggestions had query hits
+     */
+    public boolean hasScoreDocs() {
+        loadCompletionMap();
+        for (CompletionSuggestion suggestion : completionSuggestionMap.values()) {
+            ScoreDoc[] scoreDocs = suggestion.getScoreDocs();
+            if (scoreDocs != null) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Returns a map of suggestion names and their hits, setting
+     * <code>shardIndex</code> for every doc
+     */
+    public Map<String, ScoreDoc[]> toNamedScoreDocs(int shardIndex) {
+        loadCompletionMap();
+        Map<String, ScoreDoc[]> namedScoreDocs = new HashMap<>(completionSuggestionMap.size());
+        for (Map.Entry<String, CompletionSuggestion> suggestionEntry : completionSuggestionMap.entrySet()) {
+            ScoreDoc[] scoreDocs = suggestionEntry.getValue().getScoreDocs();
+            if (shardIndex >= 0) {
+                for (ScoreDoc scoreDoc : scoreDocs) {
+                    scoreDoc.shardIndex = shardIndex;
+                }
+            }
+            namedScoreDocs.put(suggestionEntry.getKey(), scoreDocs);
+        }
+        return namedScoreDocs;
+    }
+
+    private void loadCompletionMap() {
+        if (completionSuggestionMap == null) {
+            if (suggestions.size() == 0) {
+                completionSuggestionMap = Collections.emptyMap();
+            } else if (suggestions.size() == 1) {
+                if (suggestions.get(0) instanceof CompletionSuggestion) {
+                    completionSuggestionMap = Collections.singletonMap(suggestions.get(0).getName(), ((CompletionSuggestion) suggestions.get(0)));
+                } else {
+                    completionSuggestionMap = Collections.emptyMap();
+                }
+            } else {
+                completionSuggestionMap = new HashMap<>(suggestions.size());
+                for (Suggestion<? extends Entry<? extends Option>> suggestion : suggestions) {
+                    if (suggestion instanceof CompletionSuggestion) {
+                        CompletionSuggestion prev = completionSuggestionMap.put(suggestion.getName(), ((CompletionSuggestion) suggestion));
+                        assert prev == null;
+                    }
+                }
+            }
+        }
+    }
+
     public <T extends Suggestion<? extends Entry<? extends Option>>> T getSuggestion(String name) {
         if (suggestions.isEmpty() || name == null) {
             return null;
@@ -147,18 +235,18 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        if(name == null) {
-            for (Suggestion<?> suggestion : suggestions) {
-                suggestion.toXContent(builder, params);
-            }
-        } else {
+        final boolean useSuggestName = params.paramAsBoolean("use_suggest_namespace", true);
+        if (useSuggestName && name != null) {
             builder.startObject(name);
             for (Suggestion<?> suggestion : suggestions) {
                 suggestion.toXContent(builder, params);
             }
             builder.endObject();
+        } else {
+            for (Suggestion<?> suggestion : suggestions) {
+                suggestion.toXContent(builder, params);
+            }
         }
-        
         return builder;
     }
 
@@ -227,9 +315,21 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
             return TYPE;
         }
 
+        public int getSize() {
+            return size;
+        }
+
         @Override
         public Iterator<T> iterator() {
             return entries.iterator();
+        }
+
+        public ScoreDoc[] getScoreDocs() {
+            return null;
+        }
+
+        public List<? extends Option> options() {
+            return null;
         }
 
         /**
@@ -450,7 +550,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                 return options;
             }
 
-            void trim(int size) {
+            public void trim(int size) {
                 int optionsToRemove = Math.max(0, options.size() - size);
                 for (int i = 0; i < optionsToRemove; i++) {
                     options.remove(options.size() - 1);

@@ -75,8 +75,8 @@ import org.elasticsearch.action.percolate.PercolateRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.action.suggest.SuggestAction;
 import org.elasticsearch.action.suggest.SuggestRequest;
+import org.elasticsearch.action.suggest.SuggestResponse;
 import org.elasticsearch.action.support.QuerySourceBuilder;
 import org.elasticsearch.action.termvectors.MultiTermVectorsAction;
 import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
@@ -467,11 +467,12 @@ public class IndicesRequestIT extends ESIntegTestCase {
 
     @Test
     public void testSuggest() {
-        String suggestAction = SuggestAction.NAME + "[s]";
+        String suggestAction = SearchServiceTransportAction.SUGGEST_ACTION_NAME;
         interceptTransportActions(suggestAction);
 
         SuggestRequest suggestRequest = new SuggestRequest(randomIndicesOrAliases());
-        internalCluster().clientNodeClient().suggest(suggestRequest).actionGet();
+        SuggestResponse suggestResponse = internalCluster().clientNodeClient().suggest(suggestRequest).actionGet();
+        assertNoFailures(suggestResponse);
 
         clearInterceptedActions();
         assertSameIndices(suggestRequest, suggestAction);

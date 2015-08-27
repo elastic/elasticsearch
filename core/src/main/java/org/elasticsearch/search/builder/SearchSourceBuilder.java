@@ -110,6 +110,7 @@ public class SearchSourceBuilder extends ToXContentToBytes {
     private HighlightBuilder highlightBuilder;
 
     private SuggestBuilder suggestBuilder;
+    private BytesReference suggestBinary;
 
     private InnerHitsBuilder innerHitsBuilder;
 
@@ -406,6 +407,11 @@ public class SearchSourceBuilder extends ToXContentToBytes {
      */
     public SearchSourceBuilder aggregations(BytesReference aggregationsBinary) {
         this.aggregationsBinary = aggregationsBinary;
+        return this;
+    }
+
+    public SearchSourceBuilder suggest(BytesReference suggestBinary) {
+        this.suggestBinary = suggestBinary;
         return this;
     }
 
@@ -779,6 +785,14 @@ public class SearchSourceBuilder extends ToXContentToBytes {
 
         if (suggestBuilder != null) {
             suggestBuilder.toXContent(builder, params);
+        }
+
+        if (suggestBinary != null && suggestBinary.length() > 0) {
+            if (XContentFactory.xContentType(suggestBinary) == builder.contentType()) {
+                builder.rawField("suggest", suggestBinary);
+            } else {
+                builder.field("suggest_binary", suggestBinary);
+            }
         }
 
         if (rescoreBuilders != null) {

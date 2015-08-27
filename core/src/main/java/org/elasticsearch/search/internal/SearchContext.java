@@ -292,6 +292,10 @@ public abstract class SearchContext implements Releasable, HasContextAndHeaders 
 
     public abstract SearchContext docIdsToLoad(int[] docIdsToLoad, int docsIdsToLoadFrom, int docsIdsToLoadSize);
 
+    public abstract Map<String, int[]> namedDocIdsToLoad();
+
+    public abstract SearchContext namedDocIdsToLoad(Map<String, int[]> namedDocIds);
+
     public abstract void accessed(long accessTime);
 
     public abstract long lastAccessTime();

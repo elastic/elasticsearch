@@ -596,6 +596,16 @@ public class PercolateContext extends SearchContext {
     }
 
     @Override
+    public Map<String, int[]> namedDocIdsToLoad() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public SearchContext namedDocIdsToLoad(Map<String, int[]> namedDocIds) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
     public SearchContext docIdsToLoad(int[] docIdsToLoad, int docsIdsToLoadFrom, int docsIdsToLoadSize) {
         throw new UnsupportedOperationException();
     }

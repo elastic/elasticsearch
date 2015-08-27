@@ -26,6 +26,7 @@ import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
@@ -67,6 +68,7 @@ import org.elasticsearch.index.search.stats.ShardSearchStats;
 import org.elasticsearch.index.search.stats.StatsGroupsParseElement;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.suggest.stats.ShardSuggestMetric;
 import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.IndicesWarmer;
@@ -86,6 +88,8 @@ import org.elasticsearch.search.fetch.*;
 import org.elasticsearch.search.internal.*;
 import org.elasticsearch.search.internal.SearchContext.Lifetime;
 import org.elasticsearch.search.query.*;
+import org.elasticsearch.search.suggest.Suggest;
+import org.elasticsearch.search.suggest.SuggestPhase;
 import org.elasticsearch.search.warmer.IndexWarmersMetaData;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -134,6 +138,8 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
 
     private final FetchPhase fetchPhase;
 
+    private final SuggestPhase suggestPhase;
+
     private final IndicesRequestCache indicesQueryCache;
 
     private final long defaultKeepAlive;
@@ -152,7 +158,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
 
     @Inject
     public SearchService(Settings settings, NodeSettingsService nodeSettingsService, ClusterService clusterService, IndicesService indicesService,IndicesWarmer indicesWarmer, ThreadPool threadPool,
-                         ScriptService scriptService, PageCacheRecycler pageCacheRecycler, BigArrays bigArrays, DfsPhase dfsPhase, QueryPhase queryPhase, FetchPhase fetchPhase,
+                         ScriptService scriptService, PageCacheRecycler pageCacheRecycler, BigArrays bigArrays, DfsPhase dfsPhase, QueryPhase queryPhase, FetchPhase fetchPhase, SuggestPhase suggestPhase,
                          IndicesRequestCache indicesQueryCache) {
         super(settings);
         this.parseFieldMatcher = new ParseFieldMatcher(settings);
@@ -187,6 +193,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         this.dfsPhase = dfsPhase;
         this.queryPhase = queryPhase;
         this.fetchPhase = fetchPhase;
+        this.suggestPhase = suggestPhase;
         this.indicesQueryCache = indicesQueryCache;
 
         TimeValue keepAliveInterval = settings.getAsTime(KEEPALIVE_INTERVAL_KEY, timeValueMinutes(1));
@@ -385,6 +392,33 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         }
     }
 
+    public QuerySearchResultProvider executeSuggestPhase(ShardSearchRequest request) {
+        final SearchContext context = createAndPutContext(request);
+        try {
+            final ShardSuggestMetric suggestMetric = context.indexShard().getSuggestMetric();
+            suggestMetric.preSuggest();
+            long time = System.nanoTime();
+            contextProcessing(context);
+            suggestPhase.execute(context);
+            context.queryResult().topDocs(Lucene.EMPTY_TOP_DOCS);
+            Suggest suggest = context.queryResult().suggest();
+            boolean freeContext = suggest == null || !suggest.hasScoreDocs();
+            if (freeContext) {
+                freeContext(context.id());
+            } else {
+                contextProcessedSuccessfully(context);
+            }
+            suggestMetric.postSuggest(System.nanoTime() - time);
+            return context.queryResult();
+        } catch (Throwable e) {
+            logger.trace("Query phase failed", e);
+            processFailure(context, e);
+            throw ExceptionsHelper.convertToRuntime(e);
+        } finally {
+            cleanContext(context);
+        }
+    }
+
     public ScrollQuerySearchResult executeQueryPhase(InternalScrollSearchRequest request) {
         final SearchContext context = findContext(request.id());
         ShardSearchStats shardSearchStats = context.indexShard().searchService();
@@ -442,6 +476,43 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         } else {
             // scroll request, but the scroll was not extended
             return context.scrollContext().scroll == null;
+        }
+    }
+
+    public QueryFetchSearchResult executeSuggestFetchPhase(ShardSearchRequest request) {
+        final SearchContext context = createAndPutContext(request);
+        try {
+            final ShardSuggestMetric suggestMetric = context.indexShard().getSuggestMetric();
+            final ShardSearchStats shardSearchStats = context.indexShard().searchService();
+            suggestMetric.preSuggest();
+            long time = System.nanoTime();
+            contextProcessing(context);
+            try {
+                suggestPhase.execute(context);
+            } catch (Throwable e) {
+                shardSearchStats.onFailedQueryPhase(context);
+                throw ExceptionsHelper.convertToRuntime(e);
+            }
+            context.queryResult().topDocs(Lucene.EMPTY_TOP_DOCS);
+            long time2 = System.nanoTime();
+            suggestMetric.postSuggest(time2 - time);
+            shardSearchStats.onPreFetchPhase(context);
+            try {
+                loadNamedDocIds(context);
+                fetchPhase.execute(context);
+                freeContext(context.id());
+            } catch (Throwable e) {
+                shardSearchStats.onFailedFetchPhase(context);
+                throw ExceptionsHelper.convertToRuntime(e);
+            }
+            shardSearchStats.onFetchPhase(context, System.nanoTime() - time2);
+            return new QueryFetchSearchResult(context.queryResult(), context.fetchResult());
+        } catch (Throwable e) {
+            logger.trace("Fetch phase failed", e);
+            processFailure(context, e);
+            throw ExceptionsHelper.convertToRuntime(e);
+        } finally {
+            cleanContext(context);
         }
     }
 
@@ -573,6 +644,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                 context.scrollContext().lastEmittedDoc = request.lastEmittedDoc();
             }
             context.docIdsToLoad(request.docIds(), 0, request.docIdsSize());
+            context.namedDocIdsToLoad(request.namedDocIds());
             shardSearchStats.onPreFetchPhase(context);
             long time = System.nanoTime();
             fetchPhase.execute(context);
@@ -842,6 +914,23 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
     }
 
     private static final int[] EMPTY_DOC_IDS = new int[0];
+
+    private void loadNamedDocIds(SearchContext context) {
+        Suggest suggest = context.queryResult().suggest();
+        if (suggest != null && suggest.hasScoreDocs()) {
+            Map<String, ScoreDoc[]> namedScoreDocs = suggest.toNamedScoreDocs(-1);
+            Map<String, int[]> namedDocIds = new HashMap<>(namedScoreDocs.size());
+            for (Map.Entry<String, ScoreDoc[]> entry : namedScoreDocs.entrySet()) {
+                ScoreDoc[] scoreDocs = entry.getValue();
+                int[] docIds = new int[scoreDocs.length];
+                for (int i = 0; i < scoreDocs.length; i++) {
+                    docIds[i] = scoreDocs[i].doc;
+                }
+                namedDocIds.put(entry.getKey(), docIds);
+            }
+            context.namedDocIdsToLoad(namedDocIds);
+        }
+    }
 
     /**
      * Shortcut ids to load, we load only "from" and up to "size". The phase controller

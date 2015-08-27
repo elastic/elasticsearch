@@ -29,6 +29,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.util.Map;
 
 /**
  * Shard level fetch request used with search. Holds indices taken from the original search request
@@ -41,12 +42,12 @@ public class ShardFetchSearchRequest extends ShardFetchRequest implements Indice
     public ShardFetchSearchRequest() {
     }
 
-    public ShardFetchSearchRequest(SearchRequest request, long id, IntArrayList list) {
-        this(request, id, list, null);
+    public ShardFetchSearchRequest(SearchRequest request, long id, IntArrayList list, Map<String, IntArrayList> namedList) {
+        this(request, id, list, namedList, null);
     }
 
-    public ShardFetchSearchRequest(SearchRequest request, long id, IntArrayList list, ScoreDoc lastEmittedDoc) {
-        super(request, id, list, lastEmittedDoc);
+    public ShardFetchSearchRequest(SearchRequest request, long id, IntArrayList list, Map<String, IntArrayList> namedList, ScoreDoc lastEmittedDoc) {
+        super(request, id, list, namedList, lastEmittedDoc);
         this.originalIndices = new OriginalIndices(request);
     }
 

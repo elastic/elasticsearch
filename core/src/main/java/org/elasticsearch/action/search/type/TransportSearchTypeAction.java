@@ -347,12 +347,12 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
             }
         }
 
-        protected ShardFetchSearchRequest createFetchRequest(QuerySearchResult queryResult, AtomicArray.Entry<IntArrayList> entry, ScoreDoc[] lastEmittedDocPerShard) {
+        protected ShardFetchSearchRequest createFetchRequest(QuerySearchResult queryResult, AtomicArray.Entry<IntArrayList> entry, Map<String, IntArrayList> namedDocIds, ScoreDoc[] lastEmittedDocPerShard) {
             if (lastEmittedDocPerShard != null) {
                 ScoreDoc lastEmittedDoc = lastEmittedDocPerShard[entry.index];
-                return new ShardFetchSearchRequest(request, queryResult.id(), entry.value, lastEmittedDoc);
+                return new ShardFetchSearchRequest(request, queryResult.id(), entry.value, namedDocIds, lastEmittedDoc);
             } else {
-                return new ShardFetchSearchRequest(request, queryResult.id(), entry.value);
+                return new ShardFetchSearchRequest(request, queryResult.id(), entry.value, namedDocIds);
             }
         }
 

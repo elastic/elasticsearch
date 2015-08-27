@@ -431,6 +431,13 @@ public class InternalSearchHit implements SearchHit {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        innerToXContent(builder, params);
+        builder.endObject();
+        return builder;
+    }
+
+    public XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
         List<SearchHitField> metaFields = new ArrayList<>();
         List<SearchHitField> otherFields = new ArrayList<>();
         if (fields != null && !fields.isEmpty()) {
@@ -446,7 +453,6 @@ public class InternalSearchHit implements SearchHit {
             }
         }
 
-        builder.startObject();
         // For inner_hit hits shard is null and that is ok, because the parent search hit has all this information.
         // Even if this was included in the inner_hit hits this would be the same, so better leave it out.
         if (explanation() != null && shard != null) {
@@ -529,7 +535,6 @@ public class InternalSearchHit implements SearchHit {
             }
             builder.endObject();
         }
-        builder.endObject();
         return builder;
     }
 

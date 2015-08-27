@@ -23,12 +23,14 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.action.support.RestActions.buildBroadcastShardsHeader;
 import org.elasticsearch.action.suggest.SuggestRequest;
+import org.elasticsearch.action.suggest.SuggestRequestBuilder;
 import org.elasticsearch.action.suggest.SuggestResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
@@ -39,7 +41,10 @@ import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.suggest.Suggest;
+
+import java.util.Collections;
 
 /**
  *
@@ -60,7 +65,9 @@ public class RestSuggestAction extends BaseRestHandler {
         SuggestRequest suggestRequest = new SuggestRequest(Strings.splitStringByCommaToArray(request.param("index")));
         suggestRequest.indicesOptions(IndicesOptions.fromRequest(request, suggestRequest.indicesOptions()));
         if (RestActions.hasBodyContent(request)) {
-            suggestRequest.suggest(RestActions.getRestContent(request));
+            SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.searchSource();
+            searchSourceBuilder.suggest(RestActions.getRestContent(request));
+            suggestRequest.suggest(searchSourceBuilder.buildAsBytes());
         } else {
             throw new IllegalArgumentException("no content or source provided to execute suggestion");
         }
@@ -75,7 +82,7 @@ public class RestSuggestAction extends BaseRestHandler {
                 buildBroadcastShardsHeader(builder, request, response);
                 Suggest suggest = response.getSuggest();
                 if (suggest != null) {
-                    suggest.toXContent(builder, request);
+                    suggest.toXContent(builder, new ToXContent.MapParams(Collections.singletonMap("use_suggest_namespace", "false")));
                 }
                 builder.endObject();
                 return new BytesRestResponse(restStatus, builder);

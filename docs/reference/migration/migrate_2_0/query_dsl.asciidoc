@@ -178,7 +178,7 @@ The parameter `percent_terms_to_match` has been removed in favor of
 The `limit` filter is deprecated and becomes a no-op. You can achieve similar
 behaviour using the <<search-request-body,terminate_after>> parameter.
 
-==== Jave plugins registering custom queries
+==== Java plugins registering custom queries
 
 Java plugins that register custom queries can do so by using the
 `IndicesQueriesModule#addQuery(Class<? extends QueryParser>)` method. Other

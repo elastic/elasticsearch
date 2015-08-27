@@ -114,5 +114,4 @@ public class TransformParser implements DocumentMapperRootParser {
             return script.toXContent(builder, params);
         }
     }
-
 }

@@ -94,9 +94,7 @@ class DocumentParser implements Closeable {
             if (parser == null) {
                 parser = XContentHelper.createParser(source.source());
             }
-            if (mapping.sourceTransforms.length > 0) {
-                parser = transform(mapping, parser);
-            }
+            parser = transform(mapping, parser);
             context.reset(parser, new ParseContext.Document(), source);
 
             // will result in START_OBJECT
@@ -761,6 +759,9 @@ class DocumentParser implements Closeable {
     }
 
     private static XContentParser transform(Mapping mapping, XContentParser parser) throws IOException {
+        if (mapping.sourceTransforms.length == 0) {
+            return parser;
+        }
         Map<String, Object> transformed;
         try (XContentParser _ = parser) {
             transformed = transformSourceAsMap(mapping, parser.mapOrdered());
@@ -774,9 +775,6 @@ class DocumentParser implements Closeable {
     }
 
     static Map<String, Object> transformSourceAsMap(Mapping mapping, Map<String, Object> sourceAsMap) {
-        if (mapping.sourceTransforms.length == 0) {
-            return sourceAsMap;
-        }
         for (Mapping.SourceTransform transform : mapping.sourceTransforms) {
             sourceAsMap = transform.transformSourceAsMap(sourceAsMap);
         }

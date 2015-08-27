@@ -131,8 +131,7 @@ task copyRestSpec(type: Copy, dependsOn: configurations.restSpec.buildDependenci
 }
 
 test {
-  dependsOn copyRestSpec
-
+  dependsOn = [copyRestSpec, classes, testClasses]
   logging.setLevel(LogLevel.INFO)
 
   outputs.upToDateWhen {

@@ -54,6 +54,7 @@ class RandomizedTest extends DefaultTask {
                 uri: 'junit4',
                 classpath: getProject().configurations.testCompile.asPath)
         def junit4 = NamespaceBuilder.newInstance(ant, 'junit4')
+        logger.lifecycle('RUNNING TESTS')
         junit4.junit4(
                 taskName: 'junit4',
                 parallelism: 8,
@@ -66,8 +67,8 @@ class RandomizedTest extends DefaultTask {
                 //include(name: '**/*IT.class') // temp
                 include(name:'**/*Test.class')
                 include(name:'**/*Tests.class')
-                exclude(name: '**/Abstract*.class')
-                exclude(name: '**/*StressTest.class')
+                //exclude(name: '**/Abstract*.class')
+                //exclude(name: '**/*StressTest.class')
             }
             listeners {
                 junit4.'report-text'(
@@ -81,7 +82,8 @@ class RandomizedTest extends DefaultTask {
                         showSuiteSummary: true,
                         timestamps: false
                 )
-                new JUnit4ProgressLogger(factory: getProgressLoggerFactory(), logger: getLogger())
+                //logger.info('DELGATE: ' + delegate)
+                //delegate.addConfigured(new JUnit4ProgressLogger(factory: getProgressLoggerFactory(), logger: getLogger()))
             }
         }
     }

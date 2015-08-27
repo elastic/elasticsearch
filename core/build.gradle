@@ -125,7 +125,7 @@ task sourcesJar(type: Jar, dependsOn: classes) {
 [ant:junit4]    >   at org.elasticsearch.common.io.PathUtils.get(PathUtils.java:75)
 [ant:junit4]    >   at org.elasticsearch.test.rest.support.FileUtils.resolveFile(FileUtils.java:115)
  */
-task copyRestSpec(type: Copy, dependsOn: configurations.testRuntime.buildDependencies) {
+task copyRestSpec(type: Copy, dependsOn: configurations.restSpec.buildDependencies) {
   from zipTree(configurations.restSpec.asPath)
   into sourceSets.test.output.classesDir
 }

@@ -76,8 +76,8 @@ public abstract class ExtensionPoint {
          *
          * @param name           the human readable underscore case name of the extension poing. This is used in error messages etc.
          * @param extensionClass the base class that should be extended
-         * @param singletons     a list of singletons to bind with this extension point - these are bound in {@link #bind(Binder)}
          * @param reservedKeys   a set of reserved keys by internal implementations
+         * @param singletons     a list of singletons to bind with this extension point - these are bound in {@link #bind(Binder)}
          */
         public ClassMap(String name, Class<T> extensionClass, Set<String> reservedKeys, Class<?>... singletons) {
             super(name, singletons);

@@ -373,7 +373,7 @@ public class DocumentMapper implements ToXContent {
     /**
      * Transform the source when it is expressed as a map.  This is public so it can be transformed the source is loaded.
      * @param sourceAsMap source to transform.  This may be mutated by the script.
-     * @return transformed version of transformMe.  This may actually be the same object as sourceAsMap
+     * @return transformed version of sourceAsMap.  This may actually be the same object as sourceAsMap
      */
     public Map<String, Object> transformSourceAsMap(Map<String, Object> sourceAsMap) {
         return DocumentParser.transformSourceAsMap(mapping, sourceAsMap);

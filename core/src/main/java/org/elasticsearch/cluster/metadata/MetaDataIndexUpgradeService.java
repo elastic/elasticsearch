@@ -19,6 +19,8 @@
 package org.elasticsearch.cluster.metadata;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+import com.google.common.collect.ImmutableSet;
+
 import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
@@ -26,19 +28,19 @@ import org.elasticsearch.cluster.routing.DjbHashFunction;
 import org.elasticsearch.cluster.routing.HashFunction;
 import org.elasticsearch.cluster.routing.SimpleHashFunction;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
-import org.elasticsearch.common.Classes;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.mapper.DocumentMapperRootParser;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.similarity.SimilarityLookupService;
 import org.elasticsearch.index.store.IndexStoreModule;
 import org.elasticsearch.script.ScriptService;
 
+import java.util.Collections;
 import java.util.Locale;
 import java.util.Set;
 
@@ -325,7 +327,8 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
             // We cannot instantiate real analysis server at this point because the node might not have
             // been started yet. However, we don't really need real analyzers at this stage - so we can fake it
             try (AnalysisService analysisService = new FakeAnalysisService(index, settings)) {
-                try (MapperService mapperService = new MapperService(index, settings, analysisService, similarityLookupService, scriptService)) {
+                try (MapperService mapperService = new MapperService(index, settings, analysisService, similarityLookupService,
+                        scriptService, Collections.<String, DocumentMapperRootParser> emptyMap())) {
                     for (ObjectCursor<MappingMetaData> cursor : indexMetaData.getMappings().values()) {
                         MappingMetaData mappingMetaData = cursor.value;
                         mapperService.merge(mappingMetaData.type(), mappingMetaData.source(), false, false);

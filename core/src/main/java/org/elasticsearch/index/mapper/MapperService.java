@@ -129,11 +129,12 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     @Inject
     public MapperService(Index index, @IndexSettings Settings indexSettings, AnalysisService analysisService,
                          SimilarityLookupService similarityLookupService,
-                         ScriptService scriptService) {
+                         ScriptService scriptService, Map<String, DocumentMapperRootParser> rootParsers) {
         super(index, indexSettings);
         this.analysisService = analysisService;
         this.fieldTypes = new FieldTypeLookup();
-        this.documentParser = new DocumentMapperParser(indexSettings, this, analysisService, similarityLookupService, scriptService);
+        this.documentParser = new DocumentMapperParser(indexSettings, this, analysisService, similarityLookupService, scriptService,
+                rootParsers);
         this.indexAnalyzer = new MapperAnalyzerWrapper(analysisService.defaultIndexAnalyzer(), INDEX_ANALYZER_EXTRACTOR);
         this.searchAnalyzer = new MapperAnalyzerWrapper(analysisService.defaultSearchAnalyzer(), SEARCH_ANALYZER_EXTRACTOR);
         this.searchQuoteAnalyzer = new MapperAnalyzerWrapper(analysisService.defaultSearchQuoteAnalyzer(), SEARCH_QUOTE_ANALYZER_EXTRACTOR);

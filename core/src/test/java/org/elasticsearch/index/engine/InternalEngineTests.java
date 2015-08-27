@@ -1949,9 +1949,12 @@ public class InternalEngineTests extends ESTestCase {
             Index index = new Index(indexName);
             AnalysisService analysisService = new AnalysisService(index, settings);
             SimilarityLookupService similarityLookupService = new SimilarityLookupService(index, settings);
-            MapperService mapperService = new MapperService(index, settings, analysisService, similarityLookupService, null);
+            // This is safe for now because these rootParsers are all just from extensions like transform
+            Map<String, DocumentMapperRootParser> rootParsers = Collections.emptyMap();
+            MapperService mapperService = new MapperService(index, settings, analysisService, similarityLookupService, null, rootParsers);
             DocumentMapper.Builder b = new DocumentMapper.Builder(settings, rootBuilder, mapperService);
-            DocumentMapperParser parser = new DocumentMapperParser(settings, mapperService, analysisService, similarityLookupService, null);
+            DocumentMapperParser parser = new DocumentMapperParser(settings, mapperService, analysisService, similarityLookupService, null,
+                    rootParsers);
             this.docMapper = b.build(mapperService, parser);
 
         }

@@ -75,9 +75,10 @@ public class DocumentMapperParser {
     private volatile ImmutableMap<String, Mapper.TypeParser> typeParsers;
     private volatile ImmutableMap<String, Mapper.TypeParser> rootTypeParsers;
     private volatile ImmutableMap<String, Mapper.TypeParser> additionalRootMappers;
+    private final Map<String, DocumentMapperRootParser> rootParsers;
 
     public DocumentMapperParser(@IndexSettings Settings indexSettings, MapperService mapperService, AnalysisService analysisService,
-                                SimilarityLookupService similarityLookupService, ScriptService scriptService) {
+                                SimilarityLookupService similarityLookupService, ScriptService scriptService, Map<String, DocumentMapperRootParser> rootParsers) {
         this.indexSettings = indexSettings;
         this.parseFieldMatcher = new ParseFieldMatcher(indexSettings);
         this.mapperService = mapperService;
@@ -125,6 +126,7 @@ public class DocumentMapperParser {
                 .immutableMap();
         additionalRootMappers = ImmutableSortedMap.<String, Mapper.TypeParser>of();
         indexVersionCreated = Version.indexCreated(indexSettings);
+        this.rootParsers = rootParsers;
     }
 
     public void putTypeParser(String type, Mapper.TypeParser typeParser) {
@@ -148,7 +150,8 @@ public class DocumentMapperParser {
     }
 
     public Mapper.TypeParser.ParserContext parserContext() {
-        return new Mapper.TypeParser.ParserContext(analysisService, similarityLookupService, mapperService, typeParsers, indexVersionCreated, parseFieldMatcher);
+        return new Mapper.TypeParser.ParserContext(analysisService, similarityLookupService, mapperService, typeParsers,
+                indexVersionCreated, parseFieldMatcher, scriptService);
     }
 
     public DocumentMapper parse(String source) throws MapperParsingException {
@@ -159,7 +162,6 @@ public class DocumentMapperParser {
         return parse(type, source, null);
     }
 
-    @SuppressWarnings({"unchecked"})
     public DocumentMapper parse(@Nullable String type, String source, String defaultSource) throws MapperParsingException {
         Map<String, Object> mapping = null;
         if (source != null) {
@@ -177,7 +179,6 @@ public class DocumentMapperParser {
         return parseCompressed(type, source, null);
     }
 
-    @SuppressWarnings({"unchecked"})
     public DocumentMapper parseCompressed(@Nullable String type, CompressedXContent source, String defaultSource) throws MapperParsingException {
         Map<String, Object> mapping = null;
         if (source != null) {
@@ -220,19 +221,9 @@ public class DocumentMapperParser {
             String fieldName = Strings.toUnderscoreCase(entry.getKey());
             Object fieldNode = entry.getValue();
 
-            if ("transform".equals(fieldName)) {
-                if (fieldNode instanceof Map) {
-                    parseTransform(docBuilder, (Map<String, Object>) fieldNode, parserContext.indexVersionCreated());
-                } else if (fieldNode instanceof List) {
-                    for (Object transformItem: (List)fieldNode) {
-                        if (!(transformItem instanceof Map)) {
-                            throw new MapperParsingException("Elements of transform list must be objects but one was:  " + fieldNode);
-                        }
-                        parseTransform(docBuilder, (Map<String, Object>) transformItem, parserContext.indexVersionCreated());
-                    }
-                } else {
-                    throw new MapperParsingException("Transform must be an object or an array but was:  " + fieldNode);
-                }
+            DocumentMapperRootParser rootParser = rootParsers.get(fieldName);
+            if (rootParser != null) {
+                rootParser.parse(docBuilder, fieldNode, parserContext);
                 iterator.remove();
             } else {
                 Mapper.TypeParser typeParser = rootTypeParsers.get(fieldName);
@@ -277,14 +268,6 @@ public class DocumentMapperParser {
             remainingFields.append(" [").append(key).append(" : ").append(map.get(key)).append("]");
         }
         return remainingFields.toString();
-    }
-
-    private void parseTransform(DocumentMapper.Builder docBuilder, Map<String, Object> transformConfig, Version indexVersionCreated) {
-        Script script = Script.parse(transformConfig, true, parseFieldMatcher);
-        if (script != null) {
-            docBuilder.transform(scriptService, script);
-        }
-        checkNoRemainingFields(transformConfig, indexVersionCreated, "Transform config has unsupported parameters: ");
     }
 
     private Tuple<String, Map<String, Object>> extractMapping(String type, String source) throws MapperParsingException {

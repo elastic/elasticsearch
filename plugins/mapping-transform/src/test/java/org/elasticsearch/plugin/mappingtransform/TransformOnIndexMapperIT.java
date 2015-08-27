@@ -22,17 +22,19 @@ package org.elasticsearch.plugin.mappingtransform;
 import com.google.common.collect.ImmutableMap;
 
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.suggest.SuggestResponse;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.script.expression.ExpressionScriptEngineService;
 import org.elasticsearch.script.groovy.GroovyScriptEngineService;
 import org.elasticsearch.search.suggest.SuggestBuilders;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.Map;
@@ -45,6 +47,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSuggestion;
 import static org.hamcrest.Matchers.both;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.not;
@@ -54,8 +57,15 @@ import static org.hamcrest.Matchers.not;
  */
 @SuppressCodecs("*") // requires custom completion format
 public class TransformOnIndexMapperIT extends ESIntegTestCase {
-    @Test
-    public void searchOnTransformed() throws Exception {
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return Settings.builder()
+                .put(super.nodeSettings(nodeOrdinal))
+                .put("plugin.types", MappingTransformPlugin.class.getName())
+                .build();
+    }
+
+    public void testSearchOnTransformed() throws Exception {
         setup(true);
 
         // Searching by the field created in the transport finds the entry
@@ -70,8 +80,7 @@ public class TransformOnIndexMapperIT extends ESIntegTestCase {
         assertHitCount(response, 0);
     }
 
-    @Test
-    public void getTransformed() throws Exception {
+    public void testGetTransformed() throws Exception {
         setup(getRandom().nextBoolean());
         GetResponse response = client().prepareGet("test", "test", "righttitle").get();
         assertExists(response);
@@ -85,8 +94,7 @@ public class TransformOnIndexMapperIT extends ESIntegTestCase {
     // TODO: the completion suggester currently returns payloads with no reencoding so this test
     // exists to make sure that _source transformation and completion work well together. If we
     // ever fix the completion suggester to reencode the payloads then we can remove this test.
-    @Test
-    public void contextSuggestPayloadTransformed() throws Exception {
+    public void testContextSuggestPayloadTransformed() throws Exception {
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
         builder.startObject("properties");
         builder.startObject("suggest").field("type", "completion").field("payloads", true).endObject();
@@ -109,6 +117,34 @@ public class TransformOnIndexMapperIT extends ESIntegTestCase {
         XContentBuilder expected = XContentFactory.contentBuilder(type);
         expected.startObject().field("display", "findme").field("display_detail", "on the fly").endObject();
         assertEquals(expected.string(), option.getPayloadAsString());
+    }
+
+    /**
+     * Make sure expressions are not allowed to be used as mapping scripts.
+     */
+    public void testInvalidMappingScript() throws Exception{
+        try {
+            createIndex("test_index");
+            ensureGreen("test_index");
+            XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
+            builder.startObject("transform");
+            builder.field("script", "1.0");
+            builder.field("lang", ExpressionScriptEngineService.NAME);
+            builder.endObject();
+            builder.startObject("properties");
+            builder.startObject("double_field");
+            builder.field("type", "double");
+            builder.endObject();
+            builder.endObject();
+            builder.endObject();
+            client().admin().indices().preparePutMapping("test_index").setType("trans_test").setSource(builder).get();
+            client().prepareIndex("test_index", "trans_test", "1").setSource("double_field", 0.0).get();
+            fail("Expression scripts should not be allowed to run as mapping scripts.");
+        } catch (Exception e) {
+            String message = ExceptionsHelper.detailedMessage(e);
+            assertThat(message + " should have contained failed to parse", message.contains("failed to parse"), equalTo(true));
+            assertThat(message + " should have contained not supported", message.contains("not supported"), equalTo(true));
+        }
     }
 
     /**

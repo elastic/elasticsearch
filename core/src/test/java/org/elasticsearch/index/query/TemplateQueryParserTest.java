@@ -21,7 +21,6 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.inject.AbstractModule;
@@ -39,6 +38,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNameModule;
 import org.elasticsearch.index.analysis.AnalysisModule;
 import org.elasticsearch.index.cache.IndexCacheModule;
+import org.elasticsearch.index.mapper.MapperServiceModule;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionParser;
 import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.index.similarity.SimilarityModule;
@@ -99,7 +99,8 @@ public class TemplateQueryParserTest extends ESTestCase {
                         bind(ClusterService.class).toProvider(Providers.of((ClusterService) null));
                         bind(CircuitBreakerService.class).to(NoneCircuitBreakerService.class);
                     }
-                }
+                },
+                new MapperServiceModule()
         ).createInjector();
 
         IndexQueryParserService queryParserService = injector.getInstance(IndexQueryParserService.class);

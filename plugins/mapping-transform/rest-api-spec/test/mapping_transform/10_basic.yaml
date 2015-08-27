@@ -4,7 +4,7 @@
       index:  test
       body:
         mappings:
-          test:
+          type:
             transform:
               script: "ctx._source['test_dest'] = ctx._source['test']"
               lang: groovy

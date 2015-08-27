@@ -19,8 +19,16 @@
 
 package org.elasticsearch.plugin.mappingtransform;
 
+import org.elasticsearch.index.mapper.MapperServiceModule;
 import org.elasticsearch.plugins.Plugin;
 
+/**
+ * Plugin handling scripted "transform"s that allow you to index that data
+ * differently than it is stored in _source. This used to be a core feature of
+ * Elasticsearch but it makes debugging baffling sometimes. Use with great care.
+ * You are better off if you just think of these transform scripts as
+ * <code>copy_to</code> on steroids.
+ */
 public class MappingTransformPlugin extends Plugin {
     public static final String NAME = "mapping-transform";
 
@@ -34,4 +42,7 @@ public class MappingTransformPlugin extends Plugin {
         return "Elasticsearch Mapping-Transform Plugin";
     }
 
+    public void onModule(MapperServiceModule module) {
+        module.addRootParser("transform", TransformParser.class);
+    }
 }

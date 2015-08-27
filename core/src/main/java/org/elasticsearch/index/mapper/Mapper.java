@@ -20,6 +20,7 @@
 package org.elasticsearch.index.mapper;
 
 import com.google.common.collect.ImmutableMap;
+
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseFieldMatcher;
@@ -28,6 +29,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.similarity.SimilarityLookupService;
+import org.elasticsearch.script.ScriptService;
 
 import java.util.Map;
 
@@ -92,16 +94,18 @@ public abstract class Mapper implements ToXContent, Iterable<Mapper> {
             private final Version indexVersionCreated;
 
             private final ParseFieldMatcher parseFieldMatcher;
+            private final ScriptService scriptService;
 
             public ParserContext(AnalysisService analysisService, SimilarityLookupService similarityLookupService,
                                  MapperService mapperService, ImmutableMap<String, TypeParser> typeParsers,
-                                Version indexVersionCreated, ParseFieldMatcher parseFieldMatcher) {
+                                Version indexVersionCreated, ParseFieldMatcher parseFieldMatcher, ScriptService scriptService) {
                 this.analysisService = analysisService;
                 this.similarityLookupService = similarityLookupService;
                 this.mapperService = mapperService;
                 this.typeParsers = typeParsers;
                 this.indexVersionCreated = indexVersionCreated;
                 this.parseFieldMatcher = parseFieldMatcher;
+                this.scriptService = scriptService;
             }
 
             public AnalysisService analysisService() {
@@ -126,6 +130,10 @@ public abstract class Mapper implements ToXContent, Iterable<Mapper> {
 
             public ParseFieldMatcher parseFieldMatcher() {
                 return parseFieldMatcher;
+            }
+
+            public ScriptService scriptService() {
+                return scriptService;
             }
         }
 

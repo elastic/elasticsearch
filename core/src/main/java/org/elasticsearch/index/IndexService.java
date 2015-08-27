@@ -22,6 +22,7 @@ package org.elasticsearch.index;
 import com.google.common.base.Function;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterators;
+
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -56,8 +57,10 @@ import org.elasticsearch.plugins.PluginsService;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -314,8 +317,23 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
                     throw t;
                 }
             }
+
             if (path == null) {
-                path = ShardPath.selectNewPathForShard(nodeEnv, shardId, indexSettings, routing.getExpectedShardSize() == ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE ? getAvgShardSizeInBytes() : routing.getExpectedShardSize(), this);
+                // TODO: we should, instead, hold a "bytes reserved" of how large we anticipate this shard will be, e.g. for a shard
+                // that's being relocated/replicated we know how large it will become once it's done copying:
+
+                // Count up how many shards are currently on each data path:
+                Map<Path,Integer> dataPathToShardCount = new HashMap<>();
+                for(IndexShard shard : this) {
+                    Path dataPath = NodeEnvironment.shardStatePathToDataPath(shard.shardPath().getShardStatePath());
+                    Integer curCount = dataPathToShardCount.get(dataPath);
+                    if (curCount == null) {
+                        curCount = 0;
+                    }
+                    dataPathToShardCount.put(dataPath, curCount+1);
+                }
+                path = ShardPath.selectNewPathForShard(nodeEnv, shardId, indexSettings, routing.getExpectedShardSize() == ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE ? getAvgShardSizeInBytes() : routing.getExpectedShardSize(),
+                                                       dataPathToShardCount);
                 logger.debug("{} creating using a new path [{}]", shardId, path);
             } else {
                 logger.debug("{} creating using an existing path [{}]", shardId, path);

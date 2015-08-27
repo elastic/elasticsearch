@@ -68,7 +68,7 @@
                 },
                 "custom6":{
                     "tokenizer":"standard",
-                    "position_offset_gap": 256
+                    "position_increment_gap": 256
                 },
                 "czechAnalyzerWithStemmer":{
                     "tokenizer":"standard",

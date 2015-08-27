@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.settings.loader;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.test.ESTestCase;
@@ -31,7 +32,6 @@ import static org.hamcrest.Matchers.equalTo;
  *
  */
 public class YamlSettingsLoaderTests extends ESTestCase {
-
     @Test
     public void testSimpleYamlSettings() throws Exception {
         String yaml = "/org/elasticsearch/common/settings/loader/test-settings.yml";
@@ -65,5 +65,18 @@ public class YamlSettingsLoaderTests extends ESTestCase {
         settingsBuilder()
                 .loadFromStream(yaml, getClass().getResourceAsStream(yaml))
                 .build();
+    }
+
+    public void testDuplicateKeysThrowsException() {
+        String yaml = "foo: bar\nfoo: baz";
+        try {
+            settingsBuilder()
+                    .loadFromSource(yaml)
+                    .build();
+            fail("expected exception");
+        } catch (SettingsException e) {
+            assertEquals(e.getCause().getClass(), ElasticsearchParseException.class);
+            assertTrue(e.toString().contains("duplicate settings key [foo] found at line number [2], column number [6], previous value [bar], current value [baz]"));
+        }
     }
 }

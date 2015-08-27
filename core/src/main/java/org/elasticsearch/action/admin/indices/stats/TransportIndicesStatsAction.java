@@ -189,7 +189,7 @@ public class TransportIndicesStatsAction extends TransportBroadcastAction<Indice
             flags.set(CommonStatsFlags.Flag.Recovery);
         }
 
-        return new ShardStats(indexShard, indexShard.routingEntry(), flags);
+        return new ShardStats(indexShard, flags);
     }
 
     static class IndexShardStatsRequest extends BroadcastShardRequest {

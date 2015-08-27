@@ -20,24 +20,8 @@
 package org.elasticsearch.search.query;
 
 import com.google.common.collect.ImmutableMap;
-
 import org.apache.lucene.queries.MinDocQuery;
-import org.apache.lucene.search.BooleanClause.Occur;
-import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.Collector;
-import org.apache.lucene.search.FieldDoc;
-import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MultiCollector;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.ScoreDoc;
-import org.apache.lucene.search.Sort;
-import org.apache.lucene.search.TimeLimitingCollector;
-import org.apache.lucene.search.TopDocs;
-import org.apache.lucene.search.TopDocsCollector;
-import org.apache.lucene.search.TopFieldCollector;
-import org.apache.lucene.search.TopScoreDocCollector;
-import org.apache.lucene.search.TotalHitCountCollector;
-import org.apache.lucene.search.Weight;
+import org.apache.lucene.search.*;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.Lucene;
@@ -173,8 +157,8 @@ public class QueryPhase implements SearchPhase {
                             // skip to the desired doc and stop collecting after ${size} matches
                             if (scrollContext.lastEmittedDoc != null) {
                                 BooleanQuery bq = new BooleanQuery();
-                                bq.add(query, Occur.MUST);
-                                bq.add(new MinDocQuery(lastEmittedDoc.doc + 1), Occur.FILTER);
+                                bq.add(query, BooleanClause.Occur.MUST);
+                                bq.add(new MinDocQuery(lastEmittedDoc.doc + 1), BooleanClause.Occur.FILTER);
                                 query = bq;
                             }
                             searchContext.terminateAfter(numDocs);
@@ -264,13 +248,15 @@ public class QueryPhase implements SearchPhase {
             }
 
             try {
-                searcher.search(query, collector);
+                searchContext.searcher().search(query, collector);
             } catch (TimeLimitingCollector.TimeExceededException e) {
                 assert timeoutSet : "TimeExceededException thrown even though timeout wasn't set";
                 searchContext.queryResult().searchTimedOut(true);
             } catch (Lucene.EarlyTerminationException e) {
                 assert terminateAfterSet : "EarlyTerminationException thrown even though terminateAfter wasn't set";
                 searchContext.queryResult().terminatedEarly(true);
+            } finally {
+                searchContext.clearReleasables(SearchContext.Lifetime.COLLECTION);
             }
             if (terminateAfterSet && searchContext.queryResult().terminatedEarly() == null) {
                 searchContext.queryResult().terminatedEarly(false);

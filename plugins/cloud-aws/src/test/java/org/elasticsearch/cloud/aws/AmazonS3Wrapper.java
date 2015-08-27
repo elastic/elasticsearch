@@ -34,7 +34,6 @@ import java.io.InputStream;
 import java.net.URL;
 import java.util.Date;
 import java.util.List;
-
 import org.elasticsearch.common.SuppressForbidden;
 
 /**
@@ -578,5 +577,55 @@ public class AmazonS3Wrapper implements AmazonS3 {
     @Override
     public boolean isRequesterPaysEnabled(String bucketName) throws AmazonServiceException, AmazonClientException {
         return delegate.isRequesterPaysEnabled(bucketName);
+    }
+
+    @Override
+    public ObjectListing listNextBatchOfObjects(ListNextBatchOfObjectsRequest listNextBatchOfObjectsRequest) throws AmazonClientException, AmazonServiceException {
+        return delegate.listNextBatchOfObjects(listNextBatchOfObjectsRequest);
+    }
+
+    @Override
+    public VersionListing listNextBatchOfVersions(ListNextBatchOfVersionsRequest listNextBatchOfVersionsRequest) throws AmazonClientException, AmazonServiceException {
+        return delegate.listNextBatchOfVersions(listNextBatchOfVersionsRequest);
+    }
+
+    @Override
+    public Owner getS3AccountOwner(GetS3AccountOwnerRequest getS3AccountOwnerRequest) throws AmazonClientException, AmazonServiceException {
+        return delegate.getS3AccountOwner(getS3AccountOwnerRequest);
+    }
+
+    @Override
+    public BucketLoggingConfiguration getBucketLoggingConfiguration(GetBucketLoggingConfigurationRequest getBucketLoggingConfigurationRequest) throws AmazonClientException, AmazonServiceException {
+        return delegate.getBucketLoggingConfiguration(getBucketLoggingConfigurationRequest);
+    }
+
+    @Override
+    public BucketVersioningConfiguration getBucketVersioningConfiguration(GetBucketVersioningConfigurationRequest getBucketVersioningConfigurationRequest) throws AmazonClientException, AmazonServiceException {
+        return delegate.getBucketVersioningConfiguration(getBucketVersioningConfigurationRequest);
+    }
+
+    @Override
+    public BucketLifecycleConfiguration getBucketLifecycleConfiguration(GetBucketLifecycleConfigurationRequest getBucketLifecycleConfigurationRequest) {
+        return delegate.getBucketLifecycleConfiguration(getBucketLifecycleConfigurationRequest);
+    }
+
+    @Override
+    public BucketCrossOriginConfiguration getBucketCrossOriginConfiguration(GetBucketCrossOriginConfigurationRequest getBucketCrossOriginConfigurationRequest) {
+        return delegate.getBucketCrossOriginConfiguration(getBucketCrossOriginConfigurationRequest);
+    }
+
+    @Override
+    public BucketTaggingConfiguration getBucketTaggingConfiguration(GetBucketTaggingConfigurationRequest getBucketTaggingConfigurationRequest) {
+        return delegate.getBucketTaggingConfiguration(getBucketTaggingConfigurationRequest);
+    }
+
+    @Override
+    public BucketNotificationConfiguration getBucketNotificationConfiguration(GetBucketNotificationConfigurationRequest getBucketNotificationConfigurationRequest) throws AmazonClientException, AmazonServiceException {
+        return delegate.getBucketNotificationConfiguration(getBucketNotificationConfigurationRequest);
+    }
+
+    @Override
+    public BucketReplicationConfiguration getBucketReplicationConfiguration(GetBucketReplicationConfigurationRequest getBucketReplicationConfigurationRequest) throws AmazonServiceException, AmazonClientException {
+        return delegate.getBucketReplicationConfiguration(getBucketReplicationConfigurationRequest);
     }
 }

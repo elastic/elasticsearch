@@ -33,6 +33,7 @@ import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.avg;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.global;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -87,7 +88,7 @@ public class AvgIT extends AbstractNumericTestCase {
                 .addAggregation(avg("avg").field("value"))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         Avg avg = searchResponse.getAggregations().get("avg");
         assertThat(avg, notNullValue());
@@ -102,7 +103,7 @@ public class AvgIT extends AbstractNumericTestCase {
         SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
                 .addAggregation(global("global").subAggregation(avg("avg").field("value"))).execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         Global global = searchResponse.getAggregations().get("global");
         assertThat(global, notNullValue());
@@ -128,7 +129,7 @@ public class AvgIT extends AbstractNumericTestCase {
                 .addAggregation(avg("avg").field("value"))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         Avg avg = searchResponse.getAggregations().get("avg");
         assertThat(avg, notNullValue());
@@ -144,7 +145,7 @@ public class AvgIT extends AbstractNumericTestCase {
                 .addAggregation(avg("avg").field("value").script(new Script("_value + 1")))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         Avg avg = searchResponse.getAggregations().get("avg");
         assertThat(avg, notNullValue());
@@ -162,7 +163,7 @@ public class AvgIT extends AbstractNumericTestCase {
                 .addAggregation(avg("avg").field("value").script(new Script("_value + inc", ScriptType.INLINE, null, params)))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         Avg avg = searchResponse.getAggregations().get("avg");
         assertThat(avg, notNullValue());
@@ -174,7 +175,7 @@ public class AvgIT extends AbstractNumericTestCase {
         SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
                 .addAggregation(avg("avg").format("#").field("value")).execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         Avg avg = searchResponse.getAggregations().get("avg");
         assertThat(avg, notNullValue());
@@ -191,7 +192,7 @@ public class AvgIT extends AbstractNumericTestCase {
                 .addAggregation(avg("avg").field("values"))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         Avg avg = searchResponse.getAggregations().get("avg");
         assertThat(avg, notNullValue());
@@ -207,7 +208,7 @@ public class AvgIT extends AbstractNumericTestCase {
                 .addAggregation(avg("avg").field("values").script(new Script("_value + 1")))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         Avg avg = searchResponse.getAggregations().get("avg");
         assertThat(avg, notNullValue());
@@ -225,7 +226,7 @@ public class AvgIT extends AbstractNumericTestCase {
                 .addAggregation(avg("avg").field("values").script(new Script("_value + inc", ScriptType.INLINE, null, params)))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         Avg avg = searchResponse.getAggregations().get("avg");
         assertThat(avg, notNullValue());
@@ -241,7 +242,7 @@ public class AvgIT extends AbstractNumericTestCase {
                 .addAggregation(avg("avg").script(new Script("doc['value'].value")))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         Avg avg = searchResponse.getAggregations().get("avg");
         assertThat(avg, notNullValue());
@@ -259,7 +260,7 @@ public class AvgIT extends AbstractNumericTestCase {
                 .addAggregation(avg("avg").script(new Script("doc['value'].value + inc", ScriptType.INLINE, null, params)))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         Avg avg = searchResponse.getAggregations().get("avg");
         assertThat(avg, notNullValue());
@@ -277,7 +278,7 @@ public class AvgIT extends AbstractNumericTestCase {
                 .addAggregation(avg("avg").script(new Script("doc['value'].value + inc", ScriptType.INLINE, null, params)))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         Avg avg = searchResponse.getAggregations().get("avg");
         assertThat(avg, notNullValue());
@@ -293,7 +294,7 @@ public class AvgIT extends AbstractNumericTestCase {
                 .addAggregation(avg("avg").script(new Script("[ doc['value'].value, doc['value'].value + 1 ]")))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         Avg avg = searchResponse.getAggregations().get("avg");
         assertThat(avg, notNullValue());
@@ -309,7 +310,7 @@ public class AvgIT extends AbstractNumericTestCase {
                 .addAggregation(avg("avg").script(new Script("[ doc['value'].value, doc['value'].value + 1 ]")))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         Avg avg = searchResponse.getAggregations().get("avg");
         assertThat(avg, notNullValue());
@@ -328,7 +329,7 @@ public class AvgIT extends AbstractNumericTestCase {
                         avg("avg").script(new Script("[ doc['value'].value, doc['value'].value + inc ]", ScriptType.INLINE, null, params)))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         Avg avg = searchResponse.getAggregations().get("avg");
         assertThat(avg, notNullValue());

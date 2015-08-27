@@ -103,11 +103,8 @@ public class ChildrenConstantScoreQuery extends IndexCacheableQuery {
             return new BooleanQuery().createWeight(searcher, needsScores);
         }
 
-        IndexSearcher indexSearcher = new IndexSearcher(searcher.getIndexReader());
-        indexSearcher.setSimilarity(searcher.getSimilarity(true));
-        indexSearcher.setQueryCache(null);
         ParentOrdCollector collector = new ParentOrdCollector(globalIfd, valueCount, parentType);
-        indexSearcher.search(childQuery, collector);
+        searcher.search(childQuery, collector);
 
         final long remaining = collector.foundParents();
         if (remaining == 0) {

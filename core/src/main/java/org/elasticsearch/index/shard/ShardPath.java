@@ -20,6 +20,7 @@ package org.elasticsearch.index.shard;
 
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
@@ -41,10 +42,18 @@ public final class ShardPath {
     private final String indexUUID;
     private final ShardId shardId;
     private final Path shardStatePath;
+    private final boolean isCustomDataPath;
 
-
-    public ShardPath(Path path, Path shardStatePath, String indexUUID, ShardId shardId) {
-        this.path = path;
+    public ShardPath(boolean isCustomDataPath, Path dataPath, Path shardStatePath, String indexUUID, ShardId shardId) {
+        assert dataPath.getFileName().toString().equals(Integer.toString(shardId.id())) : "dataPath must end with the shard ID but didn't: " + dataPath.toString();
+        assert shardStatePath.getFileName().toString().equals(Integer.toString(shardId.id())) : "shardStatePath must end with the shard ID but didn't: " + dataPath.toString();
+        assert dataPath.getParent().getFileName().toString().equals(shardId.getIndex()) : "dataPath must end with index/shardID but didn't: " + dataPath.toString();
+        assert shardStatePath.getParent().getFileName().toString().equals(shardId.getIndex()) : "shardStatePath must end with index/shardID but didn't: " + dataPath.toString();
+        if (isCustomDataPath && dataPath.equals(shardStatePath)) {
+            throw new IllegalArgumentException("shard state path must be different to the data path when using custom data paths");
+        }
+        this.isCustomDataPath = isCustomDataPath;
+        this.path = dataPath;
         this.indexUUID = indexUUID;
         this.shardId = shardId;
         this.shardStatePath = shardStatePath;
@@ -76,6 +85,30 @@ public final class ShardPath {
 
     public Path getShardStatePath() {
         return shardStatePath;
+    }
+
+    /**
+     * Returns the data-path root for this shard. The root is a parent of {@link #getDataPath()} without the index name
+     * and the shard ID.
+     */
+    public Path getRootDataPath() {
+        Path noIndexShardId = getDataPath().getParent().getParent();
+        return isCustomDataPath ? noIndexShardId : noIndexShardId.getParent(); // also strip the indices folder
+    }
+
+    /**
+     * Returns the state-path root for this shard. The root is a parent of {@link #getRootStatePath()} ()} without the index name
+     * and the shard ID.
+     */
+    public Path getRootStatePath() {
+        return getShardStatePath().getParent().getParent().getParent(); // also strip the indices folder
+    }
+
+    /**
+     * Returns <code>true</code> iff the data location is a custom data location and therefore outside of the nodes configured data paths.
+     */
+    public boolean isCustomDataPath() {
+        return isCustomDataPath;
     }
 
     /**
@@ -113,7 +146,7 @@ public final class ShardPath {
                 dataPath = statePath;
             }
             logger.debug("{} loaded data path [{}], state path [{}]", shardId, dataPath, statePath);
-            return new ShardPath(dataPath, statePath, indexUUID, shardId);
+            return new ShardPath(NodeEnvironment.hasCustomDataPath(indexSettings), dataPath, statePath, indexUUID, shardId);
         }
     }
 
@@ -202,7 +235,7 @@ public final class ShardPath {
             dataPath = statePath;
         }
 
-        return new ShardPath(dataPath, statePath, indexUUID, shardId);
+        return new ShardPath(NodeEnvironment.hasCustomDataPath(indexSettings), dataPath, statePath, indexUUID, shardId);
     }
 
     @Override

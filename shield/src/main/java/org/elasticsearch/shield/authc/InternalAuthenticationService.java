@@ -33,7 +33,7 @@ public class InternalAuthenticationService extends AbstractComponent implements 
     public static final String SETTING_SIGN_USER_HEADER = "shield.authc.sign_user_header";
 
     static final String TOKEN_KEY = "_shield_token";
-    static final String USER_KEY = "_shield_user";
+    public static final String USER_KEY = "_shield_user";
 
     private final Realms realms;
     private final AuditTrail auditTrail;

@@ -28,11 +28,11 @@ import java.util.*;
 /**
  *
  */
-public class DefaultIndicesResolver implements IndicesResolver<TransportRequest> {
+public class DefaultIndicesAndAliasesResolver implements IndicesAndAliasesResolver<TransportRequest> {
 
     private final AuthorizationService authzService;
 
-    public DefaultIndicesResolver(AuthorizationService authzService) {
+    public DefaultIndicesAndAliasesResolver(AuthorizationService authzService) {
         this.authzService = authzService;
     }
 
@@ -56,15 +56,15 @@ public class DefaultIndicesResolver implements IndicesResolver<TransportRequest>
             Set<String> indices = Sets.newHashSet();
             CompositeIndicesRequest compositeIndicesRequest = (CompositeIndicesRequest) request;
             for (IndicesRequest indicesRequest : compositeIndicesRequest.subRequests()) {
-                indices.addAll(resolveIndices(user, action, indicesRequest, metaData));
+                indices.addAll(resolveIndicesAndAliases(user, action, indicesRequest, metaData));
             }
             return indices;
         }
 
-        return resolveIndices(user, action, (IndicesRequest) request, metaData);
+        return resolveIndicesAndAliases(user, action, (IndicesRequest) request, metaData);
     }
 
-    private Set<String> resolveIndices(User user, String action, IndicesRequest indicesRequest, MetaData metaData) {
+    private Set<String> resolveIndicesAndAliases(User user, String action, IndicesRequest indicesRequest, MetaData metaData) {
         if (indicesRequest.indicesOptions().expandWildcardsOpen() || indicesRequest.indicesOptions().expandWildcardsClosed()) {
             if (indicesRequest instanceof IndicesRequest.Replaceable) {
                 ImmutableList<String> authorizedIndices = authzService.authorizedIndicesAndAliases(user, action);

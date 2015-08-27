@@ -19,6 +19,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.plugin.core.LicenseUtils;
 import org.elasticsearch.shield.User;
+import org.elasticsearch.shield.action.interceptor.RequestInterceptor;
 import org.elasticsearch.shield.audit.AuditTrail;
 import org.elasticsearch.shield.authc.AuthenticationService;
 import org.elasticsearch.shield.authz.AuthorizationService;
@@ -28,8 +29,7 @@ import org.elasticsearch.shield.license.LicenseEventsNotifier;
 import org.elasticsearch.shield.license.LicenseService;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 
 import static org.elasticsearch.shield.support.Exceptions.authorizationError;
 
@@ -45,12 +45,13 @@ public class ShieldActionFilter extends AbstractComponent implements ActionFilte
     private final CryptoService cryptoService;
     private final AuditTrail auditTrail;
     private final ShieldActionMapper actionMapper;
+    private final Set<RequestInterceptor> requestInterceptors;
 
     private volatile boolean licenseEnabled = true;
 
     @Inject
     public ShieldActionFilter(Settings settings, AuthenticationService authcService, AuthorizationService authzService, CryptoService cryptoService,
-                              AuditTrail auditTrail, LicenseEventsNotifier licenseEventsNotifier, ShieldActionMapper actionMapper) {
+                              AuditTrail auditTrail, LicenseEventsNotifier licenseEventsNotifier, ShieldActionMapper actionMapper, Set<RequestInterceptor> requestInterceptors) {
         super(settings);
         this.authcService = authcService;
         this.authzService = authzService;
@@ -68,6 +69,7 @@ public class ShieldActionFilter extends AbstractComponent implements ActionFilte
                 licenseEnabled = false;
             }
         });
+        this.requestInterceptors = requestInterceptors;
     }
 
     @Override
@@ -100,6 +102,12 @@ public class ShieldActionFilter extends AbstractComponent implements ActionFilte
             User user = authcService.authenticate(shieldAction, request, User.SYSTEM);
             authzService.authorize(user, shieldAction, request);
             request = unsign(user, shieldAction, request);
+
+            for (RequestInterceptor interceptor : requestInterceptors) {
+                if (interceptor.supports(request)) {
+                    interceptor.intercept(request, user);
+                }
+            }
             chain.proceed(action, request, new SigningListener(this, listener));
         } catch (Throwable t) {
             listener.onFailure(t);

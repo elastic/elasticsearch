@@ -12,6 +12,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.action.ShieldActionMapper;
 import org.elasticsearch.shield.authc.AuthenticationService;
 import org.elasticsearch.shield.authz.AuthorizationService;
+import org.elasticsearch.shield.authz.accesscontrol.RequestContext;
 import org.elasticsearch.shield.transport.netty.ShieldNettyTransport;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
@@ -109,7 +110,7 @@ public class ShieldServerTransportService extends TransportService {
         protected final TransportRequestHandler<T> handler;
         private final Map<String, ServerTransportFilter> profileFilters;
 
-        public ProfileSecuredRequestHandler(String action, TransportRequestHandler handler, Map<String, ServerTransportFilter> profileFilters) {
+        public ProfileSecuredRequestHandler(String action, TransportRequestHandler<T> handler, Map<String, ServerTransportFilter> profileFilters) {
             this.action = action;
             this.handler = handler;
             this.profileFilters = profileFilters;
@@ -132,11 +133,15 @@ public class ShieldServerTransportService extends TransportService {
                 }
                 assert filter != null;
                 filter.inbound(action, request, channel);
+                RequestContext context = new RequestContext(request);
+                RequestContext.setCurrent(context);
+                handler.messageReceived(request, channel);
             } catch (Throwable t) {
                 channel.sendResponse(t);
-                return;
+            } finally {
+                RequestContext.removeCurrent();
             }
-            handler.messageReceived(request, channel);
         }
     }
+
 }

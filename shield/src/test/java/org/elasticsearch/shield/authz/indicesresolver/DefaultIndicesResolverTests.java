@@ -44,7 +44,7 @@ public class DefaultIndicesResolverTests extends ESTestCase {
     private User user;
     private User userNoIndices;
     private MetaData metaData;
-    private DefaultIndicesResolver defaultIndicesResolver;
+    private DefaultIndicesAndAliasesResolver defaultIndicesResolver;
 
     @Before
     public void setup() {
@@ -82,7 +82,7 @@ public class DefaultIndicesResolverTests extends ESTestCase {
         when(authzService.authorizedIndicesAndAliases(userNoIndices, SearchAction.NAME)).thenReturn(ImmutableList.<String>of());
         when(authzService.authorizedIndicesAndAliases(userNoIndices, MultiSearchAction.NAME)).thenReturn(ImmutableList.<String>of());
 
-        defaultIndicesResolver = new DefaultIndicesResolver(authzService);
+        defaultIndicesResolver = new DefaultIndicesAndAliasesResolver(authzService);
     }
 
     @Test

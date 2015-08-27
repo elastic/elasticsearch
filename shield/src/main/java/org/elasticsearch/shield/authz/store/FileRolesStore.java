@@ -11,11 +11,16 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.shield.ShieldPlugin;
@@ -239,6 +244,65 @@ public class FileRolesStore extends AbstractLifecycleComponent<RolesStore> imple
                                                 if (!names.isEmpty()) {
                                                     name = new Privilege.Name(names);
                                                 }
+                                            } else if (token == XContentParser.Token.START_OBJECT) {
+                                                List<String> fields = null;
+                                                BytesReference query = null;
+                                                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                                                    if (token == XContentParser.Token.FIELD_NAME) {
+                                                        currentFieldName = parser.currentName();
+                                                    } else if ("fields".equals(currentFieldName)) {
+                                                        if (token == XContentParser.Token.START_ARRAY) {
+                                                            fields = (List) parser.list();
+                                                        } else if (token.isValue()) {
+                                                            String field = parser.text();
+                                                            if (field.trim().isEmpty()) {
+                                                                // The yaml parser doesn't emit null token if the key is empty...
+                                                                fields = Collections.emptyList();
+                                                            } else {
+                                                                fields = Collections.singletonList(field);
+                                                            }
+                                                        }
+                                                    } else if ("query".equals(currentFieldName)) {
+                                                        if (token == XContentParser.Token.START_OBJECT) {
+                                                            XContentBuilder builder = JsonXContent.contentBuilder();
+                                                            XContentHelper.copyCurrentStructure(builder.generator(), parser);
+                                                            query = builder.bytes();
+                                                        } else if (token == XContentParser.Token.VALUE_STRING) {
+                                                            query = new BytesArray(parser.text());
+                                                        }
+                                                    } else if ("privileges".equals(currentFieldName)) {
+                                                        if (token == XContentParser.Token.VALUE_STRING) {
+                                                            String namesStr = parser.text().trim();
+                                                            if (Strings.hasLength(namesStr)) {
+                                                                String[] names = COMMA_DELIM.split(parser.text());
+                                                                name = new Privilege.Name(names);
+                                                            }
+                                                        } else if (token == XContentParser.Token.START_ARRAY) {
+                                                            Set<String> names = new HashSet<>();
+                                                            while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                                                                if (token == XContentParser.Token.VALUE_STRING) {
+                                                                    names.add(parser.text());
+                                                                } else {
+                                                                    logger.error("invalid role definition [{}] in roles file [{}]. could not parse " +
+                                                                            "[{}] as index privilege. privilege names must be strings. skipping role...", roleName, path.toAbsolutePath(), token);
+                                                                    return null;
+                                                                }
+                                                            }
+                                                            if (!names.isEmpty()) {
+                                                                name = new Privilege.Name(names);
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                                if (name != null) {
+                                                    try {
+                                                        permission.add(fields, query, Privilege.Index.get(name), indices);
+                                                    } catch (IllegalArgumentException e) {
+                                                        logger.error("invalid role definition [{}] in roles file [{}]. could not resolve indices privileges [{}]. skipping role...", roleName, path.toAbsolutePath(), name);
+                                                        return null;
+                                                    }
+                                                }
+                                                continue;
                                             } else {
                                                 logger.error("invalid role definition [{}] in roles file [{}]. could not parse [{}] as index privileges. privilege lists must either " +
                                                         "be a comma delimited string or an array of strings. skipping role...", roleName, path.toAbsolutePath(), token);

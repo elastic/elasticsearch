@@ -14,7 +14,7 @@ import java.util.Set;
 /**
  *
  */
-public interface IndicesResolver<Request extends TransportRequest> {
+public interface IndicesAndAliasesResolver<Request extends TransportRequest> {
 
     Class<Request> requestType();
 

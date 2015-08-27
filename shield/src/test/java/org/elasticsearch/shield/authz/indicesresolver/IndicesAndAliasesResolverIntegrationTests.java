@@ -24,7 +24,7 @@ import java.util.List;
 import static org.elasticsearch.test.ShieldTestsUtils.assertAuthorizationException;
 import static org.hamcrest.CoreMatchers.*;
 
-public class IndicesResolverIntegrationTests extends ShieldIntegTestCase {
+public class IndicesAndAliasesResolverIntegrationTests extends ShieldIntegTestCase {
 
     @Override
     protected String configRoles() {

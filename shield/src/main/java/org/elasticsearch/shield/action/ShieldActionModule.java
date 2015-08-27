@@ -5,7 +5,12 @@
  */
 package org.elasticsearch.shield.action;
 
+import org.elasticsearch.common.inject.multibindings.Multibinder;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.shield.action.interceptor.RealtimeRequestInterceptor;
+import org.elasticsearch.shield.action.interceptor.RequestInterceptor;
+import org.elasticsearch.shield.action.interceptor.SearchRequestInterceptor;
+import org.elasticsearch.shield.action.interceptor.UpdateRequestInterceptor;
 import org.elasticsearch.shield.support.AbstractShieldModule;
 
 public class ShieldActionModule extends AbstractShieldModule.Node {
@@ -19,5 +24,10 @@ public class ShieldActionModule extends AbstractShieldModule.Node {
         bind(ShieldActionMapper.class).asEagerSingleton();
         // we need to ensure that there's only a single instance of this filter.
         bind(ShieldActionFilter.class).asEagerSingleton();
+        Multibinder<RequestInterceptor> multibinder
+                = Multibinder.newSetBinder(binder(), RequestInterceptor.class);
+        multibinder.addBinding().to(RealtimeRequestInterceptor.class);
+        multibinder.addBinding().to(SearchRequestInterceptor.class);
+        multibinder.addBinding().to(UpdateRequestInterceptor.class);
     }
 }

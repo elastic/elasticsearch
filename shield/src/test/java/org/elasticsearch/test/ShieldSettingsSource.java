@@ -9,6 +9,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.client.support.Headers;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.cache.IndexCacheModule;
 import org.elasticsearch.license.plugin.LicensePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.shield.ShieldPlugin;
@@ -120,6 +121,9 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
                 .put("shield.authc.realms.esusers.files.users", writeFile(folder, "users", configUsers()))
                 .put("shield.authc.realms.esusers.files.users_roles", writeFile(folder, "users_roles", configUsersRoles()))
                 .put("shield.authz.store.files.roles", writeFile(folder, "roles.yml", configRoles()))
+                // Test framework sometimes randomily selects the 'index' or 'none' cache and that makes the
+                // validation in ShieldPlugin fail.
+                .put(IndexCacheModule.QUERY_CACHE_TYPE, ShieldPlugin.OPT_OUT_QUERY_CACHE)
                 .put(getNodeSSLSettings());
 
         setUser(builder, nodeClientUsername(), nodeClientPassword());

@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.shield.transport;
 
-import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.inject.AbstractModule;

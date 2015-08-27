@@ -237,15 +237,19 @@ def generate_index(client, version, index_name):
       }
     }
 
+  settings = {
+    'number_of_shards': 1,
+    'number_of_replicas': 0,
+  }
+  if version.startswith('0.') or version.startswith('1.'):
+    # Same as ES default (60 seconds), but missing the units to make sure they are inserted on upgrade:
+    settings['gc_deletes'] = '60000',
+    # Same as ES default (5 GB), but missing the units to make sure they are inserted on upgrade:
+    settings['merge.policy.max_merged_segment'] = '5368709120'
+    
+
   client.indices.create(index=index_name, body={
-      'settings': {
-          'number_of_shards': 1,
-          'number_of_replicas': 0,
-          # Same as ES default (60 seconds), but missing the units to make sure they are inserted on upgrade:
-          "gc_deletes": '60000',
-          # Same as ES default (5 GB), but missing the units to make sure they are inserted on upgrade:
-          "merge.policy.max_merged_segment": '5368709120'
-      },
+      'settings': settings,
       'mappings': mappings
   })
   health = client.cluster.health(wait_for_status='green', wait_for_relocating_shards=0)
@@ -374,7 +378,8 @@ def create_bwc_index(cfg, version):
     # 10067: get a delete-by-query into the translog on upgrade.  We must do
     # this after the snapshot, because it calls flush.  Otherwise the index
     # will already have the deletions applied on upgrade.
-    delete_by_query(client, version, index_name, 'doc')
+    if version.startswith('0.') or version.startswith('1.'):
+      delete_by_query(client, version, index_name, 'doc')
 
     shutdown_node(node)
     node = None

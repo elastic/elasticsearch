@@ -51,7 +51,7 @@ public class StringFieldMapperPositionIncrementGapTests extends ESSingleNodeTest
      * Asserts that the post-2.0 default is being applied.
      */
     public static void assertGapIsOneHundred(Client client, String indexName, String type) throws IOException {
-        testGap(client(), indexName, type, 100);
+        testGap(client, indexName, type, 100);
 
         // No match across gap using default slop with default positionIncrementGap
         assertHitCount(client.prepareSearch(indexName).setQuery(matchPhraseQuery("string", "one two")).get(), 0);

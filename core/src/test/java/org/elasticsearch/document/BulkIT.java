@@ -195,7 +195,7 @@ public class BulkIT extends ESIntegTestCase {
         bulkResponse = client().prepareBulk()
                 .add(client().prepareUpdate("test", "type", "e1").setDoc("field", "2").setVersion(10)) // INTERNAL
                 .add(client().prepareUpdate("test", "type", "e1").setDoc("field", "3").setVersion(20).setVersionType(VersionType.FORCE))
-                .add(client().prepareUpdate("test", "type", "e1").setDoc("field", "3").setVersion(20).setVersionType(VersionType.INTERNAL)).get();
+                .add(client().prepareUpdate("test", "type", "e1").setDoc("field", "4").setVersion(20).setVersionType(VersionType.INTERNAL)).get();
 
         assertThat(bulkResponse.getItems()[0].getFailureMessage(), containsString("version conflict"));
         assertThat(((UpdateResponse) bulkResponse.getItems()[1].getResponse()).getVersion(), equalTo(20l));

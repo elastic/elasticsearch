@@ -50,7 +50,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -256,23 +255,23 @@ public class SimpleTTLIT extends ESIntegTestCase {
         IndexResponse indexResponse = client().prepareIndex("test", "type1", "1").setSource("field1", "value1")
                 .setTTL(firstTtl).setRefresh(true).get();
         assertTrue(indexResponse.isCreated());
-        assertThat(getTtl("type1", 1), both(lessThan(firstTtl)).and(greaterThan(secondTtl)));
+        assertThat(getTtl("type1", 1), both(lessThanOrEqualTo(firstTtl)).and(greaterThan(secondTtl)));
 
         // Updating with the default detect_noop without a change to the document doesn't change the ttl.
         UpdateRequestBuilder update = client().prepareUpdate("test", "type1", "1").setDoc("field1", "value1").setTtl(secondTtl);
-        assertThat(updateAndGetTtl(update), both(lessThan(firstTtl)).and(greaterThan(secondTtl)));
+        assertThat(updateAndGetTtl(update), both(lessThanOrEqualTo(firstTtl)).and(greaterThan(secondTtl)));
 
         // Updating with the default detect_noop with a change to the document does change the ttl.
         update = client().prepareUpdate("test", "type1", "1").setDoc("field1", "value2").setTtl(secondTtl);
-        assertThat(updateAndGetTtl(update), both(lessThan(secondTtl)).and(greaterThan(thirdTtl)));
+        assertThat(updateAndGetTtl(update), both(lessThanOrEqualTo(secondTtl)).and(greaterThan(thirdTtl)));
 
         // Updating with detect_noop=true without a change to the document doesn't change the ttl.
         update = client().prepareUpdate("test", "type1", "1").setDoc("field1", "value2").setTtl(secondTtl).setDetectNoop(true);
-        assertThat(updateAndGetTtl(update), both(lessThan(secondTtl)).and(greaterThan(thirdTtl)));
+        assertThat(updateAndGetTtl(update), both(lessThanOrEqualTo(secondTtl)).and(greaterThan(thirdTtl)));
 
         // Updating with detect_noop=false without a change to the document does change the ttl.
         update = client().prepareUpdate("test", "type1", "1").setDoc("field1", "value2").setTtl(thirdTtl).setDetectNoop(false);
-        assertThat(updateAndGetTtl(update), lessThan(thirdTtl));
+        assertThat(updateAndGetTtl(update), lessThanOrEqualTo(thirdTtl));
     }
 
     private long updateAndGetTtl(UpdateRequestBuilder update) {

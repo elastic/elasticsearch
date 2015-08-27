@@ -30,7 +30,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Base64;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
@@ -103,14 +102,14 @@ public abstract class TransportSearchHelper {
             throw new IllegalArgumentException("Malformed scrollId [" + scrollId + "]");
         }
 
-        @SuppressWarnings({"unchecked"}) Tuple<String, Long>[] context = new Tuple[contextSize];
+        ScrollIdForNode[] context = new ScrollIdForNode[contextSize];
         for (int i = 0; i < contextSize; i++) {
             String element = elements[index++];
             int sep = element.indexOf(':');
             if (sep == -1) {
                 throw new IllegalArgumentException("Malformed scrollId [" + scrollId + "]");
             }
-            context[i] = new Tuple<>(element.substring(sep + 1), Long.parseLong(element.substring(0, sep)));
+            context[i] = new ScrollIdForNode(element.substring(sep + 1), Long.parseLong(element.substring(0, sep)));
         }
         Map<String, String> attributes;
         int attributesSize = Integer.parseInt(elements[index++]);

@@ -28,7 +28,6 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -125,15 +124,15 @@ public class TransportSearchScrollScanAction extends AbstractComponent {
                 return;
             }
 
-            Tuple<String, Long>[] context = scrollId.getContext();
+            ScrollIdForNode[] context = scrollId.getContext();
             for (int i = 0; i < context.length; i++) {
-                Tuple<String, Long> target = context[i];
-                DiscoveryNode node = nodes.get(target.v1());
+                ScrollIdForNode target = context[i];
+                DiscoveryNode node = nodes.get(target.getNode());
                 if (node != null) {
-                    executePhase(i, node, target.v2());
+                    executePhase(i, node, target.getScrollId());
                 } else {
                     if (logger.isDebugEnabled()) {
-                        logger.debug("Node [" + target.v1() + "] not available for scroll request [" + scrollId.getSource() + "]");
+                        logger.debug("Node [" + target.getScrollId() + "] not available for scroll request [" + scrollId.getSource() + "]");
                     }
                     successfulOps.decrementAndGet();
                     if (counter.decrementAndGet() == 0) {
@@ -142,11 +141,11 @@ public class TransportSearchScrollScanAction extends AbstractComponent {
                 }
             }
 
-            for (Tuple<String, Long> target : scrollId.getContext()) {
-                DiscoveryNode node = nodes.get(target.v1());
+            for (ScrollIdForNode target : scrollId.getContext()) {
+                DiscoveryNode node = nodes.get(target.getNode());
                 if (node == null) {
                     if (logger.isDebugEnabled()) {
-                        logger.debug("Node [" + target.v1() + "] not available for scroll request [" + scrollId.getSource() + "]");
+                        logger.debug("Node [" + target.getNode() + "] not available for scroll request [" + scrollId.getSource() + "]");
                     }
                     successfulOps.decrementAndGet();
                     if (counter.decrementAndGet() == 0) {

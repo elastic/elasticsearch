@@ -44,6 +44,8 @@ bin/plugin --url file:///path/to/plugin --install plugin-name
 
 You can run `bin/plugin -h`.
 
+Once your plugin is installed, you'll have to restart the node(s) for the plugin to become active.
+
 [float]
 [[site-plugins]]
 ==== Site Plugins

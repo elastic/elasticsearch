@@ -20,6 +20,7 @@ import org.jboss.netty.handler.codec.http.HttpHeaders;
 import javax.annotation.Nullable;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -109,6 +110,28 @@ public class HttpResponse implements ToXContent {
         result = 31 * result + headers.hashCode();
         result = 31 * result + (body != null ? body.hashCode() : 0);
         return result;
+    }
+
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("status=[").append(status).append("]");
+        if (!headers.isEmpty()) {
+            sb.append(", headers=[");
+            boolean first = true;
+            for (Map.Entry<String, String[]> header : headers.entrySet()) {
+                if (!first) {
+                    sb.append(", ");
+                }
+                sb.append("[").append(header.getKey()).append(": ").append(Arrays.toString(header.getValue())).append("]");
+                first = false;
+            }
+            sb.append("]");
+        }
+        if (hasContent()) {
+            sb.append(", body=[").append(body.toUtf8()).append("]");
+        }
+        return sb.toString();
     }
 
     @Override

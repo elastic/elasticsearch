@@ -11,6 +11,7 @@ import org.elasticsearch.marvel.agent.collector.cluster.ClusterStateCollector;
 import org.elasticsearch.marvel.agent.collector.cluster.ClusterStatsCollector;
 import org.elasticsearch.marvel.agent.collector.indices.IndexRecoveryCollector;
 import org.elasticsearch.marvel.agent.collector.indices.IndexStatsCollector;
+import org.elasticsearch.marvel.agent.collector.licenses.LicensesCollector;
 import org.elasticsearch.marvel.agent.collector.node.NodeStatsCollector;
 
 import java.util.HashSet;
@@ -22,6 +23,7 @@ public class CollectorModule extends AbstractModule {
 
     public CollectorModule() {
         // Registers default collectors
+        registerCollector(LicensesCollector.class);
         registerCollector(IndexStatsCollector.class);
         registerCollector(ClusterStatsCollector.class);
         registerCollector(ClusterStateCollector.class);

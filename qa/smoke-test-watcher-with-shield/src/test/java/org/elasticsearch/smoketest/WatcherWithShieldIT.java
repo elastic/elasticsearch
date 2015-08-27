@@ -12,6 +12,7 @@ import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.http.impl.conn.BasicHttpClientConnectionManager;
 import org.elasticsearch.client.support.Headers;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.plugin.LicensePlugin;
 import org.elasticsearch.shield.ShieldPlugin;
@@ -48,7 +49,7 @@ public class WatcherWithShieldIT extends ESRestTestCase {
     public void startWatcher() throws Exception {
         try(CloseableHttpClient client = HttpClients.createMinimal(new BasicHttpClientConnectionManager())) {
             InetSocketAddress address = cluster().httpAddresses()[0];
-            HttpPut request = new HttpPut(new URI("http", null, address.getAddress().getHostAddress(), address.getPort(), "/_watcher/_start", null, null));
+            HttpPut request = new HttpPut(new URI("http", null, NetworkAddress.formatAddress(address.getAddress()), address.getPort(), "/_watcher/_start", null, null));
             String token = basicAuthHeaderValue(TEST_ADMIN_USERNAME, new SecuredString(TEST_ADMIN_PASSWORD.toCharArray()));
             request.addHeader(UsernamePasswordToken.BASIC_AUTH_HEADER, token);
             client.execute(request);
@@ -59,7 +60,7 @@ public class WatcherWithShieldIT extends ESRestTestCase {
     public void stopWatcher() throws Exception {
         try(CloseableHttpClient client = HttpClients.createMinimal(new BasicHttpClientConnectionManager())) {
             InetSocketAddress address = cluster().httpAddresses()[0];
-            HttpPut request = new HttpPut(new URI("http", null, address.getAddress().getHostAddress(), address.getPort(), "/_watcher/_stop", null, null));
+            HttpPut request = new HttpPut(new URI("http", null, NetworkAddress.formatAddress(address.getAddress()), address.getPort(), "/_watcher/_stop", null, null));
             String token = basicAuthHeaderValue(TEST_ADMIN_USERNAME, new SecuredString(TEST_ADMIN_PASSWORD.toCharArray()));
             request.addHeader(UsernamePasswordToken.BASIC_AUTH_HEADER, token);
             client.execute(request);

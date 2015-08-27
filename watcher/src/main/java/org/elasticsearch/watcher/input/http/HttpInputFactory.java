@@ -13,7 +13,7 @@ import org.elasticsearch.watcher.input.InputFactory;
 import org.elasticsearch.watcher.support.http.HttpClient;
 import org.elasticsearch.watcher.support.http.HttpRequest;
 import org.elasticsearch.watcher.support.http.HttpRequestTemplate;
-import org.elasticsearch.watcher.support.template.TemplateEngine;
+import org.elasticsearch.watcher.support.text.TextTemplateEngine;
 
 import java.io.IOException;
 
@@ -23,12 +23,12 @@ import java.io.IOException;
 public final class HttpInputFactory extends InputFactory<HttpInput, HttpInput.Result, ExecutableHttpInput> {
 
     private final HttpClient httpClient;
-    private final TemplateEngine templateEngine;
+    private final TextTemplateEngine templateEngine;
     private final HttpRequest.Parser requestParser;
     private final HttpRequestTemplate.Parser requestTemplateParser;
 
     @Inject
-    public HttpInputFactory(Settings settings, HttpClient httpClient, TemplateEngine templateEngine, HttpRequest.Parser requestParser, HttpRequestTemplate.Parser requestTemplateParser) {
+    public HttpInputFactory(Settings settings, HttpClient httpClient, TextTemplateEngine templateEngine, HttpRequest.Parser requestParser, HttpRequestTemplate.Parser requestTemplateParser) {
         super(Loggers.getLogger(ExecutableHttpInput.class, settings));
         this.templateEngine = templateEngine;
         this.httpClient = httpClient;

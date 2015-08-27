@@ -6,8 +6,6 @@
 package org.elasticsearch.watcher.license;
 
 import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.license.plugin.LicenseVersion;
-import org.elasticsearch.watcher.WatcherVersion;
 
 /**
  *
@@ -28,12 +26,6 @@ public class LicenseModule extends AbstractModule {
             getClass().getClassLoader().loadClass("org.elasticsearch.license.plugin.LicensePlugin");
         } catch (ClassNotFoundException cnfe) {
             throw new IllegalStateException("watcher plugin requires the license plugin to be installed");
-        }
-
-        if (LicenseVersion.CURRENT.before(WatcherVersion.CURRENT.minLicenseCompatibilityVersion)) {
-            throw new IllegalStateException("watcher [" + WatcherVersion.CURRENT +
-                    "] requires minimum license plugin version [" + WatcherVersion.CURRENT.minLicenseCompatibilityVersion +
-                    "], but installed license plugin version is [" + LicenseVersion.CURRENT + "]");
         }
     }
 }

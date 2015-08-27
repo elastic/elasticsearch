@@ -8,68 +8,49 @@ package org.elasticsearch.marvel.agent.collector.node;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
 
-public class NodeStatsMarvelDoc extends MarvelDoc<NodeStatsMarvelDoc.Payload> {
+public class NodeStatsMarvelDoc extends MarvelDoc {
 
-    private final Payload payload;
+    private final String nodeId;
+    private final boolean nodeMaster;
+    private final NodeStats nodeStats;
 
-    public NodeStatsMarvelDoc(String clusterName, String type, long timestamp, Payload payload) {
-        super(clusterName, type, timestamp);
-        this.payload = payload;
+    private final boolean mlockall;
+    private final Double diskThresholdWaterMarkHigh;
+    private final boolean diskThresholdDeciderEnabled;
+
+    public NodeStatsMarvelDoc(String clusterUUID, String type, long timestamp,
+                              String nodeId, boolean nodeMaster, NodeStats nodeStats, boolean mlockall, Double diskThresholdWaterMarkHigh, boolean diskThresholdDeciderEnabled) {
+        super(clusterUUID, type, timestamp);
+        this.nodeId = nodeId;
+        this.nodeMaster = nodeMaster;
+        this.nodeStats = nodeStats;
+        this.mlockall = mlockall;
+        this.diskThresholdWaterMarkHigh = diskThresholdWaterMarkHigh;
+        this.diskThresholdDeciderEnabled = diskThresholdDeciderEnabled;
     }
 
-    @Override
-    public Payload payload() {
-        return payload;
+    public String getNodeId() {
+        return nodeId;
     }
 
-    public static NodeStatsMarvelDoc createMarvelDoc(String clusterName, String type, long timestamp,
-                                                     String nodeId, boolean nodeMaster, NodeStats nodeStats,
-                                                     boolean mlockall, Double diskThresholdWaterMarkHigh, boolean diskThresholdDeciderEnabled) {
-        return new NodeStatsMarvelDoc(clusterName, type, timestamp, new Payload(nodeId, nodeMaster, nodeStats, mlockall, diskThresholdWaterMarkHigh, diskThresholdDeciderEnabled));
+    public boolean isNodeMaster() {
+        return nodeMaster;
     }
 
-    public static class Payload {
+    public NodeStats getNodeStats() {
+        return nodeStats;
+    }
 
-        private final String nodeId;
-        private final boolean nodeMaster;
-        private final NodeStats nodeStats;
+    public boolean isMlockall() {
+        return mlockall;
+    }
 
-        private final boolean mlockall;
-        private final Double diskThresholdWaterMarkHigh;
-        private final boolean diskThresholdDeciderEnabled;
+    public Double getDiskThresholdWaterMarkHigh() {
+        return diskThresholdWaterMarkHigh;
+    }
 
-        Payload(String nodeId, boolean nodeMaster, NodeStats nodeStats, boolean mlockall, Double diskThresholdWaterMarkHigh, boolean diskThresholdDeciderEnabled) {
-            this.nodeId = nodeId;
-            this.nodeMaster = nodeMaster;
-            this.nodeStats = nodeStats;
-            this.mlockall = mlockall;
-            this.diskThresholdWaterMarkHigh = diskThresholdWaterMarkHigh;
-            this.diskThresholdDeciderEnabled = diskThresholdDeciderEnabled;
-        }
-
-        public String getNodeId() {
-            return nodeId;
-        }
-
-        public boolean isNodeMaster() {
-            return nodeMaster;
-        }
-
-        public NodeStats getNodeStats() {
-            return nodeStats;
-        }
-
-        public boolean isMlockall() {
-            return mlockall;
-        }
-
-        public Double getDiskThresholdWaterMarkHigh() {
-            return diskThresholdWaterMarkHigh;
-        }
-
-        public boolean isDiskThresholdDeciderEnabled() {
-            return diskThresholdDeciderEnabled;
-        }
+    public boolean isDiskThresholdDeciderEnabled() {
+        return diskThresholdDeciderEnabled;
     }
 }
 

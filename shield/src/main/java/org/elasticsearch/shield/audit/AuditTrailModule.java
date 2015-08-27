@@ -7,15 +7,12 @@ package org.elasticsearch.shield.audit;
 
 import com.google.common.collect.Sets;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.inject.PreProcessModule;
 import org.elasticsearch.common.inject.multibindings.Multibinder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.ShieldLifecycleService;
 import org.elasticsearch.shield.audit.index.IndexAuditTrail;
 import org.elasticsearch.shield.audit.index.IndexAuditUserHolder;
 import org.elasticsearch.shield.audit.logfile.LoggingAuditTrail;
-import org.elasticsearch.shield.authz.AuthorizationModule;
 import org.elasticsearch.shield.support.AbstractShieldModule;
 
 import java.util.Set;
@@ -23,7 +20,7 @@ import java.util.Set;
 /**
  *
  */
-public class AuditTrailModule extends AbstractShieldModule.Node implements PreProcessModule {
+public class AuditTrailModule extends AbstractShieldModule.Node {
 
     private final boolean enabled;
 
@@ -40,6 +37,7 @@ public class AuditTrailModule extends AbstractShieldModule.Node implements PrePr
             bind(AuditTrail.class).toInstance(AuditTrail.NOOP);
             return;
         }
+        indexAuditUser = new IndexAuditUserHolder();
         String[] outputs = settings.getAsArray("shield.audit.outputs", new String[] { LoggingAuditTrail.NAME });
         if (outputs.length == 0) {
             bind(AuditTrail.class).toInstance(AuditTrail.NOOP);
@@ -68,17 +66,7 @@ public class AuditTrailModule extends AbstractShieldModule.Node implements PrePr
         }
     }
 
-    @Override
-    public void processModule(Module module) {
-        if (enabled && module instanceof AuthorizationModule) {
-            if (indexAuditLoggingEnabled(settings)) {
-                indexAuditUser = new IndexAuditUserHolder(IndexAuditTrail.INDEX_NAME_PREFIX);
-                ((AuthorizationModule) module).registerReservedRole(indexAuditUser.role());
-            }
-        }
-    }
-
-    static boolean auditingEnabled(Settings settings) {
+    public static boolean auditingEnabled(Settings settings) {
         return settings.getAsBoolean("shield.audit.enabled", false);
     }
 

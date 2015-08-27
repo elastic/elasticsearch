@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.watcher.rest.action;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -32,15 +33,15 @@ public class RestWatcherInfoAction extends WatcherRestHandler {
         client.watcherStats(new WatcherStatsRequest(), new RestBuilderListener<WatcherStatsResponse>(restChannel) {
             @Override
             public RestResponse buildResponse(WatcherStatsResponse watcherStatsResponse, XContentBuilder builder) throws Exception {
-                builder.startObject();
-                builder.startObject("version")
-                        .field("name", watcherStatsResponse.getBuild().versionName())
-                        .field("number", watcherStatsResponse.getVersion().number())
-                        .field("build_hash", watcherStatsResponse.getBuild().hash())
-                        .field("build_timestamp", watcherStatsResponse.getBuild().timestamp())
-                        .field("build_snapshot", watcherStatsResponse.getVersion().snapshot)
-                        .endObject().endObject();
-
+                builder.startObject()
+                        .startObject("version")
+                            .field("number", Version.CURRENT.number())
+                            .field("build_hash", watcherStatsResponse.getBuild().hash())
+                            .field("build_timestamp", watcherStatsResponse.getBuild().timestamp())
+                            .field("build_snapshot", Version.CURRENT.snapshot)
+                        .endObject()
+                        .field("tagline", "You Know, for Alerts & Automation")
+                        .endObject();
                 return new BytesRestResponse(OK, builder);
 
             }

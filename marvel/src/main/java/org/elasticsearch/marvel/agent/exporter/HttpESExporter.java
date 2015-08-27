@@ -9,8 +9,6 @@ import com.google.common.io.ByteStreams;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.cluster.settings.ClusterDynamicSettings;
-import org.elasticsearch.cluster.settings.DynamicSettings;
 import org.elasticsearch.common.Base64;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -102,7 +100,6 @@ public class HttpESExporter extends AbstractExporter<HttpESExporter> implements 
 
     @Inject
     public HttpESExporter(Settings settings, ClusterService clusterService, ClusterName clusterName,
-                          @ClusterDynamicSettings DynamicSettings dynamicSettings,
                           NodeSettingsService nodeSettingsService,
                           NodeService nodeService, Environment environment,
                           RendererRegistry registry) {
@@ -132,12 +129,6 @@ public class HttpESExporter extends AbstractExporter<HttpESExporter> implements 
         bulkTimeout = settings.getAsTime(SETTINGS_CHECK_TEMPLATE_TIMEOUT, null);
 
         keepAliveWorker = new ConnectionKeepAliveWorker();
-
-        dynamicSettings.addDynamicSetting(SETTINGS_HOSTS);
-        dynamicSettings.addDynamicSetting(SETTINGS_HOSTS + ".*");
-        dynamicSettings.addDynamicSetting(SETTINGS_TIMEOUT);
-        dynamicSettings.addDynamicSetting(SETTINGS_READ_TIMEOUT);
-        dynamicSettings.addDynamicSetting(SETTINGS_SSL_HOSTNAME_VERIFICATION);
         nodeSettingsService.addListener(this);
 
         if (!settings.getByPrefix(SETTINGS_SSL_PREFIX).getAsMap().isEmpty()) {
@@ -204,7 +195,17 @@ public class HttpESExporter extends AbstractExporter<HttpESExporter> implements 
 
             // Builds the bulk action metadata line
             builder.startObject();
-            builder.startObject("index").field("_type", marvelDoc.type()).endObject();
+            builder.startObject("index");
+            if (marvelDoc.index() != null) {
+                builder.field("_index", marvelDoc.index());
+            }
+            if (marvelDoc.type() != null) {
+                builder.field("_type", marvelDoc.type());
+            }
+            if (marvelDoc.id() != null) {
+                builder.field("_id", marvelDoc.id());
+            }
+            builder.endObject();
             builder.endObject();
 
             // Adds action metadata line bulk separator

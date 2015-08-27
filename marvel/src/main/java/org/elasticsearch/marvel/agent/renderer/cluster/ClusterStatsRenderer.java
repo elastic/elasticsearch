@@ -16,7 +16,7 @@ import java.io.IOException;
 
 public class ClusterStatsRenderer extends AbstractRenderer<ClusterStatsMarvelDoc> {
 
-    private static final String[] FILTERS = {
+    public static final String[] FILTERS = {
             "cluster_stats.nodes.count.total",
             "cluster_stats.indices.shards.total",
             "cluster_stats.indices.shards.index.replication.min",
@@ -37,12 +37,9 @@ public class ClusterStatsRenderer extends AbstractRenderer<ClusterStatsMarvelDoc
     protected void doRender(ClusterStatsMarvelDoc marvelDoc, XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject(Fields.CLUSTER_STATS);
 
-        ClusterStatsMarvelDoc.Payload payload = marvelDoc.payload();
-        if (payload != null) {
-            ClusterStatsResponse clusterStats = payload.getClusterStats();
-            if (clusterStats != null) {
-                clusterStats.toXContent(builder, params);
-            }
+        ClusterStatsResponse clusterStats = marvelDoc.getClusterStats();
+        if (clusterStats != null) {
+            clusterStats.toXContent(builder, params);
         }
 
         builder.endObject();

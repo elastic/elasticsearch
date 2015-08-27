@@ -12,7 +12,7 @@ import org.elasticsearch.watcher.actions.Action;
 import org.elasticsearch.watcher.actions.ExecutableAction;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.support.Variables;
-import org.elasticsearch.watcher.support.template.TemplateEngine;
+import org.elasticsearch.watcher.support.text.TextTemplateEngine;
 import org.elasticsearch.watcher.watch.Payload;
 
 import java.util.Map;
@@ -23,16 +23,16 @@ import java.util.Map;
 public class ExecutableLoggingAction extends ExecutableAction<LoggingAction> {
 
     private final ESLogger textLogger;
-    private final TemplateEngine templateEngine;
+    private final TextTemplateEngine templateEngine;
 
-    ExecutableLoggingAction(LoggingAction action, ESLogger logger, Settings settings, TemplateEngine templateEngine) {
+    ExecutableLoggingAction(LoggingAction action, ESLogger logger, Settings settings, TextTemplateEngine templateEngine) {
         super(action, logger);
         this.textLogger = action.category != null ? Loggers.getLogger(action.category, settings) : logger;
         this.templateEngine = templateEngine;
     }
 
     // for tests
-    ExecutableLoggingAction(LoggingAction action, ESLogger logger, ESLogger textLogger, TemplateEngine templateEngine) {
+    ExecutableLoggingAction(LoggingAction action, ESLogger logger, ESLogger textLogger, TextTemplateEngine templateEngine) {
         super(action, logger);
         this.textLogger = textLogger;
         this.templateEngine = templateEngine;

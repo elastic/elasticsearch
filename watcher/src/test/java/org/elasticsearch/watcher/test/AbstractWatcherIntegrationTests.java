@@ -327,6 +327,7 @@ public abstract class AbstractWatcherIntegrationTests extends ESIntegTestCase {
         assertWatchWithMinimumPerformedActionsCount(watchName, minimumExpectedWatchActionsWithActionPerformed, true);
     }
 
+    // TODO remove this shitty method... the `assertConditionMet` is bogus
     protected void assertWatchWithMinimumPerformedActionsCount(final String watchName, final long minimumExpectedWatchActionsWithActionPerformed, final boolean assertConditionMet) throws Exception {
         final AtomicReference<SearchResponse> lastResponse = new AtomicReference<>();
         try {

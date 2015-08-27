@@ -11,10 +11,8 @@ import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.ShieldPlugin;
 import org.elasticsearch.shield.ShieldSettingsFilter;
-import org.elasticsearch.shield.ShieldVersion;
 import org.elasticsearch.shield.authc.AuthenticationService;
 import org.elasticsearch.transport.TransportMessage;
-import org.elasticsearch.watcher.WatcherVersion;
 
 import java.io.IOException;
 
@@ -55,21 +53,8 @@ public class ShieldIntegration {
 
     static boolean installed() {
         try {
-            Class clazz = ShieldIntegration.class.getClassLoader().loadClass("org.elasticsearch.shield.ShieldPlugin");
-            if (clazz == null) {
-                return false;
-            }
-
-            // lets check min compatibility
-            ShieldVersion minShieldVersion = ShieldVersion.fromId(MIN_SHIELD_VERSION);
-            if (!ShieldVersion.CURRENT.onOrAfter(minShieldVersion)) {
-                throw new IllegalStateException("watcher [" + WatcherVersion.CURRENT + "] requires " +
-                        "minimum shield plugin version [" + minShieldVersion + "], but installed shield plugin version is " +
-                        "[" + ShieldVersion.CURRENT + "]");
-            }
-
+            ShieldIntegration.class.getClassLoader().loadClass("org.elasticsearch.shield.ShieldPlugin");
             return true;
-
         } catch (ClassNotFoundException e) {
             return false;
         }

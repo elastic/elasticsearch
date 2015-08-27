@@ -20,8 +20,8 @@ import org.elasticsearch.watcher.actions.email.service.*;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.execution.Wid;
 import org.elasticsearch.watcher.support.secret.Secret;
-import org.elasticsearch.watcher.support.template.Template;
-import org.elasticsearch.watcher.support.template.TemplateEngine;
+import org.elasticsearch.watcher.support.text.TextTemplate;
+import org.elasticsearch.watcher.support.text.TextTemplateEngine;
 import org.elasticsearch.watcher.support.xcontent.WatcherParams;
 import org.elasticsearch.watcher.watch.Payload;
 import org.joda.time.DateTime;
@@ -57,23 +57,23 @@ public class EmailActionTests extends ESTestCase {
                 return new EmailSent(account, email);
             }
         };
-        TemplateEngine engine = mock(TemplateEngine.class);
+        TextTemplateEngine engine = mock(TextTemplateEngine.class);
         HtmlSanitizer htmlSanitizer = mock(HtmlSanitizer.class);
 
         EmailTemplate.Builder emailBuilder = EmailTemplate.builder();
-        Template subject = null;
+        TextTemplate subject = null;
         if (randomBoolean()) {
-            subject = Template.inline("_subject").build();
+            subject = TextTemplate.inline("_subject").build();
             emailBuilder.subject(subject);
         }
-        Template textBody = null;
+        TextTemplate textBody = null;
         if (randomBoolean()) {
-            textBody = Template.inline("_text_body").build();
+            textBody = TextTemplate.inline("_text_body").build();
             emailBuilder.textBody(textBody);
         }
-        Template htmlBody = null;
+        TextTemplate htmlBody = null;
         if (randomBoolean()) {
-            htmlBody = Template.inline("_html_body").build();
+            htmlBody = TextTemplate.inline("_html_body").build();
             emailBuilder.htmlBody(htmlBody);
         }
         EmailTemplate email = emailBuilder.build();
@@ -145,7 +145,7 @@ public class EmailActionTests extends ESTestCase {
 
     @Test
     public void testParser() throws Exception {
-        TemplateEngine engine = mock(TemplateEngine.class);
+        TextTemplateEngine engine = mock(TextTemplateEngine.class);
         HtmlSanitizer htmlSanitizer = mock(HtmlSanitizer.class);
         EmailService emailService = mock(EmailService.class);
         Profile profile = randomFrom(Profile.values());
@@ -154,9 +154,9 @@ public class EmailActionTests extends ESTestCase {
         Email.Address[] cc = rarely() ? null : Email.AddressList.parse(randomBoolean() ? "cc@domain" : "cc1@domain,cc2@domain").toArray();
         Email.Address[] bcc = rarely() ? null : Email.AddressList.parse(randomBoolean() ? "bcc@domain" : "bcc1@domain,bcc2@domain").toArray();
         Email.Address[] replyTo = rarely() ? null : Email.AddressList.parse(randomBoolean() ? "reply@domain" : "reply1@domain,reply2@domain").toArray();
-        Template subject = randomBoolean() ? Template.inline("_subject").build() : null;
-        Template textBody = randomBoolean() ? Template.inline("_text_body").build() : null;
-        Template htmlBody = randomBoolean() ? Template.inline("_text_html").build() : null;
+        TextTemplate subject = randomBoolean() ? TextTemplate.inline("_subject").build() : null;
+        TextTemplate textBody = randomBoolean() ? TextTemplate.inline("_text_body").build() : null;
+        TextTemplate htmlBody = randomBoolean() ? TextTemplate.inline("_text_html").build() : null;
         DataAttachment dataAttachment = randomDataAttachment();
         XContentBuilder builder = jsonBuilder().startObject()
                 .field("account", "_account")
@@ -259,7 +259,7 @@ public class EmailActionTests extends ESTestCase {
         assertThat(executable.action().getAuth(), notNullValue());
         assertThat(executable.action().getAuth().user(), is("_user"));
         assertThat(executable.action().getAuth().password(), is(new Secret("_passwd".toCharArray())));
-        assertThat(executable.action().getEmail().priority(), is(Template.defaultType(priority.name()).build()));
+        assertThat(executable.action().getEmail().priority(), is(TextTemplate.defaultType(priority.name()).build()));
         if (to != null) {
             assertThat(executable.action().getEmail().to(), arrayContainingInAnyOrder(addressesToTemplates(to)));
         } else {
@@ -282,10 +282,10 @@ public class EmailActionTests extends ESTestCase {
         }
     }
 
-    private static Template[] addressesToTemplates(Email.Address[] addresses) {
-        Template[] templates = new Template[addresses.length];
+    private static TextTemplate[] addressesToTemplates(Email.Address[] addresses) {
+        TextTemplate[] templates = new TextTemplate[addresses.length];
         for (int i = 0; i < templates.length; i++) {
-            templates[i] = Template.defaultType(addresses[i].toString()).build();
+            templates[i] = TextTemplate.defaultType(addresses[i].toString()).build();
         }
         return templates;
     }
@@ -293,7 +293,7 @@ public class EmailActionTests extends ESTestCase {
     @Test
     public void testParser_SelfGenerated() throws Exception {
         EmailService service = mock(EmailService.class);
-        TemplateEngine engine = mock(TemplateEngine.class);
+        TextTemplateEngine engine = mock(TextTemplateEngine.class);
         HtmlSanitizer htmlSanitizer = mock(HtmlSanitizer.class);
         EmailTemplate.Builder emailTemplate = EmailTemplate.builder();
         if (randomBoolean()) {
@@ -362,7 +362,7 @@ public class EmailActionTests extends ESTestCase {
     @Test(expected = ElasticsearchParseException.class)
     public void testParser_Invalid() throws Exception {
         EmailService emailService = mock(EmailService.class);
-        TemplateEngine engine = mock(TemplateEngine.class);
+        TextTemplateEngine engine = mock(TextTemplateEngine.class);
         HtmlSanitizer htmlSanitizer = mock(HtmlSanitizer.class);
         XContentBuilder builder = jsonBuilder().startObject().field("unknown_field", "value");
         XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());

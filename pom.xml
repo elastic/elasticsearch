@@ -6,15 +6,16 @@
 
     <modelVersion>4.0.0</modelVersion>
 
+    <groupId>org.elasticsearch.plugin</groupId>
     <artifactId>x-plugins</artifactId>
-    <version>2.0.0-beta1-SNAPSHOT</version>
+    <version>2.1.0-SNAPSHOT</version>
     <packaging>pom</packaging>
-    <name>Elasticsearch X-Plugins - Parent POM</name>
+    <name>X-Plugins: Parent POM</name>
 
     <parent>
         <groupId>org.elasticsearch.plugin</groupId>
-        <artifactId>elasticsearch-plugin</artifactId>
-        <version>2.0.0-beta1-SNAPSHOT</version>
+        <artifactId>plugins</artifactId>
+        <version>2.1.0-SNAPSHOT</version>
     </parent>
 
     <properties>
@@ -22,6 +23,7 @@
         <elasticsearch.license.headerDefinition>${elasticsearch.tools.directory}/commercial-license-check/license_header_definition.xml</elasticsearch.license.headerDefinition>
         <assembly.attach>true</assembly.attach>
         <sources.attach>true</sources.attach>
+        <deploy.skip>false</deploy.skip>
     </properties>
 
     <scm>
@@ -85,7 +87,7 @@
             <configuration>
               <!-- include x-dev-tools resources bundle -->
               <resourceBundles combine.children="append">
-                <resourceBundle>org.elasticsearch:elasticsearch-x-dev-tools:${elasticsearch.version}</resourceBundle>
+                <resourceBundle>org.elasticsearch:x-dev-tools:${elasticsearch.version}</resourceBundle>
               </resourceBundles>
             </configuration>
           </plugin>
@@ -122,6 +124,13 @@
                   </execution>
               </executions>
           </plugin>
+          <plugin>
+              <groupId>org.apache.maven.plugins</groupId>
+              <artifactId>maven-deploy-plugin</artifactId>
+              <configuration>
+                  <skip>${deploy.skip}</skip>
+              </configuration>
+          </plugin>
         </plugins>
       </pluginManagement>
     </build>
@@ -155,6 +164,20 @@
                     <url>http://maven.elasticsearch.org/artifactory/public-releases</url>
                 </repository>
             </distributionManagement>
+            <pluginRepositories>
+                <pluginRepository>
+                    <id>oss-snapshots</id>
+                    <name>Sonatype OSS Snapshots</name>
+                    <url>https://oss.sonatype.org/content/repositories/snapshots/</url>
+                    <releases>
+                        <enabled>false</enabled>
+                    </releases>
+                    <snapshots>
+                        <enabled>true</enabled>
+                        <updatePolicy>always</updatePolicy>
+                    </snapshots>
+                </pluginRepository>
+            </pluginRepositories>
             <build>
                 <plugins>
                     <plugin>

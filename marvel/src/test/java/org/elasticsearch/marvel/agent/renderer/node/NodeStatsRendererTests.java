@@ -27,7 +27,7 @@ public class NodeStatsRendererTests extends ESSingleNodeTestCase {
         NodeStats nodeStats = getInstanceFromNode(NodeService.class).stats();
 
         logger.debug("--> creating the node stats marvel document");
-        NodeStatsMarvelDoc marvelDoc = NodeStatsMarvelDoc.createMarvelDoc("test", "marvel_node_stats", 1437580442979L,
+        NodeStatsMarvelDoc marvelDoc = new NodeStatsMarvelDoc("test", "marvel_node_stats", 1437580442979L,
                 "node-0", true, nodeStats, false, 90.0, true);
 
         logger.debug("--> rendering the document");

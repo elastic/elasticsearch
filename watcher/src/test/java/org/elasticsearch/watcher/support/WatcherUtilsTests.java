@@ -20,7 +20,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.input.search.ExecutableSearchInput;
 import org.elasticsearch.watcher.support.clock.SystemClock;
-import org.elasticsearch.watcher.support.template.Template;
+import org.elasticsearch.watcher.support.text.TextTemplate;
 import org.joda.time.DateTime;
 import org.junit.Test;
 
@@ -118,10 +118,10 @@ public class WatcherUtilsTests extends ESTestCase {
                 }
             }
             String text = randomAsciiOfLengthBetween(1, 5);
-            Template template = randomFrom(
-                    Template.inline(text).params(params).build(),
-                    Template.file(text).params(params).build(),
-                    Template.indexed(text).params(params).build()
+            TextTemplate template = randomFrom(
+                    TextTemplate.inline(text).params(params).build(),
+                    TextTemplate.file(text).params(params).build(),
+                    TextTemplate.indexed(text).params(params).build()
             );
             expectedRequest.templateSource(jsonBuilder().startObject().field("template", template).endObject().string());
         }
@@ -203,10 +203,10 @@ public class WatcherUtilsTests extends ESTestCase {
                 }
             }
             String text = randomAsciiOfLengthBetween(1, 5);
-            Template template = randomFrom(
-                    Template.inline(text).params(params).build(),
-                    Template.file(text).params(params).build(),
-                    Template.indexed(text).params(params).build()
+            TextTemplate template = randomFrom(
+                    TextTemplate.inline(text).params(params).build(),
+                    TextTemplate.file(text).params(params).build(),
+                    TextTemplate.indexed(text).params(params).build()
             );
             builder.field("template", template);
             templateSource = jsonBuilder().value(template).bytes();

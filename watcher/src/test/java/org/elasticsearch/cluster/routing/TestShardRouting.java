@@ -12,20 +12,20 @@ package org.elasticsearch.cluster.routing;
 public class TestShardRouting {
 
     public static ShardRouting newShardRouting(String index, int shardId, String currentNodeId, boolean primary, ShardRoutingState state, long version) {
-        return new ShardRouting(index, shardId, currentNodeId, null, null, primary, state, version, null, AllocationId.newInitializing(), true);
+        return new ShardRouting(index, shardId, currentNodeId, null, null, primary, state, version, null, AllocationId.newInitializing(), true, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
     }
 
     public static ShardRouting newShardRouting(String index, int shardId, String currentNodeId, String relocatingNodeId, boolean primary, ShardRoutingState state, long version) {
-        return new ShardRouting(index, shardId, currentNodeId, relocatingNodeId, null, primary, state, version, null, AllocationId.newInitializing(), true);
+        return new ShardRouting(index, shardId, currentNodeId, relocatingNodeId, null, primary, state, version, null, AllocationId.newInitializing(), true, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
     }
 
     public static ShardRouting newShardRouting(String index, int shardId, String currentNodeId, String relocatingNodeId, RestoreSource restoreSource, boolean primary, ShardRoutingState state, long version) {
-        return new ShardRouting(index, shardId, currentNodeId, relocatingNodeId, restoreSource, primary, state, version, null, AllocationId.newInitializing(), true);
+        return new ShardRouting(index, shardId, currentNodeId, relocatingNodeId, restoreSource, primary, state, version, null, AllocationId.newInitializing(), true, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
     }
 
     public static ShardRouting newShardRouting(String index, int shardId, String currentNodeId,
                                                String relocatingNodeId, RestoreSource restoreSource, boolean primary, ShardRoutingState state, long version,
                                                UnassignedInfo unassignedInfo) {
-        return new ShardRouting(index, shardId, currentNodeId, relocatingNodeId, restoreSource, primary, state, version, unassignedInfo, AllocationId.newInitializing(), true);
+        return new ShardRouting(index, shardId, currentNodeId, relocatingNodeId, restoreSource, primary, state, version, unassignedInfo, AllocationId.newInitializing(), true, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
     }
 }

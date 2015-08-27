@@ -18,7 +18,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
-import org.elasticsearch.watcher.support.template.Template;
+import org.elasticsearch.watcher.support.text.TextTemplate;
 import org.elasticsearch.watcher.watch.Payload;
 import org.joda.time.DateTime;
 
@@ -89,7 +89,7 @@ public final class WatcherUtils {
             BytesReference templateSource = requestPrototype.templateSource();
             try (XContentParser sourceParser = XContentFactory.xContent(templateSource).createParser(templateSource)) {
                 sourceParser.nextToken();
-                Template template = Template.parse(sourceParser);
+                TextTemplate template = TextTemplate.parse(sourceParser);
 
                 // Convert to the ES template format:
                 XContentBuilder builder = jsonBuilder();
@@ -230,7 +230,7 @@ public final class WatcherUtils {
                     String typesStr = parser.text();
                     searchRequest.types(Strings.delimitedListToStringArray(typesStr, ",", " \t"));
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, SEARCH_TYPE_FIELD)) {
-                    searchType = SearchType.fromString(parser.text().toLowerCase(Locale.ROOT), ParseFieldMatcher.STRICT);
+                    searchType = SearchType.fromString(parser.text().toLowerCase(Locale.ROOT), ParseFieldMatcher.EMPTY);
                     if (searchType == SearchType.SCAN){
                         throw new ElasticsearchParseException("could not read search request. value [" + searchType.name() + "] is not supported for field [" + SEARCH_TYPE_FIELD.getPreferredName() + "]" );
                     }

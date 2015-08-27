@@ -8,7 +8,11 @@ package org.elasticsearch.marvel.agent.renderer.indices;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
+import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.indexing.IndexingStats;
+import org.elasticsearch.index.merge.MergeStats;
+import org.elasticsearch.index.refresh.RefreshStats;
+import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.marvel.agent.collector.indices.IndexStatsMarvelDoc;
@@ -25,14 +29,20 @@ public class IndexStatsRendererTests extends ESTestCase {
     @Test
     public void testIndexStatsRenderer() throws Exception {
         logger.debug("--> creating the index stats marvel document");
-        IndexStatsMarvelDoc marvelDoc = IndexStatsMarvelDoc.createMarvelDoc("test", "marvel_index_stats", 1437580442979L,
+        IndexStatsMarvelDoc marvelDoc = new IndexStatsMarvelDoc("test", "marvel_index_stats", 1437580442979L,
                 new IndexStats("index-0", new ShardStats[0]) {
                     @Override
                     public CommonStats getTotal() {
                         CommonStats stats = new CommonStats();
                         stats.docs = new DocsStats(345678L, 123L);
                         stats.store = new StoreStats(5761573L, 0L);
-                        stats.indexing = new IndexingStats(new IndexingStats.Stats(0L, 0L, 0L, 0L, 0L, 0L, 0L, true, 302L), null);
+                        stats.indexing = new IndexingStats(new IndexingStats.Stats(3L, 71L, 0L, 0L, 0L, 0L, 0L, true, 302L), null);
+                        stats.search = new SearchStats(new SearchStats.Stats(1L, 7L, 0L, 0L, 0L, 0L, 0L, 0L, 0L), 0L, null);
+                        stats.merge = new MergeStats();
+                        stats.merge.add(0L, 0L, 0L, 42L, 0L, 0L, 0L, 0L, 0L, 0L);
+                        stats.refresh = new RefreshStats(0L, 978L);
+                        stats.segments = new SegmentsStats();
+                        stats.segments.add(0, 87965412L);
                         return stats;
                     }
 
@@ -40,7 +50,7 @@ public class IndexStatsRendererTests extends ESTestCase {
                     public CommonStats getPrimaries() {
                         // Primaries will be filtered out by the renderer
                         CommonStats stats = new CommonStats();
-                        stats.docs = new DocsStats(randomLong(), randomLong());
+                        stats.docs = new DocsStats(345678L, randomLong());
                         stats.store = new StoreStats(randomLong(), randomLong());
                         stats.indexing = new IndexingStats(new IndexingStats.Stats(0L, 0L, 0L, 0L, 0L, 0L, 0L, true, randomLong()), null);
                         return stats;

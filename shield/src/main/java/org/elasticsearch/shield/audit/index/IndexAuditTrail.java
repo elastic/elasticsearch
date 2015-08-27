@@ -27,7 +27,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Provider;
-import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
@@ -48,6 +48,7 @@ import org.elasticsearch.shield.authc.AuthenticationToken;
 import org.elasticsearch.shield.authz.Privilege;
 import org.elasticsearch.shield.rest.RemoteHostHeader;
 import org.elasticsearch.shield.transport.filter.ShieldIpFilterRule;
+import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportMessage;
 import org.elasticsearch.transport.TransportRequest;
 import org.joda.time.DateTime;
@@ -106,6 +107,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail {
     private final Environment environment;
     private final LinkedBlockingQueue<Message> eventQueue;
     private final QueueConsumer queueConsumer;
+    private final Transport transport;
     private final boolean indexToRemoteCluster;
 
     private BulkProcessor bulkProcessor;
@@ -123,12 +125,13 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail {
     @Inject
     public IndexAuditTrail(Settings settings, IndexAuditUserHolder indexingAuditUser,
                            Environment environment, AuthenticationService authenticationService,
-                           Provider<Client> clientProvider) {
+                           Transport transport, Provider<Client> clientProvider) {
         super(settings);
         this.auditUser = indexingAuditUser;
         this.authenticationService = authenticationService;
         this.clientProvider = clientProvider;
         this.environment = environment;
+        this.transport = transport;
         this.nodeName = settings.get("name");
         this.queueConsumer = new QueueConsumer(EsExecutors.threadName(settings, "audit-queue-consumer"));
 
@@ -239,8 +242,8 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail {
      */
     public void start(boolean master) {
         if (state.compareAndSet(State.INITIALIZED, State.STARTING)) {
-            this.nodeHostName = NetworkUtils.getLocalHostName("n/a");
-            this.nodeHostAddress = NetworkUtils.getLocalHostAddress("n/a");
+            this.nodeHostName = transport.boundAddress().publishAddress().getHost();
+            this.nodeHostAddress = transport.boundAddress().publishAddress().getAddress();
 
             if (client == null) {
                 initializeClient();
@@ -461,7 +464,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail {
 
         Message msg = new Message().start();
         common("transport", type, msg.builder);
-        originAttributes(message, msg.builder);
+        originAttributes(message, msg.builder, transport);
 
         if (action != null) {
             msg.builder.field(Field.ACTION, action);
@@ -504,9 +507,9 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail {
         msg.builder.field(Field.ORIGIN_TYPE, "rest");
         SocketAddress address = request.getRemoteAddress();
         if (address instanceof InetSocketAddress) {
-            msg.builder.field(Field.ORIGIN_ADDRESS, ((InetSocketAddress)request.getRemoteAddress()).getAddress().getHostAddress());
+            msg.builder.field(Field.ORIGIN_ADDRESS, NetworkAddress.formatAddress(((InetSocketAddress) request.getRemoteAddress()).getAddress()));
         } else {
-            msg.builder.field(Field.ORIGIN_ADDRESS, request.getRemoteAddress());
+            msg.builder.field(Field.ORIGIN_ADDRESS, address);
         }
         msg.builder.field(Field.URI, request.uri());
 
@@ -519,7 +522,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail {
         Message msg = new Message().start();
         common(layer, type, msg.builder);
 
-        msg.builder.field(Field.ORIGIN_ADDRESS, originAddress.getHostAddress());
+        msg.builder.field(Field.ORIGIN_ADDRESS, NetworkAddress.formatAddress(originAddress));
         msg.builder.field(Field.TRANSPORT_PROFILE, profile);
         msg.builder.field(Field.RULE, rule);
 
@@ -535,13 +538,13 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail {
         return builder;
     }
 
-    private static XContentBuilder originAttributes(TransportMessage message, XContentBuilder builder) throws IOException {
+    private static XContentBuilder originAttributes(TransportMessage message, XContentBuilder builder, Transport transport) throws IOException {
 
         // first checking if the message originated in a rest call
         InetSocketAddress restAddress = RemoteHostHeader.restRemoteAddress(message);
         if (restAddress != null) {
             builder.field(Field.ORIGIN_TYPE, "rest");
-            builder.field(Field.ORIGIN_ADDRESS, restAddress.getAddress().getHostAddress());
+            builder.field(Field.ORIGIN_ADDRESS, NetworkAddress.formatAddress(restAddress.getAddress()));
             return builder;
         }
 
@@ -550,7 +553,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail {
         if (address != null) {
             builder.field(Field.ORIGIN_TYPE, "transport");
             if (address instanceof InetSocketTransportAddress) {
-                builder.field(Field.ORIGIN_ADDRESS, ((InetSocketTransportAddress) address).address().getAddress().getHostAddress());
+                builder.field(Field.ORIGIN_ADDRESS, NetworkAddress.formatAddress(((InetSocketTransportAddress) address).address().getAddress()));
             } else {
                 builder.field(Field.ORIGIN_ADDRESS, address);
             }
@@ -559,7 +562,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail {
 
         // the call was originated locally on this node
         builder.field(Field.ORIGIN_TYPE, "local_node");
-        builder.field(Field.ORIGIN_ADDRESS, NetworkUtils.getLocalHostAddress("_local"));
+        builder.field(Field.ORIGIN_ADDRESS, transport.boundAddress().publishAddress().getAddress());
         return builder;
     }
 
@@ -612,7 +615,11 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail {
                             .put(clientSettings))
                     .build();
             for (Tuple<String, Integer> pair : hostPortPairs) {
-                transportClient.addTransportAddress(new InetSocketTransportAddress(pair.v1(), pair.v2()));
+                try {
+                    transportClient.addTransportAddress(new InetSocketTransportAddress(InetAddress.getByName(pair.v1()), pair.v2()));
+                } catch (UnknownHostException e) {
+                    throw new ElasticsearchException("could not find host {}", e, pair.v1());
+                }
             }
 
             this.client = transportClient;

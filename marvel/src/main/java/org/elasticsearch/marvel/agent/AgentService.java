@@ -5,66 +5,64 @@
  */
 package org.elasticsearch.marvel.agent;
 
-import com.google.common.collect.ImmutableSet;
-import org.elasticsearch.cluster.settings.ClusterDynamicSettings;
-import org.elasticsearch.cluster.settings.DynamicSettings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.marvel.agent.collector.Collector;
+import org.elasticsearch.marvel.agent.collector.licenses.LicensesCollector;
 import org.elasticsearch.marvel.agent.exporter.Exporter;
 import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
+import org.elasticsearch.marvel.agent.settings.MarvelSettings;
 import org.elasticsearch.marvel.license.LicenseService;
 import org.elasticsearch.node.settings.NodeSettingsService;
 
-import java.util.Collection;
-import java.util.Set;
+import java.util.*;
 
 public class AgentService extends AbstractLifecycleComponent<AgentService> implements NodeSettingsService.Listener {
-
-    private static final String SETTINGS_BASE = "marvel.agent.";
-
-    public static final String SETTINGS_INTERVAL = SETTINGS_BASE + "interval";
-    public static final String SETTINGS_ENABLED = SETTINGS_BASE + "enabled";
-
-    public static final String SETTINGS_STATS_TIMEOUT = SETTINGS_BASE + "stats.timeout";
 
     private volatile ExportingWorker exportingWorker;
 
     private volatile Thread workerThread;
     private volatile long samplingInterval;
 
-    private volatile TimeValue clusterStatsTimeout;
+    private final MarvelSettings marvelSettings;
 
     private final Collection<Collector> collectors;
     private final Collection<Exporter> exporters;
 
     @Inject
     public AgentService(Settings settings, NodeSettingsService nodeSettingsService,
-                        @ClusterDynamicSettings DynamicSettings dynamicSettings,
-                        LicenseService licenseService,
+                        LicenseService licenseService, MarvelSettings marvelSettings,
                         Set<Collector> collectors, Set<Exporter> exporters) {
         super(settings);
-        this.samplingInterval = settings.getAsTime(SETTINGS_INTERVAL, TimeValue.timeValueSeconds(10)).millis();
+        this.marvelSettings = marvelSettings;
+        this.samplingInterval = marvelSettings.interval().millis();
 
-        TimeValue statsTimeout = settings.getAsTime(SETTINGS_STATS_TIMEOUT, TimeValue.timeValueMinutes(10));
-
-        if (settings.getAsBoolean(SETTINGS_ENABLED, true)) {
-            this.collectors = ImmutableSet.copyOf(collectors);
-            this.exporters = ImmutableSet.copyOf(exporters);
-        } else {
-            this.collectors = ImmutableSet.of();
-            this.exporters = ImmutableSet.of();
-            logger.info("collecting disabled by settings");
-        }
+        this.collectors = Collections.unmodifiableSet(filterCollectors(collectors, marvelSettings.collectors()));
+        this.exporters = Collections.unmodifiableSet(exporters);
 
         nodeSettingsService.addListener(this);
-        dynamicSettings.addDynamicSetting(SETTINGS_INTERVAL);
-        dynamicSettings.addDynamicSetting(SETTINGS_STATS_TIMEOUT);
-
         logger.trace("marvel is running in [{}] mode", licenseService.mode());
+    }
+
+    protected Set<Collector> filterCollectors(Set<Collector> collectors, String[] filters) {
+        if (CollectionUtils.isEmpty(filters)) {
+            return collectors;
+        }
+
+        Set<Collector> list = new HashSet<>();
+        for (Collector collector : collectors) {
+            if (Regex.simpleMatch(filters, collector.name().toLowerCase(Locale.ROOT))) {
+                list.add(collector);
+            } else if (collector instanceof LicensesCollector) {
+                list.add(collector);
+            }
+        }
+        return list;
     }
 
     protected void applyIntervalSettings() {
@@ -148,7 +146,7 @@ public class AgentService extends AbstractLifecycleComponent<AgentService> imple
 
     @Override
     public void onRefreshSettings(Settings settings) {
-        TimeValue newSamplingInterval = settings.getAsTime(SETTINGS_INTERVAL, null);
+        TimeValue newSamplingInterval = settings.getAsTime(MarvelSettings.INTERVAL, null);
         if (newSamplingInterval != null && newSamplingInterval.millis() != samplingInterval) {
             logger.info("sampling interval updated to [{}]", newSamplingInterval);
             samplingInterval = newSamplingInterval.millis();
@@ -162,10 +160,14 @@ public class AgentService extends AbstractLifecycleComponent<AgentService> imple
 
         @Override
         public void run() {
+            boolean firstRun = true;
+
             while (!closed) {
                 // sleep first to allow node to complete initialization before collecting the first start
                 try {
-                    Thread.sleep(samplingInterval);
+                    long interval = (firstRun && (marvelSettings.startUpDelay() != null)) ? marvelSettings.startUpDelay().millis() : samplingInterval;
+                    Thread.sleep(interval);
+
                     if (closed) {
                         continue;
                     }
@@ -179,11 +181,18 @@ public class AgentService extends AbstractLifecycleComponent<AgentService> imple
                                 exporter.export(results);
                             }
                         }
+
+                        if (closed) {
+                            // Stop collecting if the worker is marked as closed
+                            break;
+                        }
                     }
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                 } catch (Throwable t) {
                     logger.error("Background thread had an uncaught exception:", t);
+                } finally {
+                    firstRun = false;
                 }
             }
             logger.debug("worker shutdown");

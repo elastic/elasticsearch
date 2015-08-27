@@ -22,7 +22,12 @@ import java.nio.file.attribute.PosixFilePermission;
 import java.util.Set;
 
 import static org.elasticsearch.shield.crypto.tool.SystemKeyTool.Generate;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -106,7 +111,7 @@ public class SystemKeyToolTests extends CliToolTestCase {
         Path path = shieldConfig.resolve("system_key");
 
         // no posix file permissions, nothing to test, done here
-        boolean supportsPosixPermissions = Files.getFileStore(shieldConfig).supportsFileAttributeView(PosixFileAttributeView.class);
+        boolean supportsPosixPermissions = Environment.getFileStore(shieldConfig).supportsFileAttributeView(PosixFileAttributeView.class);
         assumeTrue("Ignoring because posix file attributes are not supported", supportsPosixPermissions);
 
         when(env.configFile()).thenReturn(config);

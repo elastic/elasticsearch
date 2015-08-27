@@ -1,0 +1,235 @@
+[[actions-hipchat]]
+==== HipChat Action
+
+A watch <<actions, action>> that can connect to a https://www.hipchat.com[HipChat] server and send
+messages to users and rooms of a specific group.
+
+
+[[configuring-hipchat-actions]]
+===== Configuring HipChat Actions
+
+You configure hipchat actions in a watch's `actions` array. Action-specific attributes are
+specified using the `hipchat` keyword.
+
+The following snippet shows a simple hipchat action definition:
+
+[source,json]
+--------------------------------------------------
+"actions" : {
+  "notify-hipchat" : { <1>
+    "transform" : { ... }, <2>
+    "throttle_period" : "5m", <3>
+    "hipchat" : {
+      "to" : {
+        "room" : "server-status" <4>
+      },
+      "message" : "Encountered  {{ctx.payload.hits.total}} errors in the last 5 minutes (facepalm)" <5>
+    }
+  }
+}
+--------------------------------------------------
+
+<1> The id of the action
+<2> An optional <<transform, transform>> to transform the payload before executing the `webhook` action
+<3> An optional <<actions-ack-throttle, throttle period>> for the action (5 minutes in this example)
+<4> The room where the message is sent to
+<5> The content of the message.
+
+HipChat provides an extensive set of APIs via which Watcher sends messages to users and rooms. These APIs
+are exposed via different integration mechanism. Watcher refers to these as *Profiles*, each can be identified
+with its own unique name: `v1`, `integration` and `user`.
+
+Different profiles support different features and require different set of configuration (both on watcher
+side and on the HipChat server side).
+
+Before using the `hipchat` action in a watch, Watcher's internal HipChat service needs to be configured. This
+Service enable the configuration of multiple HipChat accounts. An HipChat Account defines the following:
+
+* `name` -              (required) uniquely identifies the account. HipChat actions may specify the name of the account with which
+                        the messages should be sent.
+* `profile` -           (required) the profile that is associated with this account, effectively defining what APIs this account uses.
+* `auth_token` -        (required) the authentication token that is used to execute the HipChat API in the account.
+* `host` -              (optional) defines the host of the HipChat server. When not defined it fall back on the default host (see bellow)
+* `port` -              (optional) defines the port of the HipChat server. When not defined it fall back on the default port (see bellow)
+* `message_defaults` -  (optional) a set of settings to define the default settings of the messages that are sent via this account
+* `room` -              Some account are bound to a single room (messages that are sent using their associated profiles can only be
+                        sent to a specific room). For those account, this setting defines the room the account is bound to.
+
+Here's an example settings for HipChat service:
+
+[source,yaml]
+--------------------------------------------------
+watcher.actions.hipchat:
+  default_account: v1
+  account:
+    account1:
+      profile: v1
+      auth_token: XXXXXXXXX
+      message_default:
+        color: yello
+        message_format: text
+    account2:
+      profile: integration
+      auth_token: YYYYYYYYY
+      room: mission-control
+      message_default:
+        color: red
+        message_format: text
+--------------------------------------------------
+
+[[hipchat-api-v1]]
+===== `v1` Account
+
+WARNING:   This account uses a deprecated API and is expected to be removed by HipChat in the future.
+
+The `v1` API was the first API HipChat ever exposed and therefore the most commonly used one. It is also the simplest
+one to set up. To create the `v1` API token, please follow the instructions listed on https://www.hipchat.com/docs/api.
+
+NOTE:   User private messages are not supported by this API. If private messages is what you are after, please
+        consider the <<`user`>> API instead.
+
+Once the an API is created, add the following settings in `elasticsearch.yml` file:
+
+The following table lists the available fields when setting up the `hipchat` action for the `v1` API:
+
+[[hipchat-api-v1-action-attributes]]
+.v1 API Action Attributes
+[options="header"]
+|======
+| Name              |Required   | Default         | Description
+| `from`            | no        | the watch id    | The name that will appear as the sender of the notification
+| `room`            | yes       | -               | The room/s that the notification should go to. Accepts a string value or an array of string values.
+| `message`         | yes       | -               | The content of the notification message (size is limited by HipChat to 1000 characters)
+| `message_format`  | no        | html*           | The format of the message. Possible options are: `text` or `html`
+| `color`           | no        | yellow*         | The background color of the notification in the room
+| `notify`          | no        | false           | Indicates whether people in the room should be actively notified
+|======
+
+Here is an example for how it looks like as part of the action definition:
+
+[source,json]
+--------------------------------------------------
+"actions" : {
+  "notify-hipchat" : {
+    "transform" : { ... },
+    "throttle_period" : "5m",
+    "hipchat" : {
+      "account" : "v1-account",
+      "message" : {
+        "from" : "watcher",
+        "room" : [ "server-status", "infra-team" ],
+        "message" : "Encountered  {{ctx.payload.hits.total}} errors in the last 5 minutes (facepalm)",
+        "message_format" : "text",
+        "color" : "red",
+        "notify" : true
+      }
+    }
+  }
+}
+--------------------------------------------------
+
+
+[[hipchat-api-integration]]
+===== `integration` Accounts
+
+This profiles uses HipChat https://www.hipchat.com/docs/apiv2/addons[Integrations]. More specifically,
+it uses a built-in integration in HipChat that enables external systems to send notifications to a
+specific room. To create the `integration` API token:
+
+* For HipChat.com, please follow the "Build your own integration" https://www.hipchat.com/docs/apiv2[instructions]
+* For HipChat Server, please follow the "Build your own integration" https://confluence.atlassian.com/hc/administering-hipchat-server/integrations-with-hipchat-server[instructions]
+
+In both cases, the api token can be copied from the listed example (marked in red bellow)
+
+image:images/hipchat-integration-example.png[]
+
+NOTE:   This API is the most limited APIs of the three as it only supports sending notifications to a single room and
+        does not support user private messages. If you are looking for multi-room notifications, please consider either
+        the <<hipchat-api-v1, `v1`>> or <<hipchat-api-user, `user`>> APIs. Only the latter supports user private
+        messages.
+
+When creating an account with the `integration` profile, you must configure the `room` setting as part
+of the account setting.
+
+The following table lists the available fields when setting up the `hipchat` action an `integration` account:
+
+[[hipchat-api-integration-action-attributes]]
+.v1 API Action Attributes
+[options="header"]
+|======
+| Name              |Required   | Default         | Description
+| `message`         | yes       | -               | The content of the notification message (size is limited by HipChat to 1000 characters)
+| `message_format`  | no        | html*           | The format of the message. Possible options are: `text` or `html`
+| `color`           | no        | yellow*         | The background color of the notification in the room
+| `notify`          | no        | false           | Indicates whether people in the room should be actively notified
+|======
+
+Here is an example for how it looks like as part of the action definition:
+
+[source,json]
+--------------------------------------------------
+"actions" : {
+  "notify-hipchat" : {
+    "transform" : { ... },
+    "throttle_period" : "5m",
+    "hipchat" : {
+      "account" : "integration-account",
+      "message" : {
+        "message" : "Encountered  {{ctx.payload.hits.total}} errors in the last 5 minutes (facepalm)",
+        "message_format" : "text",
+        "color" : "red",
+        "notify" : true
+      }
+    }
+  }
+}
+--------------------------------------------------
+
+[[hipchat-api-user]]
+===== `user` Accounts
+
+The `user` API is arguably the most flexible API. It is also safe to use as it and is based on HipChat's `v2` API version.
+To use this API you will require to add a new HipChat user. With this the user in place, all messages sent via this
+account will be sent on this user behalf (make sure you name the user appropriately). After creating the user, you need
+to create an API token for it. To create a user token please follow the instructions on HipChat's online documentation.
+////
+TODO: could not find a good link for that... we might need to show screenshots of the UI
+////
+
+While not supported by `v1` and `integration` accounts, the `user` account enables private user notification.
+
+The following table lists the available fields when setting up the `hipchat` action for the `user` API:
+
+[[hipchat-api-user-action-attributes]]
+.v1 API Action Attributes
+[options="header"]
+|======
+| Name              |Required   | Default         | Description
+| `message`         | yes       | -               | The content of the notification message (size is limited by HipChat to 1000 characters)
+| `message_format`  | no        | html*           | The format of the message. Possible options are: `text` or `html`
+| `color`           | no        | yellow*         | The background color of the notification in the room
+| `notify`          | no        | false           | Indicates whether people in the room should be actively notified
+|======
+
+Here is an example for how it looks like as part of the action definition:
+
+[source,json]
+--------------------------------------------------
+"actions" : {
+  "notify-hipchat" : {
+    "transform" : { ... },
+    "throttle_period" : "5m",
+    "hipchat" : {
+      "account" : "integration-account",
+      "message" : {
+        "room" : [ "mission-control", "devops" ],
+        "user" : "website-admin@example.com",
+        "message" : "Encountered  {{ctx.payload.hits.total}} errors in the last 5 minutes (facepalm)",
+        "message_format" : "text",
+        "color" : "red",
+        "notify" : true
+      }
+    }
+  }
+}
+--------------------------------------------------

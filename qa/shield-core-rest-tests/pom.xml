@@ -1,0 +1,149 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>org.elasticsearch.qa</groupId>
+    <artifactId>x-plugins-qa</artifactId>
+    <version>2.1.0-SNAPSHOT</version>
+  </parent>
+
+  <!-- 
+    This runs core REST tests with shield enabled.
+  -->
+
+  <artifactId>shield-core-rest-tests</artifactId>
+  <name>QA: Shield core REST tests</name>
+  <description>Run core REST tests with Shield enabled</description>
+
+  <properties>
+    <skip.unit.tests>true</skip.unit.tests>
+    <elasticsearch.integ.antfile>${project.basedir}/integration-tests.xml</elasticsearch.integ.antfile>
+    <tests.rest.load_packaged>true</tests.rest.load_packaged>
+    <tests.rest.blacklist>indices.get/10_basic/*allow_no_indices*,cat.count/10_basic/Test cat count output,cat.aliases/10_basic/Empty cluster,indices.segments/10_basic/no segments test,indices.clear_cache/10_basic/clear_cache test,indices.status/10_basic/Indices status test,cat.indices/10_basic/Test cat indices output,cat.recovery/10_basic/Test cat recovery output,cat.shards/10_basic/Test cat shards output,termvector/20_issue7121/*,index/10_with_id/Index with ID,indices.get_alias/20_emtpy/*,cat.segments/10_basic/Test cat segments output,indices.put_settings/10_basic/Test indices settings allow_no_indices,indices.put_settings/10_basic/Test indices settings ignore_unavailable,indices.refresh/10_basic/Indices refresh test no-match wildcard,indices.stats/10_index/Index - star*,indices.recovery/10_basic/Indices recovery test*,template/30_render_search_template/*,indices.shard_stores/10_basic/no indices test,cat.nodeattrs/10_basic/Test cat nodes attrs output</tests.rest.blacklist>
+    <xplugins.list>license,shield</xplugins.list>
+  </properties>
+
+  <dependencies>
+    <dependency>
+      <groupId>org.elasticsearch.plugin</groupId>
+      <artifactId>shield</artifactId>
+      <version>${elasticsearch.version}</version>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+         <groupId>org.apache.maven.plugins</groupId>
+         <artifactId>maven-dependency-plugin</artifactId>
+         <executions>
+           <execution>
+             <id>integ-setup-dependencies</id>
+             <phase>pre-integration-test</phase>
+             <goals>
+               <goal>copy</goal>
+             </goals>
+             <configuration>
+               <skip>${skip.integ.tests}</skip>
+               <useBaseVersion>true</useBaseVersion>
+               <outputDirectory>${integ.deps}/plugins</outputDirectory>
+
+               <artifactItems>
+                 <!-- elasticsearch distribution -->
+                 <artifactItem>
+                   <groupId>org.elasticsearch.distribution.zip</groupId>
+                   <artifactId>elasticsearch</artifactId>
+                   <version>${elasticsearch.version}</version>
+                   <type>zip</type>
+                   <overWrite>true</overWrite>
+                   <outputDirectory>${integ.deps}</outputDirectory>
+                 </artifactItem>
+
+                 <!-- commercial plugins -->
+                 <artifactItem>
+                   <groupId>org.elasticsearch.plugin</groupId>
+                   <artifactId>license</artifactId>
+                   <version>${elasticsearch.version}</version>
+                   <type>zip</type>
+                   <overWrite>true</overWrite>
+                 </artifactItem>
+
+                 <artifactItem>
+                   <groupId>org.elasticsearch.plugin</groupId>
+                   <artifactId>shield</artifactId>
+                   <version>${elasticsearch.version}</version>
+                   <type>zip</type>
+                   <overWrite>true</overWrite>
+                 </artifactItem>
+
+               </artifactItems>
+             </configuration>
+           </execution>
+         </executions>
+      </plugin>
+      <!-- integration tests -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-antrun-plugin</artifactId>
+        <executions>
+          <!-- start up external cluster -->
+          <execution>
+            <id>integ-setup</id>
+            <phase>pre-integration-test</phase>
+            <goals>
+              <goal>run</goal>
+            </goals>
+            <configuration>
+              <target>
+                <ant antfile="${elasticsearch.integ.antfile}" target="start-external-cluster-with-plugins">
+                  <property name="tests.jvm.argline" value="${tests.jvm.argline}"/>
+                  <property name="plugins.dir" value="${plugins.dir}"/>
+                  <property name="xplugins.list" value="${xplugins.list}"/>
+                </ant>
+              </target>
+              <skip>${skip.integ.tests}</skip>
+            </configuration>
+          </execution>
+          <!-- shut down external cluster -->
+          <execution>
+            <id>integ-teardown</id>
+            <phase>post-integration-test</phase>
+            <goals>
+              <goal>run</goal>
+            </goals>
+            <configuration>
+              <target>
+                <ant antfile="${elasticsearch.integ.antfile}" target="stop-external-cluster"/>
+              </target>
+              <skip>${skip.integ.tests}</skip>
+            </configuration>
+          </execution>
+        </executions>
+        <dependencies>
+          <dependency>
+            <groupId>ant-contrib</groupId>
+            <artifactId>ant-contrib</artifactId>
+            <version>1.0b3</version>
+            <exclusions>
+              <exclusion>
+                <groupId>ant</groupId>
+                <artifactId>ant</artifactId>
+              </exclusion>
+            </exclusions>
+          </dependency>
+          <dependency>
+            <groupId>org.apache.ant</groupId>
+            <artifactId>ant-nodeps</artifactId>
+            <version>1.8.1</version>
+          </dependency>
+        </dependencies>
+      </plugin>
+    </plugins>
+  </build>
+
+</project>

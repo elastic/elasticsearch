@@ -7,7 +7,6 @@ package org.elasticsearch.shield.transport.filter;
 
 import com.google.common.net.InetAddresses;
 import org.elasticsearch.common.component.Lifecycle;
-import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
@@ -45,12 +44,12 @@ public class IPFilterTests extends ESTestCase {
         nodeSettingsService = mock(NodeSettingsService.class);
 
         httpTransport = mock(HttpServerTransport.class);
-        InetSocketTransportAddress httpAddress = new InetSocketTransportAddress(NetworkUtils.getLocalAddress(), 9200);
+        InetSocketTransportAddress httpAddress = new InetSocketTransportAddress(InetAddress.getLoopbackAddress(), 9200);
         when(httpTransport.boundAddress()).thenReturn(new BoundTransportAddress(httpAddress, httpAddress));
         when(httpTransport.lifecycleState()).thenReturn(Lifecycle.State.STARTED);
 
         transport = mock(Transport.class);
-        InetSocketTransportAddress address = new InetSocketTransportAddress(NetworkUtils.getLocalAddress(), 9300);
+        InetSocketTransportAddress address = new InetSocketTransportAddress(InetAddress.getLoopbackAddress(), 9300);
         when(transport.boundAddress()).thenReturn(new BoundTransportAddress(address, address));
         when(transport.lifecycleState()).thenReturn(Lifecycle.State.STARTED);
     }
@@ -172,6 +171,7 @@ public class IPFilterTests extends ESTestCase {
     }
 
     @Test
+    @AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/487")
     public void testThatLocalhostIsNeverRejected() throws Exception {
         Settings settings = settingsBuilder()
                 .put("shield.transport.filter.deny", "127.0.0.1")

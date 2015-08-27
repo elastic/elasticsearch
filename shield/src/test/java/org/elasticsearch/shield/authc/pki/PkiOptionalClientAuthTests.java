@@ -28,6 +28,7 @@ import org.junit.Test;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManagerFactory;
 import java.io.InputStream;
+import java.net.InetAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.KeyStore;
@@ -109,7 +110,7 @@ public class PkiOptionalClientAuthTests extends ShieldIntegTestCase {
 
 
         try (TransportClient client = TransportClient.builder().settings(settings).build()) {
-            client.addTransportAddress(new InetSocketTransportAddress("localhost", port));
+            client.addTransportAddress(new InetSocketTransportAddress(InetAddress.getLoopbackAddress(), port));
             assertGreenClusterState(client);
         }
     }

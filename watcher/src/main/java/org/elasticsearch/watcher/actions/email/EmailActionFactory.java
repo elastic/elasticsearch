@@ -12,7 +12,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.watcher.actions.ActionFactory;
 import org.elasticsearch.watcher.actions.email.service.EmailService;
 import org.elasticsearch.watcher.actions.email.service.HtmlSanitizer;
-import org.elasticsearch.watcher.support.template.TemplateEngine;
+import org.elasticsearch.watcher.support.text.TextTemplateEngine;
 
 import java.io.IOException;
 
@@ -22,11 +22,11 @@ import java.io.IOException;
 public class EmailActionFactory extends ActionFactory<EmailAction, ExecutableEmailAction> {
 
     private final EmailService emailService;
-    private final TemplateEngine templateEngine;
+    private final TextTemplateEngine templateEngine;
     private final HtmlSanitizer htmlSanitizer;
 
     @Inject
-    public EmailActionFactory(Settings settings, EmailService emailService, TemplateEngine templateEngine, HtmlSanitizer htmlSanitizer) {
+    public EmailActionFactory(Settings settings, EmailService emailService, TextTemplateEngine templateEngine, HtmlSanitizer htmlSanitizer) {
         super(Loggers.getLogger(ExecutableEmailAction.class, settings));
         this.emailService = emailService;
         this.templateEngine = templateEngine;

@@ -50,10 +50,10 @@ import org.elasticsearch.watcher.support.http.HttpRequestTemplate;
 import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
 import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
 import org.elasticsearch.watcher.support.secret.Secret;
-import org.elasticsearch.watcher.support.template.Template;
-import org.elasticsearch.watcher.support.template.TemplateEngine;
-import org.elasticsearch.watcher.support.template.xmustache.XMustacheScriptEngineService;
-import org.elasticsearch.watcher.support.template.xmustache.XMustacheTemplateEngine;
+import org.elasticsearch.watcher.support.text.TextTemplate;
+import org.elasticsearch.watcher.support.text.TextTemplateEngine;
+import org.elasticsearch.watcher.support.text.xmustache.XMustacheScriptEngineService;
+import org.elasticsearch.watcher.support.text.xmustache.XMustacheTextTemplateEngine;
 import org.elasticsearch.watcher.support.xcontent.ObjectPath;
 import org.elasticsearch.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.watcher.transform.search.ExecutableSearchTransform;
@@ -182,12 +182,12 @@ public final class WatcherTestUtils {
         HttpRequestTemplate.Builder httpRequest = HttpRequestTemplate.builder("localhost", 80);
         httpRequest.method(HttpMethod.POST);
 
-        Template path = Template.inline("/foobarbaz/{{ctx.watch_id}}").build();
+        TextTemplate path = TextTemplate.inline("/foobarbaz/{{ctx.watch_id}}").build();
         httpRequest.path(path);
-        Template body = Template.inline("{{ctx.watch_id}} executed with {{ctx.payload.response.hits.total_hits}} hits").build();
+        TextTemplate body = TextTemplate.inline("{{ctx.watch_id}} executed with {{ctx.payload.response.hits.total_hits}} hits").build();
         httpRequest.body(body);
 
-        TemplateEngine engine = new XMustacheTemplateEngine(Settings.EMPTY, scriptService);
+        TextTemplateEngine engine = new XMustacheTextTemplateEngine(Settings.EMPTY, scriptService);
 
         actions.add(new ActionWrapper("_webhook", new ExecutableWebhookAction(new WebhookAction(httpRequest.build()), logger, httpClient, engine)));
 
@@ -199,7 +199,7 @@ public final class WatcherTestUtils {
                 .to(to)
                 .build();
 
-        TemplateEngine templateEngine = new XMustacheTemplateEngine(Settings.EMPTY, scriptService);
+        TextTemplateEngine templateEngine = new XMustacheTextTemplateEngine(Settings.EMPTY, scriptService);
 
         Authentication auth = new Authentication("testname", new Secret("testpassword".toCharArray()));
 

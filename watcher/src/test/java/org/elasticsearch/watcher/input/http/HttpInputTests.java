@@ -33,8 +33,8 @@ import org.elasticsearch.watcher.support.http.auth.HttpAuthRegistry;
 import org.elasticsearch.watcher.support.http.auth.basic.BasicAuth;
 import org.elasticsearch.watcher.support.http.auth.basic.BasicAuthFactory;
 import org.elasticsearch.watcher.support.secret.SecretService;
-import org.elasticsearch.watcher.support.template.Template;
-import org.elasticsearch.watcher.support.template.TemplateEngine;
+import org.elasticsearch.watcher.support.text.TextTemplate;
+import org.elasticsearch.watcher.support.text.TextTemplateEngine;
 import org.elasticsearch.watcher.trigger.schedule.IntervalSchedule;
 import org.elasticsearch.watcher.trigger.schedule.ScheduleTrigger;
 import org.elasticsearch.watcher.trigger.schedule.ScheduleTriggerEvent;
@@ -63,12 +63,12 @@ public class HttpInputTests extends ESTestCase {
     private HttpClient httpClient;
     private HttpInputFactory httpParser;
     private SecretService secretService;
-    private TemplateEngine templateEngine;
+    private TextTemplateEngine templateEngine;
 
     @Before
     public void init() throws Exception {
         httpClient = mock(HttpClient.class);
-        templateEngine = mock(TemplateEngine.class);
+        templateEngine = mock(TextTemplateEngine.class);
         secretService = mock(SecretService.class);
         HttpAuthRegistry registry = new HttpAuthRegistry(ImmutableMap.<String, HttpAuthFactory>of("basic", new BasicAuthFactory(secretService)));
         httpParser = new HttpInputFactory(Settings.EMPTY, httpClient, templateEngine, new HttpRequest.Parser(registry), new HttpRequestTemplate.Parser(registry));
@@ -115,7 +115,7 @@ public class HttpInputTests extends ESTestCase {
 
         when(httpClient.execute(any(HttpRequest.class))).thenReturn(response);
 
-        when(templateEngine.render(eq(Template.inline("_body").build()), any(Map.class))).thenReturn("_body");
+        when(templateEngine.render(eq(TextTemplate.inline("_body").build()), any(Map.class))).thenReturn("_body");
 
         Watch watch = new Watch("test-watch",
                 new ScheduleTrigger(new IntervalSchedule(new IntervalSchedule.Interval(1, IntervalSchedule.Interval.Unit.MINUTES))),
@@ -147,7 +147,7 @@ public class HttpInputTests extends ESTestCase {
         String notJson = "This is not json";
         HttpResponse response = new HttpResponse(123, notJson.getBytes(StandardCharsets.UTF_8));
         when(httpClient.execute(any(HttpRequest.class))).thenReturn(response);
-        when(templateEngine.render(eq(Template.inline("_body").build()), any(Map.class))).thenReturn("_body");
+        when(templateEngine.render(eq(TextTemplate.inline("_body").build()), any(Map.class))).thenReturn("_body");
         Watch watch = new Watch("test-watch",
                 new ScheduleTrigger(new IntervalSchedule(new IntervalSchedule.Interval(1, IntervalSchedule.Interval.Unit.MINUTES))),
                 new ExecutableSimpleInput(new SimpleInput(new Payload.Simple()), logger),
@@ -174,16 +174,16 @@ public class HttpInputTests extends ESTestCase {
         String host = randomAsciiOfLength(3);
         int port = randomIntBetween(8000, 9000);
         String path = randomAsciiOfLength(3);
-        Template pathTemplate = Template.inline(path).build();
+        TextTemplate pathTemplate = TextTemplate.inline(path).build();
         String body = randomBoolean() ? randomAsciiOfLength(3) : null;
-        Map<String, Template> params = randomBoolean() ? new MapBuilder<String, Template>().put("a", Template.inline("b").build()).map() : null;
-        Map<String, Template> headers = randomBoolean() ? new MapBuilder<String, Template>().put("c", Template.inline("d").build()).map() : null;
+        Map<String, TextTemplate> params = randomBoolean() ? new MapBuilder<String, TextTemplate>().put("a", TextTemplate.inline("b").build()).map() : null;
+        Map<String, TextTemplate> headers = randomBoolean() ? new MapBuilder<String, TextTemplate>().put("c", TextTemplate.inline("d").build()).map() : null;
         HttpAuth auth = randomBoolean() ? new BasicAuth("username", "password".toCharArray()) : null;
         HttpRequestTemplate.Builder requestBuilder = HttpRequestTemplate.builder(host, port)
                 .scheme(scheme)
                 .method(httpMethod)
                 .path(pathTemplate)
-                .body(body != null ? Template.inline(body).build() : null)
+                .body(body != null ? TextTemplate.inline(body).build() : null)
                 .auth(auth);
 
         if (params != null) {
@@ -213,7 +213,7 @@ public class HttpInputTests extends ESTestCase {
         assertThat(result.getRequest().method(), equalTo(httpMethod != null ? httpMethod : HttpMethod.GET)); // get is the default
         assertThat(result.getRequest().host(), equalTo(host));
         assertThat(result.getRequest().port(), equalTo(port));
-        assertThat(result.getRequest().path(), is(Template.inline(path).build()));
+        assertThat(result.getRequest().path(), is(TextTemplate.inline(path).build()));
         assertThat(result.getExpectedResponseXContentType(), equalTo(expectedResponseXContentType));
         if (expectedResponseXContentType != HttpContentType.TEXT && extractKeys != null) {
             for (String key : extractKeys) {
@@ -221,14 +221,14 @@ public class HttpInputTests extends ESTestCase {
             }
         }
         if (params != null) {
-            assertThat(result.getRequest().params(), hasEntry(is("a"), is(Template.inline("b").build())));
+            assertThat(result.getRequest().params(), hasEntry(is("a"), is(TextTemplate.inline("b").build())));
         }
         if (headers != null) {
-            assertThat(result.getRequest().headers(), hasEntry(is("c"), is(Template.inline("d").build())));
+            assertThat(result.getRequest().headers(), hasEntry(is("c"), is(TextTemplate.inline("d").build())));
         }
         assertThat(result.getRequest().auth(), equalTo(auth));
         if (body != null) {
-            assertThat(result.getRequest().body(), is(Template.inline(body).build()));
+            assertThat(result.getRequest().body(), is(TextTemplate.inline(body).build()));
         } else {
             assertThat(result.getRequest().body(), nullValue());
         }

@@ -8,34 +8,16 @@ package org.elasticsearch.marvel.agent.collector.cluster;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
 
-public class ClusterStatsMarvelDoc extends MarvelDoc<ClusterStatsMarvelDoc.Payload> {
+public class ClusterStatsMarvelDoc extends MarvelDoc {
 
-    private final Payload payload;
+    private final ClusterStatsResponse clusterStats;
 
-    public ClusterStatsMarvelDoc(String clusterName, String type, long timestamp, Payload payload) {
-        super(clusterName, type, timestamp);
-        this.payload = payload;
+    public ClusterStatsMarvelDoc(String clusterUUID, String type, long timestamp, ClusterStatsResponse clusterStats) {
+        super(clusterUUID, type, timestamp);
+        this.clusterStats = clusterStats;
     }
 
-    @Override
-    public ClusterStatsMarvelDoc.Payload payload() {
-        return payload;
-    }
-
-    public static ClusterStatsMarvelDoc createMarvelDoc(String clusterName, String type, long timestamp, ClusterStatsResponse clusterStats) {
-        return new ClusterStatsMarvelDoc(clusterName, type, timestamp, new Payload(clusterStats));
-    }
-
-    public static class Payload {
-
-        private final ClusterStatsResponse clusterStats;
-
-        Payload(ClusterStatsResponse clusterStats) {
-            this.clusterStats = clusterStats;
-        }
-
-        public ClusterStatsResponse getClusterStats() {
-            return clusterStats;
-        }
+    public ClusterStatsResponse getClusterStats() {
+        return clusterStats;
     }
 }

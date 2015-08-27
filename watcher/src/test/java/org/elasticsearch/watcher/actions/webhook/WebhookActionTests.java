@@ -26,9 +26,9 @@ import org.elasticsearch.watcher.support.http.auth.basic.BasicAuthFactory;
 import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
 import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
 import org.elasticsearch.watcher.support.secret.SecretService;
-import org.elasticsearch.watcher.support.template.Template;
-import org.elasticsearch.watcher.support.template.TemplateEngine;
-import org.elasticsearch.watcher.support.template.xmustache.XMustacheTemplateEngine;
+import org.elasticsearch.watcher.support.text.TextTemplate;
+import org.elasticsearch.watcher.support.text.TextTemplateEngine;
+import org.elasticsearch.watcher.support.text.xmustache.XMustacheTextTemplateEngine;
 import org.elasticsearch.watcher.test.WatcherTestUtils;
 import org.elasticsearch.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.elasticsearch.watcher.watch.Payload;
@@ -64,10 +64,10 @@ public class WebhookActionTests extends ESTestCase {
 
     private ThreadPool tp = null;
     private ScriptServiceProxy scriptService;
-    private TemplateEngine templateEngine;
+    private TextTemplateEngine templateEngine;
     private HttpAuthRegistry authRegistry;
-    private Template testBody;
-    private Template testPath;
+    private TextTemplate testBody;
+    private TextTemplate testPath;
 
     static final String TEST_BODY_STRING = "ERROR HAPPENED";
     static final String TEST_PATH_STRING = "/testPath";
@@ -78,10 +78,10 @@ public class WebhookActionTests extends ESTestCase {
         tp = new ThreadPool(ThreadPool.Names.SAME);
         Settings settings = Settings.EMPTY;
         scriptService = WatcherTestUtils.getScriptServiceProxy(tp);
-        templateEngine = new XMustacheTemplateEngine(settings, scriptService);
+        templateEngine = new XMustacheTextTemplateEngine(settings, scriptService);
         SecretService secretService = mock(SecretService.class);
-        testBody = Template.inline(TEST_BODY_STRING).build();
-        testPath = Template.inline(TEST_PATH_STRING).build();
+        testBody = TextTemplate.inline(TEST_BODY_STRING).build();
+        testPath = TextTemplate.inline(TEST_PATH_STRING).build();
         authRegistry = new HttpAuthRegistry(ImmutableMap.of("basic", (HttpAuthFactory) new BasicAuthFactory(secretService)));
     }
 
@@ -108,7 +108,7 @@ public class WebhookActionTests extends ESTestCase {
         scenario.assertResult(httpClient, actionResult);
     }
 
-    private HttpRequestTemplate getHttpRequestTemplate(HttpMethod method, String host, int port, Template path, Template body, Map<String, Template> params) {
+    private HttpRequestTemplate getHttpRequestTemplate(HttpMethod method, String host, int port, TextTemplate path, TextTemplate body, Map<String, TextTemplate> params) {
         HttpRequestTemplate.Builder builder = HttpRequestTemplate.builder(host, port);
         if (path != null) {
             builder.path(path);
@@ -127,8 +127,8 @@ public class WebhookActionTests extends ESTestCase {
 
     @Test
     public void testParser() throws Exception {
-        Template body = randomBoolean() ? Template.inline("_subject").build() : null;
-        Template path = Template.inline("_url").build();
+        TextTemplate body = randomBoolean() ? TextTemplate.inline("_subject").build() : null;
+        TextTemplate path = TextTemplate.inline("_url").build();
         String host = "test.host";
         HttpMethod method = randomFrom(HttpMethod.GET, HttpMethod.POST, HttpMethod.PUT, HttpMethod.DELETE, HttpMethod.HEAD, null);
         HttpRequestTemplate request = getHttpRequestTemplate(method, host, TEST_PORT, path, body, null);
@@ -148,8 +148,8 @@ public class WebhookActionTests extends ESTestCase {
 
     @Test
     public void testParser_SelfGenerated() throws Exception {
-        Template body = randomBoolean() ? Template.inline("_body").build() : null;
-        Template path = Template.inline("_url").build();
+        TextTemplate body = randomBoolean() ? TextTemplate.inline("_body").build() : null;
+        TextTemplate path = TextTemplate.inline("_url").build();
         String host = "test.host";
         String watchId = "_watch";
         String actionId = randomAsciiOfLength(5);
@@ -175,8 +175,8 @@ public class WebhookActionTests extends ESTestCase {
 
     @Test
     public void testParser_Builder() throws Exception {
-        Template body = randomBoolean() ? Template.inline("_body").build() : null;
-        Template path = Template.inline("_url").build();
+        TextTemplate body = randomBoolean() ? TextTemplate.inline("_body").build() : null;
+        TextTemplate path = TextTemplate.inline("_url").build();
         String host = "test.host";
 
         String watchId = "_watch";
@@ -230,11 +230,11 @@ public class WebhookActionTests extends ESTestCase {
         String host = "testhost";
         String path = randomFrom("{{ctx.execution_time}}", "{{ctx.trigger.scheduled_time}}", "{{ctx.trigger.triggered_time}}");
 
-        Map<String, Template> params = new HashMap<>();
-        params.put("foo", Template.inline(randomFrom("{{ctx.execution_time}}", "{{ctx.trigger.scheduled_time}}", "{{ctx.trigger.triggered_time}}")).build());
+        Map<String, TextTemplate> params = new HashMap<>();
+        params.put("foo", TextTemplate.inline(randomFrom("{{ctx.execution_time}}", "{{ctx.trigger.scheduled_time}}", "{{ctx.trigger.triggered_time}}")).build());
         HttpMethod method = randomFrom(HttpMethod.GET, HttpMethod.POST, HttpMethod.PUT);
 
-        HttpRequestTemplate request = getHttpRequestTemplate(method, host, TEST_PORT, Template.inline(path).build(), Template.inline(body).build(), params);
+        HttpRequestTemplate request = getHttpRequestTemplate(method, host, TEST_PORT, TextTemplate.inline(path).build(), TextTemplate.inline(body).build(), params);
 
         String watchId = "_watch";
         String actionId = randomAsciiOfLength(5);
@@ -261,7 +261,7 @@ public class WebhookActionTests extends ESTestCase {
 
         HttpClient httpClient = ExecuteScenario.Success.client();
         HttpMethod method = HttpMethod.POST;
-        Template path = Template.defaultType("/test_{{ctx.watch_id}}").build();
+        TextTemplate path = TextTemplate.defaultType("/test_{{ctx.watch_id}}").build();
         String host = "test.host";
         HttpRequestTemplate requestTemplate = getHttpRequestTemplate(method, host, TEST_PORT, path, testBody, null);
         WebhookAction action = new WebhookAction(requestTemplate);

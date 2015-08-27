@@ -207,7 +207,7 @@ The following tables describe the possible attributes each entry type can carry 
 [float]
 === Audit Logs Settings
 
-As mentioned above, the audit logs are configured in the `logging.yml` file located in `ES_HOME/config/shield`. The following snippet shows the default logging configuration:
+As mentioned above, the audit logs are configured in the `logging.yml` file located in `CONFIG_DIR/shield`. The following snippet shows the default logging configuration:
 
 [[logging-file]]
 

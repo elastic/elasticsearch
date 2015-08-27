@@ -6,6 +6,7 @@
 package org.elasticsearch.shield.transport.netty;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -178,6 +179,7 @@ public class ShieldNettyTransport extends NettyTransport {
                 ctx.sendDownstream(e);
             }
 
+            @SuppressForbidden(reason = "need to use getHostName to resolve DNS name for SSL connections and hostname verification")
             private String getHostname(InetSocketAddress inetSocketAddress) {
                 String hostname;
                 if (settings.getAsBoolean(HOSTNAME_VERIFICATION_RESOLVE_NAME_SETTING, true)) {

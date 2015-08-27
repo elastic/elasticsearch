@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.watcher.test.integration;
 
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
@@ -22,7 +21,7 @@ import org.elasticsearch.watcher.client.WatcherClient;
 import org.elasticsearch.watcher.condition.ConditionBuilders;
 import org.elasticsearch.watcher.support.WatcherUtils;
 import org.elasticsearch.watcher.support.clock.SystemClock;
-import org.elasticsearch.watcher.support.template.Template;
+import org.elasticsearch.watcher.support.text.TextTemplate;
 import org.elasticsearch.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
 import org.elasticsearch.watcher.transport.actions.delete.DeleteWatchResponse;
@@ -312,7 +311,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTests {
         refresh();
 
         BytesReference templateSource = jsonBuilder()
-                .value(Template.indexed("my-template").build())
+                .value(TextTemplate.indexed("my-template").build())
                 .bytes();
         SearchRequest searchRequest = newInputSearchRequest("events");
         // TODO (2.0 upgrade): move back to BytesReference instead of coverting to a string

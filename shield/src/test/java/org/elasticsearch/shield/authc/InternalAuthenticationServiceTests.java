@@ -76,7 +76,7 @@ public class InternalAuthenticationServiceTests extends ESTestCase {
 
         auditTrail = mock(AuditTrail.class);
         anonymousService = mock(AnonymousService.class);
-        service = new InternalAuthenticationService(Settings.EMPTY, realms, auditTrail, cryptoService, anonymousService);
+        service = new InternalAuthenticationService(Settings.EMPTY, realms, auditTrail, cryptoService, anonymousService, new DefaultAuthenticationFailureHandler());
     }
 
     @Test @SuppressWarnings("unchecked")
@@ -343,7 +343,7 @@ public class InternalAuthenticationServiceTests extends ESTestCase {
     @Test
     public void testAutheticate_Transport_ContextAndHeader_NoSigning() throws Exception {
         Settings settings = Settings.builder().put(InternalAuthenticationService.SETTING_SIGN_USER_HEADER, false).build();
-        service = new InternalAuthenticationService(settings, realms, auditTrail, cryptoService, anonymousService);
+        service = new InternalAuthenticationService(settings, realms, auditTrail, cryptoService, anonymousService, new DefaultAuthenticationFailureHandler());
 
         User user1 = new User.Simple("username", "r1", "r2");
         when(firstRealm.supports(token)).thenReturn(true);
@@ -418,7 +418,7 @@ public class InternalAuthenticationServiceTests extends ESTestCase {
         }
         Settings settings = builder.build();
         AnonymousService holder = new AnonymousService(settings);
-        service = new InternalAuthenticationService(settings, realms, auditTrail, cryptoService, holder);
+        service = new InternalAuthenticationService(settings, realms, auditTrail, cryptoService, holder, new DefaultAuthenticationFailureHandler());
 
         RestRequest request = new FakeRestRequest();
 
@@ -435,7 +435,7 @@ public class InternalAuthenticationServiceTests extends ESTestCase {
         Settings settings = Settings.builder()
                 .putArray("shield.authc.anonymous.roles", "r1", "r2", "r3")
                 .build();
-        service = new InternalAuthenticationService(settings, realms, auditTrail, cryptoService, new AnonymousService(settings));
+        service = new InternalAuthenticationService(settings, realms, auditTrail, cryptoService, new AnonymousService(settings), new DefaultAuthenticationFailureHandler());
 
         InternalMessage message = new InternalMessage();
 
@@ -450,7 +450,7 @@ public class InternalAuthenticationServiceTests extends ESTestCase {
         Settings settings = Settings.builder()
                 .putArray("shield.authc.anonymous.roles", "r1", "r2", "r3")
                 .build();
-        service = new InternalAuthenticationService(settings, realms, auditTrail, cryptoService, new AnonymousService(settings));
+        service = new InternalAuthenticationService(settings, realms, auditTrail, cryptoService, new AnonymousService(settings), new DefaultAuthenticationFailureHandler());
 
         InternalMessage message = new InternalMessage();
 

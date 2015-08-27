@@ -14,7 +14,7 @@ import org.elasticsearch.watcher.actions.email.service.EmailService;
 import org.elasticsearch.watcher.actions.email.service.HtmlSanitizer;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.support.Variables;
-import org.elasticsearch.watcher.support.template.TemplateEngine;
+import org.elasticsearch.watcher.support.text.TextTemplateEngine;
 import org.elasticsearch.watcher.watch.Payload;
 
 import java.util.HashMap;
@@ -25,10 +25,10 @@ import java.util.Map;
 public class ExecutableEmailAction extends ExecutableAction<EmailAction> {
 
     final EmailService emailService;
-    final TemplateEngine templateEngine;
+    final TextTemplateEngine templateEngine;
     final HtmlSanitizer htmlSanitizer;
 
-    public ExecutableEmailAction(EmailAction action, ESLogger logger, EmailService emailService, TemplateEngine templateEngine, HtmlSanitizer htmlSanitizer) {
+    public ExecutableEmailAction(EmailAction action, ESLogger logger, EmailService emailService, TextTemplateEngine templateEngine, HtmlSanitizer htmlSanitizer) {
         super(action, logger);
         this.emailService = emailService;
         this.templateEngine = templateEngine;

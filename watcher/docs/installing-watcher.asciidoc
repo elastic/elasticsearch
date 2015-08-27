@@ -62,33 +62,44 @@ information.
 [[package-installation]]
 === Installing Watcher on a DEB/RPM Package Installation
 
-If you use the DEB/RPM packages to install Elasticsearch, the installation process for Watcher
-is slightly different. You need to install the License and Watcher plugins from the
-`/usr/share/elasticsearch` directory using superuser permissions:
+If you use the DEB/RPM packages to install Elasticsearch, by default Elasticsearch is installed in 
+`/usr/share/elasticsearch` and the configuration files are stored in `/etc/elasticsearch`. (For the 
+complete list of default paths, see {ref}/setup-dir-layout.html#_deb_and_rpm[Directory Layout] in
+the Elasticsearch Reference.)
+
+To install the Watcher and License plugins on a DEB/RPM package installation, you need to run 
+`bin/plugin -i` from the `/usr/share/elasticsearch` directory with superuser permissions, and 
+specify the location of the configuration files by setting `-Des.path.conf`. For example:
 
 [source,shell]
 ----------------------------------------------------------
 cd /usr/share/elasticsearch
-sudo bin/plugin install license
-sudo bin/plugin install watcher
+sudo bin/plugin -i elasticsearch/license/latest -Des.path.conf=/etc/elasticsearch
+sudo bin/plugin -i elasticsearch/watcher/latest -Des.path.conf=/etc/elasticsearch
 ----------------------------------------------------------
 
 [float]
 [[offline-installation]]
 === Installing Watcher on Offline Machines
+Elasticsearch’s `bin/plugin` script requires direct Internet access to download and install the 
+License and Watcher plugins. If your server doesn’t have Internet access, you can manually 
+download and install the plugins.
 
 To install Watcher on a machine that doesn't have Internet access:
 
-. Manually download the Watcher binaries from: 
-https://download.elastic.co/elasticsearch/watcher/watcher-1.0.0.zip[
-https://download.elastic.co/elasticsearch/watcher/watcher-1.0.0.zip].
+. Manually download the License and Watcher binaries: 
+** https://download.elastic.co/elasticsearch/license/license-latest.zip[
+https://download.elastic.co/elasticsearch/license/license-latest.zip]
+** https://download.elastic.co/elasticsearch/watcher/watcher-latest.zip[
+https://download.elastic.co/elasticsearch/watcher/watcher-latest.zip]
 
-. Transfer the Watcher zip file to the offline machine.
+. Transfer the zip files to the offline machine.
 
-. Run `bin/plugin` with the `-u` option:
-
+. Run `bin/plugin` with the `-u` option to install the plugins using the zip files. For example:
++
 [source,shell]
 ----------------------------------------------------------
-bin/plugin install watcher -u file://<path_to_zip_file>
+bin/plugin -i license -u file:///path/to/file/license-latest.zip <1>
+bin/plugin -i watcher -u file:///path/to/file/watcher-1.0.1.zip
 ----------------------------------------------------------
-
+<1> Note that you must specify an absolute path to the zip file after the `file://` protocol.

@@ -20,30 +20,18 @@ public class IndexAuditUserHolder {
     private static final String[] ROLE_NAMES = new String[] { "__indexing_audit_role" };
 
     private final User user;
-    private final Permission.Global.Role role;
+    public static final Permission.Global.Role ROLE = Permission.Global.Role.builder(ROLE_NAMES[0])
+        .set(Privilege.Cluster.action(PutIndexTemplateAction.NAME))
+        .add(Privilege.Index.CREATE_INDEX, IndexAuditTrail.INDEX_NAME_PREFIX + "*")
+        .add(Privilege.Index.INDEX, IndexAuditTrail.INDEX_NAME_PREFIX + "*")
+        .add(Privilege.Index.action(BulkAction.NAME), IndexAuditTrail.INDEX_NAME_PREFIX + "*")
+        .build();
 
-    public IndexAuditUserHolder(String indexName) {
-
-        // append the index name with the '*' wildcard so that the principal can write to
-        // any index that starts with the given name. this allows us to rollover over
-        // audit indices hourly, daily, weekly, etc.
-        String indexPattern = indexName + "*";
-
-        this.role = Permission.Global.Role.builder(ROLE_NAMES[0])
-                    .set(Privilege.Cluster.action(PutIndexTemplateAction.NAME))
-                    .add(Privilege.Index.CREATE_INDEX, indexPattern)
-                    .add(Privilege.Index.INDEX, indexPattern)
-                    .add(Privilege.Index.action(BulkAction.NAME), indexPattern)
-                    .build();
-
+    public IndexAuditUserHolder() {
         this.user = new User.Simple(NAME, ROLE_NAMES);
     }
 
     public User user() {
         return user;
-    }
-
-    public Permission.Global.Role role() {
-        return role;
     }
 }

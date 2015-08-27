@@ -12,7 +12,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.watcher.actions.ActionFactory;
 import org.elasticsearch.watcher.support.http.HttpClient;
 import org.elasticsearch.watcher.support.http.HttpRequestTemplate;
-import org.elasticsearch.watcher.support.template.TemplateEngine;
+import org.elasticsearch.watcher.support.text.TextTemplateEngine;
 
 import java.io.IOException;
 
@@ -23,11 +23,11 @@ public class WebhookActionFactory extends ActionFactory<WebhookAction, Executabl
 
     private final HttpClient httpClient;
     private final HttpRequestTemplate.Parser requestTemplateParser;
-    private final TemplateEngine templateEngine;
+    private final TextTemplateEngine templateEngine;
 
     @Inject
     public WebhookActionFactory(Settings settings, HttpClient httpClient, HttpRequestTemplate.Parser requestTemplateParser,
-                                TemplateEngine templateEngine) {
+                                TextTemplateEngine templateEngine) {
 
         super(Loggers.getLogger(ExecutableWebhookAction.class, settings));
         this.httpClient = httpClient;

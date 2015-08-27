@@ -18,17 +18,20 @@ import org.elasticsearch.license.plugin.core.LicensesClientService;
 import org.elasticsearch.license.plugin.core.LicensesService;
 import org.elasticsearch.marvel.MarvelPlugin;
 import org.elasticsearch.marvel.mode.Mode;
-import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.is;
 
 @ClusterScope(scope = SUITE, transportClientRatio = 0, numClientNodes = 0)
 public class LicenseIntegrationTests extends ESIntegTestCase {
@@ -43,21 +46,26 @@ public class LicenseIntegrationTests extends ESIntegTestCase {
 
     @Test
     public void testEnableDisableLicense() {
-        assertMarvelMode(Mode.STANDARD);
+        assertThat(getLicenseService().mode(), equalTo(Mode.STANDARD));
+        assertThat(getLicenseService().enabled(), is(true));
+        assertThat(getLicenseService().expiryDate(), greaterThan(0L));
         disableLicensing();
 
-        assertMarvelMode(Mode.LITE);
+        assertThat(getLicenseService().mode(), equalTo(Mode.LITE));
+        assertThat(getLicenseService().enabled(), is(false));
+        assertThat(getLicenseService().expiryDate(), greaterThan(0L));
         enableLicensing();
 
-        assertMarvelMode(Mode.STANDARD);
+        assertThat(getLicenseService().mode(), equalTo(Mode.STANDARD));
+        assertThat(getLicenseService().enabled(), is(true));
+        assertThat(getLicenseService().expiryDate(), greaterThan(0L));
     }
 
-    private void assertMarvelMode(Mode expected) {
+    private LicenseService getLicenseService() {
         LicenseService licenseService = internalCluster().getInstance(LicenseService.class);
         assertNotNull(licenseService);
-        assertThat(licenseService.mode(), equalTo(expected));
+        return licenseService;
     }
-
 
     public static void disableLicensing() {
         for (MockLicenseService service : internalCluster().getInstances(MockLicenseService.class)) {
@@ -71,7 +79,7 @@ public class LicenseIntegrationTests extends ESIntegTestCase {
         }
     }
 
-    public static class MockLicensePlugin extends AbstractPlugin {
+    public static class MockLicensePlugin extends Plugin {
 
         public static final String NAME = "internal-test-licensing";
 
@@ -86,8 +94,8 @@ public class LicenseIntegrationTests extends ESIntegTestCase {
         }
 
         @Override
-        public Collection<Class<? extends Module>> modules() {
-            return ImmutableSet.<Class<? extends Module>>of(InternalLicenseModule.class);
+        public Collection<Module> nodeModules() {
+            return Collections.<Module>singletonList(new InternalLicenseModule());
         }
     }
 
@@ -123,7 +131,7 @@ public class LicenseIntegrationTests extends ESIntegTestCase {
         }
 
         @Override
-        public void register(String s, LicensesService.TrialLicenseOptions trialLicenseOptions, Collection<LicensesService.ExpirationCallback> collection, Listener listener) {
+        public void register(String s, LicensesService.TrialLicenseOptions trialLicenseOptions, Collection<LicensesService.ExpirationCallback> collection, AcknowledgementCallback acknowledgementCallback, Listener listener) {
             listeners.add(listener);
             enable();
         }

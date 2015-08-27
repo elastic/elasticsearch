@@ -15,7 +15,7 @@
       },
       "date_detection": false,
       "properties": {
-        "cluster_name": {
+        "cluster_uuid": {
           "type": "string",
           "index": "not_analyzed"
         },
@@ -32,6 +32,17 @@
             "index": {
               "type": "string",
               "index": "not_analyzed"
+            },
+            "primaries": {
+              "properties": {
+                "docs": {
+                  "properties": {
+                    "count": {
+                      "type": "long"
+                    }
+                  }
+                }
+              }
             },
             "total": {
               "properties": {
@@ -54,7 +65,44 @@
                 },
                 "indexing": {
                   "properties": {
+                    "index_total": {
+                      "type": "long"
+                    },
+                    "index_time_in_millis": {
+                      "type": "long"
+                    },
                     "throttle_time_in_millis": {
+                      "type": "long"
+                    }
+                  }
+                },
+                "merges": {
+                  "properties": {
+                    "total_size_in_bytes": {
+                      "type": "long"
+                    }
+                  }
+                },
+                "search": {
+                  "properties": {
+                    "query_total": {
+                      "type": "long"
+                    },
+                    "query_time_in_millis": {
+                      "type": "long"
+                    }
+                  }
+                },
+                "segments": {
+                  "properties": {
+                    "memory_in_bytes": {
+                      "type": "long"
+                    }
+                  }
+                },
+                "refresh": {
+                  "properties": {
+                    "total_time_in_millis": {
                       "type": "long"
                     }
                   }
@@ -103,6 +151,9 @@
           }
         }
       }
+    },
+    "cluster_licenses": {
+      "enabled": false
     },
     "marvel_node_stats": {
       "properties": {

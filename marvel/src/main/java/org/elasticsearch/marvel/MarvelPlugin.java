@@ -7,19 +7,31 @@ package org.elasticsearch.marvel;
 
 import com.google.common.collect.ImmutableList;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterModule;
+import org.elasticsearch.cluster.settings.Validator;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.marvel.agent.AgentService;
+import org.elasticsearch.marvel.agent.collector.CollectorModule;
+import org.elasticsearch.marvel.agent.exporter.ExporterModule;
+import org.elasticsearch.marvel.agent.exporter.HttpESExporter;
+import org.elasticsearch.marvel.agent.renderer.RendererModule;
+import org.elasticsearch.marvel.agent.settings.MarvelModule;
+import org.elasticsearch.marvel.license.LicenseModule;
+import org.elasticsearch.marvel.agent.settings.MarvelSetting;
+import org.elasticsearch.marvel.agent.settings.MarvelSettings;
 import org.elasticsearch.marvel.license.LicenseService;
-import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.tribe.TribeService;
 
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 
-public class MarvelPlugin extends AbstractPlugin {
+public class MarvelPlugin extends Plugin {
 
     private static final ESLogger logger = Loggers.getLogger(MarvelPlugin.class);
 
@@ -47,15 +59,20 @@ public class MarvelPlugin extends AbstractPlugin {
     }
 
     @Override
-    public Collection<Class<? extends Module>> modules() {
+    public Collection<Module> nodeModules() {
         if (!enabled) {
-            return ImmutableList.of();
+            return Collections.emptyList();
         }
-        return ImmutableList.<Class<? extends Module>>of(MarvelModule.class);
+        return Arrays.<Module>asList(
+            new MarvelModule(),
+            new LicenseModule(),
+            new CollectorModule(),
+            new ExporterModule(),
+            new RendererModule());
     }
 
     @Override
-    public Collection<Class<? extends LifecycleComponent>> services() {
+    public Collection<Class<? extends LifecycleComponent>> nodeServices() {
         if (!enabled) {
             return ImmutableList.of();
         }
@@ -74,5 +91,19 @@ public class MarvelPlugin extends AbstractPlugin {
             return false;
         }
         return settings.getAsBoolean(ENABLED, true);
+    }
+
+    public void onModule(ClusterModule module) {
+        // HttpESExporter
+        module.registerClusterDynamicSetting(HttpESExporter.SETTINGS_HOSTS, Validator.EMPTY);
+        module.registerClusterDynamicSetting(HttpESExporter.SETTINGS_HOSTS + ".*", Validator.EMPTY);
+        module.registerClusterDynamicSetting(HttpESExporter.SETTINGS_TIMEOUT, Validator.EMPTY);
+        module.registerClusterDynamicSetting(HttpESExporter.SETTINGS_READ_TIMEOUT, Validator.EMPTY);
+        module.registerClusterDynamicSetting(HttpESExporter.SETTINGS_SSL_HOSTNAME_VERIFICATION, Validator.EMPTY);
+
+        // MarvelSettingsService
+        for (MarvelSetting setting : MarvelSettings.dynamicSettings()) {
+            module.registerClusterDynamicSetting(setting.dynamicSettingName(), setting.dynamicValidator());
+        }
     }
 }

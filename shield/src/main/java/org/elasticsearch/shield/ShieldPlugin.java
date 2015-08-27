@@ -6,30 +6,56 @@
 package org.elasticsearch.shield;
 
 import com.google.common.collect.ImmutableList;
+import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.support.Headers;
-import org.elasticsearch.cluster.settings.ClusterDynamicSettingsModule;
+import org.elasticsearch.cluster.ClusterModule;
+import org.elasticsearch.cluster.settings.Validator;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.http.HttpServerModule;
+import org.elasticsearch.rest.RestModule;
+import org.elasticsearch.shield.action.ShieldActionFilter;
+import org.elasticsearch.shield.action.ShieldActionModule;
+import org.elasticsearch.shield.action.authc.cache.ClearRealmCacheAction;
+import org.elasticsearch.shield.action.authc.cache.TransportClearRealmCacheAction;
+import org.elasticsearch.shield.audit.AuditTrailModule;
+import org.elasticsearch.shield.audit.index.IndexAuditUserHolder;
+import org.elasticsearch.shield.authc.AuthenticationModule;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.shield.authc.Realms;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
+import org.elasticsearch.shield.authz.AuthorizationModule;
 import org.elasticsearch.shield.authz.store.FileRolesStore;
+import org.elasticsearch.shield.crypto.CryptoModule;
 import org.elasticsearch.shield.crypto.InternalCryptoService;
+import org.elasticsearch.shield.license.LicenseModule;
 import org.elasticsearch.shield.license.LicenseService;
+import org.elasticsearch.shield.rest.ShieldRestModule;
+import org.elasticsearch.shield.rest.action.RestShieldInfoAction;
+import org.elasticsearch.shield.rest.action.authc.cache.RestClearRealmCacheAction;
+import org.elasticsearch.shield.ssl.SSLModule;
+import org.elasticsearch.shield.transport.ShieldClientTransportService;
+import org.elasticsearch.shield.transport.ShieldServerTransportService;
+import org.elasticsearch.shield.transport.ShieldTransportModule;
 import org.elasticsearch.shield.transport.filter.IPFilter;
+import org.elasticsearch.shield.transport.netty.ShieldNettyHttpServerTransport;
+import org.elasticsearch.shield.transport.netty.ShieldNettyTransport;
+import org.elasticsearch.transport.TransportModule;
 
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Map;
 
 /**
  *
  */
-public class ShieldPlugin extends AbstractPlugin {
+public class ShieldPlugin extends Plugin {
 
     public static final String NAME = "shield";
 
@@ -56,16 +82,32 @@ public class ShieldPlugin extends AbstractPlugin {
     }
 
     @Override
-    public Collection<Class<? extends Module>> modules() {
-        return enabled ?
-                ImmutableList.<Class<? extends Module>>of(ShieldModule.class) :
-                ImmutableList.<Class<? extends Module>>of(ShieldDisabledModule.class);
+    public Collection<Module> nodeModules() {
+        if (enabled == false) {
+            return Collections.<Module>singletonList(new ShieldDisabledModule(settings));
+        } else if (clientMode) {
+            return Arrays.<Module>asList(
+                new ShieldTransportModule(settings),
+                new SSLModule(settings));
+        } else {
+            return Arrays.<Module>asList(
+                new ShieldModule(settings),
+                new LicenseModule(settings),
+                new CryptoModule(settings),
+                new AuthenticationModule(settings),
+                new AuthorizationModule(settings),
+                new AuditTrailModule(settings),
+                new ShieldRestModule(settings),
+                new ShieldActionModule(settings),
+                new ShieldTransportModule(settings),
+                new SSLModule(settings));
+        }
     }
 
     @Override
-    public Collection<Class<? extends LifecycleComponent>> services() {
+    public Collection<Class<? extends LifecycleComponent>> nodeServices() {
         ImmutableList.Builder<Class<? extends LifecycleComponent>> builder = ImmutableList.builder();
-        if (enabled && !clientMode) {
+        if (enabled && clientMode == false) {
             builder.add(LicenseService.class).add(InternalCryptoService.class).add(FileRolesStore.class).add(Realms.class).add(IPFilter.class);
         }
         return builder.build();
@@ -73,7 +115,7 @@ public class ShieldPlugin extends AbstractPlugin {
 
     @Override
     public Settings additionalSettings() {
-        if (!enabled) {
+        if (enabled == false) {
             return Settings.EMPTY;
         }
 
@@ -83,8 +125,57 @@ public class ShieldPlugin extends AbstractPlugin {
         return settingsBuilder.build();
     }
 
-    public void onModule(ClusterDynamicSettingsModule clusterDynamicSettingsModule) {
-        clusterDynamicSettingsModule.addDynamicSettings("shield.transport.filter.*", "shield.http.filter.*", "transport.profiles.*", IPFilter.IP_FILTER_ENABLED_SETTING, IPFilter.IP_FILTER_ENABLED_HTTP_SETTING);
+    public void onModule(ClusterModule clusterDynamicSettingsModule) {
+        clusterDynamicSettingsModule.registerClusterDynamicSetting("shield.transport.filter.*", Validator.EMPTY);
+        clusterDynamicSettingsModule.registerClusterDynamicSetting("shield.http.filter.*", Validator.EMPTY);
+        clusterDynamicSettingsModule.registerClusterDynamicSetting("transport.profiles.*", Validator.EMPTY);
+        clusterDynamicSettingsModule.registerClusterDynamicSetting(IPFilter.IP_FILTER_ENABLED_SETTING, Validator.EMPTY);
+        clusterDynamicSettingsModule.registerClusterDynamicSetting(IPFilter.IP_FILTER_ENABLED_HTTP_SETTING, Validator.EMPTY);
+    }
+
+    public void onModule(ActionModule module) {
+        if (enabled == false) {
+            return;
+        }
+        // registering the security filter only for nodes
+        if (clientMode == false) {
+            module.registerFilter(ShieldActionFilter.class);
+        }
+
+        // registering all shield actions
+        module.registerAction(ClearRealmCacheAction.INSTANCE, TransportClearRealmCacheAction.class);
+    }
+
+    public void onModule(TransportModule module) {
+        if (enabled == false) {
+            return;
+        }
+        module.setTransport(ShieldNettyTransport.class, ShieldPlugin.NAME);
+        if (clientMode) {
+            module.setTransportService(ShieldClientTransportService.class, ShieldPlugin.NAME);
+        } else {
+            module.setTransportService(ShieldServerTransportService.class, ShieldPlugin.NAME);
+        }
+    }
+
+    public void onModule(HttpServerModule module) {
+        if (enabled && clientMode == false) {
+            module.setHttpServerTransport(ShieldNettyHttpServerTransport.class, ShieldPlugin.NAME);
+        }
+    }
+
+    public void onModule(RestModule module) {
+        if (enabled && clientMode == false) {
+            module.addRestAction(RestClearRealmCacheAction.class);
+        }
+        // we want to expose the shield rest action even when the plugin is disabled
+        module.addRestAction(RestShieldInfoAction.class);
+    }
+
+    public void onModule(AuthorizationModule module) {
+        if (enabled && AuditTrailModule.auditingEnabled(settings)) {
+            module.registerReservedRole(IndexAuditUserHolder.ROLE);
+        }
     }
 
     private void addUserSettings(Settings.Builder settingsBuilder) {

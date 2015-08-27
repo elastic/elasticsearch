@@ -5,14 +5,14 @@
 
     <modelVersion>4.0.0</modelVersion>
 
-    <artifactId>elasticsearch-marvel</artifactId>
-    <name>Elasticsearch X-Plugins - Marvel</name>
+    <artifactId>marvel</artifactId>
+    <name>X-Plugins: Marvel</name>
     <description>Elasticsearch Marvel</description>
 
     <parent>
         <groupId>org.elasticsearch.plugin</groupId>
         <artifactId>x-plugins</artifactId>
-        <version>2.0.0-beta1-SNAPSHOT</version>
+        <version>2.1.0-SNAPSHOT</version>
     </parent>
 
     <properties>
@@ -28,7 +28,7 @@
 
         <dependency>
             <groupId>org.elasticsearch.plugin</groupId>
-            <artifactId>elasticsearch-license</artifactId>
+            <artifactId>license</artifactId>
             <version>${project.version}</version>
             <scope>provided</scope>
         </dependency>
@@ -66,7 +66,7 @@
                             <artifactItems combine.children="append">
                                 <artifactItem>
                                     <groupId>org.elasticsearch.plugin</groupId>
-                                    <artifactId>elasticsearch-license</artifactId>
+                                    <artifactId>license</artifactId>
                                     <version>${project.version}</version>
                                     <type>zip</type>
                                     <overWrite>true</overWrite>

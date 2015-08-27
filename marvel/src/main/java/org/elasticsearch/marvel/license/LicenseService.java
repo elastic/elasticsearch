@@ -14,13 +14,13 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.license.core.License;
 import org.elasticsearch.license.plugin.core.LicensesClientService;
+import org.elasticsearch.license.plugin.core.LicensesManagerService;
 import org.elasticsearch.license.plugin.core.LicensesService;
 import org.elasticsearch.marvel.MarvelPlugin;
+import org.elasticsearch.marvel.agent.settings.MarvelSettings;
 import org.elasticsearch.marvel.mode.Mode;
 
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Locale;
+import java.util.*;
 
 public class LicenseService extends AbstractLifecycleComponent<LicenseService> {
 
@@ -31,15 +31,22 @@ public class LicenseService extends AbstractLifecycleComponent<LicenseService> {
 
     private static final FormatDateTimeFormatter DATE_FORMATTER = Joda.forPattern("EEEE, MMMMM dd, yyyy", Locale.ROOT);
 
+    private final LicensesManagerService managerService;
     private final LicensesClientService clientService;
+    private final MarvelSettings marvelSettings;
     private final Collection<LicensesService.ExpirationCallback> expirationLoggers;
+    private final LicensesClientService.AcknowledgementCallback acknowledgementCallback;
 
     private volatile Mode mode;
+    private volatile boolean enabled;
+    private volatile long expiryDate;
 
     @Inject
-    public LicenseService(Settings settings, LicensesClientService clientService) {
+    public LicenseService(Settings settings, LicensesClientService clientService, LicensesManagerService managerService, MarvelSettings marvelSettings) {
         super(settings);
+        this.managerService = managerService;
         this.clientService = clientService;
+        this.marvelSettings = marvelSettings;
         this.mode = Mode.LITE;
         this.expirationLoggers = Arrays.asList(
                 new LicensesService.ExpirationCallback.Pre(days(7), days(30), days(1)) {
@@ -73,11 +80,20 @@ public class LicenseService extends AbstractLifecycleComponent<LicenseService> {
                     }
                 }
         );
+        this.acknowledgementCallback = new LicensesClientService.AcknowledgementCallback() {
+            @Override
+            public List<String> acknowledge(License currentLicense, License newLicense) {
+                // TODO: add messages to be acknowledged when installing newLicense from currentLicense
+                // NOTE: currentLicense can be null, as a license registration can happen before
+                // a trial license could be generated
+                return Collections.emptyList();
+            }
+        };
     }
 
     @Override
     protected void doStart() throws ElasticsearchException {
-        clientService.register(FEATURE_NAME, TRIAL_LICENSE_OPTIONS, expirationLoggers, new InternalListener(this));
+        clientService.register(FEATURE_NAME, TRIAL_LICENSE_OPTIONS, expirationLoggers, acknowledgementCallback, new InternalListener(this));
     }
 
     @Override
@@ -103,6 +119,35 @@ public class LicenseService extends AbstractLifecycleComponent<LicenseService> {
         return mode;
     }
 
+    /**
+     * @return all registered licenses
+     */
+    public List<License> licenses() {
+        return managerService.getLicenses();
+    }
+
+    /**
+     * @return true if the marvel license is enabled
+     */
+    public boolean enabled() {
+        return enabled;
+    }
+
+    /**
+     * @return true if marvel is running within the "grace period", ie when the license
+     * is expired but a given extra delay is not yet elapsed
+     */
+    public boolean inExpirationGracePeriod() {
+        return System.currentTimeMillis() <= (expiryDate() + marvelSettings.licenseExpirationGracePeriod().millis());
+    }
+
+    /**
+     * @return the license's expiration date (as a long)
+     */
+    public long expiryDate() {
+        return expiryDate;
+    }
+
     class InternalListener implements LicensesClientService.Listener {
 
         private final LicenseService service;
@@ -114,6 +159,8 @@ public class LicenseService extends AbstractLifecycleComponent<LicenseService> {
         @Override
         public void onEnabled(License license) {
             try {
+                service.enabled = true;
+                service.expiryDate = license.expiryDate();
                 service.mode = Mode.fromName(license.type());
             } catch (IllegalArgumentException e) {
                 service.mode = Mode.LITE;
@@ -122,6 +169,8 @@ public class LicenseService extends AbstractLifecycleComponent<LicenseService> {
 
         @Override
         public void onDisabled(License license) {
+            service.enabled = false;
+            service.expiryDate = license.expiryDate();
             service.mode = Mode.LITE;
         }
     }

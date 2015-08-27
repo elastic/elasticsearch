@@ -7,11 +7,12 @@ package org.elasticsearch.watcher.actions;
 
 import org.elasticsearch.watcher.actions.email.EmailAction;
 import org.elasticsearch.watcher.actions.email.service.EmailTemplate;
+import org.elasticsearch.watcher.actions.hipchat.HipChatAction;
 import org.elasticsearch.watcher.actions.index.IndexAction;
 import org.elasticsearch.watcher.actions.logging.LoggingAction;
 import org.elasticsearch.watcher.actions.webhook.WebhookAction;
 import org.elasticsearch.watcher.support.http.HttpRequestTemplate;
-import org.elasticsearch.watcher.support.template.Template;
+import org.elasticsearch.watcher.support.text.TextTemplate;
 
 /**
  *
@@ -42,15 +43,38 @@ public final class ActionBuilders {
     }
 
     public static LoggingAction.Builder loggingAction(String text) {
-        return loggingAction(Template.inline(text));
+        return loggingAction(TextTemplate.inline(text));
     }
 
-    public static LoggingAction.Builder loggingAction(Template.Builder text) {
+    public static LoggingAction.Builder loggingAction(TextTemplate.Builder text) {
         return loggingAction(text.build());
     }
 
-    public static LoggingAction.Builder loggingAction(Template text) {
+    public static LoggingAction.Builder loggingAction(TextTemplate text) {
         return LoggingAction.builder(text);
     }
 
+    public static HipChatAction.Builder hipchatAction(String message) {
+        return hipchatAction(TextTemplate.inline(message));
+    }
+
+    public static HipChatAction.Builder hipchatAction(String account, String body) {
+        return hipchatAction(account, TextTemplate.inline(body));
+    }
+
+    public static HipChatAction.Builder hipchatAction(TextTemplate.Builder body) {
+        return hipchatAction(body.build());
+    }
+
+    public static HipChatAction.Builder hipchatAction(String account, TextTemplate.Builder body) {
+        return hipchatAction(account, body.build());
+    }
+
+    public static HipChatAction.Builder hipchatAction(TextTemplate body) {
+        return hipchatAction(null, body);
+    }
+
+    public static HipChatAction.Builder hipchatAction(String account, TextTemplate body) {
+        return HipChatAction.builder(account, body);
+    }
 }

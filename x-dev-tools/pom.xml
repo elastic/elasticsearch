@@ -1,12 +1,15 @@
 <project>
+
   <modelVersion>4.0.0</modelVersion>
   <groupId>org.elasticsearch</groupId>
-  <artifactId>elasticsearch-x-dev-tools</artifactId>
-  <version>2.0.0-beta1-SNAPSHOT</version>
-  <name>Elasticsearch Commercial Plugin Build Resources</name>
+  <artifactId>x-dev-tools</artifactId>
+  <version>2.1.0-SNAPSHOT</version>
+  <name>X-Plugins: Build Resources</name>
+
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
   </properties>
+
   <build>
     <plugins>
       <plugin>
@@ -28,6 +31,7 @@
       </plugin>
     </plugins>
   </build>
+
   <profiles>
     <profile>
       <id>deploy-internal</id>
@@ -53,6 +57,18 @@
           <url>http://maven.elasticsearch.org/artifactory/public-releases</url>
         </repository>
       </distributionManagement>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-deploy-plugin</artifactId>
+            <version>2.8.2</version>
+            <configuration>
+              <skip>true</skip>
+            </configuration>
+          </plugin>
+        </plugins>
+      </build>
     </profile>
     <profile>
       <id>default</id>
@@ -61,5 +77,6 @@
       </activation>
     </profile>
   </profiles>
+
 </project>
 

@@ -17,10 +17,9 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.watcher.*;
 import org.elasticsearch.watcher.WatcherBuild;
+import org.elasticsearch.watcher.WatcherLifeCycleService;
 import org.elasticsearch.watcher.WatcherService;
-import org.elasticsearch.watcher.WatcherVersion;
 import org.elasticsearch.watcher.execution.ExecutionService;
 import org.elasticsearch.watcher.license.LicenseService;
 import org.elasticsearch.watcher.transport.actions.WatcherTransportAction;
@@ -62,7 +61,6 @@ public class TransportWatcherStatsAction extends WatcherTransportAction<WatcherS
         statsResponse.setThreadPoolQueueSize(executionService.executionThreadPoolQueueSize());
         statsResponse.setWatchesCount(watcherService.watchesCount());
         statsResponse.setThreadPoolMaxSize(executionService.executionThreadPoolMaxSize());
-        statsResponse.setVersion(WatcherVersion.CURRENT);
         statsResponse.setBuild(WatcherBuild.CURRENT);
         statsResponse.setWatcherMetaData(lifeCycleService.watcherMetaData());
 

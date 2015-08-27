@@ -69,8 +69,6 @@ public class RendererTestUtils {
                         }
                         break;
                     case VALUE_NUMBER:
-                        assertThat("numeric type for property '" + resultParser.currentName() + "' must be identical",
-                                resultParser.numberType(), Matchers.equalTo(expectedParser.numberType()));
                         if (verifyValues) {
                             assertThat("numeric value for property '" + resultParser.currentName() + "' must be identical",
                                     resultParser.numberValue(), Matchers.equalTo(expectedParser.numberValue()));

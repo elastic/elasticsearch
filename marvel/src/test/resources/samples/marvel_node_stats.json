@@ -1,5 +1,5 @@
 {
-  "cluster_name": "test",
+  "cluster_uuid": "dsFPzYRyQCe6cq48a0wxkQ",
   "timestamp": "2015-07-22T15:54:02.979Z",
   "node_stats": {
     "node_id": "OB5Mr2NGQe6xYCFvMggReg",
@@ -21,6 +21,9 @@
       "segments": {
         "count": 0
       }
+    },
+    "os": {
+      "load_average" : 0.66
     },
     "process": {
       "open_file_descriptors": 235,
@@ -48,10 +51,10 @@
       "index": {
         "rejected": 0
       },
-      "bulk": {
+      "search": {
         "rejected": 0
       },
-      "search": {
+      "bulk": {
         "rejected": 0
       }
     },

@@ -5,18 +5,13 @@
  */
 package org.elasticsearch.shield.rest;
 
-import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.inject.PreProcessModule;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.RestModule;
-import org.elasticsearch.shield.rest.action.RestShieldInfoAction;
-import org.elasticsearch.shield.rest.action.authc.cache.RestClearRealmCacheAction;
 import org.elasticsearch.shield.support.AbstractShieldModule;
 
 /**
  *
  */
-public class ShieldRestModule extends AbstractShieldModule.Node implements PreProcessModule {
+public class ShieldRestModule extends AbstractShieldModule.Node {
 
     public ShieldRestModule(Settings settings) {
         super(settings);
@@ -25,13 +20,5 @@ public class ShieldRestModule extends AbstractShieldModule.Node implements PrePr
     @Override
     protected void configureNode() {
         bind(ShieldRestFilter.class).asEagerSingleton();
-    }
-
-    @Override
-    public void processModule(Module module) {
-        if (module instanceof RestModule) {
-            ((RestModule) module).addRestAction(RestShieldInfoAction.class);
-            ((RestModule) module).addRestAction(RestClearRealmCacheAction.class);
-        }
     }
 }

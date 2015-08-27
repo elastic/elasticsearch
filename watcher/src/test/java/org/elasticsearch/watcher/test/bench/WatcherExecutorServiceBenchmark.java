@@ -25,6 +25,7 @@ import org.elasticsearch.watcher.trigger.TriggerModule;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.watcher.actions.ActionBuilders.indexAction;
@@ -211,44 +212,30 @@ public class WatcherExecutorServiceBenchmark {
         }
 
         @Override
-        public Collection<Class<? extends Module>> modules() {
-            return ImmutableList.<Class<? extends Module>>of(WatcherModule.class);
+        public Collection<Module> nodeModules() {
+            List<Module> modules = new ArrayList<>(super.nodeModules());
+            for (int i = 0; i < modules.size(); ++i) {
+                Module module = modules.get(i);
+                if (module instanceof TriggerModule) {
+                    // replacing scheduler module so we'll
+                    // have control on when it fires a job
+                    modules.set(i, new MockTriggerModule(settings));
+                }
+            }
+            return modules;
         }
 
-        public static class WatcherModule extends org.elasticsearch.watcher.WatcherModule {
+        public static class MockTriggerModule extends TriggerModule {
 
-            public WatcherModule(Settings settings) {
+            public MockTriggerModule(Settings settings) {
                 super(settings);
             }
 
             @Override
-            public Iterable<? extends Module> spawnModules() {
-                List<Module> modules = new ArrayList<>();
-                for (Module module : super.spawnModules()) {
-                    if (module instanceof TriggerModule) {
-                        // replacing scheduler module so we'll
-                        // have control on when it fires a job
-                        modules.add(new MockTriggerModule(settings));
-
-                    } else {
-                        modules.add(module);
-                    }
-                }
-                return modules;
+            protected void registerStandardEngines() {
+                registerEngine(ScheduleTriggerEngineMock.class);
             }
 
-            public static class MockTriggerModule extends TriggerModule {
-
-                public MockTriggerModule(Settings settings) {
-                    super(settings);
-                }
-
-                @Override
-                protected void registerStandardEngines() {
-                    registerEngine(ScheduleTriggerEngineMock.class);
-                }
-
-            }
         }
     }
 

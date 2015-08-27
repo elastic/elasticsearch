@@ -18,7 +18,7 @@ import org.elasticsearch.watcher.support.XContentFilterKeysUtils;
 import org.elasticsearch.watcher.support.http.HttpClient;
 import org.elasticsearch.watcher.support.http.HttpRequest;
 import org.elasticsearch.watcher.support.http.HttpResponse;
-import org.elasticsearch.watcher.support.template.TemplateEngine;
+import org.elasticsearch.watcher.support.text.TextTemplateEngine;
 import org.elasticsearch.watcher.watch.Payload;
 
 import java.util.Map;
@@ -28,9 +28,9 @@ import java.util.Map;
 public class ExecutableHttpInput extends ExecutableInput<HttpInput, HttpInput.Result> {
 
     private final HttpClient client;
-    private final TemplateEngine templateEngine;
+    private final TextTemplateEngine templateEngine;
 
-    public ExecutableHttpInput(HttpInput input, ESLogger logger, HttpClient client, TemplateEngine templateEngine) {
+    public ExecutableHttpInput(HttpInput input, ESLogger logger, HttpClient client, TextTemplateEngine templateEngine) {
         super(input, logger);
         this.client = client;
         this.templateEngine = templateEngine;

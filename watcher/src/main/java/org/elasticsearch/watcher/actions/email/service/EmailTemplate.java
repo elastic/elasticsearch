@@ -10,8 +10,8 @@ import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.watcher.support.template.Template;
-import org.elasticsearch.watcher.support.template.TemplateEngine;
+import org.elasticsearch.watcher.support.text.TextTemplate;
+import org.elasticsearch.watcher.support.text.TextTemplateEngine;
 
 import javax.mail.internet.AddressException;
 import java.io.IOException;
@@ -22,19 +22,19 @@ import java.util.*;
  */
 public class EmailTemplate implements ToXContent {
 
-    final Template from;
-    final Template[] replyTo;
-    final Template priority;
-    final Template[] to;
-    final Template[] cc;
-    final Template[] bcc;
-    final Template subject;
-    final Template textBody;
-    final Template htmlBody;
+    final TextTemplate from;
+    final TextTemplate[] replyTo;
+    final TextTemplate priority;
+    final TextTemplate[] to;
+    final TextTemplate[] cc;
+    final TextTemplate[] bcc;
+    final TextTemplate subject;
+    final TextTemplate textBody;
+    final TextTemplate htmlBody;
 
-    public EmailTemplate(Template from, Template[] replyTo, Template priority, Template[] to,
-                         Template[] cc, Template[] bcc, Template subject, Template textBody,
-                         Template htmlBody) {
+    public EmailTemplate(TextTemplate from, TextTemplate[] replyTo, TextTemplate priority, TextTemplate[] to,
+                         TextTemplate[] cc, TextTemplate[] bcc, TextTemplate subject, TextTemplate textBody,
+                         TextTemplate htmlBody) {
         this.from = from;
         this.replyTo = replyTo;
         this.priority = priority;
@@ -46,43 +46,43 @@ public class EmailTemplate implements ToXContent {
         this.htmlBody = htmlBody;
     }
 
-    public Template from() {
+    public TextTemplate from() {
         return from;
     }
 
-    public Template[] replyTo() {
+    public TextTemplate[] replyTo() {
         return replyTo;
     }
 
-    public Template priority() {
+    public TextTemplate priority() {
         return priority;
     }
 
-    public Template[] to() {
+    public TextTemplate[] to() {
         return to;
     }
 
-    public Template[] cc() {
+    public TextTemplate[] cc() {
         return cc;
     }
 
-    public Template[] bcc() {
+    public TextTemplate[] bcc() {
         return bcc;
     }
 
-    public Template subject() {
+    public TextTemplate subject() {
         return subject;
     }
 
-    public Template textBody() {
+    public TextTemplate textBody() {
         return textBody;
     }
 
-    public Template htmlBody() {
+    public TextTemplate htmlBody() {
         return htmlBody;
     }
 
-    public Email.Builder render(TemplateEngine engine, Map<String, Object> model, HtmlSanitizer htmlSanitizer, Map<String, Attachment> attachments) throws AddressException {
+    public Email.Builder render(TextTemplateEngine engine, Map<String, Object> model, HtmlSanitizer htmlSanitizer, Map<String, Attachment> attachments) throws AddressException {
         Email.Builder builder = Email.builder();
         if (from != null) {
             builder.from(engine.render(from, model));
@@ -125,9 +125,9 @@ public class EmailTemplate implements ToXContent {
         return builder;
     }
 
-    private static Email.AddressList templatesToAddressList(TemplateEngine engine, Template[] templates, Map<String, Object> model) throws AddressException {
+    private static Email.AddressList templatesToAddressList(TextTemplateEngine engine, TextTemplate[] templates, Map<String, Object> model) throws AddressException {
         List<Email.Address> addresses = new ArrayList<>(templates.length);
-        for (Template template : templates) {
+        for (TextTemplate template : templates) {
             addresses.add(new Email.Address(engine.render(template, model)));
         }
         return new Email.AddressList(addresses);
@@ -167,7 +167,7 @@ public class EmailTemplate implements ToXContent {
         }
         if (replyTo != null) {
             builder.startArray(Email.Field.REPLY_TO.getPreferredName());
-            for (Template template : replyTo) {
+            for (TextTemplate template : replyTo) {
                 template.toXContent(builder, params);
             }
             builder.endArray();
@@ -177,21 +177,21 @@ public class EmailTemplate implements ToXContent {
         }
         if (to != null) {
             builder.startArray(Email.Field.TO.getPreferredName());
-            for (Template template : to) {
+            for (TextTemplate template : to) {
                 template.toXContent(builder, params);
             }
             builder.endArray();
         }
         if (cc != null) {
             builder.startArray(Email.Field.CC.getPreferredName());
-            for (Template template : cc) {
+            for (TextTemplate template : cc) {
                 template.toXContent(builder, params);
             }
             builder.endArray();
         }
         if (bcc != null) {
             builder.startArray(Email.Field.BCC.getPreferredName());
-            for (Template template : bcc) {
+            for (TextTemplate template : bcc) {
                 template.toXContent(builder, params);
             }
             builder.endArray();
@@ -218,164 +218,164 @@ public class EmailTemplate implements ToXContent {
 
     public static class Builder {
 
-        private Template from;
-        private Template[] replyTo;
-        private Template priority;
-        private Template[] to;
-        private Template[] cc;
-        private Template[] bcc;
-        private Template subject;
-        private Template textBody;
-        private Template htmlBody;
+        private TextTemplate from;
+        private TextTemplate[] replyTo;
+        private TextTemplate priority;
+        private TextTemplate[] to;
+        private TextTemplate[] cc;
+        private TextTemplate[] bcc;
+        private TextTemplate subject;
+        private TextTemplate textBody;
+        private TextTemplate htmlBody;
 
         private Builder() {
         }
 
         public Builder from(String from) {
-            return from(Template.inline(from));
+            return from(TextTemplate.inline(from));
         }
 
-        public Builder from(Template.Builder from) {
+        public Builder from(TextTemplate.Builder from) {
             return from(from.build());
         }
 
-        public Builder from(Template from) {
+        public Builder from(TextTemplate from) {
             this.from = from;
             return this;
         }
 
         public Builder replyTo(String... replyTo) {
-            Template[] templates = new Template[replyTo.length];
+            TextTemplate[] templates = new TextTemplate[replyTo.length];
             for (int i = 0; i < templates.length; i++) {
-                templates[i] = Template.defaultType(replyTo[i]).build();
+                templates[i] = TextTemplate.defaultType(replyTo[i]).build();
             }
             return replyTo(templates);
         }
 
-        public Builder replyTo(Template.Builder... replyTo) {
-            Template[] templates = new Template[replyTo.length];
+        public Builder replyTo(TextTemplate.Builder... replyTo) {
+            TextTemplate[] templates = new TextTemplate[replyTo.length];
             for (int i = 0; i < templates.length; i++) {
                 templates[i] = replyTo[i].build();
             }
             return replyTo(templates);
         }
 
-        public Builder replyTo(Template... replyTo) {
+        public Builder replyTo(TextTemplate... replyTo) {
             this.replyTo = replyTo;
             return this;
         }
 
         public Builder priority(Email.Priority priority) {
-            return priority(Template.inline(priority.name()));
+            return priority(TextTemplate.inline(priority.name()));
         }
 
-        public Builder priority(Template.Builder priority) {
+        public Builder priority(TextTemplate.Builder priority) {
             return priority(priority.build());
         }
 
-        public Builder priority(Template priority) {
+        public Builder priority(TextTemplate priority) {
             this.priority = priority;
             return this;
         }
 
         public Builder to(String... to) {
-            Template[] templates = new Template[to.length];
+            TextTemplate[] templates = new TextTemplate[to.length];
             for (int i = 0; i < templates.length; i++) {
-                templates[i] = Template.defaultType(to[i]).build();
+                templates[i] = TextTemplate.defaultType(to[i]).build();
             }
             return to(templates);
         }
 
-        public Builder to(Template.Builder... to) {
-            Template[] templates = new Template[to.length];
+        public Builder to(TextTemplate.Builder... to) {
+            TextTemplate[] templates = new TextTemplate[to.length];
             for (int i = 0; i < templates.length; i++) {
                 templates[i] = to[i].build();
             }
             return to(templates);
         }
 
-        public Builder to(Template... to) {
+        public Builder to(TextTemplate... to) {
             this.to = to;
             return this;
         }
 
         public Builder cc(String... cc) {
-            Template[] templates = new Template[cc.length];
+            TextTemplate[] templates = new TextTemplate[cc.length];
             for (int i = 0; i < templates.length; i++) {
-                templates[i] = Template.defaultType(cc[i]).build();
+                templates[i] = TextTemplate.defaultType(cc[i]).build();
             }
             return cc(templates);
         }
 
-        public Builder cc(Template.Builder... cc) {
-            Template[] templates = new Template[cc.length];
+        public Builder cc(TextTemplate.Builder... cc) {
+            TextTemplate[] templates = new TextTemplate[cc.length];
             for (int i = 0; i < templates.length; i++) {
                 templates[i] = cc[i].build();
             }
             return cc(templates);
         }
 
-        public Builder cc(Template... cc) {
+        public Builder cc(TextTemplate... cc) {
             this.cc = cc;
             return this;
         }
 
         public Builder bcc(String... bcc) {
-            Template[] templates = new Template[bcc.length];
+            TextTemplate[] templates = new TextTemplate[bcc.length];
             for (int i = 0; i < templates.length; i++) {
-                templates[i] = Template.defaultType(bcc[i]).build();
+                templates[i] = TextTemplate.defaultType(bcc[i]).build();
             }
             return bcc(templates);
         }
 
-        public Builder bcc(Template.Builder... bcc) {
-            Template[] templates = new Template[bcc.length];
+        public Builder bcc(TextTemplate.Builder... bcc) {
+            TextTemplate[] templates = new TextTemplate[bcc.length];
             for (int i = 0; i < templates.length; i++) {
                 templates[i] = bcc[i].build();
             }
             return bcc(templates);
         }
 
-        public Builder bcc(Template... bcc) {
+        public Builder bcc(TextTemplate... bcc) {
             this.bcc = bcc;
             return this;
         }
 
         public Builder subject(String subject) {
-            return subject(Template.defaultType(subject));
+            return subject(TextTemplate.defaultType(subject));
         }
 
-        public Builder subject(Template.Builder subject) {
+        public Builder subject(TextTemplate.Builder subject) {
             return subject(subject.build());
         }
 
-        public Builder subject(Template subject) {
+        public Builder subject(TextTemplate subject) {
             this.subject = subject;
             return this;
         }
 
         public Builder textBody(String text) {
-            return textBody(Template.defaultType(text));
+            return textBody(TextTemplate.defaultType(text));
         }
 
-        public Builder textBody(Template.Builder text) {
+        public Builder textBody(TextTemplate.Builder text) {
             return textBody(text.build());
         }
 
-        public Builder textBody(Template text) {
+        public Builder textBody(TextTemplate text) {
             this.textBody = text;
             return this;
         }
 
         public Builder htmlBody(String html) {
-            return htmlBody(Template.defaultType(html));
+            return htmlBody(TextTemplate.defaultType(html));
         }
 
-        public Builder htmlBody(Template.Builder html) {
+        public Builder htmlBody(TextTemplate.Builder html) {
             return htmlBody(html.build());
         }
 
-        public Builder htmlBody(Template html) {
+        public Builder htmlBody(TextTemplate html) {
             this.htmlBody = html;
             return this;
         }
@@ -391,54 +391,54 @@ public class EmailTemplate implements ToXContent {
 
         public boolean handle(String fieldName, XContentParser parser) throws IOException {
             if (ParseFieldMatcher.STRICT.match(fieldName, Email.Field.FROM)) {
-                builder.from(Template.parse(parser));
+                builder.from(TextTemplate.parse(parser));
             } else if (ParseFieldMatcher.STRICT.match(fieldName, Email.Field.REPLY_TO)) {
                 if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
-                    List<Template> templates = new ArrayList<>();
+                    List<TextTemplate> templates = new ArrayList<>();
                     while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                        templates.add(Template.parse(parser));
+                        templates.add(TextTemplate.parse(parser));
                     }
-                    builder.replyTo(templates.toArray(new Template[templates.size()]));
+                    builder.replyTo(templates.toArray(new TextTemplate[templates.size()]));
                 } else {
-                    builder.replyTo(Template.parse(parser));
+                    builder.replyTo(TextTemplate.parse(parser));
                 }
             } else if (ParseFieldMatcher.STRICT.match(fieldName, Email.Field.TO)) {
                 if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
-                    List<Template> templates = new ArrayList<>();
+                    List<TextTemplate> templates = new ArrayList<>();
                     while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                        templates.add(Template.parse(parser));
+                        templates.add(TextTemplate.parse(parser));
                     }
-                    builder.to(templates.toArray(new Template[templates.size()]));
+                    builder.to(templates.toArray(new TextTemplate[templates.size()]));
                 } else {
-                    builder.to(Template.parse(parser));
+                    builder.to(TextTemplate.parse(parser));
                 }
             } else if (ParseFieldMatcher.STRICT.match(fieldName, Email.Field.CC)) {
                 if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
-                    List<Template> templates = new ArrayList<>();
+                    List<TextTemplate> templates = new ArrayList<>();
                     while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                        templates.add(Template.parse(parser));
+                        templates.add(TextTemplate.parse(parser));
                     }
-                    builder.cc(templates.toArray(new Template[templates.size()]));
+                    builder.cc(templates.toArray(new TextTemplate[templates.size()]));
                 } else {
-                    builder.cc(Template.parse(parser));
+                    builder.cc(TextTemplate.parse(parser));
                 }
             } else if (ParseFieldMatcher.STRICT.match(fieldName, Email.Field.BCC)) {
                 if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
-                    List<Template> templates = new ArrayList<>();
+                    List<TextTemplate> templates = new ArrayList<>();
                     while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                        templates.add(Template.parse(parser));
+                        templates.add(TextTemplate.parse(parser));
                     }
-                    builder.bcc(templates.toArray(new Template[templates.size()]));
+                    builder.bcc(templates.toArray(new TextTemplate[templates.size()]));
                 } else {
-                    builder.bcc(Template.parse(parser));
+                    builder.bcc(TextTemplate.parse(parser));
                 }
             } else if (ParseFieldMatcher.STRICT.match(fieldName, Email.Field.PRIORITY)) {
-                builder.priority(Template.parse(parser));
+                builder.priority(TextTemplate.parse(parser));
             } else if (ParseFieldMatcher.STRICT.match(fieldName, Email.Field.SUBJECT)) {
-                builder.subject(Template.parse(parser));
+                builder.subject(TextTemplate.parse(parser));
             } else if (ParseFieldMatcher.STRICT.match(fieldName, Email.Field.BODY)) {
                 if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
-                    builder.textBody(Template.parse(parser));
+                    builder.textBody(TextTemplate.parse(parser));
                 } else if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
                     XContentParser.Token token;
                     String currentFieldName = null;
@@ -448,9 +448,9 @@ public class EmailTemplate implements ToXContent {
                         } else if (currentFieldName == null) {
                             throw new ElasticsearchParseException("could not parse email template. empty [{}] field", fieldName);
                         } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Email.Field.BODY_TEXT)) {
-                            builder.textBody(Template.parse(parser));
+                            builder.textBody(TextTemplate.parse(parser));
                         } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Email.Field.BODY_HTML)) {
-                            builder.htmlBody(Template.parse(parser));
+                            builder.htmlBody(TextTemplate.parse(parser));
                         } else {
                             throw new ElasticsearchParseException("could not parse email template. unknown field [{}.{}] field", fieldName, currentFieldName);
                         }

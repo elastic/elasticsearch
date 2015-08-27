@@ -124,7 +124,7 @@ public class AuditTrailServiceTests extends ESTestCase {
 
     @Test
     public void testConnectionGranted() throws Exception {
-        InetAddress inetAddress = InetAddress.getLocalHost();
+        InetAddress inetAddress = InetAddress.getLoopbackAddress();
         ShieldIpFilterRule rule = randomBoolean() ? ShieldIpFilterRule.ACCEPT_ALL : IPFilter.DEFAULT_PROFILE_ACCEPT_ALL;
         service.connectionGranted(inetAddress, "client", rule);
         for (AuditTrail auditTrail : auditTrails) {
@@ -134,7 +134,7 @@ public class AuditTrailServiceTests extends ESTestCase {
 
     @Test
     public void testConnectionDenied() throws Exception {
-        InetAddress inetAddress = InetAddress.getLocalHost();
+        InetAddress inetAddress = InetAddress.getLoopbackAddress();
         ShieldIpFilterRule rule = new ShieldIpFilterRule(false, "_all");
         service.connectionDenied(inetAddress, "client", rule);
         for (AuditTrail auditTrail : auditTrails) {

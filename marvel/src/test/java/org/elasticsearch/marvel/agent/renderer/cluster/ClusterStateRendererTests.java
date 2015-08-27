@@ -36,7 +36,7 @@ public class ClusterStateRendererTests extends ESSingleNodeTestCase {
         ClusterHealthResponse clusterHealth = client().admin().cluster().prepareHealth().get();
 
         logger.debug("--> creating the cluster state marvel document");
-        ClusterStateMarvelDoc marvelDoc = ClusterStateMarvelDoc.createMarvelDoc("test", "marvel_cluster_state", 1437580442979L,
+        ClusterStateMarvelDoc marvelDoc = new ClusterStateMarvelDoc("test", "marvel_cluster_state", 1437580442979L,
                 clusterState, clusterHealth.getStatus());
 
         logger.debug("--> rendering the document");

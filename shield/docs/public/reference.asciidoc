@@ -163,7 +163,7 @@ The parameters listed in this section are configured in the `config/elasticsearc
 [options="header"]
 |======
 | Name                     | Default                                               | Description
-| `shield.system_key.file` |`ES_HOME/config/shield/system_key`  | Sets the location of the `system_key` file. For more information, see <<enable-message-authentication,Enabling Message Authentication>>.
+| `shield.system_key.file` |`CONFIG_DIR/shield/system_key`  | Sets the <<ref-shield-files-location,location>> of the `system_key` file. For more information, see <<enable-message-authentication,Enabling Message Authentication>>.
 |======
 
 [[ref-anonymous-access]]
@@ -221,8 +221,8 @@ shield.authc.realms:
 [options="header"]
 |======
 | Name                 | Required    | Default                            | Description
-| `files.users`        | no          | `ES_HOME/config/shield/users`      | The location of the <<users-file, users>> file.
-| `files.users_roles`  | no          | `ES_HOME/config/shield/users_roles`| The location of the <<users_defining-roles, users_roles>> file.
+| `files.users`        | no          | `CONFIG_DIR/shield/users`      | The <<ref-shield-files-location,location>> of the <<users-file, users>> file.
+| `files.users_roles`  | no          | `CONFIG_DIR/shield/users_roles`| The <<ref-shield-files-location,location>> of the <<users_defining-roles, users_roles>> file.
 | `cache.ttl`          | no          | `20m`                              | The time-to-live for cached user entries--user credentials are cached for this configured period of time. Defaults to `20m`. Specify values using the standard Elasticsearch {ref}/common-options.html#time-units[time units].
 | `cache.max_users`    | no          | 100000                             | The maximum number of user entries that can live in the cache at a given time. Defaults to 100,000.
 | `cache.hash_algo`    | no          | `ssha256`                          | (Expert Setting) The hashing algorithm that is used for the in-memory cached user credentials. See the <<ref-cache-hash-algo,Cache hash algorithms>> table for all possible values.
@@ -251,7 +251,7 @@ shield.authc.realms:
 | `group_search.filter`                    | no         | See description                                            | When not set, the realm will search for `group`, `groupOfNames`, or `groupOfUniqueNames`, with the attributes `member` or `memberOf`.  Any instance of `{0}` in the filter will be replaced by the user attribute defined in `group_search.user_attribute`
 | `group_search.user_attribute`            | no         | Empty                                                      | Specifies the user attribute that will be fetched and provided as a parameter to the filter.  If not set, the user DN is passed into the filter.
 | `unmapped_groups_as_roles`               | no         | false                                                      | Takes a boolean variable. When this element is set to `true`, the names of any unmapped LDAP groups are used as role names and assigned to the user. THe default value is `false`.
-| `files.role_mapping`                     | no         | `ES_HOME/config/shield/users/role_mapping.yml` | The path and file name for the <<ldap-role-mapping, YAML role mapping configuration file>>. 
+| `files.role_mapping`                     | no         | `CONFIG_DIR/shield/users/role_mapping.yml` | The <<ref-shield-files-location,location>> for the <<ldap-role-mapping, YAML role mapping configuration file>>.
 | `follow_referrals`                       | no         | `true`                                                     | Boolean value that specifies whether Shield should follow referrals returned by the LDAP server. Referrals are URLs returned by the server that are to be used to continue the LDAP operation (e.g. search).
 | `connect_timeout`                        | no         | "5s" - for 5 seconds                                       | The timeout period for establishing an LDAP connection.  An `s` at the end indicates seconds, or `ms` indicates milliseconds.
 | `read_timeout`                           | no         | "5s" - for 5 seconds                                       | The timeout period for an LDAP operation.  An `s` at the end indicates seconds, or `ms` indicates milliseconds.
@@ -271,7 +271,7 @@ NOTE: `user_dn_templates` is required to operate in user template mode and `user
 | `url`                         | no          | `ldap://<domain_name>:389`                                  | A URL in the format `ldap[s]://<server>:<port>`  If not specified the URL will be derived from the domain_name, assuming clear-text `ldap` and port `389` (e.g. `ldap://<domain_name>:389`).
 | `domain_name`                 | yes         | -                                                           | The domain name of Active Directory. The cluster can derive the URL and `user_search_dn` fields from values in this element if those fields are not otherwise specified.
 | `unmapped_groups_as_roles`    | no          | false                                                       | Takes a boolean variable. When this element is set to `true`, the names of any unmapped groups and the user's relative distinguished name are used as role names and assigned to the user. THe default value is `false`.
-| `files.role_mapping`          | no          | `ES_HOME/config/shield/users/role_mapping.yml`  | The path and file name for the <<ad-role-mapping, YAML role mapping configuration file>>. 
+| `files.role_mapping`          | no          | `CONFIG_DIR/shield/users/role_mapping.yml`  | The <<ref-shield-files-location,location>> for the <<ad-role-mapping, YAML role mapping configuration file>>.
 | `user_search.base_dn`         | no          | Root of Active Directory                                    | The context to search for a user. The default value for this element is the root of the Active Directory domain.
 | `user_search.scope`           | no          | `sub_tree`                                                  | Specifies whether the user search should be `sub_tree`, `one_level` or `base`.  `one_level` only searches users directly contained within the `base_dn`. `sub_tree` searches all objects contained under `base_dn`. `base` specifies that the `base_dn` is a user object, and that it is the only user considered.
 | `user_search.filter`          | no          | See description                                             | Specifies a filter to use to lookup a user given a username.  The default filter looks up `user` objects with either `sAMAccountName` or `userPrincipalName`
@@ -296,7 +296,7 @@ NOTE: `user_dn_templates` is required to operate in user template mode and `user
 | `truststore.path`          | no        | `shield.ssl.keystore`                                      | The path of a truststore to use. The default truststore is the one defined by <<ref-ssl-tls-settings,SSL/TLS settings>>
 | `truststore.password`      | no        | -                                                          | The password to the truststore. Must be provided if `truststore.path` is set.
 | `truststore.algorithm`     | no        | SunX509                                                    | Algorithm for the trustsore. Default is `SunX509`
-| `files.role_mapping`       | no        | `ES_HOME/config/shield/users/role_mapping.yml` | Specifies the path and file name for the <<pki-role-mapping, YAML role  mapping configuration file>>. 
+| `files.role_mapping`       | no        | `CONFIG_DIR/shield/users/role_mapping.yml` | Specifies the <<ref-shield-files-location,location>> for the <<pki-role-mapping, YAML role  mapping configuration file>>.
 |======
 
 [[ref-cache-hash-algo]]
@@ -324,7 +324,7 @@ NOTE: `user_dn_templates` is required to operate in user template mode and `user
 [options="header"]
 |======
 | Name                                        | Default                                 | Description
-| `shield.authz.store.file.roles`             | `ES_HOME/config/shield/users/roles.yml` | The location of the roles definition file.
+| `shield.authz.store.file.roles`             | `CONFIG_DIR/shield/users/roles.yml` | The <<ref-shield-files-location,location>> of the roles definition file.
 |======
 
 [[ref-ssl-tls-settings]]
@@ -392,13 +392,18 @@ NOTE: `user_dn_templates` is required to operate in user template mode and `user
 
 The Shield security plugin uses the following files:
 
-* `config/shield/roles.yml` defines the roles in use on the cluster (read more <<defining-roles,here>>).
-* `config/shield/users` defines the hashed passwords for users on the cluster (read more <<users-file,here>>).
-* `config/shield/users_roles` defines the role assignments for users on the cluster (read more <<users_defining-roles,here>>).
-* `config/shield/role_mapping.yml` defines the role assignments for a Distinguished Name (DN) to a role. This allows for
+* `CONFIG_DIR/shield/roles.yml` defines the roles in use on the cluster (read more <<defining-roles,here>>).
+* `CONFIG_DIR/shield/users` defines the hashed passwords for users on the cluster (read more <<users-file,here>>).
+* `CONFIG_DIR/shield/users_roles` defines the role assignments for users on the cluster (read more <<users_defining-roles,here>>).
+* `CONFIG_DIR/shield/role_mapping.yml` defines the role assignments for a Distinguished Name (DN) to a role. This allows for
 LDAP and Active Directory groups and users and PKI users to be mapped to roles (read more <<ldap-role-mapping,here>>).
-* `config/shield/logging.yml` contains audit information (read more <<logging-file,here>>).
-* `config/shield/system_key` holds a cluster secret key used for message authentication. For more information, see <<enable-message-authentication,Enabling Message Authentication>>.
+* `CONFIG_DIR/shield/logging.yml` contains audit information (read more <<logging-file,here>>).
+* `CONFIG_DIR/shield/system_key` holds a cluster secret key used for message authentication. For more information, see <<enable-message-authentication,Enabling Message Authentication>>.
+
+[[ref-shield-files-location]]
+IMPORTANT: Any files that Shield uses must be stored in the Elasticsearch {ref}/setup-dir-layout.html#setup-dir-layout[configuration directory].
+Elasticsearch runs with restricted permissions and is only permitted to read from the locations configured in the directory
+layout for enhanced security.
 
 Several of these files are in the YAML format. When you edit these files, be aware that YAML is indentation-level
 sensitive and indentation errors can lead to configuration errors. Avoid the tab character to set indentation levels,

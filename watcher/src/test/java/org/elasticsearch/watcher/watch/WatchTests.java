@@ -73,8 +73,8 @@ import org.elasticsearch.watcher.support.http.auth.basic.BasicAuthFactory;
 import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
 import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
 import org.elasticsearch.watcher.support.secret.SecretService;
-import org.elasticsearch.watcher.support.template.Template;
-import org.elasticsearch.watcher.support.template.TemplateEngine;
+import org.elasticsearch.watcher.support.text.TextTemplate;
+import org.elasticsearch.watcher.support.text.TextTemplateEngine;
 import org.elasticsearch.watcher.test.WatcherTestUtils;
 import org.elasticsearch.watcher.transform.ExecutableTransform;
 import org.elasticsearch.watcher.transform.TransformFactory;
@@ -114,7 +114,7 @@ public class WatchTests extends ESTestCase {
     private ClientProxy client;
     private HttpClient httpClient;
     private EmailService emailService;
-    private TemplateEngine templateEngine;
+    private TextTemplateEngine templateEngine;
     private HtmlSanitizer htmlSanitizer;
     private HttpAuthRegistry authRegistry;
     private SecretService secretService;
@@ -129,7 +129,7 @@ public class WatchTests extends ESTestCase {
         client = mock(ClientProxy.class);
         httpClient = mock(HttpClient.class);
         emailService = mock(EmailService.class);
-        templateEngine = mock(TemplateEngine.class);
+        templateEngine = mock(TextTemplateEngine.class);
         htmlSanitizer = mock(HtmlSanitizer.class);
         secretService = mock(SecretService.class);
         licenseService = mock(LicenseService.class);
@@ -402,7 +402,7 @@ public class WatchTests extends ESTestCase {
         if (randomBoolean()) {
             HttpRequestTemplate httpRequest = HttpRequestTemplate.builder("test.host", randomIntBetween(8000, 9000))
                     .method(randomFrom(HttpMethod.GET, HttpMethod.POST, HttpMethod.PUT))
-                    .path(Template.inline("_url").build())
+                    .path(TextTemplate.inline("_url").build())
                     .build();
             WebhookAction action = new WebhookAction(httpRequest);
             list.add(new ActionWrapper("_webhook_" + randomAsciiOfLength(8), randomThrottler(), randomTransform(), new ExecutableWebhookAction(action, logger, httpClient, templateEngine)));

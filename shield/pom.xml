@@ -5,23 +5,24 @@
 
     <modelVersion>4.0.0</modelVersion>
 
-    <artifactId>elasticsearch-shield</artifactId>
-    <name>Elasticsearch X-Plugins - Shield</name>
+    <artifactId>shield</artifactId>
+    <name>X-Plugins: Shield</name>
     <description>Elasticsearch Shield (security)</description>
 
     <parent>
         <groupId>org.elasticsearch.plugin</groupId>
         <artifactId>x-plugins</artifactId>
-        <version>2.0.0-beta1-SNAPSHOT</version>
+        <version>2.1.0-SNAPSHOT</version>
     </parent>
 
     <properties>
+        <!-- no integration tests for now -->
+        <skip.integ.tests>true</skip.integ.tests>
         <!-- TODO: try to avoid this... -->
         <elasticsearch.assembly.descriptor>${basedir}/src/main/assemblies/plugin.xml</elasticsearch.assembly.descriptor>
         <elasticsearch.plugin.classname>org.elasticsearch.shield.ShieldPlugin</elasticsearch.plugin.classname>
         <!-- TODO: fix plugin dependencies for full isolation -->
         <elasticsearch.plugin.isolated>false</elasticsearch.plugin.isolated>
-        <tests.rest.blacklist>indices.get/10_basic/*allow_no_indices*,cat.count/10_basic/Test cat count output,cat.aliases/10_basic/Empty cluster,indices.segments/10_basic/no segments test,indices.clear_cache/10_basic/clear_cache test,indices.status/10_basic/Indices status test,cat.indices/10_basic/Test cat indices output,cat.recovery/10_basic/Test cat recovery output,cat.shards/10_basic/Test cat shards output,termvector/20_issue7121/*,index/10_with_id/Index with ID,indices.get_alias/20_emtpy/*,cat.segments/10_basic/Test cat segments output,indices.put_settings/10_basic/Test indices settings allow_no_indices,indices.put_settings/10_basic/Test indices settings ignore_unavailable,indices.refresh/10_basic/Indices refresh test no-match wildcard,indices.stats/10_index/Index - star*,indices.recovery/10_basic/Indices recovery test*,template/30_render_search_template/*,indices.shard_stores/10_basic/no indices test,cat.nodeattrs/10_basic/Test cat nodes attrs output</tests.rest.blacklist>
         <!-- TODO: refactor -->
         <elasticsearch.integ.antfile>${basedir}/dev-tools/integration-tests.xml</elasticsearch.integ.antfile>
     </properties>
@@ -44,8 +45,8 @@
         <!-- real dependencies -->
         <dependency>
             <groupId>org.elasticsearch.plugin</groupId>
-            <artifactId>elasticsearch-license</artifactId>
-            <version>${project.version}</version>
+            <artifactId>license</artifactId>
+            <version>${elasticsearch.version}</version>
             <scope>provided</scope>
         </dependency>
 
@@ -97,7 +98,7 @@
                             <artifactItems combine.children="append">
                                 <artifactItem>
                                     <groupId>org.elasticsearch.plugin</groupId>
-                                    <artifactId>elasticsearch-license</artifactId>
+                                    <artifactId>license</artifactId>
                                     <version>${project.version}</version>
                                     <type>zip</type>
                                     <overWrite>true</overWrite>

@@ -140,7 +140,7 @@ userdel <username>
 [float]
 === About `esusers`
 
-The `esusers` tool manipulates two files, `users` and `users_roles`, in `ES_HOME/config/shield/`. These two files store all user data for the _esusers_ realm and are read by Shield 
+The `esusers` tool manipulates two files, `users` and `users_roles`, in `CONFIG_DIR/shield/`. These two files store all user data for the _esusers_ realm and are read by Shield
 on startup.
 
 By default, Shield checks these files for changes every 5 seconds. You can change this default behavior by changing the

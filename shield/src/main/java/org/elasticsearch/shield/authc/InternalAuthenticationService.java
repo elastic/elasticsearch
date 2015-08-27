@@ -39,15 +39,18 @@ public class InternalAuthenticationService extends AbstractComponent implements 
     private final AuditTrail auditTrail;
     private final CryptoService cryptoService;
     private final AnonymousService anonymousService;
+    private final AuthenticationFailureHandler failureHandler;
     private final boolean signUserHeader;
 
     @Inject
-    public InternalAuthenticationService(Settings settings, Realms realms, AuditTrail auditTrail, CryptoService cryptoService, AnonymousService anonymousService) {
+    public InternalAuthenticationService(Settings settings, Realms realms, AuditTrail auditTrail, CryptoService cryptoService,
+                                         AnonymousService anonymousService, AuthenticationFailureHandler failureHandler) {
         super(settings);
         this.realms = realms;
         this.auditTrail = auditTrail;
         this.cryptoService = cryptoService;
         this.anonymousService = anonymousService;
+        this.failureHandler = failureHandler;
         this.signUserHeader = settings.getAsBoolean(SETTING_SIGN_USER_HEADER, true);
     }
 
@@ -63,11 +66,7 @@ public class InternalAuthenticationService extends AbstractComponent implements 
                 logger.warn("failed to extract token from request: {}", e.getMessage());
             }
             auditTrail.authenticationFailed(request);
-
-            if (e instanceof ElasticsearchSecurityException) {
-                throw (ElasticsearchSecurityException) e;
-            }
-            throw authenticationError("error attempting to authenticate request", e);
+            throw failureHandler.exceptionProcessingRequest(request, e);
         }
 
         if (token == null) {
@@ -78,7 +77,7 @@ public class InternalAuthenticationService extends AbstractComponent implements 
                 return anonymousService.anonymousUser();
             }
             auditTrail.anonymousAccessDenied(request);
-            throw authenticationError("missing authentication token for REST request [{}]", request.uri());
+            throw failureHandler.missingToken(request);
         }
 
         User user;
@@ -89,14 +88,11 @@ public class InternalAuthenticationService extends AbstractComponent implements 
                 logger.debug("authentication of request failed for principal [{}], uri [{}]", e, token.principal(), request.uri());
             }
             auditTrail.authenticationFailed(token, request);
-            if (e instanceof ElasticsearchSecurityException) {
-                throw (ElasticsearchSecurityException) e;
-            }
-            throw authenticationError("error attempting to authenticate request", e);
+            throw failureHandler.exceptionProcessingRequest(request, e);
         }
 
         if (user == null) {
-            throw authenticationError("unable to authenticate user [{}] for REST request [{}]", token.principal(), request.uri());
+            throw failureHandler.unsuccessfulAuthentication(request, token);
         }
         // we must put the user in the request context, so it'll be copied to the
         // transport request - without it, the transport will assume system user
@@ -197,10 +193,7 @@ public class InternalAuthenticationService extends AbstractComponent implements 
                 logger.warn("failed to extract token from transport message: ", e.getMessage());
             }
             auditTrail.authenticationFailed(action, message);
-            if (e instanceof ElasticsearchSecurityException) {
-                throw e;
-            }
-            throw authenticationError("error attempting to authenticate request", e);
+            throw failureHandler.exceptionProcessingRequest(message, e);
         }
 
         if (token == null) {
@@ -211,7 +204,7 @@ public class InternalAuthenticationService extends AbstractComponent implements 
                 return anonymousService.anonymousUser();
             }
             auditTrail.anonymousAccessDenied(action, message);
-            throw authenticationError("missing authentication token for action [{}]", action);
+            throw failureHandler.missingToken(message, action);
         }
 
         User user;
@@ -222,14 +215,11 @@ public class InternalAuthenticationService extends AbstractComponent implements 
                 logger.debug("authentication of transport message failed for principal [{}], action [{}]", e, token.principal(), action);
             }
             auditTrail.authenticationFailed(token, action, message);
-            if (e instanceof ElasticsearchSecurityException) {
-                throw (ElasticsearchSecurityException) e;
-            }
-            throw authenticationError("error attempting to authenticate request", e);
+            throw failureHandler.exceptionProcessingRequest(message, e);
         }
 
         if (user == null) {
-            throw authenticationError("unable to authenticate user [{}] for action [{}]", token.principal(), action);
+            throw failureHandler.unsuccessfulAuthentication(message, token, action);
         }
         return user;
     }

@@ -99,8 +99,8 @@ misconfigured. See <<ref-shield-files, Shield Files>> for more.
 
 |======================
 
-To help track down these possibilities, add `shield.authc: DEBUG` to the `logging.yml` configuration file in `ES_HOME/config/shield/`.  A successful
-authentication should produce debug statements that list groups and role mappings.
+To help track down these possibilities, add `shield.authc: DEBUG` to the `logging.yml` configuration file in `CONFIG_DIR`.
+A successful authentication should produce debug statements that list groups and role mappings.
 --
 
 

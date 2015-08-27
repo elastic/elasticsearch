@@ -7,16 +7,15 @@ package org.elasticsearch.marvel.agent.collector.cluster;
 
 import com.google.common.collect.ImmutableList;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.marvel.agent.collector.AbstractCollector;
 import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
-import org.elasticsearch.marvel.agent.settings.MarvelSettingsService;
+import org.elasticsearch.marvel.agent.settings.MarvelSettings;
+import org.elasticsearch.marvel.license.LicenseService;
 
 import java.util.Collection;
 
@@ -34,15 +33,15 @@ public class ClusterStateCollector extends AbstractCollector<ClusterStateCollect
     private final Client client;
 
     @Inject
-    public ClusterStateCollector(Settings settings, ClusterService clusterService,
-                                 ClusterName clusterName, MarvelSettingsService marvelSettings, Client client) {
-        super(settings, NAME, clusterService, clusterName, marvelSettings);
+    public ClusterStateCollector(Settings settings, ClusterService clusterService, MarvelSettings marvelSettings,  LicenseService licenseService,
+                                 Client client) {
+        super(settings, NAME, clusterService, marvelSettings, licenseService);
         this.client = client;
     }
 
     @Override
-    protected boolean masterOnly() {
-        return true;
+    protected boolean canCollect() {
+        return super.canCollect() && isLocalNodeMaster();
     }
 
     @Override
@@ -52,11 +51,7 @@ public class ClusterStateCollector extends AbstractCollector<ClusterStateCollect
         ClusterState clusterState = clusterService.state();
         ClusterHealthResponse clusterHealth = client.admin().cluster().prepareHealth().get(marvelSettings.clusterStateTimeout());
 
-        results.add(buildMarvelDoc(clusterName.value(), TYPE, System.currentTimeMillis(), clusterState, clusterHealth.getStatus()));
+        results.add(new ClusterStateMarvelDoc(clusterUUID(), TYPE, System.currentTimeMillis(), clusterState, clusterHealth.getStatus()));
         return results.build();
-    }
-
-    protected MarvelDoc buildMarvelDoc(String clusterName, String type, long timestamp, ClusterState clusterState, ClusterHealthStatus status) {
-        return ClusterStateMarvelDoc.createMarvelDoc(clusterName, type, timestamp, clusterState, status);
     }
 }

@@ -21,6 +21,9 @@ import org.elasticsearch.watcher.support.http.auth.HttpAuth;
 import org.elasticsearch.watcher.support.http.auth.HttpAuthRegistry;
 
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
+import java.net.URLDecoder;
+import java.net.URLEncoder;
 import java.util.Map;
 
 public class HttpRequest implements ToXContent {
@@ -101,6 +104,22 @@ public class HttpRequest implements ToXContent {
         return readTimeout;
     }
 
+    public static String encodeUrl(String text) {
+        try {
+            return URLEncoder.encode(text, "UTF-8");
+        } catch (UnsupportedEncodingException e) {
+            throw new IllegalArgumentException("failed to URL encode text [" + text + "]", e);
+        }
+    }
+
+    public static String decodeUrl(String text) {
+        try {
+            return URLDecoder.decode(text, "UTF-8");
+        } catch (UnsupportedEncodingException e) {
+            throw new IllegalArgumentException("failed to URL decode text [" + text + "]", e);
+        }
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject();
@@ -171,16 +190,28 @@ public class HttpRequest implements ToXContent {
 
     @Override
     public String toString() {
-        return "HttpRequest{" +
-                "auth=[" + (auth != null ? "******" : null) +
-                "], body=[" + body + '\'' +
-                "], path=[" + path + '\'' +
-                "], method=[" + method +
-                "], port=[" + port +
-                "], host=[" + host + '\'' +
-                "], connection_timeout=[" + connectionTimeout + '\'' +
-                "], read_timeout=[" + readTimeout + '\'' +
-                "]}";
+        StringBuilder sb = new StringBuilder();
+        sb.append("method=[").append(method).append("], ");
+        sb.append("scheme=[").append(scheme).append("], ");
+        sb.append("host=[").append(host).append("], ");
+        sb.append("port=[").append(port).append("], ");
+        sb.append("path=[").append(path).append("], ");
+        if (!headers.isEmpty()) {
+            sb.append(", headers=[");
+            boolean first = true;
+            for (Map.Entry<String, String> header : headers.entrySet()) {
+                if (!first) {
+                    sb.append(", ");
+                }
+                sb.append("[").append(header.getKey()).append(": ").append(header.getValue()).append("]");
+                first = false;
+            }
+            sb.append("], ");
+        }
+        sb.append("connection_timeout=[").append(connectionTimeout).append("], ");
+        sb.append("read_timeout=[").append(readTimeout).append("], ");
+        sb.append("body=[").append(body).append("], ");
+        return sb.toString();
     }
 
     public static Builder builder(String host, int port) {

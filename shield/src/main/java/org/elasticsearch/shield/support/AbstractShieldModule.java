@@ -7,8 +7,6 @@ package org.elasticsearch.shield.support;
 
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.inject.SpawnModules;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.ShieldPlugin;
 
@@ -33,20 +31,6 @@ public abstract class AbstractShieldModule extends AbstractModule {
     }
 
     protected abstract void configure(boolean clientMode);
-
-    public static abstract class Spawn extends AbstractShieldModule implements SpawnModules {
-
-        protected Spawn(Settings settings) {
-            super(settings);
-        }
-
-        @Override
-        public final Iterable<? extends Module> spawnModules() {
-            return spawnModules(clientMode);
-        }
-
-        public abstract Iterable<? extends Module> spawnModules(boolean clientMode);
-    }
 
     public static abstract class Node extends AbstractShieldModule {
 

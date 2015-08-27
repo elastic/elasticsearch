@@ -1,5 +1,5 @@
 {
-  "cluster_name": "test",
+  "cluster_uuid": "dsFPzYRyQCe6cq48a0wxkQ",
   "timestamp": "2015-07-22T15:54:02.979Z",
   "cluster_stats": {
     "indices": {
@@ -23,7 +23,7 @@
         "total": 1
       },
       "versions": [
-        "2.0.0-beta1-SNAPSHOT"
+        "2.0.0-SNAPSHOT"
       ],
       "jvm": {
         "max_uptime_in_millis": 75191

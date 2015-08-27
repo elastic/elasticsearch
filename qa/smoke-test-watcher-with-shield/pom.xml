@@ -25,7 +25,7 @@
   <parent>
     <groupId>org.elasticsearch.qa</groupId>
     <artifactId>x-plugins-qa</artifactId>
-    <version>2.0.0-beta1-SNAPSHOT</version>
+    <version>2.1.0-SNAPSHOT</version>
   </parent>
 
   <artifactId>smoke-test-watcher-with-shield</artifactId>
@@ -36,26 +36,26 @@
     <skip.unit.tests>true</skip.unit.tests>
     <elasticsearch.integ.antfile>${project.basedir}/integration-tests.xml</elasticsearch.integ.antfile>
     <tests.rest.load_packaged>false</tests.rest.load_packaged>
-    <xplugins.list>elasticsearch-license,elasticsearch-shield,elasticsearch-watcher</xplugins.list>
+    <xplugins.list>license,shield,watcher</xplugins.list>
     <tests.rest.blacklist>hijack/10_basic/*</tests.rest.blacklist>
   </properties>
 
   <dependencies>
     <dependency>
       <groupId>org.elasticsearch.plugin</groupId>
-      <artifactId>elasticsearch-shield</artifactId>
+      <artifactId>shield</artifactId>
+      <version>${elasticsearch.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.elasticsearch.plugin</groupId>
+      <artifactId>watcher</artifactId>
       <version>${project.version}</version>
       <scope>test</scope>
     </dependency>
     <dependency>
       <groupId>org.elasticsearch.plugin</groupId>
-      <artifactId>elasticsearch-watcher</artifactId>
-      <version>${project.version}</version>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
-      <groupId>org.elasticsearch.plugin</groupId>
-      <artifactId>elasticsearch-license</artifactId>
+      <artifactId>license</artifactId>
       <version>${project.version}</version>
       <scope>test</scope>
     </dependency>
@@ -126,7 +126,7 @@
                  <!-- commercial plugins -->
                  <artifactItem>
                    <groupId>org.elasticsearch.plugin</groupId>
-                   <artifactId>elasticsearch-license</artifactId>
+                   <artifactId>license</artifactId>
                    <version>${elasticsearch.version}</version>
                    <type>zip</type>
                    <overWrite>true</overWrite>
@@ -134,7 +134,7 @@
 
                  <artifactItem>
                    <groupId>org.elasticsearch.plugin</groupId>
-                   <artifactId>elasticsearch-watcher</artifactId>
+                   <artifactId>watcher</artifactId>
                    <version>${elasticsearch.version}</version>
                    <type>zip</type>
                    <overWrite>true</overWrite>
@@ -142,7 +142,7 @@
 
                  <artifactItem>
                    <groupId>org.elasticsearch.plugin</groupId>
-                   <artifactId>elasticsearch-shield</artifactId>
+                   <artifactId>shield</artifactId>
                    <version>${elasticsearch.version}</version>
                    <type>zip</type>
                    <overWrite>true</overWrite>

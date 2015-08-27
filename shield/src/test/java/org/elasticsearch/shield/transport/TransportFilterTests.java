@@ -14,7 +14,7 @@ import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.shield.action.ShieldActionMapper;
 import org.elasticsearch.shield.authc.AuthenticationService;
 import org.elasticsearch.shield.authz.AuthorizationService;
@@ -49,7 +49,7 @@ public class TransportFilterTests extends ESIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.settingsBuilder()
                 .put("plugins.load_classpath_plugins", false)
-                .putArray("plugin.types", InternalPlugin.class.getName(), InternalPluginServerTransportService.Plugin.class.getName())
+                .putArray("plugin.types", InternalPlugin.class.getName(), InternalPluginServerTransportService.TestPlugin.class.getName())
                 .put("node.mode", "network")
                 .build();
     }
@@ -87,7 +87,7 @@ public class TransportFilterTests extends ESIntegTestCase {
         inOrder.verify(sourceServerFilter).inbound(eq("_action"), eq(new Request("trgt_to_src")), isA(NettyTransportChannel.class));
     }
 
-    public static class InternalPlugin extends AbstractPlugin {
+    public static class InternalPlugin extends Plugin {
 
         @Override
         public String name() {
@@ -100,8 +100,8 @@ public class TransportFilterTests extends ESIntegTestCase {
         }
 
         @Override
-        public Collection<Class<? extends Module>> modules() {
-            return ImmutableSet.<Class<? extends Module>>of(TestTransportFilterModule.class);
+        public Collection<Module> nodeModules() {
+            return Collections.<Module>singletonList(new TestTransportFilterModule());
         }
     }
 
@@ -264,7 +264,7 @@ public class TransportFilterTests extends ESIntegTestCase {
 
     // Sub class the Shield transport to always inject a mock for testing
     static class InternalPluginServerTransportService extends ShieldServerTransportService {
-        public static class Plugin extends AbstractPlugin {
+        public static class TestPlugin extends Plugin {
             @Override
             public String name() {
                 return "mock-transport-service";

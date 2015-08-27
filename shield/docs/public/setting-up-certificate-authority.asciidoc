@@ -17,7 +17,7 @@ IMPORTANT: Because a Certificate Authority is a central point of trust, the priv
 To set up a CA:
 
 . Create the directory structure where the CA configuration and certificates will be stored. You 
-need to create a `ca` directory and three subdirectories: `private`, `certs`, and `conf`:
+need to create a `ca` directory and three subdirectories: `private`, `certs`, and `conf`.
 +
 [source,shell]
 --------------------------------------------------
@@ -33,7 +33,7 @@ echo '01' > serial
 touch index.txt
 --------------------------------------------------
 
-. Create a CA configuration template and store it in `ca/conf/caconfig.cnf`. You use the 
+. Create a CA configuration template and store it in `conf/caconfig.cnf`. You use the 
 configuration template to set options for the CA that cannot be passed in from the
 command line. The following template defines a basic CA configuration you 
 can use as a starting point.
@@ -119,8 +119,7 @@ where you want to store the CA's private key and certificate with the `-keyout` 
 +
 [source,shell]
 ------------------------------------------------------------------------------
-openssl req -new -x509 -extensions v3_ca -keyout private/cakey.pem 
--out certs/cacert.pem -days 1460  -config conf/caconfig.cnf
+openssl req -new -x509 -extensions v3_ca -keyout private/cakey.pem -out certs/cacert.pem -days 1460  -config conf/caconfig.cnf
 ------------------------------------------------------------------------------
 +
 NOTE: When the CA certificate expires, trust in the CA is revoked and you need to generate a new CA certificate and re-sign your node certificates.
@@ -179,8 +178,7 @@ your CA's configuration file with the `-config` option.
 +
 [source,shell]
 -----------------------------------------------------------------------------
-openssl ca -in node01.csr -notext -out node01-signed.crt 
--config conf/caconfig.cnf -extensions v3_req
+openssl ca -in node01.csr -notext -out node01-signed.crt -config conf/caconfig.cnf -extensions v3_req
 -----------------------------------------------------------------------------
 +
 The signed certificate contains the node's original unsigned certificate, your CA certificate, and 

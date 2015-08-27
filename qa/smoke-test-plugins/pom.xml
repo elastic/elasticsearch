@@ -338,6 +338,14 @@
 
                  <artifactItem>
                    <groupId>org.elasticsearch.plugin</groupId>
+                   <artifactId>mapping-transform-script</artifactId>
+                   <version>${elasticsearch.version}</version>
+                   <type>zip</type>
+                   <overWrite>true</overWrite>
+                 </artifactItem>
+
+                 <artifactItem>
+                   <groupId>org.elasticsearch.plugin</groupId>
                    <artifactId>mapper-murmur3</artifactId>
                    <version>${elasticsearch.version}</version>
                    <type>zip</type>

@@ -219,7 +219,7 @@ public class NewPathForShardTest extends ESTestCase {
         dataPathToShardCount.put(NodeEnvironment.shardStatePathToDataPath(result1.getDataPath()), 1);
         ShardPath result2 = ShardPath.selectNewPathForShard(nodeEnv, shardId, Settings.EMPTY, 100, dataPathToShardCount);
 
-        // This was the original failure: on a node with 2 disks that have nearly equal
+        // #11122: this was the original failure: on a node with 2 disks that have nearly equal
         // free space, we would always allocate all N incoming shards to the one path that
         // had the most free space, never using the other drive unless new shards arrive
         // after the first shards started using storage:

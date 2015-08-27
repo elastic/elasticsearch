@@ -470,22 +470,18 @@ public class IndexStatsIT extends ESIntegTestCase {
         try {
             client().prepareIndex("test1", "type1", Integer.toString(1)).setSource("field", "value").setVersion(1)
                     .setVersionType(VersionType.EXTERNAL).execute().actionGet();
-        } catch (VersionConflictEngineException e) {
-            //expected
-        }
+            fail("Expected a version conflict");
+        } catch (VersionConflictEngineException e) {}
         try {
             client().prepareIndex("test1", "type2", Integer.toString(1)).setSource("field", "value").setVersion(1)
                     .setVersionType(VersionType.EXTERNAL).execute().actionGet();
-        } catch (VersionConflictEngineException e) {
-            //expected
-        }
+            fail("Expected a version conflict");
+        } catch (VersionConflictEngineException e) {}
         try {
             client().prepareIndex("test2", "type", Integer.toString(1)).setSource("field", "value").setVersion(1)
                     .setVersionType(VersionType.EXTERNAL).execute().actionGet();
-        } catch (VersionConflictEngineException e) {
-            //expected
-        }
-        refresh();
+            fail("Expected a version conflict");
+        } catch (VersionConflictEngineException e) {}
 
         stats = client().admin().indices().prepareStats().setTypes("type1").execute().actionGet();
         assertThat(stats.getIndex("test1").getTotal().getIndexing().getTotal().getIndexFailedCount(), equalTo(2l));

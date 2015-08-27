@@ -171,7 +171,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         pingTimeout = settings.getAsTime("discovery.zen.ping_timeout", pingTimeout);
         this.pingTimeout = settings.getAsTime(SETTING_PING_TIMEOUT, pingTimeout);
 
-        this.joinTimeout = settings.getAsTime(SETTING_JOIN_TIMEOUT, TimeValue.timeValueMillis(pingTimeout.millis() * 20));
+        this.joinTimeout = settings.getAsTime(SETTING_JOIN_TIMEOUT, TimeValue.timeValueMillis(this.pingTimeout.millis() * 20));
         this.joinRetryAttempts = settings.getAsInt(SETTING_JOIN_RETRY_ATTEMPTS, 3);
         this.joinRetryDelay = settings.getAsTime(SETTING_JOIN_RETRY_DELAY, TimeValue.timeValueMillis(100));
         this.maxPingsFromAnotherMaster = settings.getAsInt(SETTING_MAX_PINGS_FROM_ANOTHER_MASTER, 3);

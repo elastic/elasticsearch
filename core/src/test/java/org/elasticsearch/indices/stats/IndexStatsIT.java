@@ -483,10 +483,11 @@ public class IndexStatsIT extends ESIntegTestCase {
             fail("Expected a version conflict");
         } catch (VersionConflictEngineException e) {}
 
-        stats = client().admin().indices().prepareStats().setTypes("type1").execute().actionGet();
+        stats = client().admin().indices().prepareStats().setTypes("type1", "type2").execute().actionGet();
         assertThat(stats.getIndex("test1").getTotal().getIndexing().getTotal().getIndexFailedCount(), equalTo(2l));
         assertThat(stats.getIndex("test2").getTotal().getIndexing().getTotal().getIndexFailedCount(), equalTo(1l));
         assertThat(stats.getPrimaries().getIndexing().getTypeStats().get("type1").getIndexFailedCount(), equalTo(1L));
+        assertThat(stats.getPrimaries().getIndexing().getTypeStats().get("type2").getIndexFailedCount(), equalTo(1L));
         assertThat(stats.getTotal().getIndexing().getTotal().getIndexFailedCount(), equalTo(3L));
     }
 

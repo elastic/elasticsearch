@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.plugin.mappingtransform;
+package org.elasticsearch.plugin.mapping.transform.script;
 
 import com.google.common.collect.ImmutableMap;
 
@@ -30,6 +30,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.plugin.mapping.transform.script.MappingTransformScriptPlugin;
 import org.elasticsearch.script.expression.ExpressionScriptEngineService;
 import org.elasticsearch.script.groovy.GroovyScriptEngineService;
 import org.elasticsearch.search.suggest.SuggestBuilders;
@@ -61,7 +62,7 @@ public class TransformOnIndexMapperIT extends ESIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put("plugin.types", MappingTransformPlugin.class.getName())
+                .put("plugin.types", MappingTransformScriptPlugin.class.getName())
                 .build();
     }
 

@@ -21,14 +21,14 @@ governing permissions and limitations under the License. -->
         <version>2.1.0-SNAPSHOT</version>
     </parent>
 
-    <artifactId>mapping-transform</artifactId>
-    <name>Plugin: Mapping Transform</name>
-    <description>The Mapping Transform plugin allows transforming documents before they are indexed but after the _source is stored.</description>
+    <artifactId>mapping-transform-script</artifactId>
+    <name>Plugin: Mapping Transform Script</name>
+    <description>The Mapping Transform Script plugin supports transforming documents with a script before they are indexed but after the _source is stored.</description>
 
     <properties>
-        <elasticsearch.plugin.classname>org.elasticsearch.plugin.mappingtransform.MappingTransformPlugin</elasticsearch.plugin.classname>
+        <elasticsearch.plugin.classname>org.elasticsearch.plugin.mapping.transform.script.MappingTransformScriptPlugin</elasticsearch.plugin.classname>
         <tests.ifNoTests>warn</tests.ifNoTests>
-        <tests.rest.suite>mapping_transform</tests.rest.suite>
+        <tests.rest.suite>mapping_transform_script</tests.rest.suite>
         <tests.rest.load_packaged>false</tests.rest.load_packaged>
     </properties>
 

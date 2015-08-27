@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.plugin.mappingtransform;
+package org.elasticsearch.plugin.mapping.transform.script;
 
 import org.elasticsearch.index.mapper.MapperServiceModule;
 import org.elasticsearch.plugins.Plugin;
@@ -29,7 +29,7 @@ import org.elasticsearch.plugins.Plugin;
  * You are better off if you just think of these transform scripts as
  * <code>copy_to</code> on steroids.
  */
-public class MappingTransformPlugin extends Plugin {
+public class MappingTransformScriptPlugin extends Plugin {
     public static final String NAME = "mapping-transform";
 
     @Override

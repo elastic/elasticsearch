@@ -18,7 +18,19 @@
  */
 package org.elasticsearch.index.shard;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
+import java.io.IOException;
+import java.lang.reflect.Field;
+import java.nio.file.FileStore;
+import java.nio.file.FileSystem;
+import java.nio.file.FileSystems;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.attribute.FileAttributeView;
+import java.nio.file.attribute.FileStoreAttributeView;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Set;
 
 import org.apache.lucene.mockfile.FilterFileSystem;
 import org.apache.lucene.mockfile.FilterFileSystemProvider;
@@ -27,24 +39,14 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.NodeEnvironment.NodePath;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import java.io.IOException;
-import java.lang.reflect.Field;
-import java.nio.file.FileStore;
-import java.nio.file.FileSystem;
-import java.nio.file.FileSystems;
-import java.nio.file.Path;
-import java.nio.file.attribute.FileAttributeView;
-import java.nio.file.attribute.FileStoreAttributeView;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Set;
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 
@@ -122,7 +124,7 @@ public class NewPathForShardTest extends ESTestCase {
 
         @Override
         public String name() {
-            return "mock";
+            return desc;
         }
 
         @Override
@@ -174,15 +176,21 @@ public class NewPathForShardTest extends ESTestCase {
     }
 
     public void testSelectNewPathForShard() throws Exception {
-        Path path = createTempDir();
+        Path path = PathUtils.get(createTempDir().toString());
 
-        String[] paths = new String[2];
-        paths[0] = path.resolve("a").toString();
-        paths[1] = path.resolve("b").toString();
+        String[] paths = new String[] {path.resolve("a").toString(),
+                                       path.resolve("b").toString()};
 
         Settings settings = Settings.builder()
             .put("path.home", path)
             .putArray("path.data", paths).build();
         NodeEnvironment nodeEnv = new NodeEnvironment(settings, new Environment(settings));
+
+        // Make sure all our mocking above actually worked:
+        NodePath[] nodePaths = nodeEnv.nodePaths();
+        assertEquals(2, nodePaths.length);
+
+        assertEquals("mocka", nodePaths[0].fileStore.name());
+        assertEquals("mockb", nodePaths[1].fileStore.name());
     }
 }

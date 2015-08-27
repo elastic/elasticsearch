@@ -20,12 +20,7 @@
 package org.elasticsearch.common.lucene.search;
 
 import com.carrotsearch.hppc.ObjectHashSet;
-
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.Term;
-import org.apache.lucene.index.Terms;
-import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.index.*;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.Query;
@@ -34,12 +29,7 @@ import org.apache.lucene.util.StringHelper;
 import org.apache.lucene.util.ToStringUtils;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.Iterator;
-import java.util.List;
-import java.util.ListIterator;
+import java.util.*;
 
 public class MultiPhrasePrefixQuery extends Query {
 
@@ -90,7 +80,7 @@ public class MultiPhrasePrefixQuery extends Query {
     public void add(Term[] terms) {
         int position = 0;
         if (positions.size() > 0)
-            position = positions.get(positions.size() - 1).intValue() + 1;
+            position = positions.get(positions.size() - 1) + 1;
 
         add(terms, position);
     }
@@ -98,8 +88,8 @@ public class MultiPhrasePrefixQuery extends Query {
     /**
      * Allows to specify the relative position of terms within the phrase.
      *
-     * @param terms
-     * @param position
+     * @param terms the terms
+     * @param position the position of the terms provided as argument
      * @see org.apache.lucene.search.PhraseQuery#add(Term, int)
      */
     public void add(Term[] terms, int position) {
@@ -115,15 +105,7 @@ public class MultiPhrasePrefixQuery extends Query {
         }
 
         termArrays.add(terms);
-        positions.add(Integer.valueOf(position));
-    }
-
-    /**
-     * Returns a List of the terms in the multiphrase.
-     * Do not modify the List or its contents.
-     */
-    public List<Term[]> getTermArrays() {
-        return Collections.unmodifiableList(termArrays);
+        positions.add(position);
     }
 
     /**
@@ -132,7 +114,7 @@ public class MultiPhrasePrefixQuery extends Query {
     public int[] getPositions() {
         int[] result = new int[positions.size()];
         for (int i = 0; i < positions.size(); i++)
-            result[i] = positions.get(i).intValue();
+            result[i] = positions.get(i);
         return result;
     }
 
@@ -160,6 +142,7 @@ public class MultiPhrasePrefixQuery extends Query {
             return Queries.newMatchNoDocsQuery();
         }
         query.add(terms.toArray(Term.class), position);
+        query.setBoost(getBoost());
         return query.rewrite(reader);
     }
 

@@ -265,12 +265,12 @@ if __name__ == "__main__":
   hash = args.hash
   verbose = args.verbose
   url = args.url
-  files = [
-    'org/elasticsearch/distribution/tar/elasticsearch/2.0.0-beta1/elasticsearch-2.0.0-beta1.tar.gz',
-    'org/elasticsearch/distribution/zip/elasticsearch/2.0.0-beta1/elasticsearch-2.0.0-beta1.zip',
-    'org/elasticsearch/distribution/deb/elasticsearch/2.0.0-beta1/elasticsearch-2.0.0-beta1.deb',
-    'org/elasticsearch/distribution/rpm/elasticsearch/2.0.0-beta1/elasticsearch-2.0.0-beta1.rpm'
-  ]
+  files = [ x % {'version': version} for x in [
+    'org/elasticsearch/distribution/tar/elasticsearch/%(version)s/elasticsearch-%(version)s.tar.gz',
+    'org/elasticsearch/distribution/zip/elasticsearch/%(version)s/elasticsearch-%(version)s.zip',
+    'org/elasticsearch/distribution/deb/elasticsearch/%(version)s/elasticsearch-%(version)s.deb',
+    'org/elasticsearch/distribution/rpm/elasticsearch/%(version)s/elasticsearch-%(version)s.rpm'
+  ]]
   verify_java_version('1.7')
   if url:
     download_url = url

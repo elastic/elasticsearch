@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.transport.DummyTransportAddress;
-import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
@@ -46,7 +45,6 @@ public class ZenDiscoveryUnitTest extends ESTestCase {
 
         DiscoveryNodes.Builder currentNodes = DiscoveryNodes.builder();
         currentNodes.masterNodeId("a").put(new DiscoveryNode("a", DummyTransportAddress.INSTANCE, Version.CURRENT));
-        ;
         DiscoveryNodes.Builder newNodes = DiscoveryNodes.builder();
         newNodes.masterNodeId("a").put(new DiscoveryNode("a", DummyTransportAddress.INSTANCE, Version.CURRENT));
 

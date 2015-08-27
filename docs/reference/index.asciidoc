@@ -1,7 +1,7 @@
 [[elasticsearch-reference]]
 = Elasticsearch Reference
 
-:version:   2.0.0-beta1
+:version:   2.0.0-beta2
 :branch:    2.0
 :jdk:       1.8.0_25
 :defguide:  https://www.elastic.co/guide/en/elasticsearch/guide/current

@@ -90,12 +90,6 @@ public class MapperQueryParser extends QueryParser {
         this.parseContext = parseContext;
     }
 
-    public MapperQueryParser(QueryParserSettings settings, QueryParseContext parseContext) {
-        super(settings.defaultField(), settings.defaultAnalyzer());
-        this.parseContext = parseContext;
-        reset(settings);
-    }
-
     public void reset(QueryParserSettings settings) {
         this.settings = settings;
         this.field = settings.defaultField();

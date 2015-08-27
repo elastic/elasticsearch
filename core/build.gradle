@@ -6,12 +6,13 @@ apply plugin: 'org.elasticsearch.devtools.randomizedtesting'
 sourceCompatibility = '1.7'
 
 configurations {
-  restSpec {}
+  restSpec
 }
 
 repositories {
   mavenCentral()
 }
+
 
 //jvmExecutable = "${System.env.JAVA_HOME}" + File.separator + "bin" + File.separator + "java"
 
@@ -76,7 +77,7 @@ dependencies {
   testCompile(group: 'junit', name: 'junit', version: '4.11') {
     transitive = false
   }
-  testCompile group: 'com.carrotsearch.randomizedtesting', name: 'junit4-ant', version: '2.1.16'
+  testCompile group: 'com.carrotsearch.randomizedtesting', name: 'randomizedtesting-runner', version: '2.1.16'
   testCompile group: 'org.apache.lucene', name: 'lucene-test-framework', version: luceneVersion
   testCompile(group: 'org.hamcrest', name: 'hamcrest-all', version: '1.3') {
     exclude group: 'org.hamcrest', module: 'hamcrest-core'
@@ -102,10 +103,9 @@ sourceSets {
   }
 }
 
-task sourcesJar(type: Jar) {
-    dependsOn classes
-    from sourceSets.main.java
+task sourcesJar(type: Jar, dependsOn: classes) {
     classifier = 'sources'
+    from sourceSets.main.java
 }
 
 /*
@@ -130,8 +130,18 @@ task copyRestSpec(type: Copy, dependsOn: configurations.testRuntime.buildDepende
   into sourceSets.test.output.classesDir
 }
 
+test {
+  dependsOn copyRestSpec
+
+  logging.setLevel(LogLevel.INFO)
+
+  outputs.upToDateWhen {
+    false
+  }
+}
+
 // TODO: how to have task know about this global?
-ant.taskdef(resource: 'com/carrotsearch/junit4/antlib.xml',
+/*ant.taskdef(resource: 'com/carrotsearch/junit4/antlib.xml',
             uri: 'junit4',
             classpath: configurations.testCompile.asPath)
 def junit4runner = NamespaceBuilder.newInstance(ant, 'junit4')
@@ -164,12 +174,13 @@ class RandomizedRunnerTask extends DefaultTask {
       }
       jvmarg(line: '-ea -esa')
       fileset(dir: sourceSet.output.classesDir) {
-        include(name:'**/*IT.class') // temp
+*/
+//        include(name:'**/*IT.class') // temp
         //include(name:'**/*Test.class')
         //include(name:'**/*Tests.class')
-        exclude(name:'**/Abstract*.class')
-        exclude(name:'**/*StressTest.class')
-      }
+//        exclude(name:'**/Abstract*.class')
+//        exclude(name:'**/*StressTest.class')
+/*      }
       listeners {
         junit4.'report-text'(
           showThrowable: true,
@@ -186,6 +197,7 @@ class RandomizedRunnerTask extends DefaultTask {
     }
   }
 }
+*/
 
 artifacts {
     archives sourcesJar

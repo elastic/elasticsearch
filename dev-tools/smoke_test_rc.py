@@ -266,10 +266,10 @@ if __name__ == "__main__":
   verbose = args.verbose
   url = args.url
   files = [
-    'org/elasticsearch/distribution/tar/elasticsearch/2.0.0-beta1/elasticsearch-2.0.0-beta1.tar.gz',
-    'org/elasticsearch/distribution/zip/elasticsearch/2.0.0-beta1/elasticsearch-2.0.0-beta1.zip',
-    'org/elasticsearch/distribution/deb/elasticsearch/2.0.0-beta1/elasticsearch-2.0.0-beta1.deb',
-    'org/elasticsearch/distribution/rpm/elasticsearch/2.0.0-beta1/elasticsearch-2.0.0-beta1.rpm'
+    'org/elasticsearch/distribution/tar/elasticsearch/2.0.0-beta2/elasticsearch-2.0.0-beta2.tar.gz',
+    'org/elasticsearch/distribution/zip/elasticsearch/2.0.0-beta2/elasticsearch-2.0.0-beta2.zip',
+    'org/elasticsearch/distribution/deb/elasticsearch/2.0.0-beta2/elasticsearch-2.0.0-beta2.deb',
+    'org/elasticsearch/distribution/rpm/elasticsearch/2.0.0-beta2/elasticsearch-2.0.0-beta2.rpm'
   ]
   verify_java_version('1.7')
   if url:

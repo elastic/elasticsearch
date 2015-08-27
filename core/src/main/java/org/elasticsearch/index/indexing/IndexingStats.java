@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.indexing;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -161,7 +162,10 @@ public class IndexingStats implements Streamable, ToXContent {
             indexCount = in.readVLong();
             indexTimeInMillis = in.readVLong();
             indexCurrent = in.readVLong();
-            indexFailedCount = in.readVLong();
+
+            if(in.getVersion().onOrAfter(Version.V_2_1_0)){
+                indexFailedCount = in.readVLong();
+            }
 
             deleteCount = in.readVLong();
             deleteTimeInMillis = in.readVLong();
@@ -176,7 +180,10 @@ public class IndexingStats implements Streamable, ToXContent {
             out.writeVLong(indexCount);
             out.writeVLong(indexTimeInMillis);
             out.writeVLong(indexCurrent);
-            out.writeVLong(indexFailedCount);
+
+            if(out.getVersion().onOrAfter(Version.V_2_1_0)) {
+                out.writeVLong(indexFailedCount);
+            }
 
             out.writeVLong(deleteCount);
             out.writeVLong(deleteTimeInMillis);

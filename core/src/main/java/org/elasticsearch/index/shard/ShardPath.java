@@ -204,8 +204,6 @@ public final class ShardPath {
         final Path dataPath;
         final Path statePath;
 
-        final String indexUUID = indexSettings.get(IndexMetaData.SETTING_INDEX_UUID, IndexMetaData.INDEX_UUID_NA_VALUE);
-
         if (NodeEnvironment.hasCustomDataPath(indexSettings)) {
             dataPath = env.resolveCustomLocation(indexSettings, shardId);
             statePath = env.nodePaths()[0].resolve(shardId);
@@ -245,6 +243,8 @@ public final class ShardPath {
             statePath = bestPath.resolve(shardId);
             dataPath = statePath;
         }
+
+        final String indexUUID = indexSettings.get(IndexMetaData.SETTING_INDEX_UUID, IndexMetaData.INDEX_UUID_NA_VALUE);
 
         return new ShardPath(NodeEnvironment.hasCustomDataPath(indexSettings), dataPath, statePath, indexUUID, shardId);
     }

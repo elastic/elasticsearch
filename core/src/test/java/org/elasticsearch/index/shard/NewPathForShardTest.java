@@ -29,7 +29,10 @@ import java.nio.file.attribute.FileAttributeView;
 import java.nio.file.attribute.FileStoreAttributeView;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import org.apache.lucene.mockfile.FilterFileSystem;
@@ -178,6 +181,7 @@ public class NewPathForShardTest extends ESTestCase {
     public void testSelectNewPathForShard() throws Exception {
         Path path = PathUtils.get(createTempDir().toString());
 
+        // Use 2 data paths:
         String[] paths = new String[] {path.resolve("a").toString(),
                                        path.resolve("b").toString()};
 
@@ -192,5 +196,35 @@ public class NewPathForShardTest extends ESTestCase {
 
         assertEquals("mocka", nodePaths[0].fileStore.name());
         assertEquals("mockb", nodePaths[1].fileStore.name());
+
+        // a has lots of free space, but b has little, so new shard should go to a:
+        aFileStore.usableSpace = 100000;
+        bFileStore.usableSpace = 1000;
+
+        ShardId shardId = new ShardId("index", 0);
+        ShardPath result = ShardPath.selectNewPathForShard(nodeEnv, shardId, Settings.EMPTY, 100, Collections.<Path,Integer>emptyMap());
+        assertTrue(result.getDataPath().toString().contains("/a/"));
+
+        // test the reverse: b has lots of free space, but a has little, so new shard should go to b:
+        aFileStore.usableSpace = 1000;
+        bFileStore.usableSpace = 100000;
+
+        shardId = new ShardId("index", 0);
+        result = ShardPath.selectNewPathForShard(nodeEnv, shardId, Settings.EMPTY, 100, Collections.<Path,Integer>emptyMap());
+        assertTrue(result.getDataPath().toString().contains("/b/"));
+
+        // now a and be have equal usable space; we allocate two shards to the node, and each should go to different paths:
+        aFileStore.usableSpace = 100000;
+        bFileStore.usableSpace = 100000;
+
+        Map<Path,Integer> dataPathToShardCount = new HashMap<>();
+        ShardPath result1 = ShardPath.selectNewPathForShard(nodeEnv, shardId, Settings.EMPTY, 100, dataPathToShardCount);
+        dataPathToShardCount.put(NodeEnvironment.shardStatePathToDataPath(result1.getDataPath()), 1);
+        ShardPath result2 = ShardPath.selectNewPathForShard(nodeEnv, shardId, Settings.EMPTY, 100, dataPathToShardCount);
+
+        // This was the original failure: on a node with 2 disks that have nearly equal
+        // free space, we would always allocate all incoming shards to the one path that
+        // had the most free space:
+        assertNotEquals(result1.getDataPath(), result2.getDataPath());
     }
 }

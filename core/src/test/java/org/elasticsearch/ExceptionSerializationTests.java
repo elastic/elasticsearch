@@ -22,7 +22,6 @@ import com.fasterxml.jackson.core.JsonLocation;
 import com.fasterxml.jackson.core.JsonParseException;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
-
 import org.codehaus.groovy.runtime.typehandling.GroovyCastException;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.RoutingMissingException;
@@ -32,12 +31,7 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.SnapshotId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.IllegalShardRoutingStateException;
-import org.elasticsearch.cluster.routing.RoutingTableValidation;
-import org.elasticsearch.cluster.routing.RoutingValidationException;
-import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -58,6 +52,7 @@ import org.elasticsearch.index.engine.IndexFailedEngineException;
 import org.elasticsearch.index.engine.RecoveryEngineException;
 import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.query.QueryParsingException;
+import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
@@ -93,7 +88,6 @@ import java.nio.file.FileVisitor;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributes;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -235,6 +229,16 @@ public class ExceptionSerializationTests extends ESTestCase {
         assertNull(ex.getMessage());
         assertEquals(ex.getLineNumber(),1);
         assertEquals(ex.getColumnNumber(), 2);
+    }
+
+    public void testQueryShardException() throws IOException {
+        QueryShardException ex = serialize(new QueryShardException(new Index("foo"), "fobar", null));
+        assertEquals(ex.getIndex(), "foo");
+        assertEquals(ex.getMessage(), "fobar");
+
+        ex = serialize(new QueryShardException((Index)null, null, null));
+        assertNull(ex.getIndex());
+        assertNull(ex.getMessage());
     }
 
     public void testSearchException() throws IOException {

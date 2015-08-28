@@ -171,8 +171,25 @@ public final class InternalTestCluster extends TestCluster {
      */
     public static final int PORTS_PER_JVM = 100;
 
+    /**
+     * The number of ports in the range used for this cluster
+     */
+    public static final int PORTS_PER_CLUSTER = 20;
+
+    private static final int GLOBAL_TRANSPORT_BASE_PORT = 9300;
+    private static final int GLOBAL_HTTP_BASE_PORT = 19200;
+
     private static final int JVM_ORDINAL = Integer.parseInt(System.getProperty(SysGlobals.CHILDVM_SYSPROP_JVM_ID, "0"));
-    public static final int BASE_PORT = 9300 + PORTS_PER_JVM * (JVM_ORDINAL + 1);
+
+    /** a per-JVM unique offset to be used for calculating unique port ranges. */
+    public static final int JVM_BASE_PORT_OFFEST = PORTS_PER_JVM * (JVM_ORDINAL + 1);
+
+    private static final AtomicInteger clusterOrdinal = new AtomicInteger();
+    private final int CLUSTER_BASE_PORT_OFFSET = JVM_BASE_PORT_OFFEST + (clusterOrdinal.getAndIncrement() * PORTS_PER_CLUSTER) % PORTS_PER_JVM;
+
+    public final int TRANSPORT_BASE_PORT = GLOBAL_TRANSPORT_BASE_PORT + CLUSTER_BASE_PORT_OFFSET;
+    public final int HTTP_BASE_PORT = GLOBAL_HTTP_BASE_PORT + CLUSTER_BASE_PORT_OFFSET;
+
 
     private static final boolean ENABLE_MOCK_MODULES = RandomizedTest.systemPropertyAsBoolean(TESTS_ENABLE_MOCK_MODULES, true);
 
@@ -288,8 +305,8 @@ public final class InternalTestCluster extends TestCluster {
         builder.put("path.shared_data", baseDir.resolve("custom"));
         builder.put("path.home", baseDir);
         builder.put("path.repo", baseDir.resolve("repos"));
-        builder.put("transport.tcp.port", BASE_PORT + "-" + (BASE_PORT + 100));
-        builder.put("http.port", BASE_PORT + 101 + "-" + (BASE_PORT + 200));
+        builder.put("transport.tcp.port", TRANSPORT_BASE_PORT + "-" + (TRANSPORT_BASE_PORT + PORTS_PER_CLUSTER));
+        builder.put("http.port", HTTP_BASE_PORT + "-" + (HTTP_BASE_PORT + PORTS_PER_CLUSTER));
         builder.put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING, true);
         builder.put("node.mode", nodeMode);
         builder.put("http.pipelining", enableHttpPipelining);

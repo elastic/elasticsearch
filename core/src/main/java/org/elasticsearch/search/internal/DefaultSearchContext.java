@@ -77,6 +77,20 @@ import java.util.Map;
  *
  */
 public class DefaultSearchContext extends SearchContext {
+    /**
+     * Index setting describing the maximum value of from + size on a query.
+     */
+    public static final String MAX_RESULT_WINDOW = "index.max_result_window";
+    public static class Defaults {
+        /**
+         * Default maximum value of from + size on a query. 10,000 was chosen as
+         * a conservative default as it is sure to not cause trouble. Users can
+         * certainly profile their cluster and decide to set it to 100,000
+         * safely. 1,000,000 is probably way to high for any cluster to set
+         * safely.
+         */
+        public static final int MAX_RESULT_WINDOW = 10000;
+    }
 
     private final long id;
     private final ShardSearchRequest request;
@@ -168,12 +182,20 @@ public class DefaultSearchContext extends SearchContext {
      */
     @Override
     public void preProcess() {
-        if (!(from() == -1 && size() == -1)) {
-            // from and size have been set.
-            int numHits = from() + size();
-            if (numHits < 0) {
-                String msg = "Result window is too large, from + size must be less than or equal to: [" + Integer.MAX_VALUE + "] but was [" + (((long) from()) + ((long) size())) + "]";
-                throw new QueryPhaseExecutionException(this, msg);
+        if (scrollContext == null) {
+            long from = from() == -1 ? 0 : from();
+            long size = size() == -1 ? 10 : size();
+            long resultWindow = from + size;
+            // We need settingsService's view of the settings because its dynamic.
+            // indexService's isn't.
+            int maxResultWindow = indexService.settingsService().getSettings().getAsInt(MAX_RESULT_WINDOW, Defaults.MAX_RESULT_WINDOW);
+
+            if (resultWindow > maxResultWindow) {
+                throw new QueryPhaseExecutionException(this,
+                        "Result window is too large, from + size must be less than or equal to: [" + maxResultWindow + "] but was ["
+                                + resultWindow + "]. See the scroll api for a more efficient way to request large data sets. "
+                                + "This limit can be set by changing the [" + DefaultSearchContext.MAX_RESULT_WINDOW
+                                + "] index level parameter.");
             }
         }
 

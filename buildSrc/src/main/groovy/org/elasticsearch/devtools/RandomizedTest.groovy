@@ -6,6 +6,7 @@ import com.carrotsearch.ant.tasks.junit4.events.aggregated.AggregatedStartEvent
 import com.carrotsearch.ant.tasks.junit4.listeners.AggregatedEventListener
 import groovy.xml.NamespaceBuilder
 import org.apache.tools.ant.RuntimeConfigurable
+import org.apache.tools.ant.Task
 import org.apache.tools.ant.UnknownElement
 import org.gradle.api.DefaultTask
 import org.gradle.api.logging.Logger
@@ -47,6 +48,8 @@ class RandomizedTest extends DefaultTask {
 
     @TaskAction
     void executeTests() {
+        def test1 = '**/*Test.class'
+        def test2 = '**/*Tests.class'
         def sourceSet = ((SourceSetContainer)getProject().getProperties().get('sourceSets')).getByName('test')
         def workingDir = new File(getProject().buildDir, "run-test")
         ant.taskdef(resource: 'com/carrotsearch/junit4/antlib.xml',
@@ -64,14 +67,11 @@ class RandomizedTest extends DefaultTask {
             }
             jvmarg(line: '-ea -esa')
             fileset(dir: sourceSet.output.classesDir) {
-                //include(name: '**/*IT.class') // temp
-                include(name:'**/*Test.class')
-                include(name:'**/*Tests.class')
-                //exclude(name: '**/Abstract*.class')
-                //exclude(name: '**/*StressTest.class')
+                include(name: test1)
+                include(name: test2)
             }
             listeners {
-                junit4.'report-text'(
+                /*junit4.'report-text'(
                         showThrowable: true,
                         showStackTraces: true,
                         showOutput: 'onerror', // TODO: change to property
@@ -81,16 +81,25 @@ class RandomizedTest extends DefaultTask {
                         showStatusIgnored: true,
                         showSuiteSummary: true,
                         timestamps: false
-                )
-                delegate.current.addChild(makeProgressListener())
+                )*/
+                makeProgressListener(ant)
             }
         }
     }
 
-    def makeProgressListener() {
-        UnknownElement element = new UnknownElement('gradle-progress-reporter')
+    def makeProgressListener(AntBuilder ant) {
+        def name = 'gradle-report-listener'
         def logger = new JUnit4ProgressLogger(factory: getProgressLoggerFactory(), logger: getLogger())
-        element.setRuntimeConfigurableWrapper(new RuntimeConfigurable(logger, 'gradle-progress-reporter'))
-        return element
+        def context = ant.getAntXmlContext();
+        def parentWrapper = context.currentWrapper()
+        def parent = parentWrapper.getProxy()
+        UnknownElement element = new UnknownElement(name)
+        element.setProject(context.getProject())
+        element.setRealThing(logger)
+        //element.setRuntimeConfigurableWrapper(new RuntimeConfigurable(logger, name))
+        ((UnknownElement)parent).addChild(element);
+        RuntimeConfigurable wrapper = new RuntimeConfigurable(element, name);
+        parentWrapper.addChild(wrapper)
+        return wrapper.getProxy()
     }
 }

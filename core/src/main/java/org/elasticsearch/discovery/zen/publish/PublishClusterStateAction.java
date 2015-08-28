@@ -491,10 +491,9 @@ public class PublishClusterStateAction extends AbstractComponent {
 
         private final BlockingClusterStatePublishResponseHandler publishResponseHandler;
         final ArrayList<DiscoveryNode> sendAckedBeforeCommit = new ArrayList<>();
-        final CountDownLatch committedOrFailedLatch;
 
         // writes and reads of these are protected under synchronization
-        boolean committedOrFailed; // true if a decision was made w.r.t committing or failing
+        final CountDownLatch committedOrFailedLatch; // 0 count indicates that a decision was made w.r.t committing or failing
         boolean committed;  // true if cluster state was committed
         int neededMastersToCommit; // number of master nodes acks still needed before committing
         int pendingMasterNodes; // how many master node still need to respond
@@ -511,7 +510,6 @@ public class PublishClusterStateAction extends AbstractComponent {
                 throw new Discovery.FailedToCommitClusterStateException("not enough masters to ack sent cluster state. [{}] needed , have [{}]", neededMastersToCommit, pendingMasterNodes);
             }
             this.committed = neededMastersToCommit == 0;
-            this.committedOrFailed = committed;
             this.committedOrFailedLatch = new CountDownLatch(committed ? 0 : 1);
         }
 
@@ -540,7 +538,7 @@ public class PublishClusterStateAction extends AbstractComponent {
             if (committed) {
                 assert sendAckedBeforeCommit.isEmpty();
                 sendCommitToNode(node, clusterState, this);
-            } else if (committedOrFailed) {
+            } else if (committedOrFailed()) {
                 logger.trace("ignoring ack from [{}] for cluster state version [{}]. already failed", node, clusterState.version());
             } else {
                 // we're still waiting
@@ -549,6 +547,10 @@ public class PublishClusterStateAction extends AbstractComponent {
                     checkForCommitOrFailIfNoPending(node);
                 }
             }
+        }
+
+        private synchronized boolean committedOrFailed() {
+            return committedOrFailedLatch.getCount() == 0;
         }
 
         /**
@@ -592,12 +594,11 @@ public class PublishClusterStateAction extends AbstractComponent {
          * @return true if successful
          */
         synchronized private boolean markAsCommitted() {
-            if (committedOrFailed) {
+            if (committedOrFailed()) {
                 return committed;
             }
             logger.trace("committing version [{}]", clusterState.version());
             committed = true;
-            committedOrFailed = true;
             committedOrFailedLatch.countDown();
             return true;
         }
@@ -608,11 +609,10 @@ public class PublishClusterStateAction extends AbstractComponent {
          * @return true if the publishing was failed and the cluster state is *not* committed
          **/
         synchronized private boolean markAsFailed(String reason) {
-            if (committedOrFailed) {
+            if (committedOrFailed()) {
                 return committed == false;
             }
             logger.trace("failed to commit version [{}]. {}", clusterState.version(), reason);
-            committedOrFailed = true;
             committed = false;
             committedOrFailedLatch.countDown();
             return true;

@@ -61,7 +61,7 @@ public abstract class BucketMetricsBuilder<B extends BucketMetricsBuilder<B>> ex
         return builder;
     }
 
-    protected void doInternalXContent(XContentBuilder builder, Params params) {
+    protected void doInternalXContent(XContentBuilder builder, Params params) throws IOException {
     }
 
 }

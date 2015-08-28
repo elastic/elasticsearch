@@ -20,7 +20,6 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-import com.google.common.collect.Lists;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -34,6 +33,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllo
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.test.ESAllocationTestCase;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
@@ -390,7 +390,7 @@ public class AddIncrementallyTests extends ESAllocationTestCase {
     private ClusterState removeNodes(ClusterState clusterState, AllocationService service, int numNodes) {
         logger.info("Removing [{}] nodes", numNodes);
         DiscoveryNodes.Builder nodes = DiscoveryNodes.builder(clusterState.nodes());
-        ArrayList<DiscoveryNode> discoveryNodes = Lists.newArrayList(clusterState.nodes());
+        ArrayList<DiscoveryNode> discoveryNodes = CollectionUtils.iterableAsArrayList(clusterState.nodes());
         Collections.shuffle(discoveryNodes, getRandom());
         for (DiscoveryNode node : discoveryNodes) {
             nodes.remove(node.id());

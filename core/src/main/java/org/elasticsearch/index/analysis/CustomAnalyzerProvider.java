@@ -27,9 +27,8 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.index.settings.IndexSettings;
 
+import java.util.ArrayList;
 import java.util.List;
-
-import static com.google.common.collect.Lists.newArrayList;
 
 /**
  * A custom analyzer that is built out of a single {@link org.apache.lucene.analysis.Tokenizer} and a list
@@ -59,7 +58,7 @@ public class CustomAnalyzerProvider extends AbstractIndexAnalyzerProvider<Custom
             throw new IllegalArgumentException("Custom Analyzer [" + name() + "] failed to find tokenizer under name [" + tokenizerName + "]");
         }
 
-        List<CharFilterFactory> charFilters = newArrayList();
+        List<CharFilterFactory> charFilters = new ArrayList<>();
         String[] charFilterNames = analyzerSettings.getAsArray("char_filter");
         for (String charFilterName : charFilterNames) {
             CharFilterFactory charFilter = analysisService.charFilter(charFilterName);
@@ -69,7 +68,7 @@ public class CustomAnalyzerProvider extends AbstractIndexAnalyzerProvider<Custom
             charFilters.add(charFilter);
         }
 
-        List<TokenFilterFactory> tokenFilters = newArrayList();
+        List<TokenFilterFactory> tokenFilters = new ArrayList<>();
         String[] tokenFilterNames = analyzerSettings.getAsArray("filter");
         for (String tokenFilterName : tokenFilterNames) {
             TokenFilterFactory tokenFilter = analysisService.tokenFilter(tokenFilterName);

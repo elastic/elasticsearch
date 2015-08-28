@@ -19,8 +19,6 @@
 
 package org.elasticsearch.search.aggregations.pipeline.cumulativesum;
 
-import com.google.common.collect.Lists;
-
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -43,6 +41,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.common.util.CollectionUtils.eagerTransform;
 import static org.elasticsearch.search.aggregations.pipeline.BucketHelpers.resolveBucketValue;
 
 public class CumulativeSumPipelineAggregator extends PipelineAggregator {
@@ -89,7 +88,7 @@ public class CumulativeSumPipelineAggregator extends PipelineAggregator {
         for (InternalHistogram.Bucket bucket : buckets) {
             Double thisBucketValue = resolveBucketValue(histo, bucket, bucketsPaths()[0], GapPolicy.INSERT_ZEROS);
             sum += thisBucketValue;
-            List<InternalAggregation> aggs = new ArrayList<>(Lists.transform(bucket.getAggregations().asList(),
+            List<InternalAggregation> aggs = new ArrayList<>(eagerTransform(bucket.getAggregations().asList(),
                     AGGREGATION_TRANFORM_FUNCTION));
             aggs.add(new InternalSimpleValue(name(), sum, formatter, new ArrayList<PipelineAggregator>(), metaData()));
             InternalHistogram.Bucket newBucket = factory.createBucket(bucket.getKey(), bucket.getDocCount(),

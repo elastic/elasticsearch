@@ -20,14 +20,13 @@
 package org.elasticsearch.index.mapper;
 
 import com.google.common.collect.Iterators;
-import com.google.common.collect.Lists;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
@@ -231,7 +230,7 @@ public class FieldTypeLookupTests extends ESTestCase {
     }
 
     static List<FieldMapper> newList(FieldMapper... mapper) {
-        return Lists.newArrayList(mapper);
+        return Arrays.asList(mapper);
     }
 
     // this sucks how much must be overridden just do get a dummy field mapper...

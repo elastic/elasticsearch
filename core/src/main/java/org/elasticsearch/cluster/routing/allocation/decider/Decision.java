@@ -19,13 +19,13 @@
 
 package org.elasticsearch.cluster.routing.allocation.decider;
 
-import com.google.common.collect.Lists;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
@@ -226,7 +226,7 @@ public abstract class Decision implements ToXContent {
      */
     public static class Multi extends Decision {
 
-        private final List<Decision> decisions = Lists.newArrayList();
+        private final List<Decision> decisions = new ArrayList<>();
 
         /**
          * Add a decision to this {@link Multi}decision instance

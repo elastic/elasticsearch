@@ -26,10 +26,9 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-
-import static com.google.common.collect.Lists.newArrayList;
 
 /**
  * A builder for search highlighting. Settings can control how large fields
@@ -87,7 +86,7 @@ public class HighlightBuilder implements ToXContent {
      */
     public HighlightBuilder field(String name) {
         if (fields == null) {
-            fields = newArrayList();
+            fields = new ArrayList<>();
         }
         fields.add(new Field(name));
         return this;
@@ -103,7 +102,7 @@ public class HighlightBuilder implements ToXContent {
      */
     public HighlightBuilder field(String name, int fragmentSize) {
         if (fields == null) {
-            fields = newArrayList();
+            fields = new ArrayList<>();
         }
         fields.add(new Field(name).fragmentSize(fragmentSize));
         return this;
@@ -120,7 +119,7 @@ public class HighlightBuilder implements ToXContent {
      */
     public HighlightBuilder field(String name, int fragmentSize, int numberOfFragments) {
         if (fields == null) {
-            fields = newArrayList();
+            fields = new ArrayList<>();
         }
         fields.add(new Field(name).fragmentSize(fragmentSize).numOfFragments(numberOfFragments));
         return this;
@@ -138,7 +137,7 @@ public class HighlightBuilder implements ToXContent {
      */
     public HighlightBuilder field(String name, int fragmentSize, int numberOfFragments, int fragmentOffset) {
         if (fields == null) {
-            fields = newArrayList();
+            fields = new ArrayList<>();
         }
         fields.add(new Field(name).fragmentSize(fragmentSize).numOfFragments(numberOfFragments)
                 .fragmentOffset(fragmentOffset));
@@ -147,7 +146,7 @@ public class HighlightBuilder implements ToXContent {
 
     public HighlightBuilder field(Field field) {
         if (fields == null) {
-            fields = newArrayList();
+            fields = new ArrayList<>();
         }
         fields.add(field);
         return this;

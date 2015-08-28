@@ -26,30 +26,18 @@ import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.CoreMatchers;
-import org.junit.Ignore;
 
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
 
-import static com.google.common.collect.Lists.newArrayList;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.QueryBuilders.functionScoreQuery;
-import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
-import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.fieldValueFactorFunction;
-import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.randomFunction;
-import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.scriptFunction;
+import static org.elasticsearch.index.query.QueryBuilders.*;
+import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.*;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.hamcrest.Matchers.allOf;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
-import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.*;
 
 public class RandomScoreFunctionIT extends ESIntegTestCase {
 
@@ -121,7 +109,7 @@ public class RandomScoreFunctionIT extends ESIntegTestCase {
 
         int docCount = randomIntBetween(100, 200);
         for (int i = 0; i < docCount; i++) {
-            client().prepareIndex("test", "type", "" + i).setSource("body", randomFrom(newArrayList("foo", "bar", "baz")), "index", i + 1)// we add 1 to the index field to make sure that the scripts below never compute log(0)
+            client().prepareIndex("test", "type", "" + i).setSource("body", randomFrom(Arrays.asList("foo", "bar", "baz")), "index", i + 1) // we add 1 to the index field to make sure that the scripts below never compute log(0)
                     .get();
         }
         refresh();

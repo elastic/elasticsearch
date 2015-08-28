@@ -21,8 +21,12 @@ package org.elasticsearch.cluster.routing;
 
 import com.carrotsearch.hppc.IntSet;
 import com.google.common.base.Predicate;
-import com.google.common.collect.*;
-import org.elasticsearch.cluster.*;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Iterables;
+import com.google.common.collect.UnmodifiableIterator;
+import org.elasticsearch.cluster.Diff;
+import org.elasticsearch.cluster.Diffable;
+import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -35,7 +39,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-import static com.google.common.collect.Lists.newArrayList;
 import static com.google.common.collect.Maps.newHashMap;
 
 /**
@@ -107,7 +110,7 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
     }
 
     public List<ShardRouting> shardsWithState(ShardRoutingState state) {
-        List<ShardRouting> shards = newArrayList();
+        List<ShardRouting> shards = new ArrayList<>();
         for (IndexRoutingTable indexRoutingTable : this) {
             shards.addAll(indexRoutingTable.shardsWithState(state));
         }
@@ -120,7 +123,7 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
      * @return All the shards
      */
     public List<ShardRouting> allShards() {
-        List<ShardRouting> shards = Lists.newArrayList();
+        List<ShardRouting> shards = new ArrayList<>();
         String[] indices = indicesRouting.keySet().toArray(new String[indicesRouting.keySet().size()]);
         for (String index : indices) {
             List<ShardRouting> allShardsIndex = allShards(index);
@@ -137,7 +140,7 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
      * @throws IndexNotFoundException If the index passed does not exists
      */
     public List<ShardRouting> allShards(String index)  {
-        List<ShardRouting> shards = Lists.newArrayList();
+        List<ShardRouting> shards = new ArrayList<>();
         IndexRoutingTable indexRoutingTable = index(index);
         if (indexRoutingTable == null) {
             throw new IndexNotFoundException(index);

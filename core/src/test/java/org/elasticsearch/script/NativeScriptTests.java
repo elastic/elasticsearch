@@ -20,7 +20,6 @@
 package org.elasticsearch.script;
 
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Lists;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
@@ -36,6 +35,7 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
@@ -83,7 +83,7 @@ public class NativeScriptTests extends ESTestCase {
         Map<String, NativeScriptFactory> nativeScriptFactoryMap = new HashMap<>();
         nativeScriptFactoryMap.put("my", new MyNativeScriptFactory());
         Set<ScriptEngineService> scriptEngineServices = ImmutableSet.<ScriptEngineService>of(new NativeScriptEngineService(settings, nativeScriptFactoryMap));
-        ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(Lists.<ScriptContext.Plugin>newArrayList());
+        ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(new ArrayList<ScriptContext.Plugin>());
         ScriptService scriptService = new ScriptService(settings, environment, scriptEngineServices, resourceWatcherService, scriptContextRegistry);
 
         for (ScriptContext scriptContext : scriptContextRegistry.scriptContexts()) {

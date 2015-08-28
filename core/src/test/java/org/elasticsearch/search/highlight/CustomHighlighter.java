@@ -18,11 +18,11 @@
  */
 package org.elasticsearch.search.highlight;
 
-import com.google.common.collect.Lists;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.mapper.FieldMapper;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -51,7 +51,7 @@ public class CustomHighlighter implements Highlighter {
             }
         }
 
-        List<Text> responses = Lists.newArrayList();
+        List<Text> responses = new ArrayList<>();
         responses.add(new StringText(String.format(Locale.ENGLISH, "standard response for %s at position %s", field.field(),
                 cacheEntry.position)));
 

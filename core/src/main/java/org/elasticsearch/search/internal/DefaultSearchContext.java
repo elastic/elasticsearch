@@ -21,14 +21,21 @@ package org.elasticsearch.search.internal;
 
 import com.carrotsearch.hppc.ObjectObjectAssociativeContainer;
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Lists;
-
 import org.apache.lucene.search.BooleanClause.Occur;
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.Sort;
 import org.apache.lucene.util.Counter;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
-import org.elasticsearch.common.*;
+import org.elasticsearch.common.HasContext;
+import org.elasticsearch.common.HasContextAndHeaders;
+import org.elasticsearch.common.HasHeaders;
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -67,7 +74,12 @@ import org.elasticsearch.search.scan.ScanContext;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
  *
@@ -567,7 +579,7 @@ public class DefaultSearchContext extends SearchContext {
     @Override
     public List<String> fieldNames() {
         if (fieldNames == null) {
-            fieldNames = Lists.newArrayList();
+            fieldNames = new ArrayList<>();
         }
         return fieldNames;
     }

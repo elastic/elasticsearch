@@ -24,7 +24,6 @@ import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSortedMap;
 import com.google.common.collect.Iterables;
-import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Booleans;
@@ -35,17 +34,31 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.property.PropertyPlaceholder;
 import org.elasticsearch.common.settings.loader.SettingsLoader;
 import org.elasticsearch.common.settings.loader.SettingsLoaderFactory;
-import org.elasticsearch.common.unit.*;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.MemorySizeValue;
+import org.elasticsearch.common.unit.RatioValue;
+import org.elasticsearch.common.unit.SizeValue;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Properties;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -180,7 +193,7 @@ public final class Settings implements ToXContent {
             }
         }
         if (isArray && (maxIndex + 1) == map.size()) {
-            ArrayList<Object> newValue = Lists.newArrayListWithExpectedSize(maxIndex + 1);
+            ArrayList<Object> newValue = new ArrayList<>(maxIndex + 1);
             for (int i = 0; i <= maxIndex; i++) {
                 Object obj = map.get(Integer.toString(i));
                 if (obj == null) {
@@ -558,7 +571,7 @@ public final class Settings implements ToXContent {
      * @throws org.elasticsearch.common.settings.SettingsException
      */
     public String[] getAsArray(String settingPrefix, String[] defaultArray, Boolean commaDelimited) throws SettingsException {
-        List<String> result = Lists.newArrayList();
+        List<String> result = new ArrayList<>();
 
         if (get(settingPrefix) != null) {
             if (commaDelimited) {

@@ -56,7 +56,12 @@ import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.RepositorySettings;
 import org.elasticsearch.repositories.RepositoryVerificationException;
-import org.elasticsearch.snapshots.*;
+import org.elasticsearch.snapshots.InvalidSnapshotNameException;
+import org.elasticsearch.snapshots.Snapshot;
+import org.elasticsearch.snapshots.SnapshotCreationException;
+import org.elasticsearch.snapshots.SnapshotException;
+import org.elasticsearch.snapshots.SnapshotMissingException;
+import org.elasticsearch.snapshots.SnapshotShardFailure;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -67,8 +72,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-
-import static com.google.common.collect.Lists.newArrayList;
 
 /**
  * BlobStore - based implementation of Snapshot Repository
@@ -389,7 +392,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
     @Override
     public List<SnapshotId> snapshots() {
         try {
-            List<SnapshotId> snapshots = newArrayList();
+            List<SnapshotId> snapshots = new ArrayList<>();
             Map<String, BlobMetaData> blobs;
             try {
                 blobs = snapshotsBlobContainer.listBlobsByPrefix(COMMON_SNAPSHOT_PREFIX);

@@ -29,7 +29,6 @@ import com.google.common.base.Predicates;
 import com.google.common.collect.Collections2;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Iterators;
-import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.Futures;
@@ -63,7 +62,6 @@ import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
@@ -94,9 +92,9 @@ import org.elasticsearch.node.NodeMocksPlugin;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
-import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.test.store.MockFSIndexStore;
 import org.elasticsearch.test.transport.AssertingLocalTransport;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -108,7 +106,6 @@ import org.junit.Assert;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -130,16 +127,12 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static junit.framework.Assert.fail;
-import static org.apache.lucene.util.LuceneTestCase.TEST_NIGHTLY;
-import static org.apache.lucene.util.LuceneTestCase.rarely;
-import static org.apache.lucene.util.LuceneTestCase.usually;
+import static org.apache.lucene.util.LuceneTestCase.*;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.node.NodeBuilder.nodeBuilder;
 import static org.elasticsearch.test.ESTestCase.assertBusy;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.*;
 import static org.junit.Assert.assertThat;
 
 /**
@@ -551,7 +544,7 @@ public final class InternalTestCluster extends TestCluster {
      * stop any of the running nodes.
      */
     public void ensureAtLeastNumDataNodes(int n) {
-        List<ListenableFuture<String>> futures = Lists.newArrayList();
+        List<ListenableFuture<String>> futures = new ArrayList<>();
         synchronized (this) {
             int size = numDataNodes();
             for (int i = size; i < n; i++) {
@@ -1183,7 +1176,7 @@ public final class InternalTestCluster extends TestCluster {
 
     @Override
     public InetSocketAddress[] httpAddresses() {
-        List<InetSocketAddress> addresses = Lists.newArrayList();
+        List<InetSocketAddress> addresses = new ArrayList<>();
         for (HttpServerTransport httpServerTransport : getInstances(HttpServerTransport.class)) {
             addresses.add(((InetSocketTransportAddress) httpServerTransport.boundAddress().publishAddress()).address());
         }
@@ -1587,7 +1580,7 @@ public final class InternalTestCluster extends TestCluster {
      * Starts multiple nodes in an async manner with the given settings and version and returns future with its name.
      */
     public synchronized ListenableFuture<List<String>> startNodesAsync(final int numNodes, final Settings settings, final Version version) {
-        List<ListenableFuture<String>> futures = Lists.newArrayList();
+        List<ListenableFuture<String>> futures = new ArrayList<>();
         for (int i = 0; i < numNodes; i++) {
             futures.add(startNodeAsync(settings, version));
         }
@@ -1599,7 +1592,7 @@ public final class InternalTestCluster extends TestCluster {
      * The order of the node names returned matches the order of the settings provided.
      */
     public synchronized ListenableFuture<List<String>> startNodesAsync(final Settings... settings) {
-        List<ListenableFuture<String>> futures = Lists.newArrayList();
+        List<ListenableFuture<String>> futures = new ArrayList<>();
         for (Settings setting : settings) {
             futures.add(startNodeAsync(setting, Version.CURRENT));
         }

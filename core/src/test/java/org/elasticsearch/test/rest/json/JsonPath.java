@@ -18,13 +18,12 @@
  */
 package org.elasticsearch.test.rest.json;
 
-import com.google.common.collect.Lists;
-
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.rest.Stash;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -93,7 +92,7 @@ public class JsonPath {
     }
 
     private String[] parsePath(String path) {
-        List<String> list = Lists.newArrayList();
+        List<String> list = new ArrayList<>();
         StringBuilder current = new StringBuilder();
         boolean escape = false;
         for (int i = 0; i < path.length(); i++) {

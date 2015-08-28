@@ -21,10 +21,17 @@ package org.elasticsearch.common.io;
 
 import com.google.common.base.Charsets;
 import com.google.common.base.Preconditions;
-import com.google.common.collect.Lists;
 import org.elasticsearch.common.util.Callback;
 
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.io.Reader;
+import java.io.StringWriter;
+import java.io.Writer;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -216,7 +223,7 @@ public abstract class Streams {
     }
 
     public static List<String> readAllLines(InputStream input) throws IOException {
-        final List<String> lines = Lists.newArrayList();
+        final List<String> lines = new ArrayList<>();
         readAllLines(input, new Callback<String>() {
             @Override
             public void handle(String line) {

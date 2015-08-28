@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.indices.segments;
 
-import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import org.apache.lucene.util.Accountable;
@@ -35,6 +34,7 @@ import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.index.engine.Segment;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -67,7 +67,7 @@ public class IndicesSegmentResponse extends BroadcastResponse implements ToXCont
         }
 
         for (String index : indices) {
-            List<ShardSegments> shards = Lists.newArrayList();
+            List<ShardSegments> shards = new ArrayList<>();
             for (ShardSegments shard : this.shards) {
                 if (shard.getShardRouting().index().equals(index)) {
                     shards.add(shard);

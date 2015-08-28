@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.suggest;
 
-import com.google.common.collect.Lists;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
@@ -30,8 +29,9 @@ import org.junit.Test;
 import java.util.List;
 import java.util.Locale;
 
+import static org.elasticsearch.common.util.CollectionUtils.iterableAsArrayList;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.test.ESIntegTestCase.*;
+import static org.elasticsearch.test.ESIntegTestCase.Scope;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
@@ -76,7 +76,7 @@ public class CustomSuggesterSearchIT extends ESIntegTestCase {
         SearchResponse searchResponse = searchRequestBuilder.execute().actionGet();
 
         // TODO: infer type once JI-9019884 is fixed
-        List<Suggest.Suggestion.Entry<? extends Suggest.Suggestion.Entry.Option>> suggestions = Lists.<Suggest.Suggestion.Entry<? extends Suggest.Suggestion.Entry.Option>>newArrayList(searchResponse.getSuggest().getSuggestion("someName").iterator());
+        List<Suggest.Suggestion.Entry<? extends Suggest.Suggestion.Entry.Option>> suggestions = iterableAsArrayList(searchResponse.getSuggest().getSuggestion("someName"));
         assertThat(suggestions, hasSize(2));
         assertThat(suggestions.get(0).getText().string(), is(String.format(Locale.ROOT, "%s-%s-%s-12", randomText, randomField, randomSuffix)));
         assertThat(suggestions.get(1).getText().string(), is(String.format(Locale.ROOT, "%s-%s-%s-123", randomText, randomField, randomSuffix)));

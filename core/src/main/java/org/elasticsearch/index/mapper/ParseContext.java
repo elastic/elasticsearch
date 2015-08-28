@@ -19,10 +19,8 @@
 
 package org.elasticsearch.index.mapper;
 
-import com.carrotsearch.hppc.ObjectObjectMap;
 import com.carrotsearch.hppc.ObjectObjectHashMap;
-import com.google.common.collect.Lists;
-
+import com.carrotsearch.hppc.ObjectObjectMap;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
@@ -56,7 +54,7 @@ public abstract class ParseContext {
         private ObjectObjectMap<Object, IndexableField> keyedFields;
 
         private Document(String path, Document parent) {
-            fields = Lists.newArrayList();
+            fields = new ArrayList<>();
             this.path = path;
             this.prefix = path.isEmpty() ? "" : path + ".";
             this.parent = parent;
@@ -378,7 +376,7 @@ public abstract class ParseContext {
 
         private Document document;
 
-        private List<Document> documents = Lists.newArrayList();
+        private List<Document> documents = new ArrayList<>();
 
         @Nullable
         private final Settings indexSettings;
@@ -411,7 +409,7 @@ public abstract class ParseContext {
             this.parser = parser;
             this.document = document;
             if (document != null) {
-                this.documents = Lists.newArrayList();
+                this.documents = new ArrayList<>();
                 this.documents.add(document);
             } else {
                 this.documents = null;

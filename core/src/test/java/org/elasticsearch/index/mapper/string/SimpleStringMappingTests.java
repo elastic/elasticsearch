@@ -20,19 +20,18 @@
 package org.elasticsearch.index.mapper.string;
 
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Lists;
-
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.ContentPath;
@@ -40,16 +39,13 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.Mapper.BuilderContext;
+import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
-import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.Version;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.VersionUtils;
-
-
 import org.junit.Before;
 import org.junit.Test;
 
@@ -57,10 +53,7 @@ import java.util.Arrays;
 import java.util.Map;
 
 import static org.elasticsearch.index.mapper.core.StringFieldMapper.Builder;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
-import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.*;
 
 /**
  */
@@ -253,7 +246,7 @@ public class SimpleStringMappingTests extends ESSingleNodeTestCase {
                 .endObject().endObject().string();
 
         DocumentMapper mapper = parser.parse(mapping);
-        for (String fieldName : Lists.newArrayList("field1", "field2", "field3", "field4")) {
+        for (String fieldName : Arrays.asList("field1", "field2", "field3", "field4")) {
             Map<String, Object> serializedMap = getSerializedMap(fieldName, mapper);
             assertFalse(fieldName, serializedMap.containsKey("search_quote_analyzer"));
         }
@@ -277,7 +270,7 @@ public class SimpleStringMappingTests extends ESSingleNodeTestCase {
                 .endObject().endObject().string();
         
         mapper = parser.parse(mapping);
-        for (String fieldName : Lists.newArrayList("field1", "field2")) {
+        for (String fieldName : Arrays.asList("field1", "field2")) {
             Map<String, Object> serializedMap = getSerializedMap(fieldName, mapper);
             assertEquals(serializedMap.get("search_quote_analyzer"), "simple");
         }

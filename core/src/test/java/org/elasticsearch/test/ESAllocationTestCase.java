@@ -46,8 +46,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 
-import static com.google.common.collect.Lists.newArrayList;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
+import static org.elasticsearch.common.util.CollectionUtils.arrayAsArrayList;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
 
@@ -132,7 +132,7 @@ public abstract class ESAllocationTestCase extends ESTestCase {
         if (initializingShards.isEmpty()) {
             return clusterState;
         }
-        RoutingTable routingTable = strategy.applyStartedShards(clusterState, newArrayList(initializingShards.get(randomInt(initializingShards.size() - 1)))).routingTable();
+        RoutingTable routingTable = strategy.applyStartedShards(clusterState, arrayAsArrayList(initializingShards.get(randomInt(initializingShards.size() - 1)))).routingTable();
         return ClusterState.builder(clusterState).routingTable(routingTable).build();
     }
 

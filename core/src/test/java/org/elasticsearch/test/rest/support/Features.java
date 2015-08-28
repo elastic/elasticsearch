@@ -19,9 +19,9 @@
 
 package org.elasticsearch.test.rest.support;
 
-import com.google.common.collect.Lists;
 import org.elasticsearch.test.ESIntegTestCase;
 
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -34,7 +34,7 @@ import java.util.List;
  */
 public final class Features {
 
-    private static final List<String> SUPPORTED = Lists.newArrayList("stash_in_path", "groovy_scripting");
+    private static final List<String> SUPPORTED = Arrays.asList("stash_in_path", "groovy_scripting");
 
     private Features() {
 

@@ -19,8 +19,12 @@
 
 package org.elasticsearch.index.shard;
 
-import com.google.common.collect.Lists;
-import org.apache.lucene.index.*;
+import org.apache.lucene.index.CodecReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.MergePolicy;
+import org.apache.lucene.index.MergeTrigger;
+import org.apache.lucene.index.SegmentCommitInfo;
+import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.logging.ESLogger;
@@ -28,6 +32,7 @@ import org.elasticsearch.common.logging.Loggers;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -153,7 +158,7 @@ public final class ElasticsearchMergePolicy extends MergePolicy {
                     // TODO: Use IndexUpgradeMergePolicy instead.  We should be comparing codecs,
                     // for now we just assume every minor upgrade has a new format.
                     logger.debug("Adding segment " + info.info.name + " to be upgraded");
-                    spec.add(new OneMerge(Lists.newArrayList(info)));
+                    spec.add(new OneMerge(Collections.singletonList(info)));
                 }
 
                 // TODO: we could check IndexWriter.getMergingSegments and avoid adding merges that IW will just reject?

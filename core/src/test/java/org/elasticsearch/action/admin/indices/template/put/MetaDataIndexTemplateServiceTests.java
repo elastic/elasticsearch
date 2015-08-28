@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.indices.template.put;
 
-import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import org.elasticsearch.Version;
@@ -33,12 +32,12 @@ import org.elasticsearch.indices.InvalidIndexTemplateException;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.instanceOf;
-import static org.hamcrest.Matchers.contains;
 
 public class MetaDataIndexTemplateServiceTests extends ESTestCase {
     @Test
@@ -89,7 +88,7 @@ public class MetaDataIndexTemplateServiceTests extends ESTestCase {
         );
         MetaDataIndexTemplateService service = new MetaDataIndexTemplateService(Settings.EMPTY, null, createIndexService, null);
 
-        final List<Throwable> throwables = Lists.newArrayList();
+        final List<Throwable> throwables = new ArrayList<>();
         service.putTemplate(request, new MetaDataIndexTemplateService.PutListener() {
             @Override
             public void onResponse(MetaDataIndexTemplateService.PutResponse response) {

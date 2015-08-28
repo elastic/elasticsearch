@@ -24,8 +24,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.ArrayList;
 
-import static com.google.common.collect.Lists.newArrayList;
-
 /**
  * A query that generates the union of documents produced by its sub-queries, and that scores each document
  * with the maximum score for that document as produced by any sub-query, plus a tie breaking increment for any
@@ -33,7 +31,7 @@ import static com.google.common.collect.Lists.newArrayList;
  */
 public class DisMaxQueryBuilder extends QueryBuilder implements BoostableQueryBuilder<DisMaxQueryBuilder> {
 
-    private ArrayList<QueryBuilder> queries = newArrayList();
+    private ArrayList<QueryBuilder> queries = new ArrayList<>();
 
     private float boost = -1;
 

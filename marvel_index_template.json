@@ -198,6 +198,13 @@
         }
       }
     },
+    "marvel_indices_stats": {
+      "properties": {
+        "indices_stats": {
+          "type": "object"
+        }
+      }
+    },
     "marvel_index_recovery": {
       "properties": {
         "shards": {

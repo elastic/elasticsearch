@@ -31,16 +31,21 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.snapshots.IndexShardRepository;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.*;
 import org.elasticsearch.repositories.RepositoriesService.VerifyResponse;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.EmptyTransportResponseHandler;
+import org.elasticsearch.transport.TransportChannel;
+import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportRequestHandler;
+import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
-
-import static com.google.common.collect.Lists.newArrayList;
 
 public class VerifyNodeRepositoryAction  extends AbstractComponent {
     public static final String ACTION_NAME = "internal:admin/repository/verify";
@@ -68,7 +73,7 @@ public class VerifyNodeRepositoryAction  extends AbstractComponent {
         final DiscoveryNode localNode = discoNodes.localNode();
 
         final ObjectContainer<DiscoveryNode> masterAndDataNodes = discoNodes.masterAndDataNodes().values();
-        final List<DiscoveryNode> nodes = newArrayList();
+        final List<DiscoveryNode> nodes = new ArrayList<>();
         for (ObjectCursor<DiscoveryNode> cursor : masterAndDataNodes) {
             DiscoveryNode node = cursor.value;
             nodes.add(node);

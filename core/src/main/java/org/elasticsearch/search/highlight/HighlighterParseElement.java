@@ -19,9 +19,7 @@
 
 package org.elasticsearch.search.highlight;
 
-import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
-
 import org.apache.lucene.search.vectorhighlight.SimpleBoundaryScanner;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -31,10 +29,9 @@ import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
-
-import static com.google.common.collect.Lists.newArrayList;
 
 /**
  * <pre>
@@ -78,7 +75,7 @@ public class HighlighterParseElement implements SearchParseElement {
     public SearchContextHighlight parse(XContentParser parser, IndexQueryParserService queryParserService) throws IOException {
         XContentParser.Token token;
         String topLevelFieldName = null;
-        final List<Tuple<String, SearchContextHighlight.FieldOptions.Builder>> fieldsOptions = newArrayList();
+        final List<Tuple<String, SearchContextHighlight.FieldOptions.Builder>> fieldsOptions = new ArrayList<>();
 
         final SearchContextHighlight.FieldOptions.Builder globalOptionsBuilder = new SearchContextHighlight.FieldOptions.Builder()
                 .preTags(DEFAULT_PRE_TAGS).postTags(DEFAULT_POST_TAGS).scoreOrdered(false).highlightFilter(false)
@@ -92,13 +89,13 @@ public class HighlighterParseElement implements SearchParseElement {
                 topLevelFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if ("pre_tags".equals(topLevelFieldName) || "preTags".equals(topLevelFieldName)) {
-                    List<String> preTagsList = Lists.newArrayList();
+                    List<String> preTagsList = new ArrayList<>();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         preTagsList.add(parser.text());
                     }
                     globalOptionsBuilder.preTags(preTagsList.toArray(new String[preTagsList.size()]));
                 } else if ("post_tags".equals(topLevelFieldName) || "postTags".equals(topLevelFieldName)) {
-                    List<String> postTagsList = Lists.newArrayList();
+                    List<String> postTagsList = new ArrayList<>();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         postTagsList.add(parser.text());
                     }
@@ -184,7 +181,7 @@ public class HighlighterParseElement implements SearchParseElement {
             throw new IllegalArgumentException("Highlighter global preTags are set, but global postTags are not set");
         }
 
-        final List<SearchContextHighlight.Field> fields = Lists.newArrayList();
+        final List<SearchContextHighlight.Field> fields = new ArrayList<>();
         // now, go over and fill all fieldsOptions with default values from the global state
         for (final Tuple<String, SearchContextHighlight.FieldOptions.Builder> tuple : fieldsOptions) {
             fields.add(new SearchContextHighlight.Field(tuple.v1(), tuple.v2().merge(globalOptions).build()));
@@ -202,13 +199,13 @@ public class HighlighterParseElement implements SearchParseElement {
                 fieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if ("pre_tags".equals(fieldName) || "preTags".equals(fieldName)) {
-                    List<String> preTagsList = Lists.newArrayList();
+                    List<String> preTagsList = new ArrayList<>();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         preTagsList.add(parser.text());
                     }
                     fieldOptionsBuilder.preTags(preTagsList.toArray(new String[preTagsList.size()]));
                 } else if ("post_tags".equals(fieldName) || "postTags".equals(fieldName)) {
-                    List<String> postTagsList = Lists.newArrayList();
+                    List<String> postTagsList = new ArrayList<>();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         postTagsList.add(parser.text());
                     }

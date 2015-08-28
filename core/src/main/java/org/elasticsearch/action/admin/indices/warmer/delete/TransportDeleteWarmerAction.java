@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.action.admin.indices.warmer.delete;
 
-import com.google.common.collect.Lists;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
@@ -39,6 +38,7 @@ import org.elasticsearch.search.warmer.IndexWarmersMetaData;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
@@ -107,7 +107,7 @@ public class TransportDeleteWarmerAction extends TransportMasterNodeAction<Delet
                     }
                     IndexWarmersMetaData warmers = indexMetaData.custom(IndexWarmersMetaData.TYPE);
                     if (warmers != null) {
-                        List<IndexWarmersMetaData.Entry> entries = Lists.newArrayList();
+                        List<IndexWarmersMetaData.Entry> entries = new ArrayList<>();
                         for (IndexWarmersMetaData.Entry entry : warmers.entries()) {
                             boolean keepWarmer = true;
                             for (String warmer : request.names()) {

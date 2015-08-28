@@ -19,8 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import com.google.common.collect.Lists;
-
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.TermsQuery;
 import org.apache.lucene.search.BooleanClause.Occur;
@@ -42,6 +40,7 @@ import org.elasticsearch.indices.cache.query.terms.TermsLookup;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -86,7 +85,7 @@ public class TermsQueryParser implements QueryParser {
         boolean disableCoord = false;
 
         XContentParser.Token token;
-        List<Object> terms = Lists.newArrayList();
+        List<Object> terms = new ArrayList<>();
         String fieldName = null;
         float boost = 1f;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.bucket.range.geodistance;
 
-import com.google.common.collect.Lists;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.unit.DistanceUnit;
@@ -29,6 +28,7 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilderException;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
@@ -80,7 +80,7 @@ public class GeoDistanceBuilder extends AggregationBuilder<GeoDistanceBuilder> {
     private GeoDistance distanceType;
     private GeoPoint point;
 
-    private List<Range> ranges = Lists.newArrayList();
+    private List<Range> ranges = new ArrayList<>();
 
     /**
      * Sole constructor.

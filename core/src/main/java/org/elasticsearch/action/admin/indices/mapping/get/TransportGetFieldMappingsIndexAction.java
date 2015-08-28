@@ -22,7 +22,6 @@ package org.elasticsearch.action.admin.indices.mapping.get;
 import com.google.common.base.Predicate;
 import com.google.common.collect.Collections2;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Lists;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse.FieldMappingMetaData;
 import org.elasticsearch.action.support.ActionFilters;
@@ -54,6 +53,8 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Iterator;
+
+import static org.elasticsearch.common.util.CollectionUtils.newLinkedList;
 
 /**
  * Transport action used to retrieve the mappings related to fields that belong to a specific index
@@ -178,7 +179,7 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleShardAc
             } else if (Regex.isSimpleMatchPattern(field)) {
                 // go through the field mappers 3 times, to make sure we give preference to the resolve order: full name, index name, name.
                 // also make sure we only store each mapper once.
-                Collection<FieldMapper> remainingFieldMappers = Lists.newLinkedList(allFieldMappers);
+                Collection<FieldMapper> remainingFieldMappers = newLinkedList(allFieldMappers);
                 for (Iterator<FieldMapper> it = remainingFieldMappers.iterator(); it.hasNext(); ) {
                     final FieldMapper fieldMapper = it.next();
                     if (Regex.simpleMatch(field, fieldMapper.fieldType().names().fullName())) {

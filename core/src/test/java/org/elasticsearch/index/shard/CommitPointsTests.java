@@ -20,7 +20,6 @@
 package org.elasticsearch.index.shard;
 
 import com.google.common.base.Charsets;
-import com.google.common.collect.Lists;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.test.ESTestCase;
@@ -28,7 +27,6 @@ import org.junit.Test;
 
 import java.util.ArrayList;
 
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -41,11 +39,11 @@ public class CommitPointsTests extends ESTestCase {
 
     @Test
     public void testCommitPointXContent() throws Exception {
-        ArrayList<CommitPoint.FileInfo> indexFiles = Lists.newArrayList();
+        ArrayList<CommitPoint.FileInfo> indexFiles = new ArrayList<>();
         indexFiles.add(new CommitPoint.FileInfo("file1", "file1_p", 100, "ck1"));
         indexFiles.add(new CommitPoint.FileInfo("file2", "file2_p", 200, "ck2"));
 
-        ArrayList<CommitPoint.FileInfo> translogFiles = Lists.newArrayList();
+        ArrayList<CommitPoint.FileInfo> translogFiles = new ArrayList<>();
         translogFiles.add(new CommitPoint.FileInfo("t_file1", "t_file1_p", 100, null));
         translogFiles.add(new CommitPoint.FileInfo("t_file2", "t_file2_p", 200, null));
 

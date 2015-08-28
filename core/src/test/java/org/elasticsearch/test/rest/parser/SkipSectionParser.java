@@ -18,12 +18,12 @@
  */
 package org.elasticsearch.test.rest.parser;
 
-import com.google.common.collect.Lists;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.rest.section.SkipSection;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -40,7 +40,7 @@ public class SkipSectionParser implements RestTestFragmentParser<SkipSection> {
         XContentParser.Token token;
         String version = null;
         String reason = null;
-        List<String> features = Lists.newArrayList();
+        List<String> features = new ArrayList<>();
 
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {

@@ -19,8 +19,6 @@
 
 package org.elasticsearch.search.aggregations.bucket.filters;
 
-import com.google.common.collect.Lists;
-
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Weight;
@@ -38,6 +36,7 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -113,7 +112,7 @@ public class FiltersAggregator extends BucketsAggregator {
 
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) throws IOException {
-        List<InternalFilters.Bucket> buckets = Lists.newArrayListWithCapacity(filters.length);
+        List<InternalFilters.Bucket> buckets = new ArrayList<>(filters.length);
         for (int i = 0; i < keys.length; i++) {
             long bucketOrd = bucketOrd(owningBucketOrdinal, i);
             InternalFilters.Bucket bucket = new InternalFilters.Bucket(keys[i], bucketDocCount(bucketOrd), bucketAggregations(bucketOrd), keyed);
@@ -132,7 +131,7 @@ public class FiltersAggregator extends BucketsAggregator {
     @Override
     public InternalAggregation buildEmptyAggregation() {
         InternalAggregations subAggs = buildEmptySubAggregations();
-        List<InternalFilters.Bucket> buckets = Lists.newArrayListWithCapacity(filters.length);
+        List<InternalFilters.Bucket> buckets = new ArrayList<>(filters.length);
         for (int i = 0; i < keys.length; i++) {
             InternalFilters.Bucket bucket = new InternalFilters.Bucket(keys[i], 0, subAggs, keyed);
             buckets.add(bucket);

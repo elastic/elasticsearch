@@ -21,17 +21,15 @@ package org.elasticsearch.cluster.routing;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Lists;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-import static com.google.common.collect.Lists.newArrayList;
-import static com.google.common.collect.Lists.newArrayListWithCapacity;
 import static com.google.common.collect.Maps.newHashMap;
 
 /**
@@ -57,7 +55,7 @@ public class RoutingTableValidation implements Streamable {
         if (failures().isEmpty() && indicesFailures().isEmpty()) {
             return ImmutableList.of();
         }
-        List<String> allFailures = newArrayList(failures());
+        List<String> allFailures = new ArrayList<>(failures());
         for (Map.Entry<String, List<String>> entry : indicesFailures().entrySet()) {
             for (String failure : entry.getValue()) {
                 allFailures.add("Index [" + entry.getKey() + "]: " + failure);
@@ -94,7 +92,7 @@ public class RoutingTableValidation implements Streamable {
     public void addFailure(String failure) {
         valid = false;
         if (failures == null) {
-            failures = newArrayList();
+            failures = new ArrayList<>();
         }
         failures.add(failure);
     }
@@ -106,7 +104,7 @@ public class RoutingTableValidation implements Streamable {
         }
         List<String> indexFailures = indicesFailures.get(index);
         if (indexFailures == null) {
-            indexFailures = Lists.newArrayList();
+            indexFailures = new ArrayList<>();
             indicesFailures.put(index, indexFailures);
         }
         indexFailures.add(failure);
@@ -124,7 +122,7 @@ public class RoutingTableValidation implements Streamable {
         if (size == 0) {
             failures = ImmutableList.of();
         } else {
-            failures = Lists.newArrayListWithCapacity(size);
+            failures = new ArrayList<>(size);
             for (int i = 0; i < size; i++) {
                 failures.add(in.readString());
             }
@@ -137,7 +135,7 @@ public class RoutingTableValidation implements Streamable {
             for (int i = 0; i < size; i++) {
                 String index = in.readString();
                 int size2 = in.readVInt();
-                List<String> indexFailures = newArrayListWithCapacity(size2);
+                List<String> indexFailures = new ArrayList<>(size2);
                 for (int j = 0; j < size2; j++) {
                     indexFailures.add(in.readString());
                 }

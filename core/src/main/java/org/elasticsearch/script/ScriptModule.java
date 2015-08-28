@@ -19,7 +19,6 @@
 
 package org.elasticsearch.script;
 
-import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.multibindings.MapBinder;
@@ -30,6 +29,7 @@ import org.elasticsearch.script.expression.ExpressionScriptEngineService;
 import org.elasticsearch.script.groovy.GroovyScriptEngineService;
 import org.elasticsearch.script.mustache.MustacheScriptEngineService;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -41,11 +41,11 @@ public class ScriptModule extends AbstractModule {
 
     private final Settings settings;
 
-    private final List<Class<? extends ScriptEngineService>> scriptEngines = Lists.newArrayList();
+    private final List<Class<? extends ScriptEngineService>> scriptEngines = new ArrayList<>();
 
     private final Map<String, Class<? extends NativeScriptFactory>> scripts = Maps.newHashMap();
 
-    private final List<ScriptContext.Plugin> customScriptContexts = Lists.newArrayList();
+    private final List<ScriptContext.Plugin> customScriptContexts = new ArrayList<>();
 
     public ScriptModule(Settings settings) {
         this.settings = settings;

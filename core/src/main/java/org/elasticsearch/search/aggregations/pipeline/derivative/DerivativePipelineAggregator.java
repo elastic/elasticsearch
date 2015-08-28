@@ -19,8 +19,6 @@
 
 package org.elasticsearch.search.aggregations.pipeline.derivative;
 
-import com.google.common.collect.Lists;
-
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
@@ -44,6 +42,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.common.util.CollectionUtils.eagerTransform;
 import static org.elasticsearch.search.aggregations.pipeline.BucketHelpers.resolveBucketValue;
 
 public class DerivativePipelineAggregator extends PipelineAggregator {
@@ -101,7 +100,7 @@ public class DerivativePipelineAggregator extends PipelineAggregator {
                 if (xAxisUnits != null) {
                     xDiff = (thisBucketKey - lastBucketKey) / xAxisUnits;
                 }
-                List<InternalAggregation> aggs = new ArrayList<>(Lists.transform(bucket.getAggregations().asList(),
+                List<InternalAggregation> aggs = new ArrayList<>(eagerTransform(bucket.getAggregations().asList(),
                         AGGREGATION_TRANFORM_FUNCTION));
                 aggs.add(new InternalDerivative(name(), gradient, xDiff, formatter, new ArrayList<PipelineAggregator>(), metaData()));
                 InternalHistogram.Bucket newBucket = factory.createBucket(bucket.getKey(), bucket.getDocCount(), new InternalAggregations(

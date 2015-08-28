@@ -17,10 +17,33 @@
 package org.elasticsearch.common.inject;
 
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Lists;
-import org.elasticsearch.common.inject.internal.*;
-import org.elasticsearch.common.inject.spi.*;
+import org.elasticsearch.common.inject.internal.Annotations;
+import org.elasticsearch.common.inject.internal.BindingImpl;
+import org.elasticsearch.common.inject.internal.Errors;
+import org.elasticsearch.common.inject.internal.ErrorsException;
+import org.elasticsearch.common.inject.internal.ExposedBindingImpl;
+import org.elasticsearch.common.inject.internal.InstanceBindingImpl;
+import org.elasticsearch.common.inject.internal.InternalFactory;
+import org.elasticsearch.common.inject.internal.LinkedBindingImpl;
+import org.elasticsearch.common.inject.internal.LinkedProviderBindingImpl;
+import org.elasticsearch.common.inject.internal.ProviderInstanceBindingImpl;
+import org.elasticsearch.common.inject.internal.ProviderMethod;
+import org.elasticsearch.common.inject.internal.Scoping;
+import org.elasticsearch.common.inject.internal.UntargettedBindingImpl;
+import org.elasticsearch.common.inject.spi.BindingTargetVisitor;
+import org.elasticsearch.common.inject.spi.ConstructorBinding;
+import org.elasticsearch.common.inject.spi.ConvertedConstantBinding;
+import org.elasticsearch.common.inject.spi.ExposedBinding;
+import org.elasticsearch.common.inject.spi.InjectionPoint;
+import org.elasticsearch.common.inject.spi.InstanceBinding;
+import org.elasticsearch.common.inject.spi.LinkedKeyBinding;
+import org.elasticsearch.common.inject.spi.PrivateElements;
+import org.elasticsearch.common.inject.spi.ProviderBinding;
+import org.elasticsearch.common.inject.spi.ProviderInstanceBinding;
+import org.elasticsearch.common.inject.spi.ProviderKeyBinding;
+import org.elasticsearch.common.inject.spi.UntargettedBinding;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
@@ -32,9 +55,9 @@ import java.util.Set;
  */
 class BindingProcessor extends AbstractProcessor {
 
-    private final List<CreationListener> creationListeners = Lists.newArrayList();
+    private final List<CreationListener> creationListeners = new ArrayList<>();
     private final Initializer initializer;
-    private final List<Runnable> uninitializedBindings = Lists.newArrayList();
+    private final List<Runnable> uninitializedBindings = new ArrayList<>();
 
     BindingProcessor(Errors errors, Initializer initializer) {
         super(errors);

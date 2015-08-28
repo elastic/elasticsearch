@@ -29,9 +29,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
-import static com.google.common.collect.Lists.newArrayList;
 import static org.elasticsearch.common.lucene.search.Queries.fixNegativeQueryIfNeeded;
 
 /**
@@ -59,7 +59,7 @@ public class BoolQueryParser implements QueryParser {
         float boost = 1.0f;
         String minimumShouldMatch = null;
 
-        List<BooleanClause> clauses = newArrayList();
+        List<BooleanClause> clauses = new ArrayList<>();
         boolean adjustPureNegative = true;
         String queryName = null;
         

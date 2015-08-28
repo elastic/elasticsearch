@@ -20,9 +20,7 @@
 package org.elasticsearch.search.suggest.context;
 
 import com.google.common.collect.Iterables;
-import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
-
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.search.suggest.analyzing.XAnalyzingSuggester;
 import org.apache.lucene.util.automaton.Automata;
@@ -39,7 +37,12 @@ import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.SortedMap;
 
 /**
  * A {@link ContextMapping} is used t define a context that may used
@@ -300,7 +303,7 @@ public abstract class ContextMapping implements ToXContent {
                 }
             }
 
-            List<ContextQuery> queries = Lists.newArrayListWithExpectedSize(mappings.size());
+            List<ContextQuery> queries = new ArrayList<>(mappings.size());
             for (ContextMapping mapping : mappings.values()) {
                 queries.add(querySet.get(mapping.name));
             }

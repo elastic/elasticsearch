@@ -21,8 +21,8 @@ package org.elasticsearch.action.admin.cluster.snapshots.status;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import org.elasticsearch.cluster.metadata.SnapshotId;
 import org.elasticsearch.cluster.SnapshotsInProgress.State;
+import org.elasticsearch.cluster.metadata.SnapshotId;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -32,11 +32,11 @@ import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.common.xcontent.XContentFactory;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static com.google.common.collect.Lists.newArrayList;
 import static com.google.common.collect.Sets.newHashSet;
 
 /**
@@ -109,7 +109,7 @@ public class SnapshotStatus implements ToXContent, Streamable {
         }
 
         for (String index : indices) {
-            List<SnapshotIndexShardStatus> shards = newArrayList();
+            List<SnapshotIndexShardStatus> shards = new ArrayList<>();
             for (SnapshotIndexShardStatus shard : this.shards) {
                 if (shard.getIndex().equals(index)) {
                     shards.add(shard);

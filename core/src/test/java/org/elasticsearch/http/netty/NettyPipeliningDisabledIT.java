@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.http.netty;
 
-import com.google.common.collect.Lists;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.http.HttpServerTransport;
@@ -27,6 +26,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.jboss.netty.handler.codec.http.HttpResponse;
 import org.junit.Test;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
@@ -36,7 +36,8 @@ import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.http.netty.NettyHttpClient.returnOpaqueIds;
 import static org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import static org.elasticsearch.test.ESIntegTestCase.Scope;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.hasSize;
 
 /**
  *
@@ -61,7 +62,7 @@ public class NettyPipeliningDisabledIT extends ESIntegTestCase {
             Collection<HttpResponse> responses = nettyHttpClient.sendRequests(inetSocketTransportAddress.address(), requests.toArray(new String[]{}));
             assertThat(responses, hasSize(requests.size()));
 
-            List<String> opaqueIds = Lists.newArrayList(returnOpaqueIds(responses));
+            List<String> opaqueIds = new ArrayList<>(returnOpaqueIds(responses));
 
             assertResponsesOutOfOrder(opaqueIds);
         }

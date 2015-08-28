@@ -19,8 +19,6 @@
 
 package org.elasticsearch.action.bulk;
 
-import com.google.common.collect.Lists;
-
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
@@ -57,7 +55,7 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
 
     private static final int REQUEST_OVERHEAD = 50;
 
-    final List<ActionRequest> requests = Lists.newArrayList();
+    final List<ActionRequest> requests = new ArrayList<>();
     List<Object> payloads = null;
 
     protected TimeValue timeout = BulkShardRequest.DEFAULT_TIMEOUT;
@@ -186,7 +184,7 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
     @Override
     @SuppressWarnings("unchecked")
     public List<? extends IndicesRequest> subRequests() {
-        List<IndicesRequest> indicesRequests = Lists.newArrayList();
+        List<IndicesRequest> indicesRequests = new ArrayList<>();
         for (ActionRequest request : requests) {
             assert request instanceof IndicesRequest;
             indicesRequests.add((IndicesRequest) request);

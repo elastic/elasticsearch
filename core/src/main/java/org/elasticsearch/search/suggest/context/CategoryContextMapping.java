@@ -21,7 +21,6 @@ package org.elasticsearch.search.suggest.context;
 
 import com.google.common.base.Joiner;
 import com.google.common.collect.Iterables;
-import com.google.common.collect.Lists;
 import org.apache.lucene.analysis.PrefixAnalyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.index.IndexableField;
@@ -36,7 +35,11 @@ import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 
 /**
  * The {@link CategoryContextMapping} is used to define a {@link ContextMapping} that
@@ -165,7 +168,7 @@ public class CategoryContextMapping extends ContextMapping {
         } else if (token == Token.VALUE_BOOLEAN) {
             return new FieldConfig(fieldName, null, Collections.singleton(parser.text()));
         } else if (token == Token.START_ARRAY) {
-            ArrayList<String> values = Lists.newArrayList();
+            ArrayList<String> values = new ArrayList<>();
             while((token = parser.nextToken()) != Token.END_ARRAY) {
                 values.add(parser.text());
             }

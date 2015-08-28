@@ -23,7 +23,11 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
-import org.elasticsearch.cluster.*;
+import org.elasticsearch.cluster.ClusterInfo;
+import org.elasticsearch.cluster.ClusterInfoService;
+import org.elasticsearch.cluster.DiskUsage;
+import org.elasticsearch.cluster.InternalClusterInfoService;
+import org.elasticsearch.cluster.MockInternalClusterInfoService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.common.settings.Settings;
@@ -32,16 +36,14 @@ import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import static com.google.common.collect.Lists.newArrayList;
 import static com.google.common.collect.Maps.newHashMap;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.*;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class MockDiskUsagesIT extends ESIntegTestCase {
@@ -100,7 +102,7 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
             }
         });
 
-        final List<String> realNodeNames = newArrayList();
+        final List<String> realNodeNames = new ArrayList<>();
         ClusterStateResponse resp = client().admin().cluster().prepareState().get();
         Iterator<RoutingNode> iter = resp.getState().getRoutingNodes().iterator();
         while (iter.hasNext()) {

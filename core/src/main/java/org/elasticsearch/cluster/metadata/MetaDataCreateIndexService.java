@@ -22,7 +22,6 @@ package org.elasticsearch.cluster.metadata;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.base.Charsets;
-import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ElasticsearchException;
@@ -80,7 +79,12 @@ import java.io.UnsupportedEncodingException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 
@@ -248,7 +252,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
                     Map<String, AliasMetaData> templatesAliases = Maps.newHashMap();
 
-                    List<String> templateNames = Lists.newArrayList();
+                    List<String> templateNames = new ArrayList<>();
 
                     for (Map.Entry<String, String> entry : request.mappings().entrySet()) {
                         mappings.put(entry.getKey(), parseMapping(entry.getValue()));
@@ -494,7 +498,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
     }
 
     private List<IndexTemplateMetaData> findTemplates(CreateIndexClusterStateUpdateRequest request, ClusterState state, IndexTemplateFilter indexTemplateFilter) throws IOException {
-        List<IndexTemplateMetaData> templates = Lists.newArrayList();
+        List<IndexTemplateMetaData> templates = new ArrayList<>();
         for (ObjectCursor<IndexTemplateMetaData> cursor : state.metaData().templates().values()) {
             IndexTemplateMetaData template = cursor.value;
             if (indexTemplateFilter.apply(request, template)) {
@@ -527,7 +531,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
     List<String> getIndexSettingsValidationErrors(Settings settings) {
         String customPath = settings.get(IndexMetaData.SETTING_DATA_PATH, null);
-        List<String> validationErrors = Lists.newArrayList();
+        List<String> validationErrors = new ArrayList<>();
         if (customPath != null && env.sharedDataFile() == null) {
             validationErrors.add("path.shared_data must be set in order to use custom data paths");
         } else if (customPath != null) {

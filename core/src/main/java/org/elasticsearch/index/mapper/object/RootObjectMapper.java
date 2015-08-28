@@ -19,9 +19,7 @@
 
 package org.elasticsearch.index.mapper.object;
 
-import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
-
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
@@ -29,14 +27,22 @@ import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.mapper.ContentPath;
+import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MergeResult;
+import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.index.settings.IndexSettings;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
-import static com.google.common.collect.Lists.newArrayList;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseDateTimeFormatter;
 
@@ -57,11 +63,11 @@ public class RootObjectMapper extends ObjectMapper {
 
     public static class Builder extends ObjectMapper.Builder<Builder, RootObjectMapper> {
 
-        protected final List<DynamicTemplate> dynamicTemplates = newArrayList();
+        protected final List<DynamicTemplate> dynamicTemplates = new ArrayList<>();
 
         // we use this to filter out seen date formats, because we might get duplicates during merging
         protected Set<String> seenDateFormats = Sets.newHashSet();
-        protected List<FormatDateTimeFormatter> dynamicDateTimeFormatters = newArrayList();
+        protected List<FormatDateTimeFormatter> dynamicDateTimeFormatters = new ArrayList<>();
 
         protected boolean dateDetection = Defaults.DATE_DETECTION;
         protected boolean numericDetection = Defaults.NUMERIC_DETECTION;
@@ -144,7 +150,7 @@ public class RootObjectMapper extends ObjectMapper {
 
         protected boolean processField(ObjectMapper.Builder builder, String fieldName, Object fieldNode) {
             if (fieldName.equals("date_formats") || fieldName.equals("dynamic_date_formats")) {
-                List<FormatDateTimeFormatter> dateTimeFormatters = newArrayList();
+                List<FormatDateTimeFormatter> dateTimeFormatters = new ArrayList<>();
                 if (fieldNode instanceof List) {
                     for (Object node1 : (List) fieldNode) {
                         if (node1.toString().startsWith("epoch_")) {
@@ -262,7 +268,7 @@ public class RootObjectMapper extends ObjectMapper {
         RootObjectMapper mergeWithObject = (RootObjectMapper) mergeWith;
         if (!mergeResult.simulate()) {
             // merge them
-            List<DynamicTemplate> mergedTemplates = Lists.newArrayList(Arrays.asList(this.dynamicTemplates));
+            List<DynamicTemplate> mergedTemplates = new ArrayList<>(Arrays.asList(this.dynamicTemplates));
             for (DynamicTemplate template : mergeWithObject.dynamicTemplates) {
                 boolean replaced = false;
                 for (int i = 0; i < mergedTemplates.size(); i++) {

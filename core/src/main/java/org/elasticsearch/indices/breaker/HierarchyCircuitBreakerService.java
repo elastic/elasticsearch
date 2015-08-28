@@ -28,12 +28,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.node.settings.NodeSettingsService;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicLong;
-
-import static com.google.common.collect.Lists.newArrayList;
 
 /**
  * CircuitBreakerService that attempts to redistribute space between breakers
@@ -186,7 +185,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
     @Override
     public AllCircuitBreakerStats stats() {
         long parentEstimated = 0;
-        List<CircuitBreakerStats> allStats = newArrayList();
+        List<CircuitBreakerStats> allStats = new ArrayList<>();
         // Gather the "estimated" count for the parent breaker by adding the
         // estimations for each individual breaker
         for (CircuitBreaker breaker : this.breakers.values()) {

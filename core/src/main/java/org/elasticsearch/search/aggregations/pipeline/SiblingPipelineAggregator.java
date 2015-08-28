@@ -19,8 +19,6 @@
 
 package org.elasticsearch.search.aggregations.pipeline;
 
-import com.google.common.collect.Lists;
-
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
@@ -32,6 +30,8 @@ import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Buck
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+
+import static org.elasticsearch.common.util.CollectionUtils.eagerTransform;
 
 public abstract class SiblingPipelineAggregator extends PipelineAggregator {
 
@@ -54,7 +54,7 @@ public abstract class SiblingPipelineAggregator extends PipelineAggregator {
             for (int i = 0; i < buckets.size(); i++) {
                 InternalMultiBucketAggregation.InternalBucket bucket = (InternalMultiBucketAggregation.InternalBucket) buckets.get(i);
                 InternalAggregation aggToAdd = doReduce(bucket.getAggregations(), reduceContext);
-                List<InternalAggregation> aggs = new ArrayList<>(Lists.transform(bucket.getAggregations().asList(),
+                List<InternalAggregation> aggs = new ArrayList<>(eagerTransform(bucket.getAggregations().asList(),
                         AGGREGATION_TRANFORM_FUNCTION));
                 aggs.add(aggToAdd);
                 InternalMultiBucketAggregation.InternalBucket newBucket = multiBucketsAgg.createBucket(new InternalAggregations(aggs),
@@ -66,7 +66,7 @@ public abstract class SiblingPipelineAggregator extends PipelineAggregator {
         } else if (aggregation instanceof InternalSingleBucketAggregation) {
             InternalSingleBucketAggregation singleBucketAgg = (InternalSingleBucketAggregation) aggregation;
             InternalAggregation aggToAdd = doReduce(singleBucketAgg.getAggregations(), reduceContext);
-            List<InternalAggregation> aggs = new ArrayList<>(Lists.transform(singleBucketAgg.getAggregations().asList(),
+            List<InternalAggregation> aggs = new ArrayList<>(eagerTransform(singleBucketAgg.getAggregations().asList(),
                     AGGREGATION_TRANFORM_FUNCTION));
             aggs.add(aggToAdd);
             return singleBucketAgg.create(new InternalAggregations(aggs));

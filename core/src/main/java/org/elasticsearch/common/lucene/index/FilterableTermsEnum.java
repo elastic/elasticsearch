@@ -19,8 +19,6 @@
 
 package org.elasticsearch.common.lucene.index;
 
-import com.google.common.collect.Lists;
-
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PostingsEnum;
@@ -37,6 +35,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Nullable;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -79,7 +78,7 @@ public class FilterableTermsEnum extends TermsEnum {
             numDocs = reader.maxDoc();
         }
         List<LeafReaderContext> leaves = reader.leaves();
-        List<Holder> enums = Lists.newArrayListWithExpectedSize(leaves.size());
+        List<Holder> enums = new ArrayList<>(leaves.size());
         final Weight weight;
         if (filter == null) {
             weight = null;

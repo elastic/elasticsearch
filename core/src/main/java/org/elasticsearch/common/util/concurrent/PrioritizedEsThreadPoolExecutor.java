@@ -18,14 +18,20 @@
  */
 package org.elasticsearch.common.util.concurrent;
 
-import com.google.common.collect.Lists;
-
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.unit.TimeValue;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Queue;
-import java.util.concurrent.*;
+import java.util.concurrent.Callable;
+import java.util.concurrent.FutureTask;
+import java.util.concurrent.PriorityBlockingQueue;
+import java.util.concurrent.RunnableFuture;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -46,9 +52,9 @@ public class PrioritizedEsThreadPoolExecutor extends EsThreadPoolExecutor {
     }
 
     public Pending[] getPending() {
-        List<Pending> pending = Lists.newArrayList();
-        addPending(Lists.newArrayList(current), pending, true);
-        addPending(Lists.newArrayList(getQueue()), pending, false);
+        List<Pending> pending = new ArrayList<>();
+        addPending(new ArrayList<>(current), pending, true);
+        addPending(new ArrayList<>(getQueue()), pending, false);
         return pending.toArray(new Pending[pending.size()]);
     }
 

@@ -19,7 +19,6 @@
 package org.elasticsearch.cluster.metadata;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import org.elasticsearch.action.admin.indices.alias.Alias;
@@ -39,6 +38,7 @@ import org.elasticsearch.indices.IndexTemplateAlreadyExistsException;
 import org.elasticsearch.indices.IndexTemplateMissingException;
 import org.elasticsearch.indices.InvalidIndexTemplateException;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -179,7 +179,7 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
     }
 
     private void validate(PutRequest request) {
-        List<String> validationErrors = Lists.newArrayList();
+        List<String> validationErrors = new ArrayList<>();
         if (request.name.contains(" ")) {
             validationErrors.add("name must not contain a space");
         }
@@ -240,7 +240,7 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
         String template;
         Settings settings = Settings.Builder.EMPTY_SETTINGS;
         Map<String, String> mappings = Maps.newHashMap();
-        List<Alias> aliases = Lists.newArrayList();
+        List<Alias> aliases = new ArrayList<>();
         Map<String, IndexMetaData.Custom> customs = Maps.newHashMap();
 
         TimeValue masterTimeout = MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT;

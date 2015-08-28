@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.action.admin.indices.analyze;
 
-import com.google.common.collect.Lists;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
@@ -39,7 +38,13 @@ import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.analysis.*;
+import org.elasticsearch.index.analysis.CharFilterFactory;
+import org.elasticsearch.index.analysis.CharFilterFactoryFactory;
+import org.elasticsearch.index.analysis.CustomAnalyzer;
+import org.elasticsearch.index.analysis.TokenFilterFactory;
+import org.elasticsearch.index.analysis.TokenFilterFactoryFactory;
+import org.elasticsearch.index.analysis.TokenizerFactory;
+import org.elasticsearch.index.analysis.TokenizerFactoryFactory;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
@@ -49,6 +54,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -210,7 +216,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
             throw new IllegalArgumentException("failed to find analyzer");
         }
 
-        List<AnalyzeResponse.AnalyzeToken> tokens = Lists.newArrayList();
+        List<AnalyzeResponse.AnalyzeToken> tokens = new ArrayList<>();
         TokenStream stream = null;
         int lastPosition = -1;
         int lastOffset = 0;

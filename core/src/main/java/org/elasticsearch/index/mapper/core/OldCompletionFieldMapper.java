@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.index.mapper.core;
 
-import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import org.apache.lucene.analysis.Analyzer;
@@ -53,12 +52,7 @@ import org.elasticsearch.search.suggest.completion.old.context.ContextMapping;
 import org.elasticsearch.search.suggest.completion.old.context.ContextMapping.ContextConfig;
 
 import java.io.IOException;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Set;
-import java.util.SortedMap;
+import java.util.*;
 
 import static org.elasticsearch.index.mapper.MapperBuilders.oldCompletionField;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseMultiField;
@@ -334,7 +328,7 @@ public class OldCompletionFieldMapper extends FieldMapper {
         String surfaceForm = null;
         BytesRef payload = null;
         long weight = -1;
-        List<String> inputs = Lists.newArrayListWithExpectedSize(4);
+        List<String> inputs = new ArrayList<>(4);
 
         SortedMap<String, ContextConfig> contextConfig = null;
 

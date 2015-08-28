@@ -40,9 +40,10 @@ import org.elasticsearch.search.suggest.completion.context.ContextMappings;
 import org.elasticsearch.search.suggest.completion.context.ContextMappingsParser;
 
 import java.io.IOException;
+
 import java.util.*;
 
-import static org.elasticsearch.index.mapper.MapperBuilders.*;
+import static org.elasticsearch.index.mapper.MapperBuilders.completionField;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseMultiField;
 import static org.elasticsearch.search.suggest.completion.context.ContextMappingsParser.parseContext;
 

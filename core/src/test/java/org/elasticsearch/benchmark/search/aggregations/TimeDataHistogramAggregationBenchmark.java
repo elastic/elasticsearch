@@ -19,8 +19,6 @@
 
 package org.elasticsearch.benchmark.search.aggregations;
 
-import com.google.common.collect.Lists;
-
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
@@ -44,6 +42,7 @@ import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -163,7 +162,7 @@ public class TimeDataHistogramAggregationBenchmark {
         setMapping(ACCEPTABLE_OVERHEAD_RATIO, MEMORY_FORMAT);
         warmUp("hist_l", "l_value", MATCH_PERCENTAGE);
 
-        List<StatsResult> stats = Lists.newArrayList();
+        List<StatsResult> stats = new ArrayList<>();
         stats.add(measureAgg("hist_l", "l_value", MATCH_PERCENTAGE));
 
         NodesStatsResponse nodeStats = client.admin().cluster().prepareNodesStats(nodes[0].settings().get("name")).clear()

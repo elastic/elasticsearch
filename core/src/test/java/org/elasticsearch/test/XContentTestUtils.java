@@ -19,13 +19,13 @@
 
 package org.elasticsearch.test;
 
-import com.google.common.collect.Lists;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -78,7 +78,7 @@ public final class XContentTestUtils {
             }
         } else if (first instanceof List) {
             if (second instanceof List) {
-                List<Object> secondList = Lists.newArrayList((List<Object>) second);
+                List<Object> secondList = new ArrayList<>((List<Object>) second);
                 List<Object> firstList = (List<Object>) first;
                 if (firstList.size() == secondList.size()) {
                     String reason = path + ": no matches found";

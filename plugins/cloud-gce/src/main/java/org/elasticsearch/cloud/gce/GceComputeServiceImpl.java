@@ -29,12 +29,12 @@ import com.google.api.services.compute.model.Instance;
 import com.google.api.services.compute.model.InstanceList;
 import com.google.common.base.Function;
 import com.google.common.collect.Iterables;
-import com.google.common.collect.Lists;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.CollectionUtils;
 
 import java.io.IOException;
 import java.security.GeneralSecurityException;
@@ -42,6 +42,8 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+
+import static org.elasticsearch.common.util.CollectionUtils.eagerTransform;
 
 /**
  *
@@ -62,7 +64,7 @@ public class GceComputeServiceImpl extends AbstractLifecycleComponent<GceCompute
 
             logger.debug("get instances for project [{}], zones [{}]", project, zones);
 
-            List<List<Instance>> instanceListByZone = Lists.transform(zones, new Function<String, List<Instance>>() {
+            List<List<Instance>> instanceListByZone = eagerTransform(zones, new Function<String, List<Instance>>() {
                 @Override
                 public List<Instance> apply(String zoneId) {
                     try {
@@ -83,7 +85,7 @@ public class GceComputeServiceImpl extends AbstractLifecycleComponent<GceCompute
             });
 
             // Collapse instances from all zones into one neat list
-            List<Instance> instanceList = Lists.newArrayList(Iterables.concat(instanceListByZone));
+            List<Instance> instanceList = CollectionUtils.iterableAsArrayList(Iterables.concat(instanceListByZone));
 
             if (instanceList.size() == 0) {
                 logger.warn("disabling GCE discovery. Can not get list of nodes");

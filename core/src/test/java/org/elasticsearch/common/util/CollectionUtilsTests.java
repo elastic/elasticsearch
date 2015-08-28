@@ -28,8 +28,16 @@ import org.apache.lucene.util.Counter;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.SortedSet;
+import java.util.TreeSet;
 
+import static org.elasticsearch.common.util.CollectionUtils.eagerPartition;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
@@ -129,4 +137,51 @@ public class CollectionUtilsTests extends ESTestCase {
 
     }
 
+    public void testEmptyPartition() {
+        assertEquals(
+                Collections.emptyList(),
+                eagerPartition(Collections.emptyList(), 1)
+        );
+    }
+
+    public void testSimplePartition() {
+        assertEquals(
+                Arrays.asList(
+                        Arrays.asList(1, 2),
+                        Arrays.asList(3, 4),
+                        Arrays.asList(5)
+                ),
+                eagerPartition(Arrays.asList(1, 2, 3, 4, 5), 2)
+        );
+    }
+
+    public void testSingletonPartition() {
+        assertEquals(
+                Arrays.asList(
+                        Arrays.asList(1),
+                        Arrays.asList(2),
+                        Arrays.asList(3),
+                        Arrays.asList(4),
+                        Arrays.asList(5)
+                ),
+                eagerPartition(Arrays.asList(1, 2, 3, 4, 5), 1)
+        );
+    }
+
+    public void testOversizedPartition() {
+        assertEquals(
+                Arrays.asList(Arrays.asList(1, 2, 3, 4, 5)),
+                eagerPartition(Arrays.asList(1, 2, 3, 4, 5), 15)
+        );
+    }
+
+    public void testPerfectPartition() {
+        assertEquals(
+                Arrays.asList(
+                        Arrays.asList(1, 2, 3, 4, 5, 6),
+                        Arrays.asList(7, 8, 9, 10, 11, 12)
+                ),
+                eagerPartition(Arrays.asList(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12), 6)
+        );
+    }
 }

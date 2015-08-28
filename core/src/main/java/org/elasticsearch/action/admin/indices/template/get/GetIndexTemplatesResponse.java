@@ -18,13 +18,13 @@
  */
 package org.elasticsearch.action.admin.indices.template.get;
 
-import com.google.common.collect.Lists;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -49,7 +49,7 @@ public class GetIndexTemplatesResponse extends ActionResponse {
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         int size = in.readVInt();
-        indexTemplates = Lists.newArrayListWithExpectedSize(size);
+        indexTemplates = new ArrayList<>(size);
         for (int i = 0 ; i < size ; i++) {
             indexTemplates.add(0, IndexTemplateMetaData.Builder.readFrom(in));
         }

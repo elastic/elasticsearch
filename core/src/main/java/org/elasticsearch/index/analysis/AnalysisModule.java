@@ -19,15 +19,12 @@
 
 package org.elasticsearch.index.analysis;
 
-import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Scopes;
 import org.elasticsearch.common.inject.assistedinject.FactoryProvider;
 import org.elasticsearch.common.inject.multibindings.MapBinder;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.NoClassSettingsException;
 import org.elasticsearch.index.analysis.compound.DictionaryCompoundWordTokenFilterFactory;
 import org.elasticsearch.index.analysis.compound.HyphenationCompoundWordTokenFilterFactory;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
@@ -108,7 +105,7 @@ public class AnalysisModule extends AbstractModule {
 
     private final IndicesAnalysisService indicesAnalysisService;
 
-    private final LinkedList<AnalysisBinderProcessor> processors = Lists.newLinkedList();
+    private final LinkedList<AnalysisBinderProcessor> processors = new LinkedList<>();
 
     private final Map<String, Class<? extends CharFilterFactory>> charFilters = Maps.newHashMap();
     private final Map<String, Class<? extends TokenFilterFactory>> tokenFilters = Maps.newHashMap();

@@ -19,8 +19,6 @@
 
 package org.elasticsearch.rest.action;
 
-import com.google.common.collect.Lists;
-
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.multibindings.Multibinder;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -67,10 +65,10 @@ import org.elasticsearch.rest.action.admin.indices.open.RestOpenIndexAction;
 import org.elasticsearch.rest.action.admin.indices.optimize.RestOptimizeAction;
 import org.elasticsearch.rest.action.admin.indices.recovery.RestRecoveryAction;
 import org.elasticsearch.rest.action.admin.indices.refresh.RestRefreshAction;
-import org.elasticsearch.rest.action.admin.indices.shards.RestIndicesShardStoresAction;
 import org.elasticsearch.rest.action.admin.indices.segments.RestIndicesSegmentsAction;
 import org.elasticsearch.rest.action.admin.indices.settings.RestGetSettingsAction;
 import org.elasticsearch.rest.action.admin.indices.settings.RestUpdateSettingsAction;
+import org.elasticsearch.rest.action.admin.indices.shards.RestIndicesShardStoresAction;
 import org.elasticsearch.rest.action.admin.indices.stats.RestIndicesStatsAction;
 import org.elasticsearch.rest.action.admin.indices.template.delete.RestDeleteIndexTemplateAction;
 import org.elasticsearch.rest.action.admin.indices.template.get.RestGetIndexTemplateAction;
@@ -83,7 +81,20 @@ import org.elasticsearch.rest.action.admin.indices.warmer.delete.RestDeleteWarme
 import org.elasticsearch.rest.action.admin.indices.warmer.get.RestGetWarmerAction;
 import org.elasticsearch.rest.action.admin.indices.warmer.put.RestPutWarmerAction;
 import org.elasticsearch.rest.action.bulk.RestBulkAction;
-import org.elasticsearch.rest.action.cat.*;
+import org.elasticsearch.rest.action.cat.AbstractCatAction;
+import org.elasticsearch.rest.action.cat.RestAliasAction;
+import org.elasticsearch.rest.action.cat.RestAllocationAction;
+import org.elasticsearch.rest.action.cat.RestCatAction;
+import org.elasticsearch.rest.action.cat.RestFielddataAction;
+import org.elasticsearch.rest.action.cat.RestHealthAction;
+import org.elasticsearch.rest.action.cat.RestIndicesAction;
+import org.elasticsearch.rest.action.cat.RestMasterAction;
+import org.elasticsearch.rest.action.cat.RestNodeAttrsAction;
+import org.elasticsearch.rest.action.cat.RestNodesAction;
+import org.elasticsearch.rest.action.cat.RestPluginsAction;
+import org.elasticsearch.rest.action.cat.RestSegmentsAction;
+import org.elasticsearch.rest.action.cat.RestShardsAction;
+import org.elasticsearch.rest.action.cat.RestThreadPoolAction;
 import org.elasticsearch.rest.action.delete.RestDeleteAction;
 import org.elasticsearch.rest.action.explain.RestExplainAction;
 import org.elasticsearch.rest.action.fieldstats.RestFieldStatsAction;
@@ -110,13 +121,14 @@ import org.elasticsearch.rest.action.termvectors.RestMultiTermVectorsAction;
 import org.elasticsearch.rest.action.termvectors.RestTermVectorsAction;
 import org.elasticsearch.rest.action.update.RestUpdateAction;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
  *
  */
 public class RestActionModule extends AbstractModule {
-    private List<Class<? extends BaseRestHandler>> restPluginsActions = Lists.newArrayList();
+    private List<Class<? extends BaseRestHandler>> restPluginsActions = new ArrayList<>();
 
     public RestActionModule(List<Class<? extends BaseRestHandler>> restPluginsActions) {
         this.restPluginsActions = restPluginsActions;

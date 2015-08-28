@@ -18,9 +18,9 @@
  */
 package org.elasticsearch.search.fetch.fielddata;
 
-import com.google.common.collect.Lists;
 import org.elasticsearch.search.fetch.FetchSubPhaseContext;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -40,7 +40,7 @@ public class FieldDataFieldsContext extends FetchSubPhaseContext {
         }
     }
 
-    private List<FieldDataField> fields = Lists.newArrayList();
+    private List<FieldDataField> fields = new ArrayList<>();
 
     public FieldDataFieldsContext() {
     }

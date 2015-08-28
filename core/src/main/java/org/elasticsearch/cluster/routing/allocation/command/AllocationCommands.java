@@ -20,8 +20,8 @@
 package org.elasticsearch.cluster.routing.allocation.command;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.cluster.routing.allocation.RoutingExplanations;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.routing.allocation.RoutingExplanations;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -30,12 +30,11 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
-import static com.google.common.collect.Lists.newArrayList;
 
 /**
  * A simple {@link AllocationCommand} composite managing several
@@ -73,7 +72,7 @@ public class AllocationCommands {
         registerFactory(MoveAllocationCommand.NAME, new MoveAllocationCommand.Factory());
     }
 
-    private final List<AllocationCommand> commands = newArrayList();
+    private final List<AllocationCommand> commands = new ArrayList<>();
 
     /**
      * Creates a new set of {@link AllocationCommands}

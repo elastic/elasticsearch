@@ -19,12 +19,17 @@
 package org.elasticsearch.percolator;
 
 import com.carrotsearch.hppc.IntObjectHashMap;
-import com.google.common.collect.Lists;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.index.memory.ExtendedMemoryIndex;
 import org.apache.lucene.index.memory.MemoryIndex;
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CloseableThreadLocal;
 import org.elasticsearch.ElasticsearchParseException;
@@ -58,7 +63,11 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
-import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.mapper.DocumentMapperForType;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.percolator.stats.ShardPercolateService;
 import org.elasticsearch.index.query.ParsedQuery;
@@ -84,6 +93,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.common.util.CollectionUtils.eagerTransform;
 import static org.elasticsearch.index.mapper.SourceToParse.source;
 import static org.elasticsearch.percolator.QueryCollector.*;
 
@@ -846,7 +856,7 @@ public class PercolatorService extends AbstractComponent {
         if (aggregations != null) {
             List<SiblingPipelineAggregator> pipelineAggregators = shardResults.get(0).pipelineAggregators();
             if (pipelineAggregators != null) {
-                List<InternalAggregation> newAggs = new ArrayList<>(Lists.transform(aggregations.asList(), PipelineAggregator.AGGREGATION_TRANFORM_FUNCTION));
+                List<InternalAggregation> newAggs = new ArrayList<>(eagerTransform(aggregations.asList(), PipelineAggregator.AGGREGATION_TRANFORM_FUNCTION));
                 for (SiblingPipelineAggregator pipelineAggregator : pipelineAggregators) {
                     InternalAggregation newAgg = pipelineAggregator.doReduce(new InternalAggregations(newAggs), new ReduceContext(bigArrays,
                             scriptService));

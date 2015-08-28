@@ -19,27 +19,34 @@
 package org.elasticsearch.http.netty;
 
 import com.google.common.base.Charsets;
-import com.google.common.collect.Lists;
-
+import org.elasticsearch.cache.recycler.MockPageCacheRecycler;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
+import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.netty.pipelining.OrderedDownstreamChannelEvent;
 import org.elasticsearch.http.netty.pipelining.OrderedUpstreamMessageEvent;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.common.util.MockBigArrays;
-import org.elasticsearch.cache.recycler.MockPageCacheRecycler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.buffer.ChannelBuffers;
-import org.jboss.netty.channel.*;
-import org.jboss.netty.handler.codec.http.*;
+import org.jboss.netty.channel.ChannelHandlerContext;
+import org.jboss.netty.channel.ChannelPipeline;
+import org.jboss.netty.channel.ChannelPipelineFactory;
+import org.jboss.netty.channel.ExceptionEvent;
+import org.jboss.netty.channel.MessageEvent;
+import org.jboss.netty.channel.SimpleChannelUpstreamHandler;
+import org.jboss.netty.handler.codec.http.DefaultHttpResponse;
+import org.jboss.netty.handler.codec.http.HttpRequest;
+import org.jboss.netty.handler.codec.http.HttpResponse;
+import org.jboss.netty.handler.codec.http.QueryStringDecoder;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
@@ -108,7 +115,7 @@ public class NettyHttpServerPipeliningTest extends ESTestCase {
         List<String> requests = Arrays.asList("/slow?sleep=1000", "/firstfast", "/secondfast", "/thirdfast", "/slow?sleep=500");
         try (NettyHttpClient nettyHttpClient = new NettyHttpClient()) {
             Collection<HttpResponse> responses = nettyHttpClient.sendRequests(transportAddress.address(), requests.toArray(new String[]{}));
-            List<String> responseBodies = Lists.newArrayList(returnHttpResponseBodies(responses));
+            List<String> responseBodies = new ArrayList<>(returnHttpResponseBodies(responses));
             // we cannot be sure about the order of the fast requests, but the slow ones should have to be last
             assertThat(responseBodies, hasSize(5));
             assertThat(responseBodies.get(3), is("/slow?sleep=500"));

@@ -19,12 +19,12 @@
 
 package org.elasticsearch.common.lucene.all;
 
-import com.google.common.collect.Lists;
 import org.elasticsearch.common.io.FastCharArrayWriter;
 import org.elasticsearch.common.io.FastStringReader;
 
 import java.io.IOException;
 import java.io.Reader;
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
@@ -66,7 +66,7 @@ public class AllEntries extends Reader {
         }
     }
 
-    private final List<Entry> entries = Lists.newArrayList();
+    private final List<Entry> entries = new ArrayList<>();
 
     private Entry current;
 

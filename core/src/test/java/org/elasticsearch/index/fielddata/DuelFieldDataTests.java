@@ -20,12 +20,15 @@ package org.elasticsearch.index.fielddata;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
-import com.google.common.collect.Lists;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StringField;
-import org.apache.lucene.index.*;
+import org.apache.lucene.index.CompositeReaderContext;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.RandomAccessOrds;
+import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.English;
@@ -40,8 +43,16 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.junit.Test;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Random;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.*;
 
@@ -578,8 +589,8 @@ public class DuelFieldDataTests extends AbstractFieldDataTests {
             final int numValues = leftValues.count();
             rightValues.setDocument(i);;
             assertEquals(numValues, rightValues.count());
-            List<GeoPoint> leftPoints = Lists.newArrayList();
-            List<GeoPoint> rightPoints = Lists.newArrayList();
+            List<GeoPoint> leftPoints = new ArrayList<>();
+            List<GeoPoint> rightPoints = new ArrayList<>();
             for (int j = 0; j < numValues; ++j) {
                 GeoPoint l = leftValues.valueAt(j);
                 leftPoints.add(new GeoPoint(l.getLat(), l.getLon()));

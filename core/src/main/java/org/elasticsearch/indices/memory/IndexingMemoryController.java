@@ -19,7 +19,6 @@
 
 package org.elasticsearch.indices.memory;
 
-import com.google.common.collect.Lists;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -39,7 +38,12 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ScheduledFuture;
 
 /**
@@ -158,7 +162,7 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
 
             changes.addAll(purgeDeletedAndClosedShards());
 
-            final List<IndexShard> activeToInactiveIndexingShards = Lists.newArrayList();
+            final List<IndexShard> activeToInactiveIndexingShards = new ArrayList<>();
             final int activeShards = updateShardStatuses(changes, activeToInactiveIndexingShards);
             for (IndexShard indexShard : activeToInactiveIndexingShards) {
                 // update inactive indexing buffer size

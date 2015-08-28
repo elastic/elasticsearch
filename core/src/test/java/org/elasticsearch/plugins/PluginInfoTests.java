@@ -20,8 +20,6 @@
 package org.elasticsearch.plugins;
 
 import com.google.common.base.Function;
-import com.google.common.collect.Lists;
-
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsInfo;
 import org.elasticsearch.test.ESTestCase;
@@ -33,6 +31,7 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Properties;
 
+import static org.elasticsearch.common.util.CollectionUtils.eagerTransform;
 import static org.hamcrest.Matchers.contains;
 
 public class PluginInfoTests extends ESTestCase {
@@ -282,7 +281,7 @@ public class PluginInfoTests extends ESTestCase {
         pluginsInfo.add(new PluginInfo("d", "foo", true, "dummy", true, "dummyclass", true));
 
         final List<PluginInfo> infos = pluginsInfo.getInfos();
-        List<String> names = Lists.transform(infos, new Function<PluginInfo, String>() {
+        List<String> names = eagerTransform(infos, new Function<PluginInfo, String>() {
             @Override
             public String apply(PluginInfo input) {
                 return input.getName();

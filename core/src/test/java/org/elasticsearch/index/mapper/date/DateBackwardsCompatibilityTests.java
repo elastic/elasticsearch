@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.mapper.date;
 
-import com.google.common.collect.Lists;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
@@ -33,6 +32,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.junit.Before;
 
+import java.util.Arrays;
 import java.util.List;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
@@ -84,7 +84,7 @@ public class DateBackwardsCompatibilityTests extends ESSingleNodeTestCase {
 
     public void testThatPre2xSupportsUnixTimestampsInAnyDateFormat() throws Exception {
         long dateInMillis = 1435073872l * 1000; // Tue Jun 23 17:37:52 CEST 2015
-        List<String> dateFormats = Lists.newArrayList("dateOptionalTime", "weekDate", "tTime", "ordinalDate", "hourMinuteSecond", "hourMinute");
+        List<String> dateFormats = Arrays.asList("dateOptionalTime", "weekDate", "tTime", "ordinalDate", "hourMinuteSecond", "hourMinute");
 
         for (String format : dateFormats) {
             XContentBuilder mapping = jsonBuilder().startObject().startObject("properties")

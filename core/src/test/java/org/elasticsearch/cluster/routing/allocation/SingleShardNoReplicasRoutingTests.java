@@ -25,20 +25,20 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.test.ESAllocationTestCase;
 import org.junit.Test;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
-import static com.google.common.collect.Lists.newArrayList;
 import static com.google.common.collect.Sets.newHashSet;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.*;
 import static org.elasticsearch.cluster.routing.allocation.RoutingNodesUtils.numberOfShardsOfType;
@@ -239,7 +239,7 @@ public class SingleShardNoReplicasRoutingTests extends ESAllocationTestCase {
 
         logger.info("Adding " + (numberOfIndices / 2) + " nodes");
         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder();
-        List<DiscoveryNode> nodes = newArrayList();
+        List<DiscoveryNode> nodes = new ArrayList<>();
         for (int i = 0; i < (numberOfIndices / 2); i++) {
             nodesBuilder.put(newNode("node" + i));
         }

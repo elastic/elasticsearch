@@ -19,12 +19,13 @@
 
 package org.elasticsearch.script;
 
-import com.google.common.collect.Lists;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collections;
 
 public class ScriptContextRegistryTests extends ESTestCase {
 
@@ -33,7 +34,7 @@ public class ScriptContextRegistryTests extends ESTestCase {
         for (final String rejectedContext : ScriptContextRegistry.RESERVED_SCRIPT_CONTEXTS) {
             try {
                 //try to register a prohibited script context
-                new ScriptContextRegistry(Lists.newArrayList(new ScriptContext.Plugin("test", rejectedContext)));
+                new ScriptContextRegistry(Arrays.asList(new ScriptContext.Plugin("test", rejectedContext)));
                 fail("ScriptContextRegistry initialization should have failed");
             } catch(IllegalArgumentException e) {
                 assertThat(e.getMessage(), Matchers.containsString("[" + rejectedContext + "] is a reserved name, it cannot be registered as a custom script context"));
@@ -46,7 +47,7 @@ public class ScriptContextRegistryTests extends ESTestCase {
         for (final String rejectedContext : ScriptContextRegistry.RESERVED_SCRIPT_CONTEXTS) {
             try {
                 //try to register a prohibited script context
-                new ScriptContextRegistry(Lists.newArrayList(new ScriptContext.Plugin(rejectedContext, "test")));
+                new ScriptContextRegistry(Collections.singleton(new ScriptContext.Plugin(rejectedContext, "test")));
                 fail("ScriptContextRegistry initialization should have failed");
             } catch(IllegalArgumentException e) {
                 assertThat(e.getMessage(), Matchers.containsString("[" + rejectedContext + "] is a reserved name, it cannot be registered as a custom script context"));
@@ -68,7 +69,7 @@ public class ScriptContextRegistryTests extends ESTestCase {
     public void testDuplicatedPluginScriptContexts() throws IOException {
         try {
             //try to register a prohibited script context
-            new ScriptContextRegistry(Lists.newArrayList(new ScriptContext.Plugin("testplugin", "test"), new ScriptContext.Plugin("testplugin", "test")));
+            new ScriptContextRegistry(Arrays.asList(new ScriptContext.Plugin("testplugin", "test"), new ScriptContext.Plugin("testplugin", "test")));
             fail("ScriptContextRegistry initialization should have failed");
         } catch(IllegalArgumentException e) {
             assertThat(e.getMessage(), Matchers.containsString("script context [testplugin_test] cannot be registered twice"));
@@ -77,6 +78,6 @@ public class ScriptContextRegistryTests extends ESTestCase {
 
     @Test
     public void testNonDuplicatedPluginScriptContexts() throws IOException {
-        new ScriptContextRegistry(Lists.newArrayList(new ScriptContext.Plugin("testplugin1", "test"), new ScriptContext.Plugin("testplugin2", "test")));
+        new ScriptContextRegistry(Arrays.asList(new ScriptContext.Plugin("testplugin1", "test"), new ScriptContext.Plugin("testplugin2", "test")));
     }
 }

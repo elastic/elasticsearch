@@ -103,7 +103,7 @@ public class ClusterDiscoveryConfiguration extends SettingsSource {
         }
 
         private static int calcBasePort() {
-            return 30000 + InternalTestCluster.BASE_PORT;
+            return 30000 + InternalTestCluster.JVM_BASE_PORT_OFFEST;
         }
 
         @Override

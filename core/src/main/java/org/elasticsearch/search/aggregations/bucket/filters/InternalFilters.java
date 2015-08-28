@@ -19,8 +19,6 @@
 
 package org.elasticsearch.search.aggregations.bucket.filters;
 
-import com.google.common.collect.Lists;
-
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -118,7 +116,7 @@ public class InternalFilters extends InternalMultiBucketAggregation<InternalFilt
 
         Bucket reduce(List<Bucket> buckets, ReduceContext context) {
             Bucket reduced = null;
-            List<InternalAggregations> aggregationsList = Lists.newArrayListWithCapacity(buckets.size());
+            List<InternalAggregations> aggregationsList = new ArrayList<>(buckets.size());
             for (Bucket bucket : buckets) {
                 if (reduced == null) {
                     reduced = new Bucket(bucket.key, bucket.docCount, bucket.aggregations, bucket.keyed);
@@ -233,7 +231,7 @@ public class InternalFilters extends InternalMultiBucketAggregation<InternalFilt
     protected void doReadFrom(StreamInput in) throws IOException {
         keyed = in.readBoolean();
         int size = in.readVInt();
-        List<Bucket> buckets = Lists.newArrayListWithCapacity(size);
+        List<Bucket> buckets = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
             Bucket bucket = new Bucket(keyed);
             bucket.readFrom(in);

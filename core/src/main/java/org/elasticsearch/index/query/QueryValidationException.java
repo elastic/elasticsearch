@@ -19,66 +19,29 @@
 
 package org.elasticsearch.index.query;
 
-import java.util.ArrayList;
+import org.elasticsearch.common.ValidationException;
+
 import java.util.List;
 
 /**
  * This exception can be used to indicate various reasons why validation of a query has failed.
  */
-public class QueryValidationException extends IllegalArgumentException {
-
-    private final List<String> validationErrors = new ArrayList<>();
-
-    public QueryValidationException(String error) {
-        super("query validation failed");
-        validationErrors.add(error);
-    }
-
-    public QueryValidationException(List<String> errors) {
-        super("query validation failed");
-        validationErrors.addAll(errors);
-    }
-
-    public void addValidationError(String error) {
-        validationErrors.add(error);
-    }
-
-    public void addValidationErrors(Iterable<String> errors) {
-        for (String error : errors) {
-            validationErrors.add(error);
-        }
-    }
-
-    public List<String> validationErrors() {
-        return validationErrors;
-    }
-
-    @Override
-    public String getMessage() {
-        StringBuilder sb = new StringBuilder();
-        sb.append("Validation Failed: ");
-        int index = 0;
-        for (String error : validationErrors) {
-            sb.append(++index).append(": ").append(error).append(";");
-        }
-        return sb.toString();
-    }
+public class QueryValidationException extends ValidationException {
 
     /**
      * Helper method than can be used to add error messages to an existing {@link QueryValidationException}.
      * When passing {@code null} as the initial exception, a new exception is created.
      *
-     * @param queryId
+     * @param queryId the query that caused the error
      * @param validationError the error message to add to an initial exception
      * @param validationException an initial exception. Can be {@code null}, in which case a new exception is created.
      * @return a {@link QueryValidationException} with added validation error message
      */
     public static QueryValidationException addValidationError(String queryId, String validationError, QueryValidationException validationException) {
         if (validationException == null) {
-            validationException = new QueryValidationException("[" + queryId + "] " + validationError);
-        } else {
-            validationException.addValidationError(validationError);
+            validationException = new QueryValidationException();
         }
+        validationException.addValidationError("[" + queryId + "] " + validationError);
         return validationException;
     }
 
@@ -91,10 +54,9 @@ public class QueryValidationException extends IllegalArgumentException {
      */
     public static QueryValidationException addValidationErrors(List<String> validationErrors, QueryValidationException validationException) {
         if (validationException == null) {
-            validationException = new QueryValidationException(validationErrors);
-        } else {
-            validationException.addValidationErrors(validationErrors);
+            validationException = new QueryValidationException();
         }
+        validationException.addValidationErrors(validationErrors);
         return validationException;
     }
 }

@@ -1,9 +1,12 @@
 package org.elasticsearch.devtools
 
 import com.carrotsearch.ant.tasks.junit4.JUnit4
+import com.carrotsearch.ant.tasks.junit4.ListenersList
 import com.carrotsearch.ant.tasks.junit4.dependencies.com.google.common.eventbus.Subscribe
 import com.carrotsearch.ant.tasks.junit4.events.aggregated.AggregatedStartEvent
+import com.carrotsearch.ant.tasks.junit4.events.aggregated.AggregatedSuiteResultEvent
 import com.carrotsearch.ant.tasks.junit4.listeners.AggregatedEventListener
+import com.carrotsearch.ant.tasks.junit4.listeners.TextReport
 import groovy.xml.NamespaceBuilder
 import org.apache.tools.ant.RuntimeConfigurable
 import org.apache.tools.ant.Task
@@ -14,8 +17,11 @@ import org.gradle.api.tasks.SourceSetContainer
 import org.gradle.api.tasks.TaskAction
 import org.gradle.logging.ProgressLogger
 import org.gradle.logging.ProgressLoggerFactory
+import org.junit.runner.Description
+import sun.misc.URLClassPath
 
 import javax.inject.Inject
+import java.util.concurrent.atomic.AtomicInteger
 
 class RandomizedTest extends DefaultTask {
 
@@ -24,19 +30,29 @@ class RandomizedTest extends DefaultTask {
         Logger logger
         ProgressLoggerFactory factory
         ProgressLogger progressLogger
+        int totalSuites;
+        AtomicInteger suitesCompleted = new AtomicInteger();
 
         @Subscribe
         public void onStart(AggregatedStartEvent e) throws IOException {
-            logger.info('START EVENT')
-            progressLogger = factory.newOperation(JUnit4ProgressLogger.class)
-            progressLogger.setDescription("Running JUnit4 " + e.getSuiteCount() + " test suites")
+            totalSuites = e.getSuiteCount();
+            progressLogger = factory.newOperation(RandomizedTest.class)
+            progressLogger.setDescription('Randomized test runner')
             progressLogger.started()
-            progressLogger.progress("RUNNING TEST")
+            progressLogger.progress('Starting JUnit4 with ' + e.getSlaveCount() + ' jvms')
+        }
+
+        @Subscribe
+        public void onSuiteResult(AggregatedSuiteResultEvent e) throws IOException {
+            final int completed = suitesCompleted.incrementAndGet();
+            Description description = e.getDescription()
+            String suiteName = description.getDisplayName();
+            suiteName = suiteName.substring(suiteName.lastIndexOf('.') + 1);
+            progressLogger.progress('Completed [' + completed + '/' + totalSuites + '] ' + suiteName)
         }
 
         @Override
         public void setOuter(JUnit4 junit) {
-            logger.info('OUTER SET')
             this.junit = junit;
         }
     }
@@ -52,12 +68,9 @@ class RandomizedTest extends DefaultTask {
         def test2 = '**/*Tests.class'
         def sourceSet = ((SourceSetContainer)getProject().getProperties().get('sourceSets')).getByName('test')
         def workingDir = new File(getProject().buildDir, "run-test")
-        ant.taskdef(resource: 'com/carrotsearch/junit4/antlib.xml',
-                uri: 'junit4',
-                classpath: getProject().configurations.testCompile.asPath)
+        def factory = getProgressLoggerFactory()
+        ant.getProject().addTaskDefinition('junit4:junit4', JUnit4.class)
         def junit4 = NamespaceBuilder.newInstance(ant, 'junit4')
-        logger.lifecycle('RUNNING TESTS')
-        logger.info('Junit4: ' + junit4)
         junit4.junit4(
                 taskName: 'junit4',
                 parallelism: 8,
@@ -70,35 +83,45 @@ class RandomizedTest extends DefaultTask {
                 include(name: test1)
                 include(name: test2)
             }
-            listeners {
-                /*junit4.'report-text'(
-                        showThrowable: true,
-                        showStackTraces: true,
-                        showOutput: 'onerror', // TODO: change to property
-                        showStatusOk: false,
-                        showStatusError: true,
-                        showStatusFailure: true,
-                        showStatusIgnored: true,
-                        showSuiteSummary: true,
-                        timestamps: false
-                )*/
-                makeProgressListener(ant)
+            makeListeners(ant, factory, logger)
+        }
+    }
+
+    static class ListenersElement extends UnknownElement {
+        AggregatedEventListener[] listeners
+        Logger logger
+
+        ListenersElement() {
+            super('listeners')
+            setNamespace('junit4')
+            setQName('listeners')
+        }
+
+        public void handleChildren(Object realThing, RuntimeConfigurable wrapper) {
+            assert realThing instanceof ListenersList
+            ListenersList list = (ListenersList)realThing
+
+            for (AggregatedEventListener listener : listeners) {
+                list.addConfigured(listener)
             }
         }
     }
 
-    def makeProgressListener(AntBuilder ant) {
-        def name = 'gradle-report-listener'
-        def logger = new JUnit4ProgressLogger(factory: getProgressLoggerFactory(), logger: getLogger())
+    /**
+     * Makes an ant xml element for 'listeners' just as AntBuilder would, except configuring
+     * the element configures the already created children.
+     */
+    def makeListeners(AntBuilder ant, ProgressLoggerFactory factory, Logger realLogger) {
+        def progressLogger = new JUnit4ProgressLogger(factory: factory, logger: realLogger)
+        def textReport = new TextReport()
         def context = ant.getAntXmlContext();
         def parentWrapper = context.currentWrapper()
         def parent = parentWrapper.getProxy()
-        UnknownElement element = new UnknownElement(name)
+        UnknownElement element = new ListenersElement(listeners: [progressLogger, textReport], logger: realLogger)
         element.setProject(context.getProject())
         element.setRealThing(logger)
-        //element.setRuntimeConfigurableWrapper(new RuntimeConfigurable(logger, name))
         ((UnknownElement)parent).addChild(element);
-        RuntimeConfigurable wrapper = new RuntimeConfigurable(element, name);
+        RuntimeConfigurable wrapper = new RuntimeConfigurable(element, element.getQName());
         parentWrapper.addChild(wrapper)
         return wrapper.getProxy()
     }

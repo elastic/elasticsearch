@@ -94,6 +94,7 @@ public class MarvelPlugin extends Plugin {
 
     public void onModule(ClusterModule module) {
         // HttpESExporter
+        module.registerClusterDynamicSetting(HttpESExporter.SETTINGS_INDEX_TIME_FORMAT, Validator.EMPTY);
         module.registerClusterDynamicSetting(HttpESExporter.SETTINGS_HOSTS, Validator.EMPTY);
         module.registerClusterDynamicSetting(HttpESExporter.SETTINGS_HOSTS + ".*", Validator.EMPTY);
         module.registerClusterDynamicSetting(HttpESExporter.SETTINGS_TIMEOUT, Validator.EMPTY);

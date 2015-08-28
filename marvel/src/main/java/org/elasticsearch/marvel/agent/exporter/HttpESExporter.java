@@ -27,6 +27,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.http.HttpServer;
 import org.elasticsearch.marvel.agent.renderer.Renderer;
 import org.elasticsearch.marvel.agent.renderer.RendererRegistry;
+import org.elasticsearch.marvel.agent.settings.MarvelSettings;
 import org.elasticsearch.marvel.agent.support.AgentUtils;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.service.NodeService;
@@ -56,7 +57,6 @@ public class HttpESExporter extends AbstractExporter<HttpESExporter> implements 
 
     private static final String SETTINGS_PREFIX = "marvel.agent.exporter.es.";
     public static final String SETTINGS_HOSTS = SETTINGS_PREFIX + "hosts";
-    public static final String SETTINGS_INDEX_PREFIX = SETTINGS_PREFIX + "index.prefix";
     public static final String SETTINGS_INDEX_TIME_FORMAT = SETTINGS_PREFIX + "index.timeformat";
     public static final String SETTINGS_TIMEOUT = SETTINGS_PREFIX + "timeout";
     public static final String SETTINGS_READ_TIMEOUT = SETTINGS_PREFIX + "read_timeout";
@@ -67,10 +67,11 @@ public class HttpESExporter extends AbstractExporter<HttpESExporter> implements 
     // es level timeout used for bulk indexing (used to speed up tests)
     public static final String SETTINGS_BULK_TIMEOUT = SETTINGS_PREFIX + ".bulk.timeout";
 
+    public static final String DEFAULT_INDEX_TIME_FORMAT = "YYYY.MM.dd";
+
     volatile String[] hosts;
     volatile boolean boundToLocalNode = false;
-    final String indexPrefix;
-    final DateTimeFormatter indexTimeFormatter;
+    volatile DateTimeFormatter indexTimeFormatter;
     volatile int timeoutInMillis;
     volatile int readTimeoutInMillis;
 
@@ -118,15 +119,19 @@ public class HttpESExporter extends AbstractExporter<HttpESExporter> implements 
 
         validateHosts(hosts);
 
-        indexPrefix = settings.get(SETTINGS_INDEX_PREFIX, ".marvel");
-        String indexTimeFormat = settings.get(SETTINGS_INDEX_TIME_FORMAT, "YYYY.MM.dd");
-        indexTimeFormatter = DateTimeFormat.forPattern(indexTimeFormat).withZoneUTC();
+        String indexTimeFormat = settings.get(SETTINGS_INDEX_TIME_FORMAT, DEFAULT_INDEX_TIME_FORMAT);
+        try {
+            logger.debug("checking that index time format [{}] is correct", indexTimeFormat);
+            indexTimeFormatter = DateTimeFormat.forPattern(indexTimeFormat).withZoneUTC();
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("Invalid marvel index time format [" + indexTimeFormat + "] configured in setting [" + SETTINGS_INDEX_TIME_FORMAT + "]", e);
+        }
 
         timeoutInMillis = (int) settings.getAsTime(SETTINGS_TIMEOUT, new TimeValue(6000)).millis();
         readTimeoutInMillis = (int) settings.getAsTime(SETTINGS_READ_TIMEOUT, new TimeValue(timeoutInMillis * 10)).millis();
 
         templateCheckTimeout = settings.getAsTime(SETTINGS_CHECK_TEMPLATE_TIMEOUT, null);
-        bulkTimeout = settings.getAsTime(SETTINGS_CHECK_TEMPLATE_TIMEOUT, null);
+        bulkTimeout = settings.getAsTime(SETTINGS_BULK_TIMEOUT, null);
 
         keepAliveWorker = new ConnectionKeepAliveWorker();
         nodeSettingsService.addListener(this);
@@ -140,7 +145,7 @@ public class HttpESExporter extends AbstractExporter<HttpESExporter> implements 
         hostnameVerification = settings.getAsBoolean(SETTINGS_SSL_HOSTNAME_VERIFICATION, true);
 
         logger.debug("initialized with targets: {}, index prefix [{}], index time format [{}]",
-                AgentUtils.santizeUrlPwds(Strings.arrayToCommaDelimitedString(hosts)), indexPrefix, indexTimeFormat);
+                AgentUtils.santizeUrlPwds(Strings.arrayToCommaDelimitedString(hosts)), MarvelSettings.MARVEL_INDICES_PREFIX, indexTimeFormat);
     }
 
     static private void validateHosts(String[] hosts) {
@@ -314,8 +319,8 @@ public class HttpESExporter extends AbstractExporter<HttpESExporter> implements 
         return hosts;
     }
 
-    private String getIndexName() {
-        return indexPrefix + "-" + indexTimeFormatter.print(System.currentTimeMillis());
+    String getIndexName() {
+        return MarvelSettings.MARVEL_INDICES_PREFIX + indexTimeFormatter.print(System.currentTimeMillis());
 
     }
 
@@ -566,6 +571,15 @@ public class HttpESExporter extends AbstractExporter<HttpESExporter> implements 
         if (newHostnameVerification != null) {
             logger.info("hostname verification set to [{}]", newHostnameVerification);
             this.hostnameVerification = newHostnameVerification;
+        }
+
+        String newIndexTimeFormat = settings.get(SETTINGS_INDEX_TIME_FORMAT, null);
+        if (newIndexTimeFormat != null) {
+            try {
+                indexTimeFormatter = DateTimeFormat.forPattern(newIndexTimeFormat).withZoneUTC();
+            } catch (IllegalArgumentException e) {
+                logger.error("Unable to update marvel index time format: format [" + newIndexTimeFormat + "] is invalid", e);
+            }
         }
     }
 

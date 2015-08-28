@@ -19,9 +19,8 @@ import org.elasticsearch.script.AbstractExecutableScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.NativeScriptFactory;
 
+import java.util.ArrayList;
 import java.util.Map;
-
-import static com.google.common.collect.Lists.newArrayList;
 
 /**
  * Init script from https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-metrics-scripted-metric-aggregation.html
@@ -37,7 +36,7 @@ public class InitScriptFactory implements NativeScriptFactory {
         return new AbstractExecutableScript() {
             @Override
             public Object run() {
-                ((Map<String, Object>)params.get("_agg")).put(TRANSACTIONS_FIELD, newArrayList());
+                ((Map<String, Object>)params.get("_agg")).put(TRANSACTIONS_FIELD, new ArrayList<>());
                 return null;
             }
         };

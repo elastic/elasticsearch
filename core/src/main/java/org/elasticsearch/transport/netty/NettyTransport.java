@@ -1070,7 +1070,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
     }
 
     public ChannelPipelineFactory configureServerChannelPipelineFactory(String name, Settings settings) {
-        return new ServerChannelPipelineFactory(this, name, settings, namedWriteableRegistry);
+        return new ServerChannelPipelineFactory(this, name, settings);
     }
 
     protected static class ServerChannelPipelineFactory implements ChannelPipelineFactory {
@@ -1078,13 +1078,11 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         protected final NettyTransport nettyTransport;
         protected final String name;
         protected final Settings settings;
-        protected final NamedWriteableRegistry namedWriteableRegistry;
 
-        public ServerChannelPipelineFactory(NettyTransport nettyTransport, String name, Settings settings, NamedWriteableRegistry namedWriteableRegistry) {
+        public ServerChannelPipelineFactory(NettyTransport nettyTransport, String name, Settings settings) {
             this.nettyTransport = nettyTransport;
             this.name = name;
             this.settings = settings;
-            this.namedWriteableRegistry = namedWriteableRegistry;
         }
 
         @Override
@@ -1103,7 +1101,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
                 sizeHeader.setMaxCumulationBufferComponents(nettyTransport.maxCompositeBufferComponents);
             }
             channelPipeline.addLast("size", sizeHeader);
-            channelPipeline.addLast("dispatcher", new MessageChannelHandler(nettyTransport, nettyTransport.logger, name, namedWriteableRegistry));
+            channelPipeline.addLast("dispatcher", new MessageChannelHandler(nettyTransport, nettyTransport.logger, name));
             return channelPipeline;
         }
     }

@@ -112,15 +112,15 @@ public class NettyTransportIT extends ESIntegTestCase {
 
         @Override
         public ChannelPipelineFactory configureServerChannelPipelineFactory(String name, Settings groupSettings) {
-            return new ErrorPipelineFactory(this, name, groupSettings, namedWriteableRegistry);
+            return new ErrorPipelineFactory(this, name, groupSettings);
         }
 
         private static class ErrorPipelineFactory extends ServerChannelPipelineFactory {
 
             private final ESLogger logger;
 
-            public ErrorPipelineFactory(ExceptionThrowingNettyTransport exceptionThrowingNettyTransport, String name, Settings groupSettings, NamedWriteableRegistry namedWriteableRegistry) {
-                super(exceptionThrowingNettyTransport, name, groupSettings, namedWriteableRegistry);
+            public ErrorPipelineFactory(ExceptionThrowingNettyTransport exceptionThrowingNettyTransport, String name, Settings groupSettings) {
+                super(exceptionThrowingNettyTransport, name, groupSettings);
                 this.logger = exceptionThrowingNettyTransport.logger;
             }
 

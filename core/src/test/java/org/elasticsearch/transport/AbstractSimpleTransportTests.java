@@ -52,7 +52,6 @@ public abstract class AbstractSimpleTransportTests extends ESTestCase {
 
     protected ThreadPool threadPool;
 
-    protected static final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
     protected static final Version version0 = Version.fromId(/*0*/99);
     protected DiscoveryNode nodeA;
     protected MockTransportService serviceA;

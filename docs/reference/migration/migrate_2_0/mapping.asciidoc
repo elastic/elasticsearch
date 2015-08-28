@@ -164,6 +164,12 @@ fields in differnt types, this warning has been relaxed: type names may now
 contain dots, but they may not *begin* with a dot.  The only exception to this
 is the special `.percolator` type.
 
+==== Type names may not be longer than 255 characters
+
+Mapping type names may not be longer than 255 characters.  Long type names
+will continue to function on indices created before upgrade, but it will not
+be possible create types with long names in new indices.
+
 ==== Types may no longer be deleted
 
 In 1.x it was possible to delete a type mapping, along with all of the

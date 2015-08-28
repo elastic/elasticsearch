@@ -19,7 +19,6 @@ import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.IndexSearcherWrapper;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.DocumentTypeListener;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.query.IndexQueryParserService;
@@ -53,19 +52,20 @@ import static org.apache.lucene.search.BooleanClause.Occur.MUST;
  * Document level security is enabled by replacing the original {@link IndexSearcher} with a {@link ShieldIndexSearcherWrapper.ShieldIndexSearcher}
  * instance.
  */
-public final class ShieldIndexSearcherWrapper extends AbstractIndexShardComponent implements IndexSearcherWrapper, DocumentTypeListener {
+public final class ShieldIndexSearcherWrapper extends AbstractIndexShardComponent implements IndexSearcherWrapper {
 
+    private final MapperService mapperService;
+    private final Set<String> allowedMetaFields;
     private final IndexQueryParserService parserService;
 
-    private volatile Set<String> allowedMetaFields;
     private volatile boolean shardStarted = false;
 
     @Inject
     public ShieldIndexSearcherWrapper(ShardId shardId, @IndexSettings Settings indexSettings, IndexQueryParserService parserService, IndicesLifecycle indicesLifecycle, MapperService mapperService) {
         super(shardId, indexSettings);
+        this.mapperService = mapperService;
         this.parserService = parserService;
         indicesLifecycle.addListener(new ShardLifecycleListener());
-        mapperService.addTypeListener(this);
 
         Set<String> allowedMetaFields = new HashSet<>();
         allowedMetaFields.addAll(Arrays.asList(MapperService.getAllMetaFields()));
@@ -73,26 +73,7 @@ public final class ShieldIndexSearcherWrapper extends AbstractIndexShardComponen
         allowedMetaFields.add("_version"); // TODO: add _version to MapperService#META_FIELDS?
         allowedMetaFields.remove("_all"); // The _all field contains actual data and we can't include that by default.
 
-        for (DocumentMapper mapper : mapperService.docMappers(false)) {
-            ParentFieldMapper parentFieldMapper = mapper.parentFieldMapper();
-            if (parentFieldMapper.active()) {
-                String joinField = ParentFieldMapper.joinField(parentFieldMapper.type());
-                allowedMetaFields.add(joinField);
-            }
-        }
         this.allowedMetaFields = Collections.unmodifiableSet(allowedMetaFields);
-    }
-
-    @Override
-    public void beforeCreate(DocumentMapper mapper) {
-        Set<String> allowedMetaFields = new HashSet<>(this.allowedMetaFields);
-        ParentFieldMapper parentFieldMapper = mapper.parentFieldMapper();
-        if (parentFieldMapper.active()) {
-            String joinField = ParentFieldMapper.joinField(parentFieldMapper.type());
-            if (allowedMetaFields.add(joinField)) {
-                this.allowedMetaFields = Collections.unmodifiableSet(allowedMetaFields);
-            }
-        }
     }
 
     @Override
@@ -128,9 +109,12 @@ public final class ShieldIndexSearcherWrapper extends AbstractIndexShardComponen
             }
 
             // now add the allowed fields based on the current granted permissions and :
-            Set<String> fields = new HashSet<>(allowedMetaFields);
-            fields.addAll(permissions.getFields());
-            return FieldSubsetReader.wrap(reader, fields);
+            Set<String> allowedFields = new HashSet<>(allowedMetaFields);
+            for (String field : permissions.getFields()) {
+                allowedFields.addAll(mapperService.simpleMatchToIndexNames(field));
+            }
+            resolveParentChildJoinFields(allowedFields);
+            return FieldSubsetReader.wrap(reader, allowedFields);
         } catch (IOException e) {
             logger.error("Unable to apply field level security");
             throw ExceptionsHelper.convertToElastic(e);
@@ -186,6 +170,20 @@ public final class ShieldIndexSearcherWrapper extends AbstractIndexShardComponen
                 break;
         }
         return new ShieldIndexSearcher(engineConfig, searcher, roleQuery);
+    }
+
+    public Set<String> getAllowedMetaFields() {
+        return allowedMetaFields;
+    }
+
+    private void resolveParentChildJoinFields(Set<String> allowedFields) {
+        for (DocumentMapper mapper : mapperService.docMappers(false)) {
+            ParentFieldMapper parentFieldMapper = mapper.parentFieldMapper();
+            if (parentFieldMapper.active()) {
+                String joinField = ParentFieldMapper.joinField(parentFieldMapper.type());
+                allowedFields.add(joinField);
+            }
+        }
     }
 
     /**

@@ -64,6 +64,10 @@ public final class FieldSubsetReader extends FilterLeafReader {
         protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) throws IOException {
             return new FieldSubsetDirectoryReader(in, fieldNames);
         }
+
+        public Set<String> getFieldNames() {
+            return fieldNames;
+        }
     }
     
     /** List of filtered fields */

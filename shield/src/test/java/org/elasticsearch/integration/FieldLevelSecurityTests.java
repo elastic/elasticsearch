@@ -49,7 +49,8 @@ public class FieldLevelSecurityTests extends ShieldIntegTestCase {
                 "user2:" + USERS_PASSWD_HASHED + "\n" +
                 "user3:" + USERS_PASSWD_HASHED + "\n" +
                 "user4:" + USERS_PASSWD_HASHED + "\n" +
-                "user5:" + USERS_PASSWD_HASHED + "\n";
+                "user5:" + USERS_PASSWD_HASHED + "\n" +
+                "user6:" + USERS_PASSWD_HASHED + "\n";
     }
 
     @Override
@@ -59,7 +60,8 @@ public class FieldLevelSecurityTests extends ShieldIntegTestCase {
                 "role2:user2\n" +
                 "role3:user3\n" +
                 "role4:user4\n" +
-                "role5:user5\n";
+                "role5:user5\n" +
+                "role5:user6\n";
     }
     @Override
     protected String configRoles() {
@@ -93,7 +95,12 @@ public class FieldLevelSecurityTests extends ShieldIntegTestCase {
                 "role5:\n" +
                 "  cluster: all\n" +
                 "  indices:\n" +
-                "     '*': ALL\n";
+                "     '*': ALL\n" +
+                "role6:\n" +
+                "  cluster: all\n" +
+                "  indices:\n" +
+                "        privileges: ALL\n" +
+                "        fields: 'field*'\n";
     }
 
     public void testQuery() throws Exception {
@@ -766,6 +773,34 @@ public class FieldLevelSecurityTests extends ShieldIntegTestCase {
         client().prepareUpdate("test", "type", "1").setDoc("field2", "value2")
                 .get();
         assertThat(client().prepareGet("test", "type", "1").get().getSource().get("field2").toString(), equalTo("value2"));
+    }
+
+    public void testQuery_withRoleWithFieldWildcards() throws Exception {
+        assertAcked(client().admin().indices().prepareCreate("test")
+                        .addMapping("type1", "field1", "type=string", "field2", "type=string")
+        );
+        client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2")
+                .setRefresh(true)
+                .get();
+
+        // user6 has access to all fields, so the query should match with the document:
+        SearchResponse response = client().prepareSearch("test")
+                .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("user6", USERS_PASSWD))
+                .setQuery(matchQuery("field1", "value1"))
+                .get();
+        assertHitCount(response, 1);
+        assertThat(response.getHits().getAt(0).sourceAsMap().size(), equalTo(2));
+        assertThat(response.getHits().getAt(0).sourceAsMap().get("field1").toString(), equalTo("value1"));
+        assertThat(response.getHits().getAt(0).sourceAsMap().get("field2").toString(), equalTo("value2"));
+
+        response = client().prepareSearch("test")
+                .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("user6", USERS_PASSWD))
+                .setQuery(matchQuery("field2", "value2"))
+                .get();
+        assertHitCount(response, 1);
+        assertThat(response.getHits().getAt(0).sourceAsMap().size(), equalTo(2));
+        assertThat(response.getHits().getAt(0).sourceAsMap().get("field1").toString(), equalTo("value1"));
+        assertThat(response.getHits().getAt(0).sourceAsMap().get("field2").toString(), equalTo("value2"));
     }
 
 }

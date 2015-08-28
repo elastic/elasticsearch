@@ -35,3 +35,10 @@ We've switched the default value of the `detect_noop` option from `false` to
 source unless you explicitly set `"detect_noop": false`. `detect_noop` was
 always computationally cheap compared to the expense of the update which can be
 thought of as a delete operation followed by an index operation.
+
+=== Removed features
+
+==== `indices.fielddata.cache.expire`
+
+The experimental feature `indices.fielddata.cache.expire` has been removed.
+For indices that have this setting configured, this config will be ignored.

@@ -432,9 +432,6 @@ public final class InternalTestCluster extends TestCluster {
             if (random.nextBoolean()) {
                 builder.put("indices.fielddata.cache.size", 1 + random.nextInt(1000), ByteSizeUnit.MB);
             }
-            if (random.nextBoolean()) {
-                builder.put("indices.fielddata.cache.expire", TimeValue.timeValueMillis(1 + random.nextInt(10000)));
-            }
         }
 
         // randomize netty settings

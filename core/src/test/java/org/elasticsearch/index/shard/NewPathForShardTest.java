@@ -39,6 +39,7 @@ import org.apache.lucene.mockfile.FilterFileSystem;
 import org.apache.lucene.mockfile.FilterFileSystemProvider;
 import org.apache.lucene.mockfile.FilterPath;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -54,6 +55,7 @@ import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 
 /** Separate test class from ShardPathTests because we need static (BeforeClass) setup to install mock filesystems... */
+@SuppressForbidden(reason = "ProviderMismatchException if I try to use PathUtils.getDefault instead")
 public class NewPathForShardTest extends ESTestCase {
 
     // Sneakiness to install mock file stores so we can pretend how much free space we have on each path.data:
@@ -84,6 +86,7 @@ public class NewPathForShardTest extends ESTestCase {
     }
 
     /** Mock file system that fakes usable space for each FileStore */
+    @SuppressForbidden(reason = "ProviderMismatchException if I try to use PathUtils.getDefault instead")
     static class MockUsableSpaceFileSystemProvider extends FilterFileSystemProvider {
     
         public MockUsableSpaceFileSystemProvider() {

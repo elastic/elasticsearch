@@ -325,7 +325,7 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
                 // Count up how many shards are currently on each data path:
                 Map<Path,Integer> dataPathToShardCount = new HashMap<>();
                 for(IndexShard shard : this) {
-                    Path dataPath = NodeEnvironment.shardStatePathToDataPath(shard.shardPath().getShardStatePath());
+                    Path dataPath = shard.shardPath().getRootStatePath();
                     Integer curCount = dataPathToShardCount.get(dataPath);
                     if (curCount == null) {
                         curCount = 0;

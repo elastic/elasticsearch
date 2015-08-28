@@ -18,6 +18,24 @@
  */
 package org.elasticsearch.index.shard;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
+
+import org.apache.lucene.mockfile.FilterFileSystem;
+import org.apache.lucene.mockfile.FilterFileSystemProvider;
+import org.apache.lucene.mockfile.FilterPath;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.NodeEnvironment.NodePath;
+import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.test.ESTestCase;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
+import org.junit.Test;
+
+import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.Field;
 import java.nio.file.FileStore;
@@ -35,23 +53,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import org.apache.lucene.mockfile.FilterFileSystem;
-import org.apache.lucene.mockfile.FilterFileSystemProvider;
-import org.apache.lucene.mockfile.FilterPath;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.NodeEnvironment.NodePath;
-import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.test.ESTestCase;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
-import org.junit.Test;
-
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
-
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 
 /** Separate test class from ShardPathTests because we need static (BeforeClass) setup to install mock filesystems... */
@@ -62,6 +63,8 @@ public class NewPathForShardTest extends ESTestCase {
     private static MockFileStore aFileStore = new MockFileStore("mocka");
     private static MockFileStore bFileStore = new MockFileStore("mockb");
     private static FileSystem origFileSystem;
+    private static String aPathPart = File.separator + 'a' + File.separator;
+    private static String bPathPart = File.separator + 'b' + File.separator;
 
     @BeforeClass
     public static void installMockUsableSpaceFS() throws Exception {
@@ -104,7 +107,7 @@ public class NewPathForShardTest extends ESTestCase {
 
         @Override
         public FileStore getFileStore(Path path) throws IOException {
-            if (path.toString().contains("/a/")) {
+            if (path.toString().contains(aPathPart)) {
                 return aFileStore;
             } else {
                 return bFileStore;
@@ -203,7 +206,7 @@ public class NewPathForShardTest extends ESTestCase {
 
         ShardId shardId = new ShardId("index", 0);
         ShardPath result = ShardPath.selectNewPathForShard(nodeEnv, shardId, Settings.EMPTY, 100, Collections.<Path,Integer>emptyMap());
-        assertTrue(result.getDataPath().toString().contains("/a/"));
+        assertTrue(result.getDataPath().toString().contains(aPathPart));
 
         // Test the reverse: b has lots of free space, but a has little, so new shard should go to b:
         aFileStore.usableSpace = 1000;
@@ -211,7 +214,7 @@ public class NewPathForShardTest extends ESTestCase {
 
         shardId = new ShardId("index", 0);
         result = ShardPath.selectNewPathForShard(nodeEnv, shardId, Settings.EMPTY, 100, Collections.<Path,Integer>emptyMap());
-        assertTrue(result.getDataPath().toString().contains("/b/"));
+        assertTrue(result.getDataPath().toString().contains(bPathPart));
 
         // Now a and be have equal usable space; we allocate two shards to the node, and each should go to different paths:
         aFileStore.usableSpace = 100000;

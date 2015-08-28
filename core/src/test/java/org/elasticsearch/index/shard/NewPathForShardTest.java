@@ -23,6 +23,7 @@ import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.apache.lucene.mockfile.FilterFileSystem;
 import org.apache.lucene.mockfile.FilterFileSystemProvider;
 import org.apache.lucene.mockfile.FilterPath;
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
@@ -182,6 +183,7 @@ public class NewPathForShardTest extends ESTestCase {
     }
 
     public void testSelectNewPathForShard() throws Exception {
+        assumeFalse("Consistenty fails on windows ('could not remove the following files')", Constants.WINDOWS);
         Path path = PathUtils.get(createTempDir().toString());
 
         // Use 2 data paths:

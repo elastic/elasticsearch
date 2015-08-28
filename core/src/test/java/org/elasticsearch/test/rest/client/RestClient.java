@@ -23,7 +23,6 @@ import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkAddress;
@@ -34,15 +33,7 @@ import org.elasticsearch.test.rest.spec.RestApi;
 import org.elasticsearch.test.rest.spec.RestSpec;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.net.InetSocketAddress;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.security.KeyManagementException;
-import java.security.KeyStore;
-import java.security.KeyStoreException;
-import java.security.NoSuchAlgorithmException;
-import java.security.cert.CertificateException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -55,8 +46,40 @@ import java.util.Set;
 public class RestClient {
 
     public static final String PROTOCOL = "protocol";
+    // TODO Not sure how to use this
     public static final String TRUSTSTORE_PATH = "truststore.path";
     public static final String TRUSTSTORE_PASSWORD = "truststore.password";
+
+    /*
+         SSLConnectionSocketFactory sslsf;
+     String keystorePath = settings.get(TRUSTSTORE_PATH);
+     if (keystorePath != null) {
+     final String keystorePass = settings.get(TRUSTSTORE_PASSWORD);
+     if (keystorePass == null) {
+     throw new IllegalStateException(TRUSTSTORE_PATH + " is provided but not " + TRUSTSTORE_PASSWORD);
+     }
+     Path path = PathUtils.get(keystorePath);
+     if (!Files.exists(path)) {
+     throw new IllegalStateException(TRUSTSTORE_PATH + " is set but points to a non-existing file");
+     }
+     try {
+     KeyStore keyStore = KeyStore.getInstance("jks");
+     try (InputStream is = Files.newInputStream(path)) {
+     keyStore.load(is, keystorePass.toCharArray());
+     }
+     SSLContext sslcontext = SSLContexts.custom()
+     .loadTrustMaterial(keyStore, null)
+     .build();
+     sslsf = new SSLConnectionSocketFactory(sslcontext);
+     } catch (KeyStoreException|NoSuchAlgorithmException|KeyManagementException|CertificateException e) {
+     throw new RuntimeException(e);
+     }
+     } else {
+     sslsf = SSLConnectionSocketFactory.getSocketFactory();
+     }
+
+     */
+
 
     private static final ESLogger logger = Loggers.getLogger(RestClient.class);
     //query_string params that don't need to be declared in the spec, they are supported by default
@@ -232,45 +255,6 @@ public class RestClient {
 
     protected HttpClient createHttpClient() {
         InetSocketAddress address = RandomizedTest.randomFrom(addresses);
-        return HttpClient.instance(NetworkAddress.formatAddress(address.getAddress()), address.getPort());
+        return HttpClient.instance(protocol, NetworkAddress.formatAddress(address.getAddress()), address.getPort());
     }
-
-    /**
-     *    protected CloseableHttpClient createHttpClient(Settings settings) throws IOException {
-     SSLConnectionSocketFactory sslsf;
-     String keystorePath = settings.get(TRUSTSTORE_PATH);
-     if (keystorePath != null) {
-     final String keystorePass = settings.get(TRUSTSTORE_PASSWORD);
-     if (keystorePass == null) {
-     throw new IllegalStateException(TRUSTSTORE_PATH + " is provided but not " + TRUSTSTORE_PASSWORD);
-     }
-     Path path = PathUtils.get(keystorePath);
-     if (!Files.exists(path)) {
-     throw new IllegalStateException(TRUSTSTORE_PATH + " is set but points to a non-existing file");
-     }
-     try {
-     KeyStore keyStore = KeyStore.getInstance("jks");
-     try (InputStream is = Files.newInputStream(path)) {
-     keyStore.load(is, keystorePass.toCharArray());
-     }
-     SSLContext sslcontext = SSLContexts.custom()
-     .loadTrustMaterial(keyStore, null)
-     .build();
-     sslsf = new SSLConnectionSocketFactory(sslcontext);
-     } catch (KeyStoreException|NoSuchAlgorithmException|KeyManagementException|CertificateException e) {
-     throw new RuntimeException(e);
-     }
-     } else {
-     sslsf = SSLConnectionSocketFactory.getSocketFactory();
-     }
-
-     Registry<ConnectionSocketFactory> socketFactoryRegistry = RegistryBuilder.<ConnectionSocketFactory>create()
-     .register("http", PlainConnectionSocketFactory.getSocketFactory())
-     .register("https", sslsf)
-     .build();
-     return HttpClients.createMinimal(new PoolingHttpClientConnectionManager(socketFactoryRegistry, null, null, null, 15, TimeUnit.SECONDS));
-     }
-
-
-     */
 }

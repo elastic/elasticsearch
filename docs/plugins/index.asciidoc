@@ -49,7 +49,7 @@ include::discovery.asciidoc[]
 
 include::management.asciidoc[]
 
-include::mapper.asciidoc[]
+include::mapping.asciidoc[]
 
 include::scripting.asciidoc[]
 
@@ -62,4 +62,3 @@ include::transport.asciidoc[]
 include::integrations.asciidoc[]
 
 include::authors.asciidoc[]
-

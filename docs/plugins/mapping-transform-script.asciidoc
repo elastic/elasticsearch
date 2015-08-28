@@ -1,0 +1,96 @@
+[[mapping-transform-script]]
+=== Mapping Transform Script Plugin
+
+The Mapping Transform Script plugin adds a scripted transform phase to
+that allows you to index data differently then it is stored in the `_source`.
+Think of it like `copy_to` on steroids. If used for anything more complex than
+that it'll make things very difficult to debug.
+
+WARNING: This was once a core feature of Elasticsearch but caused tons of
+confusion because it was used for things more complex than simple
+transformations and made it difficult to track down indexing problems. So it
+was moved to a plugin to force you to decide if the power of transforms is
+worth the complexity. See
+<<mapping-transform-script-prefer-transforming-at-the-source>> for more.
+
+[[mapping-transform-script-install]]
+[float]
+==== Installation
+
+This plugin can be installed using the plugin manager:
+
+[source,sh]
+----------------------------------------------------------------
+sudo bin/plugin install mapping-source-transform
+----------------------------------------------------------------
+
+The plugin must be installed on every node in the cluster, and each node must
+be restarted after installation.
+
+[[mapping-transform-script-removal]]
+[float]
+==== Removal
+
+The plugin can be removed with the following command:
+
+[source,sh]
+----------------------------------------------------------------
+sudo bin/plugin remove mapping-source-transform
+----------------------------------------------------------------
+
+The node must be stopped before removing the plugin.
+
+
+[[mapping-transform-script-prefer-transforming-at-the-source]]
+==== Prefer transforming in the source application
+
+You should always prefer to transform the documents that you send to
+Elasticsearch at the source if at all possible. Don't think of `transform` as a
+document transformation pipeline. Its a small hack to allow the `_source` to
+differ from the indexed data. For the most part its more trouble than its worth
+for `_source` to differ from the indexed data. It makes debugging very
+difficult. There are use cases for it just as there are use cases for
+`copy_to`.
+
+You have been warned. If you still want to use this then read on.
+
+[[mapping-transform-script-usage]]
+==== Declare a transform
+
+You declare a transform when creating the mapping:
+
+[source,js]
+--------------------------
+PUT my_index
+{
+  "mappings": {
+    "example" : {
+      "transform" : {
+        "script" : "if (ctx._source['title']?.startsWith('t')) ctx._source['suggest'] = ctx._source['content']",
+        "params" : {
+          "variable" : "not used but an example anyway"
+        },
+        "lang": "groovy"
+      },
+      "properties": {
+        "title": { "type": "string" },
+        "content": { "type": "string" },
+        "suggest": { "type": "string" }
+      }
+    }
+  }
+}
+--------------------------
+// AUTOSENSE
+
+Its possible to specify multiple transforms by setting `transform` to an array
+with each element describing a transform.
+
+Its important that you declare fields built entirely from the transform because
+they are never automatically made searchable as they don't appear in the
+_source document.
+
+Because the result of the transform isn't stored in `_source` it can be fetched
+with source filtering. These field _can_ declared as stored and used with the
+`fields` parameter in querying or with highlighing but it probably
+*shouldn't* be used that way.

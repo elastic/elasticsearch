@@ -1,10 +1,14 @@
-[[mapper]]
-== Mapper Plugins
+[[mapping]]
+== Mapping Plugins
 
-Mapper plugins allow new field datatypes to be added to Elasticsearch.
+Mapping plugins come in two flavors:
+
+. Mapper plugins allow new field datatypes to be added to Elasticsearch.
+. The Mapping Transform Script plugin adds a `transform` script to the mappings
+that can be used as a super `copy_to`.
 
 [float]
-=== Core mapper plugins
+=== Core mapping plugins
 
 The core mapper plugins are:
 
@@ -25,5 +29,11 @@ indexes the size in bytes of the original
 The mapper-murmur3 plugin allows hashes to be computed at index-time and stored
 in the index for later use with the `cardinality` aggregation.
 
+<<mapping-transform-script>>::
+
+The Mapping Transform Script plugin adds a scripted transform phase to
+that allows you to index data differently then it is stored in the `_source`.
+
 include::mapper-size.asciidoc[]
 include::mapper-murmur3.asciidoc[]
+include::mapping-transform-script.asciidoc[]

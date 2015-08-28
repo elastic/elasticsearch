@@ -1,4 +1,4 @@
-package org.elasticsearch.devtools
+package org.elasticsearch.devtools.randomizedtesting
 
 import com.carrotsearch.ant.tasks.junit4.JUnit4
 import com.carrotsearch.ant.tasks.junit4.ListenersList
@@ -9,7 +9,6 @@ import com.carrotsearch.ant.tasks.junit4.listeners.AggregatedEventListener
 import com.carrotsearch.ant.tasks.junit4.listeners.TextReport
 import groovy.xml.NamespaceBuilder
 import org.apache.tools.ant.RuntimeConfigurable
-import org.apache.tools.ant.Task
 import org.apache.tools.ant.UnknownElement
 import org.gradle.api.DefaultTask
 import org.gradle.api.logging.Logger
@@ -18,44 +17,11 @@ import org.gradle.api.tasks.TaskAction
 import org.gradle.logging.ProgressLogger
 import org.gradle.logging.ProgressLoggerFactory
 import org.junit.runner.Description
-import sun.misc.URLClassPath
 
 import javax.inject.Inject
 import java.util.concurrent.atomic.AtomicInteger
 
-class RandomizedTest extends DefaultTask {
-
-    static class JUnit4ProgressLogger implements AggregatedEventListener {
-        private JUnit4 junit
-        Logger logger
-        ProgressLoggerFactory factory
-        ProgressLogger progressLogger
-        int totalSuites;
-        AtomicInteger suitesCompleted = new AtomicInteger();
-
-        @Subscribe
-        public void onStart(AggregatedStartEvent e) throws IOException {
-            totalSuites = e.getSuiteCount();
-            progressLogger = factory.newOperation(RandomizedTest.class)
-            progressLogger.setDescription('Randomized test runner')
-            progressLogger.started()
-            progressLogger.progress('Starting JUnit4 with ' + e.getSlaveCount() + ' jvms')
-        }
-
-        @Subscribe
-        public void onSuiteResult(AggregatedSuiteResultEvent e) throws IOException {
-            final int completed = suitesCompleted.incrementAndGet();
-            Description description = e.getDescription()
-            String suiteName = description.getDisplayName();
-            suiteName = suiteName.substring(suiteName.lastIndexOf('.') + 1);
-            progressLogger.progress('Completed [' + completed + '/' + totalSuites + '] ' + suiteName)
-        }
-
-        @Override
-        public void setOuter(JUnit4 junit) {
-            this.junit = junit;
-        }
-    }
+class RandomizedTestingTask extends DefaultTask {
 
     @Inject
     protected ProgressLoggerFactory getProgressLoggerFactory() {

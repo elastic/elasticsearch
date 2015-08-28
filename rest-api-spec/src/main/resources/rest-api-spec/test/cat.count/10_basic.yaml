@@ -14,8 +14,7 @@
 "Test cat count output":
 
   - do:
-      cat.count:
-        v: false
+      cat.count: {}
 
   - match:
       $body: |
@@ -31,8 +30,7 @@
         refresh: true
 
   - do:
-      cat.count:
-        v: false
+      cat.count: {}
 
   - match:
       $body: |
@@ -50,7 +48,6 @@
   - do:
       cat.count:
         h: count
-        v: false
 
   - match:
       $body: |
@@ -61,7 +58,6 @@
   - do:
       cat.count:
         index: index1
-        v: false
 
   - match:
       $body: |
@@ -77,4 +73,3 @@
       $body: |
                /^  epoch  \s+  timestamp          \s+  count  \s+  \n
                    \d+    \s+  \d{2}:\d{2}:\d{2}  \s+  \d+    \s+  \n  $/
-

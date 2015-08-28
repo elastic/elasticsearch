@@ -45,16 +45,6 @@ used separately to control whether `routing_nodes` should be returned.
 
 The deprecated index status API has been removed.
 
-==== `cat` APIs verbose by default
-
-The `cat` APIs now default to being verbose, which means they output column
-headers by default. Verbosity can be turned off with the `v` parameter:
-
-[source,sh]
------------------
-GET _cat/shards?v=0
------------------
-
 ==== Nodes Stats API
 
 Queue lengths are now reported as basic numeric so they can easily processed by code. Before we used a human

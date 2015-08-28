@@ -18,8 +18,6 @@
  */
 package org.elasticsearch.search.aggregations.bucket.range;
 
-import com.google.common.collect.Lists;
-
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.InPlaceMergeSorter;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
@@ -198,7 +196,7 @@ public class RangeAggregator extends BucketsAggregator {
 
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) throws IOException {
-        List<org.elasticsearch.search.aggregations.bucket.range.Range.Bucket> buckets = Lists.newArrayListWithCapacity(ranges.length);
+        List<org.elasticsearch.search.aggregations.bucket.range.Range.Bucket> buckets = new ArrayList<>(ranges.length);
         for (int i = 0; i < ranges.length; i++) {
             Range range = ranges[i];
             final long bucketOrd = subBucketOrdinal(owningBucketOrdinal, i);
@@ -213,7 +211,7 @@ public class RangeAggregator extends BucketsAggregator {
     @Override
     public InternalAggregation buildEmptyAggregation() {
         InternalAggregations subAggs = buildEmptySubAggregations();
-        List<org.elasticsearch.search.aggregations.bucket.range.Range.Bucket> buckets = Lists.newArrayListWithCapacity(ranges.length);
+        List<org.elasticsearch.search.aggregations.bucket.range.Range.Bucket> buckets = new ArrayList<>(ranges.length);
         for (int i = 0; i < ranges.length; i++) {
             Range range = ranges[i];
             org.elasticsearch.search.aggregations.bucket.range.Range.Bucket bucket =

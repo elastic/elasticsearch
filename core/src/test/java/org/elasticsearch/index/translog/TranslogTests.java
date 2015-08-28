@@ -53,9 +53,25 @@ import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.charset.Charset;
-import java.nio.file.*;
-import java.util.*;
-import java.util.concurrent.*;
+import java.nio.file.DirectoryStream;
+import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.BrokenBarrierException;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -63,7 +79,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import static com.google.common.collect.Lists.newArrayList;
 import static org.hamcrest.Matchers.*;
 
 /**
@@ -546,7 +561,7 @@ public class TranslogTests extends ESTestCase {
 
     @Test
     public void testTranslogChecksums() throws Exception {
-        List<Translog.Location> locations = newArrayList();
+        List<Translog.Location> locations = new ArrayList<>();
 
         int translogOperations = randomIntBetween(10, 100);
         for (int op = 0; op < translogOperations; op++) {
@@ -570,7 +585,7 @@ public class TranslogTests extends ESTestCase {
 
     @Test
     public void testTruncatedTranslogs() throws Exception {
-        List<Translog.Location> locations = newArrayList();
+        List<Translog.Location> locations = new ArrayList<>();
 
         int translogOperations = randomIntBetween(10, 100);
         for (int op = 0; op < translogOperations; op++) {
@@ -855,7 +870,7 @@ public class TranslogTests extends ESTestCase {
     }
 
     public void testLocationComparison() throws IOException {
-        List<Translog.Location> locations = newArrayList();
+        List<Translog.Location> locations = new ArrayList<>();
         int translogOperations = randomIntBetween(10, 100);
         int count = 0;
         for (int op = 0; op < translogOperations; op++) {
@@ -884,7 +899,7 @@ public class TranslogTests extends ESTestCase {
 
 
     public void testBasicCheckpoint() throws IOException {
-        List<Translog.Location> locations = newArrayList();
+        List<Translog.Location> locations = new ArrayList<>();
         int translogOperations = randomIntBetween(10, 100);
         int lastSynced = -1;
         for (int op = 0; op < translogOperations; op++) {
@@ -970,7 +985,7 @@ public class TranslogTests extends ESTestCase {
     }
 
     public void testBasicRecovery() throws IOException {
-        List<Translog.Location> locations = newArrayList();
+        List<Translog.Location> locations = new ArrayList<>();
         int translogOperations = randomIntBetween(10, 100);
         Translog.TranslogGeneration translogGeneration = null;
         int minUncommittedOp = -1;
@@ -1012,7 +1027,7 @@ public class TranslogTests extends ESTestCase {
     }
 
     public void testRecoveryUncommitted() throws IOException {
-        List<Translog.Location> locations = newArrayList();
+        List<Translog.Location> locations = new ArrayList<>();
         int translogOperations = randomIntBetween(10, 100);
         final int prepareOp = randomIntBetween(0, translogOperations-1);
         Translog.TranslogGeneration translogGeneration = null;
@@ -1066,7 +1081,7 @@ public class TranslogTests extends ESTestCase {
 
     public void testSnapshotFromStreamInput() throws IOException {
         BytesStreamOutput out = new BytesStreamOutput();
-        List<Translog.Operation> ops = newArrayList();
+        List<Translog.Operation> ops = new ArrayList<>();
         int translogOperations = randomIntBetween(10, 100);
         for (int op = 0; op < translogOperations; op++) {
             Translog.Create test = new Translog.Create("test", "" + op, Integer.toString(op).getBytes(Charset.forName("UTF-8")));
@@ -1079,8 +1094,8 @@ public class TranslogTests extends ESTestCase {
     }
 
     public void testLocationHashCodeEquals() throws IOException {
-        List<Translog.Location> locations = newArrayList();
-        List<Translog.Location> locations2 = newArrayList();
+        List<Translog.Location> locations = new ArrayList<>();
+        List<Translog.Location> locations2 = new ArrayList<>();
         int translogOperations = randomIntBetween(10, 100);
         try(Translog translog2 = create(createTempDir())) {
             for (int op = 0; op < translogOperations; op++) {
@@ -1107,7 +1122,7 @@ public class TranslogTests extends ESTestCase {
     }
 
     public void testOpenForeignTranslog() throws IOException {
-        List<Translog.Location> locations = newArrayList();
+        List<Translog.Location> locations = new ArrayList<>();
         int translogOperations = randomIntBetween(1, 10);
         int firstUncommitted = 0;
         for (int op = 0; op < translogOperations; op++) {

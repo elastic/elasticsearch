@@ -19,7 +19,6 @@
 
 package org.elasticsearch.cluster.routing;
 
-import com.google.common.collect.Lists;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -36,6 +35,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
@@ -90,7 +90,7 @@ public class OperationRouting extends AbstractComponent {
                 set.add(iterator);
             }
         }
-        return new GroupShardsIterator(Lists.newArrayList(set));
+        return new GroupShardsIterator(new ArrayList<>(set));
     }
 
     private static final Map<String, Set<String>> EMPTY_ROUTING = Collections.emptyMap();

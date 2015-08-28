@@ -18,16 +18,25 @@ package org.elasticsearch.common.inject.assistedinject;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
-import org.elasticsearch.common.inject.*;
+import org.elasticsearch.common.inject.ConfigurationException;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.inject.Injector;
+import org.elasticsearch.common.inject.Key;
+import org.elasticsearch.common.inject.Provider;
+import org.elasticsearch.common.inject.TypeLiteral;
 import org.elasticsearch.common.inject.internal.Errors;
 import org.elasticsearch.common.inject.spi.Dependency;
 import org.elasticsearch.common.inject.spi.HasDependencies;
 import org.elasticsearch.common.inject.spi.Message;
 
 import java.lang.annotation.Annotation;
-import java.lang.reflect.*;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationHandler;
+import java.lang.reflect.Method;
+import java.lang.reflect.Proxy;
+import java.lang.reflect.Type;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -209,7 +218,7 @@ public class FactoryProvider<F> implements Provider<F>, HasDependencies {
 
     private static Map<Method, AssistedConstructor<?>> createMethodMapping(
             TypeLiteral<?> factoryType, TypeLiteral<?> implementationType) {
-        List<AssistedConstructor<?>> constructors = Lists.newArrayList();
+        List<AssistedConstructor<?>> constructors = new ArrayList<>();
 
         for (Constructor<?> constructor : implementationType.getRawType().getDeclaredConstructors()) {
             if (constructor.getAnnotation(AssistedInject.class) != null) {
@@ -248,7 +257,7 @@ public class FactoryProvider<F> implements Provider<F>, HasDependencies {
                         method, implementationType);
             }
 
-            List<Type> parameterTypes = Lists.newArrayList();
+            List<Type> parameterTypes = new ArrayList<>();
             for (TypeLiteral<?> parameterType : factoryType.getParameterTypes(method)) {
                 parameterTypes.add(parameterType.getType());
             }
@@ -281,7 +290,7 @@ public class FactoryProvider<F> implements Provider<F>, HasDependencies {
 
     @Override
     public Set<Dependency<?>> getDependencies() {
-        List<Dependency<?>> dependencies = Lists.newArrayList();
+        List<Dependency<?>> dependencies = new ArrayList<>();
         for (AssistedConstructor<?> constructor : factoryMethodToConstructor.values()) {
             for (Parameter parameter : constructor.getAllParameters()) {
                 if (!parameter.isProvidedByFactory()) {

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -28,6 +29,9 @@ import java.io.IOException;
  * Parser for the term query
  */
 public class TermQueryParser extends BaseQueryParser<TermQueryBuilder> {
+
+    private static final ParseField NAME_FIELD = new ParseField("_name").withAllDeprecated("query name is not supported in short version of term query");
+    private static final ParseField BOOST_FIELD = new ParseField("boost").withAllDeprecated("boost is not supported in short version of term query");
 
     @Inject
     public TermQueryParser() {
@@ -77,9 +81,9 @@ public class TermQueryParser extends BaseQueryParser<TermQueryBuilder> {
                     }
                 }
             } else if (token.isValue()) {
-                if ("_name".equals(currentFieldName)) {
+                if (parseContext.parseFieldMatcher().match(currentFieldName, NAME_FIELD)) {
                     queryName = parser.text();
-                } else if ("boost".equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, BOOST_FIELD)) {
                     boost = parser.floatValue();
                 } else {
                     if (fieldName != null) {

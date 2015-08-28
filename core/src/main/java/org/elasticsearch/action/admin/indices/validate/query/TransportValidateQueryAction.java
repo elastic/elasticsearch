@@ -55,13 +55,12 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicReferenceArray;
-
-import static com.google.common.collect.Lists.newArrayList;
 
 /**
  *
@@ -137,7 +136,7 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<Valid
             } else if (shardResponse instanceof BroadcastShardOperationFailedException) {
                 failedShards++;
                 if (shardFailures == null) {
-                    shardFailures = newArrayList();
+                    shardFailures = new ArrayList<>();
                 }
                 shardFailures.add(new DefaultShardOperationFailedException((BroadcastShardOperationFailedException) shardResponse));
             } else {
@@ -145,7 +144,7 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<Valid
                 valid = valid && validateQueryResponse.isValid();
                 if (request.explain() || request.rewrite()) {
                     if (queryExplanations == null) {
-                        queryExplanations = newArrayList();
+                        queryExplanations = new ArrayList<>();
                     }
                     queryExplanations.add(new QueryExplanation(
                             validateQueryResponse.getIndex(),
@@ -198,7 +197,7 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<Valid
             valid = false;
             error = e.getMessage();
         } finally {
-            SearchContext.current().close();
+            searchContext.close();
             SearchContext.removeCurrent();
         }
 

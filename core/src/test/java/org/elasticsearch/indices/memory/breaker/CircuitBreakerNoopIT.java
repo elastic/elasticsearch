@@ -27,9 +27,9 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
+import java.util.ArrayList;
 import java.util.List;
 
-import static com.google.common.collect.Lists.newArrayList;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -59,7 +59,7 @@ public class CircuitBreakerNoopIT extends ESIntegTestCase {
 
         // index some different terms so we have some field data for loading
         int docCount = scaledRandomIntBetween(300, 1000);
-        List<IndexRequestBuilder> reqs = newArrayList();
+        List<IndexRequestBuilder> reqs = new ArrayList<>();
         for (long id = 0; id < docCount; id++) {
             reqs.add(client.prepareIndex("cb-test", "type", Long.toString(id)).setSource("test", id));
         }
@@ -77,7 +77,7 @@ public class CircuitBreakerNoopIT extends ESIntegTestCase {
 
         // index some different terms so we have some field data for loading
         int docCount = scaledRandomIntBetween(300, 1000);
-        List<IndexRequestBuilder> reqs = newArrayList();
+        List<IndexRequestBuilder> reqs = new ArrayList<>();
         for (long id = 0; id < docCount; id++) {
             reqs.add(client.prepareIndex("cb-test", "type", Long.toString(id)).setSource("test", id));
         }

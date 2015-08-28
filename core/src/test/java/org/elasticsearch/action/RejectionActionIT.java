@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action;
 
-import com.google.common.collect.Lists;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
@@ -65,7 +64,7 @@ public class RejectionActionIT extends ESIntegTestCase {
 
         int numberOfAsyncOps = randomIntBetween(200, 700);
         final CountDownLatch latch = new CountDownLatch(numberOfAsyncOps);
-        final CopyOnWriteArrayList<Object> responses = Lists.newCopyOnWriteArrayList();
+        final CopyOnWriteArrayList<Object> responses = new CopyOnWriteArrayList<>();
         for (int i = 0; i < numberOfAsyncOps; i++) {
             client().prepareSearch("test")
                     .setSearchType(SearchType.QUERY_THEN_FETCH)

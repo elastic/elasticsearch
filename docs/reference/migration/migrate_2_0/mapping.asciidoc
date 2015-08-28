@@ -385,7 +385,12 @@ default.  If you would like to increase compression levels, use the new
 <<index-codec,`index.codec: best_compression`>> setting instead.
 
 ==== position_offset_gap
-The default `position_offset_gap` is now 100. Indexes created in Elasticsearch
+
+The `position_offset_gap` option is renamed to 'position_increment_gap'. This was
+done to clear away the confusion. Elasticsearch's 'position_increment_gap' now is
+mapped directly to Lucene's 'position_increment_gap'
+
+The default `position_increment_gap` is now 100. Indexes created in Elasticsearch
 2.0.0 will default to using 100 and indexes created before that will continue
 to use the old default of 0. This was done to prevent phrase queries from
 matching across different values of the same term unexpectedly. Specifically,

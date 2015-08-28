@@ -19,13 +19,13 @@
 
 package org.elasticsearch.index.query;
 
-import com.google.common.collect.Lists;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.indices.cache.query.terms.TermsLookup;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -119,7 +119,7 @@ public class TermsQueryParser extends BaseQueryParser {
     }
 
     private static List<Object> parseValues(QueryParseContext parseContext, XContentParser parser) throws IOException {
-        List<Object> values = Lists.newArrayList();
+        List<Object> values = new ArrayList<>();
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
             Object value = parser.objectBytes();

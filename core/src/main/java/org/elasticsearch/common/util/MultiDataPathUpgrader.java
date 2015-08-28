@@ -198,7 +198,7 @@ public class MultiDataPathUpgrader {
                 }
             }
         }
-        return new ShardPath(target.path, target.path, IndexMetaData.INDEX_UUID_NA_VALUE /* we don't know */, shard);
+        return new ShardPath(false, target.path, target.path, IndexMetaData.INDEX_UUID_NA_VALUE /* we don't know */, shard);
     }
 
     private ShardFileInfo[] getShardFileInfo(ShardId shard, NodeEnvironment.NodePath[] paths) throws IOException {

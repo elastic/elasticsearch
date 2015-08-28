@@ -545,6 +545,10 @@ The Azure repository supports following settings:
     setting doesn't affect index files that are already compressed by default.
     Defaults to `false`.
 
+`read_only`::
+
+    Makes repository read-only. coming[2.1.0]  Defaults to `false`.
+
 Some examples, using scripts:
 
 [source,json]

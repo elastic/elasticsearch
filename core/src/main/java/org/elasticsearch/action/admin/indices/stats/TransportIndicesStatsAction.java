@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.indices.stats;
 
-import com.google.common.collect.Lists;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
@@ -46,10 +45,9 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReferenceArray;
-
-import static com.google.common.collect.Lists.newArrayList;
 
 /**
  */
@@ -90,7 +88,7 @@ public class TransportIndicesStatsAction extends TransportBroadcastAction<Indice
         int successfulShards = 0;
         int failedShards = 0;
         List<ShardOperationFailedException> shardFailures = null;
-        final List<ShardStats> shards = Lists.newArrayList();
+        final List<ShardStats> shards = new ArrayList<>();
         for (int i = 0; i < shardsResponses.length(); i++) {
             Object shardResponse = shardsResponses.get(i);
             if (shardResponse == null) {
@@ -98,7 +96,7 @@ public class TransportIndicesStatsAction extends TransportBroadcastAction<Indice
             } else if (shardResponse instanceof BroadcastShardOperationFailedException) {
                 failedShards++;
                 if (shardFailures == null) {
-                    shardFailures = newArrayList();
+                    shardFailures = new ArrayList<>();
                 }
                 shardFailures.add(new DefaultShardOperationFailedException((BroadcastShardOperationFailedException) shardResponse));
             } else {
@@ -189,7 +187,7 @@ public class TransportIndicesStatsAction extends TransportBroadcastAction<Indice
             flags.set(CommonStatsFlags.Flag.Recovery);
         }
 
-        return new ShardStats(indexShard, indexShard.routingEntry(), flags);
+        return new ShardStats(indexShard, flags);
     }
 
     static class IndexShardStatsRequest extends BroadcastShardRequest {

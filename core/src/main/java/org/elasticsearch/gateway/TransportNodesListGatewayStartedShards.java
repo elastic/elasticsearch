@@ -19,13 +19,15 @@
 
 package org.elasticsearch.gateway;
 
-import com.google.common.collect.Lists;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.nodes.*;
+import org.elasticsearch.action.support.nodes.BaseNodeRequest;
+import org.elasticsearch.action.support.nodes.BaseNodeResponse;
+import org.elasticsearch.action.support.nodes.BaseNodesRequest;
+import org.elasticsearch.action.support.nodes.BaseNodesResponse;
+import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -45,6 +47,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
@@ -97,8 +100,8 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
 
     @Override
     protected NodesGatewayStartedShards newResponse(Request request, AtomicReferenceArray responses) {
-        final List<NodeGatewayStartedShards> nodesList = Lists.newArrayList();
-        final List<FailedNodeException> failures = Lists.newArrayList();
+        final List<NodeGatewayStartedShards> nodesList = new ArrayList<>();
+        final List<FailedNodeException> failures = new ArrayList<>();
         for (int i = 0; i < responses.length(); i++) {
             Object resp = responses.get(i);
             if (resp instanceof NodeGatewayStartedShards) { // will also filter out null response for unallocated ones

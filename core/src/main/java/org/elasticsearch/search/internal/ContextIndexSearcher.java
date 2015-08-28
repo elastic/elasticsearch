@@ -19,18 +19,14 @@
 
 package org.elasticsearch.search.internal;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermContext;
 import org.apache.lucene.search.*;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.search.dfs.AggregatedDfs;
-import org.elasticsearch.search.internal.SearchContext.Lifetime;
 
 import java.io.IOException;
-import java.util.List;
 
 /**
  * Context-aware extension of {@link IndexSearcher}.
@@ -42,14 +38,11 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
      *  AssertingIndexSearcher. */
     private final IndexSearcher in;
 
-    private final SearchContext searchContext;
-
     private AggregatedDfs aggregatedDfs;
 
     public ContextIndexSearcher(SearchContext searchContext, Engine.Searcher searcher) {
         super(searcher.reader());
         in = searcher.searcher();
-        this.searchContext = searchContext;
         setSimilarity(searcher.searcher().getSimilarity(true));
         setQueryCache(searchContext.indexShard().indexService().cache().query());
         setQueryCachingPolicy(searchContext.indexShard().getQueryCachingPolicy());
@@ -65,46 +58,23 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     @Override
     public Query rewrite(Query original) throws IOException {
-        try {
-            return in.rewrite(original);
-        } catch (Throwable t) {
-            searchContext.clearReleasables(Lifetime.COLLECTION);
-            throw ExceptionsHelper.convertToElastic(t);
-        }
+        return in.rewrite(original);
     }
 
     @Override
     public Weight createNormalizedWeight(Query query, boolean needsScores) throws IOException {
         // During tests we prefer to use the wrapped IndexSearcher, because then we use the AssertingIndexSearcher
         // it is hacky, because if we perform a dfs search, we don't use the wrapped IndexSearcher...
-        try {
+        if (aggregatedDfs != null && needsScores) {
             // if scores are needed and we have dfs data then use it
-            if (aggregatedDfs != null && needsScores) {
-                return super.createNormalizedWeight(query, needsScores);
-            }
-            return in.createNormalizedWeight(query, needsScores);
-        } catch (Throwable t) {
-            searchContext.clearReleasables(Lifetime.COLLECTION);
-            throw ExceptionsHelper.convertToElastic(t);
+            return super.createNormalizedWeight(query, needsScores);
         }
+        return in.createNormalizedWeight(query, needsScores);
     }
 
     @Override
     public Explanation explain(Query query, int doc) throws IOException {
-        try {
-            return in.explain(query, doc);
-        } finally {
-            searchContext.clearReleasables(Lifetime.COLLECTION);
-        }
-    }
-
-    @Override
-    protected void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) throws IOException {
-        try {
-            super.search(leaves, weight, collector);
-        } finally {
-            searchContext.clearReleasables(Lifetime.COLLECTION);
-        }
+        return in.explain(query, doc);
     }
 
     @Override

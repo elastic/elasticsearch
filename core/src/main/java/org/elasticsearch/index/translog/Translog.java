@@ -32,8 +32,10 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasablePagedBytesReference;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.io.stream.*;
+import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.logging.ESLogger;
@@ -231,7 +233,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             }
         })) {
             long latestGeneration = -1;
-            List<Tuple<Path, Long>> filesToUpgrade = new ArrayList<>();
+            List<PathWithGeneration> filesToUpgrade = new ArrayList<>();
             for (Path path : stream) {
                 Matcher matcher = parseLegacyIdPattern.matcher(path.getFileName().toString());
                 if (matcher.matches()) {
@@ -239,7 +241,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                     if (generation >= translogGeneration.translogFileGeneration) {
                         latestGeneration = Math.max(translogGeneration.translogFileGeneration, generation);
                     }
-                    filesToUpgrade.add(new Tuple<>(path, generation));
+                    filesToUpgrade.add(new PathWithGeneration(path, generation));
                 } else {
                     Matcher strict_matcher = PARSE_STRICT_ID_PATTERN.matcher(path.getFileName().toString());
                     if (strict_matcher.matches()) {
@@ -250,17 +252,17 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             if (latestGeneration < translogGeneration.translogFileGeneration) {
                 throw new IllegalStateException("latest found translog has a lower generation that the excepcted uncommitted " + translogGeneration.translogFileGeneration + " > " + latestGeneration);
             }
-            CollectionUtil.timSort(filesToUpgrade, new Comparator<Tuple<Path, Long>>() {
+            CollectionUtil.timSort(filesToUpgrade, new Comparator<PathWithGeneration>() {
                 @Override
-                public int compare(Tuple<Path, Long> o1, Tuple<Path, Long> o2) {
-                    long gen1 = o1.v2();
-                    long gen2 = o2.v2();
+                public int compare(PathWithGeneration o1, PathWithGeneration o2) {
+                    long gen1 = o1.getGeneration();
+                    long gen2 = o2.getGeneration();
                     return Long.compare(gen1, gen2);
                 }
             });
-            for (Tuple<Path, Long> pathAndGeneration : filesToUpgrade) {
-                final Path path = pathAndGeneration.v1();
-                final long generation = pathAndGeneration.v2();
+            for (PathWithGeneration pathAndGeneration : filesToUpgrade) {
+                final Path path = pathAndGeneration.getPath();
+                final long generation = pathAndGeneration.getGeneration();
                 final Path target = path.resolveSibling(getFilename(generation));
                 logger.debug("upgrading translog copy file from {} to {}", path, target);
                 Files.move(path, target, StandardCopyOption.ATOMIC_MOVE);
@@ -1798,4 +1800,21 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         return outstandingViews.size();
     }
 
+    private static class PathWithGeneration {
+        private final Path path;
+        private final long generation;
+
+        public PathWithGeneration(Path path, long generation) {
+            this.path = path;
+            this.generation = generation;
+        }
+
+        public Path getPath() {
+            return path;
+        }
+
+        public long getGeneration() {
+            return generation;
+        }
+    }
 }

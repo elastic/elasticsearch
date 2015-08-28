@@ -19,7 +19,6 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
-import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -28,6 +27,7 @@ import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -88,7 +88,7 @@ public class AllocationExplanation implements Streamable {
     public AllocationExplanation add(ShardId shardId, NodeExplanation nodeExplanation) {
         List<NodeExplanation> list = explanations.get(shardId);
         if (list == null) {
-            list = Lists.newArrayList();
+            list = new ArrayList<>();
             explanations.put(shardId, list);
         }
         list.add(nodeExplanation);
@@ -121,7 +121,7 @@ public class AllocationExplanation implements Streamable {
         for (int i = 0; i < size; i++) {
             ShardId shardId = ShardId.readShardId(in);
             int size2 = in.readVInt();
-            List<NodeExplanation> ne = Lists.newArrayListWithCapacity(size2);
+            List<NodeExplanation> ne = new ArrayList<>(size2);
             for (int j = 0; j < size2; j++) {
                 DiscoveryNode node = null;
                 if (in.readBoolean()) {

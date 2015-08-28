@@ -19,9 +19,7 @@
 
 package org.elasticsearch.indices;
 
-import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
-
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
@@ -51,6 +49,7 @@ import org.elasticsearch.index.suggest.stats.SuggestStats;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -175,7 +174,7 @@ public class NodeIndicesStats implements Streamable, ToXContent {
             for (int i = 0; i < entries; i++) {
                 Index index = Index.readIndexName(in);
                 int indexShardListSize = in.readVInt();
-                List<IndexShardStats> indexShardStats = Lists.newArrayListWithCapacity(indexShardListSize);
+                List<IndexShardStats> indexShardStats = new ArrayList<>(indexShardListSize);
                 for (int j = 0; j < indexShardListSize; j++) {
                     indexShardStats.add(IndexShardStats.readIndexShardStats(in));
                 }

@@ -58,7 +58,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-import static com.google.common.collect.Lists.newArrayList;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 import static org.elasticsearch.index.mapper.MapperBuilders.object;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parsePathType;
@@ -129,7 +128,7 @@ public class ObjectMapper extends Mapper implements AllFieldMapper.IncludeInAll,
 
         protected Boolean includeInAll;
 
-        protected final List<Mapper.Builder> mappersBuilders = newArrayList();
+        protected final List<Mapper.Builder> mappersBuilders = new ArrayList<>();
 
         public Builder(String name) {
             super(name);

@@ -21,8 +21,6 @@ package org.elasticsearch.action.admin.indices.alias;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Lists;
-
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.AliasesRequest;
 import org.elasticsearch.action.CompositeIndicesRequest;
@@ -54,7 +52,7 @@ import static org.elasticsearch.cluster.metadata.AliasAction.readAliasAction;
  */
 public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesRequest> implements CompositeIndicesRequest {
 
-    private List<AliasActions> allAliasActions = Lists.newArrayList();
+    private List<AliasActions> allAliasActions = new ArrayList<>();
 
     //indices options that require every specified index to exist, expand wildcards only to open indices and
     //don't allow that no indices are resolved from wildcard expressions

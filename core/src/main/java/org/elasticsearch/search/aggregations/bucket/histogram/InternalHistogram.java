@@ -18,8 +18,6 @@
  */
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
-import com.google.common.collect.Lists;
-
 import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -42,6 +40,7 @@ import org.elasticsearch.search.aggregations.support.format.ValueFormatterStream
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.ListIterator;
@@ -464,7 +463,9 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
             // maintains order
         } else if (order == InternalOrder.KEY_DESC) {
             // we just need to reverse here...
-            reducedBuckets = Lists.reverse(reducedBuckets);
+            List<B> reverse = new ArrayList<>(reducedBuckets);
+            Collections.reverse(reverse);
+            reducedBuckets = reverse;
         } else {
             // sorted by sub-aggregation, need to fall back to a costly n*log(n) sort
             CollectionUtil.introSort(reducedBuckets, order.comparator());

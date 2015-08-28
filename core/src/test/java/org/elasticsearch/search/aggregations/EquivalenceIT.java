@@ -20,7 +20,6 @@
 package org.elasticsearch.search.aggregations;
 
 import com.carrotsearch.hppc.IntHashSet;
-import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
@@ -49,19 +48,8 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.extendedStats;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.filter;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.max;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.min;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.percentiles;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.range;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.stats;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.core.IsNull.notNullValue;
 
@@ -202,7 +190,7 @@ public class EquivalenceIT extends ESIntegTestCase {
                         .endObject()
                         .endObject()).execute().actionGet();
 
-        List<IndexRequestBuilder> indexingRequests = Lists.newArrayList();
+        List<IndexRequestBuilder> indexingRequests = new ArrayList<>();
         for (int i = 0; i < numDocs; ++i) {
             final int[] values = new int[randomInt(4)];
             for (int j = 0; j < values.length; ++j) {
@@ -329,7 +317,7 @@ public class EquivalenceIT extends ESIntegTestCase {
 
         final int numDocs = scaledRandomIntBetween(2500, 5000);
         logger.info("Indexing [" + numDocs +"] docs");
-        List<IndexRequestBuilder> indexingRequests = Lists.newArrayList();
+        List<IndexRequestBuilder> indexingRequests = new ArrayList<>();
         for (int i = 0; i < numDocs; ++i) {
             indexingRequests.add(client().prepareIndex("idx", "type", Integer.toString(i)).setSource("double_value", randomDouble()));
         }

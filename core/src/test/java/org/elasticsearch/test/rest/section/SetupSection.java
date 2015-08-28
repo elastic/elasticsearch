@@ -18,8 +18,7 @@
  */
 package org.elasticsearch.test.rest.section;
 
-import com.google.common.collect.Lists;
-
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -36,7 +35,7 @@ public class SetupSection {
 
     private SkipSection skipSection;
 
-    private List<DoSection> doSections = Lists.newArrayList();
+    private List<DoSection> doSections = new ArrayList<>();
 
     public SkipSection getSkipSection() {
         return skipSection;

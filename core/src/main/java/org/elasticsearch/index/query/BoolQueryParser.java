@@ -19,15 +19,17 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
-import static com.google.common.collect.Lists.newArrayList;
+import static org.elasticsearch.common.lucene.search.Queries.fixNegativeQueryIfNeeded;
 
 /**
  * Parser for bool query
@@ -53,10 +55,10 @@ public class BoolQueryParser extends BaseQueryParser<BoolQueryBuilder> {
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         String minimumShouldMatch = null;
 
-        final List<QueryBuilder> mustClauses = newArrayList();
-        final List<QueryBuilder> mustNotClauses = newArrayList();
-        final List<QueryBuilder> shouldClauses = newArrayList();
-        final List<QueryBuilder> filterClauses = newArrayList();
+        final List<QueryBuilder> mustClauses = new ArrayList<>();
+        final List<QueryBuilder> mustNotClauses = new ArrayList<>();
+        final List<QueryBuilder> shouldClauses = new ArrayList<>();
+        final List<QueryBuilder> filterClauses = new ArrayList<>();
         String queryName = null;
 
         String currentFieldName = null;

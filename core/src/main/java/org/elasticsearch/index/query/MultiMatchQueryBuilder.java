@@ -20,7 +20,6 @@
 package org.elasticsearch.index.query;
 
 import com.carrotsearch.hppc.ObjectFloatHashMap;
-import com.google.common.collect.Lists;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
@@ -30,6 +29,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.search.MatchQuery;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
@@ -151,7 +151,7 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
      * Constructs a new text query.
      */
     public MultiMatchQueryBuilder(Object text, String... fields) {
-        this.fields = Lists.newArrayList();
+        this.fields = new ArrayList<>();
         this.fields.addAll(Arrays.asList(fields));
         this.text = text;
     }

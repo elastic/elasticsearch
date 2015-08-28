@@ -19,8 +19,7 @@
 
 package org.elasticsearch.common.inject;
 
-import com.google.common.collect.Lists;
-
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 
@@ -29,7 +28,7 @@ import java.util.List;
  */
 public class ModulesBuilder implements Iterable<Module> {
 
-    private final List<Module> modules = Lists.newArrayList();
+    private final List<Module> modules = new ArrayList<>();
 
     public ModulesBuilder add(Module... newModules) {
         for (Module module : newModules) {

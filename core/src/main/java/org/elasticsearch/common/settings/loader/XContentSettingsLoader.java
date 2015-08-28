@@ -25,10 +25,10 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-import static com.google.common.collect.Lists.newArrayList;
 import static com.google.common.collect.Maps.newHashMap;
 
 /**
@@ -56,7 +56,7 @@ public abstract class XContentSettingsLoader implements SettingsLoader {
     public Map<String, String> load(XContentParser jp) throws IOException {
         StringBuilder sb = new StringBuilder();
         Map<String, String> settings = newHashMap();
-        List<String> path = newArrayList();
+        List<String> path = new ArrayList<>();
         XContentParser.Token token = jp.nextToken();
         if (token == null) {
             return settings;

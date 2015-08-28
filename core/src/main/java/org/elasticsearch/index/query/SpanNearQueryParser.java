@@ -24,9 +24,8 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
-
-import static com.google.common.collect.Lists.newArrayList;
 
 /**
  * Parser for span_near query
@@ -52,7 +51,7 @@ public class SpanNearQueryParser extends BaseQueryParser<SpanNearQueryBuilder> {
         boolean collectPayloads = SpanNearQueryBuilder.DEFAULT_COLLECT_PAYLOADS;
         String queryName = null;
 
-        List<SpanQueryBuilder> clauses = newArrayList();
+        List<SpanQueryBuilder> clauses = new ArrayList<>();
 
         String currentFieldName = null;
         XContentParser.Token token;

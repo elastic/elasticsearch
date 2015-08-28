@@ -20,7 +20,6 @@
 package org.elasticsearch.action.admin.indices.stats;
 
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import org.elasticsearch.action.ShardOperationFailedException;
@@ -35,6 +34,7 @@ import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.common.xcontent.XContentFactory;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -94,7 +94,7 @@ public class IndicesStatsResponse extends BroadcastResponse implements ToXConten
         }
 
         for (String index : indices) {
-            List<ShardStats> shards = Lists.newArrayList();
+            List<ShardStats> shards = new ArrayList<>();
             for (ShardStats shard : this.shards) {
                 if (shard.getShardRouting().index().equals(index)) {
                     shards.add(shard);

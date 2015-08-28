@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -28,6 +29,8 @@ import java.io.IOException;
  * Parser for prefix query
  */
 public class PrefixQueryParser extends BaseQueryParser<PrefixQueryBuilder> {
+
+    private static final ParseField NAME_FIELD = new ParseField("_name").withAllDeprecated("query name is not supported in short version of prefix query");
 
     @Inject
     public PrefixQueryParser() {
@@ -75,7 +78,7 @@ public class PrefixQueryParser extends BaseQueryParser<PrefixQueryBuilder> {
                     }
                 }
             } else {
-                if ("_name".equals(currentFieldName)) {
+                if (parseContext.parseFieldMatcher().match(currentFieldName, NAME_FIELD)) {
                     queryName = parser.text();
                 } else {
                     fieldName = currentFieldName;

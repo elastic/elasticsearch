@@ -22,8 +22,6 @@ package org.elasticsearch.search.builder;
 import com.carrotsearch.hppc.ObjectFloatHashMap;
 import com.google.common.base.Charsets;
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Lists;
-
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.action.support.QuerySourceBuilder;
 import org.elasticsearch.action.support.ToXContentToBytes;
@@ -49,7 +47,11 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.suggest.SuggestBuilder;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 
 /**
  * A search source builder allowing to easily build search source. Simple
@@ -359,7 +361,7 @@ public class SearchSourceBuilder extends ToXContentToBytes {
      */
     public SearchSourceBuilder sort(SortBuilder sort) {
         if (sorts == null) {
-            sorts = Lists.newArrayList();
+            sorts = new ArrayList<>();
         }
         sorts.add(sort);
         return this;
@@ -379,7 +381,7 @@ public class SearchSourceBuilder extends ToXContentToBytes {
      */
     public SearchSourceBuilder aggregation(AbstractAggregationBuilder aggregation) {
         if (aggregations == null) {
-            aggregations = Lists.newArrayList();
+            aggregations = new ArrayList<>();
         }
         aggregations.add(aggregation);
         return this;
@@ -598,7 +600,7 @@ public class SearchSourceBuilder extends ToXContentToBytes {
      */
     public SearchSourceBuilder scriptField(String name, Script script) {
         if (scriptFields == null) {
-            scriptFields = Lists.newArrayList();
+            scriptFields = new ArrayList<>();
         }
         scriptFields.add(new ScriptField(name, script));
         return this;

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.gateway;
 
-import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -34,7 +33,12 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.settings.IndexSettings;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * The primary shard allocator allocates primary shard that were not created as
@@ -234,7 +238,7 @@ public abstract class PrimaryShardAllocator extends AbstractComponent {
         // Now that we have a map of nodes to versions along with the
         // number of allocations found (and not ignored), we need to sort
         // it so the node with the highest version is at the beginning
-        List<DiscoveryNode> nodesWithHighestVersion = Lists.newArrayList();
+        List<DiscoveryNode> nodesWithHighestVersion = new ArrayList<>();
         nodesWithHighestVersion.addAll(nodesWithVersion.keySet());
         CollectionUtil.timSort(nodesWithHighestVersion, new Comparator<DiscoveryNode>() {
             @Override

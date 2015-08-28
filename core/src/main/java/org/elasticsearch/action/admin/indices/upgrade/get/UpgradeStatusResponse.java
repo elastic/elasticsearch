@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.indices.upgrade.get;
 
-import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import org.elasticsearch.action.ShardOperationFailedException;
@@ -31,6 +30,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -63,7 +63,7 @@ public class UpgradeStatusResponse extends BroadcastResponse implements ToXConte
         }
 
         for (String index : indices) {
-            List<ShardUpgradeStatus> shards = Lists.newArrayList();
+            List<ShardUpgradeStatus> shards = new ArrayList<>();
             for (ShardUpgradeStatus shard : this.shards) {
                 if (shard.getShardRouting().index().equals(index)) {
                     shards.add(shard);

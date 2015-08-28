@@ -308,6 +308,7 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
 
     /**
      * Sets whether to perform extra effort to detect noop updates via docAsUpsert.
+     * Defautls to true.
      */
     public UpdateRequestBuilder setDetectNoop(boolean detectNoop) {
         request.detectNoop(detectNoop);
@@ -320,6 +321,16 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
      */
     public UpdateRequestBuilder setScriptedUpsert(boolean scriptedUpsert) {
         request.scriptedUpsert(scriptedUpsert);
+        return this;
+    }
+
+    /**
+     * Set the new ttl of the document. Note that if detectNoop is true (the default)
+     * and the source of the document isn't changed then the ttl update won't take
+     * effect.
+     */
+    public UpdateRequestBuilder setTtl(Long ttl) {
+        request.doc().ttl(ttl);
         return this;
     }
 }

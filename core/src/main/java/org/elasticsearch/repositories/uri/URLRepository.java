@@ -126,17 +126,6 @@ public class URLRepository extends BlobStoreRepository {
         }
     }
 
-    @Override
-    public String startVerification() {
-        //TODO: #7831 Add check that URL exists and accessible
-        return null;
-    }
-
-    @Override
-    public void endVerification(String seed) {
-        throw new UnsupportedOperationException("shouldn't be called");
-    }
-
     /**
      * Makes sure that the url is white listed or if it points to the local file system it matches one on of the root path in path.repo
      */
@@ -166,6 +155,11 @@ public class URLRepository extends BlobStoreRepository {
             }
         }
         throw new RepositoryException(repositoryName, "unsupported url protocol [" + protocol + "] from URL [" + url + "]");
+    }
+
+    @Override
+    public boolean readOnly() {
+        return true;
     }
 
 }

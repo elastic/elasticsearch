@@ -255,9 +255,15 @@ public class ChildrenIT extends ESIntegTestCase {
             assertThat(count.getValue(), equalTo(4.));
 
             String idToUpdate = Integer.toString(randomInt(3));
+            /*
+             * The whole point of this test is to test these things with deleted
+             * docs in the index so we turn off detect_noop to make sure that
+             * the updates cause that.
+             */
             UpdateResponse updateResponse = client().prepareUpdate(indexName, "child", idToUpdate)
                     .setParent("1")
                     .setDoc("count", 1)
+                    .setDetectNoop(false)
                     .get();
             assertThat(updateResponse.getVersion(), greaterThan(1l));
             refresh();

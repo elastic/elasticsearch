@@ -43,7 +43,7 @@ public class AndQueryBuilder extends AbstractQueryBuilder<AndQueryBuilder> {
 
     public static final String NAME = "and";
 
-    private final ArrayList<QueryBuilder> filters = Lists.newArrayList();
+    private final ArrayList<QueryBuilder> filters = new ArrayList<>();
 
     static final AndQueryBuilder PROTOTYPE = new AndQueryBuilder();
 

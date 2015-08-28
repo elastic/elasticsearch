@@ -20,15 +20,13 @@
 package org.elasticsearch.index.query;
 
 import com.carrotsearch.hppc.ObjectFloatHashMap;
-
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-
-import static com.google.common.collect.Lists.newArrayList;
 
 /**
  * A query that parses a query string and runs it. There are two modes that this operates. The first,
@@ -113,7 +111,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
      */
     public QueryStringQueryBuilder field(String field) {
         if (fields == null) {
-            fields = newArrayList();
+            fields = new ArrayList<>();
         }
         fields.add(field);
         return this;
@@ -124,7 +122,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
      */
     public QueryStringQueryBuilder field(String field, float boost) {
         if (fields == null) {
-            fields = newArrayList();
+            fields = new ArrayList<>();
         }
         fields.add(field);
         if (fieldsBoosts == null) {

@@ -41,9 +41,11 @@ import org.elasticsearch.env.NodeEnvironment;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.*;
-
-import static com.google.common.collect.Lists.newArrayList;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 /**
  *
@@ -221,7 +223,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
      */
     private void pre20Upgrade() throws Exception {
         MetaData metaData = loadMetaState();
-        List<IndexMetaData> updateIndexMetaData = newArrayList();
+        List<IndexMetaData> updateIndexMetaData = new ArrayList<>();
         for (IndexMetaData indexMetaData : metaData) {
             IndexMetaData newMetaData = metaDataIndexUpgradeService.upgradeIndexMetaData(indexMetaData);
             if (indexMetaData != newMetaData) {

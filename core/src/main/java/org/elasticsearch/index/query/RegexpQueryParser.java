@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -28,6 +29,8 @@ import java.io.IOException;
  * Parser for regexp query
  */
 public class RegexpQueryParser extends BaseQueryParser<RegexpQueryBuilder> {
+
+    private static final ParseField NAME_FIELD = new ParseField("_name").withAllDeprecated("query name is not supported in short version of regexp query");
 
     @Inject
     public RegexpQueryParser() {
@@ -84,7 +87,7 @@ public class RegexpQueryParser extends BaseQueryParser<RegexpQueryBuilder> {
                     }
                 }
             } else {
-                if ("_name".equals(currentFieldName)) {
+                if (parseContext.parseFieldMatcher().match(currentFieldName, NAME_FIELD)) {
                     queryName = parser.text();
                 } else {
                     fieldName = currentFieldName;

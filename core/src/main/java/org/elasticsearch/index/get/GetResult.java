@@ -20,7 +20,6 @@
 package org.elasticsearch.index.get;
 
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Lists;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
@@ -34,6 +33,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
@@ -208,8 +208,8 @@ public class GetResult implements Streamable, Iterable<GetField>, ToXContent {
     }
 
     public XContentBuilder toXContentEmbedded(XContentBuilder builder, Params params) throws IOException {
-        List<GetField> metaFields = Lists.newArrayList();
-        List<GetField> otherFields = Lists.newArrayList();
+        List<GetField> metaFields = new ArrayList<>();
+        List<GetField> otherFields = new ArrayList<>();
         if (fields != null && !fields.isEmpty()) {
             for (GetField field : fields.values()) {
                 if (field.getValues().isEmpty()) {

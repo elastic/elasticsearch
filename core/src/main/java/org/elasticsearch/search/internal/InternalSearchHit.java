@@ -20,7 +20,6 @@
 package org.elasticsearch.search.internal;
 
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Lists;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
@@ -47,6 +46,7 @@ import org.elasticsearch.search.internal.InternalSearchHits.StreamContext.ShardT
 import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -431,8 +431,8 @@ public class InternalSearchHit implements SearchHit {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        List<SearchHitField> metaFields = Lists.newArrayList();
-        List<SearchHitField> otherFields = Lists.newArrayList();
+        List<SearchHitField> metaFields = new ArrayList<>();
+        List<SearchHitField> otherFields = new ArrayList<>();
         if (fields != null && !fields.isEmpty()) {
             for (SearchHitField field : fields.values()) {
                 if (field.values().isEmpty()) {

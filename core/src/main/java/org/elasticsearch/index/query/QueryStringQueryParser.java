@@ -20,8 +20,6 @@
 package org.elasticsearch.index.query;
 
 import com.carrotsearch.hppc.ObjectFloatHashMap;
-import com.google.common.collect.Lists;
-
 import org.apache.lucene.queryparser.classic.MapperQueryParser;
 import org.apache.lucene.queryparser.classic.QueryParserSettings;
 import org.apache.lucene.search.BooleanQuery;
@@ -40,6 +38,7 @@ import org.elasticsearch.index.query.support.QueryParsers;
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Locale;
 
 import static org.elasticsearch.common.lucene.search.Queries.fixNegativeQueryIfNeeded;
@@ -102,7 +101,7 @@ public class QueryStringQueryParser extends BaseQueryParserTemp {
                             fField = parser.text();
                         }
                         if (qpSettings.fields() == null) {
-                            qpSettings.fields(Lists.<String>newArrayList());
+                            qpSettings.fields(new ArrayList<String>());
                         }
 
                         if (Regex.isSimpleMatchPattern(fField)) {

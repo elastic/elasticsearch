@@ -18,12 +18,12 @@
  */
 package org.elasticsearch.index.query;
 
-import com.google.common.collect.Lists;
 import org.apache.lucene.search.BooleanClause;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.CollectionUtils;
 
 import java.io.IOException;
 
@@ -79,7 +79,6 @@ public enum Operator implements Writeable<Operator> {
     }
 
     private static IllegalArgumentException newOperatorException(String op) {
-        return new IllegalArgumentException("operator needs to be either " + Lists.newArrayList(Operator.values()) +
-                ", but not [" + op + "]");
+        return new IllegalArgumentException("operator needs to be either " + CollectionUtils.arrayAsArrayList(Operator.values()) + ", but not [" + op + "]");
     }
 }

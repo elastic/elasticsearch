@@ -33,6 +33,7 @@ import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.global;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -86,7 +87,7 @@ public class SumIT extends AbstractNumericTestCase {
                 .addAggregation(sum("sum").field("value"))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         Sum sum = searchResponse.getAggregations().get("sum");
         assertThat(sum, notNullValue());
@@ -99,7 +100,7 @@ public class SumIT extends AbstractNumericTestCase {
         SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
                 .addAggregation(sum("sum").format("0000.0").field("value")).execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         Sum sum = searchResponse.getAggregations().get("sum");
         assertThat(sum, notNullValue());
@@ -115,7 +116,7 @@ public class SumIT extends AbstractNumericTestCase {
         SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
                 .addAggregation(global("global").subAggregation(sum("sum").field("value"))).execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         Global global = searchResponse.getAggregations().get("global");
         assertThat(global, notNullValue());
@@ -141,7 +142,7 @@ public class SumIT extends AbstractNumericTestCase {
                 .addAggregation(sum("sum").field("value"))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         Sum sum = searchResponse.getAggregations().get("sum");
         assertThat(sum, notNullValue());
@@ -157,7 +158,7 @@ public class SumIT extends AbstractNumericTestCase {
                 .addAggregation(sum("sum").field("value").script(new Script("_value + 1")))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         Sum sum = searchResponse.getAggregations().get("sum");
         assertThat(sum, notNullValue());
@@ -175,7 +176,7 @@ public class SumIT extends AbstractNumericTestCase {
                 .addAggregation(sum("sum").field("value").script(new Script("_value + increment", ScriptType.INLINE, null, params)))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         Sum sum = searchResponse.getAggregations().get("sum");
         assertThat(sum, notNullValue());
@@ -191,7 +192,7 @@ public class SumIT extends AbstractNumericTestCase {
                 .addAggregation(sum("sum").script(new Script("doc['value'].value")))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         Sum sum = searchResponse.getAggregations().get("sum");
         assertThat(sum, notNullValue());
@@ -209,7 +210,7 @@ public class SumIT extends AbstractNumericTestCase {
                 .addAggregation(sum("sum").script(new Script("doc['value'].value + inc", ScriptType.INLINE, null, params)))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         Sum sum = searchResponse.getAggregations().get("sum");
         assertThat(sum, notNullValue());
@@ -227,7 +228,7 @@ public class SumIT extends AbstractNumericTestCase {
                 .addAggregation(sum("sum").script(new Script("doc['value'].value + inc", ScriptType.INLINE, null, params)))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         Sum sum = searchResponse.getAggregations().get("sum");
         assertThat(sum, notNullValue());
@@ -244,7 +245,7 @@ public class SumIT extends AbstractNumericTestCase {
                 .addAggregation(sum("sum").script(new Script("[ doc['value'].value, doc['value'].value + 1 ]")))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         Sum sum = searchResponse.getAggregations().get("sum");
         assertThat(sum, notNullValue());
@@ -260,7 +261,7 @@ public class SumIT extends AbstractNumericTestCase {
                 .addAggregation(sum("sum").script(new Script("[ doc['value'].value, doc['value'].value + 1 ]")))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         Sum sum = searchResponse.getAggregations().get("sum");
         assertThat(sum, notNullValue());
@@ -279,7 +280,7 @@ public class SumIT extends AbstractNumericTestCase {
                         sum("sum").script(new Script("[ doc['value'].value, doc['value'].value + inc ]", ScriptType.INLINE, null, params)))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         Sum sum = searchResponse.getAggregations().get("sum");
         assertThat(sum, notNullValue());
@@ -296,7 +297,7 @@ public class SumIT extends AbstractNumericTestCase {
                 .addAggregation(sum("sum").field("values"))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         Sum sum = searchResponse.getAggregations().get("sum");
         assertThat(sum, notNullValue());
@@ -312,7 +313,7 @@ public class SumIT extends AbstractNumericTestCase {
                 .setQuery(matchAllQuery())
                 .addAggregation(sum("sum").field("values").script(new Script("_value + 1"))).execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         Sum sum = searchResponse.getAggregations().get("sum");
         assertThat(sum, notNullValue());
@@ -329,7 +330,7 @@ public class SumIT extends AbstractNumericTestCase {
                 .addAggregation(sum("sum").field("values").script(new Script("_value + increment", ScriptType.INLINE, null, params)))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         Sum sum = searchResponse.getAggregations().get("sum");
         assertThat(sum, notNullValue());

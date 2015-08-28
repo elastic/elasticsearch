@@ -20,26 +20,12 @@ package org.elasticsearch.index.search.child;
 
 import com.carrotsearch.hppc.IntIntHashMap;
 import com.carrotsearch.hppc.ObjectObjectHashMap;
-
 import org.apache.lucene.analysis.MockAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
-import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.LeafReader;
-import org.apache.lucene.index.PostingsEnum;
-import org.apache.lucene.index.RandomIndexWriter;
-import org.apache.lucene.index.SlowCompositeReaderWrapper;
-import org.apache.lucene.index.Term;
-import org.apache.lucene.index.Terms;
-import org.apache.lucene.index.TermsEnum;
-import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.QueryUtils;
-import org.apache.lucene.search.QueryWrapperFilter;
-import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.index.*;
+import org.apache.lucene.search.*;
 import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.FixedBitSet;
@@ -52,7 +38,6 @@ import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.TestSearchContext;
 import org.junit.AfterClass;
@@ -64,11 +49,7 @@ import java.util.NavigableSet;
 import java.util.Random;
 import java.util.TreeSet;
 
-import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
-import static org.elasticsearch.index.query.QueryBuilders.filteredQuery;
-import static org.elasticsearch.index.query.QueryBuilders.hasParentQuery;
-import static org.elasticsearch.index.query.QueryBuilders.notQuery;
-import static org.elasticsearch.index.query.QueryBuilders.termQuery;
+import static org.elasticsearch.index.query.QueryBuilders.*;
 
 /**
  */
@@ -173,7 +154,7 @@ public class ParentConstantScoreQueryTests extends AbstractChildTestCase {
         Engine.Searcher engineSearcher = new Engine.Searcher(
                 ParentConstantScoreQuery.class.getSimpleName(), searcher
         );
-        ((TestSearchContext) SearchContext.current()).setSearcher(new ContextIndexSearcher(SearchContext.current(), engineSearcher));
+        ((TestSearchContext) SearchContext.current()).setSearcher(engineSearcher);
 
         int max = numUniqueParentValues / 4;
         for (int i = 0; i < max; i++) {
@@ -200,7 +181,7 @@ public class ParentConstantScoreQueryTests extends AbstractChildTestCase {
                 engineSearcher = new Engine.Searcher(
                         ParentConstantScoreQueryTests.class.getSimpleName(), searcher
                 );
-                ((TestSearchContext) SearchContext.current()).setSearcher(new ContextIndexSearcher(SearchContext.current(), engineSearcher));
+                ((TestSearchContext) SearchContext.current()).setSearcher(engineSearcher);
             }
 
             String parentValue = parentValues[random().nextInt(numUniqueParentValues)];

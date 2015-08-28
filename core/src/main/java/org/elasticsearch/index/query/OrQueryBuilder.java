@@ -19,8 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import com.google.common.collect.Lists;
-
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.BooleanClause.Occur;
@@ -43,7 +41,7 @@ public class OrQueryBuilder extends AbstractQueryBuilder<OrQueryBuilder> {
 
     public static final String NAME = "or";
 
-    private final ArrayList<QueryBuilder> filters = Lists.newArrayList();
+    private final ArrayList<QueryBuilder> filters = new ArrayList<>();
 
     static final OrQueryBuilder PROTOTYPE = new OrQueryBuilder();
 

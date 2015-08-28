@@ -20,7 +20,6 @@
 package org.elasticsearch.cluster.metadata;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesClusterStateUpdateRequest;
@@ -34,10 +33,11 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.IndicesService;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -69,7 +69,7 @@ public class MetaDataIndexAliasesService extends AbstractComponent {
 
             @Override
             public ClusterState execute(final ClusterState currentState) {
-                List<String> indicesToClose = Lists.newArrayList();
+                List<String> indicesToClose = new ArrayList<>();
                 Map<String, IndexService> indices = Maps.newHashMap();
                 try {
                     for (AliasAction aliasAction : request.actions()) {

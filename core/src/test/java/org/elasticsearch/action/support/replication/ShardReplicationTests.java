@@ -661,7 +661,6 @@ public class ShardReplicationTests extends ESTestCase {
         public AtomicInteger processedOnReplicas = new AtomicInteger();
 
         Request() {
-            this.operationThreaded(randomBoolean());
         }
 
         Request(ShardId shardId) {

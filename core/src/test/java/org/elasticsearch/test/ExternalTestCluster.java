@@ -19,7 +19,6 @@
 
 package org.elasticsearch.test;
 
-import com.google.common.collect.Lists;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
@@ -38,6 +37,7 @@ import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.file.Path;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -153,7 +153,7 @@ public final class ExternalTestCluster extends TestCluster {
 
     @Override
     public Iterator<Client> iterator() {
-        return Lists.newArrayList(client).iterator();
+        return Collections.singleton(client).iterator();
     }
 
     @Override

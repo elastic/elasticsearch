@@ -18,10 +18,20 @@ package org.elasticsearch.common.inject.internal;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Lists;
 import org.apache.lucene.util.CollectionUtil;
-import org.elasticsearch.common.inject.*;
-import org.elasticsearch.common.inject.spi.*;
+import org.elasticsearch.common.inject.ConfigurationException;
+import org.elasticsearch.common.inject.CreationException;
+import org.elasticsearch.common.inject.Key;
+import org.elasticsearch.common.inject.MembersInjector;
+import org.elasticsearch.common.inject.Provider;
+import org.elasticsearch.common.inject.ProvisionException;
+import org.elasticsearch.common.inject.Scope;
+import org.elasticsearch.common.inject.TypeLiteral;
+import org.elasticsearch.common.inject.spi.Dependency;
+import org.elasticsearch.common.inject.spi.InjectionListener;
+import org.elasticsearch.common.inject.spi.InjectionPoint;
+import org.elasticsearch.common.inject.spi.Message;
+import org.elasticsearch.common.inject.spi.TypeListenerBinding;
 
 import java.io.PrintWriter;
 import java.io.Serializable;
@@ -31,7 +41,12 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Member;
 import java.lang.reflect.Type;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Comparator;
+import java.util.Formatter;
+import java.util.List;
+import java.util.Locale;
 
 /**
  * A collection of error messages. If this type is passed as a method parameter, the method is
@@ -361,7 +376,7 @@ public final class Errors implements Serializable {
     }
 
     private Message merge(Message message) {
-        List<Object> sources = Lists.newArrayList();
+        List<Object> sources = new ArrayList<>();
         sources.addAll(getSources());
         sources.addAll(message.getSources());
         return new Message(sources, message.getMessage(), message.getCause());
@@ -384,7 +399,7 @@ public final class Errors implements Serializable {
     }
 
     public List<Object> getSources() {
-        List<Object> sources = Lists.newArrayList();
+        List<Object> sources = new ArrayList<>();
         for (Errors e = this; e != null; e = e.parent) {
             if (e.source != SourceProvider.UNKNOWN_SOURCE) {
                 sources.add(0, e.source);
@@ -421,7 +436,7 @@ public final class Errors implements Serializable {
 
     public Errors addMessage(Message message) {
         if (root.errors == null) {
-            root.errors = Lists.newArrayList();
+            root.errors = new ArrayList<>();
         }
         root.errors.add(message);
         return this;
@@ -439,7 +454,7 @@ public final class Errors implements Serializable {
             return ImmutableList.of();
         }
 
-        List<Message> result = Lists.newArrayList(root.errors);
+        List<Message> result = new ArrayList<>(root.errors);
         CollectionUtil.timSort(result, new Comparator<Message>() {
             @Override
             public int compare(Message a, Message b) {

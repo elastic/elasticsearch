@@ -20,7 +20,6 @@
 package org.elasticsearch.cluster.metadata;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import org.elasticsearch.Version;
@@ -47,7 +46,12 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidTypeNameException;
 import org.elasticsearch.percolator.PercolatorService;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import static com.google.common.collect.Maps.newHashMap;
 /**
@@ -226,7 +230,7 @@ public class MetaDataMappingService extends AbstractComponent {
             if (task instanceof RefreshTask) {
                 RefreshTask refreshTask = (RefreshTask) task;
                 try {
-                    List<String> updatedTypes = Lists.newArrayList();
+                    List<String> updatedTypes = new ArrayList<>();
                     for (String type : refreshTask.types) {
                         if (processedRefreshes.contains(type)) {
                             continue;
@@ -342,7 +346,7 @@ public class MetaDataMappingService extends AbstractComponent {
 
             @Override
             public ClusterState execute(final ClusterState currentState) throws Exception {
-                List<String> indicesToClose = Lists.newArrayList();
+                List<String> indicesToClose = new ArrayList<>();
                 try {
                     for (String index : request.indices()) {
                         if (!currentState.metaData().hasIndex(index)) {

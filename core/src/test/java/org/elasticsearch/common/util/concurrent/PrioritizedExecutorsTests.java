@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.common.util.concurrent;
 
-import com.google.common.collect.Lists;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
@@ -26,9 +25,16 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Test;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.*;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.PriorityBlockingQueue;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -42,7 +48,7 @@ public class PrioritizedExecutorsTests extends ESTestCase {
     @Test
     public void testPriorityQueue() throws Exception {
         PriorityBlockingQueue<Priority> queue = new PriorityBlockingQueue<>();
-        List<Priority> priorities = Lists.newArrayList(Priority.values());
+        List<Priority> priorities = Arrays.asList(Priority.values());
         Collections.shuffle(priorities);
 
         for (Priority priority : priorities) {

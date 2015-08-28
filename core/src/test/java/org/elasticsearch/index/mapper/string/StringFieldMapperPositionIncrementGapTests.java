@@ -35,12 +35,12 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.hamcrest.Matchers.containsString;
 
 /**
- * Tests that position_offset_gap is read from the mapper and applies as
+ * Tests that position_increment_gap is read from the mapper and applies as
  * expected in queries.
  */
-public class StringFieldMapperPositionOffsetGapTests extends ESSingleNodeTestCase {
+public class StringFieldMapperPositionIncrementGapTests extends ESSingleNodeTestCase {
     /**
-     * The default position_offset_gap should be large enough that most
+     * The default position_increment_gap should be large enough that most
      * "sensible" queries phrase slops won't match across values.
      */
     public void testDefault() throws IOException {
@@ -51,9 +51,9 @@ public class StringFieldMapperPositionOffsetGapTests extends ESSingleNodeTestCas
      * Asserts that the post-2.0 default is being applied.
      */
     public static void assertGapIsOneHundred(Client client, String indexName, String type) throws IOException {
-        testGap(client(), indexName, type, 100);
+        testGap(client, indexName, type, 100);
 
-        // No match across gap using default slop with default positionOffsetGap
+        // No match across gap using default slop with default positionIncrementGap
         assertHitCount(client.prepareSearch(indexName).setQuery(matchPhraseQuery("string", "one two")).get(), 0);
 
         // Nor with small-ish values
@@ -77,7 +77,7 @@ public class StringFieldMapperPositionOffsetGapTests extends ESSingleNodeTestCas
         testGap(client, indexName, type, 0);
         /*
          * Phrases match across different values using default slop with pre-2.0 default
-         * position_offset_gap.
+         * position_increment_gap.
          */
         assertHitCount(client.prepareSearch(indexName).setQuery(matchPhraseQuery("string", "one two")).get(), 1);
     }
@@ -97,12 +97,12 @@ public class StringFieldMapperPositionOffsetGapTests extends ESSingleNodeTestCas
             setupGapInMapping(-1);
             fail("Expected an error");
         } catch (MapperParsingException e) {
-            assertThat(ExceptionsHelper.detailedMessage(e), containsString("positions_offset_gap less than 0 aren't allowed"));
+            assertThat(ExceptionsHelper.detailedMessage(e), containsString("positions_increment_gap less than 0 aren't allowed"));
         }
     }
 
     /**
-     * Tests that the default actually defaults to the position_offset_gap
+     * Tests that the default actually defaults to the position_increment_gap
      * configured in the analyzer. This behavior is very old and a little
      * strange but not worth breaking some thought.
      */
@@ -111,26 +111,26 @@ public class StringFieldMapperPositionOffsetGapTests extends ESSingleNodeTestCas
                 .startObject("gappy");
         settings.field("type", "custom");
         settings.field("tokenizer", "standard");
-        settings.field("position_offset_gap", 2);
+        settings.field("position_increment_gap", 2);
         setupAnalyzer(settings, "gappy");
         testGap(client(), "test", "test", 2);
     }
 
     /**
      * Build an index named "test" with a field named "string" with the provided
-     * positionOffsetGap that uses the standard analyzer.
+     * positionIncrementGap that uses the standard analyzer.
      */
-    private void setupGapInMapping(int positionOffsetGap) throws IOException {
+    private void setupGapInMapping(int positionIncrementGap) throws IOException {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("properties").startObject("string");
         mapping.field("type", "string");
-        mapping.field("position_offset_gap", positionOffsetGap);
+        mapping.field("position_increment_gap", positionIncrementGap);
         client().admin().indices().prepareCreate("test").addMapping("test", mapping).get();
     }
 
     /**
      * Build an index named "test" with the provided settings and and a field
      * named "string" that uses the specified analyzer and default
-     * position_offset_gap.
+     * position_increment_gap.
      */
     private void setupAnalyzer(XContentBuilder settings, String analyzer) throws IOException {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("properties").startObject("string");
@@ -139,20 +139,20 @@ public class StringFieldMapperPositionOffsetGapTests extends ESSingleNodeTestCas
         client().admin().indices().prepareCreate("test").addMapping("test", mapping).setSettings(settings).get();
     }
 
-    private static void testGap(Client client, String indexName, String type, int positionOffsetGap) throws IOException {
+    private static void testGap(Client client, String indexName, String type, int positionIncrementGap) throws IOException {
         client.prepareIndex(indexName, type, "position_gap_test").setSource("string", ImmutableList.of("one", "two three")).setRefresh(true).get();
 
         // Baseline - phrase query finds matches in the same field value
         assertHitCount(client.prepareSearch(indexName).setQuery(matchPhraseQuery("string", "two three")).get(), 1);
 
-        if (positionOffsetGap > 0) {
+        if (positionIncrementGap > 0) {
             // No match across gaps when slop < position gap
-            assertHitCount(client.prepareSearch(indexName).setQuery(matchPhraseQuery("string", "one two").slop(positionOffsetGap - 1)).get(),
+            assertHitCount(client.prepareSearch(indexName).setQuery(matchPhraseQuery("string", "one two").slop(positionIncrementGap - 1)).get(),
                     0);
         }
 
         // Match across gaps when slop >= position gap
-        assertHitCount(client.prepareSearch(indexName).setQuery(matchPhraseQuery("string", "one two").slop(positionOffsetGap)).get(), 1);
-        assertHitCount(client.prepareSearch(indexName).setQuery(matchPhraseQuery("string", "one two").slop(positionOffsetGap + 1)).get(), 1);
+        assertHitCount(client.prepareSearch(indexName).setQuery(matchPhraseQuery("string", "one two").slop(positionIncrementGap)).get(), 1);
+        assertHitCount(client.prepareSearch(indexName).setQuery(matchPhraseQuery("string", "one two").slop(positionIncrementGap + 1)).get(), 1);
     }
 }

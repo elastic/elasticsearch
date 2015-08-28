@@ -25,8 +25,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.ArrayList;
 
-import static com.google.common.collect.Lists.newArrayList;
-
 /**
  * Parser for or query
  * @deprecated use bool query instead
@@ -47,7 +45,7 @@ public class OrQueryParser extends BaseQueryParser<OrQueryBuilder> {
     public OrQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
-        final ArrayList<QueryBuilder> queries = newArrayList();
+        final ArrayList<QueryBuilder> queries = new ArrayList<>();
         boolean queriesFound = false;
 
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;

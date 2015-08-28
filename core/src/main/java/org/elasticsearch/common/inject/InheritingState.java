@@ -17,9 +17,13 @@
 package org.elasticsearch.common.inject;
 
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
-import org.elasticsearch.common.inject.internal.*;
+import org.elasticsearch.common.inject.internal.BindingImpl;
+import org.elasticsearch.common.inject.internal.Errors;
+import org.elasticsearch.common.inject.internal.InstanceBindingImpl;
+import org.elasticsearch.common.inject.internal.InternalFactory;
+import org.elasticsearch.common.inject.internal.MatcherAndConverter;
+import org.elasticsearch.common.inject.internal.SourceProvider;
 import org.elasticsearch.common.inject.spi.InjectionPoint;
 import org.elasticsearch.common.inject.spi.TypeListenerBinding;
 
@@ -43,8 +47,8 @@ class InheritingState implements State {
     private final Map<Key<?>, Binding<?>> explicitBindings
             = Collections.unmodifiableMap(explicitBindingsMutable);
     private final Map<Class<? extends Annotation>, Scope> scopes = Maps.newHashMap();
-    private final List<MatcherAndConverter> converters = Lists.newArrayList();
-    private final List<TypeListenerBinding> listenerBindings = Lists.newArrayList();
+    private final List<MatcherAndConverter> converters = new ArrayList<>();
+    private final List<TypeListenerBinding> listenerBindings = new ArrayList<>();
     private WeakKeySet blacklistedKeys = new WeakKeySet();
     private final Object lock;
 

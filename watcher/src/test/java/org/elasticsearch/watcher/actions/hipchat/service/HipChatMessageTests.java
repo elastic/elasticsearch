@@ -153,7 +153,7 @@ public class HipChatMessageTests extends ESTestCase {
             }
             if (rarely()) {
                 equals = false;
-                notify = notify == null ? (Boolean) randomBoolean() : randomBoolean() ? null : (Boolean) randomBoolean();
+                notify = notify == null ? (Boolean) randomBoolean() : randomBoolean() ? null : !notify;
             }
         }
 

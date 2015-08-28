@@ -6,7 +6,6 @@
 package org.elasticsearch.shield.authz.indicesresolver;
 
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import org.elasticsearch.action.AliasesRequest;
 import org.elasticsearch.action.CompositeIndicesRequest;
@@ -98,7 +97,7 @@ public class DefaultIndicesAndAliasesResolver implements IndicesAndAliasesResolv
     }
 
     private List<String> loadAuthorizedAliases(List<String> authorizedIndices, MetaData metaData) {
-        List<String> authorizedAliases = Lists.newArrayList();
+        List<String> authorizedAliases = new ArrayList<>();
         SortedMap<String, AliasOrIndex> existingAliases = metaData.getAliasAndIndexLookup();
         for (String authorizedIndex : authorizedIndices) {
             AliasOrIndex aliasOrIndex = existingAliases.get(authorizedIndex);
@@ -110,7 +109,7 @@ public class DefaultIndicesAndAliasesResolver implements IndicesAndAliasesResolv
     }
 
     private List<String> replaceWildcardsWithAuthorizedAliases(String[] aliases, List<String> authorizedAliases) {
-        List<String> finalAliases = Lists.newArrayList();
+        List<String> finalAliases = new ArrayList<>();
 
         //IndicesAliasesRequest doesn't support empty aliases (validation fails) but GetAliasesRequest does (in which case empty means _all)
         boolean matchAllAliases = aliases.length == 0;

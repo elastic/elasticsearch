@@ -381,7 +381,7 @@ public class ESUsersTool extends CliTool {
             Path file = FileUserRolesStore.resolveFile(esusersSettings, env);
             Map<String, String[]> userRoles = FileUserRolesStore.parseFile(file, null);
 
-            List<String> roles = Lists.newArrayList();
+            List<String> roles = new ArrayList<>();
             if (userRoles.get(username) != null) {
                 roles.addAll(Arrays.asList(userRoles.get(username)));
             }

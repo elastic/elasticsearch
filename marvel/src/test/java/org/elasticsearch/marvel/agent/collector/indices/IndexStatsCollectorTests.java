@@ -33,6 +33,7 @@ public class IndexStatsCollectorTests extends AbstractCollectorTestCase {
     }
 
     @Test
+    @AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/pull/538")
     public void testIndexStatsCollectorOneIndex() throws Exception {
         waitForNoBlocksOnNodes();
 
@@ -78,6 +79,7 @@ public class IndexStatsCollectorTests extends AbstractCollectorTestCase {
     }
 
     @Test
+    @AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/pull/538")
     public void testIndexStatsCollectorMultipleIndices() throws Exception {
         waitForNoBlocksOnNodes();
 

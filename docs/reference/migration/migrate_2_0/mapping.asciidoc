@@ -370,6 +370,16 @@ Along with this change, the following settings have ben removed:
 * `index.mapper.default_mapping_location`
 * `index.mapper.default_percolator_mapping_location`
 
+==== Fielddata formats
+
+Now that doc values are the default for fielddata, specialized in-memory
+formats have become an esoteric option. These fielddata formats have been removed:
+
+* `fst` on string fields
+* `compressed` on geo points
+
+The default fielddata format will be used instead.
+
 ==== Posting and doc-values codecs
 
 It is no longer possible to specify per-field postings and doc values formats

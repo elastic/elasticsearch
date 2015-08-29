@@ -33,12 +33,13 @@ import java.util.Map;
 public class ClusterInfo {
 
     private final Map<String, DiskUsage> leastAvailableSpaceUsage;
-    private final Map<String, DiskUsage> mostAvailabeSpaceUsage;
+    private final Map<String, DiskUsage> mostAvailableSpaceUsage;
     final Map<String, Long> shardSizes;
     public static final ClusterInfo EMPTY = new ClusterInfo();
+    private final Map<ShardRouting, String> routingToDataPath;
 
     protected ClusterInfo() {
-       this(Collections.EMPTY_MAP, Collections.EMPTY_MAP, Collections.EMPTY_MAP);
+       this(Collections.EMPTY_MAP, Collections.EMPTY_MAP, Collections.EMPTY_MAP, Collections.EMPTY_MAP);
     }
 
     /**
@@ -47,12 +48,14 @@ public class ClusterInfo {
      * @param leastAvailableSpaceUsage a node id to disk usage mapping for the path that has the least available space on the node.
      * @param mostAvailableSpaceUsage  a node id to disk usage mapping for the path that has the most available space on the node.
      * @param shardSizes a shardkey to size in bytes mapping per shard.
+     * @param routingToDataPath the shard routing to datapath mapping
      * @see #shardIdentifierFromRouting
      */
-    public ClusterInfo(final Map<String, DiskUsage> leastAvailableSpaceUsage, final Map<String, DiskUsage> mostAvailableSpaceUsage, final Map<String, Long> shardSizes) {
+    public ClusterInfo(final Map<String, DiskUsage> leastAvailableSpaceUsage, final Map<String, DiskUsage> mostAvailableSpaceUsage, final Map<String, Long> shardSizes, Map<ShardRouting, String> routingToDataPath) {
         this.leastAvailableSpaceUsage = leastAvailableSpaceUsage;
         this.shardSizes = shardSizes;
-        this.mostAvailabeSpaceUsage = mostAvailableSpaceUsage;
+        this.mostAvailableSpaceUsage = mostAvailableSpaceUsage;
+        this.routingToDataPath = routingToDataPath;
     }
 
     /**
@@ -66,7 +69,7 @@ public class ClusterInfo {
      * Returns a node id to disk usage mapping for the path that has the most available space on the node.
      */
     public Map<String, DiskUsage> getNodeMostAvailableDiskUsages() {
-        return this.mostAvailabeSpaceUsage;
+        return this.mostAvailableSpaceUsage;
     }
 
     /**
@@ -74,6 +77,13 @@ public class ClusterInfo {
      */
     public Long getShardSize(ShardRouting shardRouting) {
         return shardSizes.get(shardIdentifierFromRouting(shardRouting));
+    }
+
+    /**
+     * Returns the nodes absolute data-path the given shard is allocated on or <code>null</code> if the information is not available.
+     */
+    public String getDataPath(ShardRouting shardRouting) {
+        return routingToDataPath.get(shardRouting);
     }
 
     /**

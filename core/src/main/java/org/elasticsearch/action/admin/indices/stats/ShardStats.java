@@ -29,6 +29,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.ShardPath;
 
 import java.io.IOException;
 
@@ -48,13 +49,13 @@ public class ShardStats implements Streamable, ToXContent {
     ShardStats() {
     }
 
-    public ShardStats(IndexShard indexShard, CommonStatsFlags flags) {
-        this.shardRouting = indexShard.routingEntry();
-        this.dataPath = indexShard.shardPath().getRootDataPath().toString();
-        this.statePath = indexShard.shardPath().getRootStatePath().toString();
-        this.isCustomDataPath = indexShard.shardPath().isCustomDataPath();
-        this.commonStats = new CommonStats(indexShard, flags);
-        this.commitStats = indexShard.commitStats();
+    public ShardStats(ShardRouting routing, ShardPath shardPath, CommonStats commonStats, CommitStats commitStats) {
+        this.shardRouting = routing;
+        this.dataPath = shardPath.getRootDataPath().toString();
+        this.statePath = shardPath.getRootStatePath().toString();
+        this.isCustomDataPath = shardPath.isCustomDataPath();
+        this.commitStats = commitStats;
+        this.commonStats = commonStats;
     }
 
     /**

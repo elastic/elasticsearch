@@ -32,7 +32,6 @@ import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
-import org.elasticsearch.action.admin.indices.recovery.ShardRecoveryResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.AbstractDiffable;
@@ -55,6 +54,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.index.store.IndexStore;
+import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.ttl.IndicesTTLService;
 import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.rest.RestChannel;
@@ -604,9 +604,9 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         assertThat(client().prepareCount("test-idx").get().getCount(), equalTo(100L));
 
         IntSet reusedShards = new IntHashSet();
-        for (ShardRecoveryResponse response : client().admin().indices().prepareRecoveries("test-idx").get().shardResponses().get("test-idx")) {
-            if (response.recoveryState().getIndex().reusedBytes() > 0) {
-                reusedShards.add(response.getShardId());
+        for (RecoveryState recoveryState : client().admin().indices().prepareRecoveries("test-idx").get().shardRecoveryStates().get("test-idx")) {
+            if (recoveryState.getIndex().reusedBytes() > 0) {
+                reusedShards.add(recoveryState.getShardId().getId());
             }
         }
         logger.info("--> check that at least half of the shards had some reuse: [{}]", reusedShards);

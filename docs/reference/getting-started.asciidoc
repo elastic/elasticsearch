@@ -860,7 +860,7 @@ curl -XPOST 'localhost:9200/bank/_search?pretty' -d '
 
 In the previous section, we skipped over a little detail called the document score (`_score` field in the search results). The score is a numeric value that is a relative measure of how well the document matches the search query that we specified. The higher the score, the more relevant the document is, the lower the score, the less relevant the document is.
 
-But queries do not always to produce scores, in particular when they are only used for "filtering" the document set. Elasticsearch detects these situations and automatically optimizes query execution in order not to compute useless scores.
+But queries do not always need to produce scores, in particular when they are only used for "filtering" the document set. Elasticsearch detects these situations and automatically optimizes query execution in order not to compute useless scores.
 
 To understand filters, let's first introduce the <<query-dsl-filtered-query,`filtered` query>>, which allows you to combine a query (like `match_all`, `match`, `bool`, etc.) together with another query which is only used for filtering. As an example, let's introduce the <<query-dsl-range-query,`range` query>>, which allows us to filter documents by a range of values. This is generally used for numeric or date filtering.
 

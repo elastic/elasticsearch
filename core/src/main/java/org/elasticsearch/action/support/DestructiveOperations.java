@@ -19,27 +19,25 @@
 
 package org.elasticsearch.action.support;
 
+import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.settings.NodeSettingsService;
 
 /**
  * Helper for dealing with destructive operations and wildcard usage.
  */
-public final class DestructiveOperations implements NodeSettingsService.Listener {
+public final class DestructiveOperations extends AbstractComponent implements NodeSettingsService.Listener {
 
     /**
      * Setting which controls whether wildcard usage (*, prefix*, _all) is allowed.
      */
     public static final String REQUIRES_NAME = "action.destructive_requires_name";
-
-    private final ESLogger logger = Loggers.getLogger(DestructiveOperations.class);
     private volatile boolean destructiveRequiresName;
 
     @Inject
     public DestructiveOperations(Settings settings, NodeSettingsService nodeSettingsService) {
+        super(settings);
         destructiveRequiresName = settings.getAsBoolean(DestructiveOperations.REQUIRES_NAME, false);
         nodeSettingsService.addListener(this);
     }

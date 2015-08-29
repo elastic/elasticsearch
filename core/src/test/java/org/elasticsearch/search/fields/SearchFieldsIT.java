@@ -33,6 +33,8 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
 import org.elasticsearch.rest.RestStatus;
@@ -669,5 +671,42 @@ public class SearchFieldsIT extends ESIntegTestCase {
         // assertThat(fields.get("_ttl").getValue().toString(), equalTo("10000000205097"));
         assertThat(fields.get("_parent").isMetadataField(), equalTo(true));
         assertThat(fields.get("_parent").getValue().toString(), equalTo("parent_1"));
+    }
+
+    // issue 13178
+    public void testMetaAllFieldPulledFromFieldData() throws Exception {
+        createIndex("test");
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
+
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
+                .startObject("_all").field("enabled", true).endObject()
+                .startObject("_source").field("enabled", false).endObject()
+                .startObject("string_field_1").field("type", "string").endObject()
+                .startObject("string_field_2").field("type", "string").endObject()
+                .startObject("string_field_3").field("type", "string").endObject()
+                .endObject().endObject().endObject().string();
+
+        client().admin().indices().preparePutMapping().setType("type1").setSource(mapping).execute().actionGet();
+
+        client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
+                .field("string_field1", "value1")
+                .field("string_field2", "value2")
+                .field("string_field3", "value3")
+                .endObject()).execute().actionGet();
+
+        client().admin().indices().prepareRefresh().execute().actionGet();
+
+        SearchRequestBuilder builder = client().prepareSearch().setQuery(matchAllQuery())
+                .addFieldDataField("_all");
+        SearchResponse searchResponse = builder.execute().actionGet();
+
+        assertThat(searchResponse.getHits().getAt(0).fields().get("_all").values().size(), equalTo(3));
+
+        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder();
+        xContentBuilder.startObject();
+        searchResponse.getHits().toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
+        xContentBuilder.endObject();
+        String expectedSubSequence = "\"fields\":{\"_all\":[\"value1\",\"value2\",\"value3\"]}";
+        assertTrue(xContentBuilder.string().contains(expectedSubSequence));
     }
 }

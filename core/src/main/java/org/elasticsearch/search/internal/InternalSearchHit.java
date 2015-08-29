@@ -23,6 +23,7 @@ import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -470,7 +471,16 @@ public class InternalSearchHit implements SearchHit {
             builder.field(Fields._SCORE, score);
         }
         for (SearchHitField field : metaFields) {
-            builder.field(field.name(), field.value());
+            // "_all" should be treated as an ordinary field, issue 13178
+            if (field.name().equals(MetaData.ALL)){
+                builder.startArray(field.name());
+                for (Object value : field.getValues()) {
+                    builder.value(value);
+                }
+                builder.endArray();
+            }else {
+                builder.field(field.name(), field.value());
+            }
         }
         if (source != null) {
             XContentHelper.writeRawField("_source", source, builder, params);

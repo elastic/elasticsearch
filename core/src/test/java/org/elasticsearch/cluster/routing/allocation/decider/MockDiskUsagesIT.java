@@ -82,9 +82,9 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
         // Start with all nodes at 50% usage
         final MockInternalClusterInfoService cis = (MockInternalClusterInfoService)
                 internalCluster().getInstance(ClusterInfoService.class, internalCluster().getMasterName());
-        cis.setN1Usage(nodes.get(0), new DiskUsage(nodes.get(0), "n1", "_na_", 100, 50));
-        cis.setN2Usage(nodes.get(1), new DiskUsage(nodes.get(1), "n2", "_na_", 100, 50));
-        cis.setN3Usage(nodes.get(2), new DiskUsage(nodes.get(2), "n3", "_na_", 100, 50));
+        cis.setN1Usage(nodes.get(0), new DiskUsage(nodes.get(0), "n1", "/dev/null", 100, 50));
+        cis.setN2Usage(nodes.get(1), new DiskUsage(nodes.get(1), "n2", "/dev/null", 100, 50));
+        cis.setN3Usage(nodes.get(2), new DiskUsage(nodes.get(2), "n3", "/dev/null", 100, 50));
 
         client().admin().cluster().prepareUpdateSettings().setTransientSettings(settingsBuilder()
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK, randomFrom("20b", "80%"))
@@ -172,7 +172,7 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
     /** Create a fake NodeStats for the given node and usage */
     public static NodeStats makeStats(String nodeName, DiskUsage usage) {
         FsInfo.Path[] paths = new FsInfo.Path[1];
-        FsInfo.Path path = new FsInfo.Path("/path.data", null,
+        FsInfo.Path path = new FsInfo.Path("/dev/null", null,
                 usage.getTotalBytes(), usage.getFreeBytes(), usage.getFreeBytes());
         paths[0] = path;
         FsInfo fsInfo = new FsInfo(System.currentTimeMillis(), paths);

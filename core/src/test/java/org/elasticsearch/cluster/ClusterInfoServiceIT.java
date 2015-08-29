@@ -31,10 +31,16 @@ import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.RoutingNodes;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
@@ -153,7 +159,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return pluginList(TestPlugin.class,
-                          MockTransportService.TestPlugin.class);
+                MockTransportService.TestPlugin.class);
     }
 
     @Test
@@ -161,7 +167,9 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
         internalCluster().startNodesAsync(2,
                 Settings.builder().put(InternalClusterInfoService.INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL, "200ms").build())
                 .get();
-        assertAcked(prepareCreate("test").setSettings(settingsBuilder().put(Store.INDEX_STORE_STATS_REFRESH_INTERVAL, 0).build()));
+        assertAcked(prepareCreate("test").setSettings(settingsBuilder()
+                .put(Store.INDEX_STORE_STATS_REFRESH_INTERVAL, 0)
+                .put(EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE, EnableAllocationDecider.Rebalance.NONE).build()));
         ensureGreen("test");
         InternalTestCluster internalTestCluster = internalCluster();
         // Get the cluster info service on the master node
@@ -170,13 +178,18 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
         infoService.addListener(listener);
         ClusterInfo info = listener.get();
         assertNotNull("info should not be null", info);
-        Map<String, DiskUsage> usages = info.getNodeLeastAvailableDiskUsages();
-        Map<String, Long> shardSizes = info.shardSizes;
-        assertNotNull(usages);
+        final Map<String, DiskUsage> leastUsages = info.getNodeLeastAvailableDiskUsages();
+        final Map<String, DiskUsage> mostUsages = info.getNodeMostAvailableDiskUsages();
+        final Map<String, Long> shardSizes = info.shardSizes;
+        assertNotNull(leastUsages);
         assertNotNull(shardSizes);
-        assertThat("some usages are populated", usages.values().size(), Matchers.equalTo(2));
+        assertThat("some usages are populated", leastUsages.values().size(), Matchers.equalTo(2));
         assertThat("some shard sizes are populated", shardSizes.values().size(), greaterThan(0));
-        for (DiskUsage usage : usages.values()) {
+        for (DiskUsage usage : leastUsages.values()) {
+            logger.info("--> usage: {}", usage);
+            assertThat("usage has be retrieved", usage.getFreeBytes(), greaterThan(0L));
+        }
+        for (DiskUsage usage : mostUsages.values()) {
             logger.info("--> usage: {}", usage);
             assertThat("usage has be retrieved", usage.getFreeBytes(), greaterThan(0L));
         }
@@ -184,6 +197,21 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
             logger.info("--> shard size: {}", size);
             assertThat("shard size is greater than 0", size, greaterThan(0L));
         }
+        ClusterService clusterService = internalTestCluster.getInstance(ClusterService.class, internalTestCluster.getMasterName());
+        ClusterState state = clusterService.state();
+        RoutingNodes routingNodes = state.getRoutingNodes();
+        for (ShardRouting shard : routingNodes.getRoutingTable().allShards()) {
+            String dataPath = info.getDataPath(shard);
+            assertNotNull(dataPath);
+
+            String nodeId = shard.currentNodeId();
+            DiscoveryNode discoveryNode = state.getNodes().get(nodeId);
+            IndicesService indicesService = internalTestCluster.getInstance(IndicesService.class, discoveryNode.getName());
+            IndexService indexService = indicesService.indexService(shard.index());
+            IndexShard indexShard = indexService.shard(shard.id());
+            assertEquals(indexShard.shardPath().getRootDataPath().toString(), dataPath);
+        }
+
     }
 
     @Test
@@ -238,6 +266,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
         // it is likely to update the node disk usage based on the one response that came be from local
         // node.
         assertThat(info.getNodeLeastAvailableDiskUsages().size(), greaterThanOrEqualTo(1));
+        assertThat(info.getNodeMostAvailableDiskUsages().size(), greaterThanOrEqualTo(1));
         // indices is guaranteed to time out on the latch, not updating anything.
         assertThat(info.shardSizes.size(), greaterThan(1));
 
@@ -259,6 +288,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
         info = listener.get();
         assertNotNull("info should not be null", info);
         assertThat(info.getNodeLeastAvailableDiskUsages().size(), equalTo(0));
+        assertThat(info.getNodeMostAvailableDiskUsages().size(), equalTo(0));
         assertThat(info.shardSizes.size(), equalTo(0));
 
         // check we recover
@@ -268,6 +298,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
         info = listener.get();
         assertNotNull("info should not be null", info);
         assertThat(info.getNodeLeastAvailableDiskUsages().size(), equalTo(2));
+        assertThat(info.getNodeMostAvailableDiskUsages().size(), equalTo(2));
         assertThat(info.shardSizes.size(), greaterThan(0));
 
     }

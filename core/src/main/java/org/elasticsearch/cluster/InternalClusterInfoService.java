@@ -31,6 +31,7 @@ import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.admin.indices.stats.TransportIndicesStatsAction;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -67,6 +68,7 @@ public class InternalClusterInfoService extends AbstractComponent implements Clu
 
     private volatile Map<String, DiskUsage> leastAvailableSpaceUsages;
     private volatile Map<String, DiskUsage> mostAvailableSpaceUsages;
+    private volatile Map<ShardRouting, String> shardRoutingToDataPath;
     private volatile Map<String, Long> shardSizes;
     private volatile boolean isMaster = false;
     private volatile boolean enabled;
@@ -85,6 +87,7 @@ public class InternalClusterInfoService extends AbstractComponent implements Clu
         super(settings);
         this.leastAvailableSpaceUsages = Collections.emptyMap();
         this.mostAvailableSpaceUsages = Collections.emptyMap();
+        this.shardRoutingToDataPath = Collections.emptyMap();
         this.shardSizes = Collections.emptyMap();
         this.transportNodesStatsAction = transportNodesStatsAction;
         this.transportIndicesStatsAction = transportIndicesStatsAction;
@@ -217,7 +220,7 @@ public class InternalClusterInfoService extends AbstractComponent implements Clu
 
     @Override
     public ClusterInfo getClusterInfo() {
-        return new ClusterInfo(leastAvailableSpaceUsages, mostAvailableSpaceUsages, shardSizes);
+        return new ClusterInfo(leastAvailableSpaceUsages, mostAvailableSpaceUsages, shardSizes, shardRoutingToDataPath);
     }
 
     @Override
@@ -350,16 +353,11 @@ public class InternalClusterInfoService extends AbstractComponent implements Clu
                 @Override
                 public void onResponse(IndicesStatsResponse indicesStatsResponse) {
                     ShardStats[] stats = indicesStatsResponse.getShards();
-                    HashMap<String, Long> newShardSizes = new HashMap<>();
-                    for (ShardStats s : stats) {
-                        long size = s.getStats().getStore().sizeInBytes();
-                        String sid = ClusterInfo.shardIdentifierFromRouting(s.getShardRouting());
-                        if (logger.isTraceEnabled()) {
-                            logger.trace("shard: {} size: {}", sid, size);
-                        }
-                        newShardSizes.put(sid, size);
-                    }
+                    final HashMap<String, Long> newShardSizes = new HashMap<>();
+                    final HashMap<ShardRouting, String> newShardRoutingToDataPath = new HashMap<>();
+                    buildShardLevelInfo(logger, stats, newShardSizes, newShardRoutingToDataPath);
                     shardSizes = Collections.unmodifiableMap(newShardSizes);
+                    shardRoutingToDataPath = Collections.unmodifiableMap(newShardRoutingToDataPath);
                 }
 
                 @Override
@@ -376,6 +374,7 @@ public class InternalClusterInfoService extends AbstractComponent implements Clu
                         }
                         // we empty the usages list, to be safe - we don't know what's going on.
                         shardSizes = Collections.emptyMap();
+                        shardRoutingToDataPath = Collections.emptyMap();
                     }
                 }
             });
@@ -401,6 +400,18 @@ public class InternalClusterInfoService extends AbstractComponent implements Clu
                     logger.info("Failed executing ClusterInfoService listener", e);
                 }
             }
+        }
+    }
+
+    static void buildShardLevelInfo(ESLogger logger, ShardStats[] stats, HashMap<String, Long> newShardSizes, HashMap<ShardRouting, String> newShardRoutingToDataPath) {
+        for (ShardStats s : stats) {
+            newShardRoutingToDataPath.put(s.getShardRouting(), s.getDataPath());
+            long size = s.getStats().getStore().sizeInBytes();
+            String sid = ClusterInfo.shardIdentifierFromRouting(s.getShardRouting());
+            if (logger.isTraceEnabled()) {
+                logger.trace("shard: {} size: {}", sid, size);
+            }
+            newShardSizes.put(sid, size);
         }
     }
 

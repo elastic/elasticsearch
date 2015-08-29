@@ -870,7 +870,7 @@ curl -XPOST 'localhost:9200/bank/_search?pretty' -d '
 
 In the previous section, we skipped over a little detail called the document score (`_score` field in the search results). The score is a numeric value that is a relative measure of how well the document matches the search query that we specified. The higher the score, the more relevant the document is, the lower the score, the less relevant the document is.
 
-All queries in Elasticsearch trigger computation of the relevance scores. In cases where we do not need the relevance scores, Elasticsearch provides another query capability in the form of <<query-dsl-filters,filters>. Filters are similar in concept to queries except that they are optimized for much faster execution speeds for two primary reasons:
+All queries in Elasticsearch trigger computation of the relevance scores. In cases where we do not need the relevance scores, Elasticsearch provides another query capability in the form of <<query-dsl-filters,filters>>. Filters are similar in concept to queries except that they are optimized for much faster execution speeds for two primary reasons:
 
 * Filters do not score so they are faster to execute than queries
 * Filters can be http://www.elastic.co/blog/all-about-elasticsearch-filter-bitsets/[cached in memory] allowing repeated search executions to be significantly faster than queries

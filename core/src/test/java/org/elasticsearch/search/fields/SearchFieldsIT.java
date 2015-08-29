@@ -706,7 +706,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
         xContentBuilder.startObject();
         searchResponse.getHits().toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
         xContentBuilder.endObject();
-        String expectedSubSequence = "\"fields\":{\"_all\":[\"value1\",\"value2\",\"value3\"]}";
+        String expectedSubSequence = "\"_all\":[\"value1\",\"value2\",\"value3\"]";
         assertTrue(xContentBuilder.string().contains(expectedSubSequence));
     }
 }

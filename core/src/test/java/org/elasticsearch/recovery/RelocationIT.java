@@ -63,7 +63,6 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportException;
-import org.elasticsearch.transport.TransportModule;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
@@ -422,7 +421,7 @@ public class RelocationIT extends ESIntegTestCase {
                     public boolean apply(Object input) {
                         RecoveryResponse recoveryResponse = internalCluster().client(redNodeName).admin().indices().prepareRecoveries(indexName)
                                 .get();
-                        return !recoveryResponse.shardResponses().get(indexName).isEmpty();
+                        return !recoveryResponse.shardRecoveryStates().get(indexName).isEmpty();
                     }
                 }
         );

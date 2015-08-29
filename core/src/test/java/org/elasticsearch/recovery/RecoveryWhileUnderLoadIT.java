@@ -284,7 +284,7 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
             IndicesStatsResponse indicesStatsResponse = client().admin().indices().prepareStats().get();
             for (ShardStats shardStats : indicesStatsResponse.getShards()) {
                 DocsStats docsStats = shardStats.getStats().docs;
-                logger.info("shard [{}] - count {}, primary {}", shardStats.getShardId(), docsStats.getCount(), shardStats.getShardRouting().primary());
+                logger.info("shard [{}] - count {}, primary {}", shardStats.getShardRouting().id(), docsStats.getCount(), shardStats.getShardRouting().primary());
             }
 
             //if there was an error we try to wait and see if at some point it'll get fixed

@@ -303,6 +303,9 @@ The following settings are supported:
 
     Number of retries in case of S3 errors. Defaults to `3`.
 
+`read_only`::
+
+    Makes repository read-only. coming[2.1.0]  Defaults to `false`.
 
 The S3 repositories use the same credentials as the rest of the AWS services
 provided by this plugin (`discovery`). See <<cloud-aws-usage>> for details.

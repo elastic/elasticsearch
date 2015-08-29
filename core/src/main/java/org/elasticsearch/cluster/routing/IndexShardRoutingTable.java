@@ -30,10 +30,14 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
-
-import static com.google.common.collect.Lists.newArrayList;
 
 /**
  * {@link IndexShardRoutingTable} encapsulates all instances of a single shard.
@@ -554,7 +558,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
     }
 
     public List<ShardRouting> replicaShardsWithState(ShardRoutingState... states) {
-        List<ShardRouting> shards = newArrayList();
+        List<ShardRouting> shards = new ArrayList<>();
         for (ShardRouting shardEntry : replicas) {
             for (ShardRoutingState state : states) {
                 if (shardEntry.state() == state) {
@@ -569,7 +573,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         if (state == ShardRoutingState.INITIALIZING) {
             return allInitializingShards;
         }
-        List<ShardRouting> shards = newArrayList();
+        List<ShardRouting> shards = new ArrayList<>();
         for (ShardRouting shardEntry : this) {
             if (shardEntry.state() == state) {
                 shards.add(shardEntry);
@@ -585,12 +589,12 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
 
         public Builder(IndexShardRoutingTable indexShard) {
             this.shardId = indexShard.shardId;
-            this.shards = newArrayList(indexShard.shards);
+            this.shards = new ArrayList<>(indexShard.shards);
         }
 
         public Builder(ShardId shardId) {
             this.shardId = shardId;
-            this.shards = newArrayList();
+            this.shards = new ArrayList<>();
         }
 
         public Builder addShard(ShardRouting shardEntry) {

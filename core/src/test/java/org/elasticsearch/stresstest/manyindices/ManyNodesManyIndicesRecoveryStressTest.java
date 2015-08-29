@@ -19,7 +19,6 @@
 
 package org.elasticsearch.stresstest.manyindices;
 
-import com.google.common.collect.Lists;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.client.Client;
@@ -28,6 +27,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeBuilder;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public class ManyNodesManyIndicesRecoveryStressTest {
@@ -48,7 +48,7 @@ public class ManyNodesManyIndicesRecoveryStressTest {
                 .put("index.number_of_shards", 1)
                 .build();
 
-        List<Node> nodes = Lists.newArrayList();
+        List<Node> nodes = new ArrayList<>();
         for (int i = 0; i < NUM_NODES; i++) {
             nodes.add(NodeBuilder.nodeBuilder().settings(Settings.settingsBuilder().put(nodeSettings).put("name", "node" + i)).node());
         }
@@ -93,7 +93,7 @@ public class ManyNodesManyIndicesRecoveryStressTest {
         Thread.sleep(5000);
         System.out.println("--> All nodes are closed, starting back...");
 
-        nodes = Lists.newArrayList();
+        nodes = new ArrayList<>();
         for (int i = 0; i < NUM_NODES; i++) {
             nodes.add(NodeBuilder.nodeBuilder().settings(Settings.settingsBuilder().put(nodeSettings).put("name", "node" + i)).node());
         }

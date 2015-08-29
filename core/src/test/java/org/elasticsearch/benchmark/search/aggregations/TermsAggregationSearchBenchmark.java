@@ -20,15 +20,13 @@ package org.elasticsearch.benchmark.search.aggregations;
 
 import com.carrotsearch.hppc.ObjectScatterSet;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
-import com.google.common.collect.Lists;
-
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.bootstrap.Bootstrap;
+import org.elasticsearch.bootstrap.BootstrapForTesting;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.StopWatch;
@@ -42,6 +40,7 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Random;
@@ -99,7 +98,7 @@ public class TermsAggregationSearchBenchmark {
     }
 
     public static void main(String[] args) throws Exception {
-        Bootstrap.initializeNatives(true, false);
+        BootstrapForTesting.ensureInitialized();
         Random random = new Random();
 
         Settings settings = settingsBuilder()
@@ -235,7 +234,7 @@ public class TermsAggregationSearchBenchmark {
         System.out.println("--> Number of docs in index: " + COUNT);
 
 
-        List<StatsResult> stats = Lists.newArrayList();
+        List<StatsResult> stats = new ArrayList<>();
         stats.add(terms("terms_agg_s", Method.AGGREGATION, "s_value", null));
         stats.add(terms("terms_agg_s_dv", Method.AGGREGATION, "s_value_dv", null));
         stats.add(terms("terms_agg_map_s", Method.AGGREGATION, "s_value", "map"));

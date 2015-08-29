@@ -44,11 +44,15 @@ import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.transport.*;
+import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportRequestOptions;
+import org.elasticsearch.transport.TransportService;
 import org.junit.Test;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
@@ -57,7 +61,6 @@ import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static com.google.common.collect.Lists.newArrayList;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.*;
@@ -570,7 +573,7 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
         ensureGreen(IDX);
 
         int docCount = randomIntBetween(10, 100);
-        List<IndexRequestBuilder> builders = newArrayList();
+        List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < docCount; i++) {
             builders.add(client().prepareIndex(IDX, "doc", i + "").setSource("foo", "bar"));
         }

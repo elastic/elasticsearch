@@ -33,6 +33,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.count;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.global;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -82,7 +83,7 @@ public class ValueCountIT extends ESIntegTestCase {
                 .addAggregation(count("count").field("value"))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         ValueCount valueCount = searchResponse.getAggregations().get("count");
         assertThat(valueCount, notNullValue());
@@ -96,7 +97,7 @@ public class ValueCountIT extends ESIntegTestCase {
         SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
                 .addAggregation(global("global").subAggregation(count("count").field("value"))).execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         Global global = searchResponse.getAggregations().get("global");
         assertThat(global, notNullValue());
@@ -121,7 +122,7 @@ public class ValueCountIT extends ESIntegTestCase {
                 .addAggregation(count("count").field("value"))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         ValueCount valueCount = searchResponse.getAggregations().get("count");
         assertThat(valueCount, notNullValue());
@@ -137,7 +138,7 @@ public class ValueCountIT extends ESIntegTestCase {
                 .addAggregation(count("count").field("values"))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         ValueCount valueCount = searchResponse.getAggregations().get("count");
         assertThat(valueCount, notNullValue());
@@ -150,7 +151,7 @@ public class ValueCountIT extends ESIntegTestCase {
         SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
                 .addAggregation(count("count").script(new Script("doc['value'].value"))).execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         ValueCount valueCount = searchResponse.getAggregations().get("count");
         assertThat(valueCount, notNullValue());
@@ -163,7 +164,7 @@ public class ValueCountIT extends ESIntegTestCase {
         SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
                 .addAggregation(count("count").script(new Script("doc['values'].values"))).execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         ValueCount valueCount = searchResponse.getAggregations().get("count");
         assertThat(valueCount, notNullValue());
@@ -178,7 +179,7 @@ public class ValueCountIT extends ESIntegTestCase {
         SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
                 .addAggregation(count("count").script(new Script("doc[s].value", ScriptType.INLINE, null, params))).execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         ValueCount valueCount = searchResponse.getAggregations().get("count");
         assertThat(valueCount, notNullValue());
@@ -193,7 +194,7 @@ public class ValueCountIT extends ESIntegTestCase {
         SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
                 .addAggregation(count("count").script(new Script("doc[s].values", ScriptType.INLINE, null, params))).execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         ValueCount valueCount = searchResponse.getAggregations().get("count");
         assertThat(valueCount, notNullValue());

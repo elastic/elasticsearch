@@ -19,19 +19,31 @@
 
 package org.elasticsearch.common.xcontent.builder;
 
-import com.google.common.collect.Lists;
-
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.FastCharArrayWriter;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.xcontent.*;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentBuilderString;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentGenerator;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Calendar;
+import java.util.Date;
+import java.util.GregorianCalendar;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.TimeZone;
 
 import static org.elasticsearch.common.xcontent.XContentBuilder.FieldCaseConversion.CAMELCASE;
 import static org.elasticsearch.common.xcontent.XContentBuilder.FieldCaseConversion.UNDERSCORE;
@@ -142,7 +154,7 @@ public class XContentBuilderTests extends ESTestCase {
     @Test
     public void testOverloadedList() throws Exception {
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-        builder.startObject().field("test", Lists.newArrayList("1", "2")).endObject();
+        builder.startObject().field("test", Arrays.asList("1", "2")).endObject();
         assertThat(builder.string(), equalTo("{\"test\":[\"1\",\"2\"]}"));
     }
 

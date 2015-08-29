@@ -19,6 +19,7 @@
 
 package org.elasticsearch.update;
 
+import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -44,8 +45,10 @@ public class UpdateNoopIT extends ESIntegTestCase {
         updateAndCheckSource(4, fields("bar", null));
         updateAndCheckSource(4, fields("bar", null));
         updateAndCheckSource(5, fields("bar", "foo"));
+        // detect_noop defaults to true
+        updateAndCheckSource(5, null, fields("bar", "foo"));
 
-        assertEquals(3, totalNoopUpdates());
+        assertEquals(4, totalNoopUpdates());
     }
 
     @Test
@@ -210,7 +213,8 @@ public class UpdateNoopIT extends ESIntegTestCase {
     }
 
     /**
-     * Totally empty requests are noop if and only if detect noops is true.
+     * Totally empty requests are noop if and only if detect noops is true and
+     * its true by default.
      */
     @Test
     public void totallyEmpty() throws Exception {
@@ -223,6 +227,7 @@ public class UpdateNoopIT extends ESIntegTestCase {
                 .endObject());
         update(true, 1, XContentFactory.jsonBuilder().startObject().endObject());
         update(false, 2, XContentFactory.jsonBuilder().startObject().endObject());
+        update(null, 2, XContentFactory.jsonBuilder().startObject().endObject());
     }
 
     private XContentBuilder fields(Object... fields) throws IOException {
@@ -237,17 +242,23 @@ public class UpdateNoopIT extends ESIntegTestCase {
     }
 
     private void updateAndCheckSource(long expectedVersion, XContentBuilder xContentBuilder) {
-        UpdateResponse updateResponse = update(true, expectedVersion, xContentBuilder);
+        updateAndCheckSource(expectedVersion, true, xContentBuilder);
+    }
+
+    private void updateAndCheckSource(long expectedVersion, Boolean detectNoop, XContentBuilder xContentBuilder) {
+        UpdateResponse updateResponse = update(detectNoop, expectedVersion, xContentBuilder);
         assertEquals(updateResponse.getGetResult().sourceRef().toUtf8(), xContentBuilder.bytes().toUtf8());
     }
 
-    private UpdateResponse update(boolean detectNoop, long expectedVersion, XContentBuilder xContentBuilder) {
-        UpdateResponse updateResponse = client().prepareUpdate("test", "type1", "1")
+    private UpdateResponse update(Boolean detectNoop, long expectedVersion, XContentBuilder xContentBuilder) {
+        UpdateRequestBuilder updateRequest = client().prepareUpdate("test", "type1", "1")
                 .setDoc(xContentBuilder.bytes().toUtf8())
                 .setDocAsUpsert(true)
-                .setDetectNoop(detectNoop)
-                .setFields("_source")
-                .execute().actionGet();
+                .setFields("_source");
+        if (detectNoop != null) {
+            updateRequest.setDetectNoop(detectNoop);
+        }
+        UpdateResponse updateResponse = updateRequest.get();
         assertThat(updateResponse.getGetResult(), notNullValue());
         assertEquals(expectedVersion, updateResponse.getVersion());
         return updateResponse;

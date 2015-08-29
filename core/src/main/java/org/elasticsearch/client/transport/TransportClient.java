@@ -35,6 +35,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Injector;
+import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
@@ -132,7 +133,11 @@ public class TransportClient extends AbstractClient {
             try {
                 ModulesBuilder modules = new ModulesBuilder();
                 modules.add(new Version.Module(version));
-                modules.add(new PluginsModule(this.settings, pluginsService));
+                // plugin modules must be added here, before others or we can get crazy injection errors...
+                for (Module pluginModule : pluginsService.nodeModules()) {
+                    modules.add(pluginModule);
+                }
+                modules.add(new PluginsModule(pluginsService));
                 modules.add(new EnvironmentModule(environment));
                 modules.add(new SettingsModule(this.settings));
                 modules.add(new NetworkModule());
@@ -148,6 +153,8 @@ public class TransportClient extends AbstractClient {
                 modules.add(new ActionModule(true));
                 modules.add(new ClientTransportModule());
                 modules.add(new CircuitBreakerModule(this.settings));
+
+                pluginsService.processModules(modules);
 
                 Injector injector = modules.createInjector();
                 injector.getInstance(TransportService.class).start();

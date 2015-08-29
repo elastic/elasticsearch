@@ -28,8 +28,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.ArrayList;
 
-import static com.google.common.collect.Lists.newArrayList;
-
 /**
  *
  */
@@ -51,7 +49,7 @@ public class AndQueryParser implements QueryParser {
     public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
-        ArrayList<Query> queries = newArrayList();
+        ArrayList<Query> queries = new ArrayList<>();
         boolean queriesFound = false;
 
         String queryName = null;

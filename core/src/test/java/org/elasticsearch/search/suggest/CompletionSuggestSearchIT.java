@@ -20,8 +20,6 @@ package org.elasticsearch.search.suggest;
 
 import com.carrotsearch.hppc.ObjectLongHashMap;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
-import com.google.common.collect.Lists;
-
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.admin.indices.optimize.OptimizeResponse;
@@ -51,6 +49,8 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -60,6 +60,7 @@ import java.util.concurrent.ExecutionException;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
+import static org.elasticsearch.common.util.CollectionUtils.iterableAsArrayList;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -145,7 +146,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
     public void testThatWeightsAreWorking() throws Exception {
         createIndexAndMapping(completionMappingBuilder);
 
-        List<String> similarNames = Lists.newArrayList("the", "The Prodigy", "The Verve", "The the");
+        List<String> similarNames = Arrays.asList("the", "The Prodigy", "The Verve", "The the");
         // the weight is 1000 divided by string length, so the results are easy to to check
         for (String similarName : similarNames) {
             client().prepareIndex(INDEX, TYPE, similarName).setSource(jsonBuilder()
@@ -853,8 +854,8 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
     private void assertSuggestions(SuggestResponse suggestResponse, boolean suggestionOrderStrict, String name, String... suggestions) {
         assertAllSuccessful(suggestResponse);
 
-        List<String> suggestionNames = Lists.newArrayList();
-        for (Suggest.Suggestion<? extends Suggest.Suggestion.Entry<? extends Suggest.Suggestion.Entry.Option>> suggestion : Lists.newArrayList(suggestResponse.getSuggest().iterator())) {
+        List<String> suggestionNames = new ArrayList<>();
+        for (Suggest.Suggestion<? extends Suggest.Suggestion.Entry<? extends Suggest.Suggestion.Entry.Option>> suggestion : iterableAsArrayList(suggestResponse.getSuggest())) {
             suggestionNames.add(suggestion.getName());
         }
         String expectFieldInResponseMsg = String.format(Locale.ROOT, "Expected suggestion named %s in response, got %s", name, suggestionNames);
@@ -881,7 +882,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
     }
 
     private List<String> getNames(Suggest.Suggestion.Entry<Suggest.Suggestion.Entry.Option> suggestEntry) {
-        List<String> names = Lists.newArrayList();
+        List<String> names = new ArrayList<>();
         for (Suggest.Suggestion.Entry.Option entry : suggestEntry.getOptions()) {
             names.add(entry.getText().string());
         }

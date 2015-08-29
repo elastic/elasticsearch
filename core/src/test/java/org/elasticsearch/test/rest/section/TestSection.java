@@ -18,8 +18,7 @@
  */
 package org.elasticsearch.test.rest.section;
 
-import com.google.common.collect.Lists;
-
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -32,7 +31,7 @@ public class TestSection implements Comparable<TestSection> {
 
     public TestSection(String name) {
         this.name = name;
-        this.executableSections = Lists.newArrayList();
+        this.executableSections = new ArrayList<>();
     }
 
     public String getName() {

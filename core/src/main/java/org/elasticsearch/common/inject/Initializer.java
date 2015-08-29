@@ -16,12 +16,12 @@
 
 package org.elasticsearch.common.inject;
 
-import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import org.elasticsearch.common.inject.internal.Errors;
 import org.elasticsearch.common.inject.internal.ErrorsException;
 import org.elasticsearch.common.inject.spi.InjectionPoint;
 
+import java.util.ArrayList;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
@@ -95,7 +95,7 @@ class Initializer {
     void injectAll(final Errors errors) {
         // loop over a defensive copy since ensureInjected() mutates the set. Unfortunately, that copy
         // is made complicated by a bug in IBM's JDK, wherein entrySet().toArray(Object[]) doesn't work
-        for (InjectableReference<?> reference : Lists.newArrayList(pendingInjection.values())) {
+        for (InjectableReference<?> reference : new ArrayList<>(pendingInjection.values())) {
             try {
                 reference.get(errors);
             } catch (ErrorsException e) {

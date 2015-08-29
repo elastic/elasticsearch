@@ -14,13 +14,6 @@ to delete the old indices. Elasticsearch will not start in the presence of old
 indices.
 
 [float]
-=== Network binds to localhost only
-
-Elasticsearch now binds to the loopback interface by default (usually
-`127.0.0.1` or `::1`). The `network.host` setting can be specified to change
-this behavior.
-
-[float]
 === Elasticsearch migration plugin
 
 We have provided the https://github.com/elastic/elasticsearch-migration[Elasticsearch migration plugin]
@@ -28,6 +21,8 @@ to help you detect any issues that you may have when upgrading to
 Elasticsearch 2.0. Please install and run the plugin *before* upgrading.
 
 include::migrate_2_0/removals.asciidoc[]
+
+include::migrate_2_0/network.asciidoc[]
 
 include::migrate_2_0/striping.asciidoc[]
 

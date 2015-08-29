@@ -1,4 +1,4 @@
-[[mapper-murmur3]]
+[[discovery-multicast]]
 === Multicast Discovery Plugin
 
 The Multicast Discovery plugin provides the ability to form a cluster using

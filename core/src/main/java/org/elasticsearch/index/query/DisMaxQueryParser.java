@@ -26,9 +26,8 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
-
-import static com.google.common.collect.Lists.newArrayList;
 
 /**
  *
@@ -53,7 +52,7 @@ public class DisMaxQueryParser implements QueryParser {
         float boost = 1.0f;
         float tieBreaker = 0.0f;
 
-        List<Query> queries = newArrayList();
+        List<Query> queries = new ArrayList<>();
         boolean queriesFound = false;
         String queryName = null;
 

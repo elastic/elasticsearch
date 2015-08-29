@@ -19,8 +19,6 @@
 package org.elasticsearch.search.fetch.matchedqueries;
 
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Lists;
-
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TwoPhaseIterator;
@@ -33,6 +31,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.SearchContext.Lifetime;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -63,7 +62,7 @@ public class MatchedQueriesFetchSubPhase implements FetchSubPhase {
 
     @Override
     public void hitExecute(SearchContext context, HitContext hitContext) {
-        List<String> matchedQueries = Lists.newArrayListWithCapacity(2);
+        List<String> matchedQueries = new ArrayList<>(2);
 
         try {
             addMatchedQueries(hitContext, context.parsedQuery().namedFilters(), matchedQueries);

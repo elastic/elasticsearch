@@ -25,13 +25,12 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.rest.RestRequest;
 
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.CopyOnWriteArrayList;
-
-import static com.google.common.collect.Lists.newArrayList;
 
 /**
  *
@@ -89,7 +88,7 @@ public class SettingsFilter extends AbstractComponent {
     public static Settings filterSettings(String patterns, Settings settings) {
         String[] patternArray = Strings.delimitedListToStringArray(patterns, ",");
         Settings.Builder builder = Settings.settingsBuilder().put(settings);
-        List<String> simpleMatchPatternList = newArrayList();
+        List<String> simpleMatchPatternList = new ArrayList<>();
         for (String pattern : patternArray) {
             if (Regex.isSimpleMatchPattern(pattern)) {
                 simpleMatchPatternList.add(pattern);

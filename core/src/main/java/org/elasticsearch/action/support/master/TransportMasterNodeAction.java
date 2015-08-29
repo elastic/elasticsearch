@@ -97,7 +97,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                     listener.onFailure(blockException);
                     return;
                 }
-                logger.trace("can't execute due to a cluster block: [{}], retrying", blockException);
+                logger.trace("can't execute due to a cluster block, retrying", blockException);
                 observer.waitForNextChange(
                         new ClusterStateObserver.Listener() {
                             @Override

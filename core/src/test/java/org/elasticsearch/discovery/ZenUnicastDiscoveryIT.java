@@ -22,6 +22,7 @@ package org.elasticsearch.discovery;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
@@ -81,12 +82,15 @@ public class ZenUnicastDiscoveryIT extends ESIntegTestCase {
         int currentNumNodes = randomIntBetween(3, 5);
         final int min_master_nodes = currentNumNodes / 2 + 1;
         int currentNumOfUnicastHosts = randomIntBetween(min_master_nodes, currentNumNodes);
-        final Settings settings = Settings.settingsBuilder().put("discovery.zen.minimum_master_nodes", min_master_nodes).build();
+        final Settings settings = Settings.settingsBuilder()
+                .put("discovery.zen.join_timeout", TimeValue.timeValueSeconds(10))
+                .put("discovery.zen.minimum_master_nodes", min_master_nodes)
+                .build();
         discoveryConfig = new ClusterDiscoveryConfiguration.UnicastZen(currentNumNodes, currentNumOfUnicastHosts, settings);
 
         List<String> nodes = internalCluster().startNodesAsync(currentNumNodes).get();
 
-        ensureGreen();
+        ensureStableCluster(currentNumNodes);
 
         DiscoveryNode masterDiscoNode = null;
         for (String node : nodes) {

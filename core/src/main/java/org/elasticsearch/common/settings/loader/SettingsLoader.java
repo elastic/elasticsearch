@@ -22,10 +22,10 @@ package org.elasticsearch.common.settings.loader;
 import org.elasticsearch.common.Nullable;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-import static com.google.common.collect.Lists.newArrayList;
 import static com.google.common.collect.Maps.newHashMap;
 
 /**
@@ -42,7 +42,7 @@ public interface SettingsLoader {
                 return settings;
             }
             StringBuilder sb = new StringBuilder();
-            List<String> path = newArrayList();
+            List<String> path = new ArrayList<>();
             serializeMap(settings, sb, path, map);
             return settings;
         }

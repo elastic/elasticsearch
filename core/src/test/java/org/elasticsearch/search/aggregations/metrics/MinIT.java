@@ -33,6 +33,7 @@ import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.global;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.min;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -86,7 +87,7 @@ public class MinIT extends AbstractNumericTestCase {
                 .addAggregation(min("min").field("value"))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         Min min = searchResponse.getAggregations().get("min");
         assertThat(min, notNullValue());
@@ -99,7 +100,7 @@ public class MinIT extends AbstractNumericTestCase {
         SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
                 .addAggregation(min("min").format("0000.0").field("value")).execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         Min min = searchResponse.getAggregations().get("min");
         assertThat(min, notNullValue());
@@ -115,7 +116,7 @@ public class MinIT extends AbstractNumericTestCase {
         SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
                 .addAggregation(global("global").subAggregation(min("min").field("value"))).execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         Global global = searchResponse.getAggregations().get("global");
         assertThat(global, notNullValue());
@@ -142,7 +143,7 @@ public class MinIT extends AbstractNumericTestCase {
                 .addAggregation(min("min").field("value"))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         Min min = searchResponse.getAggregations().get("min");
         assertThat(min, notNullValue());
@@ -158,7 +159,7 @@ public class MinIT extends AbstractNumericTestCase {
                 .addAggregation(min("min").field("value").script(new Script("_value - 1")))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         Min min = searchResponse.getAggregations().get("min");
         assertThat(min, notNullValue());
@@ -176,7 +177,7 @@ public class MinIT extends AbstractNumericTestCase {
                 .addAggregation(min("min").field("value").script(new Script("_value - dec", ScriptType.INLINE, null, params)))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         Min min = searchResponse.getAggregations().get("min");
         assertThat(min, notNullValue());
@@ -192,7 +193,7 @@ public class MinIT extends AbstractNumericTestCase {
                 .addAggregation(min("min").field("values"))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         Min min = searchResponse.getAggregations().get("min");
         assertThat(min, notNullValue());
@@ -207,7 +208,7 @@ public class MinIT extends AbstractNumericTestCase {
                 .setQuery(matchAllQuery())
                 .addAggregation(min("min").field("values").script(new Script("_value - 1"))).execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         Min min = searchResponse.getAggregations().get("min");
         assertThat(min, notNullValue());
@@ -222,7 +223,7 @@ public class MinIT extends AbstractNumericTestCase {
         SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
                 .addAggregation(min("min").field("values").script(new Script("_value * -1"))).execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         Min min = searchResponse.getAggregations().get("min");
         assertThat(min, notNullValue());
@@ -239,7 +240,7 @@ public class MinIT extends AbstractNumericTestCase {
                 .addAggregation(min("min").field("values").script(new Script("_value - dec", ScriptType.INLINE, null, params))).execute()
                 .actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         Min min = searchResponse.getAggregations().get("min");
         assertThat(min, notNullValue());
@@ -253,7 +254,7 @@ public class MinIT extends AbstractNumericTestCase {
         SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
                 .addAggregation(min("min").script(new Script("doc['value'].value"))).execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         Min min = searchResponse.getAggregations().get("min");
         assertThat(min, notNullValue());
@@ -270,7 +271,7 @@ public class MinIT extends AbstractNumericTestCase {
                 .addAggregation(min("min").script(new Script("doc['value'].value - dec", ScriptType.INLINE, null, params))).execute()
                 .actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         Min min = searchResponse.getAggregations().get("min");
         assertThat(min, notNullValue());
@@ -287,7 +288,7 @@ public class MinIT extends AbstractNumericTestCase {
                 .addAggregation(min("min").script(new Script("doc['value'].value - dec", ScriptType.INLINE, null, params))).execute()
                 .actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         Min min = searchResponse.getAggregations().get("min");
         assertThat(min, notNullValue());
@@ -301,7 +302,7 @@ public class MinIT extends AbstractNumericTestCase {
         SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
                 .addAggregation(min("min").script(new Script("doc['values'].values"))).execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         Min min = searchResponse.getAggregations().get("min");
         assertThat(min, notNullValue());
@@ -315,7 +316,7 @@ public class MinIT extends AbstractNumericTestCase {
         SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
                 .addAggregation(min("min").script(new Script("doc['values'].values"))).execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         Min min = searchResponse.getAggregations().get("min");
         assertThat(min, notNullValue());
@@ -337,7 +338,7 @@ public class MinIT extends AbstractNumericTestCase {
                                         "List values = doc['values'].values; double[] res = new double[values.size()]; for (int i = 0; i < res.length; i++) { res[i] = values.get(i) - dec; }; return res;",
                                         ScriptType.INLINE, null, params))).execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         Min min = searchResponse.getAggregations().get("min");
         assertThat(min, notNullValue());

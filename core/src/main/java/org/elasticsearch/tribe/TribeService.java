@@ -20,11 +20,14 @@
 package org.elasticsearch.tribe;
 
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
-import org.elasticsearch.cluster.*;
+import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.ClusterStateNonMasterUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -52,6 +55,7 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * The tribe service holds a list of node clients connected to a list of tribe members, and uses their
@@ -115,7 +119,7 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
     private final String onConflict;
     private final Set<String> droppedIndices = ConcurrentCollections.newConcurrentSet();
 
-    private final List<Node> nodes = Lists.newCopyOnWriteArrayList();
+    private final List<Node> nodes = new CopyOnWriteArrayList<>();
 
     @Inject
     public TribeService(Settings settings, ClusterService clusterService, DiscoveryService discoveryService) {

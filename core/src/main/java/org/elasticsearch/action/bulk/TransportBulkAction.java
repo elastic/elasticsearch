@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.bulk;
 
-import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
@@ -57,7 +56,13 @@ import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -251,7 +256,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 ShardId shardId = clusterService.operationRouting().indexShards(clusterState, concreteIndex, indexRequest.type(), indexRequest.id(), indexRequest.routing()).shardId();
                 List<BulkItemRequest> list = requestsByShard.get(shardId);
                 if (list == null) {
-                    list = Lists.newArrayList();
+                    list = new ArrayList<>();
                     requestsByShard.put(shardId, list);
                 }
                 list.add(new BulkItemRequest(i, request));
@@ -265,7 +270,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     for (ShardIterator shardIt : groupShards) {
                         List<BulkItemRequest> list = requestsByShard.get(shardIt.shardId());
                         if (list == null) {
-                            list = Lists.newArrayList();
+                            list = new ArrayList<>();
                             requestsByShard.put(shardIt.shardId(), list);
                         }
                         list.add(new BulkItemRequest(i, new DeleteRequest(deleteRequest)));
@@ -274,7 +279,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     ShardId shardId = clusterService.operationRouting().deleteShards(clusterState, concreteIndex, deleteRequest.type(), deleteRequest.id(), deleteRequest.routing()).shardId();
                     List<BulkItemRequest> list = requestsByShard.get(shardId);
                     if (list == null) {
-                        list = Lists.newArrayList();
+                        list = new ArrayList<>();
                         requestsByShard.put(shardId, list);
                     }
                     list.add(new BulkItemRequest(i, request));
@@ -292,7 +297,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 ShardId shardId = clusterService.operationRouting().indexShards(clusterState, concreteIndex, updateRequest.type(), updateRequest.id(), updateRequest.routing()).shardId();
                 List<BulkItemRequest> list = requestsByShard.get(shardId);
                 if (list == null) {
-                    list = Lists.newArrayList();
+                    list = new ArrayList<>();
                     requestsByShard.put(shardId, list);
                 }
                 list.add(new BulkItemRequest(i, request));

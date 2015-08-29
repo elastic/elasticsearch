@@ -20,15 +20,13 @@
 package org.elasticsearch.index.query;
 
 import com.carrotsearch.hppc.ObjectFloatHashMap;
-
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-
-import static com.google.common.collect.Lists.newArrayList;
 
 /**
  * A query that parses a query string and runs it. There are two modes that this operates. The first,
@@ -68,7 +66,6 @@ public class QueryStringQueryBuilder extends QueryBuilder implements BoostableQu
 
     private Locale locale;
 
-
     private float boost = -1;
 
     private Fuzziness fuzziness;
@@ -99,6 +96,8 @@ public class QueryStringQueryBuilder extends QueryBuilder implements BoostableQu
     /** To limit effort spent determinizing regexp queries. */
     private Integer maxDeterminizedStates;
 
+    private Boolean escape;
+
     public QueryStringQueryBuilder(String queryString) {
         this.queryString = queryString;
     }
@@ -117,7 +116,7 @@ public class QueryStringQueryBuilder extends QueryBuilder implements BoostableQu
      */
     public QueryStringQueryBuilder field(String field) {
         if (fields == null) {
-            fields = newArrayList();
+            fields = new ArrayList<>();
         }
         fields.add(field);
         return this;
@@ -128,7 +127,7 @@ public class QueryStringQueryBuilder extends QueryBuilder implements BoostableQu
      */
     public QueryStringQueryBuilder field(String field, float boost) {
         if (fields == null) {
-            fields = newArrayList();
+            fields = new ArrayList<>();
         }
         fields.add(field);
         if (fieldsBoosts == null) {
@@ -159,11 +158,11 @@ public class QueryStringQueryBuilder extends QueryBuilder implements BoostableQu
     /**
      * Sets the boolean operator of the query parser used to parse the query string.
      * <p/>
-     * <p>In default mode ({@link FieldQueryBuilder.Operator#OR}) terms without any modifiers
+     * <p>In default mode ({@link Operator#OR}) terms without any modifiers
      * are considered optional: for example <code>capital of Hungary</code> is equal to
      * <code>capital OR of OR Hungary</code>.
      * <p/>
-     * <p>In {@link FieldQueryBuilder.Operator#AND} mode terms are considered to be in conjunction: the
+     * <p>In {@link Operator#AND} mode terms are considered to be in conjunction: the
      * above mentioned query is parsed as <code>capital AND of AND Hungary</code>
      */
     public QueryStringQueryBuilder defaultOperator(Operator defaultOperator) {
@@ -342,6 +341,14 @@ public class QueryStringQueryBuilder extends QueryBuilder implements BoostableQu
         return this;
     }
 
+    /**
+     * Set to <tt>true</tt> to enable escaping of the query string
+     */
+    public QueryStringQueryBuilder escape(boolean escape) {
+        this.escape = escape;
+        return this;
+    }
+
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(QueryStringQueryParser.NAME);
@@ -430,6 +437,9 @@ public class QueryStringQueryBuilder extends QueryBuilder implements BoostableQu
         }
         if (timeZone != null) {
             builder.field("time_zone", timeZone);
+        }
+        if (escape != null) {
+            builder.field("escape", escape);
         }
         builder.endObject();
     }

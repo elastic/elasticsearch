@@ -43,18 +43,15 @@ import java.net.URISyntaxException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.SortedSet;
 import java.util.TreeSet;
 
-import static com.google.common.collect.Lists.newArrayList;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.*;
 
 @ClusterScope(scope = Scope.TEST)
 public class RestoreBackwardsCompatIT extends AbstractSnapshotIntegTestCase {
@@ -144,7 +141,7 @@ public class RestoreBackwardsCompatIT extends AbstractSnapshotIntegTestCase {
     }
 
     private List<String> listRepoVersions(String prefix) throws Exception {
-        List<String> repoVersions = newArrayList();
+        List<String> repoVersions = new ArrayList<>();
         Path repoFiles = reposRoot();
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(repoFiles, prefix + "-*.zip")) {
             for (Path entry : stream) {

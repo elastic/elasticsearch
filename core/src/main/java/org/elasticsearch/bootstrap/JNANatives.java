@@ -34,10 +34,13 @@ import static org.elasticsearch.bootstrap.JNAKernel32Library.SizeT;
  */
 class JNANatives {
 
+    /** no instantiation */
+    private JNANatives() {}
+
     private static final ESLogger logger = Loggers.getLogger(JNANatives.class);
 
     // Set to true, in case native mlockall call was successful
-    public static boolean LOCAL_MLOCKALL = false;
+    static boolean LOCAL_MLOCKALL = false;
 
     static void tryMlockall() {
         int errno = Integer.MIN_VALUE;
@@ -72,16 +75,18 @@ class JNANatives {
         }
 
         // mlockall failed for some reason
-        logger.warn("Unable to lock JVM Memory: error=" + errno + ",reason=" + errMsg + ". This can result in part of the JVM being swapped out.");
+        logger.warn("Unable to lock JVM Memory: error=" + errno + ",reason=" + errMsg);
+        logger.warn("This can result in part of the JVM being swapped out.");
         if (errno == JNACLibrary.ENOMEM) {
             if (rlimitSuccess) {
                 logger.warn("Increase RLIMIT_MEMLOCK, soft limit: " + rlimitToString(softLimit) + ", hard limit: " + rlimitToString(hardLimit));
                 if (Constants.LINUX) {
                     // give specific instructions for the linux case to make it easy
+                    String user = System.getProperty("user.name");
                     logger.warn("These can be adjusted by modifying /etc/security/limits.conf, for example: \n" +
-                                "\t# allow user 'esuser' mlockall\n" +
-                                "\tesuser soft memlock unlimited\n" +
-                                "\tesuser hard memlock unlimited"
+                                "\t# allow user '" + user + "' mlockall\n" +
+                                "\t" + user + " soft memlock unlimited\n" +
+                                "\t" + user + " hard memlock unlimited"
                                );
                     logger.warn("If you are logged in interactively, you will have to re-login for the new limits to take effect.");
                 }

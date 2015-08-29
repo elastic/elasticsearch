@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.rest.action.admin.indices.analyze;
 
-import com.google.common.collect.Lists;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequest;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeResponse;
 import org.elasticsearch.client.Client;
@@ -29,11 +28,15 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestToXContentListener;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -95,7 +98,7 @@ public class RestAnalyzeAction extends BaseRestHandler {
                     } else if ("text".equals(currentFieldName) && token == XContentParser.Token.VALUE_STRING) {
                         analyzeRequest.text(parser.text());
                     } else if ("text".equals(currentFieldName) && token == XContentParser.Token.START_ARRAY) {
-                        List<String> texts = Lists.newArrayList();
+                        List<String> texts = new ArrayList<>();
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                             if (token.isValue() == false) {
                                 throw new IllegalArgumentException(currentFieldName + " array element should only contain text");
@@ -110,7 +113,7 @@ public class RestAnalyzeAction extends BaseRestHandler {
                     } else if ("tokenizer".equals(currentFieldName) && token == XContentParser.Token.VALUE_STRING) {
                         analyzeRequest.tokenizer(parser.text());
                     } else if (("token_filters".equals(currentFieldName) || "filters".equals(currentFieldName)) && token == XContentParser.Token.START_ARRAY) {
-                        List<String> filters = Lists.newArrayList();
+                        List<String> filters = new ArrayList<>();
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                             if (token.isValue() == false) {
                                 throw new IllegalArgumentException(currentFieldName + " array element should only contain token filter's name");
@@ -119,7 +122,7 @@ public class RestAnalyzeAction extends BaseRestHandler {
                         }
                         analyzeRequest.tokenFilters(filters.toArray(Strings.EMPTY_ARRAY));
                     } else if ("char_filters".equals(currentFieldName) && token == XContentParser.Token.START_ARRAY) {
-                        List<String> charFilters = Lists.newArrayList();
+                        List<String> charFilters = new ArrayList<>();
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                             if (token.isValue() == false) {
                                 throw new IllegalArgumentException(currentFieldName + " array element should only contain char filter's name");

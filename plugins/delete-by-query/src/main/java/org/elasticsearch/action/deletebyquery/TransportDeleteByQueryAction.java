@@ -174,13 +174,15 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
 
             if ((docs.length == 0) || (nextScrollId == null)) {
                 logger.trace("scrolling documents terminated");
-                finishHim(scrollId, false, null);
+                // if scrollId is null we are on the first request - just pass the nextScrollId which sill be non-null if the query matched no docs
+                finishHim(scrollId == null ? nextScrollId : scrollId, false, null);
                 return;
             }
 
             if (hasTimedOut()) {
                 logger.trace("scrolling documents timed out");
-                finishHim(scrollId, true, null);
+                // if scrollId is null we are on the first request - just pass the nextScrollId which sill be non-null if the query matched no docs
+                finishHim(scrollId == null ? nextScrollId : scrollId, true, null);
                 return;
             }
 

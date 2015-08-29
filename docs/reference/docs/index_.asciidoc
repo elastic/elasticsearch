@@ -353,7 +353,23 @@ occurs, so that the document appears in search results immediately, the
 `refresh` parameter can be set to `true`. Setting this option to `true` should
 *ONLY* be done after careful thought and verification that it does not lead to
 poor performance, both from an indexing and a search standpoint. Note, getting
-a document using the get API is completely realtime.
+a document using the get API is completely realtime and doesn't require a
+refresh.
+
+[float]
+[[index-noop]]
+=== Noop Updates
+
+When updating a document using the index api a new version of the document is
+always created even if the document hasn't changed. If this isn't acceptable
+use the `_update` api with `detect_noop` set to true. This option isn't
+available on the index api because the index api doesn't fetch the old source
+and isn't able to compare it against the new source.
+
+There isn't a hard and fast rule about when noop updates aren't acceptable.
+It's a combination of lots of factors like how frequently your data source
+sends updates that are actually noops and how many queries per second
+elasticsearch runs on the shard with receiving the updates.
 
 [float]
 [[timeout]]

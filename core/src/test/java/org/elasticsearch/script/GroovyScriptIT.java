@@ -28,18 +28,12 @@ import org.elasticsearch.script.groovy.GroovyScriptEngineService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
+import java.util.ArrayList;
 import java.util.List;
 
-import static com.google.common.collect.Lists.newArrayList;
-import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
-import static org.elasticsearch.index.query.QueryBuilders.functionScoreQuery;
-import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
-import static org.elasticsearch.index.query.QueryBuilders.scriptQuery;
+import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.scriptFunction;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertOrderedSearchHits;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -67,7 +61,7 @@ public class GroovyScriptIT extends ESIntegTestCase {
 
     @Test
     public void testGroovyExceptionSerialization() throws Exception {
-        List<IndexRequestBuilder> reqs = newArrayList();
+        List<IndexRequestBuilder> reqs = new ArrayList<>();
         for (int i = 0; i < randomIntBetween(50, 500); i++) {
             reqs.add(client().prepareIndex("test", "doc", "" + i).setSource("foo", "bar"));
         }

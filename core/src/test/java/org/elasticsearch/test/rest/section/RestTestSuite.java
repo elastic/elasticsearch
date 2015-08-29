@@ -18,9 +18,9 @@
  */
 package org.elasticsearch.test.rest.section;
 
-import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
@@ -71,6 +71,6 @@ public class RestTestSuite {
     }
 
     public List<TestSection> getTestSections() {
-        return Lists.newArrayList(testSections);
+        return new ArrayList<>(testSections);
     }
 }

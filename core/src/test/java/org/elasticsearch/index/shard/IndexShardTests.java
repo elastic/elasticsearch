@@ -20,9 +20,12 @@ package org.elasticsearch.index.shard;
 
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.store.LockObtainFailedException;
+import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
+import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.*;
@@ -31,11 +34,16 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.query.QueryParsingException;
@@ -539,4 +547,36 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         assertPathHasBeenCleared(startDir.toAbsolutePath().toString());
         assertPathHasBeenCleared(endDir.toAbsolutePath().toString());
     }
+
+    public void testShardStats() throws IOException {
+        createIndex("test");
+        ensureGreen();
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        IndexService test = indicesService.indexService("test");
+        IndexShard shard = test.shard(0);
+        ShardStats stats = new ShardStats(shard, new CommonStatsFlags());
+        assertEquals(shard.shardPath().getRootDataPath().toString(), stats.getDataPath());
+        assertEquals(shard.shardPath().getRootStatePath().toString(), stats.getStatePath());
+        assertEquals(shard.shardPath().isCustomDataPath(), stats.isCustomDataPath());
+
+        if (randomBoolean() || true) { // try to serialize it to ensure values survive the serialization
+            BytesStreamOutput out = new BytesStreamOutput();
+            stats.writeTo(out);
+            StreamInput in = StreamInput.wrap(out.bytes());
+            stats = ShardStats.readShardStats(in);
+        }
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        builder.startObject();
+        stats.toXContent(builder, EMPTY_PARAMS);
+        builder.endObject();
+        String xContent = builder.string();
+        StringBuilder expectedSubSequence = new StringBuilder("\"shard_path\":{\"state_path\":\"");
+        expectedSubSequence.append(shard.shardPath().getRootStatePath().toString());
+        expectedSubSequence.append("\",\"data_path\":\"");
+        expectedSubSequence.append(shard.shardPath().getRootDataPath().toString());
+        expectedSubSequence.append("\",\"is_custom_data_path\":").append(shard.shardPath().isCustomDataPath()).append("}");
+        assumeFalse("Some path weirdness on windows", Constants.WINDOWS);
+        assertTrue(xContent.contains(expectedSubSequence));
+    }
+
 }

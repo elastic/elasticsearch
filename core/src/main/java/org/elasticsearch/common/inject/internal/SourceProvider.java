@@ -18,8 +18,8 @@ package org.elasticsearch.common.inject.internal;
 
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
-import com.google.common.collect.Lists;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -58,7 +58,7 @@ public class SourceProvider {
      * Returns the class names as Strings
      */
     private static List<String> asStrings(Class... classes) {
-        List<String> strings = Lists.newArrayList();
+        List<String> strings = new ArrayList<>();
         for (Class c : classes) {
             strings.add(c.getName());
         }

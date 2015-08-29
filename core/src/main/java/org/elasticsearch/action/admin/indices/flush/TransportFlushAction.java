@@ -38,10 +38,9 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReferenceArray;
-
-import static com.google.common.collect.Lists.newArrayList;
 
 /**
  * Flush Action.
@@ -71,7 +70,7 @@ public class TransportFlushAction extends TransportBroadcastAction<FlushRequest,
             } else if (shardResponse instanceof BroadcastShardOperationFailedException) {
                 failedShards++;
                 if (shardFailures == null) {
-                    shardFailures = newArrayList();
+                    shardFailures = new ArrayList<>();
                 }
                 shardFailures.add(new DefaultShardOperationFailedException((BroadcastShardOperationFailedException) shardResponse));
             } else {

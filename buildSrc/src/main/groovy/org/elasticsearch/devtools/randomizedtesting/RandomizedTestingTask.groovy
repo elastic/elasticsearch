@@ -78,7 +78,7 @@ class RandomizedTestingTask extends DefaultTask {
      * the element configures the already created children.
      */
     def makeListeners(AntBuilder ant, ProgressLoggerFactory factory, Logger realLogger) {
-        def progressLogger = new JUnit4ProgressLogger(factory: factory, logger: realLogger)
+        def progressLogger = new JUnit4ProgressLogger(factory: factory)
         def textReport = new TextReport()
         def context = ant.getAntXmlContext();
         def parentWrapper = context.currentWrapper()

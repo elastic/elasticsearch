@@ -30,13 +30,18 @@ import org.junit.runner.Description
 
 import java.util.concurrent.atomic.AtomicInteger
 
+import static com.carrotsearch.ant.tasks.junit4.FormattingUtils.formatDurationInSeconds
+
 class JUnit4ProgressLogger implements AggregatedEventListener {
 
     /** Factory to build a progress logger when testing starts */
     ProgressLoggerFactory factory
     ProgressLogger progressLogger
     int totalSuites;
-    AtomicInteger suitesCompleted = new AtomicInteger();
+    AtomicInteger suitesCompleted = new AtomicInteger()
+    AtomicInteger testsCompleted = new AtomicInteger()
+    AtomicInteger testsFailed = new AtomicInteger()
+    AtomicInteger testsIgnored = new AtomicInteger()
 
     @Subscribe
     public void onStart(AggregatedStartEvent e) throws IOException {
@@ -49,11 +54,14 @@ class JUnit4ProgressLogger implements AggregatedEventListener {
 
     @Subscribe
     public void onSuiteResult(AggregatedSuiteResultEvent e) throws IOException {
-        final int completed = suitesCompleted.incrementAndGet();
+        final int suitesCompleted = suitesCompleted.incrementAndGet();
+        final int testsCompleted = testsCompleted.addAndGet(e.getDescription().testCount())
+        final int testsFailed = testsFailed.addAndGet(e.getErrorCount() + e.getFailureCount())
+        final int testsIgnored = testsIgnored.addAndGet(e.getIgnoredCount())
         Description description = e.getDescription()
         String suiteName = description.getDisplayName();
         suiteName = suiteName.substring(suiteName.lastIndexOf('.') + 1);
-        progressLogger.progress('Completed [' + completed + '/' + totalSuites + '] ' + suiteName)
+        progressLogger.progress('Suites [' + suitesCompleted + '/' + totalSuites + '], Tests [' + testsCompleted + '|' + testsFailed + '|' + testsIgnored + '], J' + e.getSlave().id + ' - '+ suiteName + ' in ' + formatDurationInSeconds(e.getExecutionTime()) + ']')
     }
 
     @Override

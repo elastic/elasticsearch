@@ -46,6 +46,7 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryState.Stage;
 import org.elasticsearch.indices.recovery.RecoveryState.Type;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
@@ -62,6 +63,7 @@ import org.junit.Test;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -95,6 +97,10 @@ public class IndexRecoveryIT extends ESIntegTestCase {
     private static final int SHARD_COUNT = 1;
     private static final int REPLICA_COUNT = 0;
 
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return pluginList(MockTransportService.TestPlugin.class);
+    }
 
     private void assertRecoveryStateWithoutStage(RecoveryState state, int shardId, Type type,
                                                  String sourceNode, String targetNode, boolean hasRestoreSource) {
@@ -528,7 +534,6 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         final Settings nodeSettings = Settings.builder()
                 .put(RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_NETWORK, "100ms")
                 .put(RecoverySettings.INDICES_RECOVERY_INTERNAL_ACTION_TIMEOUT, "1s")
-                .put("plugin.types", MockTransportService.TestPlugin.class.getName())
                 .put(MockFSDirectoryService.RANDOM_PREVENT_DOUBLE_WRITE, false) // restarted recoveries will delete temp files and write them again
                 .build();
         // start a master node

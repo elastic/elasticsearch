@@ -24,11 +24,13 @@ import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.plugin.cloud.aws.CloudAwsPlugin;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ThirdParty;
 import org.junit.After;
 import org.junit.Before;
 
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -75,7 +77,6 @@ public abstract class AbstractAwsTest extends ESIntegTestCase {
                 Settings.Builder settings = Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put("path.home", createTempDir())
-                .extendArray("plugin.types", CloudAwsPlugin.class.getName(), TestAwsS3Service.TestPlugin.class.getName())
                 .put("cloud.aws.test.random", randomInt())
                 .put("cloud.aws.test.write_failures", 0.1)
                 .put("cloud.aws.test.read_failures", 0.1);
@@ -91,5 +92,10 @@ public abstract class AbstractAwsTest extends ESIntegTestCase {
             throw new IllegalStateException("your test configuration file is incorrect: " + System.getProperty("tests.config"), exception);
         }
         return settings.build();
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return pluginList(CloudAwsPlugin.class, TestAwsS3Service.TestPlugin.class);
     }
 }

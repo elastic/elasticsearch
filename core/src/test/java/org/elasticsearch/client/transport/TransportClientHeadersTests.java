@@ -48,6 +48,7 @@ import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.junit.Test;
 
+import java.util.Collection;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -63,12 +64,13 @@ public class TransportClientHeadersTests extends AbstractClientHeadersTests {
 
     @Override
     protected Client buildClient(Settings headersSettings, GenericAction[] testedActions) {
-        TransportClient client = TransportClient.builder().settings(Settings.builder()
+        TransportClient client = TransportClient.builder()
+            .settings(Settings.builder()
                 .put("client.transport.sniff", false)
                 .put("node.name", "transport_client_" + this.getTestName())
-                .put("plugin.types", InternalTransportService.TestPlugin.class.getName())
                 .put(headersSettings)
-                .build()).build();
+                .build())
+            .addPlugin(InternalTransportService.TestPlugin.class).build();
 
         client.addTransportAddress(address);
         return client;
@@ -76,15 +78,17 @@ public class TransportClientHeadersTests extends AbstractClientHeadersTests {
 
     @Test
     public void testWithSniffing() throws Exception {
-        TransportClient client = TransportClient.builder().settings(Settings.builder()
+        TransportClient client = TransportClient.builder()
+            .settings(Settings.builder()
                 .put("client.transport.sniff", true)
                 .put("cluster.name", "cluster1")
                 .put("node.name", "transport_client_" + this.getTestName() + "_1")
-            .put("client.transport.nodes_sampler_interval", "1s")
-            .put("plugin.types", InternalTransportService.TestPlugin.class.getName())
+                .put("client.transport.nodes_sampler_interval", "1s")
                 .put(HEADER_SETTINGS)
-                .put("path.home", createTempDir().toString())
-                .build()).build();
+                .put("path.home", createTempDir().toString()).build())
+            .addPlugin(InternalTransportService.TestPlugin.class)
+            .build();
+
         try {
             client.addTransportAddress(address);
 

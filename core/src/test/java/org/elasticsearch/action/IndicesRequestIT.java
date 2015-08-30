@@ -95,6 +95,7 @@ import org.elasticsearch.search.action.SearchServiceTransportAction;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
+import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportChannel;
@@ -107,6 +108,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -142,11 +144,15 @@ public class IndicesRequestIT extends ESIntegTestCase {
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.settingsBuilder()
-                .put(super.nodeSettings(nodeOrdinal))
-                .extendArray("plugin.types", InterceptingTransportService.TestPlugin.class.getName())
-                .build();
+    protected Settings nodeSettings(int ordinal) {
+        // must set this independently of the plugin so it overrides MockTransportService
+        return Settings.builder().put(super.nodeSettings(ordinal))
+            .put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, "intercepting").build();
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return pluginList(InterceptingTransportService.TestPlugin.class);
     }
 
     @Before
@@ -856,10 +862,6 @@ public class IndicesRequestIT extends ESIntegTestCase {
             }
             public void onModule(TransportModule transportModule) {
                 transportModule.addTransportService("intercepting", InterceptingTransportService.class);
-            }
-            @Override
-            public Settings additionalSettings() {
-                return Settings.builder().put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, "intercepting").build();
             }
         }
 

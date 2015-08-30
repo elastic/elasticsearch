@@ -33,6 +33,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.net.URISyntaxException;
+import java.util.Collection;
 
 public abstract class AbstractAzureRepositoryServiceTest extends AbstractAzureTest {
 
@@ -77,7 +78,6 @@ public abstract class AbstractAzureRepositoryServiceTest extends AbstractAzureTe
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         Settings.Builder builder = Settings.settingsBuilder()
-                .extendArray("plugin.types", CloudAzurePlugin.class.getName(), TestPlugin.class.getName())
                 .put(Storage.API_IMPLEMENTATION, mock)
                 .put(Storage.CONTAINER, "snapshots");
 
@@ -86,6 +86,11 @@ public abstract class AbstractAzureRepositoryServiceTest extends AbstractAzureTe
                 .put(Storage.KEY, "mock_azure_key");
 
         return builder.build();
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return pluginList(CloudAzurePlugin.class, TestPlugin.class);
     }
 
     @Override

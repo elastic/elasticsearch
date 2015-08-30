@@ -69,6 +69,11 @@ import static org.hamcrest.Matchers.notNullValue;
 @ESIntegTestCase.SuppressLocalMode
 public class ClusterServiceIT extends ESIntegTestCase {
 
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return pluginList(TestPlugin.class);
+    }
+
     @Test
     public void testTimeoutUpdateTask() throws Exception {
         Settings settings = settingsBuilder()
@@ -637,7 +642,6 @@ public class ClusterServiceIT extends ESIntegTestCase {
                 .put("discovery.zen.minimum_master_nodes", 1)
                 .put("discovery.zen.ping_timeout", "400ms")
                 .put("discovery.initial_state_timeout", "500ms")
-                .put("plugin.types", TestPlugin.class.getName())
                 .build();
 
         String node_0 = internalCluster().startNode(settings);

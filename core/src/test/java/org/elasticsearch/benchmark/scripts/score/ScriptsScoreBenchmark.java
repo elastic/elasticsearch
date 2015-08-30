@@ -18,13 +18,18 @@
  */
 package org.elasticsearch.benchmark.scripts.score;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.benchmark.scripts.score.plugin.NativeScriptExamplesPlugin;
 import org.elasticsearch.benchmark.scripts.score.script.NativeNaiveTFIDFScoreScript;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.plugins.Plugin;
 
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map.Entry;
 
@@ -46,10 +51,12 @@ public class ScriptsScoreBenchmark extends BasicScriptBenchmark {
         boolean runMVEL = false;
         init(maxTerms);
         List<Results> allResults = new ArrayList<>();
-        Settings settings = settingsBuilder().put("plugin.types", NativeScriptExamplesPlugin.class.getName()).build();
-
         String clusterName = ScriptsScoreBenchmark.class.getSimpleName();
-        Node node1 = nodeBuilder().clusterName(clusterName).settings(settingsBuilder().put(settings).put("name", "node1")).node();
+        Settings settings = settingsBuilder().put("name", "node1")
+            .put("cluster.name", clusterName).build();
+        Collection<Class<? extends Plugin>> plugins = Collections.<Class<? extends Plugin>>singletonList(NativeScriptExamplesPlugin.class);
+        Node node1 = new MockNode(settings, true, Version.CURRENT, plugins);
+        node1.start();
         Client client = node1.client();
         client.admin().cluster().prepareHealth("test").setWaitForGreenStatus().setTimeout("10s").execute().actionGet();
 

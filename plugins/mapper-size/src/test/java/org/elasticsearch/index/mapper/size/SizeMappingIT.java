@@ -24,10 +24,12 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.plugin.mapper.MapperSizePlugin;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Locale;
 import java.util.Map;
@@ -41,11 +43,8 @@ import static org.hamcrest.Matchers.notNullValue;
 public class SizeMappingIT extends ESIntegTestCase {
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal))
-                .put("plugin.types", MapperSizePlugin.class.getName())
-                .build();
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return pluginList(MapperSizePlugin.class);
     }
 
     // issue 5053

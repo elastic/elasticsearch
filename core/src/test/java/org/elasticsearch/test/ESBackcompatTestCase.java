@@ -29,6 +29,7 @@ import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.junit.listeners.LoggingListener;
 import org.elasticsearch.transport.Transport;
@@ -42,6 +43,8 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Random;
 
@@ -182,14 +185,14 @@ public abstract class ESBackcompatTestCase extends ESIntegTestCase {
     @Override
     protected TestCluster buildTestCluster(Scope scope, long seed) throws IOException {
         TestCluster cluster = super.buildTestCluster(scope, seed);
-        ExternalNode externalNode = new ExternalNode(backwardsCompatibilityPath(), randomLong(), new SettingsSource() {
+        ExternalNode externalNode = new ExternalNode(backwardsCompatibilityPath(), randomLong(), new NodeConfigurationSource() {
             @Override
-            public Settings node(int nodeOrdinal) {
+            public Settings nodeSettings(int nodeOrdinal) {
                 return externalNodeSettings(nodeOrdinal);
             }
 
             @Override
-            public Settings transportClient() {
+            public Settings transportClientSettings() {
                 return transportClientSettings();
             }
         });

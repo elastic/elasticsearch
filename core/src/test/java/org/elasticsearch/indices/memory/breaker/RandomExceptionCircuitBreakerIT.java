@@ -45,6 +45,7 @@ import org.junit.Test;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Random;
 import java.util.concurrent.ExecutionException;
 
@@ -56,6 +57,11 @@ import static org.hamcrest.Matchers.equalTo;
  * Tests for the circuit breaker while random exceptions are happening
  */
 public class RandomExceptionCircuitBreakerIT extends ESIntegTestCase {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return pluginList(RandomExceptionDirectoryReaderWrapper.TestPlugin.class);
+    }
 
     @Test
     public void testBreakerWithRandomExceptions() throws IOException, InterruptedException, ExecutionException {
@@ -107,7 +113,6 @@ public class RandomExceptionCircuitBreakerIT extends ESIntegTestCase {
 
         Settings.Builder settings = settingsBuilder()
                 .put(indexSettings())
-                .extendArray("plugin.types", RandomExceptionDirectoryReaderWrapper.TestPlugin.class.getName())
                 .put(EXCEPTION_TOP_LEVEL_RATIO_KEY, topLevelRate)
                 .put(EXCEPTION_LOW_LEVEL_RATIO_KEY, lowLevelRate)
                 .put(MockEngineSupport.WRAP_READER_RATIO, 1.0d);

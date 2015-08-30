@@ -19,17 +19,21 @@
 package org.elasticsearch.test;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.plugins.Plugin;
 
-public abstract class SettingsSource {
+import java.util.Collection;
+import java.util.Collections;
 
-    public static final SettingsSource EMPTY = new SettingsSource() {
+public abstract class NodeConfigurationSource {
+
+    public static final NodeConfigurationSource EMPTY = new NodeConfigurationSource() {
         @Override
-        public Settings node(int nodeOrdinal) {
+        public Settings nodeSettings(int nodeOrdinal) {
             return null;
         }
 
         @Override
-        public Settings transportClient() {
+        public Settings transportClientSettings() {
             return null;
         }
     };
@@ -37,8 +41,18 @@ public abstract class SettingsSource {
     /**
      * @return the settings for the node represented by the given ordinal, or {@code null} if there are no settings defined
      */
-    public abstract Settings node(int nodeOrdinal);
+    public abstract Settings nodeSettings(int nodeOrdinal);
 
-    public abstract Settings transportClient();
+    /** Returns plugins that should be loaded on the node */
+    public Collection<Class<? extends Plugin>> nodePlugins() {
+        return Collections.emptyList();
+    }
+
+    public abstract Settings transportClientSettings();
+
+    /** Returns plugins that should be loaded in the transport client */
+    public Collection<Class<? extends Plugin>> transportClientPlugins() {
+        return Collections.emptyList();
+    }
 
 }

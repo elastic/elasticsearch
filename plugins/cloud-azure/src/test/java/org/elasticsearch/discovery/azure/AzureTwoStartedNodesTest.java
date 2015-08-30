@@ -36,7 +36,7 @@ import static org.hamcrest.Matchers.notNullValue;
 public class AzureTwoStartedNodesTest extends AbstractAzureComputeServiceTest {
 
     public AzureTwoStartedNodesTest() {
-        super(AzureComputeServiceTwoNodesMock.TestPlugin.class.getName());
+        super(AzureComputeServiceTwoNodesMock.TestPlugin.class);
     }
 
     @Test

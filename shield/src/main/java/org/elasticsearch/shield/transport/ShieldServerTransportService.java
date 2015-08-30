@@ -20,6 +20,7 @@ import org.elasticsearch.transport.netty.NettyTransport;
 
 import java.util.Collections;
 import java.util.Map;
+import java.util.concurrent.Callable;
 
 import static org.elasticsearch.shield.transport.netty.ShieldNettyTransport.*;
 
@@ -65,6 +66,12 @@ public class ShieldServerTransportService extends TransportService {
     public <Request extends TransportRequest> void registerRequestHandler(String action, Class<Request> request, String executor, boolean forceExecution, TransportRequestHandler<Request> handler) {
         TransportRequestHandler<Request> wrappedHandler = new ProfileSecuredRequestHandler<>(action, handler, profileFilters);
         super.registerRequestHandler(action, request, executor, forceExecution, wrappedHandler);
+    }
+
+    @Override
+    public <Request extends TransportRequest> void registerRequestHandler(String action, Callable<Request> requestFactory, String executor, TransportRequestHandler<Request> handler) {
+        TransportRequestHandler<Request> wrappedHandler = new ProfileSecuredRequestHandler<>(action, handler, profileFilters);
+        super.registerRequestHandler(action, requestFactory, executor, wrappedHandler);
     }
 
     protected Map<String, ServerTransportFilter> initializeProfileFilters() {

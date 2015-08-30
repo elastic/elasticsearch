@@ -74,6 +74,13 @@ public abstract class IndexingOperationListener {
     }
 
     /**
+     * Called after the indexing operation occurred with exception.
+     */
+    public void postIndex(Engine.Index index, Throwable ex) {
+
+    }
+
+    /**
      * Called before the delete occurs.
      */
     public Engine.Delete preDelete(Engine.Delete delete) {

@@ -171,6 +171,13 @@ public class ShardIndexingService extends AbstractIndexShardComponent {
     public void postIndex(Engine.Index index, Throwable ex) {
         totalStats.indexCurrent.dec();
         typeStats(index.type()).indexCurrent.dec();
+        for (IndexingOperationListener listener : listeners) {
+            try {
+                listener.postIndex(index, ex);
+            } catch (Exception e) {
+                logger.warn("post listener [{}] failed", e, listener);
+            }
+        }
     }
 
     public Engine.Delete preDelete(Engine.Delete delete) {

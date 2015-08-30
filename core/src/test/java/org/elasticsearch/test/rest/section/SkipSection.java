@@ -18,12 +18,11 @@
  */
 package org.elasticsearch.test.rest.section;
 
-import com.google.common.collect.Lists;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.rest.support.Features;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -44,7 +43,7 @@ public class SkipSection {
     private SkipSection() {
         this.lowerVersion = null;
         this.upperVersion = null;
-        this.features = Lists.newArrayList();
+        this.features = new ArrayList<>();
         this.reason = null;
     }
 

@@ -170,7 +170,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
         infoService.addListener(listener);
         ClusterInfo info = listener.get();
         assertNotNull("info should not be null", info);
-        Map<String, DiskUsage> usages = info.getNodeDiskUsages();
+        Map<String, DiskUsage> usages = info.getNodeLeastAvailableDiskUsages();
         Map<String, Long> shardSizes = info.shardSizes;
         assertNotNull(usages);
         assertNotNull(shardSizes);
@@ -203,14 +203,14 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
         infoService.updateOnce();
         ClusterInfo info = listener.get();
         assertNotNull("failed to collect info", info);
-        assertThat("some usages are populated", info.getNodeDiskUsages().size(), Matchers.equalTo(2));
+        assertThat("some usages are populated", info.getNodeLeastAvailableDiskUsages().size(), Matchers.equalTo(2));
         assertThat("some shard sizes are populated", info.shardSizes.size(), greaterThan(0));
 
 
         MockTransportService mockTransportService = (MockTransportService) internalCluster().getInstance(TransportService.class, internalTestCluster.getMasterName());
 
         final AtomicBoolean timeout = new AtomicBoolean(false);
-        final Set<String> blockedActions = ImmutableSet.of(NodesStatsAction.NAME, NodesStatsAction.NAME + "[n]", IndicesStatsAction.NAME, IndicesStatsAction.NAME + "[s]");
+        final Set<String> blockedActions = ImmutableSet.of(NodesStatsAction.NAME, NodesStatsAction.NAME + "[n]", IndicesStatsAction.NAME, IndicesStatsAction.NAME + "[n]");
         // drop all outgoing stats requests to force a timeout.
         for (DiscoveryNode node : internalTestCluster.clusterService().state().getNodes()) {
             mockTransportService.addDelegate(node, new MockTransportService.DelegateTransport(mockTransportService.original()) {
@@ -237,7 +237,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
         // node info will time out both on the request level on the count down latch. this means
         // it is likely to update the node disk usage based on the one response that came be from local
         // node.
-        assertThat(info.getNodeDiskUsages().size(), greaterThanOrEqualTo(1));
+        assertThat(info.getNodeLeastAvailableDiskUsages().size(), greaterThanOrEqualTo(1));
         // indices is guaranteed to time out on the latch, not updating anything.
         assertThat(info.shardSizes.size(), greaterThan(1));
 
@@ -258,7 +258,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
         infoService.updateOnce();
         info = listener.get();
         assertNotNull("info should not be null", info);
-        assertThat(info.getNodeDiskUsages().size(), equalTo(0));
+        assertThat(info.getNodeLeastAvailableDiskUsages().size(), equalTo(0));
         assertThat(info.shardSizes.size(), equalTo(0));
 
         // check we recover
@@ -267,7 +267,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
         infoService.updateOnce();
         info = listener.get();
         assertNotNull("info should not be null", info);
-        assertThat(info.getNodeDiskUsages().size(), equalTo(2));
+        assertThat(info.getNodeLeastAvailableDiskUsages().size(), equalTo(2));
         assertThat(info.shardSizes.size(), greaterThan(0));
 
     }

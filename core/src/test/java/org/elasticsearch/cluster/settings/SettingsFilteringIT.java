@@ -33,7 +33,6 @@ import org.junit.Test;
 import java.util.Collection;
 import java.util.Collections;
 
-import static com.google.common.collect.Lists.newArrayList;
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;

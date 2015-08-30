@@ -253,7 +253,7 @@ public class AnalyzeActionIT extends ESIntegTestCase {
         ensureGreen();
 
         client().admin().indices().preparePutMapping("test")
-            .setType("document").setSource("simple", "type=string,analyzer=simple,position_offset_gap=100").get();
+            .setType("document").setSource("simple", "type=string,analyzer=simple,position_increment_gap=100").get();
 
         String[] texts = new String[]{"THIS IS A TEST", "THE SECOND TEXT"};
 

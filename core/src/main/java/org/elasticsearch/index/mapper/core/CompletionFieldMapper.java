@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.index.mapper.core;
 
-import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import org.apache.lucene.analysis.Analyzer;
@@ -53,6 +52,7 @@ import org.elasticsearch.search.suggest.context.ContextMapping;
 import org.elasticsearch.search.suggest.context.ContextMapping.ContextConfig;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -334,7 +334,7 @@ public class CompletionFieldMapper extends FieldMapper {
         String surfaceForm = null;
         BytesRef payload = null;
         long weight = -1;
-        List<String> inputs = Lists.newArrayListWithExpectedSize(4);
+        List<String> inputs = new ArrayList<>(4);
 
         SortedMap<String, ContextConfig> contextConfig = null;
 

@@ -17,20 +17,22 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.optimize;
+package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.action.support.broadcast.BroadcastShardResponse;
-import org.elasticsearch.index.shard.ShardId;
+public class DocumentMapperForType {
+    private final DocumentMapper documentMapper;
+    private final Mapping mapping;
 
-/**
- *
- */
-class ShardOptimizeResponse extends BroadcastShardResponse {
-
-    ShardOptimizeResponse() {
+    public DocumentMapperForType(DocumentMapper documentMapper, Mapping mapping) {
+        this.mapping = mapping;
+        this.documentMapper = documentMapper;
     }
 
-    ShardOptimizeResponse(ShardId shardId) {
-        super(shardId);
+    public DocumentMapper getDocumentMapper() {
+        return documentMapper;
+    }
+
+    public Mapping getMapping() {
+        return mapping;
     }
 }

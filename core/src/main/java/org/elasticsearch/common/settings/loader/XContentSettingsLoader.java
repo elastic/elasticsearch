@@ -20,16 +20,15 @@
 package org.elasticsearch.common.settings.loader;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-import static com.google.common.collect.Lists.newArrayList;
 import static com.google.common.collect.Maps.newHashMap;
 
 /**
@@ -57,7 +56,7 @@ public abstract class XContentSettingsLoader implements SettingsLoader {
     public Map<String, String> load(XContentParser jp) throws IOException {
         StringBuilder sb = new StringBuilder();
         Map<String, String> settings = newHashMap();
-        List<String> path = newArrayList();
+        List<String> path = new ArrayList<>();
         XContentParser.Token token = jp.nextToken();
         if (token == null) {
             return settings;
@@ -141,7 +140,18 @@ public abstract class XContentSettingsLoader implements SettingsLoader {
             sb.append(pathEle).append('.');
         }
         sb.append(fieldName);
-        settings.put(sb.toString(), parser.text());
+        String key = sb.toString();
+        String currentValue = parser.text();
+        String previousValue = settings.put(key, currentValue);
+        if (previousValue != null) {
+            throw new ElasticsearchParseException(
+                    "duplicate settings key [{}] found at line number [{}], column number [{}], previous value [{}], current value [{}]",
+                    key,
+                    parser.getTokenLocation().lineNumber,
+                    parser.getTokenLocation().columnNumber,
+                    previousValue,
+                    currentValue
+            );
+        }
     }
-
 }

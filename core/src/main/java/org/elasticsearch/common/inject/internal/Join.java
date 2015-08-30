@@ -16,7 +16,7 @@
 
 package org.elasticsearch.common.inject.internal;
 
-import com.google.common.collect.Lists;
+import org.elasticsearch.common.util.CollectionUtils;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -98,7 +98,7 @@ public final class Join {
     public static String join(
             String delimiter, @Nullable Object firstToken, Object... otherTokens) {
         checkNotNull(otherTokens);
-        return join(delimiter, Lists.newArrayList(firstToken, otherTokens));
+        return join(delimiter, CollectionUtils.asArrayList(firstToken, otherTokens));
     }
 
     /**
@@ -208,7 +208,7 @@ public final class Join {
     public static <T extends Appendable> T join(T appendable, String delimiter,
                                                 @Nullable Object firstToken, Object... otherTokens) {
         checkNotNull(otherTokens);
-        return join(appendable, delimiter, Lists.newArrayList(firstToken, otherTokens));
+        return join(appendable, delimiter, CollectionUtils.asArrayList(firstToken, otherTokens));
     }
 
     /**

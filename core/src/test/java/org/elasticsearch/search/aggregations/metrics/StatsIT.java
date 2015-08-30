@@ -34,6 +34,7 @@ import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.global;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.stats;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -103,7 +104,7 @@ public class StatsIT extends AbstractNumericTestCase {
 
         assertShardExecutionState(searchResponse, 0);
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         Stats stats = searchResponse.getAggregations().get("stats");
         assertThat(stats, notNullValue());
@@ -120,7 +121,7 @@ public class StatsIT extends AbstractNumericTestCase {
         SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
                 .addAggregation(stats("stats").format("0000.0").field("value")).execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         Stats stats = searchResponse.getAggregations().get("stats");
         assertThat(stats, notNullValue());
@@ -144,7 +145,7 @@ public class StatsIT extends AbstractNumericTestCase {
         SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
                 .addAggregation(global("global").subAggregation(stats("stats").field("value"))).execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         Global global = searchResponse.getAggregations().get("global");
         assertThat(global, notNullValue());
@@ -186,7 +187,7 @@ public class StatsIT extends AbstractNumericTestCase {
 
         assertShardExecutionState(searchResponse, 0);
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         Stats stats = searchResponse.getAggregations().get("stats");
         assertThat(stats, notNullValue());
@@ -208,7 +209,7 @@ public class StatsIT extends AbstractNumericTestCase {
 
         assertShardExecutionState(searchResponse, 0);
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         Stats stats = searchResponse.getAggregations().get("stats");
         assertThat(stats, notNullValue());
@@ -232,7 +233,7 @@ public class StatsIT extends AbstractNumericTestCase {
 
         assertShardExecutionState(searchResponse, 0);
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         Stats stats = searchResponse.getAggregations().get("stats");
         assertThat(stats, notNullValue());
@@ -254,7 +255,7 @@ public class StatsIT extends AbstractNumericTestCase {
 
         assertShardExecutionState(searchResponse, 0);
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         Stats stats = searchResponse.getAggregations().get("stats");
         assertThat(stats, notNullValue());
@@ -276,7 +277,7 @@ public class StatsIT extends AbstractNumericTestCase {
 
         assertShardExecutionState(searchResponse, 0);
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         Stats stats = searchResponse.getAggregations().get("stats");
         assertThat(stats, notNullValue());
@@ -300,7 +301,7 @@ public class StatsIT extends AbstractNumericTestCase {
 
         assertShardExecutionState(searchResponse, 0);
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         Stats stats = searchResponse.getAggregations().get("stats");
         assertThat(stats, notNullValue());
@@ -322,7 +323,7 @@ public class StatsIT extends AbstractNumericTestCase {
 
         assertShardExecutionState(searchResponse, 0);
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         Stats stats = searchResponse.getAggregations().get("stats");
         assertThat(stats, notNullValue());
@@ -346,7 +347,7 @@ public class StatsIT extends AbstractNumericTestCase {
 
         assertShardExecutionState(searchResponse, 0);
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         Stats stats = searchResponse.getAggregations().get("stats");
         assertThat(stats, notNullValue());
@@ -370,7 +371,7 @@ public class StatsIT extends AbstractNumericTestCase {
 
         assertShardExecutionState(searchResponse, 0);
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         Stats stats = searchResponse.getAggregations().get("stats");
         assertThat(stats, notNullValue());
@@ -392,7 +393,7 @@ public class StatsIT extends AbstractNumericTestCase {
 
         assertShardExecutionState(searchResponse, 0);
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         Stats stats = searchResponse.getAggregations().get("stats");
         assertThat(stats, notNullValue());
@@ -414,7 +415,7 @@ public class StatsIT extends AbstractNumericTestCase {
 
         assertShardExecutionState(searchResponse, 0);
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         Stats stats = searchResponse.getAggregations().get("stats");
         assertThat(stats, notNullValue());
@@ -440,7 +441,7 @@ public class StatsIT extends AbstractNumericTestCase {
 
         assertShardExecutionState(searchResponse, 0);
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         Stats stats = searchResponse.getAggregations().get("stats");
         assertThat(stats, notNullValue());

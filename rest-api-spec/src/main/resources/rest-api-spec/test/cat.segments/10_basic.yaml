@@ -26,8 +26,7 @@
 "Test cat segments output":
 
   - do:
-      cat.segments:
-        v: false
+      cat.segments: {}
 
   - match:
       $body: |
@@ -50,8 +49,7 @@
        cluster.health:
          wait_for_status: green
   - do:
-      cat.segments:
-        v: false
+      cat.segments: {}
   - match:
       $body: |
                  /^(index1 \s+ \d \s+ (p|r) \s+ \d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3} \s+ _\d (\s\d){3} \s+
@@ -81,8 +79,7 @@
 
 
   - do:
-      cat.segments:
-        v: false
+      cat.segments: {}
   - match:
       $body: |
                   /^(index(1|2) .+ \n?){2}$/
@@ -90,7 +87,6 @@
   - do:
       cat.segments:
         index: index2
-        v: false
   - match:
       $body: |
                   /^(index2 .+ \n?)$/
@@ -118,4 +114,3 @@
       catch: forbidden
       cat.segments:
         index: index1
-        v: false

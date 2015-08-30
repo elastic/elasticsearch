@@ -18,10 +18,9 @@
  */
 package org.elasticsearch.search.aggregations.metrics;
 
-import com.google.common.collect.Lists;
-
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
@@ -38,14 +37,9 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.global;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.percentileRanks;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.sameInstance;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.hamcrest.Matchers.*;
 
 /**
  *
@@ -82,7 +76,7 @@ public class TDigestPercentileRanksIT extends AbstractNumericTestCase {
     }
 
     private void assertConsistent(double[] pcts, PercentileRanks percentiles, long minValue, long maxValue) {
-        final List<Percentile> percentileList = Lists.newArrayList(percentiles);
+        final List<Percentile> percentileList = CollectionUtils.iterableAsArrayList(percentiles);
         assertEquals(pcts.length, percentileList.size());
         for (int i = 0; i < pcts.length; ++i) {
             final Percentile percentile = percentileList.get(i);
@@ -159,7 +153,7 @@ public class TDigestPercentileRanksIT extends AbstractNumericTestCase {
                         .percentiles(pcts))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         final PercentileRanks percentiles = searchResponse.getAggregations().get("percentile_ranks");
         assertConsistent(pcts, percentiles, minValue, maxValue);
@@ -177,7 +171,7 @@ public class TDigestPercentileRanksIT extends AbstractNumericTestCase {
                                 randomCompression(percentileRanks("percentile_ranks")).field("value").percentiles(pcts))).execute()
                 .actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         Global global = searchResponse.getAggregations().get("global");
         assertThat(global, notNullValue());
@@ -203,7 +197,7 @@ public class TDigestPercentileRanksIT extends AbstractNumericTestCase {
                         .percentiles(pcts))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         final PercentileRanks percentiles = searchResponse.getAggregations().get("percentile_ranks");
         assertConsistent(pcts, percentiles, minValue, maxValue);
@@ -220,7 +214,7 @@ public class TDigestPercentileRanksIT extends AbstractNumericTestCase {
                         .percentiles(pcts))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         final PercentileRanks percentiles = searchResponse.getAggregations().get("percentile_ranks");
         assertConsistent(pcts, percentiles, minValue, maxValue);
@@ -237,7 +231,7 @@ public class TDigestPercentileRanksIT extends AbstractNumericTestCase {
                         .percentiles(pcts))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         final PercentileRanks percentiles = searchResponse.getAggregations().get("percentile_ranks");
         assertConsistent(pcts, percentiles, minValue - 1, maxValue - 1);
@@ -257,7 +251,7 @@ public class TDigestPercentileRanksIT extends AbstractNumericTestCase {
                         .percentiles(pcts))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         final PercentileRanks percentiles = searchResponse.getAggregations().get("percentile_ranks");
         assertConsistent(pcts, percentiles, minValue - 1, maxValue - 1);
@@ -274,7 +268,7 @@ public class TDigestPercentileRanksIT extends AbstractNumericTestCase {
                         .percentiles(pcts))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         final PercentileRanks percentiles = searchResponse.getAggregations().get("percentile_ranks");
         assertConsistent(pcts, percentiles, minValues, maxValues);
@@ -291,7 +285,7 @@ public class TDigestPercentileRanksIT extends AbstractNumericTestCase {
                         .percentiles(pcts))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         final PercentileRanks percentiles = searchResponse.getAggregations().get("percentile_ranks");
         assertConsistent(pcts, percentiles, minValues - 1, maxValues - 1);
@@ -307,7 +301,7 @@ public class TDigestPercentileRanksIT extends AbstractNumericTestCase {
                         .percentiles(pcts))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         final PercentileRanks percentiles = searchResponse.getAggregations().get("percentile_ranks");
         assertConsistent(pcts, percentiles, -maxValues, -minValues);
@@ -327,7 +321,7 @@ public class TDigestPercentileRanksIT extends AbstractNumericTestCase {
                         .percentiles(pcts))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         final PercentileRanks percentiles = searchResponse.getAggregations().get("percentile_ranks");
         assertConsistent(pcts, percentiles, minValues - 1, maxValues - 1);
@@ -344,7 +338,7 @@ public class TDigestPercentileRanksIT extends AbstractNumericTestCase {
                         .percentiles(pcts))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         final PercentileRanks percentiles = searchResponse.getAggregations().get("percentile_ranks");
         assertConsistent(pcts, percentiles, minValue, maxValue);
@@ -364,7 +358,7 @@ public class TDigestPercentileRanksIT extends AbstractNumericTestCase {
                         .percentiles(pcts))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         final PercentileRanks percentiles = searchResponse.getAggregations().get("percentile_ranks");
         assertConsistent(pcts, percentiles, minValue - 1, maxValue - 1);
@@ -384,7 +378,7 @@ public class TDigestPercentileRanksIT extends AbstractNumericTestCase {
                         .percentiles(pcts))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         final PercentileRanks percentiles = searchResponse.getAggregations().get("percentile_ranks");
         assertConsistent(pcts, percentiles, minValue - 1, maxValue - 1);
@@ -401,7 +395,7 @@ public class TDigestPercentileRanksIT extends AbstractNumericTestCase {
                         .percentiles(pcts))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         final PercentileRanks percentiles = searchResponse.getAggregations().get("percentile_ranks");
         assertConsistent(pcts, percentiles, minValues, maxValues);
@@ -418,7 +412,7 @@ public class TDigestPercentileRanksIT extends AbstractNumericTestCase {
                         .percentiles(pcts))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         final PercentileRanks percentiles = searchResponse.getAggregations().get("percentile_ranks");
         assertConsistent(pcts, percentiles, minValues, maxValues);
@@ -439,7 +433,7 @@ public class TDigestPercentileRanksIT extends AbstractNumericTestCase {
                         .percentiles(pcts))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         final PercentileRanks percentiles = searchResponse.getAggregations().get("percentile_ranks");
         assertConsistent(pcts, percentiles, minValues - 1, maxValues - 1);
@@ -456,7 +450,7 @@ public class TDigestPercentileRanksIT extends AbstractNumericTestCase {
                             .order(Order.aggregation("percentile_ranks", "99", asc)))
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10);
 
         Histogram histo = searchResponse.getAggregations().get("histo");
         double previous = asc ? Double.NEGATIVE_INFINITY : Double.POSITIVE_INFINITY;

@@ -17,20 +17,24 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.cache.clear;
+package org.elasticsearch.search.fetch.innerhits;
 
-import org.elasticsearch.action.support.broadcast.BroadcastShardResponse;
-import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.search.internal.SubSearchContext;
 
-/**
- *
- */
-class ShardClearIndicesCacheResponse extends BroadcastShardResponse {
+public class InnerHitsSubSearchContext {
+    private final String name;
+    private final SubSearchContext subSearchContext;
 
-    ShardClearIndicesCacheResponse() {
+    public InnerHitsSubSearchContext(String name, SubSearchContext subSearchContext) {
+        this.name = name;
+        this.subSearchContext = subSearchContext;
     }
 
-    ShardClearIndicesCacheResponse(ShardId shardId) {
-        super(shardId);
+    public String getName() {
+        return name;
+    }
+
+    public SubSearchContext getSubSearchContext() {
+        return subSearchContext;
     }
 }

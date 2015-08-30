@@ -20,8 +20,6 @@
 package org.elasticsearch.search.sort;
 
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Lists;
-
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.QueryWrapperFilter;
 import org.apache.lucene.search.Sort;
@@ -44,6 +42,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.SubSearchContext;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -80,7 +79,7 @@ public class SortParseElement implements SearchParseElement {
     @Override
     public void parse(XContentParser parser, SearchContext context) throws Exception {
         XContentParser.Token token = parser.currentToken();
-        List<SortField> sortFields = Lists.newArrayListWithCapacity(2);
+        List<SortField> sortFields = new ArrayList<>(2);
         if (token == XContentParser.Token.START_ARRAY) {
             while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                 if (token == XContentParser.Token.START_OBJECT) {

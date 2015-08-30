@@ -31,16 +31,19 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.*;
+import org.elasticsearch.common.xcontent.StatusToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentBuilderString;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-import static com.google.common.collect.Lists.newArrayList;
 import static org.elasticsearch.action.admin.cluster.health.ClusterIndexHealth.readClusterIndexHealth;
 
 /**
@@ -152,7 +155,7 @@ public class ClusterHealthResponse extends ActionResponse implements Iterable<Cl
      * All the validation failures, including index level validation failures.
      */
     public List<String> getAllValidationFailures() {
-        List<String> allFailures = newArrayList(getValidationFailures());
+        List<String> allFailures = new ArrayList<>(getValidationFailures());
         for (ClusterIndexHealth indexHealth : indices.values()) {
             allFailures.addAll(indexHealth.getValidationFailures());
         }

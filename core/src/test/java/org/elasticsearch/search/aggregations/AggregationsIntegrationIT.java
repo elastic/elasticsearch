@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations;
 
-import com.google.common.collect.Lists;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
@@ -28,6 +27,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.test.ESIntegTestCase;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
@@ -45,7 +45,7 @@ public class AggregationsIntegrationIT extends ESIntegTestCase {
         assertAcked(prepareCreate("index").addMapping("type", "f", "type=string").get());
         ensureYellow("index");
         numDocs = randomIntBetween(1, 20);
-        List<IndexRequestBuilder> docs = Lists.newArrayList();
+        List<IndexRequestBuilder> docs = new ArrayList<>();
         for (int i = 0; i < numDocs; ++i) {
             docs.add(client().prepareIndex("index", "type").setSource("f", Integer.toString(i / 3)));
         }

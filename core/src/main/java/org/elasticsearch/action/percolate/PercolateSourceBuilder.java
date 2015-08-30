@@ -19,8 +19,6 @@
 
 package org.elasticsearch.action.percolate;
 
-import com.google.common.collect.Lists;
-
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.client.Requests;
@@ -38,6 +36,7 @@ import org.elasticsearch.search.sort.ScoreSortBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -99,7 +98,7 @@ public class PercolateSourceBuilder extends ToXContentToBytes {
      */
     public PercolateSourceBuilder addSort(SortBuilder sort) {
         if (sorts == null) {
-            sorts = Lists.newArrayList();
+            sorts = new ArrayList<>();
         }
         sorts.add(sort);
         return this;
@@ -127,7 +126,7 @@ public class PercolateSourceBuilder extends ToXContentToBytes {
      */
     public PercolateSourceBuilder addAggregation(AbstractAggregationBuilder aggregationBuilder) {
         if (aggregations == null) {
-            aggregations = Lists.newArrayList();
+            aggregations = new ArrayList<>();
         }
         aggregations.add(aggregationBuilder);
         return this;

@@ -35,11 +35,10 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.transport.TransportAddress;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-
-import static com.google.common.collect.Lists.newArrayList;
 
 /**
  * This class holds all {@link DiscoveryNode} in the cluster and provides convenience methods to
@@ -414,8 +413,8 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
      * Returns the changes comparing this nodes to the provided nodes.
      */
     public Delta delta(DiscoveryNodes other) {
-        List<DiscoveryNode> removed = newArrayList();
-        List<DiscoveryNode> added = newArrayList();
+        List<DiscoveryNode> removed = new ArrayList<>();
+        List<DiscoveryNode> added = new ArrayList<>();
         for (DiscoveryNode node : other) {
             if (!this.nodeExists(node.id())) {
                 removed.add(node);

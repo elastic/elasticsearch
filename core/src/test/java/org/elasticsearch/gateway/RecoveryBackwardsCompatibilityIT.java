@@ -19,7 +19,6 @@
 package org.elasticsearch.gateway;
 
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
-import org.elasticsearch.action.admin.indices.recovery.ShardRecoveryResponse;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -99,8 +98,7 @@ public class RecoveryBackwardsCompatibilityIT extends ESBackcompatTestCase {
         HashMap<String, String> map = new HashMap<>();
         map.put("details", "true");
         final ToXContent.Params params = new ToXContent.MapParams(map);
-        for (ShardRecoveryResponse response : recoveryResponse.shardResponses().get("test")) {
-            RecoveryState recoveryState = response.recoveryState();
+        for (RecoveryState recoveryState : recoveryResponse.shardRecoveryStates().get("test")) {
             final String recoverStateAsJSON = XContentHelper.toString(recoveryState, params);
             if (!recoveryState.getPrimary()) {
                 RecoveryState.Index index = recoveryState.getIndex();

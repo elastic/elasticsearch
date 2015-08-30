@@ -22,7 +22,6 @@ package org.elasticsearch.test.rest;
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.carrotsearch.randomizedtesting.annotations.TestGroup;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
-import com.google.common.collect.Lists;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
 import org.apache.lucene.util.LuceneTestCase.SuppressFsync;
@@ -68,6 +67,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.PathMatcher;
 import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
@@ -169,11 +169,11 @@ public abstract class ESRestTestCase extends ESIntegTestCase {
             enabled = false;
         }
         if (!enabled) {
-            return Lists.newArrayList();
+            return new ArrayList<>();
         }
         //parse tests only if rest test group is enabled, otherwise rest tests might not even be available on file system
         List<RestTestCandidate> restTestCandidates = collectTestCandidates(id, count);
-        List<Object[]> objects = Lists.newArrayList();
+        List<Object[]> objects = new ArrayList<>();
         for (RestTestCandidate restTestCandidate : restTestCandidates) {
             objects.add(new Object[]{restTestCandidate});
         }
@@ -181,7 +181,7 @@ public abstract class ESRestTestCase extends ESIntegTestCase {
     }
 
     private static List<RestTestCandidate> collectTestCandidates(int id, int count) throws RestTestParseException, IOException {
-        List<RestTestCandidate> testCandidates = Lists.newArrayList();
+        List<RestTestCandidate> testCandidates = new ArrayList<>();
         FileSystem fileSystem = getFileSystem();
         // don't make a try-with, getFileSystem returns null
         // ... and you can't close() the default filesystem
@@ -191,7 +191,7 @@ public abstract class ESRestTestCase extends ESIntegTestCase {
             RestTestSuiteParser restTestSuiteParser = new RestTestSuiteParser();
             //yaml suites are grouped by directory (effectively by api)
             for (String api : yamlSuites.keySet()) {
-                List<Path> yamlFiles = Lists.newArrayList(yamlSuites.get(api));
+                List<Path> yamlFiles = new ArrayList<>(yamlSuites.get(api));
                 for (Path yamlFile : yamlFiles) {
                     String key = api + yamlFile.getFileName().toString();
                     if (mustExecute(key, id, count)) {

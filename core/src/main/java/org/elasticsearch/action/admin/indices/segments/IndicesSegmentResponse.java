@@ -19,13 +19,11 @@
 
 package org.elasticsearch.action.admin.indices.segments;
 
-import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -35,6 +33,7 @@ import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.index.engine.Segment;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -50,7 +49,7 @@ public class IndicesSegmentResponse extends BroadcastResponse implements ToXCont
 
     }
 
-    IndicesSegmentResponse(ShardSegments[] shards, ClusterState clusterState, int totalShards, int successfulShards, int failedShards, List<ShardOperationFailedException> shardFailures) {
+    IndicesSegmentResponse(ShardSegments[] shards, int totalShards, int successfulShards, int failedShards, List<ShardOperationFailedException> shardFailures) {
         super(totalShards, successfulShards, failedShards, shardFailures);
         this.shards = shards;
     }
@@ -63,11 +62,11 @@ public class IndicesSegmentResponse extends BroadcastResponse implements ToXCont
 
         Set<String> indices = Sets.newHashSet();
         for (ShardSegments shard : shards) {
-            indices.add(shard.getIndex());
+            indices.add(shard.getShardRouting().getIndex());
         }
 
         for (String index : indices) {
-            List<ShardSegments> shards = Lists.newArrayList();
+            List<ShardSegments> shards = new ArrayList<>();
             for (ShardSegments shard : this.shards) {
                 if (shard.getShardRouting().index().equals(index)) {
                     shards.add(shard);

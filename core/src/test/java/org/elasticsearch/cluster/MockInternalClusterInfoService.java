@@ -63,9 +63,9 @@ public class MockInternalClusterInfoService extends InternalClusterInfoService {
                                           ClusterService clusterService, ThreadPool threadPool) {
         super(settings, nodeSettingsService, transportNodesStatsAction, transportIndicesStatsAction, clusterService, threadPool);
         this.clusterName = ClusterName.clusterNameFromSettings(settings);
-        stats[0] = MockDiskUsagesIT.makeStats("node_t1", new DiskUsage("node_t1", "n1", 100, 100));
-        stats[1] = MockDiskUsagesIT.makeStats("node_t2", new DiskUsage("node_t2", "n2", 100, 100));
-        stats[2] = MockDiskUsagesIT.makeStats("node_t3", new DiskUsage("node_t3", "n3", 100, 100));
+        stats[0] = MockDiskUsagesIT.makeStats("node_t1", new DiskUsage("node_t1", "n1", "_na_", 100, 100));
+        stats[1] = MockDiskUsagesIT.makeStats("node_t2", new DiskUsage("node_t2", "n2", "_na_", 100, 100));
+        stats[2] = MockDiskUsagesIT.makeStats("node_t3", new DiskUsage("node_t3", "n3", "_na_", 100, 100));
     }
 
     public void setN1Usage(String nodeName, DiskUsage newUsage) {

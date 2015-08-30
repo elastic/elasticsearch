@@ -129,10 +129,7 @@ public class ParentQuery extends IndexCacheableQuery {
 
         try {
             collector = new ParentOrdAndScoreCollector(sc, globalIfd, parentType);
-            IndexSearcher indexSearcher = new IndexSearcher(sc.searcher().getIndexReader());
-            indexSearcher.setSimilarity(searcher.getSimilarity(true));
-            indexSearcher.setQueryCache(null);
-            indexSearcher.search(parentQuery, collector);
+            searcher.search(parentQuery, collector);
             if (collector.parentCount() == 0) {
                 return new BooleanQuery().createWeight(searcher, needsScores);
             }

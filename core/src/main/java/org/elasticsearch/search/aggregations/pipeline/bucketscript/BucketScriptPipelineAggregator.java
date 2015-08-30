@@ -20,8 +20,6 @@
 package org.elasticsearch.search.aggregations.pipeline.bucketscript;
 
 import com.google.common.base.Function;
-import com.google.common.collect.Lists;
-
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.script.CompiledScript;
@@ -50,6 +48,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.common.util.CollectionUtils.eagerTransform;
 import static org.elasticsearch.search.aggregations.pipeline.BucketHelpers.resolveBucketValue;
 
 public class BucketScriptPipelineAggregator extends PipelineAggregator {
@@ -135,7 +134,7 @@ public class BucketScriptPipelineAggregator extends PipelineAggregator {
                         throw new AggregationExecutionException("series_arithmetic script for reducer [" + name()
                                 + "] must return a Number");
                     }
-                    List<InternalAggregation> aggs = new ArrayList<>(Lists.transform(bucket.getAggregations().asList(), FUNCTION));
+                    List<InternalAggregation> aggs = new ArrayList<>(eagerTransform(bucket.getAggregations().asList(), FUNCTION));
                     aggs.add(new InternalSimpleValue(name(), ((Number) returned).doubleValue(), formatter,
                             new ArrayList<PipelineAggregator>(), metaData()));
                     InternalMultiBucketAggregation.InternalBucket newBucket = originalAgg.createBucket(new InternalAggregations(aggs),

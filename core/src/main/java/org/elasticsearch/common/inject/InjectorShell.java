@@ -17,10 +17,23 @@
 package org.elasticsearch.common.inject;
 
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Lists;
-import org.elasticsearch.common.inject.internal.*;
-import org.elasticsearch.common.inject.spi.*;
+import org.elasticsearch.common.inject.internal.Errors;
+import org.elasticsearch.common.inject.internal.ErrorsException;
+import org.elasticsearch.common.inject.internal.InternalContext;
+import org.elasticsearch.common.inject.internal.InternalFactory;
+import org.elasticsearch.common.inject.internal.PrivateElementsImpl;
+import org.elasticsearch.common.inject.internal.ProviderInstanceBindingImpl;
+import org.elasticsearch.common.inject.internal.Scoping;
+import org.elasticsearch.common.inject.internal.SourceProvider;
+import org.elasticsearch.common.inject.internal.Stopwatch;
+import org.elasticsearch.common.inject.spi.Dependency;
+import org.elasticsearch.common.inject.spi.Element;
+import org.elasticsearch.common.inject.spi.Elements;
+import org.elasticsearch.common.inject.spi.InjectionPoint;
+import org.elasticsearch.common.inject.spi.PrivateElements;
+import org.elasticsearch.common.inject.spi.TypeListenerBinding;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.logging.Logger;
 
@@ -59,8 +72,8 @@ class InjectorShell {
     }
 
     static class Builder {
-        private final List<Element> elements = Lists.newArrayList();
-        private final List<Module> modules = Lists.newArrayList();
+        private final List<Element> elements = new ArrayList<>();
+        private final List<Module> modules = new ArrayList<>();
 
         /**
          * lazily constructed
@@ -148,7 +161,7 @@ class InjectorShell {
             bindingProcessor.process(injector, elements);
             stopwatch.resetAndLog("Binding creation");
 
-            List<InjectorShell> injectorShells = Lists.newArrayList();
+            List<InjectorShell> injectorShells = new ArrayList<>();
             injectorShells.add(new InjectorShell(this, elements, injector));
 
             // recursively build child shells

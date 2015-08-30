@@ -22,19 +22,25 @@ package org.elasticsearch.cluster.routing;
 import com.carrotsearch.hppc.ObjectIntHashMap;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.google.common.base.Predicate;
-import com.google.common.collect.*;
+import com.google.common.collect.Iterables;
+import com.google.common.collect.Iterators;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.index.shard.ShardId;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
-import static com.google.common.collect.Lists.newArrayList;
 import static com.google.common.collect.Maps.newHashMap;
 import static com.google.common.collect.Sets.newHashSet;
 
@@ -97,7 +103,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                     if (shard.assignedToNode()) {
                         List<ShardRouting> entries = nodesToShards.get(shard.currentNodeId());
                         if (entries == null) {
-                            entries = newArrayList();
+                            entries = new ArrayList<>();
                             nodesToShards.put(shard.currentNodeId(), entries);
                         }
                         final ShardRouting sr = getRouting(shard, readOnly);
@@ -107,7 +113,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                             entries = nodesToShards.get(shard.relocatingNodeId());
                             relocatingShards++;
                             if (entries == null) {
-                                entries = newArrayList();
+                                entries = new ArrayList<>();
                                 nodesToShards.put(shard.relocatingNodeId(), entries);
                             }
                             // add the counterpart shard with relocatingNodeId reflecting the source from which
@@ -285,7 +291,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
     }
 
     public List<ShardRouting> shards(Predicate<ShardRouting> predicate) {
-        List<ShardRouting> shards = newArrayList();
+        List<ShardRouting> shards = new ArrayList<>();
         for (RoutingNode routingNode : this) {
             for (ShardRouting shardRouting : routingNode) {
                 if (predicate.apply(shardRouting)) {
@@ -298,7 +304,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
 
     public List<ShardRouting> shardsWithState(ShardRoutingState... state) {
         // TODO these are used on tests only - move into utils class
-        List<ShardRouting> shards = newArrayList();
+        List<ShardRouting> shards = new ArrayList<>();
         for (RoutingNode routingNode : this) {
             shards.addAll(routingNode.shardsWithState(state));
         }
@@ -313,7 +319,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
 
     public List<ShardRouting> shardsWithState(String index, ShardRoutingState... state) {
         // TODO these are used on tests only - move into utils class
-        List<ShardRouting> shards = newArrayList();
+        List<ShardRouting> shards = new ArrayList<>();
         for (RoutingNode routingNode : this) {
             shards.addAll(routingNode.shardsWithState(index, state));
         }
@@ -452,7 +458,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         }
         List<ShardRouting> shards = assignedShards.get(shard.shardId());
         if (shards == null) {
-            shards = Lists.newArrayList();
+            shards = new ArrayList<>();
             assignedShards.put(shard.shardId(), shards);
         }
         assert  assertInstanceNotInList(shard, shards);
@@ -724,7 +730,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         }
         // Assert that the active shard routing are identical.
         Set<Map.Entry<String, Integer>> entries = indicesAndShards.entrySet();
-        final List<ShardRouting> shards = newArrayList();
+        final List<ShardRouting> shards = new ArrayList<>();
         for (Map.Entry<String, Integer> e : entries) {
             String index = e.getKey();
             for (int i = 0; i < e.getValue(); i++) {

@@ -20,7 +20,6 @@
 package org.elasticsearch.search.suggest.context;
 
 import com.carrotsearch.hppc.IntHashSet;
-import com.google.common.collect.Lists;
 import org.apache.lucene.analysis.PrefixAnalyzer.PrefixTokenFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.index.DocValuesType;
@@ -43,7 +42,13 @@ import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.Map;
 
 /**
  * The {@link GeolocationContextMapping} allows to take GeoInfomation into account
@@ -231,7 +236,7 @@ public class GeolocationContextMapping extends ContextMapping {
                 }
             } else {
                 // otherwise it's a list of locations
-                ArrayList<String> result = Lists.newArrayList();
+                ArrayList<String> result = new ArrayList<>();
                 while (token != Token.END_ARRAY) {
                     result.add(GeoUtils.parseGeoPoint(parser).geohash());
                     token = parser.nextToken(); //infinite loop without this line

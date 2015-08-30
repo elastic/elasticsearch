@@ -130,4 +130,10 @@ public interface Repository extends LifecycleComponent<Repository> {
      */
     void endVerification(String verificationToken);
 
+    /**
+     * Returns true if the repository supports only read operations
+     * @return true if the repository is read/only
+     */
+    boolean readOnly();
+
 }

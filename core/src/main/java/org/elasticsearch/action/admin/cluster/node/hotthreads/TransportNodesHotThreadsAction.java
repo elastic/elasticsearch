@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.cluster.node.hotthreads;
 
-import com.google.common.collect.Lists;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.BaseNodeRequest;
@@ -36,6 +35,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
@@ -54,7 +54,7 @@ public class TransportNodesHotThreadsAction extends TransportNodesAction<NodesHo
 
     @Override
     protected NodesHotThreadsResponse newResponse(NodesHotThreadsRequest request, AtomicReferenceArray responses) {
-        final List<NodeHotThreads> nodes = Lists.newArrayList();
+        final List<NodeHotThreads> nodes = new ArrayList<>();
         for (int i = 0; i < responses.length(); i++) {
             Object resp = responses.get(i);
             if (resp instanceof NodeHotThreads) {

@@ -20,7 +20,6 @@
 package org.elasticsearch.indices.recovery;
 
 import com.google.common.collect.Iterables;
-import com.google.common.collect.Lists;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
@@ -57,6 +56,7 @@ import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -558,7 +558,7 @@ public class RecoverySourceHandler {
         int ops = 0;
         long size = 0;
         int totalOperations = 0;
-        final List<Translog.Operation> operations = Lists.newArrayList();
+        final List<Translog.Operation> operations = new ArrayList<>();
         Translog.Operation operation;
         try {
             operation = snapshot.next(); // this ex should bubble up

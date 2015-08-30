@@ -27,7 +27,6 @@ import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRes
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
-import org.elasticsearch.action.admin.indices.recovery.ShardRecoveryResponse;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -54,7 +53,12 @@ import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.store.MockFSDirectoryService;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.transport.*;
+import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportRequestOptions;
+import org.elasticsearch.transport.TransportService;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -69,7 +73,13 @@ import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.ESIntegTestCase.Scope;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.arrayWithSize;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
 
 /**
  *
@@ -161,18 +171,17 @@ public class IndexRecoveryIT extends ESIntegTestCase {
 
         logger.info("--> request recoveries");
         RecoveryResponse response = client().admin().indices().prepareRecoveries(INDEX_NAME).execute().actionGet();
-        assertThat(response.shardResponses().size(), equalTo(SHARD_COUNT));
-        assertThat(response.shardResponses().get(INDEX_NAME).size(), equalTo(1));
+        assertThat(response.shardRecoveryStates().size(), equalTo(SHARD_COUNT));
+        assertThat(response.shardRecoveryStates().get(INDEX_NAME).size(), equalTo(1));
 
-        List<ShardRecoveryResponse> shardResponses = response.shardResponses().get(INDEX_NAME);
-        assertThat(shardResponses.size(), equalTo(1));
+        List<RecoveryState> recoveryStates = response.shardRecoveryStates().get(INDEX_NAME);
+        assertThat(recoveryStates.size(), equalTo(1));
 
-        ShardRecoveryResponse shardResponse = shardResponses.get(0);
-        RecoveryState state = shardResponse.recoveryState();
+        RecoveryState recoveryState = recoveryStates.get(0);
 
-        assertRecoveryState(state, 0, Type.STORE, Stage.DONE, node, node, false);
+        assertRecoveryState(recoveryState, 0, Type.STORE, Stage.DONE, node, node, false);
 
-        validateIndexRecoveryState(state.getIndex());
+        validateIndexRecoveryState(recoveryState.getIndex());
     }
 
     @Test
@@ -189,8 +198,8 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         logger.info("--> request recoveries");
         RecoveryResponse response = client().admin().indices().prepareRecoveries(INDEX_NAME).setActiveOnly(true).execute().actionGet();
 
-        List<ShardRecoveryResponse> shardResponses = response.shardResponses().get(INDEX_NAME);
-        assertThat(shardResponses.size(), equalTo(0));  // Should not expect any responses back
+        List<RecoveryState> recoveryStates = response.shardRecoveryStates().get(INDEX_NAME);
+        assertThat(recoveryStates.size(), equalTo(0));  // Should not expect any responses back
     }
 
     @Test
@@ -215,23 +224,23 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         RecoveryResponse response = client().admin().indices().prepareRecoveries(INDEX_NAME).execute().actionGet();
 
         // we should now have two total shards, one primary and one replica
-        List<ShardRecoveryResponse> shardResponses = response.shardResponses().get(INDEX_NAME);
-        assertThat(shardResponses.size(), equalTo(2));
+        List<RecoveryState> recoveryStates = response.shardRecoveryStates().get(INDEX_NAME);
+        assertThat(recoveryStates.size(), equalTo(2));
 
-        List<ShardRecoveryResponse> nodeAResponses = findRecoveriesForTargetNode(nodeA, shardResponses);
+        List<RecoveryState> nodeAResponses = findRecoveriesForTargetNode(nodeA, recoveryStates);
         assertThat(nodeAResponses.size(), equalTo(1));
-        List<ShardRecoveryResponse> nodeBResponses = findRecoveriesForTargetNode(nodeB, shardResponses);
+        List<RecoveryState> nodeBResponses = findRecoveriesForTargetNode(nodeB, recoveryStates);
         assertThat(nodeBResponses.size(), equalTo(1));
 
         // validate node A recovery
-        ShardRecoveryResponse nodeAShardResponse = nodeAResponses.get(0);
-        assertRecoveryState(nodeAShardResponse.recoveryState(), 0, Type.STORE, Stage.DONE, nodeA, nodeA, false);
-        validateIndexRecoveryState(nodeAShardResponse.recoveryState().getIndex());
+        RecoveryState nodeARecoveryState = nodeAResponses.get(0);
+        assertRecoveryState(nodeARecoveryState, 0, Type.STORE, Stage.DONE, nodeA, nodeA, false);
+        validateIndexRecoveryState(nodeARecoveryState.getIndex());
 
         // validate node B recovery
-        ShardRecoveryResponse nodeBShardResponse = nodeBResponses.get(0);
-        assertRecoveryState(nodeBShardResponse.recoveryState(), 0, Type.REPLICA, Stage.DONE, nodeA, nodeB, false);
-        validateIndexRecoveryState(nodeBShardResponse.recoveryState().getIndex());
+        RecoveryState nodeBRecoveryState = nodeBResponses.get(0);
+        assertRecoveryState(nodeBRecoveryState, 0, Type.REPLICA, Stage.DONE, nodeA, nodeB, false);
+        validateIndexRecoveryState(nodeBRecoveryState.getIndex());
     }
 
     @Test
@@ -272,17 +281,17 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         logger.info("--> request recoveries");
         RecoveryResponse response = client().admin().indices().prepareRecoveries(INDEX_NAME).execute().actionGet();
 
-        List<ShardRecoveryResponse> shardResponses = response.shardResponses().get(INDEX_NAME);
-        List<ShardRecoveryResponse> nodeAResponses = findRecoveriesForTargetNode(nodeA, shardResponses);
-        assertThat(nodeAResponses.size(), equalTo(1));
-        List<ShardRecoveryResponse> nodeBResponses = findRecoveriesForTargetNode(nodeB, shardResponses);
-        assertThat(nodeBResponses.size(), equalTo(1));
+        List<RecoveryState> recoveryStates = response.shardRecoveryStates().get(INDEX_NAME);
+        List<RecoveryState> nodeARecoveryStates = findRecoveriesForTargetNode(nodeA, recoveryStates);
+        assertThat(nodeARecoveryStates.size(), equalTo(1));
+        List<RecoveryState> nodeBRecoveryStates = findRecoveriesForTargetNode(nodeB, recoveryStates);
+        assertThat(nodeBRecoveryStates.size(), equalTo(1));
 
-        assertRecoveryState(nodeAResponses.get(0).recoveryState(), 0, Type.STORE, Stage.DONE, nodeA, nodeA, false);
-        validateIndexRecoveryState(nodeAResponses.get(0).recoveryState().getIndex());
+        assertRecoveryState(nodeARecoveryStates.get(0), 0, Type.STORE, Stage.DONE, nodeA, nodeA, false);
+        validateIndexRecoveryState(nodeARecoveryStates.get(0).getIndex());
 
-        assertOnGoingRecoveryState(nodeBResponses.get(0).recoveryState(), 0, Type.RELOCATION, nodeA, nodeB, false);
-        validateIndexRecoveryState(nodeBResponses.get(0).recoveryState().getIndex());
+        assertOnGoingRecoveryState(nodeBRecoveryStates.get(0), 0, Type.RELOCATION, nodeA, nodeB, false);
+        validateIndexRecoveryState(nodeBRecoveryStates.get(0).getIndex());
 
         logger.info("--> request node recovery stats");
         NodesStatsResponse statsResponse = client().admin().cluster().prepareNodesStats().clear().setIndices(new CommonStatsFlags(CommonStatsFlags.Flag.Recovery)).get();
@@ -331,11 +340,11 @@ public class IndexRecoveryIT extends ESIntegTestCase {
 
         response = client().admin().indices().prepareRecoveries(INDEX_NAME).execute().actionGet();
 
-        shardResponses = response.shardResponses().get(INDEX_NAME);
-        assertThat(shardResponses.size(), equalTo(1));
+        recoveryStates = response.shardRecoveryStates().get(INDEX_NAME);
+        assertThat(recoveryStates.size(), equalTo(1));
 
-        assertRecoveryState(shardResponses.get(0).recoveryState(), 0, Type.RELOCATION, Stage.DONE, nodeA, nodeB, false);
-        validateIndexRecoveryState(shardResponses.get(0).recoveryState().getIndex());
+        assertRecoveryState(recoveryStates.get(0), 0, Type.RELOCATION, Stage.DONE, nodeA, nodeB, false);
+        validateIndexRecoveryState(recoveryStates.get(0).getIndex());
 
         statsResponse = client().admin().cluster().prepareNodesStats().clear().setIndices(new CommonStatsFlags(CommonStatsFlags.Flag.Recovery)).get();
         assertThat(statsResponse.getNodes(), arrayWithSize(2));
@@ -383,45 +392,45 @@ public class IndexRecoveryIT extends ESIntegTestCase {
                 .execute().actionGet().getState();
 
         response = client().admin().indices().prepareRecoveries(INDEX_NAME).execute().actionGet();
-        shardResponses = response.shardResponses().get(INDEX_NAME);
+        recoveryStates = response.shardRecoveryStates().get(INDEX_NAME);
 
-        nodeAResponses = findRecoveriesForTargetNode(nodeA, shardResponses);
-        assertThat(nodeAResponses.size(), equalTo(1));
-        nodeBResponses = findRecoveriesForTargetNode(nodeB, shardResponses);
-        assertThat(nodeBResponses.size(), equalTo(1));
-        List<ShardRecoveryResponse> nodeCResponses = findRecoveriesForTargetNode(nodeC, shardResponses);
-        assertThat(nodeCResponses.size(), equalTo(1));
+        nodeARecoveryStates = findRecoveriesForTargetNode(nodeA, recoveryStates);
+        assertThat(nodeARecoveryStates.size(), equalTo(1));
+        nodeBRecoveryStates = findRecoveriesForTargetNode(nodeB, recoveryStates);
+        assertThat(nodeBRecoveryStates.size(), equalTo(1));
+        List<RecoveryState> nodeCRecoveryStates = findRecoveriesForTargetNode(nodeC, recoveryStates);
+        assertThat(nodeCRecoveryStates.size(), equalTo(1));
 
-        assertRecoveryState(nodeAResponses.get(0).recoveryState(), 0, Type.REPLICA, Stage.DONE, nodeB, nodeA, false);
-        validateIndexRecoveryState(nodeAResponses.get(0).recoveryState().getIndex());
+        assertRecoveryState(nodeARecoveryStates.get(0), 0, Type.REPLICA, Stage.DONE, nodeB, nodeA, false);
+        validateIndexRecoveryState(nodeARecoveryStates.get(0).getIndex());
 
-        assertRecoveryState(nodeBResponses.get(0).recoveryState(), 0, Type.RELOCATION, Stage.DONE, nodeA, nodeB, false);
-        validateIndexRecoveryState(nodeBResponses.get(0).recoveryState().getIndex());
+        assertRecoveryState(nodeBRecoveryStates.get(0), 0, Type.RELOCATION, Stage.DONE, nodeA, nodeB, false);
+        validateIndexRecoveryState(nodeBRecoveryStates.get(0).getIndex());
 
         // relocations of replicas are marked as REPLICA and the source node is the node holding the primary (B)
-        assertOnGoingRecoveryState(nodeCResponses.get(0).recoveryState(), 0, Type.REPLICA, nodeB, nodeC, false);
-        validateIndexRecoveryState(nodeCResponses.get(0).recoveryState().getIndex());
+        assertOnGoingRecoveryState(nodeCRecoveryStates.get(0), 0, Type.REPLICA, nodeB, nodeC, false);
+        validateIndexRecoveryState(nodeCRecoveryStates.get(0).getIndex());
 
         logger.info("--> speeding up recoveries");
         restoreRecoverySpeed();
         ensureGreen();
 
         response = client().admin().indices().prepareRecoveries(INDEX_NAME).execute().actionGet();
-        shardResponses = response.shardResponses().get(INDEX_NAME);
+        recoveryStates = response.shardRecoveryStates().get(INDEX_NAME);
 
-        nodeAResponses = findRecoveriesForTargetNode(nodeA, shardResponses);
-        assertThat(nodeAResponses.size(), equalTo(0));
-        nodeBResponses = findRecoveriesForTargetNode(nodeB, shardResponses);
-        assertThat(nodeBResponses.size(), equalTo(1));
-        nodeCResponses = findRecoveriesForTargetNode(nodeC, shardResponses);
-        assertThat(nodeCResponses.size(), equalTo(1));
+        nodeARecoveryStates = findRecoveriesForTargetNode(nodeA, recoveryStates);
+        assertThat(nodeARecoveryStates.size(), equalTo(0));
+        nodeBRecoveryStates = findRecoveriesForTargetNode(nodeB, recoveryStates);
+        assertThat(nodeBRecoveryStates.size(), equalTo(1));
+        nodeCRecoveryStates = findRecoveriesForTargetNode(nodeC, recoveryStates);
+        assertThat(nodeCRecoveryStates.size(), equalTo(1));
 
-        assertRecoveryState(nodeBResponses.get(0).recoveryState(), 0, Type.RELOCATION, Stage.DONE, nodeA, nodeB, false);
-        validateIndexRecoveryState(nodeBResponses.get(0).recoveryState().getIndex());
+        assertRecoveryState(nodeBRecoveryStates.get(0), 0, Type.RELOCATION, Stage.DONE, nodeA, nodeB, false);
+        validateIndexRecoveryState(nodeBRecoveryStates.get(0).getIndex());
 
         // relocations of replicas are marked as REPLICA and the source node is the node holding the primary (B)
-        assertRecoveryState(nodeCResponses.get(0).recoveryState(), 0, Type.REPLICA, Stage.DONE, nodeB, nodeC, false);
-        validateIndexRecoveryState(nodeCResponses.get(0).recoveryState().getIndex());
+        assertRecoveryState(nodeCRecoveryStates.get(0), 0, Type.REPLICA, Stage.DONE, nodeB, nodeC, false);
+        validateIndexRecoveryState(nodeCRecoveryStates.get(0).getIndex());
     }
 
     @Test
@@ -463,24 +472,24 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         logger.info("--> request recoveries");
         RecoveryResponse response = client().admin().indices().prepareRecoveries(INDEX_NAME).execute().actionGet();
 
-        for (Map.Entry<String, List<ShardRecoveryResponse>> shardRecoveryResponse : response.shardResponses().entrySet()) {
+        for (Map.Entry<String, List<RecoveryState>> indexRecoveryStates : response.shardRecoveryStates().entrySet()) {
 
-            assertThat(shardRecoveryResponse.getKey(), equalTo(INDEX_NAME));
-            List<ShardRecoveryResponse> shardRecoveryResponses = shardRecoveryResponse.getValue();
-            assertThat(shardRecoveryResponses.size(), equalTo(totalShards));
+            assertThat(indexRecoveryStates.getKey(), equalTo(INDEX_NAME));
+            List<RecoveryState> recoveryStates = indexRecoveryStates.getValue();
+            assertThat(recoveryStates.size(), equalTo(totalShards));
 
-            for (ShardRecoveryResponse shardResponse : shardRecoveryResponses) {
-                assertRecoveryState(shardResponse.recoveryState(), 0, Type.SNAPSHOT, Stage.DONE, null, nodeA, true);
-                validateIndexRecoveryState(shardResponse.recoveryState().getIndex());
+            for (RecoveryState recoveryState : recoveryStates) {
+                assertRecoveryState(recoveryState, 0, Type.SNAPSHOT, Stage.DONE, null, nodeA, true);
+                validateIndexRecoveryState(recoveryState.getIndex());
             }
         }
     }
 
-    private List<ShardRecoveryResponse> findRecoveriesForTargetNode(String nodeName, List<ShardRecoveryResponse> responses) {
-        List<ShardRecoveryResponse> nodeResponses = new ArrayList<>();
-        for (ShardRecoveryResponse response : responses) {
-            if (response.recoveryState().getTargetNode().getName().equals(nodeName)) {
-                nodeResponses.add(response);
+    private List<RecoveryState> findRecoveriesForTargetNode(String nodeName, List<RecoveryState> recoveryStates) {
+        List<RecoveryState> nodeResponses = new ArrayList<>();
+        for (RecoveryState recoveryState : recoveryStates) {
+            if (recoveryState.getTargetNode().getName().equals(nodeName)) {
+                nodeResponses.add(recoveryState);
             }
         }
         return nodeResponses;

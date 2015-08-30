@@ -100,33 +100,38 @@ class DocumentParser implements Closeable {
             context.reset(parser, new ParseContext.Document(), source);
 
             // will result in START_OBJECT
-            int countDownTokens = 0;
             XContentParser.Token token = parser.nextToken();
             if (token != XContentParser.Token.START_OBJECT) {
                 throw new MapperParsingException("Malformed content, must start with an object");
             }
+
             boolean emptyDoc = false;
-            token = parser.nextToken();
-            if (token == XContentParser.Token.END_OBJECT) {
-                // empty doc, we can handle it...
-                emptyDoc = true;
-            } else if (token != XContentParser.Token.FIELD_NAME) {
-                throw new MapperParsingException("Malformed content, after first object, either the type field or the actual properties should exist");
+            if (mapping.root.isEnabled()) {
+                token = parser.nextToken();
+                if (token == XContentParser.Token.END_OBJECT) {
+                    // empty doc, we can handle it...
+                    emptyDoc = true;
+                } else if (token != XContentParser.Token.FIELD_NAME) {
+                    throw new MapperParsingException("Malformed content, after first object, either the type field or the actual properties should exist");
+                }
             }
 
             for (MetadataFieldMapper metadataMapper : mapping.metadataMappers) {
                 metadataMapper.preParse(context);
             }
 
-            if (!emptyDoc) {
+            if (mapping.root.isEnabled() == false) {
+                // entire type is disabled
+                parser.skipChildren();
+            } else if (emptyDoc == false) {
                 Mapper update = parseObject(context, mapping.root);
                 if (update != null) {
                     context.addDynamicMappingsUpdate(update);
                 }
             }
 
-            for (int i = 0; i < countDownTokens; i++) {
-                parser.nextToken();
+            for (MetadataFieldMapper metadataMapper : mapping.metadataMappers) {
+                metadataMapper.postParse(context);
             }
 
             // try to parse the next token, this should be null if the object is ended properly
@@ -135,12 +140,11 @@ class DocumentParser implements Closeable {
                 && source.parser() == null && parser != null) {
                 // only check for end of tokens if we created the parser here
                 token = parser.nextToken();
-                assert token == null; // double check, in tests, that we didn't end parsing early
+                if (token != null) {
+                    throw new IllegalArgumentException("Malformed content, found extra data after parsing: " + token);
+                }
             }
 
-            for (MetadataFieldMapper metadataMapper : mapping.metadataMappers) {
-                metadataMapper.postParse(context);
-            }
         } catch (Throwable e) {
             // if its already a mapper parsing exception, no need to wrap it...
             if (e instanceof MapperParsingException) {

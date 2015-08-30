@@ -17,7 +17,6 @@
 package org.elasticsearch.common.inject;
 
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Lists;
 import org.elasticsearch.common.inject.internal.Errors;
 import org.elasticsearch.common.inject.internal.ErrorsException;
 import org.elasticsearch.common.inject.internal.InternalContext;
@@ -25,6 +24,7 @@ import org.elasticsearch.common.inject.spi.InjectionPoint;
 import org.elasticsearch.common.inject.spi.InjectionRequest;
 import org.elasticsearch.common.inject.spi.StaticInjectionRequest;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
@@ -37,7 +37,7 @@ import java.util.Set;
  */
 class InjectionRequestProcessor extends AbstractProcessor {
 
-    private final List<StaticInjection> staticInjections = Lists.newArrayList();
+    private final List<StaticInjection> staticInjections = new ArrayList<>();
     private final Initializer initializer;
 
     InjectionRequestProcessor(Errors errors, Initializer initializer) {

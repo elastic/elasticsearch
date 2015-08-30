@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.action.admin.indices.warmer.delete;
 
-import com.google.common.collect.Lists;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
@@ -39,6 +38,7 @@ import org.elasticsearch.search.warmer.IndexWarmersMetaData;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
@@ -92,6 +92,14 @@ public class TransportDeleteWarmerAction extends TransportMasterNodeAction<Delet
                 MetaData.Builder mdBuilder = MetaData.builder(currentState.metaData());
 
                 boolean globalFoundAtLeastOne = false;
+                boolean deleteAll = false;
+                for (int i=0; i<request.names().length; i++){
+                    if (request.names()[i].equals(MetaData.ALL)) {
+                        deleteAll = true;
+                        break;
+                    }
+                }
+
                 for (String index : concreteIndices) {
                     IndexMetaData indexMetaData = currentState.metaData().index(index);
                     if (indexMetaData == null) {
@@ -99,11 +107,11 @@ public class TransportDeleteWarmerAction extends TransportMasterNodeAction<Delet
                     }
                     IndexWarmersMetaData warmers = indexMetaData.custom(IndexWarmersMetaData.TYPE);
                     if (warmers != null) {
-                        List<IndexWarmersMetaData.Entry> entries = Lists.newArrayList();
+                        List<IndexWarmersMetaData.Entry> entries = new ArrayList<>();
                         for (IndexWarmersMetaData.Entry entry : warmers.entries()) {
                             boolean keepWarmer = true;
                             for (String warmer : request.names()) {
-                                if (Regex.simpleMatch(warmer, entry.name()) || warmer.equals("_all")) {
+                                if (Regex.simpleMatch(warmer, entry.name()) || warmer.equals(MetaData.ALL)) {
                                     globalFoundAtLeastOne = true;
                                     keepWarmer =  false;
                                     // don't add it...
@@ -123,7 +131,7 @@ public class TransportDeleteWarmerAction extends TransportMasterNodeAction<Delet
                     }
                 }
 
-                if (!globalFoundAtLeastOne) {
+                if (globalFoundAtLeastOne == false && deleteAll == false) {
                     throw new IndexWarmerMissingException(request.names());
                 }
 
@@ -137,11 +145,13 @@ public class TransportDeleteWarmerAction extends TransportMasterNodeAction<Delet
                         if (warmers != null) {
                             for (IndexWarmersMetaData.Entry entry : warmers.entries()) {
                                 for (String warmer : request.names()) {
-                                    if (Regex.simpleMatch(warmer, entry.name()) || warmer.equals("_all")) {
+                                    if (Regex.simpleMatch(warmer, entry.name()) || warmer.equals(MetaData.ALL)) {
                                         logger.info("[{}] delete warmer [{}]", index, entry.name());
                                     }
                                 }
                             }
+                        } else if(deleteAll){
+                            logger.debug("no warmers to delete on index [{}]", index);
                         }
                     }
                 }

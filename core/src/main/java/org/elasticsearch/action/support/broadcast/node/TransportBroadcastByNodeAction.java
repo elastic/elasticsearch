@@ -41,7 +41,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardsIterator;
-import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -410,13 +409,11 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
         protected NodeRequest() {
         }
 
-        @SuppressForbidden(reason = "debug")
         public NodeRequest(String nodeId, Request request, List<ShardRouting> shards) {
             super(request);
             this.indicesLevelRequest = request;
             this.shards = shards;
             this.nodeId = nodeId;
-            System.out.println(TransportBroadcastByNodeAction.this.getClass().getName());
         }
 
         public List<ShardRouting> getShards() {

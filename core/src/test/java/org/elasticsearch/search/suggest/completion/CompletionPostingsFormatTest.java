@@ -19,8 +19,6 @@
 
 package org.elasticsearch.search.suggest.completion;
 
-import com.google.common.collect.Lists;
-
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.FieldsConsumer;
@@ -89,7 +87,7 @@ public class CompletionPostingsFormatTest extends ESTestCase {
     public void testCompletionPostingsFormat() throws IOException {
         AnalyzingCompletionLookupProviderV1 providerV1 = new AnalyzingCompletionLookupProviderV1(true, false, true, true);
         AnalyzingCompletionLookupProvider currentProvider = new AnalyzingCompletionLookupProvider(true, false, true, true);
-        List<Completion090PostingsFormat.CompletionLookupProvider> providers = Lists.newArrayList(providerV1, currentProvider);
+        List<Completion090PostingsFormat.CompletionLookupProvider> providers = Arrays.asList(providerV1, currentProvider);
 
         Completion090PostingsFormat.CompletionLookupProvider randomProvider = providers.get(getRandom().nextInt(providers.size()));
         RAMDirectory dir = new RAMDirectory();

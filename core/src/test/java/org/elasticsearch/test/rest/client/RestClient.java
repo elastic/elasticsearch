@@ -19,10 +19,8 @@
 package org.elasticsearch.test.rest.client;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
-import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
-
 import org.apache.http.config.Registry;
 import org.apache.http.config.RegistryBuilder;
 import org.apache.http.conn.socket.ConnectionSocketFactory;
@@ -46,6 +44,7 @@ import org.elasticsearch.test.rest.client.http.HttpResponse;
 import org.elasticsearch.test.rest.spec.RestApi;
 import org.elasticsearch.test.rest.spec.RestSpec;
 
+import javax.net.ssl.SSLContext;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
@@ -57,12 +56,11 @@ import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.cert.CertificateException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-
-import javax.net.ssl.SSLContext;
 
 /**
  * REST client used to test the elasticsearch REST layer
@@ -136,7 +134,7 @@ public class RestClient implements Closeable {
      */
     public RestResponse callApi(String apiName, Map<String, String> params, String body) throws IOException, RestException {
 
-        List<Integer> ignores = Lists.newArrayList();
+        List<Integer> ignores = new ArrayList<>();
         Map<String, String> requestParams = null;
         if (params != null) {
             //makes a copy of the parameters before modifying them for this specific request

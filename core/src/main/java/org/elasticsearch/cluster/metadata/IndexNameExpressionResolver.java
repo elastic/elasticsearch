@@ -40,10 +40,17 @@ import org.joda.time.DateTimeZone;
 import org.joda.time.format.DateTimeFormat;
 import org.joda.time.format.DateTimeFormatter;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Callable;
 
-import static com.google.common.collect.Lists.newArrayList;
 import static com.google.common.collect.Maps.filterEntries;
 import static com.google.common.collect.Maps.newHashMap;
 
@@ -267,7 +274,7 @@ public class IndexNameExpressionResolver extends AbstractComponent {
                 if (filteringRequired) {
                     // If filtering required - add it to the list of filters
                     if (filteringAliases == null) {
-                        filteringAliases = newArrayList();
+                        filteringAliases = new ArrayList<>();
                     }
                     filteringAliases.add(alias);
                 } else {

@@ -20,7 +20,6 @@
 package org.elasticsearch.search.aggregations.pipeline.serialdiff;
 
 import com.google.common.collect.EvictingQueue;
-import com.google.common.collect.Lists;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -29,7 +28,10 @@ import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
-import org.elasticsearch.search.aggregations.pipeline.*;
+import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValue;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorFactory;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorStreams;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
 
@@ -38,8 +40,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.search.aggregations.pipeline.BucketHelpers.resolveBucketValue;
+import static org.elasticsearch.common.util.CollectionUtils.eagerTransform;
 import static org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
+import static org.elasticsearch.search.aggregations.pipeline.BucketHelpers.resolveBucketValue;
 
 public class SerialDiffPipelineAggregator extends PipelineAggregator {
 
@@ -111,7 +114,7 @@ public class SerialDiffPipelineAggregator extends PipelineAggregator {
             if (!Double.isNaN(thisBucketValue) && !Double.isNaN(lagValue)) {
                 double diff = thisBucketValue - lagValue;
 
-                List<InternalAggregation> aggs = new ArrayList<>(Lists.transform(bucket.getAggregations().asList(), AGGREGATION_TRANFORM_FUNCTION));
+                List<InternalAggregation> aggs = new ArrayList<>(eagerTransform(bucket.getAggregations().asList(), AGGREGATION_TRANFORM_FUNCTION));
                 aggs.add(new InternalSimpleValue(name(), diff, formatter, new ArrayList<PipelineAggregator>(), metaData()));
                 newBucket = factory.createBucket(bucket.getKey(), bucket.getDocCount(), new InternalAggregations(
                         aggs), bucket.getKeyed(), bucket.getFormatter());

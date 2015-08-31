@@ -19,13 +19,13 @@
 
 package org.elasticsearch.search.aggregations.bucket.range;
 
-import com.google.common.collect.Lists;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilderException;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -61,7 +61,7 @@ public abstract class AbstractRangeBuilder<B extends AbstractRangeBuilder<B>> ex
         }
     }
 
-    protected List<Range> ranges = Lists.newArrayList();
+    protected List<Range> ranges = new ArrayList<>();
 
     protected AbstractRangeBuilder(String name, String type) {
         super(name, type);

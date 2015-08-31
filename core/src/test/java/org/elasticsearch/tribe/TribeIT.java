@@ -41,7 +41,7 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.test.SettingsSource;
+import org.elasticsearch.test.NodeConfigurationSource;
 import org.elasticsearch.test.TestCluster;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -50,7 +50,6 @@ import org.junit.Test;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -76,20 +75,8 @@ public class TribeIT extends ESIntegTestCase {
     @BeforeClass
     public static void setupSecondCluster() throws Exception {
         ESIntegTestCase.beforeClass();
-        SettingsSource source = new SettingsSource() {
-            @Override
-            public Settings node(int nodeOrdinal) {
-                final int base = InternalTestCluster.BASE_PORT + 1000;
-                return Settings.builder().put("transport.tcp.port", base + "-" + (base + 100)).build();
-            }
-
-            @Override
-            public Settings transportClient() {
-                return node(0);
-            }
-        };
-        // create another cluster
-        cluster2 = new InternalTestCluster(InternalTestCluster.configuredNodeMode(), randomLong(), createTempDir(), 2, 2, Strings.randomBase64UUID(getRandom()), source, 0, false, SECOND_CLUSTER_NODE_PREFIX);
+        cluster2 = new InternalTestCluster(InternalTestCluster.configuredNodeMode(), randomLong(), createTempDir(), 2, 2,
+                Strings.randomBase64UUID(getRandom()), NodeConfigurationSource.EMPTY, 0, false, SECOND_CLUSTER_NODE_PREFIX);
 
         cluster2.beforeTest(getRandom(), 0.1);
         cluster2.ensureAtLeastNumDataNodes(2);

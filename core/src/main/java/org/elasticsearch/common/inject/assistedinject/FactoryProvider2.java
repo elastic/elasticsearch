@@ -18,8 +18,17 @@ package org.elasticsearch.common.inject.assistedinject;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
-import com.google.common.collect.Lists;
-import org.elasticsearch.common.inject.*;
+import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.inject.Binder;
+import org.elasticsearch.common.inject.Binding;
+import org.elasticsearch.common.inject.ConfigurationException;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.inject.Injector;
+import org.elasticsearch.common.inject.Key;
+import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.inject.Provider;
+import org.elasticsearch.common.inject.ProvisionException;
+import org.elasticsearch.common.inject.TypeLiteral;
 import org.elasticsearch.common.inject.internal.Errors;
 import org.elasticsearch.common.inject.internal.ErrorsException;
 import org.elasticsearch.common.inject.spi.Message;
@@ -29,6 +38,7 @@ import java.lang.annotation.Annotation;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -118,7 +128,7 @@ final class FactoryProvider2<F> implements InvocationHandler, Provider<F> {
                 List<TypeLiteral<?>> params = factoryType.getParameterTypes(method);
                 Annotation[][] paramAnnotations = method.getParameterAnnotations();
                 int p = 0;
-                List<Key<?>> keys = Lists.newArrayList();
+                List<Key<?>> keys = new ArrayList<>();
                 for (TypeLiteral<?> param : params) {
                     Key<?> paramKey = getKey(param, method, paramAnnotations[p++], errors);
                     keys.add(assistKey(method, paramKey, errors));

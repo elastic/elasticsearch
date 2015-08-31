@@ -16,12 +16,12 @@
 
 package org.elasticsearch.common.inject;
 
-import com.google.common.collect.Lists;
 import org.elasticsearch.common.inject.internal.Errors;
 import org.elasticsearch.common.inject.spi.InjectionListener;
 import org.elasticsearch.common.inject.spi.Message;
 import org.elasticsearch.common.inject.spi.TypeEncounter;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
@@ -64,7 +64,7 @@ final class EncounterImpl<T> implements TypeEncounter<T> {
         checkState(valid, "Encounters may not be used after hear() returns.");
 
         if (membersInjectors == null) {
-            membersInjectors = Lists.newArrayList();
+            membersInjectors = new ArrayList<>();
         }
 
         membersInjectors.add(membersInjector);
@@ -75,7 +75,7 @@ final class EncounterImpl<T> implements TypeEncounter<T> {
         checkState(valid, "Encounters may not be used after hear() returns.");
 
         if (injectionListeners == null) {
-            injectionListeners = Lists.newArrayList();
+            injectionListeners = new ArrayList<>();
         }
 
         injectionListeners.add(injectionListener);

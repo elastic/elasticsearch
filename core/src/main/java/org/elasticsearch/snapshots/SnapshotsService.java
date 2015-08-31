@@ -24,10 +24,21 @@ import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.cluster.*;
+import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.ProcessedClusterStateUpdateTask;
+import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress.ShardSnapshotStatus;
 import org.elasticsearch.cluster.SnapshotsInProgress.State;
-import org.elasticsearch.cluster.metadata.*;
+import org.elasticsearch.cluster.TimeoutClusterStateUpdateTask;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.RepositoriesMetaData;
+import org.elasticsearch.cluster.metadata.SnapshotId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -50,10 +61,15 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 
-import static com.google.common.collect.Lists.newArrayList;
 import static com.google.common.collect.Sets.newHashSet;
 import static org.elasticsearch.cluster.SnapshotsInProgress.completed;
 
@@ -133,7 +149,7 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
         for (SnapshotId snapshotId : snapshotIds) {
             snapshotSet.add(repository.readSnapshot(snapshotId));
         }
-        ArrayList<Snapshot> snapshotList = newArrayList(snapshotSet);
+        ArrayList<Snapshot> snapshotList = new ArrayList<>(snapshotSet);
         CollectionUtil.timSort(snapshotList);
         return Collections.unmodifiableList(snapshotList);
     }
@@ -145,7 +161,7 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
      * @return list of snapshots
      */
     public List<Snapshot> currentSnapshots(String repositoryName) {
-        List<Snapshot> snapshotList = newArrayList();
+        List<Snapshot> snapshotList = new ArrayList<>();
         List<SnapshotsInProgress.Entry> entries = currentSnapshots(repositoryName, null);
         for (SnapshotsInProgress.Entry entry : entries) {
             snapshotList.add(inProgressSnapshot(entry));
@@ -523,7 +539,7 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
                         return currentState;
                     }
                     boolean changed = false;
-                    ArrayList<SnapshotsInProgress.Entry> entries = newArrayList();
+                    ArrayList<SnapshotsInProgress.Entry> entries = new ArrayList<>();
                     for (final SnapshotsInProgress.Entry snapshot : snapshots.entries()) {
                         SnapshotsInProgress.Entry updatedSnapshot = snapshot;
                         boolean snapshotChanged = false;
@@ -595,7 +611,7 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
                     SnapshotsInProgress snapshots = currentState.custom(SnapshotsInProgress.TYPE);
                     if (snapshots != null) {
                         boolean changed = false;
-                        ArrayList<SnapshotsInProgress.Entry> entries = newArrayList();
+                        ArrayList<SnapshotsInProgress.Entry> entries = new ArrayList<>();
                         for (final SnapshotsInProgress.Entry snapshot : snapshots.entries()) {
                             SnapshotsInProgress.Entry updatedSnapshot = snapshot;
                             if (snapshot.state() == State.STARTED) {
@@ -762,8 +778,8 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
                 try {
                     final Repository repository = repositoriesService.repository(snapshotId.getRepository());
                     logger.trace("[{}] finalizing snapshot in repository, state: [{}], failure[{}]", snapshotId, entry.state(), failure);
-                    ArrayList<ShardSearchFailure> failures = newArrayList();
-                    ArrayList<SnapshotShardFailure> shardFailures = newArrayList();
+                    ArrayList<ShardSearchFailure> failures = new ArrayList<>();
+                    ArrayList<SnapshotShardFailure> shardFailures = new ArrayList<>();
                     for (Map.Entry<ShardId, ShardSnapshotStatus> shardStatus : entry.shards().entrySet()) {
                         ShardId shardId = shardStatus.getKey();
                         ShardSnapshotStatus status = shardStatus.getValue();
@@ -796,7 +812,7 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
                 SnapshotsInProgress snapshots = currentState.custom(SnapshotsInProgress.TYPE);
                 if (snapshots != null) {
                     boolean changed = false;
-                    ArrayList<SnapshotsInProgress.Entry> entries = newArrayList();
+                    ArrayList<SnapshotsInProgress.Entry> entries = new ArrayList<>();
                     for (SnapshotsInProgress.Entry entry : snapshots.entries()) {
                         if (entry.snapshotId().equals(snapshotId)) {
                             changed = true;

@@ -42,12 +42,11 @@ import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReferenceArray;
-
-import static com.google.common.collect.Lists.newArrayList;
 
 /**
  * Get the dfs only with no fetch phase. This is for internal use only.
@@ -115,7 +114,7 @@ public class TransportDfsOnlyAction extends TransportBroadcastAction<DfsOnlyRequ
             } else if (shardResponse instanceof BroadcastShardOperationFailedException) {
                 failedShards++;
                 if (shardFailures == null) {
-                    shardFailures = newArrayList();
+                    shardFailures = new ArrayList<>();
                 }
                 shardFailures.add(new DefaultShardOperationFailedException((BroadcastShardOperationFailedException) shardResponse));
             } else {

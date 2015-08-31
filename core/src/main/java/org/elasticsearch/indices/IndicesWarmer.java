@@ -19,7 +19,6 @@
 
 package org.elasticsearch.indices;
 
-import com.google.common.collect.Lists;
 import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -29,10 +28,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
@@ -100,7 +100,7 @@ public final class IndicesWarmer extends AbstractComponent {
         }
         indexShard.warmerService().onPreWarm();
         long time = System.nanoTime();
-        final List<TerminationHandle> terminationHandles = Lists.newArrayList();
+        final List<TerminationHandle> terminationHandles = new ArrayList<>();
         // get a handle on pending tasks
         for (final Listener listener : listeners) {
             if (topReader) {

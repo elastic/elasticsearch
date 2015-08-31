@@ -78,10 +78,10 @@ public class AzureComputeServiceSimpleMock extends AzureComputeServiceAbstractMo
         endpoint.setName("elasticsearch");
         endpoint.setVirtualIPAddress(InetAddress.getLoopbackAddress());
         endpoint.setPort(9400);
-        instance.setInstanceEndpoints(CollectionUtils.newArrayList(endpoint));
+        instance.setInstanceEndpoints(CollectionUtils.newSingletonArrayList(endpoint));
 
-        deployment.setRoleInstances(CollectionUtils.newArrayList(instance));
-        response.setDeployments(CollectionUtils.newArrayList(deployment));
+        deployment.setRoleInstances(CollectionUtils.newSingletonArrayList(instance));
+        response.setDeployments(CollectionUtils.newSingletonArrayList(deployment));
 
         return response;
     }

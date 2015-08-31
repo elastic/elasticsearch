@@ -23,7 +23,11 @@ import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.xcontent.*;
+import org.elasticsearch.common.xcontent.FromXContentBuilder;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentBuilderString;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 
 import java.io.IOException;
@@ -33,7 +37,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import static com.google.common.collect.Lists.newArrayList;
 import static com.google.common.collect.Maps.newHashMap;
 
 /**
@@ -69,7 +72,7 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
             for (FileInfo fileInfo : snapshot.indexFiles()) {
                 List<FileInfo> physicalFileList = physicalFiles.get(fileInfo.physicalName());
                 if (physicalFileList == null) {
-                    physicalFileList = newArrayList();
+                    physicalFileList = new ArrayList<>();
                     physicalFiles.put(fileInfo.physicalName(), physicalFileList);
                 }
                 physicalFileList.add(newFiles.get(fileInfo.name()));
@@ -91,7 +94,7 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
             for (FileInfo fileInfo : snapshot.indexFiles()) {
                 List<FileInfo> physicalFileList = physicalFiles.get(fileInfo.physicalName());
                 if (physicalFileList == null) {
-                    physicalFileList = newArrayList();
+                    physicalFileList = new ArrayList<>();
                     physicalFiles.put(fileInfo.physicalName(), physicalFileList);
                 }
                 physicalFileList.add(files.get(fileInfo.name()));
@@ -270,7 +273,7 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
                                     if (parseFieldMatcher.match(currentFieldName, ParseFields.FILES) == false) {
                                         throw new ElasticsearchParseException("unknown array [{}]", currentFieldName);
                                     }
-                                    List<String> fileNames = newArrayList();
+                                    List<String> fileNames = new ArrayList<>();
                                     while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
                                         fileNames.add(parser.text());
                                     }

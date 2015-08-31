@@ -24,6 +24,8 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.store.IndexStoreModule;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Arrays;
+
 public class PluginsServiceTests extends ESTestCase {
     public static class AdditionalSettingsPlugin1 extends Plugin {
         @Override
@@ -54,13 +56,16 @@ public class PluginsServiceTests extends ESTestCase {
         }
     }
 
+    static PluginsService newPluginsService(Settings settings, Class<? extends Plugin>... classpathPlugins) {
+        return new PluginsService(settings, new Environment(settings), Arrays.asList(classpathPlugins));
+    }
+
     public void testAdditionalSettings() {
         Settings settings = Settings.builder()
             .put("path.home", createTempDir())
             .put("my.setting", "test")
-            .put(IndexStoreModule.STORE_TYPE, IndexStoreModule.Type.SIMPLEFS.getSettingsKey())
-            .putArray("plugin.types", AdditionalSettingsPlugin1.class.getName()).build();
-        PluginsService service = new PluginsService(settings, new Environment(settings));
+            .put(IndexStoreModule.STORE_TYPE, IndexStoreModule.Type.SIMPLEFS.getSettingsKey()).build();
+        PluginsService service = newPluginsService(settings, AdditionalSettingsPlugin1.class);
         Settings newSettings = service.updatedSettings();
         assertEquals("test", newSettings.get("my.setting")); // previous settings still exist
         assertEquals("1", newSettings.get("foo.bar")); // added setting exists
@@ -69,9 +74,8 @@ public class PluginsServiceTests extends ESTestCase {
 
     public void testAdditionalSettingsClash() {
         Settings settings = Settings.builder()
-            .put("path.home", createTempDir())
-            .putArray("plugin.types", AdditionalSettingsPlugin1.class.getName(), AdditionalSettingsPlugin2.class.getName()).build();
-        PluginsService service = new PluginsService(settings, new Environment(settings));
+            .put("path.home", createTempDir()).build();
+        PluginsService service = newPluginsService(settings, AdditionalSettingsPlugin1.class, AdditionalSettingsPlugin2.class);
         try {
             service.updatedSettings();
             fail("Expected exception when building updated settings");

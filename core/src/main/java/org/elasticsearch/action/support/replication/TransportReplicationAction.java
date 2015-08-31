@@ -142,7 +142,9 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
         return state.blocks().indexBlockedException(ClusterBlockLevel.WRITE, request.concreteIndex());
     }
 
-    protected abstract boolean resolveIndex();
+    protected boolean resolveIndex() {
+        return true;
+    }
 
     /**
      * Resolves the request, by default doing nothing. Can be subclassed to do
@@ -211,8 +213,6 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
     class OperationTransportHandler implements TransportRequestHandler<Request> {
         @Override
         public void messageReceived(final Request request, final TransportChannel channel) throws Exception {
-            // if we have a local operation, execute it on a thread since we don't spawn
-            request.operationThreaded(true);
             execute(request, new ActionListener<Response>() {
                 @Override
                 public void onResponse(Response result) {
@@ -440,21 +440,17 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
         protected void routeRequestOrPerformLocally(final ShardRouting primary, final ShardIterator shardsIt) {
             if (primary.currentNodeId().equals(observer.observedState().nodes().localNodeId())) {
                 try {
-                    if (internalRequest.request().operationThreaded()) {
-                        threadPool.executor(executor).execute(new AbstractRunnable() {
-                            @Override
-                            public void onFailure(Throwable t) {
-                                finishAsFailed(t);
-                            }
+                    threadPool.executor(executor).execute(new AbstractRunnable() {
+                        @Override
+                        public void onFailure(Throwable t) {
+                            finishAsFailed(t);
+                        }
 
-                            @Override
-                            protected void doRun() throws Exception {
-                                performOnPrimary(primary, shardsIt);
-                            }
-                        });
-                    } else {
-                        performOnPrimary(primary, shardsIt);
-                    }
+                        @Override
+                        protected void doRun() throws Exception {
+                            performOnPrimary(primary, shardsIt);
+                        }
+                    });
                 } catch (Throwable t) {
                     finishAsFailed(t);
                 }
@@ -506,9 +502,6 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                 finishAsFailed(failure);
                 return;
             }
-            // make it threaded operation so we fork on the discovery listener thread
-            internalRequest.request().operationThreaded(true);
-
             observer.waitForNextChange(new ClusterStateObserver.Listener() {
                 @Override
                 public void onNewClusterState(ClusterState state) {
@@ -904,43 +897,33 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
 
                         });
             } else {
-                if (replicaRequest.operationThreaded()) {
-                    try {
-                        threadPool.executor(executor).execute(new AbstractRunnable() {
-                            @Override
-                            protected void doRun() {
-                                try {
-                                    shardOperationOnReplica(shard.shardId(), replicaRequest);
-                                    onReplicaSuccess();
-                                } catch (Throwable e) {
-                                    onReplicaFailure(nodeId, e);
-                                    failReplicaIfNeeded(shard.index(), shard.id(), e);
-                                }
+                try {
+                    threadPool.executor(executor).execute(new AbstractRunnable() {
+                        @Override
+                        protected void doRun() {
+                            try {
+                                shardOperationOnReplica(shard.shardId(), replicaRequest);
+                                onReplicaSuccess();
+                            } catch (Throwable e) {
+                                onReplicaFailure(nodeId, e);
+                                failReplicaIfNeeded(shard.index(), shard.id(), e);
                             }
+                        }
 
-                            // we must never reject on because of thread pool capacity on replicas
-                            @Override
-                            public boolean isForceExecution() {
-                                return true;
-                            }
+                        // we must never reject on because of thread pool capacity on replicas
+                        @Override
+                        public boolean isForceExecution() {
+                            return true;
+                        }
 
-                            @Override
-                            public void onFailure(Throwable t) {
-                                onReplicaFailure(nodeId, t);
-                            }
-                        });
-                    } catch (Throwable e) {
-                        failReplicaIfNeeded(shard.index(), shard.id(), e);
-                        onReplicaFailure(nodeId, e);
-                    }
-                } else {
-                    try {
-                        shardOperationOnReplica(shard.shardId(), replicaRequest);
-                        onReplicaSuccess();
-                    } catch (Throwable e) {
-                        failReplicaIfNeeded(shard.index(), shard.id(), e);
-                        onReplicaFailure(nodeId, e);
-                    }
+                        @Override
+                        public void onFailure(Throwable t) {
+                            onReplicaFailure(nodeId, t);
+                        }
+                    });
+                } catch (Throwable e) {
+                    failReplicaIfNeeded(shard.index(), shard.id(), e);
+                    onReplicaFailure(nodeId, e);
                 }
             }
         }

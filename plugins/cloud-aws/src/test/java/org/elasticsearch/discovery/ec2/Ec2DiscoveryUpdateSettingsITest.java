@@ -24,9 +24,12 @@ import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResp
 import org.elasticsearch.cloud.aws.AbstractAwsTest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugin.cloud.aws.CloudAwsPlugin;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.junit.Test;
+
+import java.util.Collection;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.CoreMatchers.is;
@@ -39,10 +42,14 @@ import static org.hamcrest.CoreMatchers.is;
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0, numClientNodes = 0, transportClientRatio = 0.0)
 public class Ec2DiscoveryUpdateSettingsITest extends AbstractAwsTest {
 
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return pluginList(CloudAwsPlugin.class);
+    }
+
     @Test
     public void testMinimumMasterNodesStart() {
         Settings nodeSettings = settingsBuilder()
-                .put("plugin.types", CloudAwsPlugin.class.getName())
                 .put("cloud.enabled", true)
                 .put("discovery.type", "ec2")
                 .build();

@@ -17,8 +17,15 @@
 package org.elasticsearch.common.inject.multibindings;
 
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Lists;
-import org.elasticsearch.common.inject.*;
+import org.elasticsearch.common.inject.Binder;
+import org.elasticsearch.common.inject.Binding;
+import org.elasticsearch.common.inject.ConfigurationException;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.inject.Injector;
+import org.elasticsearch.common.inject.Key;
+import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.inject.Provider;
+import org.elasticsearch.common.inject.TypeLiteral;
 import org.elasticsearch.common.inject.binder.LinkedBindingBuilder;
 import org.elasticsearch.common.inject.internal.Errors;
 import org.elasticsearch.common.inject.spi.Dependency;
@@ -28,6 +35,7 @@ import org.elasticsearch.common.inject.util.Types;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Type;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -228,8 +236,8 @@ public abstract class Multibinder<T> {
          */
         @Inject
         void initialize(Injector injector) {
-            providers = Lists.newArrayList();
-            List<Dependency<?>> dependencies = Lists.newArrayList();
+            providers = new ArrayList<>();
+            List<Dependency<?>> dependencies = new ArrayList<>();
             for (Binding<?> entry : injector.findBindingsByType(elementType)) {
 
                 if (keyMatches(entry.getKey())) {

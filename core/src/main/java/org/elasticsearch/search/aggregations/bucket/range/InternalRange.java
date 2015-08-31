@@ -18,8 +18,6 @@
  */
 package org.elasticsearch.search.aggregations.bucket.range;
 
-import com.google.common.collect.Lists;
-
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -167,7 +165,7 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
 
         Bucket reduce(List<Bucket> ranges, ReduceContext context) {
             long docCount = 0;
-            List<InternalAggregations> aggregationsList = Lists.newArrayListWithCapacity(ranges.size());
+            List<InternalAggregations> aggregationsList = new ArrayList<>(ranges.size());
             for (Bucket range : ranges) {
                 docCount += range.docCount;
                 aggregationsList.add(range.aggregations);
@@ -315,7 +313,7 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
         formatter = ValueFormatterStreams.readOptional(in);
         keyed = in.readBoolean();
         int size = in.readVInt();
-        List<B> ranges = Lists.newArrayListWithCapacity(size);
+        List<B> ranges = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
             String key = in.readOptionalString();
             ranges.add(getFactory().createBucket(key, in.readDouble(), in.readDouble(), in.readVLong(), InternalAggregations.readAggregations(in), keyed, formatter));

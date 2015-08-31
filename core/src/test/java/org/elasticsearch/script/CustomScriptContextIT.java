@@ -28,6 +28,8 @@ import org.elasticsearch.script.mustache.MustacheScriptEngineService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
+import java.util.Collection;
+
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.notNullValue;
 
@@ -40,10 +42,14 @@ public class CustomScriptContextIT extends ESIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder().put(super.nodeSettings(nodeOrdinal))
-                .put("plugin.types", CustomScriptContextPlugin.class.getName())
                 .put("script." + PLUGIN_NAME + "_custom_globally_disabled_op", "off")
                 .put("script.engine.expression.inline." + PLUGIN_NAME + "_custom_exp_disabled_op", "off")
                         .build();
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return pluginList(CustomScriptContextPlugin.class);
     }
 
     @Test

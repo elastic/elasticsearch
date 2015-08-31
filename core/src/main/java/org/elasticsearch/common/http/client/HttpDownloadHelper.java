@@ -27,7 +27,6 @@ import org.elasticsearch.*;
 import org.elasticsearch.common.Base64;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.ByteArray;
 
 import java.io.*;
 import java.net.HttpURLConnection;
@@ -37,9 +36,7 @@ import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.attribute.FileTime;
-import java.util.Arrays;
 import java.util.List;
-import java.util.concurrent.Callable;
 
 /**
  *
@@ -152,12 +149,6 @@ public class HttpDownloadHelper {
         } catch (FileNotFoundException | NoSuchFileException e) {
             // checksum file doesn't exist
             return false;
-        } catch (IOException e) {
-            if (ExceptionsHelper.unwrapCause(e) instanceof FileNotFoundException) {
-                // checksum file didn't exist
-                return false;
-            }
-            throw e;
         } finally {
             IOUtils.deleteFilesIgnoringExceptions(checksumFile);
         }
@@ -378,9 +369,6 @@ public class HttpDownloadHelper {
                         responseCode == HttpURLConnection.HTTP_MOVED_TEMP ||
                         responseCode == HttpURLConnection.HTTP_SEE_OTHER) {
                     String newLocation = httpConnection.getHeaderField("Location");
-                    String message = aSource
-                            + (responseCode == HttpURLConnection.HTTP_MOVED_PERM ? " permanently"
-                            : "") + " moved to " + newLocation;
                     URL newURL = new URL(newLocation);
                     if (!redirectionAllowed(aSource, newURL)) {
                         return null;
@@ -426,7 +414,7 @@ public class HttpDownloadHelper {
                 }
             }
             if (is == null) {
-                throw new IOException("Can't get " + source + " to " + dest, lastEx);
+                throw lastEx;
             }
 
             os = Files.newOutputStream(dest);

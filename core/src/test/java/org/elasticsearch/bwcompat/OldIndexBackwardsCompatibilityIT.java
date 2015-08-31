@@ -21,6 +21,7 @@ package org.elasticsearch.bwcompat;
 
 import com.google.common.base.Predicate;
 import com.google.common.util.concurrent.ListenableFuture;
+
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TestUtil;
@@ -40,6 +41,7 @@ import org.elasticsearch.common.util.MultiDataPathUpgrader;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.engine.EngineConfig;
+import org.elasticsearch.index.mapper.string.StringFieldMapperPositionIncrementGapTests;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.MergePolicyConfig;
 import org.elasticsearch.indices.recovery.RecoverySettings;
@@ -330,6 +332,7 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
         assertNewReplicasWork(indexName);
         assertUpgradeWorks(indexName, isLatestLuceneVersion(version));
         assertDeleteByQueryWorked(indexName, version);
+        assertPositionIncrementGapDefaults(indexName, version);
         unloadIndex(indexName);
     }
 
@@ -433,13 +436,21 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
 
     // #10067: create-bwc-index.py deleted any doc with long_sort:[10-20]
     void assertDeleteByQueryWorked(String indexName, Version version) throws Exception {
-        if (version.onOrBefore(Version.V_1_0_0_Beta2)) {
+        if (version.onOrBefore(Version.V_1_0_0_Beta2) || version.onOrAfter(Version.V_2_0_0_beta1)) {
             // TODO: remove this once #10262 is fixed
             return;
         }
         // these documents are supposed to be deleted by a delete by query operation in the translog
         SearchRequestBuilder searchReq = client().prepareSearch(indexName).setQuery(QueryBuilders.queryStringQuery("long_sort:[10 TO 20]"));
         assertEquals(0, searchReq.get().getHits().getTotalHits());
+    }
+
+    void assertPositionIncrementGapDefaults(String indexName, Version version) throws Exception {
+        if (version.before(Version.V_2_0_0_beta1)) {
+            StringFieldMapperPositionIncrementGapTests.assertGapIsZero(client(), indexName, "doc");
+        } else {
+            StringFieldMapperPositionIncrementGapTests.assertGapIsOneHundred(client(), indexName, "doc");
+        }
     }
 
     void assertUpgradeWorks(String indexName, boolean alreadyLatest) throws Exception {

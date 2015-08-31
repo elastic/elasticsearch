@@ -23,7 +23,7 @@
 #
 # python3 ./dev-tools/prepare-release.py
 #
-# Note: Ensure the script is run from the root directory
+# Note: Ensure the script is run from the elasticsearch top level directory
 #
 
 import fnmatch
@@ -76,6 +76,11 @@ gpgcheck=1
 gpgkey=http://packages.elastic.co/GPG-KEY-elasticsearch
 enabled=1
 
+To smoke-test the release please run:
+
+ python3 -B ./dev-tools/smoke_tests_rc.py --version %(version)s --hash %(hash)s --plugins license,shield,watcher
+
+NOTE: this script requires JAVA_HOME to point to a Java 7 Runtime 
 
 [1] https://github.com/elastic/elasticsearch/commit/%(hash)s
 [2] http://download.elasticsearch.org/elasticsearch/staging/%(version)s-%(hash)s/org/elasticsearch/distribution/zip/elasticsearch/%(version)s/elasticsearch-%(version)s.zip
@@ -83,12 +88,14 @@ enabled=1
 [4] http://download.elasticsearch.org/elasticsearch/staging/%(version)s-%(hash)s/org/elasticsearch/distribution/rpm/elasticsearch/%(version)s/elasticsearch-%(version)s.rpm
 [5] http://download.elasticsearch.org/elasticsearch/staging/%(version)s-%(hash)s/org/elasticsearch/distribution/deb/elasticsearch/%(version)s/elasticsearch-%(version)s.deb
 """
-
-def run(command, env_vars=None):
+VERBOSE=True
+def run(command, env_vars=None, verbose=VERBOSE):
   if env_vars:
     for key, value in env_vars.items():
       os.putenv(key, value)
-  if os.system('%s' % (command)):
+  if not verbose:
+    command = '%s >> /dev/null 2>&1' % (command)
+  if os.system(command):
     raise RuntimeError('    FAILED: %s' % (command))
 
 def ensure_checkout_is_clean():
@@ -181,16 +188,20 @@ if __name__ == "__main__":
                       help='Only runs a maven install to skip the remove deployment step')
   parser.add_argument('--gpg-key', '-k', dest='gpg_key', default="D88E42B4",
                       help='Allows you to specify a different gpg_key to be used instead of the default release key')
+  parser.add_argument('--verbose', '-b', dest='verbose',
+                      help='Runs the script in verbose mode')
   parser.set_defaults(deploy=False)
   parser.set_defaults(skip_doc_check=False)
   parser.set_defaults(push=False)
   parser.set_defaults(install_only=False)
+  parser.set_defaults(verbose=False)
   args = parser.parse_args()
   install_and_deploy = args.deploy
   skip_doc_check = args.skip_doc_check
   push = args.push
   gpg_key = args.gpg_key
   install_only = args.install_only
+  VERBOSE = args.verbose
 
   ensure_checkout_is_clean()
   release_version = find_release_version()
@@ -269,5 +280,14 @@ if __name__ == "__main__":
     """)
     print('NOTE: Running s3cmd might require you to create a config file with your credentials, if the s3cmd does not support suppliying them via the command line!')
   print('*** Once the release is deployed and published send out the following mail to dev@elastic.co:')
-  print(MAIL_TEMPLATE % ({'version' : release_version, 'hash': shortHash, 'major_minor_version' : major_minor_version}))
+  string_format_dict = {'version' : release_version, 'hash': shortHash, 'major_minor_version' : major_minor_version}
+  print(MAIL_TEMPLATE % string_format_dict)
+
+  print('To publish the release and the repo on S3 execute the following commands:')
+  print('   s3cmd cp --recursive s3://download.elasticsearch.org/elasticsearch/staging/%(version)s-%(hash)s/repos/elasticsearch/%(major_minor_version)s/ s3://packages.elasticsearch.org/elasticsearch/%(major_minor_version)s'  % string_format_dict)
+  print('   s3cmd cp --recursive s3://download.elasticsearch.org/elasticsearch/staging/%(version)s-%(hash)s/org/ s3://download.elasticsearch.org/elasticsearch/release/org'  % string_format_dict)
+  print('Now go ahead and tag the release:')
+  print('   git tag -a v%(version)s %(hash)s'  % string_format_dict)
+  print('   git push origin v%(version)s' % string_format_dict )
+
 

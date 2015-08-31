@@ -21,9 +21,7 @@ package org.elasticsearch.search.aggregations;
 import com.google.common.base.Function;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterators;
-import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
-
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -43,6 +41,7 @@ import java.util.List;
 import java.util.Map;
 
 import static com.google.common.collect.Maps.newHashMap;
+import static org.elasticsearch.common.util.CollectionUtils.eagerTransform;
 
 /**
  * An internal implementation of {@link Aggregations}.
@@ -84,7 +83,7 @@ public class InternalAggregations implements Aggregations, ToXContent, Streamabl
      */
     @Override
     public List<Aggregation> asList() {
-        return Lists.transform(aggregations, SUPERTYPE_CAST);
+        return eagerTransform(aggregations, SUPERTYPE_CAST);
     }
 
     /**
@@ -215,7 +214,7 @@ public class InternalAggregations implements Aggregations, ToXContent, Streamabl
             aggregations = Collections.emptyList();
             aggregationsAsMap = ImmutableMap.of();
         } else {
-            aggregations = Lists.newArrayListWithCapacity(size);
+            aggregations = new ArrayList<>(size);
             for (int i = 0; i < size; i++) {
                 BytesReference type = in.readBytesReference();
                 InternalAggregation aggregation = AggregationStreams.stream(type).readResult(in);

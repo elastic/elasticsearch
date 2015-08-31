@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.action.percolate;
 
-import com.google.common.collect.Lists;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
@@ -35,6 +34,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -79,7 +79,7 @@ public class PercolateRequest extends BroadcastRequest<PercolateRequest> impleme
 
     @Override
     public List<? extends IndicesRequest> subRequests() {
-        List<IndicesRequest> requests = Lists.newArrayList();
+        List<IndicesRequest> requests = new ArrayList<>();
         requests.add(this);
         if (getRequest != null) {
             requests.add(getRequest);

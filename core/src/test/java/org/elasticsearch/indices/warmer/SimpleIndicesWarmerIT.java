@@ -20,7 +20,6 @@
 package org.elasticsearch.indices.warmer;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.segments.IndexSegments;
 import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
@@ -173,6 +172,18 @@ public class SimpleIndicesWarmerIT extends ESIntegTestCase {
         }
     }
 
+    @Test // issue 8991
+    public void deleteAllIndexWarmerDoesNotThrowWhenNoWarmers() {
+        createIndex("test");
+        DeleteWarmerResponse deleteWarmerResponse = client().admin().indices().prepareDeleteWarmer()
+                .setIndices("test").setNames("_all").execute().actionGet();
+        assertThat(deleteWarmerResponse.isAcknowledged(), equalTo(true));
+
+        deleteWarmerResponse = client().admin().indices().prepareDeleteWarmer()
+                .setIndices("test").setNames("foo", "_all", "bar").execute().actionGet();
+        assertThat(deleteWarmerResponse.isAcknowledged(), equalTo(true));
+    }
+
     @Test
     public void deleteIndexWarmerTest() {
         createIndex("test");
@@ -260,7 +271,7 @@ public class SimpleIndicesWarmerIT extends ESIntegTestCase {
         for (IndexShardSegments indexShardSegments : indicesSegments) {
             for (ShardSegments shardSegments : indexShardSegments) {
                 for (Segment segment : shardSegments) {
-                    logger.debug("+=" + segment.memoryInBytes + " " + indexShardSegments.getShardId() + " " + shardSegments.getIndex());
+                    logger.debug("+=" + segment.memoryInBytes + " " + indexShardSegments.getShardId() + " " + shardSegments.getShardRouting().getIndex());
                     total += segment.memoryInBytes;
                 }
             }

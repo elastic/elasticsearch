@@ -46,7 +46,6 @@ public abstract class ReplicationRequest<T extends ReplicationRequest> extends A
     protected TimeValue timeout = DEFAULT_TIMEOUT;
     protected String index;
 
-    private boolean threadedOperation = true;
     private WriteConsistencyLevel consistencyLevel = WriteConsistencyLevel.DEFAULT;
     private volatile boolean canHaveDuplicates = false;
 
@@ -76,7 +75,6 @@ public abstract class ReplicationRequest<T extends ReplicationRequest> extends A
         super(originalRequest);
         this.timeout = request.timeout();
         this.index = request.index();
-        this.threadedOperation = request.operationThreaded();
         this.consistencyLevel = request.consistencyLevel();
     }
 
@@ -89,23 +87,6 @@ public abstract class ReplicationRequest<T extends ReplicationRequest> extends A
      */
     public boolean canHaveDuplicates() {
         return canHaveDuplicates;
-    }
-
-    /**
-     * Controls if the operation will be executed on a separate thread when executed locally.
-     */
-    public final boolean operationThreaded() {
-        return threadedOperation;
-    }
-
-    /**
-     * Controls if the operation will be executed on a separate thread when executed locally. Defaults
-     * to <tt>true</tt> when running in embedded mode.
-     */
-    @SuppressWarnings("unchecked")
-    public final T operationThreaded(boolean threadedOperation) {
-        this.threadedOperation = threadedOperation;
-        return (T) this;
     }
 
     /**

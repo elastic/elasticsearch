@@ -27,11 +27,11 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static com.google.common.collect.Lists.newArrayList;
 import static com.google.common.collect.Maps.newHashMap;
 
 public final class DiffableUtils {
@@ -232,13 +232,13 @@ public final class DiffableUtils {
         protected final Map<String, T> adds;
 
         protected MapDiff() {
-            deletes = newArrayList();
+            deletes = new ArrayList<>();
             diffs = newHashMap();
             adds = newHashMap();
         }
 
         protected MapDiff(StreamInput in, KeyedReader<T> reader) throws IOException {
-            deletes = newArrayList();
+            deletes = new ArrayList<>();
             diffs = newHashMap();
             adds = newHashMap();
             int deletesCount = in.readVInt();

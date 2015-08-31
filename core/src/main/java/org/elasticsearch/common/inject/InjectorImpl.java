@@ -17,15 +17,37 @@
 package org.elasticsearch.common.inject;
 
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import org.elasticsearch.common.Classes;
-import org.elasticsearch.common.inject.internal.*;
-import org.elasticsearch.common.inject.spi.*;
+import org.elasticsearch.common.inject.internal.Annotations;
+import org.elasticsearch.common.inject.internal.BindingImpl;
+import org.elasticsearch.common.inject.internal.Errors;
+import org.elasticsearch.common.inject.internal.ErrorsException;
+import org.elasticsearch.common.inject.internal.InstanceBindingImpl;
+import org.elasticsearch.common.inject.internal.InternalContext;
+import org.elasticsearch.common.inject.internal.InternalFactory;
+import org.elasticsearch.common.inject.internal.LinkedBindingImpl;
+import org.elasticsearch.common.inject.internal.LinkedProviderBindingImpl;
+import org.elasticsearch.common.inject.internal.MatcherAndConverter;
+import org.elasticsearch.common.inject.internal.Nullable;
+import org.elasticsearch.common.inject.internal.Scoping;
+import org.elasticsearch.common.inject.internal.SourceProvider;
+import org.elasticsearch.common.inject.internal.ToStringBuilder;
+import org.elasticsearch.common.inject.spi.BindingTargetVisitor;
+import org.elasticsearch.common.inject.spi.ConvertedConstantBinding;
+import org.elasticsearch.common.inject.spi.Dependency;
+import org.elasticsearch.common.inject.spi.InjectionPoint;
+import org.elasticsearch.common.inject.spi.ProviderBinding;
+import org.elasticsearch.common.inject.spi.ProviderKeyBinding;
 import org.elasticsearch.common.inject.util.Providers;
 
 import java.lang.annotation.Annotation;
-import java.lang.reflect.*;
+import java.lang.reflect.GenericArrayType;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Modifier;
+import java.lang.reflect.ParameterizedType;
+import java.lang.reflect.Type;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -681,7 +703,7 @@ class InjectorImpl implements Injector, Lookups {
         <T> void put(TypeLiteral<T> type, Binding<T> binding) {
             List<Binding<?>> bindingsForType = multimap.get(type);
             if (bindingsForType == null) {
-                bindingsForType = Lists.newArrayList();
+                bindingsForType = new ArrayList<>();
                 multimap.put(type, bindingsForType);
             }
             bindingsForType.add(binding);

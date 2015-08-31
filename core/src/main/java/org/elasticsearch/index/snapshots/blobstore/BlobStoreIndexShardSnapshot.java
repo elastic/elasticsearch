@@ -28,15 +28,17 @@ import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.*;
+import org.elasticsearch.common.xcontent.FromXContentBuilder;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentBuilderString;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.store.StoreFileMetaData;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-
-import static com.google.common.collect.Lists.newArrayList;
 
 /**
  * Shard snapshot metadata
@@ -478,7 +480,7 @@ public class BlobStoreIndexShardSnapshot implements ToXContent, FromXContentBuil
         int numberOfFiles = 0;
         long totalSize = 0;
 
-        List<FileInfo> indexFiles = newArrayList();
+        List<FileInfo> indexFiles = new ArrayList<>();
         if (parser.currentToken() == null) { // fresh parser? move to the first token
             parser.nextToken();
         }

@@ -16,29 +16,25 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.test;
 
-import org.elasticsearch.common.settings.Settings;
+package org.elasticsearch.search.fetch.innerhits;
 
-public abstract class SettingsSource {
+import org.elasticsearch.search.internal.SubSearchContext;
 
-    public static final SettingsSource EMPTY = new SettingsSource() {
-        @Override
-        public Settings node(int nodeOrdinal) {
-            return null;
-        }
+public class InnerHitsSubSearchContext {
+    private final String name;
+    private final SubSearchContext subSearchContext;
 
-        @Override
-        public Settings transportClient() {
-            return null;
-        }
-    };
+    public InnerHitsSubSearchContext(String name, SubSearchContext subSearchContext) {
+        this.name = name;
+        this.subSearchContext = subSearchContext;
+    }
 
-    /**
-     * @return the settings for the node represented by the given ordinal, or {@code null} if there are no settings defined
-     */
-    public abstract Settings node(int nodeOrdinal);
+    public String getName() {
+        return name;
+    }
 
-    public abstract Settings transportClient();
-
+    public SubSearchContext getSubSearchContext() {
+        return subSearchContext;
+    }
 }

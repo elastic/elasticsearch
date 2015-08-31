@@ -20,7 +20,6 @@
 package org.elasticsearch.client.transport;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
@@ -42,9 +41,21 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.*;
+import org.elasticsearch.transport.BaseTransportResponseHandler;
+import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.FutureTransportResponseHandler;
+import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportRequestOptions;
+import org.elasticsearch.transport.TransportService;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledFuture;
@@ -142,7 +153,7 @@ public class TransportClientNodesService extends AbstractComponent {
             if (closed) {
                 throw new IllegalStateException("transport client is closed, can't add an address");
             }
-            List<TransportAddress> filtered = Lists.newArrayListWithExpectedSize(transportAddresses.length);
+            List<TransportAddress> filtered = new ArrayList<>(transportAddresses.length);
             for (TransportAddress transportAddress : transportAddresses) {
                 boolean found = false;
                 for (DiscoveryNode otherNode : listedNodes) {

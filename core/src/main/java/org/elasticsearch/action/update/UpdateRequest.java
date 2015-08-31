@@ -78,7 +78,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
 
     private boolean scriptedUpsert = false;
     private boolean docAsUpsert = false;
-    private boolean detectNoop = false;
+    private boolean detectNoop = true;
 
     @Nullable
     private IndexRequest doc;
@@ -243,7 +243,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
      * The script to execute. Note, make sure not to send different script each
      * times and instead use script params if possible with the same
      * (automatically compiled) script.
-     * 
+     *
      * @deprecated Use {@link #script(Script)} instead
      */
     @Deprecated
@@ -256,7 +256,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
      * The script to execute. Note, make sure not to send different script each
      * times and instead use script params if possible with the same
      * (automatically compiled) script.
-     * 
+     *
      * @deprecated Use {@link #script(Script)} instead
      */
     @Deprecated
@@ -267,7 +267,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
 
     /**
      * The language of the script to execute.
-     * 
+     *
      * @deprecated Use {@link #script(Script)} instead
      */
     @Deprecated
@@ -286,7 +286,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
 
     /**
      * Add a script parameter.
-     * 
+     *
      * @deprecated Use {@link #script(Script)} instead
      */
     @Deprecated
@@ -311,7 +311,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
 
     /**
      * Sets the script parameters to use with the script.
-     * 
+     *
      * @deprecated Use {@link #script(Script)} instead
      */
     @Deprecated
@@ -338,7 +338,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
      * The script to execute. Note, make sure not to send different script each
      * times and instead use script params if possible with the same
      * (automatically compiled) script.
-     * 
+     *
      * @deprecated Use {@link #script(Script)} instead
      */
     @Deprecated
@@ -360,7 +360,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
      *            The script type
      * @param scriptParams
      *            The script parameters
-     * 
+     *
      * @deprecated Use {@link #script(Script)} instead
      */
     @Deprecated
@@ -623,7 +623,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
     }
 
     /**
-     * Should this update attempt to detect if it is a noop?
+     * Should this update attempt to detect if it is a noop? Defaults to true.
      * @return this for chaining
      */
     public UpdateRequest detectNoop(boolean detectNoop) {
@@ -631,6 +631,9 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
         return this;
     }
 
+    /**
+     * Should this update attempt to detect if it is a noop? Defaults to true.
+     */
     public boolean detectNoop() {
         return detectNoop;
     }
@@ -699,16 +702,15 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
         this.docAsUpsert = shouldUpsertDoc;
         return this;
     }
-    
+
     public boolean scriptedUpsert(){
         return this.scriptedUpsert;
     }
-    
+
     public UpdateRequest scriptedUpsert(boolean scriptedUpsert) {
         this.scriptedUpsert = scriptedUpsert;
         return this;
     }
-    
 
     @Override
     public void readFrom(StreamInput in) throws IOException {

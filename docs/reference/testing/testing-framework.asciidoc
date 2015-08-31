@@ -147,15 +147,13 @@ The above sample configures the test to use a new cluster for each test method. 
 [[changing-node-configuration]]
 ==== Changing node configuration
 
-As elasticsearch is using JUnit 4, using the `@Before` and `@After` annotations is not a problem. However you should keep in mind, that this does not have any effect in your cluster setup, as the cluster is already up and running when those methods are run. So in case you want to configure settings - like loading a plugin on node startup - before the node is actually running, you should overwrite the `nodeSettings()` method from the `ElasticsearchIntegrationTest` class and change the cluster scope to `SUITE`.
+As elasticsearch is using JUnit 4, using the `@Before` and `@After` annotations is not a problem. However you should keep in mind, that this does not have any effect in your cluster setup, as the cluster is already up and running when those methods are run. So in case you want to configure settings - like loading a plugin on node startup - before the node is actually running, you should overwrite the `nodePlugins()` method from the `ESIntegTestCase` class and return the plugin classes each node should load.
 
 [source,java]
 -----------------------------------------
 @Override
-protected Settings nodeSettings(int nodeOrdinal) {
-  return Settings.settingsBuilder()
-           .put("plugin.types", CustomSuggesterPlugin.class.getName())
-           .put(super.nodeSettings(nodeOrdinal)).build();
+protected Collection<Class<? extends Plugin>> nodePlugins() {
+  return pluginList(CustomSuggesterPlugin.class);
 }
 -----------------------------------------
 

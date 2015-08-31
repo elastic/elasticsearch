@@ -16,7 +16,6 @@
 
 package org.elasticsearch.common.inject;
 
-import com.google.common.collect.Lists;
 import org.elasticsearch.common.inject.internal.Errors;
 import org.elasticsearch.common.inject.internal.ErrorsException;
 import org.elasticsearch.common.inject.internal.FailableCache;
@@ -24,6 +23,7 @@ import org.elasticsearch.common.inject.spi.InjectionPoint;
 import org.elasticsearch.common.inject.spi.TypeListenerBinding;
 
 import java.lang.reflect.Field;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
@@ -106,7 +106,7 @@ class MembersInjectorStore {
      */
     List<SingleMemberInjector> getInjectors(
             Set<InjectionPoint> injectionPoints, Errors errors) {
-        List<SingleMemberInjector> injectors = Lists.newArrayList();
+        List<SingleMemberInjector> injectors = new ArrayList<>();
         for (InjectionPoint injectionPoint : injectionPoints) {
             try {
                 Errors errorsForMember = injectionPoint.isOptional()

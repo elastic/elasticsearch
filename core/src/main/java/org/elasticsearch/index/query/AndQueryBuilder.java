@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import com.google.common.collect.Lists;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -32,7 +31,7 @@ import java.util.ArrayList;
 @Deprecated
 public class AndQueryBuilder extends QueryBuilder {
 
-    private ArrayList<QueryBuilder> filters = Lists.newArrayList();
+    private ArrayList<QueryBuilder> filters = new ArrayList<>();
 
     private String queryName;
 

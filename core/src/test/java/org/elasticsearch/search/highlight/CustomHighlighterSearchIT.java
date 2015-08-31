@@ -22,6 +22,7 @@ import com.google.common.collect.Maps;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
@@ -29,6 +30,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Map;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
@@ -42,11 +44,8 @@ import static org.hamcrest.Matchers.equalTo;
 public class CustomHighlighterSearchIT extends ESIntegTestCase {
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return settingsBuilder()
-                .put(super.nodeSettings(nodeOrdinal))
-                .put("plugin.types", CustomHighlighterPlugin.class.getName())
-                .build();
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return pluginList(CustomHighlighterPlugin.class);
     }
 
     @Before

@@ -19,8 +19,6 @@
 
 package org.elasticsearch.search.aggregations;
 
-import com.google.common.collect.Lists;
-
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -29,6 +27,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -54,7 +53,7 @@ public abstract class AggregationBuilder<B extends AggregationBuilder<B>> extend
     @SuppressWarnings("unchecked")
     public B subAggregation(AbstractAggregationBuilder aggregation) {
         if (aggregations == null) {
-            aggregations = Lists.newArrayList();
+            aggregations = new ArrayList<>();
         }
         aggregations.add(aggregation);
         return (B) this;

@@ -31,10 +31,10 @@ public class NamedAnalyzer extends DelegatingAnalyzerWrapper {
     private final String name;
     private final AnalyzerScope scope;
     private final Analyzer analyzer;
-    private final int positionOffsetGap;
+    private final int positionIncrementGap;
 
-    public NamedAnalyzer(NamedAnalyzer analyzer, int positionOffsetGap) {
-        this(analyzer.name(), analyzer.scope(), analyzer.analyzer(), positionOffsetGap);
+    public NamedAnalyzer(NamedAnalyzer analyzer, int positionIncrementGap) {
+        this(analyzer.name(), analyzer.scope(), analyzer.analyzer(), positionIncrementGap);
     }
 
     public NamedAnalyzer(String name, Analyzer analyzer) {
@@ -45,12 +45,12 @@ public class NamedAnalyzer extends DelegatingAnalyzerWrapper {
         this(name, scope, analyzer, Integer.MIN_VALUE);
     }
 
-    public NamedAnalyzer(String name, AnalyzerScope scope, Analyzer analyzer, int positionOffsetGap) {
+    public NamedAnalyzer(String name, AnalyzerScope scope, Analyzer analyzer, int positionIncrementGap) {
         super(ERROR_STRATEGY);
         this.name = name;
         this.scope = scope;
         this.analyzer = analyzer;
-        this.positionOffsetGap = positionOffsetGap;
+        this.positionIncrementGap = positionIncrementGap;
     }
 
     /**
@@ -81,8 +81,8 @@ public class NamedAnalyzer extends DelegatingAnalyzerWrapper {
 
     @Override
     public int getPositionIncrementGap(String fieldName) {
-        if (positionOffsetGap != Integer.MIN_VALUE) {
-            return positionOffsetGap;
+        if (positionIncrementGap != Integer.MIN_VALUE) {
+            return positionIncrementGap;
         }
         return super.getPositionIncrementGap(fieldName);
     }

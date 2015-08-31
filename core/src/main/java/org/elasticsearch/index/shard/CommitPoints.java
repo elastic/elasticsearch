@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.shard;
 
-import com.google.common.collect.Lists;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -131,8 +130,8 @@ public class CommitPoints implements Iterable<CommitPoint> {
             long version = -1;
             String name = null;
             CommitPoint.Type type = null;
-            List<CommitPoint.FileInfo> indexFiles = Lists.newArrayList();
-            List<CommitPoint.FileInfo> translogFiles = Lists.newArrayList();
+            List<CommitPoint.FileInfo> indexFiles = new ArrayList<>();
+            List<CommitPoint.FileInfo> translogFiles = new ArrayList<>();
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();

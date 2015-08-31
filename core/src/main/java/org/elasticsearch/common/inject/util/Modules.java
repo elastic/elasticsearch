@@ -17,13 +17,24 @@
 package org.elasticsearch.common.inject.util;
 
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
-import org.elasticsearch.common.inject.*;
-import org.elasticsearch.common.inject.spi.*;
+import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.inject.Binder;
+import org.elasticsearch.common.inject.Binding;
+import org.elasticsearch.common.inject.Key;
+import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.inject.PrivateBinder;
+import org.elasticsearch.common.inject.Scope;
+import org.elasticsearch.common.inject.spi.DefaultBindingScopingVisitor;
+import org.elasticsearch.common.inject.spi.DefaultElementVisitor;
+import org.elasticsearch.common.inject.spi.Element;
+import org.elasticsearch.common.inject.spi.Elements;
+import org.elasticsearch.common.inject.spi.PrivateElements;
+import org.elasticsearch.common.inject.spi.ScopeBinding;
 
 import java.lang.annotation.Annotation;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -168,7 +179,7 @@ public final class Modules {
                     // overridden binding once so things still blow up if the module binds the same thing
                     // multiple times.
                     final Map<Scope, Object> scopeInstancesInUse = Maps.newHashMap();
-                    final List<ScopeBinding> scopeBindings = Lists.newArrayList();
+                    final List<ScopeBinding> scopeBindings = new ArrayList<>();
                     new ModuleWriter(binder()) {
                         @Override
                         public <T> Void visit(Binding<T> binding) {

@@ -20,14 +20,19 @@
 package org.elasticsearch.cluster.routing;
 
 import com.carrotsearch.hppc.IntSet;
-import com.google.common.collect.*;
-import org.elasticsearch.cluster.*;
+import com.google.common.base.Predicate;
+import com.google.common.base.Predicates;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Iterables;
+import com.google.common.collect.UnmodifiableIterator;
+import org.elasticsearch.cluster.Diff;
+import org.elasticsearch.cluster.Diffable;
+import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -35,7 +40,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-import static com.google.common.collect.Lists.newArrayList;
 import static com.google.common.collect.Maps.newHashMap;
 
 /**
@@ -107,7 +111,7 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
     }
 
     public List<ShardRouting> shardsWithState(ShardRoutingState state) {
-        List<ShardRouting> shards = newArrayList();
+        List<ShardRouting> shards = new ArrayList<>();
         for (IndexRoutingTable indexRoutingTable : this) {
             shards.addAll(indexRoutingTable.shardsWithState(state));
         }
@@ -120,7 +124,7 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
      * @return All the shards
      */
     public List<ShardRouting> allShards() {
-        List<ShardRouting> shards = Lists.newArrayList();
+        List<ShardRouting> shards = new ArrayList<>();
         String[] indices = indicesRouting.keySet().toArray(new String[indicesRouting.keySet().size()]);
         for (String index : indices) {
             List<ShardRouting> allShardsIndex = allShards(index);
@@ -137,7 +141,7 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
      * @throws IndexNotFoundException If the index passed does not exists
      */
     public List<ShardRouting> allShards(String index)  {
-        List<ShardRouting> shards = Lists.newArrayList();
+        List<ShardRouting> shards = new ArrayList<>();
         IndexRoutingTable indexRoutingTable = index(index);
         if (indexRoutingTable == null) {
             throw new IndexNotFoundException(index);
@@ -162,28 +166,7 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
      *                                 iterator contains a single ShardRouting pointing at the relocating target
      */
     public GroupShardsIterator allActiveShardsGrouped(String[] indices, boolean includeEmpty, boolean includeRelocationTargets) {
-        // use list here since we need to maintain identity across shards
-        ArrayList<ShardIterator> set = new ArrayList<>();
-        for (String index : indices) {
-            IndexRoutingTable indexRoutingTable = index(index);
-            if (indexRoutingTable == null) {
-                continue;
-                // we simply ignore indices that don't exists (make sense for operations that use it currently)
-            }
-            for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
-                for (ShardRouting shardRouting : indexShardRoutingTable) {
-                    if (shardRouting.active()) {
-                        set.add(shardRouting.shardsIt());
-                        if (includeRelocationTargets && shardRouting.relocating()) {
-                            set.add(new PlainShardIterator(shardRouting.shardId(), Collections.singletonList(shardRouting.buildTargetRelocatingShard())));
-                        }
-                    } else if (includeEmpty) { // we need this for counting properly, just make it an empty one
-                        set.add(new PlainShardIterator(shardRouting.shardId(), Collections.<ShardRouting>emptyList()));
-                    }
-                }
-            }
-        }
-        return new GroupShardsIterator(set);
+        return allSatisfyingPredicateShardsGrouped(indices, includeEmpty, includeRelocationTargets, ACTIVE_PREDICATE);
     }
 
     public GroupShardsIterator allAssignedShardsGrouped(String[] indices, boolean includeEmpty) {
@@ -198,6 +181,25 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
      *                                 iterator contains a single ShardRouting pointing at the relocating target
      */
     public GroupShardsIterator allAssignedShardsGrouped(String[] indices, boolean includeEmpty, boolean includeRelocationTargets) {
+        return allSatisfyingPredicateShardsGrouped(indices, includeEmpty, includeRelocationTargets, ASSIGNED_PREDICATE);
+    }
+
+    private static Predicate<ShardRouting> ACTIVE_PREDICATE = new Predicate<ShardRouting>() {
+        @Override
+        public boolean apply(ShardRouting shardRouting) {
+            return shardRouting.active();
+        }
+    };
+
+    private static Predicate<ShardRouting> ASSIGNED_PREDICATE = new Predicate<ShardRouting>() {
+        @Override
+        public boolean apply(ShardRouting shardRouting) {
+            return shardRouting.assignedToNode();
+        }
+    };
+
+    // TODO: replace with JDK 8 native java.util.function.Predicate
+    private GroupShardsIterator allSatisfyingPredicateShardsGrouped(String[] indices, boolean includeEmpty, boolean includeRelocationTargets, Predicate<ShardRouting> predicate) {
         // use list here since we need to maintain identity across shards
         ArrayList<ShardIterator> set = new ArrayList<>();
         for (String index : indices) {
@@ -208,7 +210,7 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
             }
             for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
                 for (ShardRouting shardRouting : indexShardRoutingTable) {
-                    if (shardRouting.assignedToNode()) {
+                    if (predicate.apply(shardRouting)) {
                         set.add(shardRouting.shardsIt());
                         if (includeRelocationTargets && shardRouting.relocating()) {
                             set.add(new PlainShardIterator(shardRouting.shardId(), Collections.singletonList(shardRouting.buildTargetRelocatingShard())));
@@ -220,6 +222,38 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
             }
         }
         return new GroupShardsIterator(set);
+    }
+
+    public ShardsIterator allShards(String[] indices) {
+        return allShardsSatisfyingPredicate(indices, Predicates.<ShardRouting>alwaysTrue(), false);
+    }
+
+    public ShardsIterator allShardsIncludingRelocationTargets(String[] indices) {
+        return allShardsSatisfyingPredicate(indices, Predicates.<ShardRouting>alwaysTrue(), true);
+    }
+
+    // TODO: replace with JDK 8 native java.util.function.Predicate
+    private ShardsIterator allShardsSatisfyingPredicate(String[] indices, Predicate<ShardRouting> predicate, boolean includeRelocationTargets) {
+        // use list here since we need to maintain identity across shards
+        List<ShardRouting> shards = new ArrayList<>();
+        for (String index : indices) {
+            IndexRoutingTable indexRoutingTable = index(index);
+            if (indexRoutingTable == null) {
+                continue;
+                // we simply ignore indices that don't exists (make sense for operations that use it currently)
+            }
+            for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
+                for (ShardRouting shardRouting : indexShardRoutingTable) {
+                    if (predicate.apply(shardRouting)) {
+                        shards.add(shardRouting);
+                        if (includeRelocationTargets && shardRouting.relocating()) {
+                            shards.add(shardRouting.buildTargetRelocatingShard());
+                        }
+                    }
+                }
+            }
+        }
+        return new PlainShardsIterator(shards);
     }
 
     /**

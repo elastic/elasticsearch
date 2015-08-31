@@ -20,12 +20,16 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-import com.google.common.collect.Lists;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.*;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.routing.RoutingNodes;
+import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocators;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
@@ -36,7 +40,6 @@ import org.elasticsearch.common.settings.Settings;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.List;
 
 
@@ -235,7 +238,7 @@ public class AllocationService extends AbstractComponent {
         }
 
         // go over and remove dangling replicas that are initializing for primary shards
-        List<ShardRouting> shardsToFail = Lists.newArrayList();
+        List<ShardRouting> shardsToFail = new ArrayList<>();
         for (ShardRouting shardEntry : routingNodes.unassigned()) {
             if (shardEntry.primary()) {
                 for (ShardRouting routing : routingNodes.assignedShards(shardEntry)) {

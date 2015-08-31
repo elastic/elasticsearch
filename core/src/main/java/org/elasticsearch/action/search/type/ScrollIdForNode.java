@@ -17,20 +17,22 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.cache.clear;
+package org.elasticsearch.action.search.type;
 
-import org.elasticsearch.action.support.broadcast.BroadcastShardResponse;
-import org.elasticsearch.index.shard.ShardId;
+public class ScrollIdForNode {
+    private final String node;
+    private final long scrollId;
 
-/**
- *
- */
-class ShardClearIndicesCacheResponse extends BroadcastShardResponse {
-
-    ShardClearIndicesCacheResponse() {
+    public ScrollIdForNode(String node, long scrollId) {
+        this.node = node;
+        this.scrollId = scrollId;
     }
 
-    ShardClearIndicesCacheResponse(ShardId shardId) {
-        super(shardId);
+    public String getNode() {
+        return node;
+    }
+
+    public long getScrollId() {
+        return scrollId;
     }
 }

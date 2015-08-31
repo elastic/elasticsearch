@@ -2,8 +2,7 @@
 "Test cat recovery output":
 
   - do:
-      cat.recovery:
-        v: false
+      cat.recovery: {}
 
   - match:
       $body: |
@@ -20,8 +19,7 @@
        cluster.health:
          wait_for_status: yellow
   - do:
-      cat.recovery:
-        v: false
+      cat.recovery: {}
 
   - match:
       $body: |

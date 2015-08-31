@@ -26,9 +26,8 @@ import com.carrotsearch.randomizedtesting.generators.RandomInts;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.google.common.base.Joiner;
 import com.google.common.base.Predicate;
-import com.google.common.collect.Lists;
-
 import org.apache.http.impl.client.HttpClients;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
@@ -47,6 +46,7 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsResponse;
@@ -69,17 +69,21 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
@@ -104,6 +108,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.Loading;
 import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
 import org.elasticsearch.index.shard.MergePolicyConfig;
+import org.elasticsearch.index.shard.MergeSchedulerConfig;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.index.translog.TranslogService;
@@ -114,33 +119,56 @@ import org.elasticsearch.indices.flush.IndicesSyncedFlushResult;
 import org.elasticsearch.indices.flush.SyncedFlushService;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.client.RandomizingClient;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
-import org.elasticsearch.transport.TransportModule;
 import org.hamcrest.Matchers;
 import org.joda.time.DateTimeZone;
-import org.junit.*;
+import org.junit.After;
+import org.junit.AfterClass;
+import org.junit.Before;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.lang.annotation.*;
+import java.lang.annotation.Annotation;
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Inherited;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.IdentityHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
+import java.util.Set;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
+import static org.elasticsearch.common.util.CollectionUtils.eagerPartition;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.XContentTestUtils.convertToMap;
 import static org.elasticsearch.test.XContentTestUtils.differenceBetweenMapsIgnoringArrayOrder;
@@ -836,6 +864,21 @@ public abstract class ESIntegTestCase extends ESTestCase {
         }
     }
 
+    /** Ensures the result counts are as expected, and logs the results if different */
+    public void assertResultsAndLogOnFailure(long expectedResults, SearchResponse searchResponse) {
+        if (searchResponse.getHits().getTotalHits() != expectedResults) {
+            StringBuilder sb = new StringBuilder("search result contains [");
+            sb.append(searchResponse.getHits().getTotalHits()).append("] results. expected [").append(expectedResults).append("]");
+            String failMsg = sb.toString();
+            for (SearchHit hit : searchResponse.getHits().getHits()) {
+                sb.append("\n-> _index: [").append(hit.getIndex()).append("] type [").append(hit.getType())
+                    .append("] id [").append(hit.id()).append("]");
+            }
+            logger.warn(sb.toString());
+            fail(failMsg);
+        }
+    }
+
     /**
      * Restricts the given index to be allocated on <code>n</code> nodes using the allocation deciders.
      * Yet if the shards can't be allocated on any other node shards for this index will remain allocated on
@@ -1362,7 +1405,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 }
             }
         } else {
-            List<List<IndexRequestBuilder>> partition = Lists.partition(builders, Math.min(MAX_BULK_INDEX_REQUEST_SIZE,
+            List<List<IndexRequestBuilder>> partition = eagerPartition(builders, Math.min(MAX_BULK_INDEX_REQUEST_SIZE,
                     Math.max(1, (int) (builders.size() * randomDouble()))));
             logger.info("Index [{}] docs async: [{}] bulk: [{}] partitions [{}]", builders.size(), false, true, partition.size());
             for (List<IndexRequestBuilder> segmented : partition) {
@@ -1653,6 +1696,25 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     /**
+     * Returns a collection of plugins that should be loaded on each node.
+     */
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return Collections.emptyList();
+    }
+
+    /**
+     * Returns a collection of plugins that should be loaded when creating a transport client.
+     */
+    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
+        return Collections.emptyList();
+    }
+
+    /** Helper method to create list of plugins without specifying generic types. */
+    protected static Collection<Class<? extends Plugin>> pluginList(Class<? extends Plugin>... plugins) {
+        return Arrays.asList(plugins);
+    }
+
+    /**
      * This method is used to obtain additional settings for clients created by the internal cluster.
      * These settings will be applied on the client in addition to some randomized settings defined in
      * the cluster. These setttings will also override any other settings the internal cluster might
@@ -1677,7 +1739,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 throw new IllegalArgumentException("port is not valid, expected number but was [" + split[1] + "]");
             }
         }
-        return new ExternalTestCluster(createTempDir(), externalClusterClientSettings(), transportAddresses);
+        return new ExternalTestCluster(createTempDir(), externalClusterClientSettings(), transportClientPlugins(), transportAddresses);
     }
 
     protected Settings externalClusterClientSettings() {
@@ -1704,16 +1766,23 @@ public abstract class ESIntegTestCase extends ESTestCase {
             default:
                 throw new ElasticsearchException("Scope not supported: " + scope);
         }
-        SettingsSource settingsSource = new SettingsSource() {
+        NodeConfigurationSource nodeConfigurationSource = new NodeConfigurationSource() {
             @Override
-            public Settings node(int nodeOrdinal) {
+            public Settings nodeSettings(int nodeOrdinal) {
                 return Settings.builder().put(Node.HTTP_ENABLED, false).
-                        put(nodeSettings(nodeOrdinal)).build();
+                        put(ESIntegTestCase.this.nodeSettings(nodeOrdinal)).build();
             }
-
             @Override
-            public Settings transportClient() {
-                return transportClientSettings();
+            public Collection<Class<? extends Plugin>> nodePlugins() {
+                return ESIntegTestCase.this.nodePlugins();
+            }
+            @Override
+            public Settings transportClientSettings() {
+                return ESIntegTestCase.this.transportClientSettings();
+            }
+            @Override
+            public Collection<Class<? extends Plugin>> transportClientPlugins() {
+                return ESIntegTestCase.this.transportClientPlugins();
             }
         };
 
@@ -1738,7 +1807,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         }
 
         return new InternalTestCluster(nodeMode, seed, createTempDir(), minNumDataNodes, maxNumDataNodes,
-                InternalTestCluster.clusterName(scope.name(), seed) + "-cluster", settingsSource, getNumClientNodes(),
+                InternalTestCluster.clusterName(scope.name(), seed) + "-cluster", nodeConfigurationSource, getNumClientNodes(),
                 InternalTestCluster.DEFAULT_ENABLE_HTTP_PIPELINING, nodePrefix);
     }
 

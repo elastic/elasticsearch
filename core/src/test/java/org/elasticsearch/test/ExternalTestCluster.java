@@ -19,7 +19,6 @@
 
 package org.elasticsearch.test;
 
-import com.google.common.collect.Lists;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
@@ -34,10 +33,13 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
+import org.elasticsearch.plugins.Plugin;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.file.Path;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -65,7 +67,7 @@ public final class ExternalTestCluster extends TestCluster {
     private final int numDataNodes;
     private final int numMasterAndDataNodes;
 
-    public ExternalTestCluster(Path tempDir, Settings additionalSettings, TransportAddress... transportAddresses) {
+    public ExternalTestCluster(Path tempDir, Settings additionalSettings, Collection<Class<? extends Plugin>> pluginClasses, TransportAddress... transportAddresses) {
         super(0);
         Settings clientSettings = Settings.settingsBuilder()
                 .put(additionalSettings)
@@ -75,7 +77,11 @@ public final class ExternalTestCluster extends TestCluster {
                 .put("path.home", tempDir)
                 .put("node.mode", "network").build(); // we require network here!
 
-        this.client = TransportClient.builder().settings(clientSettings).build().addTransportAddresses(transportAddresses);
+        TransportClient.Builder transportClientBuilder = TransportClient.builder().settings(clientSettings);
+        for (Class<? extends Plugin> pluginClass : pluginClasses) {
+            transportClientBuilder.addPlugin(pluginClass);
+        }
+        this.client = transportClientBuilder.build().addTransportAddresses(transportAddresses);
 
         NodesInfoResponse nodeInfos = this.client.admin().cluster().prepareNodesInfo().clear().setSettings(true).setHttp(true).get();
         httpAddresses = new InetSocketAddress[nodeInfos.getNodes().length];
@@ -153,7 +159,7 @@ public final class ExternalTestCluster extends TestCluster {
 
     @Override
     public Iterator<Client> iterator() {
-        return Lists.newArrayList(client).iterator();
+        return Collections.singleton(client).iterator();
     }
 
     @Override

@@ -19,11 +19,11 @@
 
 package org.elasticsearch.rest;
 
-import com.google.common.collect.Lists;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.action.RestActionModule;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -32,7 +32,7 @@ import java.util.List;
 public class RestModule extends AbstractModule {
 
     private final Settings settings;
-    private List<Class<? extends BaseRestHandler>> restPluginsActions = Lists.newArrayList();
+    private List<Class<? extends BaseRestHandler>> restPluginsActions = new ArrayList<>();
 
     public void addRestAction(Class<? extends BaseRestHandler> restAction) {
         restPluginsActions.add(restAction);

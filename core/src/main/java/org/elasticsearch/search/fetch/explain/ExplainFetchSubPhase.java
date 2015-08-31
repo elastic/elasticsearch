@@ -20,7 +20,6 @@ package org.elasticsearch.search.fetch.explain;
 
 import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.search.Explanation;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.fetch.FetchPhaseExecutionException;
 import org.elasticsearch.search.fetch.FetchSubPhase;
@@ -68,6 +67,8 @@ public class ExplainFetchSubPhase implements FetchSubPhase {
             hitContext.hit().explanation(explanation);
         } catch (IOException e) {
             throw new FetchPhaseExecutionException(context, "Failed to explain doc [" + hitContext.hit().type() + "#" + hitContext.hit().id() + "]", e);
+        } finally {
+            context.clearReleasables(SearchContext.Lifetime.COLLECTION);
         }
     }
 }

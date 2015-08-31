@@ -19,8 +19,6 @@
 
 package org.elasticsearch.indices.mapping;
 
-import com.google.common.collect.Lists;
-
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
@@ -39,13 +37,15 @@ import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.*;
 
@@ -64,7 +64,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
 
         int recCount = randomIntBetween(200, 600);
         int numberOfTypes = randomIntBetween(1, 5);
-        List<IndexRequestBuilder> indexRequests = Lists.newArrayList();
+        List<IndexRequestBuilder> indexRequests = new ArrayList<>();
         for (int rec = 0; rec < recCount; rec++) {
             String type = "type" + (rec % numberOfTypes);
             String fieldName = "field_" + type + "_" + rec;

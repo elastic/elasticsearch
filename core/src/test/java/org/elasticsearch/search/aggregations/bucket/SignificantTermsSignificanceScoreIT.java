@@ -93,9 +93,13 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
     public Settings nodeSettings(int nodeOrdinal) {
         return settingsBuilder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put("plugin.types", CustomSignificanceHeuristicPlugin.class.getName())
                 .put("path.conf", this.getDataPath("config"))
                 .build();
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return pluginList(CustomSignificanceHeuristicPlugin.class);
     }
 
     public String randomExecutionHint() {

@@ -95,6 +95,7 @@ import org.elasticsearch.search.action.SearchServiceTransportAction;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
+import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportChannel;
@@ -107,12 +108,14 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Callable;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
@@ -141,11 +144,15 @@ public class IndicesRequestIT extends ESIntegTestCase {
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.settingsBuilder()
-                .put(super.nodeSettings(nodeOrdinal))
-                .extendArray("plugin.types", InterceptingTransportService.TestPlugin.class.getName())
-                .build();
+    protected Settings nodeSettings(int ordinal) {
+        // must set this independently of the plugin so it overrides MockTransportService
+        return Settings.builder().put(super.nodeSettings(ordinal))
+            .put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, "intercepting").build();
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return pluginList(InterceptingTransportService.TestPlugin.class);
     }
 
     @Before
@@ -395,7 +402,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
 
     @Test
     public void testOptimize() {
-        String optimizeShardAction = OptimizeAction.NAME + "[s]";
+        String optimizeShardAction = OptimizeAction.NAME + "[n]";
         interceptTransportActions(optimizeShardAction);
 
         OptimizeRequest optimizeRequest = new OptimizeRequest(randomIndicesOrAliases());
@@ -419,7 +426,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
 
     @Test
     public void testClearCache() {
-        String clearCacheAction = ClearIndicesCacheAction.NAME + "[s]";
+        String clearCacheAction = ClearIndicesCacheAction.NAME + "[n]";
         interceptTransportActions(clearCacheAction);
 
         ClearIndicesCacheRequest clearIndicesCacheRequest = new ClearIndicesCacheRequest(randomIndicesOrAliases());
@@ -431,7 +438,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
 
     @Test
     public void testRecovery() {
-        String recoveryAction = RecoveryAction.NAME + "[s]";
+        String recoveryAction = RecoveryAction.NAME + "[n]";
         interceptTransportActions(recoveryAction);
 
         RecoveryRequest recoveryRequest = new RecoveryRequest(randomIndicesOrAliases());
@@ -443,7 +450,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
 
     @Test
     public void testSegments() {
-        String segmentsAction = IndicesSegmentsAction.NAME + "[s]";
+        String segmentsAction = IndicesSegmentsAction.NAME + "[n]";
         interceptTransportActions(segmentsAction);
 
         IndicesSegmentsRequest segmentsRequest = new IndicesSegmentsRequest(randomIndicesOrAliases());
@@ -455,7 +462,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
 
     @Test
     public void testIndicesStats() {
-        String indicesStats = IndicesStatsAction.NAME + "[s]";
+        String indicesStats = IndicesStatsAction.NAME + "[n]";
         interceptTransportActions(indicesStats);
 
         IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest().indices(randomIndicesOrAliases());
@@ -856,10 +863,6 @@ public class IndicesRequestIT extends ESIntegTestCase {
             public void onModule(TransportModule transportModule) {
                 transportModule.addTransportService("intercepting", InterceptingTransportService.class);
             }
-            @Override
-            public Settings additionalSettings() {
-                return Settings.builder().put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, "intercepting").build();
-            }
         }
 
         private final Set<String> actions = new HashSet<>();
@@ -886,6 +889,11 @@ public class IndicesRequestIT extends ESIntegTestCase {
         @Override
         public <Request extends TransportRequest> void registerRequestHandler(String action, Class<Request> request, String executor, boolean forceExecution, TransportRequestHandler<Request> handler) {
             super.registerRequestHandler(action, request, executor, forceExecution, new InterceptingRequestHandler(action, handler));
+        }
+
+        @Override
+        public <Request extends TransportRequest> void registerRequestHandler(String action, Callable<Request> requestFactory, String executor, TransportRequestHandler<Request> handler) {
+            super.registerRequestHandler(action, requestFactory, executor, new InterceptingRequestHandler(action, handler));
         }
 
         private class InterceptingRequestHandler implements TransportRequestHandler {

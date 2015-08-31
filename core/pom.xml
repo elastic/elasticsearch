@@ -314,6 +314,7 @@
                                 <include>org/elasticsearch/common/util/MockBigArrays.class</include>
                                 <include>org/elasticsearch/common/util/MockBigArrays$*.class</include>
                                 <include>org/elasticsearch/node/NodeMocksPlugin.class</include>
+                                <include>org/elasticsearch/node/MockNode.class</include>
                             </includes>
                             <excludes>
                                 <!-- unit tests for yaml suite parser & rest spec parser need to be excluded -->

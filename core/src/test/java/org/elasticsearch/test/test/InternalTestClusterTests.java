@@ -26,13 +26,11 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.test.SettingsSource;
+import org.elasticsearch.test.NodeConfigurationSource;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.Iterator;
-import java.util.Map;
-import java.util.Random;
+import java.util.*;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
@@ -49,34 +47,48 @@ public class InternalTestClusterTests extends ESTestCase {
         int minNumDataNodes = randomIntBetween(0, 9);
         int maxNumDataNodes = randomIntBetween(minNumDataNodes, 10);
         String clusterName = randomRealisticUnicodeOfCodepointLengthBetween(1, 10);
-        SettingsSource settingsSource = SettingsSource.EMPTY;
+        NodeConfigurationSource nodeConfigurationSource = NodeConfigurationSource.EMPTY;
         int numClientNodes = randomIntBetween(0, 10);
         boolean enableHttpPipelining = randomBoolean();
         String nodePrefix = randomRealisticUnicodeOfCodepointLengthBetween(1, 10);
 
         Path baseDir = createTempDir();
-        InternalTestCluster cluster0 = new InternalTestCluster("local", clusterSeed, baseDir, minNumDataNodes, maxNumDataNodes, clusterName, settingsSource, numClientNodes, enableHttpPipelining, nodePrefix);
-        InternalTestCluster cluster1 = new InternalTestCluster("local", clusterSeed, baseDir, minNumDataNodes, maxNumDataNodes, clusterName, settingsSource, numClientNodes, enableHttpPipelining, nodePrefix);
-        assertClusters(cluster0, cluster1, true);
+        InternalTestCluster cluster0 = new InternalTestCluster("local", clusterSeed, baseDir, minNumDataNodes, maxNumDataNodes, clusterName, nodeConfigurationSource, numClientNodes, enableHttpPipelining, nodePrefix);
+        InternalTestCluster cluster1 = new InternalTestCluster("local", clusterSeed, baseDir, minNumDataNodes, maxNumDataNodes, clusterName, nodeConfigurationSource, numClientNodes, enableHttpPipelining, nodePrefix);
+        // TODO: this is not ideal - we should have a way to make sure ports are initialized in the same way
+        assertClusters(cluster0, cluster1, false);
 
     }
 
-    public static void assertClusters(InternalTestCluster cluster0, InternalTestCluster cluster1, boolean assertClusterName) {
+    /**
+     * a set of settings that are expected to have different values betweem clusters, even they have been initialized with the same
+     * base settins.
+     */
+    final static Set<String> clusterUniqueSettings = new HashSet<>();
+
+    static {
+        clusterUniqueSettings.add(ClusterName.SETTING);
+        clusterUniqueSettings.add("transport.tcp.port");
+        clusterUniqueSettings.add("http.port");
+        clusterUniqueSettings.add("http.port");
+    }
+
+    public static void assertClusters(InternalTestCluster cluster0, InternalTestCluster cluster1, boolean checkClusterUniqueSettings) {
         Settings defaultSettings0 = cluster0.getDefaultSettings();
         Settings defaultSettings1 = cluster1.getDefaultSettings();
-        assertSettings(defaultSettings0, defaultSettings1, assertClusterName);
+        assertSettings(defaultSettings0, defaultSettings1, checkClusterUniqueSettings);
         assertThat(cluster0.numDataNodes(), equalTo(cluster1.numDataNodes()));
-        if (assertClusterName) {
+        if (checkClusterUniqueSettings) {
             assertThat(cluster0.getClusterName(), equalTo(cluster1.getClusterName()));
         }
     }
 
-    public static void assertSettings(Settings left, Settings right, boolean compareClusterName) {
+    public static void assertSettings(Settings left, Settings right, boolean checkClusterUniqueSettings) {
         ImmutableSet<Map.Entry<String, String>> entries0 = left.getAsMap().entrySet();
         Map<String, String> entries1 = right.getAsMap();
         assertThat(entries0.size(), equalTo(entries1.size()));
         for (Map.Entry<String, String> entry : entries0) {
-            if(entry.getKey().equals(ClusterName.SETTING) && compareClusterName == false) {
+            if (clusterUniqueSettings.contains(entry.getKey()) && checkClusterUniqueSettings == false) {
                 continue;
             }
             assertThat(entries1, hasEntry(entry.getKey(), entry.getValue()));
@@ -92,15 +104,15 @@ public class InternalTestClusterTests extends ESTestCase {
         /*while (clusterName.equals(clusterName1)) {
             clusterName1 = clusterName("shared", Integer.toString(CHILD_JVM_ID), clusterSeed);   // spin until the time changes
         }*/
-        SettingsSource settingsSource = SettingsSource.EMPTY;
+        NodeConfigurationSource nodeConfigurationSource = NodeConfigurationSource.EMPTY;
         int numClientNodes = randomIntBetween(0, 2);
         boolean enableHttpPipelining = randomBoolean();
         int jvmOrdinal = randomIntBetween(0, 10);
         String nodePrefix = "foobar";
 
         Path baseDir = createTempDir();
-        InternalTestCluster cluster0 = new InternalTestCluster("local", clusterSeed, baseDir, minNumDataNodes, maxNumDataNodes, clusterName1, settingsSource, numClientNodes, enableHttpPipelining, nodePrefix);
-        InternalTestCluster cluster1 = new InternalTestCluster("local", clusterSeed, baseDir, minNumDataNodes, maxNumDataNodes, clusterName2, settingsSource, numClientNodes, enableHttpPipelining, nodePrefix);
+        InternalTestCluster cluster0 = new InternalTestCluster("local", clusterSeed, baseDir, minNumDataNodes, maxNumDataNodes, clusterName1, nodeConfigurationSource, numClientNodes, enableHttpPipelining, nodePrefix);
+        InternalTestCluster cluster1 = new InternalTestCluster("local", clusterSeed, baseDir, minNumDataNodes, maxNumDataNodes, clusterName2, nodeConfigurationSource, numClientNodes, enableHttpPipelining, nodePrefix);
 
         assertClusters(cluster0, cluster1, false);
         long seed = randomLong();

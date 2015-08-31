@@ -25,18 +25,15 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.test.SettingsSource;
-import org.elasticsearch.transport.local.LocalTransport;
+import org.elasticsearch.test.NodeConfigurationSource;
 
 import java.io.IOException;
-import java.net.Inet4Address;
-import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.util.HashSet;
 import java.util.Set;
 
-public class ClusterDiscoveryConfiguration extends SettingsSource {
+public class ClusterDiscoveryConfiguration extends NodeConfigurationSource {
 
     static Settings DEFAULT_NODE_SETTINGS = Settings.settingsBuilder().put("discovery.type", "zen").build();
     private static final String IP_ADDR = "127.0.0.1";
@@ -52,12 +49,12 @@ public class ClusterDiscoveryConfiguration extends SettingsSource {
     }
 
     @Override
-    public Settings node(int nodeOrdinal) {
+    public Settings nodeSettings(int nodeOrdinal) {
         return nodeSettings;
     }
 
     @Override
-    public Settings transportClient() {
+    public Settings transportClientSettings() {
         return transportClientSettings;
     }
 
@@ -103,11 +100,11 @@ public class ClusterDiscoveryConfiguration extends SettingsSource {
         }
 
         private static int calcBasePort() {
-            return 30000 + InternalTestCluster.BASE_PORT;
+            return 30000 + InternalTestCluster.JVM_BASE_PORT_OFFEST;
         }
 
         @Override
-        public Settings node(int nodeOrdinal) {
+        public Settings nodeSettings(int nodeOrdinal) {
             Settings.Builder builder = Settings.builder();
 
             String[] unicastHosts = new String[unicastHostOrdinals.length];
@@ -125,7 +122,7 @@ public class ClusterDiscoveryConfiguration extends SettingsSource {
                 }
             }
             builder.putArray("discovery.zen.ping.unicast.hosts", unicastHosts);
-            return builder.put(super.node(nodeOrdinal)).build();
+            return builder.put(super.nodeSettings(nodeOrdinal)).build();
         }
 
         @SuppressForbidden(reason = "we know we pass a IP address")

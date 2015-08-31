@@ -21,7 +21,6 @@ package org.elasticsearch.indices.warmer;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.collect.ImmutableList;
-
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.segments.IndexSegments;
 import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
@@ -49,7 +48,10 @@ import org.junit.Test;
 import java.util.Locale;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.is;
 
 public class SimpleIndicesWarmerIT extends ESIntegTestCase {
 
@@ -272,7 +274,7 @@ public class SimpleIndicesWarmerIT extends ESIntegTestCase {
         for (IndexShardSegments indexShardSegments : indicesSegments) {
             for (ShardSegments shardSegments : indexShardSegments) {
                 for (Segment segment : shardSegments) {
-                    logger.debug("+=" + segment.memoryInBytes + " " + indexShardSegments.getShardId() + " " + shardSegments.getIndex());
+                    logger.debug("+=" + segment.memoryInBytes + " " + indexShardSegments.getShardId() + " " + shardSegments.getShardRouting().getIndex());
                     total += segment.memoryInBytes;
                 }
             }

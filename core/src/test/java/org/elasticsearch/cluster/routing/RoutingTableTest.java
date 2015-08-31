@@ -243,4 +243,25 @@ public class RoutingTableTest extends ESAllocationTestCase {
             fail("Calling with non-existing index should be ignored at the moment");
         }
     }
+
+    public void testAllShardsForMultipleIndices() {
+        assertThat(this.emptyRoutingTable.allShards(new String[0]).size(), is(0));
+
+        assertThat(this.testRoutingTable.allShards(new String[]{TEST_INDEX_1}).size(), is(this.shardsPerIndex));
+
+        initPrimaries();
+        assertThat(this.testRoutingTable.allShards(new String[]{TEST_INDEX_1}).size(), is(this.shardsPerIndex));
+
+        startInitializingShards(TEST_INDEX_1);
+        assertThat(this.testRoutingTable.allShards(new String[]{TEST_INDEX_1}).size(), is(this.shardsPerIndex));
+
+        startInitializingShards(TEST_INDEX_2);
+        assertThat(this.testRoutingTable.allShards(new String[]{TEST_INDEX_1, TEST_INDEX_2}).size(), is(this.totalNumberOfShards));
+
+        try {
+            this.testRoutingTable.allShards(new String[]{TEST_INDEX_1, "not_exists"});
+        } catch (IndexNotFoundException e) {
+            fail("Calling with non-existing index should be ignored at the moment");
+        }
+    }
 }

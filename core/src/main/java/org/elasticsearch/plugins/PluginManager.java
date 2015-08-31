@@ -463,17 +463,15 @@ public class PluginManager {
             if (version != null) {
                 // Elasticsearch new download service uses groupId org.elasticsearch.plugin from 2.0.0
                 if (user == null) {
-                    // TODO Update to https
                     if (!Strings.isNullOrEmpty(System.getProperty(PROPERTY_SUPPORT_STAGING_URLS))) {
-                        addUrl(urls, String.format(Locale.ROOT, "http://download.elastic.co/elasticsearch/staging/%s-%s/org/elasticsearch/plugin/%s/%s/%s-%s.zip", version, Build.CURRENT.hashShort(), name, version, name, version));
+                        addUrl(urls, String.format(Locale.ROOT, "https://download.elastic.co/elasticsearch/staging/%s-%s/org/elasticsearch/plugin/%s/%s/%s-%s.zip", version, Build.CURRENT.hashShort(), name, version, name, version));
                     }
-                    addUrl(urls, String.format(Locale.ROOT, "http://download.elastic.co/elasticsearch/release/org/elasticsearch/plugin/%s/%s/%s-%s.zip", name, version, name, version));
+                    addUrl(urls, String.format(Locale.ROOT, "https://download.elastic.co/elasticsearch/release/org/elasticsearch/plugin/%s/%s/%s-%s.zip", name, version, name, version));
                 } else {
                     // Elasticsearch old download service
-                    // TODO Update to https
-                    addUrl(urls, String.format(Locale.ROOT, "http://download.elastic.co/%1$s/%2$s/%2$s-%3$s.zip", user, name, version));
+                    addUrl(urls, String.format(Locale.ROOT, "https://download.elastic.co/%1$s/%2$s/%2$s-%3$s.zip", user, name, version));
                     // Maven central repository
-                    addUrl(urls, String.format(Locale.ROOT, "http://search.maven.org/remotecontent?filepath=%1$s/%2$s/%3$s/%2$s-%3$s.zip", user.replace('.', '/'), name, version));
+                    addUrl(urls, String.format(Locale.ROOT, "https://search.maven.org/remotecontent?filepath=%1$s/%2$s/%3$s/%2$s-%3$s.zip", user.replace('.', '/'), name, version));
                     // Sonatype repository
                     addUrl(urls, String.format(Locale.ROOT, "https://oss.sonatype.org/service/local/repositories/releases/content/%1$s/%2$s/%3$s/%2$s-%3$s.zip", user.replace('.', '/'), name, version));
                     // Github repository

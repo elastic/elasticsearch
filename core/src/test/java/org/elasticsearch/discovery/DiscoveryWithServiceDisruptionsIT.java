@@ -48,6 +48,7 @@ import org.elasticsearch.discovery.zen.ping.ZenPing;
 import org.elasticsearch.discovery.zen.ping.ZenPingService;
 import org.elasticsearch.discovery.zen.ping.unicast.UnicastZenPing;
 import org.elasticsearch.discovery.zen.publish.PublishClusterStateAction;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.discovery.ClusterDiscoveryConfiguration;
@@ -82,7 +83,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return discoveryConfig.node(nodeOrdinal);
+        return discoveryConfig.nodeSettings(nodeOrdinal);
     }
 
     @Before
@@ -134,8 +135,12 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
             .put("transport.bind_host", "127.0.0.1")
             .put("transport.publish_host", "127.0.0.1")
             .put("gateway.local.list_timeout", "10s") // still long to induce failures but to long so test won't time out
-            .put("plugin.types", MockTransportService.TestPlugin.class.getName())
             .build();
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return pluginList(MockTransportService.TestPlugin.class);
+    }
 
     private void configureUnicastCluster(int numberOfNodes, @Nullable int[] unicastHostsOrdinals, int minimumMasterNode) throws ExecutionException, InterruptedException {
         if (minimumMasterNode < 0) {

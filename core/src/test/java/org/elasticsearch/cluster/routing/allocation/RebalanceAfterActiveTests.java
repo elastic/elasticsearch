@@ -66,7 +66,7 @@ public class RebalanceAfterActiveTests extends ESAllocationTestCase {
                 new ClusterInfoService() {
                     @Override
                     public ClusterInfo getClusterInfo() {
-                        return new ClusterInfo(Collections.EMPTY_MAP, Collections.EMPTY_MAP) {
+                        return new ClusterInfo() {
                             @Override
                             public Long getShardSize(ShardRouting shardRouting) {
                                 if (shardRouting.index().equals("test")) {

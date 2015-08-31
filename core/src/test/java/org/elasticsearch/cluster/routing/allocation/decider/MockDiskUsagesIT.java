@@ -33,9 +33,11 @@ import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.monitor.fs.FsInfo;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
+import java.util.Collection;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -52,11 +54,15 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                    // Use the mock internal cluster info service, which has fake-able disk usages
-                .extendArray("plugin.types", MockInternalClusterInfoService.TestPlugin.class.getName())
                         // Update more frequently
                 .put(InternalClusterInfoService.INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL, "1s")
                 .build();
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        // Use the mock internal cluster info service, which has fake-able disk usages
+        return pluginList(MockInternalClusterInfoService.TestPlugin.class);
     }
 
     @Test
@@ -76,9 +82,9 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
         // Start with all nodes at 50% usage
         final MockInternalClusterInfoService cis = (MockInternalClusterInfoService)
                 internalCluster().getInstance(ClusterInfoService.class, internalCluster().getMasterName());
-        cis.setN1Usage(nodes.get(0), new DiskUsage(nodes.get(0), "n1", 100, 50));
-        cis.setN2Usage(nodes.get(1), new DiskUsage(nodes.get(1), "n2", 100, 50));
-        cis.setN3Usage(nodes.get(2), new DiskUsage(nodes.get(2), "n3", 100, 50));
+        cis.setN1Usage(nodes.get(0), new DiskUsage(nodes.get(0), "n1", "/dev/null", 100, 50));
+        cis.setN2Usage(nodes.get(1), new DiskUsage(nodes.get(1), "n2", "/dev/null", 100, 50));
+        cis.setN3Usage(nodes.get(2), new DiskUsage(nodes.get(2), "n3", "/dev/null", 100, 50));
 
         client().admin().cluster().prepareUpdateSettings().setTransientSettings(settingsBuilder()
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK, randomFrom("20b", "80%"))
@@ -97,8 +103,8 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
             @Override
             public void run() {
                 ClusterInfo info = cis.getClusterInfo();
-                logger.info("--> got: {} nodes", info.getNodeDiskUsages().size());
-                assertThat(info.getNodeDiskUsages().size(), greaterThan(0));
+                logger.info("--> got: {} nodes", info.getNodeLeastAvailableDiskUsages().size());
+                assertThat(info.getNodeLeastAvailableDiskUsages().size(), greaterThan(0));
             }
         });
 
@@ -113,9 +119,9 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
         }
 
         // Update the disk usages so one node has now passed the high watermark
-        cis.setN1Usage(realNodeNames.get(0), new DiskUsage(nodes.get(0), "n1", 100, 50));
-        cis.setN2Usage(realNodeNames.get(1), new DiskUsage(nodes.get(1), "n2", 100, 50));
-        cis.setN3Usage(realNodeNames.get(2), new DiskUsage(nodes.get(2), "n3", 100, 0)); // nothing free on node3
+        cis.setN1Usage(realNodeNames.get(0), new DiskUsage(nodes.get(0), "n1", "_na_", 100, 50));
+        cis.setN2Usage(realNodeNames.get(1), new DiskUsage(nodes.get(1), "n2", "_na_", 100, 50));
+        cis.setN3Usage(realNodeNames.get(2), new DiskUsage(nodes.get(2), "n3", "_na_", 100, 0)); // nothing free on node3
 
         // Retrieve the count of shards on each node
         final Map<String, Integer> nodesToShardCount = newHashMap();
@@ -138,9 +144,9 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
         });
 
         // Update the disk usages so one node is now back under the high watermark
-        cis.setN1Usage(realNodeNames.get(0), new DiskUsage(nodes.get(0), "n1", 100, 50));
-        cis.setN2Usage(realNodeNames.get(1), new DiskUsage(nodes.get(1), "n2", 100, 50));
-        cis.setN3Usage(realNodeNames.get(2), new DiskUsage(nodes.get(2), "n3", 100, 50)); // node3 has free space now
+        cis.setN1Usage(realNodeNames.get(0), new DiskUsage(nodes.get(0), "n1", "_na_", 100, 50));
+        cis.setN2Usage(realNodeNames.get(1), new DiskUsage(nodes.get(1), "n2", "_na_", 100, 50));
+        cis.setN3Usage(realNodeNames.get(2), new DiskUsage(nodes.get(2), "n3", "_na_", 100, 50)); // node3 has free space now
 
         // Retrieve the count of shards on each node
         nodesToShardCount.clear();
@@ -166,7 +172,7 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
     /** Create a fake NodeStats for the given node and usage */
     public static NodeStats makeStats(String nodeName, DiskUsage usage) {
         FsInfo.Path[] paths = new FsInfo.Path[1];
-        FsInfo.Path path = new FsInfo.Path("/path.data", null,
+        FsInfo.Path path = new FsInfo.Path("/dev/null", null,
                 usage.getTotalBytes(), usage.getFreeBytes(), usage.getFreeBytes());
         paths[0] = path;
         FsInfo fsInfo = new FsInfo(System.currentTimeMillis(), paths);

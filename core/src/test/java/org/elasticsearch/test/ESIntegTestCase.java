@@ -27,6 +27,13 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.google.common.base.Joiner;
 import com.google.common.base.Predicate;
 import org.apache.http.impl.client.HttpClients;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
+import org.elasticsearch.common.network.NetworkAddress;
+import org.elasticsearch.index.shard.MergeSchedulerConfig;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TestUtil;
@@ -112,7 +119,9 @@ import org.elasticsearch.indices.flush.IndicesSyncedFlushResult;
 import org.elasticsearch.indices.flush.SyncedFlushService;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.client.RandomizingClient;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
@@ -852,6 +861,21 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 fieldName = fieldName.replace(".", ".properties.");
             }
             assertThat("field " + fieldName + " doesn't exists in mapping " + mappingMetaData.source().string(), XContentMapValues.extractValue(fieldName, mappingProperties), notNullValue());
+        }
+    }
+
+    /** Ensures the result counts are as expected, and logs the results if different */
+    public void assertResultsAndLogOnFailure(long expectedResults, SearchResponse searchResponse) {
+        if (searchResponse.getHits().getTotalHits() != expectedResults) {
+            StringBuilder sb = new StringBuilder("search result contains [");
+            sb.append(searchResponse.getHits().getTotalHits()).append("] results. expected [").append(expectedResults).append("]");
+            String failMsg = sb.toString();
+            for (SearchHit hit : searchResponse.getHits().getHits()) {
+                sb.append("\n-> _index: [").append(hit.getIndex()).append("] type [").append(hit.getType())
+                    .append("] id [").append(hit.id()).append("]");
+            }
+            logger.warn(sb.toString());
+            fail(failMsg);
         }
     }
 
@@ -1672,6 +1696,25 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     /**
+     * Returns a collection of plugins that should be loaded on each node.
+     */
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return Collections.emptyList();
+    }
+
+    /**
+     * Returns a collection of plugins that should be loaded when creating a transport client.
+     */
+    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
+        return Collections.emptyList();
+    }
+
+    /** Helper method to create list of plugins without specifying generic types. */
+    protected static Collection<Class<? extends Plugin>> pluginList(Class<? extends Plugin>... plugins) {
+        return Arrays.asList(plugins);
+    }
+
+    /**
      * This method is used to obtain additional settings for clients created by the internal cluster.
      * These settings will be applied on the client in addition to some randomized settings defined in
      * the cluster. These setttings will also override any other settings the internal cluster might
@@ -1723,16 +1766,23 @@ public abstract class ESIntegTestCase extends ESTestCase {
             default:
                 throw new ElasticsearchException("Scope not supported: " + scope);
         }
-        SettingsSource settingsSource = new SettingsSource() {
+        NodeConfigurationSource nodeConfigurationSource = new NodeConfigurationSource() {
             @Override
-            public Settings node(int nodeOrdinal) {
+            public Settings nodeSettings(int nodeOrdinal) {
                 return Settings.builder().put(Node.HTTP_ENABLED, false).
-                        put(nodeSettings(nodeOrdinal)).build();
+                        put(ESIntegTestCase.this.nodeSettings(nodeOrdinal)).build();
             }
-
             @Override
-            public Settings transportClient() {
-                return transportClientSettings();
+            public Collection<Class<? extends Plugin>> nodePlugins() {
+                return ESIntegTestCase.this.nodePlugins();
+            }
+            @Override
+            public Settings transportClientSettings() {
+                return ESIntegTestCase.this.transportClientSettings();
+            }
+            @Override
+            public Collection<Class<? extends Plugin>> transportClientPlugins() {
+                return ESIntegTestCase.this.transportClientPlugins();
             }
         };
 
@@ -1757,7 +1807,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         }
 
         return new InternalTestCluster(nodeMode, seed, createTempDir(), minNumDataNodes, maxNumDataNodes,
-                InternalTestCluster.clusterName(scope.name(), seed) + "-cluster", settingsSource, getNumClientNodes(),
+                InternalTestCluster.clusterName(scope.name(), seed) + "-cluster", nodeConfigurationSource, getNumClientNodes(),
                 InternalTestCluster.DEFAULT_ENABLE_HTTP_PIPELINING, nodePrefix);
     }
 

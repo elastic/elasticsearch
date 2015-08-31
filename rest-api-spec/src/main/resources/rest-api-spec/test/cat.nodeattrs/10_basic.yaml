@@ -6,8 +6,7 @@
       reason:   "Waiting for #12558"
 
   - do:
-      cat.nodeattrs:
-        v: false
+      cat.nodeattrs: {}
 
   - match:
       $body: |

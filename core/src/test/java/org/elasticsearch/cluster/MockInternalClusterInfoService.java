@@ -24,6 +24,7 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.TransportNodesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.TransportIndicesStatsAction;
+import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDeciderTests;
 import org.elasticsearch.cluster.routing.allocation.decider.MockDiskUsagesIT;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -63,9 +64,9 @@ public class MockInternalClusterInfoService extends InternalClusterInfoService {
                                           ClusterService clusterService, ThreadPool threadPool) {
         super(settings, nodeSettingsService, transportNodesStatsAction, transportIndicesStatsAction, clusterService, threadPool);
         this.clusterName = ClusterName.clusterNameFromSettings(settings);
-        stats[0] = MockDiskUsagesIT.makeStats("node_t1", new DiskUsage("node_t1", "n1", 100, 100));
-        stats[1] = MockDiskUsagesIT.makeStats("node_t2", new DiskUsage("node_t2", "n2", 100, 100));
-        stats[2] = MockDiskUsagesIT.makeStats("node_t3", new DiskUsage("node_t3", "n3", 100, 100));
+        stats[0] = MockDiskUsagesIT.makeStats("node_t1", new DiskUsage("node_t1", "n1", "/dev/null", 100, 100));
+        stats[1] = MockDiskUsagesIT.makeStats("node_t2", new DiskUsage("node_t2", "n2", "/dev/null", 100, 100));
+        stats[2] = MockDiskUsagesIT.makeStats("node_t3", new DiskUsage("node_t3", "n3", "/dev/null", 100, 100));
     }
 
     public void setN1Usage(String nodeName, DiskUsage newUsage) {
@@ -91,5 +92,10 @@ public class MockInternalClusterInfoService extends InternalClusterInfoService {
     public CountDownLatch updateIndicesStats(final ActionListener<IndicesStatsResponse> listener) {
         // Not used, so noop
         return new CountDownLatch(0);
+    }
+
+    public ClusterInfo getClusterInfo() {
+        ClusterInfo clusterInfo = super.getClusterInfo();
+        return new ClusterInfo(clusterInfo.getNodeLeastAvailableDiskUsages(), clusterInfo.getNodeMostAvailableDiskUsages(), clusterInfo.shardSizes, DiskThresholdDeciderTests.DEV_NULL_MAP);
     }
 }

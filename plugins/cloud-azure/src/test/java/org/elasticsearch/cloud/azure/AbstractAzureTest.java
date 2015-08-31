@@ -24,8 +24,11 @@ import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.plugin.cloud.azure.CloudAzurePlugin;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ThirdParty;
+
+import java.util.Collection;
 
 /**
  * Base class for Azure tests that require credentials.
@@ -40,9 +43,13 @@ public abstract class AbstractAzureTest extends ESIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put("plugin.types", CloudAzurePlugin.class.getName())
                 .put(readSettingsFromFile())
                 .build();
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return pluginList(CloudAzurePlugin.class);
     }
 
     protected Settings readSettingsFromFile() {

@@ -80,8 +80,12 @@ public class SmokeTestPluginsSslIT extends ESRestTestCase {
                 .put("shield.transport.ssl", true)
                 .put("shield.ssl.keystore.path", keyStore)
                 .put("shield.ssl.keystore.password", KEYSTORE_PASS)
-                .put("plugin.types", ShieldPlugin.class.getName())
                 .build();
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
+        return Collections.<Class<? extends Plugin>>singleton(ShieldPlugin.class);
     }
 
 }

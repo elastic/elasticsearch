@@ -14,20 +14,21 @@ import org.apache.http.impl.conn.BasicHttpClientConnectionManager;
 import org.elasticsearch.client.support.Headers;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.license.plugin.LicensePlugin;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.shield.ShieldPlugin;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.RestTestCandidate;
 import org.elasticsearch.test.rest.parser.RestTestParseException;
-import org.elasticsearch.watcher.WatcherPlugin;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.URI;
+import java.util.Collection;
+import java.util.Collections;
 
 import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 
@@ -80,12 +81,16 @@ public class WatcherWithShieldIT extends ESRestTestCase {
     protected Settings externalClusterClientSettings() {
         return Settings.builder()
                 .put("shield.user", TEST_ADMIN_USERNAME + ":" + TEST_ADMIN_PASSWORD)
-                .put("plugin.types", WatcherPlugin.class.getName() + "," + ShieldPlugin.class.getName() + "," + LicensePlugin.class.getName())
                 .build();
     }
 
     protected String[] getCredentials() {
         return new String[]{"watcher_manager", "changeme"};
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
+        return Collections.<Class<? extends Plugin>>singleton(ShieldPlugin.class);
     }
 
 }

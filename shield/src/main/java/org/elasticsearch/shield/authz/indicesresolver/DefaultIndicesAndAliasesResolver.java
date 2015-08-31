@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.shield.authz.indicesresolver;
 
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Sets;
 import org.elasticsearch.action.AliasesRequest;
 import org.elasticsearch.action.CompositeIndicesRequest;
@@ -66,7 +65,7 @@ public class DefaultIndicesAndAliasesResolver implements IndicesAndAliasesResolv
     private Set<String> resolveIndicesAndAliases(User user, String action, IndicesRequest indicesRequest, MetaData metaData) {
         if (indicesRequest.indicesOptions().expandWildcardsOpen() || indicesRequest.indicesOptions().expandWildcardsClosed()) {
             if (indicesRequest instanceof IndicesRequest.Replaceable) {
-                ImmutableList<String> authorizedIndices = authzService.authorizedIndicesAndAliases(user, action);
+                List<String> authorizedIndices = authzService.authorizedIndicesAndAliases(user, action);
                 List<String> indices = replaceWildcardsWithAuthorizedIndices(indicesRequest.indices(), indicesRequest.indicesOptions(), metaData, authorizedIndices);
                 ((IndicesRequest.Replaceable) indicesRequest).indices(indices.toArray(new String[indices.size()]));
             } else {
@@ -86,7 +85,7 @@ public class DefaultIndicesAndAliasesResolver implements IndicesAndAliasesResolv
             //AliasesRequest extends IndicesRequest.Replaceable, hence its indices have already been properly replaced.
             AliasesRequest aliasesRequest = (AliasesRequest) indicesRequest;
             if (aliasesRequest.expandAliasesWildcards()) {
-                ImmutableList<String> authorizedIndices = authzService.authorizedIndicesAndAliases(user, action);
+                List<String> authorizedIndices = authzService.authorizedIndicesAndAliases(user, action);
                 List<String> aliases = replaceWildcardsWithAuthorizedAliases(aliasesRequest.aliases(), loadAuthorizedAliases(authorizedIndices, metaData));
                 aliasesRequest.aliases(aliases.toArray(new String[aliases.size()]));
             }

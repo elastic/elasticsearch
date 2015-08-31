@@ -6,7 +6,6 @@
 package org.elasticsearch.shield.authc.esusers;
 
 import com.google.common.base.Charsets;
-import com.google.common.collect.ImmutableList;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
@@ -27,10 +26,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -156,7 +152,7 @@ public class FileUserRolesStoreTests extends ESTestCase {
         watcherService.start();
 
         // now replacing the content of the users file with something that cannot be read
-        Files.write(tmp, ImmutableList.of("aldlfkjldjdflkjd"), Charsets.UTF_16);
+        Files.write(tmp, Collections.singletonList("aldlfkjldjdflkjd"), Charsets.UTF_16);
 
         if (!latch.await(5, TimeUnit.SECONDS)) {
             fail("Waited too long for the updated file to be picked up");

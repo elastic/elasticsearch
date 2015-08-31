@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.shield.authc;
 
-import com.google.common.collect.ImmutableList;
 import org.elasticsearch.common.inject.multibindings.MapBinder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.authc.activedirectory.ActiveDirectoryRealm;
@@ -22,7 +21,7 @@ import java.util.Map.Entry;
  */
 public class AuthenticationModule extends AbstractShieldModule.Node {
 
-    private static final List<String> INTERNAL_REALM_TYPES = ImmutableList.of(ESUsersRealm.TYPE, ActiveDirectoryRealm.TYPE, LdapRealm.TYPE, PkiRealm.TYPE);
+    private static final List<String> INTERNAL_REALM_TYPES = Arrays.asList(ESUsersRealm.TYPE, ActiveDirectoryRealm.TYPE, LdapRealm.TYPE, PkiRealm.TYPE);
 
     private final Map<String, Class<? extends Realm.Factory<? extends Realm<? extends AuthenticationToken>>>> customRealms = new HashMap<>();
 

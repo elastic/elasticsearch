@@ -7,7 +7,6 @@ package org.elasticsearch.shield.authz;
 
 import com.google.common.base.Predicate;
 import com.google.common.base.Predicates;
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Sets;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.CompositeIndicesRequest;
@@ -34,8 +33,7 @@ import org.elasticsearch.shield.authz.indicesresolver.IndicesAndAliasesResolver;
 import org.elasticsearch.shield.authz.store.RolesStore;
 import org.elasticsearch.transport.TransportRequest;
 
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 import static org.elasticsearch.shield.support.Exceptions.authorizationError;
 
@@ -68,12 +66,12 @@ public class InternalAuthorizationService extends AbstractComponent implements A
     }
 
     @Override
-    public ImmutableList<String> authorizedIndicesAndAliases(User user, String action) {
+    public List<String> authorizedIndicesAndAliases(User user, String action) {
         String[] roles = user.roles();
         if (roles.length == 0) {
-            return ImmutableList.of();
+            return Collections.emptyList();
         }
-        ImmutableList.Builder<Predicate<String>> predicates = ImmutableList.builder();
+        List<Predicate<String>> predicates = new ArrayList<>();
         for (String role : roles) {
             Permission.Global.Role global = rolesStore.role(role);
             if (global != null) {
@@ -81,8 +79,8 @@ public class InternalAuthorizationService extends AbstractComponent implements A
             }
         }
 
-        ImmutableList.Builder<String> indicesAndAliases = ImmutableList.builder();
-        Predicate<String> predicate = Predicates.or(predicates.build());
+        List<String> indicesAndAliases = new ArrayList<>();
+        Predicate<String> predicate = Predicates.or(predicates);
         MetaData metaData = clusterService.state().metaData();
         // TODO: can this be done smarter? I think there are usually more indices/aliases in the cluster then indices defined a roles?
         for (Map.Entry<String, AliasOrIndex> entry : metaData.getAliasAndIndexLookup().entrySet()) {
@@ -91,7 +89,7 @@ public class InternalAuthorizationService extends AbstractComponent implements A
                 indicesAndAliases.add(aliasOrIndex);
             }
         }
-        return indicesAndAliases.build();
+        return Collections.unmodifiableList(indicesAndAliases);
     }
 
     @Override

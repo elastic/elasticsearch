@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.shield;
 
-import com.google.common.collect.ImmutableList;
 import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.support.Headers;
@@ -117,26 +116,25 @@ public class ShieldPlugin extends Plugin {
         if (enabled && clientMode == false) {
             failIfShieldQueryCacheIsNotActive(settings, false);
         }
-        return ImmutableList.of();
+        return Collections.emptyList();
     }
 
     @Override
     public Collection<Module> shardModules(Settings settings) {
         if (enabled && clientMode == false) {
             failIfShieldQueryCacheIsNotActive(settings, false);
-            return ImmutableList.<Module>of(new AccessControlShardModule(settings));
+            return Collections.<Module>singletonList(new AccessControlShardModule(settings));
         } else {
-            return ImmutableList.of();
+            return Collections.emptyList();
         }
     }
 
     @Override
     public Collection<Class<? extends LifecycleComponent>> nodeServices() {
-        ImmutableList.Builder<Class<? extends LifecycleComponent>> builder = ImmutableList.builder();
         if (enabled && clientMode == false) {
-            builder.add(LicenseService.class).add(InternalCryptoService.class).add(FileRolesStore.class).add(Realms.class).add(IPFilter.class);
+            return Arrays.<Class<? extends LifecycleComponent>>asList(LicenseService.class, InternalCryptoService.class, FileRolesStore.class, Realms.class, IPFilter.class);
         }
-        return builder.build();
+        return Collections.emptyList();
     }
 
     @Override

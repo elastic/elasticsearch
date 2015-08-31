@@ -6,7 +6,6 @@
 package org.elasticsearch.shield.authz.store;
 
 import com.google.common.base.Charsets;
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -195,7 +194,7 @@ public class FileRolesStoreTests extends ESTestCase {
     @Test
     public void testThatEmptyFileDoesNotResultInLoop() throws Exception {
         Path file = createTempFile();
-        Files.write(file, ImmutableList.of("#"), Charsets.UTF_8);
+        Files.write(file, Collections.singletonList("#"), Charsets.UTF_8);
         Map<String, Permission.Global.Role> roles = FileRolesStore.parseFile(file, Collections.<Permission.Global.Role>emptySet(), logger);
         assertThat(roles.keySet(), is(empty()));
     }

@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.shield.license;
 
-import com.google.common.collect.ImmutableList;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -17,10 +16,7 @@ import org.elasticsearch.license.core.License;
 import org.elasticsearch.license.plugin.core.LicensesClientService;
 import org.elasticsearch.shield.ShieldPlugin;
 
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
-import java.util.Locale;
+import java.util.*;
 
 /**
  *
@@ -46,7 +42,7 @@ public class LicenseService extends AbstractLifecycleComponent<LicenseService> {
         super(settings);
         this.licensesClientService = licensesClientService;
         this.notifier = notifier;
-        this.expirationLoggers = ImmutableList.of(
+        this.expirationLoggers = Arrays.asList(
                 new LicensesClientService.ExpirationCallback.Pre(days(7), days(30), days(1)) {
                     @Override
                     public void on(License license, LicensesClientService.ExpirationStatus status) {

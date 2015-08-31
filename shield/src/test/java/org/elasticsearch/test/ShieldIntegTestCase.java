@@ -22,6 +22,7 @@ import org.elasticsearch.plugins.PluginInfo;
 import org.elasticsearch.shield.ShieldPlugin;
 import org.elasticsearch.shield.audit.index.IndexAuditTrail;
 import org.elasticsearch.shield.authc.support.SecuredString;
+import org.elasticsearch.test.ESIntegTestCase.SuppressLocalMode;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -42,6 +43,7 @@ import static org.hamcrest.CoreMatchers.is;
  * meaning that all subclasses that don't specify a different scope will share the same cluster with shield installed.
  * @see org.elasticsearch.test.ShieldSettingsSource
  */
+@SuppressLocalMode
 public abstract class ShieldIntegTestCase extends ESIntegTestCase {
 
     private static ShieldSettingsSource SHIELD_DEFAULT_SETTINGS;

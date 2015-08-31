@@ -28,6 +28,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomBoolean;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
@@ -147,7 +148,7 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
 
     @Override
     public Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return nodePlugins();
+        return Collections.<Class<? extends Plugin>>singletonList(ShieldPlugin.class);
     }
 
     protected String configUsers() {

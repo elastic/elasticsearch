@@ -6,6 +6,7 @@
 package org.elasticsearch.shield.tribe;
 
 import com.google.common.collect.ImmutableMap;
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.client.support.Headers;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -36,6 +37,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.*;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/551")
 public class TribeTests extends ShieldIntegTestCase {
 
     //use known suite prefix since their threads are already ignored via ElasticsearchThreadFilter

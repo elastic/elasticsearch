@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.marvel.agent.collector.cluster;
 
-import com.google.common.collect.ImmutableList;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterService;
@@ -16,7 +15,10 @@ import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
 import org.elasticsearch.marvel.agent.settings.MarvelSettings;
 import org.elasticsearch.marvel.license.LicenseService;
 
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 
 /**
  * Collector for cluster stats.
@@ -45,10 +47,10 @@ public class ClusterStatsCollector extends AbstractCollector<ClusterStatsCollect
 
     @Override
     protected Collection<MarvelDoc> doCollect() throws Exception {
-        ImmutableList.Builder<MarvelDoc> results = ImmutableList.builder();
+        List<MarvelDoc> results = new ArrayList<>(1);
 
         ClusterStatsResponse clusterStatsResponse = client.admin().cluster().prepareClusterStats().get(marvelSettings.clusterStatsTimeout());
         results.add(new ClusterStatsMarvelDoc(clusterUUID(), TYPE, System.currentTimeMillis(), clusterStatsResponse));
-        return results.build();
+        return Collections.unmodifiableCollection(results);
     }
 }

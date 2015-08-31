@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.marvel.agent.collector.licenses;
 
-import com.google.common.collect.ImmutableList;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
@@ -17,7 +16,9 @@ import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
 import org.elasticsearch.marvel.agent.settings.MarvelSettings;
 import org.elasticsearch.marvel.license.LicenseService;
 
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -51,7 +52,7 @@ public class LicensesCollector extends AbstractCollector<LicensesMarvelDoc> {
 
     @Override
     protected Collection<MarvelDoc> doCollect() throws Exception {
-        ImmutableList.Builder<MarvelDoc> results = ImmutableList.builder();
+        List<MarvelDoc> results = new ArrayList<>(1);
 
         List<License> licenses = licenseService.licenses();
         if (licenses != null) {
@@ -59,6 +60,6 @@ public class LicensesCollector extends AbstractCollector<LicensesMarvelDoc> {
             results.add(new LicensesMarvelDoc(MarvelSettings.MARVEL_DATA_INDEX_NAME, TYPE, clusterUUID, clusterUUID, System.currentTimeMillis(),
                     clusterName.value(), Version.CURRENT.toString(), licenses));
         }
-        return results.build();
+        return Collections.unmodifiableCollection(results);
     }
 }

@@ -162,6 +162,14 @@ public class QueryShardContext {
         return indexQueryParser.queryStringLenient();
     }
 
+    public boolean queryStringAnalyzeWildcard() {
+        return indexQueryParser.queryStringAnalyzeWildcard();
+    }
+
+    public boolean queryStringAllowLeadingWildcard() {
+        return indexQueryParser.queryStringAllowLeadingWildcard();
+    }
+
     public MapperQueryParser queryParser(QueryParserSettings settings) {
         queryParser.reset(settings);
         return queryParser;

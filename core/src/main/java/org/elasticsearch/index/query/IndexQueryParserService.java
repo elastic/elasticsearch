@@ -58,6 +58,8 @@ public class IndexQueryParserService extends AbstractIndexComponent {
 
     public static final String DEFAULT_FIELD = "index.query.default_field";
     public static final String QUERY_STRING_LENIENT = "index.query_string.lenient";
+    public static final String QUERY_STRING_ANALYZE_WILDCARD = "indices.query.query_string.analyze_wildcard";
+    public static final String QUERY_STRING_ALLOW_LEADING_WILDCARD = "indices.query.query_string.allowLeadingWildcard";
     public static final String PARSE_STRICT = "index.query.parse.strict";
     public static final String ALLOW_UNMAPPED = "index.query.parse.allow_unmapped_fields";
     private final InnerHitsQueryParserHelper innerHitsQueryParserHelper;
@@ -89,15 +91,17 @@ public class IndexQueryParserService extends AbstractIndexComponent {
 
     private final IndicesQueriesRegistry indicesQueriesRegistry;
 
-    private String defaultField;
-    private boolean queryStringLenient;
+    private final String defaultField;
+    private final boolean queryStringLenient;
+    private final boolean queryStringAnalyzeWildcard;
+    private final boolean queryStringAllowLeadingWildcard;
     private final ParseFieldMatcher parseFieldMatcher;
     private final boolean defaultAllowUnmappedFields;
 
     private TermsLookupFetchService termsLookupFetchService;
 
     @Inject
-    public IndexQueryParserService(Index index, @IndexSettings Settings indexSettings,
+    public IndexQueryParserService(Index index, @IndexSettings Settings indexSettings, Settings settings,
                                    IndicesQueriesRegistry indicesQueriesRegistry,
                                    ScriptService scriptService, AnalysisService analysisService,
                                    MapperService mapperService, IndexCache indexCache, IndexFieldDataService fieldDataService,
@@ -118,6 +122,8 @@ public class IndexQueryParserService extends AbstractIndexComponent {
 
         this.defaultField = indexSettings.get(DEFAULT_FIELD, AllFieldMapper.NAME);
         this.queryStringLenient = indexSettings.getAsBoolean(QUERY_STRING_LENIENT, false);
+        this.queryStringAnalyzeWildcard = settings.getAsBoolean(QUERY_STRING_ANALYZE_WILDCARD, false);
+        this.queryStringAllowLeadingWildcard = settings.getAsBoolean(QUERY_STRING_ALLOW_LEADING_WILDCARD, true);
         this.parseFieldMatcher = new ParseFieldMatcher(indexSettings);
         this.defaultAllowUnmappedFields = indexSettings.getAsBoolean(ALLOW_UNMAPPED, true);
         this.indicesQueriesRegistry = indicesQueriesRegistry;
@@ -135,6 +141,14 @@ public class IndexQueryParserService extends AbstractIndexComponent {
 
     public String defaultField() {
         return this.defaultField;
+    }
+
+    public boolean queryStringAnalyzeWildcard() {
+        return this.queryStringAnalyzeWildcard;
+    }
+
+    public boolean queryStringAllowLeadingWildcard() {
+        return this.queryStringAllowLeadingWildcard;
     }
 
     public boolean queryStringLenient() {

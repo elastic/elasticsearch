@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.queryparser.classic.QueryParser;
 import org.apache.lucene.search.BooleanClause;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -34,7 +35,7 @@ public enum Operator implements Writeable<Operator> {
 
     private static final Operator PROTOTYPE = OR;
 
-    private Operator(int ordinal) {
+    Operator(int ordinal) {
         this.ordinal = ordinal;
     }
 
@@ -44,6 +45,17 @@ public enum Operator implements Writeable<Operator> {
                 return BooleanClause.Occur.SHOULD;
             case AND:
                 return BooleanClause.Occur.MUST;
+            default:
+                throw Operator.newOperatorException(this.toString());
+        }
+    }
+
+    public QueryParser.Operator toQueryParserOperator() {
+        switch (this) {
+            case OR:
+                return QueryParser.Operator.OR;
+            case AND:
+                return QueryParser.Operator.AND;
             default:
                 throw Operator.newOperatorException(this.toString());
         }

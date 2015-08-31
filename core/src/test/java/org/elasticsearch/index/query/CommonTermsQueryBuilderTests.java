@@ -66,7 +66,7 @@ public class CommonTermsQueryBuilderTests extends BaseQueryTestCase<CommonTermsQ
         }
 
         if (randomBoolean()) {
-            query.analyzer(randomFrom("simple", "keyword", "whitespace"));
+            query.analyzer(randomAnalyzer());
         }
 
         if (randomBoolean()) {

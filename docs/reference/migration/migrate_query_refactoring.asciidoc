@@ -59,6 +59,11 @@ Removed `wrapperQueryBuilder(byte[] source, int offset, int length)`. Instead si
 use  `wrapperQueryBuilder(byte[] source)`. Updated the static factory methods in
 QueryBuilders accordingly.
 
+==== QueryStringQueryBuilder
+
+Removed ability to pass in boost value using `field(String field)` method in form e.g. `field^2`.
+Use the `field(String, float)` method instead.
+
 ==== Operator
 
 Removed the enums called `Operator` from `MatchQueryBuilder`, `QueryStringQueryBuilder`,

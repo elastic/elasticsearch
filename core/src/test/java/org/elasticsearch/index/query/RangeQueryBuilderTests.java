@@ -27,15 +27,11 @@ import org.joda.time.DateTimeZone;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 public class RangeQueryBuilderTests extends BaseQueryTestCase<RangeQueryBuilder> {
-
-    private static final List<String> TIMEZONE_IDS = new ArrayList<>(DateTimeZone.getAvailableIDs());
 
     @Override
     protected RangeQueryBuilder doCreateTestQueryBuilder() {
@@ -64,7 +60,7 @@ public class RangeQueryBuilderTests extends BaseQueryTestCase<RangeQueryBuilder>
                 // otherwise we could trigger exception.
                 if (createShardContext().mapperService().smartNameFieldType(DATE_FIELD_NAME) != null) {
                     if (randomBoolean()) {
-                        query.timeZone(TIMEZONE_IDS.get(randomIntBetween(0, TIMEZONE_IDS.size() - 1)));
+                        query.timeZone(randomTimeZone());
                     }
                     if (randomBoolean()) {
                         query.format("yyyy-MM-dd'T'HH:mm:ss.SSSZZ");

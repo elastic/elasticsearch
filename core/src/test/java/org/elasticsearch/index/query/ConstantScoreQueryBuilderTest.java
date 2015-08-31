@@ -55,7 +55,7 @@ public class ConstantScoreQueryBuilderTest extends BaseQueryTestCase<ConstantSco
     @Test(expected=QueryParsingException.class)
     public void testFilterElement() throws IOException {
         String queryString = "{ \"" + ConstantScoreQueryBuilder.NAME + "\" : {}";
-        parseQuery(queryString, ConstantScoreQueryBuilder.NAME);
+        parseQuery(queryString);
     }
 
     @Test

@@ -197,7 +197,7 @@ public class TermsQueryBuilderTest extends BaseQueryTestCase<TermsQueryBuilder> 
                 "    }\n" +
                 "  }\n" +
                 "}";
-        QueryBuilder termsQueryBuilder = parseQuery(query, TermsQueryBuilder.NAME);
+        QueryBuilder termsQueryBuilder = parseQuery(query);
         assertThat(termsQueryBuilder.validate().validationErrors().size(), is(1));
     }
 

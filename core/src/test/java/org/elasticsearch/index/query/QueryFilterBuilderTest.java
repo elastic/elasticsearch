@@ -59,8 +59,8 @@ public class QueryFilterBuilderTest extends BaseQueryTestCase<QueryFilterBuilder
     @Test
     public void testInnerQueryReturnsNull() throws IOException {
         // create inner filter
-        String queryString = "{ \"constant_score\" : { \"filter\" : {} }";
-        QueryBuilder<?> innerQuery = parseQuery(queryString, ConstantScoreQueryBuilder.NAME);
+        String queryString = "{ \"constant_score\" : { \"filter\" : {} } }";
+        QueryBuilder<?> innerQuery = parseQuery(queryString);
         // check that when wrapping this filter, toQuery() returns null
         QueryFilterBuilder queryFilterQuery = new QueryFilterBuilder(innerQuery);
         assertNull(queryFilterQuery.toQuery(createShardContext()));

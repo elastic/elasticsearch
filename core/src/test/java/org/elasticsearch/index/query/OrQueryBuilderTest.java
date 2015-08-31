@@ -95,7 +95,7 @@ public class OrQueryBuilderTest extends BaseQueryTestCase<OrQueryBuilder> {
     @Test(expected=QueryParsingException.class)
     public void testMissingFiltersSection() throws IOException {
         String queryString = "{ \"or\" : {}";
-        parseQuery(queryString, OrQueryBuilder.NAME);
+        parseQuery(queryString);
     }
 
     @Test

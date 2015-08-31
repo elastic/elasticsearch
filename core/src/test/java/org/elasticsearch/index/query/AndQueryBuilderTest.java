@@ -83,7 +83,7 @@ public class AndQueryBuilderTest extends BaseQueryTestCase<AndQueryBuilder> {
 
     @Test(expected=QueryParsingException.class)
     public void testMissingFiltersSection() throws IOException {
-        parseQuery("{ \"and\" : {}", AndQueryBuilder.NAME);
+        parseQuery("{ \"and\" : {}");
     }
 
     @Test
@@ -119,6 +119,6 @@ public class AndQueryBuilderTest extends BaseQueryTestCase<AndQueryBuilder> {
     @Test(expected=QueryParsingException.class)
     public void testParsingExceptionNonFiltersElementArray() throws IOException {
         String queryString = "{ \"and\" : { \"whatever_filters\" : [ { \"match_all\" : {} } ] } }";
-        parseQuery(queryString, AndQueryBuilder.NAME);
+        parseQuery(queryString);
     }
 }

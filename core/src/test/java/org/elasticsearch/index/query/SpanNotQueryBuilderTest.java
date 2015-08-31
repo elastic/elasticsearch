@@ -130,7 +130,7 @@ public class SpanNotQueryBuilderTest extends BaseQueryTestCase<SpanNotQueryBuild
         builder.field("dist", 3);
         builder.endObject();
         builder.endObject();
-        SpanNotQueryBuilder query = (SpanNotQueryBuilder)parseQuery(builder.string(), SpanNotQueryBuilder.NAME);
+        SpanNotQueryBuilder query = (SpanNotQueryBuilder)parseQuery(builder.string());
         assertThat(query.pre(), equalTo(3));
         assertThat(query.post(), equalTo(3));
         assertNotNull(query.includeQuery());
@@ -154,7 +154,7 @@ public class SpanNotQueryBuilderTest extends BaseQueryTestCase<SpanNotQueryBuild
             builder.endObject();
 
             try {
-                parseQuery(builder.string(), SpanNotQueryBuilder.NAME);
+                parseQuery(builder.string());
                 fail("QueryParsingException should have been caught");
             } catch (QueryParsingException e) {
                 assertThat("QueryParsingException should have been caught", e.getDetailedMessage(), containsString("spanNot must have [include]"));
@@ -173,7 +173,7 @@ public class SpanNotQueryBuilderTest extends BaseQueryTestCase<SpanNotQueryBuild
             builder.endObject();
 
             try {
-                parseQuery(builder.string(), SpanNotQueryBuilder.NAME);
+                parseQuery(builder.string());
                 fail("QueryParsingException should have been caught");
             } catch (QueryParsingException e) {
                 assertThat("QueryParsingException should have been caught", e.getDetailedMessage(), containsString("spanNot must have [exclude]"));
@@ -195,7 +195,7 @@ public class SpanNotQueryBuilderTest extends BaseQueryTestCase<SpanNotQueryBuild
             builder.endObject();
 
             try {
-                parseQuery(builder.string(), SpanNotQueryBuilder.NAME);
+                parseQuery(builder.string());
                 fail("QueryParsingException should have been caught");
             } catch (QueryParsingException e) {
                 assertThat("QueryParsingException should have been caught", e.getDetailedMessage(), containsString("spanNot can either use [dist] or [pre] & [post] (or none)"));

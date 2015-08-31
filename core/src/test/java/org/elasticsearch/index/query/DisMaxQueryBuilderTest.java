@@ -100,8 +100,8 @@ public class DisMaxQueryBuilderTest extends BaseQueryTestCase<DisMaxQueryBuilder
      */
     @Test
     public void testInnerQueryReturnsNull() throws IOException {
-        String queryString = "{ \"" + ConstantScoreQueryBuilder.NAME + "\" : { \"filter\" : { } }";
-        QueryBuilder<?> innerQueryBuilder = parseQuery(queryString, ConstantScoreQueryBuilder.NAME);
+        String queryString = "{ \"" + ConstantScoreQueryBuilder.NAME + "\" : { \"filter\" : { } } }";
+        QueryBuilder<?> innerQueryBuilder = parseQuery(queryString);
         DisMaxQueryBuilder disMaxBuilder = new DisMaxQueryBuilder().add(innerQueryBuilder);
         assertNull(disMaxBuilder.toQuery(createShardContext()));
     }

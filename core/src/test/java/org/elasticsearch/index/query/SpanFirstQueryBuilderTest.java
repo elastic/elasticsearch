@@ -82,7 +82,7 @@ public class SpanFirstQueryBuilderTest extends BaseQueryTestCase<SpanFirstQueryB
             builder.endObject();
 
             try {
-                parseQuery(builder.string(), SpanFirstQueryBuilder.NAME);
+                parseQuery(builder.string());
                 fail("missing [end] parameter should raise exception");
             } catch (QueryParsingException e) {
                 assertTrue(e.getMessage().contains("spanFirst must have [end] set"));
@@ -98,7 +98,7 @@ public class SpanFirstQueryBuilderTest extends BaseQueryTestCase<SpanFirstQueryB
             builder.endObject();
 
             try {
-                parseQuery(builder.string(), SpanFirstQueryBuilder.NAME);
+                parseQuery(builder.string());
                 fail("missing [match] parameter should raise exception");
             } catch (QueryParsingException e) {
                 assertTrue(e.getMessage().contains("spanFirst must have [match] span query clause"));

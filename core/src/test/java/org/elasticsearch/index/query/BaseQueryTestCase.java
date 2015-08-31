@@ -252,18 +252,17 @@ public abstract class BaseQueryTestCase<QB extends AbstractQueryBuilder<QB>> ext
      * Parses the query provided as string argument and compares it with the expected result provided as argument as a {@link QueryBuilder}
      */
     protected void assertParsedQuery(String queryAsString, QueryBuilder<?> expectedQuery) throws IOException {
-        QueryBuilder<?> newQuery = parseQuery(queryAsString, expectedQuery.getName());
+        QueryBuilder<?> newQuery = parseQuery(queryAsString);
         assertNotSame(newQuery, expectedQuery);
         assertEquals(expectedQuery, newQuery);
         assertEquals(expectedQuery.hashCode(), newQuery.hashCode());
     }
 
-    protected QueryBuilder<?> parseQuery(String queryAsString, String queryId) throws IOException {
+    protected QueryBuilder<?> parseQuery(String queryAsString) throws IOException {
         XContentParser parser = XContentFactory.xContent(queryAsString).createParser(queryAsString);
         QueryParseContext context = createParseContext();
         context.reset(parser);
-        assertQueryHeader(parser, queryId);
-        return context.queryParser(queryId).fromXContent(context);
+        return context.parseInnerQueryBuilder();
     }
 
     /**
@@ -410,13 +409,6 @@ public abstract class BaseQueryTestCase<QB extends AbstractQueryBuilder<QB>> ext
      */
     protected static QueryParseContext createParseContext() {
         return createShardContext().parseContext();
-    }
-
-    private static void assertQueryHeader(XContentParser parser, String expectedParserName) throws IOException {
-        assertThat(parser.nextToken(), is(XContentParser.Token.START_OBJECT));
-        assertThat(parser.nextToken(), is(XContentParser.Token.FIELD_NAME));
-        assertThat(parser.currentName(), is(expectedParserName));
-        assertThat(parser.nextToken(), either(is(XContentParser.Token.START_OBJECT)).or(is(XContentParser.Token.START_ARRAY)));
     }
 
     protected static void assertValidate(QueryBuilder queryBuilder, int totalExpectedErrors) {

@@ -42,7 +42,7 @@ public class IdsQueryBuilderTest extends BaseQueryTestCase<IdsQueryBuilder> {
     @Test(expected=QueryParsingException.class)
     public void testIdsNotProvided() throws IOException {
         String noIdsFieldQuery = "{\"ids\" : { \"type\" : \"my_type\"  }";
-        parseQuery(noIdsFieldQuery, IdsQueryBuilder.NAME);
+        parseQuery(noIdsFieldQuery);
     }
 
     @Override

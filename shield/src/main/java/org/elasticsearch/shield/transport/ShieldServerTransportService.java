@@ -111,7 +111,7 @@ public class ShieldServerTransportService extends TransportService {
         return profileFilters.get(profile);
     }
 
-    static class ProfileSecuredRequestHandler<T extends TransportRequest> implements TransportRequestHandler<T> {
+    public static class ProfileSecuredRequestHandler<T extends TransportRequest> implements TransportRequestHandler<T> {
 
         protected final String action;
         protected final TransportRequestHandler<T> handler;

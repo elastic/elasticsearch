@@ -256,7 +256,7 @@ public class MoreLikeThisQueryParser extends BaseQueryParserTemp {
 
             for (TermVectorsRequest item : items) {
                 if (item.index() == null) {
-                    item.index(parseContext.index().name());
+                    item.index(context.index().name());
                 }
                 if (item.type() == null) {
                     if (context.queryTypes().size() > 1) {

@@ -4,6 +4,13 @@ h2. Introduction
 
 p. This plugin contains several examples of "native script":http://www.elastic.co/guide/en/elasticsearch/reference/current/modules-scripting.html for Elasticsearch.
 
+p. Please make sure to use the correct branch of this repository that corresponds to the version of elasticsearch that you are developing the plugin for.
+
+|_. Example Plugin Branch |_.  Elasticsearch   |
+| "master":https://github.com/imotov/elasticsearch-native-script-example                          | 2.1.0 and above  |
+| "2.0":https://github.com/imotov/elasticsearch-native-script-example/tree/2.0                    | 2.0.x  |
+| "1.x":https://github.com/imotov/elasticsearch-native-script-example/tree/1.x                    | 1.x.x  |
+
 h2. Creating Elasticsearch Plugin
 
 p. The simplest way to deploy native script is by wrapping it into standard Elasticsearch plugin infrastructure. An Elasticsearch plugin can be written in java and built using maven. A typical plugin source directory looks like this:

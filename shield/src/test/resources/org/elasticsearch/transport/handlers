@@ -16,7 +16,7 @@ indices:admin/optimize[n]
 indices:admin/refresh[s]
 indices:admin/render/template/search
 indices:admin/upgrade
-indices:admin/upgrade[s]
+indices:admin/upgrade[n]
 indices:admin/validate/query[s]
 indices:data/read/exists[s]
 indices:data/read/explain[s]

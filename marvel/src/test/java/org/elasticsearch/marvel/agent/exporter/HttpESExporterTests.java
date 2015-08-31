@@ -7,7 +7,6 @@ package org.elasticsearch.marvel.agent.exporter;
 
 import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableList;
-
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.common.Strings;
@@ -18,6 +17,7 @@ import org.elasticsearch.marvel.agent.AgentService;
 import org.elasticsearch.marvel.agent.collector.indices.IndexStatsMarvelDoc;
 import org.elasticsearch.marvel.agent.settings.MarvelSettings;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.hamcrest.Matchers;
@@ -26,6 +26,7 @@ import org.junit.Test;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -39,11 +40,13 @@ public class HttpESExporterTests extends ESIntegTestCase {
     final static AtomicLong timeStampGenerator = new AtomicLong();
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.settingsBuilder()
-                .put(super.nodeSettings(nodeOrdinal))
-                .put("plugin.types", MarvelPlugin.class.getName() + "," + LicensePlugin.class.getName())
-                .build();
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return Arrays.asList(LicensePlugin.class, MarvelPlugin.class);
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
+        return nodePlugins();
     }
     
     @Test

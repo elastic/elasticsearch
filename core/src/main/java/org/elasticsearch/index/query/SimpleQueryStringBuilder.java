@@ -263,24 +263,19 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
-        // Use the default field if no fields specified
-        if (fieldsAndWeights.isEmpty()) {
-            fieldsAndWeights.put(context.defaultField(), AbstractQueryBuilder.DEFAULT_BOOST);
-        }
-
         // field names in builder can have wildcards etc, need to resolve them here
         Map<String, Float> resolvedFieldsAndWeights = new TreeMap<>();
-        for (String fField : fieldsAndWeights.keySet()) {
-            if (Regex.isSimpleMatchPattern(fField)) {
-                for (String fieldName : context.mapperService().simpleMatchToIndexNames(fField)) {
-                    resolvedFieldsAndWeights.put(fieldName, fieldsAndWeights.get(fField));
-                }
-            } else {
-                MappedFieldType fieldType = context.fieldMapper(fField);
-                if (fieldType != null) {
-                    resolvedFieldsAndWeights.put(fieldType.names().indexName(), fieldsAndWeights.get(fField));
+        // Use the default field if no fields specified
+        if (fieldsAndWeights.isEmpty()) {
+            resolvedFieldsAndWeights.put(resolveIndexName(context.defaultField(), context), AbstractQueryBuilder.DEFAULT_BOOST);
+        } else {
+            for (Map.Entry<String, Float> fieldEntry : fieldsAndWeights.entrySet()) {
+                if (Regex.isSimpleMatchPattern(fieldEntry.getKey())) {
+                    for (String fieldName : context.mapperService().simpleMatchToIndexNames(fieldEntry.getKey())) {
+                        resolvedFieldsAndWeights.put(fieldName, fieldEntry.getValue());
+                    }
                 } else {
-                    resolvedFieldsAndWeights.put(fField, fieldsAndWeights.get(fField));
+                    resolvedFieldsAndWeights.put(resolveIndexName(fieldEntry.getKey(), context), fieldEntry.getValue());
                 }
             }
         }
@@ -306,6 +301,14 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
             Queries.applyMinimumShouldMatch((BooleanQuery) query, minimumShouldMatch);
         }
         return query;
+    }
+
+    private static String resolveIndexName(String fieldName, QueryShardContext context) {
+        MappedFieldType fieldType = context.fieldMapper(fieldName);
+        if (fieldType != null) {
+            return fieldType.names().indexName();
+        }
+        return fieldName;
     }
 
     @Override

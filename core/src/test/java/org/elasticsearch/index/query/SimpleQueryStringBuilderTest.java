@@ -20,11 +20,7 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.*;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -258,7 +254,9 @@ public class SimpleQueryStringBuilderTest extends BaseQueryTestCase<SimpleQueryS
     protected void doAssertLuceneQuery(SimpleQueryStringBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         assertThat(query, notNullValue());
 
-        if (queryBuilder.fields().size() > 1 && (!"".equals(queryBuilder.value()))) {
+        if ("".equals(queryBuilder.value())) {
+            assertTrue("Query should have been MatchNoDocsQuery but was " + query.getClass().getName(), query instanceof MatchNoDocsQuery);
+        } else if (queryBuilder.fields().size() > 1) {
             assertTrue("Query should have been BooleanQuery but was " + query.getClass().getName(), query instanceof BooleanQuery);
 
             BooleanQuery boolQuery = (BooleanQuery) query;
@@ -280,8 +278,8 @@ public class SimpleQueryStringBuilderTest extends BaseQueryTestCase<SimpleQueryS
             }
 
             if (queryBuilder.minimumShouldMatch() != null) {
-                Collection<String> minMatchAlways = Arrays.asList(new String[] { "1", "-1", "75%", "-25%" });
-                Collection<String> minMatchLarger = Arrays.asList(new String[] { "2<75%", "2<-25%" });
+                Collection<String> minMatchAlways = Arrays.asList("1", "-1", "75%", "-25%");
+                Collection<String> minMatchLarger = Arrays.asList("2<75%", "2<-25%");
 
                 if (minMatchAlways.contains(queryBuilder.minimumShouldMatch())) {
                     assertThat(boolQuery.getMinimumNumberShouldMatch(), greaterThan(0));
@@ -293,12 +291,10 @@ public class SimpleQueryStringBuilderTest extends BaseQueryTestCase<SimpleQueryS
                     assertEquals(0, boolQuery.getMinimumNumberShouldMatch());
                 }
             }
-        } else if (queryBuilder.fields().size() == 1 && (!"".equals(queryBuilder.value()))) {
+        } else if (queryBuilder.fields().size() <= 1) {
             assertTrue("Query should have been TermQuery but was " + query.getClass().getName(), query instanceof TermQuery);
 
             TermQuery termQuery = (TermQuery) query;
-            assertThat(termQuery.getTerm().field(), is(queryBuilder.fields().keySet().iterator().next()));
-
             String field;
             if (queryBuilder.fields().size() == 0) {
                 field = MetaData.ALL;
@@ -310,9 +306,6 @@ public class SimpleQueryStringBuilderTest extends BaseQueryTestCase<SimpleQueryS
             if (queryBuilder.lowercaseExpandedTerms()) {
                 assertThat(termQuery.getTerm().bytes().toString(), is(termQuery.getTerm().bytes().toString().toLowerCase(Locale.ROOT)));
             }
-
-        } else if ("".equals(queryBuilder.value())) {
-            assertTrue("Query should have been MatchNoDocsQuery but was " + query.getClass().getName(), query instanceof MatchNoDocsQuery);
         } else {
             fail("Encountered lucene query type we do not have a validation implementation for in our SimpleQueryStringBuilderTest");
         }

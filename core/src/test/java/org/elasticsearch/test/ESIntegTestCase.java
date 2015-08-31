@@ -218,7 +218,7 @@ import static org.hamcrest.Matchers.*;
  * This class supports the following system properties (passed with -Dkey=value to the application)
  * <ul>
  * <li>-D{@value #TESTS_CLIENT_RATIO} - a double value in the interval [0..1] which defines the ration between node and transport clients used</li>
- * <li>-D{@value InternalTestCluster#TESTS_ENABLE_MOCK_MODULES} - a boolean value to enable or disable mock modules. This is
+ * <li>-D{@value #TESTS_ENABLE_MOCK_MODULES} - a boolean value to enable or disable mock modules. This is
  * useful to test the system without asserting modules that to make sure they don't hide any bugs in production.</li>
  * <li> - a random seed used to initialize the index random context.
  * </ul>
@@ -267,6 +267,15 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * It's set once per test via a generic index template.
      */
     public static final String SETTING_INDEX_SEED = "index.tests.seed";
+
+    /**
+     * A boolean value to enable or disable mock modules. This is useful to test the
+     * system without asserting modules that to make sure they don't hide any bugs in
+     * production.
+     *
+     * @see ESIntegTestCase
+     */
+    public static final String TESTS_ENABLE_MOCK_MODULES = "tests.enable_mock_modules";
 
     /**
      * Threshold at which indexing switches from frequently async to frequently bulk.
@@ -1806,9 +1815,14 @@ public abstract class ESIntegTestCase extends ESTestCase {
             nodeMode = "local";
         }
 
+        boolean enableMockModules = enableMockModules();
         return new InternalTestCluster(nodeMode, seed, createTempDir(), minNumDataNodes, maxNumDataNodes,
                 InternalTestCluster.clusterName(scope.name(), seed) + "-cluster", nodeConfigurationSource, getNumClientNodes(),
-                InternalTestCluster.DEFAULT_ENABLE_HTTP_PIPELINING, nodePrefix);
+                InternalTestCluster.DEFAULT_ENABLE_HTTP_PIPELINING, nodePrefix, enableMockModules);
+    }
+
+    protected boolean enableMockModules() {
+        return RandomizedTest.systemPropertyAsBoolean(TESTS_ENABLE_MOCK_MODULES, true);
     }
 
     /**

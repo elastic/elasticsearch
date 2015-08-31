@@ -170,12 +170,12 @@ public abstract class ShieldIntegTestCase extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(ShieldPlugin.class, licensePluginClass());
+        return customShieldSettingsSource.nodePlugins();
     }
 
     @Override
     protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return nodePlugins();
+        return customShieldSettingsSource.transportClientPlugins();
     }
 
     @Override
@@ -308,16 +308,6 @@ public abstract class ShieldIntegTestCase extends ESIntegTestCase {
         @Override
         protected Class<? extends Plugin> licensePluginClass() {
             return ShieldIntegTestCase.this.licensePluginClass();
-        }
-
-        @Override
-        public Collection<Class<? extends Plugin>> nodePlugins() {
-            return ShieldIntegTestCase.this.nodePlugins();
-        }
-
-        @Override
-        public Collection<Class<? extends Plugin>> transportClientPlugins() {
-            return ShieldIntegTestCase.this.transportClientPlugins();
         }
 
         @Override

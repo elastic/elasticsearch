@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.watcher.transform.chain;
 
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
@@ -38,15 +37,15 @@ public class ChainTransformTests extends ESTestCase {
 
     @Test
     public void testExecute() throws Exception {
-        ChainTransform transform = new ChainTransform(ImmutableList.<Transform>of(
+        ChainTransform transform = new ChainTransform(
                 new NamedExecutableTransform.Transform("name1"),
                 new NamedExecutableTransform.Transform("name2"),
                 new NamedExecutableTransform.Transform("name3")
-        ));
-        ExecutableChainTransform executable = new ExecutableChainTransform(transform, logger, ImmutableList.<ExecutableTransform>of(
+        );
+        ExecutableChainTransform executable = new ExecutableChainTransform(transform, logger,
                 new NamedExecutableTransform("name1"),
                 new NamedExecutableTransform("name2"),
-                new NamedExecutableTransform("name3")));
+                new NamedExecutableTransform("name3"));
 
         WatchExecutionContext ctx = mock(WatchExecutionContext.class);
         Payload payload = new Payload.Simple(new HashMap<String, Object>());
@@ -78,15 +77,15 @@ public class ChainTransformTests extends ESTestCase {
 
     @Test
     public void testExecute_Failure() throws Exception {
-        ChainTransform transform = new ChainTransform(ImmutableList.of(
+        ChainTransform transform = new ChainTransform(
                 new NamedExecutableTransform.Transform("name1"),
                 new NamedExecutableTransform.Transform("name2"),
                 new FailingExecutableTransform.Transform()
-        ));
-        ExecutableChainTransform executable = new ExecutableChainTransform(transform, logger, ImmutableList.<ExecutableTransform>of(
+        );
+        ExecutableChainTransform executable = new ExecutableChainTransform(transform, logger,
                 new NamedExecutableTransform("name1"),
                 new NamedExecutableTransform("name2"),
-                new FailingExecutableTransform(logger)));
+                new FailingExecutableTransform(logger));
 
         WatchExecutionContext ctx = mock(WatchExecutionContext.class);
         Payload payload = new Payload.Simple(new HashMap<String, Object>());

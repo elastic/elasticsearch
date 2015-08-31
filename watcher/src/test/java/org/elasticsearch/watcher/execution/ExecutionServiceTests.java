@@ -5,10 +5,8 @@
  */
 package org.elasticsearch.watcher.execution;
 
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.cluster.ClusterState;
-import org.joda.time.DateTime;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.actions.*;
@@ -29,10 +27,12 @@ import org.elasticsearch.watcher.transform.ExecutableTransform;
 import org.elasticsearch.watcher.transform.Transform;
 import org.elasticsearch.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.elasticsearch.watcher.watch.*;
+import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.concurrent.ArrayBlockingQueue;
 
@@ -78,7 +78,7 @@ public class ExecutionServiceTests extends ESTestCase {
         executionService = new ExecutionService(Settings.EMPTY, historyStore, triggeredWatchStore, executor, watchStore, watchLockService, clock, settingsValidator);
 
         ClusterState clusterState = mock(ClusterState.class);
-        when(triggeredWatchStore.loadTriggeredWatches(clusterState)).thenReturn(ImmutableList.<TriggeredWatch>of());
+        when(triggeredWatchStore.loadTriggeredWatches(clusterState)).thenReturn(new ArrayList<TriggeredWatch>());
         executionService.start(clusterState);
     }
 

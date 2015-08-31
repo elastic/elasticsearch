@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.watcher.actions;
 
-import com.google.common.collect.ImmutableList;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
@@ -24,6 +23,8 @@ import org.elasticsearch.watcher.watch.Payload;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.index.query.QueryBuilders.termsQuery;
@@ -44,10 +45,10 @@ public class ActionErrorIntegrationTests extends AbstractWatcherIntegrationTests
 
     @Override
     protected List<Class<? extends Plugin>> pluginTypes() {
-        return ImmutableList.<Class<? extends Plugin>>builder()
-                .addAll(super.pluginTypes())
-                .add(ErrorActionPlugin.class)
-                .build();
+        List<Class<? extends Plugin>> types = new ArrayList<>();
+        types.addAll(super.pluginTypes());
+        types.add(ErrorActionPlugin.class);
+        return Collections.unmodifiableList(types);
     }
 
     /**

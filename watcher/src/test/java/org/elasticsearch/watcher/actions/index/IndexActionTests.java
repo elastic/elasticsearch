@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.watcher.actions.index;
 
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.ElasticsearchParseException;
@@ -33,6 +32,7 @@ import org.joda.time.DateTimeZone;
 import org.joda.time.format.DateTimeFormat;
 import org.junit.Test;
 
+import java.util.Arrays;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -131,7 +131,7 @@ public class IndexActionTests extends ESIntegTestCase {
 
         Object list = randomFrom(
                 new Map[] { ImmutableMap.of("foo", "bar"), ImmutableMap.of("foo", "bar1") },
-                ImmutableList.of(ImmutableMap.of("foo", "bar"), ImmutableMap.of("foo", "bar1")),
+                Arrays.asList(ImmutableMap.of("foo", "bar"), ImmutableMap.of("foo", "bar1")),
                 ImmutableSet.of(ImmutableMap.of("foo", "bar"), ImmutableMap.of("foo", "bar1"))
         );
 

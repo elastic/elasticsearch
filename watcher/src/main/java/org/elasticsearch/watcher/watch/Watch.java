@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.watcher.watch;
 
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
@@ -46,6 +45,7 @@ import org.joda.time.DateTimeZone;
 import org.joda.time.PeriodType;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -218,7 +218,7 @@ public class Watch implements TriggerEngine.Job, ToXContent {
             this.secretService = secretService;
             this.defaultInput = new ExecutableNoneInput(logger);
             this.defaultCondition = new ExecutableAlwaysCondition(logger);
-            this.defaultActions = new ExecutableActions(ImmutableList.<ActionWrapper>of());
+            this.defaultActions = new ExecutableActions(Collections.EMPTY_LIST);
             this.clock = clock;
         }
 

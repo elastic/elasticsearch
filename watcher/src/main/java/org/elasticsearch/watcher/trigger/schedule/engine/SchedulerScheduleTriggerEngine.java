@@ -5,19 +5,19 @@
  */
 package org.elasticsearch.watcher.trigger.schedule.engine;
 
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.util.concurrent.FutureUtils;
-import org.joda.time.DateTime;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.watcher.support.clock.Clock;
 import org.elasticsearch.watcher.trigger.TriggerEvent;
 import org.elasticsearch.watcher.trigger.schedule.*;
+import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.Executors;
@@ -88,7 +88,7 @@ public class SchedulerScheduleTriggerEngine extends ScheduleTriggerEngine {
         logger.trace("triggered job [{}] at [{}] (scheduled time was [{}])", name, new DateTime(triggeredTime, DateTimeZone.UTC), new DateTime(scheduledTime, DateTimeZone.UTC));
         final ScheduleTriggerEvent event = new ScheduleTriggerEvent(name, new DateTime(triggeredTime, DateTimeZone.UTC), new DateTime(scheduledTime, DateTimeZone.UTC));
         for (Listener listener : listeners) {
-            listener.triggered(ImmutableList.<TriggerEvent>of(event));
+            listener.triggered(Arrays.<TriggerEvent>asList(event));
         }
     }
 

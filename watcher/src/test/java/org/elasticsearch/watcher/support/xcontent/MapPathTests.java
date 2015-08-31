@@ -5,13 +5,11 @@
  */
 package org.elasticsearch.watcher.support.xcontent;
 
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.is;
@@ -33,7 +31,7 @@ public class MapPathTests extends ESTestCase {
 
     @Test
     public void testEval_List() throws Exception {
-        List list = ImmutableList.of(1, 2, 3, 4);
+        List list = Arrays.asList(1, 2, 3, 4);
         Map<String, Object> map = ImmutableMap.<String, Object>builder()
                 .put("key", list)
                 .build();
@@ -65,17 +63,19 @@ public class MapPathTests extends ESTestCase {
 
     @Test
     public void testEval_Mixed() throws Exception {
-        Map<String, Object> map = ImmutableMap.<String, Object>builder()
-                .put("a", ImmutableMap.builder()
-                        .put("b", ImmutableList.builder()
-                                .add(ImmutableList.builder()
-                                        .add(ImmutableMap.builder()
-                                            .put("c", "val")
-                                        .build())
-                                .build())
-                        .build())
-                    .build())
-                .build();
+        Map<String, Object> map = new HashMap<>();
+
+        Map<String, Object> mapA = new HashMap<>();
+        map.put("a", mapA);
+
+        List<Object> listB = new ArrayList<>();
+        mapA.put("b", listB);
+        List<Object> listB1 = new ArrayList<>();
+        listB.add(listB1);
+
+        Map<String, Object> mapB11 = new HashMap<>();
+        listB1.add(mapB11);
+        mapB11.put("c", "val");
 
         assertThat(ObjectPath.eval("", map), is((Object) map));
         assertThat(ObjectPath.eval("a.b.0.0.c", map), is((Object) "val"));

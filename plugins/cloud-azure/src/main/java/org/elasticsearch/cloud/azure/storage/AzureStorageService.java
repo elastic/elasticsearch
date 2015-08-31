@@ -20,6 +20,7 @@
 package org.elasticsearch.cloud.azure.storage;
 
 import com.microsoft.azure.storage.StorageException;
+import com.microsoft.azure.storage.LocationMode;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 
 import java.io.InputStream;
@@ -42,23 +43,23 @@ public interface AzureStorageService {
         public static final String COMPRESS = "repositories.azure.compress";
     }
 
-    boolean doesContainerExist(String container);
+    boolean doesContainerExist(String account, LocationMode mode, String container);
 
-    void removeContainer(String container) throws URISyntaxException, StorageException;
+    void removeContainer(String account, LocationMode mode, String container) throws URISyntaxException, StorageException;
 
-    void createContainer(String container) throws URISyntaxException, StorageException;
+    void createContainer(String account, LocationMode mode, String container) throws URISyntaxException, StorageException;
 
-    void deleteFiles(String container, String path) throws URISyntaxException, StorageException;
+    void deleteFiles(String account, LocationMode mode, String container, String path) throws URISyntaxException, StorageException;
 
-    boolean blobExists(String container, String blob) throws URISyntaxException, StorageException;
+    boolean blobExists(String account, LocationMode mode, String container, String blob) throws URISyntaxException, StorageException;
 
-    void deleteBlob(String container, String blob) throws URISyntaxException, StorageException;
+    void deleteBlob(String account, LocationMode mode, String container, String blob) throws URISyntaxException, StorageException;
 
-    InputStream getInputStream(String container, String blob) throws URISyntaxException, StorageException;
+    InputStream getInputStream(String account, LocationMode mode, String container, String blob) throws URISyntaxException, StorageException;
 
-    OutputStream getOutputStream(String container, String blob) throws URISyntaxException, StorageException;
+    OutputStream getOutputStream(String account, LocationMode mode, String container, String blob) throws URISyntaxException, StorageException;
 
-    Map<String,BlobMetaData> listBlobsByPrefix(String container, String keyPath, String prefix) throws URISyntaxException, StorageException;
+    Map<String,BlobMetaData> listBlobsByPrefix(String account, LocationMode mode, String container, String keyPath, String prefix) throws URISyntaxException, StorageException;
 
-    void moveBlob(String container, String sourceBlob, String targetBlob) throws URISyntaxException, StorageException;
+    void moveBlob(String account, LocationMode mode, String container, String sourceBlob, String targetBlob) throws URISyntaxException, StorageException;
 }

@@ -83,18 +83,6 @@ public class QueryParseContext {
     }
 
     /**
-     * @deprecated replaced by calls to parseInnerFilterToQueryBuilder(String queryName) for the resulting queries
-     */
-    @Nullable
-    @Deprecated
-    //norelease should be possible to remove after refactoring all queries
-    public Query parseInnerFilter(String queryName) throws IOException, QueryShardException {
-        assert this.shardContext != null;
-        QueryBuilder builder = parseInnerFilterToQueryBuilder(queryName);
-        return (builder != null) ? builder.toQuery(this.shardContext) : null;
-    }
-
-    /**
      * @deprecated replaced by calls to parseInnerFilterToQueryBuilder() for the resulting queries
      */
     @Nullable
@@ -115,7 +103,7 @@ public class QueryParseContext {
      */
     @Nullable
     @Deprecated
-    //norelease should be possible to remove after refactoring all queries
+    //norelease this method will be removed once all queries are refactored
     public Query parseInnerQuery() throws IOException, QueryShardException {
         QueryBuilder builder = parseInnerQueryBuilder();
         Query result = null;
@@ -170,7 +158,6 @@ public class QueryParseContext {
      * is parsed to a filter
      * @throws IOException
      */
-    @Nullable
     //norelease setting and checking the isFilter Flag should completely be moved to toQuery/toFilter after query refactoring
     public QueryBuilder parseInnerFilterToQueryBuilder() throws IOException {
         final boolean originalIsFilter = this.shardContext.isFilter;
@@ -183,7 +170,7 @@ public class QueryParseContext {
     }
 
     //norelease setting and checking the isFilter Flag should completely be moved to toQuery/toFilter after query refactoring
-    QueryBuilder parseInnerFilterToQueryBuilder(String queryName) throws IOException, QueryParsingException {
+    public QueryBuilder parseInnerFilterToQueryBuilder(String queryName) throws IOException, QueryParsingException {
         final boolean originalIsFilter = this.shardContext.isFilter;
         try {
             this.shardContext.isFilter = true;

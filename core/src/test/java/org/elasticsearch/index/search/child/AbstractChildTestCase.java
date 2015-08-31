@@ -143,7 +143,7 @@ public abstract class AbstractChildTestCase extends ESSingleNodeTestCase {
         QueryShardContext context = new QueryShardContext(new Index("test"), SearchContext.current().queryParserService());
         XContentParser parser = XContentHelper.createParser(queryBuilder.buildAsBytes());
         context.reset(parser);
-        return context.parseContext().parseInnerQuery();
+        return context.parseContext().parseInnerQueryBuilder().toQuery(context);
     }
 
 }

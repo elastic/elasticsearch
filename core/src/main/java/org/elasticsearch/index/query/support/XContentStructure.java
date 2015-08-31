@@ -38,6 +38,7 @@ import java.io.IOException;
  * immediately, however, the extra overhead means that the type not be
  * extracted prior to query parsing (in the case of unordered JSON).
  */
+//norelease we should be able to delete this class once all queries are refactored
 public abstract class XContentStructure {
 
     private final QueryParseContext parseContext;
@@ -101,6 +102,8 @@ public abstract class XContentStructure {
      * parses the query in a streaming manner if the types are available at
      * construction time.
      */
+    //norelease we should be able to delete this class once all queries are refactored
+    @Deprecated
     public static class InnerQuery extends XContentStructure {
         private Query query = null;
         private boolean queryParsed = false;

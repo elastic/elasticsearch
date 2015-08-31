@@ -20,6 +20,7 @@
 package org.elasticsearch.transport.netty;
 
 import com.google.common.base.Charsets;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 import org.elasticsearch.ExceptionsHelper;

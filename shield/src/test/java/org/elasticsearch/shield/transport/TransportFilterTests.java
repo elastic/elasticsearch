@@ -44,8 +44,6 @@ import static org.mockito.Mockito.*;
  *
  */
 @ClusterScope(scope = SUITE, numDataNodes = 0)
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/13215")
-// fails because the test infrastructure already registers a transport service (InternalTestCluster#getPlugins()) and there for the transport service used here can't be registered
 public class TransportFilterTests extends ESIntegTestCase {
 
     @Override
@@ -53,6 +51,11 @@ public class TransportFilterTests extends ESIntegTestCase {
         return Settings.settingsBuilder()
                 .put("node.mode", "network")
                 .build();
+    }
+
+    @Override
+    protected boolean enableMockModules() {
+        return false;
     }
 
     @Override

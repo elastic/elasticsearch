@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.shield.transport;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.inject.AbstractModule;
@@ -43,6 +44,7 @@ import static org.mockito.Mockito.*;
  *
  */
 @ClusterScope(scope = SUITE, numDataNodes = 0)
+@LuceneTestCase.AwaitsFix(bugUrl = "fails because the test infrastructure already registers a transport service (InternalTestCluster#getPlugins()) and there for the transport service used here can't be registered")
 public class TransportFilterTests extends ESIntegTestCase {
 
     @Override

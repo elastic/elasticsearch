@@ -236,16 +236,11 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
         if (clauses.isEmpty()) {
             return;
         }
-        if (clauses.size() == 1) {
-            builder.field(field);
-            clauses.get(0).toXContent(builder, params);
-        } else {
-            builder.startArray(field);
-            for (QueryBuilder clause : clauses) {
-                clause.toXContent(builder, params);
-            }
-            builder.endArray();
+        builder.startArray(field);
+        for (QueryBuilder clause : clauses) {
+            clause.toXContent(builder, params);
         }
+        builder.endArray();
     }
 
     @Override

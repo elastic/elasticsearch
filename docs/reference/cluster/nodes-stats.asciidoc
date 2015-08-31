@@ -39,7 +39,7 @@ of `indices`, `os`, `process`, `jvm`, `transport`, `http`,
 	pools, number of loaded/unloaded classes
 
 `os`::
-	Operating system stats, load average, cpu, mem, swap
+	Operating system stats, load average, mem, swap
 	(see <<os-stats,OS statistics>>)
 
 `process`::

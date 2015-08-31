@@ -48,10 +48,10 @@ public class TransportCloseIndexAction extends TransportMasterNodeAction<CloseIn
     public TransportCloseIndexAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                      ThreadPool threadPool, MetaDataIndexStateService indexStateService,
                                      NodeSettingsService nodeSettingsService, ActionFilters actionFilters,
-                                     IndexNameExpressionResolver indexNameExpressionResolver) {
+                                     IndexNameExpressionResolver indexNameExpressionResolver, DestructiveOperations destructiveOperations) {
         super(settings, CloseIndexAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, CloseIndexRequest.class);
         this.indexStateService = indexStateService;
-        this.destructiveOperations = new DestructiveOperations(logger, settings, nodeSettingsService);
+        this.destructiveOperations = destructiveOperations;
     }
 
     @Override

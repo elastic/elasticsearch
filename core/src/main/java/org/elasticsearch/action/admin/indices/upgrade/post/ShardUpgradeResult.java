@@ -20,9 +20,9 @@
 package org.elasticsearch.action.admin.indices.upgrade.post;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.support.broadcast.BroadcastShardResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
@@ -31,7 +31,9 @@ import java.text.ParseException;
 /**
  *
  */
-class ShardUpgradeResponse extends BroadcastShardResponse {
+class ShardUpgradeResult implements Streamable {
+
+    private ShardId shardId;
 
     private org.apache.lucene.util.Version oldestLuceneSegment;
 
@@ -40,14 +42,18 @@ class ShardUpgradeResponse extends BroadcastShardResponse {
     private boolean primary;
 
 
-    ShardUpgradeResponse() {
+    ShardUpgradeResult() {
     }
 
-    ShardUpgradeResponse(ShardId shardId, boolean primary, Version upgradeVersion, org.apache.lucene.util.Version oldestLuceneSegment) {
-        super(shardId);
+    ShardUpgradeResult(ShardId shardId, boolean primary, Version upgradeVersion, org.apache.lucene.util.Version oldestLuceneSegment) {
+        this.shardId = shardId;
         this.primary = primary;
         this.upgradeVersion = upgradeVersion;
         this.oldestLuceneSegment = oldestLuceneSegment;
+    }
+
+    public ShardId getShardId() {
+        return shardId;
     }
 
     public org.apache.lucene.util.Version oldestLuceneSegment() {
@@ -65,7 +71,7 @@ class ShardUpgradeResponse extends BroadcastShardResponse {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
+        shardId = ShardId.readShardId(in);
         primary = in.readBoolean();
         upgradeVersion = Version.readVersion(in);
         try {
@@ -78,10 +84,9 @@ class ShardUpgradeResponse extends BroadcastShardResponse {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
+        shardId.writeTo(out);
         out.writeBoolean(primary);
         Version.writeVersion(upgradeVersion, out);
         out.writeString(oldestLuceneSegment.toString());
     }
-
 }

@@ -69,7 +69,7 @@ public class TransportRecoveryAction extends TransportBroadcastByNodeAction<Reco
 
 
     @Override
-    protected RecoveryResponse newResponse(RecoveryRequest request, int totalShards, int successfulShards, int failedShards, List<RecoveryState> responses, List<ShardOperationFailedException> shardFailures) {
+    protected RecoveryResponse newResponse(RecoveryRequest request, int totalShards, int successfulShards, int failedShards, List<RecoveryState> responses, List<ShardOperationFailedException> shardFailures, ClusterState clusterState) {
         Map<String, List<RecoveryState>> shardResponses = Maps.newHashMap();
         for (RecoveryState recoveryState : responses) {
             if (recoveryState == null) {

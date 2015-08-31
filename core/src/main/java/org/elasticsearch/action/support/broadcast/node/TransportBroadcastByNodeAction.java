@@ -108,7 +108,12 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
         }, executor, new BroadcastByNodeTransportRequestHandler());
     }
 
-    private final Response newResponse(Request request, AtomicReferenceArray responses, List<NoShardAvailableActionException> unavailableShardExceptions, Map<String, List<ShardRouting>> nodes) {
+    private final Response newResponse(
+            Request request,
+            AtomicReferenceArray responses,
+            List<NoShardAvailableActionException> unavailableShardExceptions,
+            Map<String, List<ShardRouting>> nodes,
+            ClusterState clusterState) {
         int totalShards = 0;
         int successfulShards = 0;
         List<ShardOperationResult> broadcastByNodeResponses = new ArrayList<>();
@@ -134,7 +139,7 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
         }
         totalShards += unavailableShardExceptions.size();
         int failedShards = exceptions.size();
-        return newResponse(request, totalShards, successfulShards, failedShards, broadcastByNodeResponses, exceptions);
+        return newResponse(request, totalShards, successfulShards, failedShards, broadcastByNodeResponses, exceptions, clusterState);
     }
 
     /**
@@ -155,9 +160,10 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
      * @param failedShards     the total number of shards for which execution of the operation failed
      * @param results          the per-node aggregated shard-level results
      * @param shardFailures    the exceptions corresponding to shard operationa failures
+     * @param clusterState     the cluster state
      * @return the response
      */
-    protected abstract Response newResponse(Request request, int totalShards, int successfulShards, int failedShards, List<ShardOperationResult> results, List<ShardOperationFailedException> shardFailures);
+    protected abstract Response newResponse(Request request, int totalShards, int successfulShards, int failedShards, List<ShardOperationResult> results, List<ShardOperationFailedException> shardFailures, ClusterState clusterState);
 
     /**
      * Deserialize a request from an input stream
@@ -341,7 +347,7 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
         protected void onCompletion() {
             Response response = null;
             try {
-                response = newResponse(request, responses, unavailableShardExceptions, nodeIds);
+                response = newResponse(request, responses, unavailableShardExceptions, nodeIds, clusterState);
             } catch (Throwable t) {
                 logger.debug("failed to combine responses from nodes", t);
                 listener.onFailure(t);

@@ -62,7 +62,7 @@ public class TransportOptimizeAction extends TransportBroadcastByNodeAction<Opti
     }
 
     @Override
-    protected OptimizeResponse newResponse(OptimizeRequest request, int totalShards, int successfulShards, int failedShards, List<EmptyResult> responses, List<ShardOperationFailedException> shardFailures) {
+    protected OptimizeResponse newResponse(OptimizeRequest request, int totalShards, int successfulShards, int failedShards, List<EmptyResult> responses, List<ShardOperationFailedException> shardFailures, ClusterState clusterState) {
         return new OptimizeResponse(totalShards, successfulShards, failedShards, shardFailures);
     }
 

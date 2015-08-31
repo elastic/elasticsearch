@@ -6,14 +6,14 @@
 package org.elasticsearch.shield.transport;
 
 import com.google.common.collect.ImmutableMap;
-
+import org.elasticsearch.Version;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
-import org.elasticsearch.license.plugin.LicensePlugin;
+import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.shield.ShieldPlugin;
 import org.elasticsearch.shield.authc.esusers.ESUsersRealm;
@@ -27,6 +27,7 @@ import org.junit.Test;
 import java.net.InetSocketAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.node.NodeBuilder.nodeBuilder;
@@ -92,7 +93,6 @@ public class ServerTransportFilterIntegrationTests extends ShieldIntegTestCase {
         // test that starting up a node works
         Settings nodeSettings = settingsBuilder()
                 .put(ShieldSettingsSource.getSSLSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testnode.jks", "testnode"))
-                .put("plugin.types", ShieldPlugin.class.getName() + "," + LicensePlugin.class.getName())
                 .put("node.mode", "network")
                 .put("node.name", "my-test-node")
                 .put("network.host", "localhost")
@@ -104,8 +104,10 @@ public class ServerTransportFilterIntegrationTests extends ShieldIntegTestCase {
                 .put("path.home", createTempDir())
                 .put(Node.HTTP_ENABLED, false)
                 .put(InternalCryptoService.FILE_SETTING, systemKeyFile)
+                .put("node.client", true)
                 .build();
-        try (Node node = nodeBuilder().client(true).settings(nodeSettings).node()) {
+        try (Node node = new MockNode(nodeSettings, true, Version.CURRENT, Arrays.asList(ShieldPlugin.class, licensePluginClass()))) {
+            node.start();
             assertGreenClusterState(node.client());
         }
     }

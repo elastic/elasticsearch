@@ -109,7 +109,7 @@ public class SslClientAuthTests extends ShieldIntegTestCase {
                 .put("cluster.name", internalTestCluster().getClusterName())
                 .put("shield.user", transportClientUsername() + ":" + new String(transportClientPassword().internalChars()))
                 .build();
-        try (TransportClient client = TransportClient.builder().settings(settings).build()) {
+        try (TransportClient client = TransportClient.builder().settings(settings).addPlugin(ShieldPlugin.class).addPlugin(licensePluginClass()).build()) {
             Transport transport = internalTestCluster().getDataNodeInstance(Transport.class);
             TransportAddress transportAddress = transport.boundAddress().publishAddress();
             client.addTransportAddress(transportAddress);

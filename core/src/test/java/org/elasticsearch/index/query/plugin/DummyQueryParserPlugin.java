@@ -56,22 +56,27 @@ public class DummyQueryParserPlugin extends Plugin {
         }
 
         @Override
+        protected Query doToQuery(QueryShardContext context) throws IOException {
+            return new DummyQuery(context.isFilter());
+        }
+
+        @Override
         public String getWriteableName() {
             return NAME;
         }
     }
 
-    public static class DummyQueryParser extends BaseQueryParserTemp {
+    public static class DummyQueryParser extends BaseQueryParser {
         @Override
         public String[] names() {
             return new String[]{DummyQueryBuilder.NAME};
         }
 
         @Override
-        public Query parse(QueryShardContext context) throws IOException, QueryShardException {
-            XContentParser.Token token = context.parseContext().parser().nextToken();
+        public QueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
+            XContentParser.Token token = parseContext.parser().nextToken();
             assert token == XContentParser.Token.END_OBJECT;
-            return new DummyQuery(context.isFilter());
+            return new DummyQueryBuilder();
         }
 
         @Override

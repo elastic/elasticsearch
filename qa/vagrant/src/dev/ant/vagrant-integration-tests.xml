@@ -68,6 +68,13 @@
         That isn't to say that the updates will always be compatible. Its ok to
         just destroy the boxes if they get busted. -->
       <arg value="--provision"/>
+      <!-- We lock the provider to virtualbox because the Vagrantfile specifies
+        lots of boxes that only work properly in virtualbox. Virtualbox is
+        vagrant's default but its possible to change that default and folks do.
+        But the boxes that we use are unlikely to work properly with other
+        virtualization providers. Thus the lock. -->
+      <arg value="--provider"/>
+      <arg value="virtualbox"/>
     </exec>
   </target>
 

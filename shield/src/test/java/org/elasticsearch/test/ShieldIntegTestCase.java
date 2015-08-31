@@ -29,10 +29,7 @@ import org.junit.rules.ExternalResource;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Random;
+import java.util.*;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
 import static org.hamcrest.CoreMatchers.is;
@@ -155,15 +152,25 @@ public abstract class ShieldIntegTestCase extends ESIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder().put(super.nodeSettings(nodeOrdinal))
-                .put(customShieldSettingsSource.node(nodeOrdinal))
+                .put(customShieldSettingsSource.nodeSettings(nodeOrdinal))
                 .build();
     }
 
     @Override
     protected Settings transportClientSettings() {
         return Settings.builder().put(super.transportClientSettings())
-                .put(customShieldSettingsSource.transportClient())
+                .put(customShieldSettingsSource.transportClientSettings())
                 .build();
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return Arrays.asList(ShieldPlugin.class, licensePluginClass());
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
+        return nodePlugins();
     }
 
     @Override

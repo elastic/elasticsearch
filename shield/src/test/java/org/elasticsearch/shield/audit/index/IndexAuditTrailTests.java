@@ -144,9 +144,9 @@ public class IndexAuditTrailTests extends ShieldIntegTestCase {
             logger.info("--> remote indexing enabled. shield enabled: [{}], SSL enabled: [{}]", useShield, useSSL);
             ShieldSettingsSource cluster2SettingsSource = new ShieldSettingsSource(numNodes, useSSL, systemKey(), createTempDir(), Scope.SUITE) {
                     @Override
-                    public Settings node(int nodeOrdinal) {
+                    public Settings nodeSettings(int nodeOrdinal) {
                         Settings.Builder builder = Settings.builder()
-                                .put(super.node(nodeOrdinal))
+                                .put(super.nodeSettings(nodeOrdinal))
                                 .put(ShieldPlugin.ENABLED_SETTING_NAME, useShield);
                         // For tests we forcefully configure Shield's custom query cache because the test framework randomizes the query cache impl,
                         // but if shield is disabled then we don't need to forcefully set the query cache

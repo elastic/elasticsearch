@@ -68,8 +68,8 @@ public class TribeTests extends ShieldIntegTestCase {
             //given the low (2 and 1) number of nodes that the 2 SUITE clusters will have, we are not going to have port conflicts
             tribeSettingsSource = new ShieldSettingsSource(1, sslTransportEnabled, systemKey(), createTempDir(), Scope.SUITE) {
                 @Override
-                public Settings node(int nodeOrdinal) {
-                    Settings shieldSettings = super.node(nodeOrdinal);
+                public Settings nodeSettings(int nodeOrdinal) {
+                    Settings shieldSettings = super.nodeSettings(nodeOrdinal);
                     //all the settings are needed for the tribe node, some of them will also need to be copied to the tribe clients configuration
                     Settings.Builder builder = Settings.builder().put(shieldSettings);
                     //the tribe node itself won't join any cluster, no need for unicast discovery configuration

@@ -71,9 +71,9 @@ public class RemoteIndexAuditTrailStartingTests extends ShieldIntegTestCase {
         final int numNodes = randomIntBetween(2, 3);
         ShieldSettingsSource cluster2SettingsSource = new ShieldSettingsSource(numNodes, useSSL, systemKey(), createTempDir(), Scope.SUITE) {
             @Override
-            public Settings node(int nodeOrdinal) {
+            public Settings nodeSettings(int nodeOrdinal) {
                 Settings.Builder builder = Settings.builder()
-                        .put(super.node(nodeOrdinal))
+                        .put(super.nodeSettings(nodeOrdinal))
                         .put("shield.audit.enabled", true)
                         .put("shield.audit.outputs", randomFrom("index", "index,logfile"))
                         .putArray("shield.audit.index.client.hosts", addresses.toArray(new String[addresses.size()]))

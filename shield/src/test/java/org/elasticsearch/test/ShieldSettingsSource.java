@@ -26,6 +26,8 @@ import org.elasticsearch.test.discovery.ClusterDiscoveryConfiguration;
 import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
+import java.util.Collection;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomBoolean;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
@@ -33,7 +35,7 @@ import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.basic
 import static org.elasticsearch.shield.test.ShieldTestUtils.writeFile;
 
 /**
- * {@link org.elasticsearch.test.SettingsSource} subclass that allows to set all needed settings for shield.
+ * {@link org.elasticsearch.test.NodeConfigurationSource} subclass that allows to set all needed settings for shield.
  * Unicast discovery is configured through {@link org.elasticsearch.test.discovery.ClusterDiscoveryConfiguration.UnicastZen},
  * also shield is installed with all the needed configuration and files.
  * To avoid conflicts, every cluster should have its own instance of this class as some configuration files need to be created.
@@ -79,7 +81,7 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
     private final boolean hostnameVerificationResolveNameEnabled;
 
     /**
-     * Creates a new {@link org.elasticsearch.test.SettingsSource} for the shield configuration.
+     * Creates a new {@link org.elasticsearch.test.NodeConfigurationSource} for the shield configuration.
      *
      * @param numOfNodes the number of nodes for proper unicast configuration (can be more than actually available)
      * @param sslTransportEnabled whether ssl should be enabled on the transport layer or not
@@ -91,7 +93,7 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
     }
 
     /**
-     * Creates a new {@link org.elasticsearch.test.SettingsSource} for the shield configuration.
+     * Creates a new {@link org.elasticsearch.test.NodeConfigurationSource} for the shield configuration.
      *
      * @param numOfNodes the number of nodes for proper unicast configuration (can be more than actually available)
      * @param sslTransportEnabled whether ssl should be enabled on the transport layer or not
@@ -110,9 +112,9 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
     }
 
     @Override
-    public Settings node(int nodeOrdinal) {
+    public Settings nodeSettings(int nodeOrdinal) {
         Path folder = ShieldTestUtils.createFolder(parentFolder, subfolderPrefix + "-" + nodeOrdinal);
-        Settings.Builder builder = settingsBuilder().put(super.node(nodeOrdinal))
+        Settings.Builder builder = settingsBuilder().put(super.nodeSettings(nodeOrdinal))
                 .put("plugin.types", ShieldPlugin.class.getName() + "," + licensePluginClass().getName())
                 .put("shield.audit.enabled", randomBoolean())
                 .put(InternalCryptoService.FILE_SETTING, writeFile(folder, "system_key", systemKey))
@@ -132,14 +134,23 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
     }
 
     @Override
-    public Settings transportClient() {
-        Settings.Builder builder = settingsBuilder().put(super.transportClient())
+    public Settings transportClientSettings() {
+        Settings.Builder builder = settingsBuilder().put(super.transportClientSettings())
                 .put("plugin.types", ShieldPlugin.class.getName())
                 .put(getClientSSLSettings());
         setUser(builder, transportClientUsername(), transportClientPassword());
         return builder.build();
     }
 
+    @Override
+    public Collection<Class<? extends Plugin>> nodePlugins() {
+        return Arrays.asList(ShieldPlugin.class, licensePluginClass());
+    }
+
+    @Override
+    public Collection<Class<? extends Plugin>> transportClientPlugins() {
+        return nodePlugins();
+    }
 
     protected String configUsers() {
         return CONFIG_STANDARD_USER;

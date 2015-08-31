@@ -105,11 +105,10 @@ public class PkiOptionalClientAuthTests extends ShieldIntegTestCase {
                 .put("cluster.name", internalTestCluster().getClusterName())
                 .put("shield.transport.ssl", true)
                 .put("path.home", createTempDir())
-                .put("plugin.types", ShieldPlugin.class.getName())
                 .build();
 
 
-        try (TransportClient client = TransportClient.builder().settings(settings).build()) {
+        try (TransportClient client = TransportClient.builder().settings(settings).addPlugin(ShieldPlugin.class).build()) {
             client.addTransportAddress(new InetSocketTransportAddress(InetAddress.getLoopbackAddress(), port));
             assertGreenClusterState(client);
         }

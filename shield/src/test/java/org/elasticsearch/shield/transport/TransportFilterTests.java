@@ -26,6 +26,7 @@ import org.junit.Test;
 import org.mockito.InOrder;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
@@ -47,10 +48,18 @@ public class TransportFilterTests extends ESIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.settingsBuilder()
-                .put("plugins.load_classpath_plugins", false)
-                .putArray("plugin.types", InternalPlugin.class.getName(), InternalPluginServerTransportService.TestPlugin.class.getName())
                 .put("node.mode", "network")
                 .build();
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return Arrays.asList(InternalPlugin.class, InternalPluginServerTransportService.TestPlugin.class);
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
+        return nodePlugins();
     }
 
     @Test

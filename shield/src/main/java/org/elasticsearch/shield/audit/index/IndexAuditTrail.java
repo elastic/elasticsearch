@@ -28,7 +28,6 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Provider;
 import org.elasticsearch.common.network.NetworkAddress;
-import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -611,8 +610,8 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail {
                     .settings(Settings.builder()
                             .put("name", DEFAULT_CLIENT_NAME + "-" + settings.get("name"))
                             .put("path.home", environment.binFile().getParent())
-                            .putArray("plugin.types", ShieldPlugin.class.getName())
                             .put(clientSettings))
+                    .addPlugin(ShieldPlugin.class)
                     .build();
             for (Tuple<String, Integer> pair : hostPortPairs) {
                 try {

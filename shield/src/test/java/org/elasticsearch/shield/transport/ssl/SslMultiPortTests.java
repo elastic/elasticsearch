@@ -90,7 +90,10 @@ public class SslMultiPortTests extends ShieldIntegTestCase {
                 .put("path.home", createTempDir())
                 .put(additionalSettings)
                 .build();
-        return TransportClient.builder().settings(settings).loadConfigSettings(false).build();
+        return TransportClient.builder().settings(settings).loadConfigSettings(false)
+                .addPlugin(licensePluginClass())
+                .addPlugin(ShieldPlugin.class)
+                .build();
     }
 
     /**
@@ -215,7 +218,7 @@ public class SslMultiPortTests extends ShieldIntegTestCase {
                 .put("path.home", createTempDir())
                 .put("plugin.types", ShieldPlugin.class.getName())
                 .build();
-        try (TransportClient transportClient = TransportClient.builder().settings(settings).loadConfigSettings(false).build()) {
+        try (TransportClient transportClient = TransportClient.builder().settings(settings).loadConfigSettings(false).addPlugin(ShieldPlugin.class).addPlugin(licensePluginClass()).build()) {
             transportClient.addTransportAddress(new InetSocketTransportAddress(InetAddress.getLoopbackAddress(), getProfilePort("no_ssl")));
             assertGreenClusterState(transportClient);
         }
@@ -291,7 +294,7 @@ public class SslMultiPortTests extends ShieldIntegTestCase {
                 .put("path.home", createTempDir())
                 .put("plugin.types", ShieldPlugin.class.getName())
                 .build();
-        try (TransportClient transportClient = TransportClient.builder().settings(settings).loadConfigSettings(false).build()) {
+        try (TransportClient transportClient = TransportClient.builder().settings(settings).loadConfigSettings(false).addPlugin(ShieldPlugin.class).addPlugin(licensePluginClass()).build()) {
             transportClient.addTransportAddress(new InetSocketTransportAddress(InetAddress.getLoopbackAddress(), getProfilePort("no_client_auth")));
             assertGreenClusterState(transportClient);
         }

@@ -115,7 +115,6 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
     public Settings nodeSettings(int nodeOrdinal) {
         Path folder = ShieldTestUtils.createFolder(parentFolder, subfolderPrefix + "-" + nodeOrdinal);
         Settings.Builder builder = settingsBuilder().put(super.nodeSettings(nodeOrdinal))
-                .put("plugin.types", ShieldPlugin.class.getName() + "," + licensePluginClass().getName())
                 .put("shield.audit.enabled", randomBoolean())
                 .put(InternalCryptoService.FILE_SETTING, writeFile(folder, "system_key", systemKey))
                 .put("shield.authc.realms.esusers.type", ESUsersRealm.TYPE)
@@ -136,7 +135,6 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
     @Override
     public Settings transportClientSettings() {
         Settings.Builder builder = settingsBuilder().put(super.transportClientSettings())
-                .put("plugin.types", ShieldPlugin.class.getName())
                 .put(getClientSSLSettings());
         setUser(builder, transportClientUsername(), transportClientPassword());
         return builder.build();

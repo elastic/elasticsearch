@@ -325,7 +325,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
             if (termsLookup.index() == null) {
                 termsLookup.index(context.index().name());
             }
-            terms = context.indexQueryParserService().handleTermsLookup(termsLookup);
+            terms = context.handleTermsLookup(termsLookup);
         } else {
             terms = values;
         }

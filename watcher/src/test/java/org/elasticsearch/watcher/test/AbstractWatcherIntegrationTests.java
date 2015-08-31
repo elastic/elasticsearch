@@ -67,10 +67,7 @@ import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
@@ -118,17 +115,27 @@ public abstract class AbstractWatcherIntegrationTests extends ESIntegTestCase {
                 .build();
     }
 
-    protected List<String> pluginTypes() {
-        List<String> types = new ArrayList<>();
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return pluginTypes();
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
+        return nodePlugins();
+    }
+
+    protected List<Class<? extends Plugin>> pluginTypes() {
+        List<Class<? extends Plugin>> types = new ArrayList<>();
         if (timeWarped()) {
-            types.add(TimeWarpedWatcherPlugin.class.getName());
+            types.add(TimeWarpedWatcherPlugin.class);
         } else {
-            types.add(WatcherPlugin.class.getName());
+            types.add(WatcherPlugin.class);
         }
         if (shieldEnabled) {
-            types.add(ShieldPlugin.class.getName());
+            types.add(ShieldPlugin.class);
         }
-        types.add(licensePluginClass().getName());
+        types.add(licensePluginClass());
         return types;
     }
 

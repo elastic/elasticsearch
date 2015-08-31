@@ -70,7 +70,7 @@ public class NoMasterNodeTests extends AbstractWatcherIntegrationTests {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         Settings settings = super.nodeSettings(nodeOrdinal);
-        Settings unicastSettings = config.node(nodeOrdinal);
+        Settings unicastSettings = config.nodeSettings(nodeOrdinal);
         return Settings.builder()
                 .put(settings)
                 .put(unicastSettings)

@@ -43,10 +43,10 @@ public class ActionErrorIntegrationTests extends AbstractWatcherIntegrationTests
     }
 
     @Override
-    protected List<String> pluginTypes() {
-        return ImmutableList.<String>builder()
+    protected List<Class<? extends Plugin>> pluginTypes() {
+        return ImmutableList.<Class<? extends Plugin>>builder()
                 .addAll(super.pluginTypes())
-                .add(ErrorActionPlugin.class.getName())
+                .add(ErrorActionPlugin.class)
                 .build();
     }
 

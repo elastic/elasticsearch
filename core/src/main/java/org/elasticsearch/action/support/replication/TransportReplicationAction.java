@@ -142,7 +142,9 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
         return state.blocks().indexBlockedException(ClusterBlockLevel.WRITE, request.concreteIndex());
     }
 
-    protected abstract boolean resolveIndex();
+    protected boolean resolveIndex() {
+        return true;
+    }
 
     /**
      * Resolves the request, by default doing nothing. Can be subclassed to do

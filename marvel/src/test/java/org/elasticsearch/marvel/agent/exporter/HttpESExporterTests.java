@@ -6,7 +6,6 @@
 package org.elasticsearch.marvel.agent.exporter;
 
 import com.google.common.base.Predicate;
-import com.google.common.collect.ImmutableList;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.common.Strings;
@@ -27,6 +26,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -57,7 +57,7 @@ public class HttpESExporterTests extends ESIntegTestCase {
         internalCluster().startNode(builder);
         HttpESExporter httpEsExporter = getEsExporter();
         logger.info("trying exporting despite of no target");
-        httpEsExporter.export(ImmutableList.of(newRandomMarvelDoc()));
+        httpEsExporter.export(Collections.singletonList(newRandomMarvelDoc()));
     }
 
 /*
@@ -102,13 +102,13 @@ public class HttpESExporterTests extends ESIntegTestCase {
 
         HttpESExporter httpEsExporter = getEsExporter();
         logger.info("exporting events while there is no cluster");
-        httpEsExporter.export(ImmutableList.of(newRandomMarvelDoc()));
+        httpEsExporter.export(Collections.singletonList(newRandomMarvelDoc()));
 
         logger.info("bringing up a second node");
         internalCluster().startNode(builder);
         ensureGreen();
         logger.info("exporting a second event");
-        httpEsExporter.export(ImmutableList.of(newRandomMarvelDoc()));
+        httpEsExporter.export(Collections.singletonList(newRandomMarvelDoc()));
 
         logger.info("verifying template is inserted");
         assertMarvelTemplate();
@@ -145,7 +145,7 @@ public class HttpESExporterTests extends ESIntegTestCase {
         HttpESExporter httpEsExporter = getEsExporter();
 
         logger.info("exporting an event");
-        httpEsExporter.export(ImmutableList.of(newRandomMarvelDoc()));
+        httpEsExporter.export(Collections.singletonList(newRandomMarvelDoc()));
 
         logger.info("removing the marvel template");
 
@@ -155,7 +155,7 @@ public class HttpESExporterTests extends ESIntegTestCase {
                 Settings.builder().putArray(HttpESExporter.SETTINGS_HOSTS, httpEsExporter.getHosts())).get());
 
         logger.info("exporting a second event");
-        httpEsExporter.export(ImmutableList.of(newRandomMarvelDoc()));
+        httpEsExporter.export(Collections.singletonList(newRandomMarvelDoc()));
 
         logger.info("verifying template is inserted");
         assertMarvelTemplate();
@@ -173,8 +173,8 @@ public class HttpESExporterTests extends ESIntegTestCase {
         final HttpESExporter httpEsExporter1 = getEsExporter(node1);
 
         logger.info("--> exporting events to force host resolution");
-        httpEsExporter0.export(ImmutableList.of(newRandomMarvelDoc()));
-        httpEsExporter1.export(ImmutableList.of(newRandomMarvelDoc()));
+        httpEsExporter0.export(Collections.singletonList(newRandomMarvelDoc()));
+        httpEsExporter1.export(Collections.singletonList(newRandomMarvelDoc()));
 
         logger.info("--> setting exporting hosts to {} + {}", httpEsExporter0.getHosts(), httpEsExporter1.getHosts());
         ArrayList<String> mergedHosts = new ArrayList<String>();
@@ -185,8 +185,8 @@ public class HttpESExporterTests extends ESIntegTestCase {
                 Settings.builder().putArray(HttpESExporter.SETTINGS_HOSTS, mergedHosts.toArray(Strings.EMPTY_ARRAY))).get());
 
         logger.info("--> exporting events to have new settings take effect");
-        httpEsExporter0.export(ImmutableList.of(newRandomMarvelDoc()));
-        httpEsExporter1.export(ImmutableList.of(newRandomMarvelDoc()));
+        httpEsExporter0.export(Collections.singletonList(newRandomMarvelDoc()));
+        httpEsExporter1.export(Collections.singletonList(newRandomMarvelDoc()));
 
         assertMarvelTemplate();
 
@@ -206,7 +206,7 @@ public class HttpESExporterTests extends ESIntegTestCase {
         assertTrue("failed to find a template named 'marvel'", awaitBusy(new Predicate<Object>() {
             @Override
             public boolean apply(Object o) {
-                httpEsExporter1.export(ImmutableList.of(newRandomMarvelDoc()));
+                httpEsExporter1.export(Collections.singletonList(newRandomMarvelDoc()));
                 logger.debug("--> checking for template");
                 return findMarvelTemplate();
             }

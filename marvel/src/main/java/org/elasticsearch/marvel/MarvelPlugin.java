@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.marvel;
 
-import com.google.common.collect.ImmutableList;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.settings.Validator;
@@ -20,9 +19,9 @@ import org.elasticsearch.marvel.agent.exporter.ExporterModule;
 import org.elasticsearch.marvel.agent.exporter.HttpESExporter;
 import org.elasticsearch.marvel.agent.renderer.RendererModule;
 import org.elasticsearch.marvel.agent.settings.MarvelModule;
-import org.elasticsearch.marvel.license.LicenseModule;
 import org.elasticsearch.marvel.agent.settings.MarvelSetting;
 import org.elasticsearch.marvel.agent.settings.MarvelSettings;
+import org.elasticsearch.marvel.license.LicenseModule;
 import org.elasticsearch.marvel.license.LicenseService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.tribe.TribeService;
@@ -74,9 +73,9 @@ public class MarvelPlugin extends Plugin {
     @Override
     public Collection<Class<? extends LifecycleComponent>> nodeServices() {
         if (!enabled) {
-            return ImmutableList.of();
+            return Collections.emptyList();
         }
-        return ImmutableList.<Class<? extends LifecycleComponent>>of(LicenseService.class, AgentService.class);
+        return Arrays.<Class<? extends LifecycleComponent>>asList(LicenseService.class, AgentService.class);
     }
 
     public static boolean marvelEnabled(Settings settings) {

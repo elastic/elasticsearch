@@ -15,9 +15,12 @@ package org.elasticsearch.examples.nativescript.script;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.examples.nativescript.plugin.NativeScriptExamplesPlugin;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
+
+import java.util.Collection;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
@@ -36,12 +39,7 @@ public abstract class AbstractSearchScriptTests extends ESIntegTestCase {
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.settingsBuilder()
-                .put("gateway.type", "none")
-                .put("plugin.types", NativeScriptExamplesPlugin.class)
-                .put(super.nodeSettings(nodeOrdinal))
-                .build();
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return pluginList(NativeScriptExamplesPlugin.class);
     }
-    
 }

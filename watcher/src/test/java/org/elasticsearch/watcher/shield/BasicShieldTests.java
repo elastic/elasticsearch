@@ -42,7 +42,6 @@ public class BasicShieldTests extends AbstractWatcherIntegrationTests {
     protected Settings transportClientSettings() {
         return Settings.builder()
                 .put("client.transport.sniff", false)
-                .put("plugin.types", ShieldPlugin.class.getName() + "," + WatcherPlugin.class.getName())
                 // Use just the transport user here, so we can test Watcher roles specifically
                 .put("shield.user", "transport_client:changeme")
                 .build();

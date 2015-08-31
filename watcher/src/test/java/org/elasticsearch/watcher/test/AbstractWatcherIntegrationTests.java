@@ -109,7 +109,6 @@ public abstract class AbstractWatcherIntegrationTests extends ESIntegTestCase {
                 // we do this by default in core, but for watcher this isn't needed and only adds noise.
                 .put("index.store.mock.check_index_on_close", false)
                 .put("scroll.size", randomIntBetween(1, 100))
-                .put("plugin.types", Strings.collectionToCommaDelimitedString(pluginTypes()))
                 .put(ShieldSettings.settings(shieldEnabled))
                 .put("watcher.trigger.schedule.engine", scheduleImplName)
                 .build();
@@ -203,15 +202,11 @@ public abstract class AbstractWatcherIntegrationTests extends ESIntegTestCase {
     @Override
     protected Settings transportClientSettings() {
         if (shieldEnabled == false) {
-            return Settings.builder()
-                    .put(super.transportClientSettings())
-                    .put("plugin.types", WatcherPlugin.class.getName())
-                    .build();
+            return super.transportClientSettings();
         }
 
         return Settings.builder()
                 .put("client.transport.sniff", false)
-                .put("plugin.types", ShieldPlugin.class.getName() + "," + WatcherPlugin.class.getName())
                 .put("shield.user", "admin:changeme")
                 .build();
     }

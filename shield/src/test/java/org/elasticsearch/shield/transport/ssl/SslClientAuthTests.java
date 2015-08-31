@@ -102,7 +102,6 @@ public class SslClientAuthTests extends ShieldIntegTestCase {
 
         Settings settings = settingsBuilder()
                 .put("path.home", createTempDir())
-                .put("plugin.types", ShieldPlugin.class.getName())
                 .put("shield.transport.ssl", true)
                 .put("shield.ssl.keystore.path", store)
                 .put("shield.ssl.keystore.password", "testclient-client-profile")

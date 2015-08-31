@@ -80,13 +80,14 @@ dependencies {
 [source,java]
 -------------------------------------------------------------------------------------------------
 import org.elasticsearch.client.transport.TransportClient;
+import org.elasticsearch.shield.ShieldPlugin
 ...
 
 TransportClient client = TransportClient.builder()
+    .addPlugin(ShieldPlugin.class)
     .settings(Settings.builder()
         .put("cluster.name", "myClusterName")
         .put("shield.user", "transport_client_user:changeme")
-        .put("plugin.types", "org.elasticsearch.shield.ShieldPlugin")
         .put("path.home", "/path/to/client/home")
         ...
         .build())
@@ -106,15 +107,16 @@ import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.shield.authc.support.SecuredString;
+import org.elasticsearch.shield.ShieldPlugin
 
 import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 ...
 
 TransportClient client = TransportClient.builder()
+    .addPlugin(ShieldPlugin.class)
     .settings(Settings.builder()
         .put("cluster.name", "myClusterName")
         .put("shield.user", "transport_client_user:changeme")
-        .put("plugin.types", "org.elasticsearch.shield.ShieldPlugin")
         .put("path.home", "/path/to/client/home")
         ...
         .build())
@@ -137,12 +139,13 @@ NOTE: Client authentication is enabled by default. For information about disabli
 [source,java]
 --------------------------------------------------------------------------------------------------
 import org.elasticsearch.client.transport.TransportClient;
+import org.elasticsearch.shield.ShieldPlugin
 ...
 
 TransportClient client = TransportClient.builder()
+    .addPlugin(ShieldPlugin.class)
     .settings(Settings.builder()
         .put("cluster.name", "myClusterName")
-        .put("plugin.types", "org.elasticsearch.shield.ShieldPlugin")
         .put("shield.user", "transport_client_user:changeme")
         .put("shield.ssl.keystore.path", "/path/to/client.jks") (1)
         .put("shield.ssl.keystore.password", "password")
@@ -158,16 +161,17 @@ TransportClient client = TransportClient.builder()
 [source,java]
 --------------------------------------------------------------------------------------------------
 import org.elasticsearch.client.transport.TransportClient;
+import org.elasticsearch.shield.ShieldPlugin
 ...
 
 TransportClient client = TransportClient.builder()
+    .addPlugin(ShieldPlugin.class)
     .settings(Settings.builder()
         .put("cluster.name", "myClusterName")
         .put("shield.user", "transport_client_user:changeme")
         .put("shield.ssl.keystore.path", "/path/to/client.jks") (1)
         .put("shield.ssl.keystore.password", "password")
         .put("shield.transport.ssl", "true")
-        .put("plugin.types", "org.elasticsearch.shield.ShieldPlugin")
         .put("path.home", "/path/to/client/home")
         ...
         .build())
@@ -186,16 +190,17 @@ If you are not using client authentication and sign the Elasticsearch node certi
 [source,java]
 ------------------------------------------------------------------------------------------------------
 import org.elasticsearch.client.transport.TransportClient;
+import org.elasticsearch.shield.ShieldPlugin
 ...
 
 TransportClient client = TransportClient.builder()
+    .addPlugin(ShieldPlugin.class)
     .settings(Settings.builder()
         .put("cluster.name", "myClusterName")
         .put("shield.user", "test_user:changeme")
         .put("shield.ssl.truststore.path", "/path/to/truststore.jks") (1)
         .put("shield.ssl.truststore.password", "password")
         .put("shield.transport.ssl", "true")
-        .put("plugin.types", "org.elasticsearch.shield.ShieldPlugin")
         .put("path.home", "/path/to/client/home")
         ...
         .build())

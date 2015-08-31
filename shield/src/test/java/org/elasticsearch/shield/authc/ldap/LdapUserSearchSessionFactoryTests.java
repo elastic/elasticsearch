@@ -8,12 +8,14 @@ package org.elasticsearch.shield.authc.ldap;
 import com.carrotsearch.randomizedtesting.ThreadFilter;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import com.unboundid.ldap.sdk.*;
-import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.*;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.license.plugin.LicensePlugin;
+import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeBuilder;
 import org.elasticsearch.shield.ShieldPlugin;
@@ -32,10 +34,9 @@ import org.junit.Test;
 
 import java.nio.file.Path;
 import java.text.MessageFormat;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
+import java.util.*;
 
+import static org.elasticsearch.common.settings.Settings.builder;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.ShieldTestsUtils.assertAuthenticationException;
 import static org.hamcrest.Matchers.*;
@@ -410,9 +411,8 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
             builder.put("shield.authc.realms.ldap1." + entry.getKey(), entry.getValue());
         }
         builder.put("path.home", createTempDir());
-        builder.putArray("plugin.types", ShieldPlugin.class.getName(), LicensePlugin.class.getName());
 
-        try (Node node = NodeBuilder.nodeBuilder().loadConfigSettings(false).settings(builder.build()).build()) {
+        try (Node node = new MockNode(builder.build(), false, Version.CURRENT, Arrays.asList(ShieldPlugin.class, LicensePlugin.class))) {
             node.start();
         }
     }

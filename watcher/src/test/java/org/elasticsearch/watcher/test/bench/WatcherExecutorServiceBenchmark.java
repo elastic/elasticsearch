@@ -5,12 +5,14 @@
  */
 package org.elasticsearch.watcher.test.bench;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.plugin.LicensePlugin;
+import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -22,10 +24,7 @@ import org.elasticsearch.watcher.transport.actions.put.PutWatchRequest;
 import org.elasticsearch.watcher.trigger.ScheduleTriggerEngineMock;
 import org.elasticsearch.watcher.trigger.TriggerModule;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
 
 import static org.elasticsearch.watcher.actions.ActionBuilders.indexAction;
 import static org.elasticsearch.watcher.condition.ConditionBuilders.scriptCondition;
@@ -43,9 +42,7 @@ import static org.elasticsearch.watcher.trigger.schedule.Schedules.interval;
 public class WatcherExecutorServiceBenchmark {
 
     private final static Settings SETTINGS = Settings.builder()
-            .put("plugins.load_classpath_plugins", false)
             .put("shield.enabled", false)
-            .put("plugin.types", WatcherBenchmarkPlugin.class.getName() + "," + LicensePlugin.class.getName())
             .put("cluster.name", "bench")
             .put("network.host", "localhost")
             .put("script.disable_dynamic", false)
@@ -61,7 +58,7 @@ public class WatcherExecutorServiceBenchmark {
     private static ScheduleTriggerEngineMock scheduler;
 
     protected static void start() throws Exception {
-        Node node = NodeBuilder.nodeBuilder().settings(SETTINGS).data(false).node();
+        Node node = new MockNode(Settings.builder().put(SETTINGS).put("node.data", false).build(), false, Version.CURRENT, Arrays.asList(WatcherBenchmarkPlugin.class, LicensePlugin.class));
         client = node.client();
         client.admin().cluster().prepareHealth("*").setWaitForGreenStatus().get();
         Thread.sleep(5000);

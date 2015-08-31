@@ -216,7 +216,6 @@ public class SslMultiPortTests extends ShieldIntegTestCase {
                 .put("shield.user", DEFAULT_USER_NAME + ":" + DEFAULT_PASSWORD)
                 .put("cluster.name", internalTestCluster().getClusterName())
                 .put("path.home", createTempDir())
-                .put("plugin.types", ShieldPlugin.class.getName())
                 .build();
         try (TransportClient transportClient = TransportClient.builder().settings(settings).loadConfigSettings(false).addPlugin(ShieldPlugin.class).addPlugin(licensePluginClass()).build()) {
             transportClient.addTransportAddress(new InetSocketTransportAddress(InetAddress.getLoopbackAddress(), getProfilePort("no_ssl")));
@@ -234,7 +233,6 @@ public class SslMultiPortTests extends ShieldIntegTestCase {
                 .put("shield.user", DEFAULT_USER_NAME + ":" + DEFAULT_PASSWORD)
                 .put("cluster.name", internalTestCluster().getClusterName())
                 .put("path.home", createTempDir())
-                .put("plugin.types", ShieldPlugin.class.getName())
                 .build();
         try (TransportClient transportClient = TransportClient.builder().settings(settings).loadConfigSettings(false).build()) {
             transportClient.addTransportAddress(internalTestCluster().getInstance(Transport.class).boundAddress().boundAddress());
@@ -252,7 +250,6 @@ public class SslMultiPortTests extends ShieldIntegTestCase {
                 .put("shield.user", DEFAULT_USER_NAME + ":" + DEFAULT_PASSWORD)
                 .put("cluster.name", internalTestCluster().getClusterName())
                 .put("path.home", createTempDir())
-                .put("plugin.types", ShieldPlugin.class.getName())
                 .build();
         try (TransportClient transportClient = TransportClient.builder().settings(settings).loadConfigSettings(false).build()) {
             transportClient.addTransportAddress(new InetSocketTransportAddress(InetAddress.getLoopbackAddress(), getProfilePort("client")));
@@ -270,7 +267,6 @@ public class SslMultiPortTests extends ShieldIntegTestCase {
                 .put("shield.user", DEFAULT_USER_NAME + ":" + DEFAULT_PASSWORD)
                 .put("cluster.name", internalTestCluster().getClusterName())
                 .put("path.home", createTempDir())
-                .put("plugin.types", ShieldPlugin.class.getName())
                 .build();
         try (TransportClient transportClient = TransportClient.builder().settings(settings).loadConfigSettings(false).build()) {
             transportClient.addTransportAddress(new InetSocketTransportAddress(InetAddress.getLoopbackAddress(), getProfilePort("no_client_auth")));
@@ -292,7 +288,6 @@ public class SslMultiPortTests extends ShieldIntegTestCase {
                 .put("shield.ssl.truststore.path", getDataPath("/org/elasticsearch/shield/transport/ssl/certs/simple/truststore-testnode-only.jks"))
                 .put("shield.ssl.truststore.password", "truststore-testnode-only")
                 .put("path.home", createTempDir())
-                .put("plugin.types", ShieldPlugin.class.getName())
                 .build();
         try (TransportClient transportClient = TransportClient.builder().settings(settings).loadConfigSettings(false).addPlugin(ShieldPlugin.class).addPlugin(licensePluginClass()).build()) {
             transportClient.addTransportAddress(new InetSocketTransportAddress(InetAddress.getLoopbackAddress(), getProfilePort("no_client_auth")));
@@ -315,7 +310,6 @@ public class SslMultiPortTests extends ShieldIntegTestCase {
                 .put("shield.ssl.truststore.path", getDataPath("/org/elasticsearch/shield/transport/ssl/certs/simple/truststore-testnode-only.jks"))
                 .put("shield.ssl.truststore.password", "truststore-testnode-only")
                 .put("path.home", createTempDir())
-                .put("plugin.types", ShieldPlugin.class.getName())
                 .build();
         try (TransportClient transportClient = TransportClient.builder().settings(settings).loadConfigSettings(false).build()) {
             transportClient.addTransportAddress(new InetSocketTransportAddress(InetAddress.getLoopbackAddress(), getProfilePort("client")));
@@ -338,7 +332,6 @@ public class SslMultiPortTests extends ShieldIntegTestCase {
                 .put("shield.ssl.truststore.path", getDataPath("/org/elasticsearch/shield/transport/ssl/certs/simple/truststore-testnode-only.jks"))
                 .put("shield.ssl.truststore.password", "truststore-testnode-only")
                 .put("path.home", createTempDir())
-                .put("plugin.types", ShieldPlugin.class.getName())
                 .build();
         try (TransportClient transportClient = TransportClient.builder().settings(settings).loadConfigSettings(false).build()) {
             transportClient.addTransportAddress(internalTestCluster().getInstance(Transport.class).boundAddress().boundAddress());
@@ -360,7 +353,6 @@ public class SslMultiPortTests extends ShieldIntegTestCase {
                 .put("shield.ssl.truststore.path", getDataPath("/org/elasticsearch/shield/transport/ssl/certs/simple/truststore-testnode-only.jks"))
                 .put("shield.ssl.truststore.password", "truststore-testnode-only")
                 .put("path.home", createTempDir())
-                .put("plugin.types", ShieldPlugin.class.getName())
                 .build();
         try (TransportClient transportClient = TransportClient.builder().settings(settings).loadConfigSettings(false).build()) {
             transportClient.addTransportAddress(new InetSocketTransportAddress(InetAddress.getLoopbackAddress(), getProfilePort("no_ssl")));
@@ -380,7 +372,6 @@ public class SslMultiPortTests extends ShieldIntegTestCase {
                 .put("cluster.name", internalTestCluster().getClusterName())
                 .put("shield.transport.ssl", true)
                 .put("path.home", createTempDir())
-                .put("plugin.types", ShieldPlugin.class.getName())
                 .build();
         try (TransportClient transportClient = TransportClient.builder().settings(settings).loadConfigSettings(false).build()) {
             transportClient.addTransportAddress(internalTestCluster().getInstance(Transport.class).boundAddress().boundAddress());
@@ -400,7 +391,6 @@ public class SslMultiPortTests extends ShieldIntegTestCase {
                 .put("cluster.name", internalTestCluster().getClusterName())
                 .put("shield.transport.ssl", true)
                 .put("path.home", createTempDir())
-                .put("plugin.types", ShieldPlugin.class.getName())
                 .build();
         try (TransportClient transportClient = TransportClient.builder().settings(settings).loadConfigSettings(false).build()) {
             transportClient.addTransportAddress(new InetSocketTransportAddress(InetAddress.getLoopbackAddress(), getProfilePort("client")));
@@ -420,7 +410,6 @@ public class SslMultiPortTests extends ShieldIntegTestCase {
                 .put("cluster.name", internalTestCluster().getClusterName())
                 .put("shield.transport.ssl", true)
                 .put("path.home", createTempDir())
-                .put("plugin.types", ShieldPlugin.class.getName())
                 .build();
         try (TransportClient transportClient = TransportClient.builder().settings(settings).loadConfigSettings(false).build()) {
             transportClient.addTransportAddress(new InetSocketTransportAddress(InetAddress.getLoopbackAddress(), getProfilePort("no_client_auth")));
@@ -440,7 +429,6 @@ public class SslMultiPortTests extends ShieldIntegTestCase {
                 .put("cluster.name", internalTestCluster().getClusterName())
                 .put("shield.transport.ssl", true)
                 .put("path.home", createTempDir())
-                .put("plugin.types", ShieldPlugin.class.getName())
                 .build();
         try (TransportClient transportClient = TransportClient.builder().settings(settings).loadConfigSettings(false).build()) {
             transportClient.addTransportAddress(new InetSocketTransportAddress(InetAddress.getLoopbackAddress(), getProfilePort("no_ssl")));

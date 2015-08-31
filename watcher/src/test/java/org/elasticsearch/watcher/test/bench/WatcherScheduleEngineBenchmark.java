@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.watcher.test.bench;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
@@ -19,6 +20,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.license.plugin.LicensePlugin;
 import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeBuilder;
 import org.elasticsearch.script.Script;
@@ -55,9 +57,7 @@ import static org.elasticsearch.watcher.trigger.schedule.Schedules.interval;
 public class WatcherScheduleEngineBenchmark {
 
     private final static Settings SETTINGS = Settings.builder()
-            .put("plugins.load_classpath_plugins", false)
             .put("shield.enabled", false)
-            .put("plugin.types", WatcherPlugin.class.getName() + "," + LicensePlugin.class.getName())
             .put("cluster.name", "bench")
             .put("script.disable_dynamic", false)
             .put("http.cors.enabled", true)
@@ -92,8 +92,7 @@ public class WatcherScheduleEngineBenchmark {
 
 
         // First clean everything and index the watcher (but not via put alert api!)
-        Settings settings = Settings.builder().put(SETTINGS).put("plugin.types", "").build();
-        try (Node node = NodeBuilder.nodeBuilder().settings(settings).data(false).node()) {
+        try (Node node = NodeBuilder.nodeBuilder().settings(SETTINGS).data(false).node()) {
             try (Client client = node.client()) {
                 ClusterHealthResponse response = client.admin().cluster().prepareHealth().setWaitForNodes("2").get();
                 if (response.getNumberOfNodes() != 2 && response.getNumberOfDataNodes() != 1) {
@@ -131,11 +130,12 @@ public class WatcherScheduleEngineBenchmark {
             results.put(engine, stats);
             System.out.println("===============> testing engine [" + engine + "]");
             System.gc();
-            settings = Settings.builder()
+            Settings settings = Settings.builder()
                     .put(SETTINGS)
                     .put("watcher.trigger.schedule.engine", engine)
+                    .put("node.data", false)
                     .build();
-            try (Node node = NodeBuilder.nodeBuilder().settings(settings).data(false).node()) {
+            try (Node node = new MockNode(settings, false, Version.CURRENT, Arrays.asList(WatcherPlugin.class, LicensePlugin.class))) {
                 try (final Client client = node.client()) {
                     client.admin().cluster().prepareHealth().setWaitForNodes("2").get();
                     client.admin().indices().prepareDelete(HistoryStore.INDEX_PREFIX + "*").get();

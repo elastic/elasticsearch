@@ -30,7 +30,6 @@ import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.apache.lucene.search.similarities.Similarity;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -41,16 +40,13 @@ import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.query.support.NestedScope;
-import org.elasticsearch.index.similarity.SimilarityService;
+import org.elasticsearch.indices.cache.query.terms.TermsLookup;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.fetch.innerhits.InnerHitsContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 
 /**
  * Context object used to create lucene queries on the shard level.
@@ -133,6 +129,7 @@ public class QueryShardContext {
         return this.index;
     }
 
+    //norelease we might be able to avoid exposing the service to the outside world once all queries are refactored
     public IndexQueryParserService indexQueryParserService() {
         return indexQueryParser;
     }
@@ -147,11 +144,6 @@ public class QueryShardContext {
 
     public MapperService mapperService() {
         return indexQueryParser.mapperService;
-    }
-
-    @Nullable
-    public SimilarityService similarityService() {
-        return indexQueryParser.similarityService;
     }
 
     public Similarity searchSimilarity() {
@@ -217,7 +209,7 @@ public class QueryShardContext {
     }
 
     public Collection<String> simpleMatchToIndexNames(String pattern) {
-        return indexQueryParser.mapperService.simpleMatchToIndexNames(pattern, getTypes());
+        return indexQueryParser.mapperService.simpleMatchToIndexNames(pattern);
     }
 
     public MappedFieldType fieldMapper(String name) {
@@ -325,6 +317,10 @@ public class QueryShardContext {
     }
 
     public boolean matchesIndices(String... indices) {
-        return this.indexQueryParserService().matchesIndices(indices);
+        return this.indexQueryParser.matchesIndices(indices);
+    }
+
+    public List<Object> handleTermsLookup(TermsLookup termsLookup) {
+        return this.indexQueryParser.handleTermsLookup(termsLookup);
     }
 }

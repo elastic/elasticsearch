@@ -19,7 +19,6 @@
 package org.elasticsearch.rest.action.admin.indices.get;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import com.google.common.collect.ImmutableList;
 
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest.Feature;
@@ -46,6 +45,7 @@ import org.elasticsearch.rest.action.support.RestBuilderListener;
 import org.elasticsearch.search.warmer.IndexWarmersMetaData;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestStatus.OK;
@@ -117,7 +117,7 @@ public class RestGetIndicesAction extends BaseRestHandler {
                 return new BytesRestResponse(OK, builder);
             }
 
-            private void writeAliases(ImmutableList<AliasMetaData> aliases, XContentBuilder builder, Params params) throws IOException {
+            private void writeAliases(List<AliasMetaData> aliases, XContentBuilder builder, Params params) throws IOException {
                 builder.startObject(Fields.ALIASES);
                 if (aliases != null) {
                     for (AliasMetaData alias : aliases) {
@@ -144,7 +144,7 @@ public class RestGetIndicesAction extends BaseRestHandler {
                 builder.endObject();
             }
 
-            private void writeWarmers(ImmutableList<IndexWarmersMetaData.Entry> warmers, XContentBuilder builder, Params params) throws IOException {
+            private void writeWarmers(List<IndexWarmersMetaData.Entry> warmers, XContentBuilder builder, Params params) throws IOException {
                 builder.startObject(Fields.WARMERS);
                 if (warmers != null) {
                     for (IndexWarmersMetaData.Entry warmer : warmers) {

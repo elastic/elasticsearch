@@ -16,7 +16,6 @@
 
 package org.elasticsearch.common.inject;
 
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
 import org.elasticsearch.common.Classes;
@@ -49,6 +48,7 @@ import java.lang.reflect.Modifier;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -164,7 +164,7 @@ class InjectorImpl implements Injector, Lookups {
 
     @Override
     public Injector createChildInjector(Module... modules) {
-        return createChildInjector(ImmutableList.copyOf(modules));
+        return createChildInjector(Arrays.asList(modules));
     }
 
     /**
@@ -716,7 +716,7 @@ class InjectorImpl implements Injector, Lookups {
             List<Binding<?>> bindings = multimap.get(type);
             return bindings != null
                     ? Collections.<Binding<T>>unmodifiableList((List) multimap.get(type))
-                    : ImmutableList.<Binding<T>>of();
+                    : Collections.<Binding<T>>emptyList();
         }
     }
 

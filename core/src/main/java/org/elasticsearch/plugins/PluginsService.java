@@ -19,7 +19,6 @@
 
 package org.elasticsearch.plugins;
 
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 
 import org.apache.lucene.analysis.util.CharFilterFactory;
@@ -328,7 +327,7 @@ public class PluginsService extends AbstractComponent {
     }
 
     private List<Tuple<PluginInfo,Plugin>> loadBundles(List<Bundle> bundles) {
-        ImmutableList.Builder<Tuple<PluginInfo, Plugin>> plugins = ImmutableList.builder();
+        List<Tuple<PluginInfo, Plugin>> plugins = new ArrayList<>();
 
         for (Bundle bundle : bundles) {
             // jar-hell check the bundle against the parent classloader
@@ -363,7 +362,7 @@ public class PluginsService extends AbstractComponent {
             }
         }
 
-        return plugins.build();
+        return Collections.unmodifiableList(plugins);
     }
 
     /**

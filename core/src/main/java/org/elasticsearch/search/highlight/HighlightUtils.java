@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.highlight;
 
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import org.apache.lucene.search.highlight.DefaultEncoder;
 import org.apache.lucene.search.highlight.Encoder;
@@ -30,6 +29,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 
 public final class HighlightUtils {
@@ -52,7 +52,7 @@ public final class HighlightUtils {
             textsToHighlight = fieldVisitor.fields().get(mapper.fieldType().names().indexName());
             if (textsToHighlight == null) {
                 // Can happen if the document doesn't have the field to highlight
-                textsToHighlight = ImmutableList.of();
+                textsToHighlight = Collections.emptyList();
             }
         } else {
             SourceLookup sourceLookup = searchContext.lookup().source();

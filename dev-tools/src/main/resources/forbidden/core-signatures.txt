@@ -87,3 +87,4 @@ org.elasticsearch.common.io.PathUtils#get(java.net.URI)
 
 @defaultMessage avoid adding additional dependencies on Guava
 com.google.common.collect.Lists
+com.google.common.collect.ImmutableList

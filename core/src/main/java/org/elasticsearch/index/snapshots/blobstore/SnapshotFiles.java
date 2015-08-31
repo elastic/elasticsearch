@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.index.snapshots.blobstore;
 
-import com.google.common.collect.ImmutableList;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 
 import java.util.List;

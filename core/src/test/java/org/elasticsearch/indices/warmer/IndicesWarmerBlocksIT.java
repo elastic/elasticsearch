@@ -21,7 +21,6 @@ package org.elasticsearch.indices.warmer;
 
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import com.google.common.collect.ImmutableList;
 import org.elasticsearch.action.admin.indices.warmer.get.GetWarmersResponse;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.warmer.IndexWarmersMetaData;
@@ -30,6 +29,7 @@ import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.junit.Test;
 
 import java.util.Arrays;
+import java.util.List;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
 import static org.elasticsearch.cluster.metadata.MetaData.CLUSTER_READ_ONLY_BLOCK;
@@ -106,7 +106,7 @@ public class IndicesWarmerBlocksIT extends ESIntegTestCase {
                 GetWarmersResponse response = client().admin().indices().prepareGetWarmers("test-blocks").get();
                 assertThat(response.warmers().size(), equalTo(1));
 
-                ObjectObjectCursor<String, ImmutableList<IndexWarmersMetaData.Entry>> entry = response.warmers().iterator().next();
+                ObjectObjectCursor<String, List<IndexWarmersMetaData.Entry>> entry = response.warmers().iterator().next();
                 assertThat(entry.key, equalTo("test-blocks"));
                 assertThat(entry.value.size(), equalTo(1));
                 assertThat(entry.value.iterator().next().name(), equalTo("warmer_block"));

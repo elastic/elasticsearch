@@ -24,7 +24,6 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.base.Predicate;
 import com.google.common.collect.Collections2;
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.UnmodifiableIterator;
 import org.apache.lucene.util.CollectionUtil;
@@ -253,7 +252,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
      * @param concreteIndices The concrete indexes the index aliases must point to order to be returned.
      * @return the found index aliases grouped by index
      */
-    public ImmutableOpenMap<String, ImmutableList<AliasMetaData>> findAliases(final String[] aliases, String[] concreteIndices) {
+    public ImmutableOpenMap<String, List<AliasMetaData>> findAliases(final String[] aliases, String[] concreteIndices) {
         assert aliases != null;
         assert concreteIndices != null;
         if (concreteIndices.length == 0) {
@@ -261,7 +260,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
         }
 
         boolean matchAllAliases = matchAllAliases(aliases);
-        ImmutableOpenMap.Builder<String, ImmutableList<AliasMetaData>> mapBuilder = ImmutableOpenMap.builder();
+        ImmutableOpenMap.Builder<String, List<AliasMetaData>> mapBuilder = ImmutableOpenMap.builder();
         Iterable<String> intersection = HppcMaps.intersection(ObjectHashSet.from(concreteIndices), indices.keys());
         for (String index : intersection) {
             IndexMetaData indexMetaData = indices.get(index);
@@ -281,7 +280,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
                         return o1.alias().compareTo(o2.alias());
                     }
                 });
-                mapBuilder.put(index, ImmutableList.copyOf(filteredValues));
+                mapBuilder.put(index, Collections.unmodifiableList(filteredValues));
             }
         }
         return mapBuilder.build();
@@ -364,7 +363,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
         return indexMapBuilder.build();
     }
 
-    public ImmutableOpenMap<String, ImmutableList<IndexWarmersMetaData.Entry>> findWarmers(String[] concreteIndices, final String[] types, final String[] uncheckedWarmers) {
+    public ImmutableOpenMap<String, List<IndexWarmersMetaData.Entry>> findWarmers(String[] concreteIndices, final String[] types, final String[] uncheckedWarmers) {
         assert uncheckedWarmers != null;
         assert concreteIndices != null;
         if (concreteIndices.length == 0) {
@@ -373,7 +372,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
         // special _all check to behave the same like not specifying anything for the warmers (not for the indices)
         final String[] warmers = Strings.isAllOrWildcard(uncheckedWarmers) ? Strings.EMPTY_ARRAY : uncheckedWarmers;
 
-        ImmutableOpenMap.Builder<String, ImmutableList<IndexWarmersMetaData.Entry>> mapBuilder = ImmutableOpenMap.builder();
+        ImmutableOpenMap.Builder<String, List<IndexWarmersMetaData.Entry>> mapBuilder = ImmutableOpenMap.builder();
         Iterable<String> intersection = HppcMaps.intersection(ObjectHashSet.from(concreteIndices), indices.keys());
         for (String index : intersection) {
             IndexMetaData indexMetaData = indices.get(index);
@@ -382,6 +381,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
                 continue;
             }
 
+            // TODO: make this a List so we don't have to copy below
             Collection<IndexWarmersMetaData.Entry> filteredWarmers = Collections2.filter(indexWarmersMetaData.entries(), new Predicate<IndexWarmersMetaData.Entry>() {
 
                 @Override
@@ -399,7 +399,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
 
             });
             if (!filteredWarmers.isEmpty()) {
-                mapBuilder.put(index, ImmutableList.copyOf(filteredWarmers));
+                mapBuilder.put(index, Collections.unmodifiableList(new ArrayList<>(filteredWarmers)));
             }
         }
         return mapBuilder.build();

@@ -20,7 +20,6 @@
 package org.elasticsearch.search.internal;
 
 import com.carrotsearch.hppc.ObjectObjectAssociativeContainer;
-import com.google.common.collect.ImmutableList;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Collector;
@@ -586,7 +585,7 @@ public class DefaultSearchContext extends SearchContext {
 
     @Override
     public void emptyFieldNames() {
-        this.fieldNames = ImmutableList.of();
+        this.fieldNames = Collections.emptyList();
     }
 
     @Override

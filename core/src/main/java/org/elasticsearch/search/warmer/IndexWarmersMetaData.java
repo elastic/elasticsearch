@@ -20,7 +20,6 @@
 package org.elasticsearch.search.warmer;
 
 import com.google.common.base.Objects;
-import com.google.common.collect.ImmutableList;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;
@@ -120,14 +119,14 @@ public class IndexWarmersMetaData extends AbstractDiffable<IndexMetaData.Custom>
         }
     }
 
-    private final ImmutableList<Entry> entries;
+    private final List<Entry> entries;
 
 
     public IndexWarmersMetaData(Entry... entries) {
-        this.entries = ImmutableList.copyOf(entries);
+        this.entries = Arrays.asList(entries);
     }
 
-    public ImmutableList<Entry> entries() {
+    public List<Entry> entries() {
         return this.entries;
     }
 

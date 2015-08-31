@@ -28,6 +28,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.env.NodeEnvironment;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 
@@ -139,7 +141,7 @@ public class DanglingIndicesState extends AbstractComponent {
             return;
         }
         try {
-            allocateDangledIndices.allocateDangled(ImmutableList.copyOf(danglingIndices.values()), new LocalAllocateDangledIndices.Listener() {
+            allocateDangledIndices.allocateDangled(Collections.unmodifiableCollection(new ArrayList<>(danglingIndices.values())), new LocalAllocateDangledIndices.Listener() {
                 @Override
                 public void onResponse(LocalAllocateDangledIndices.AllocateDangledResponse response) {
                     logger.trace("allocated dangled");

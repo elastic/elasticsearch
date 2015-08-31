@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.util;
 
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefArray;
@@ -45,7 +44,7 @@ public class CollectionUtilsTests extends ESTestCase {
 
     @Test
     public void rotateEmpty() {
-        assertTrue(CollectionUtils.rotate(ImmutableList.of(), randomInt()).isEmpty());
+        assertTrue(CollectionUtils.rotate(Collections.emptyList(), randomInt()).isEmpty());
     }
 
     @Test

@@ -55,14 +55,14 @@ public class ShadedIT extends LuceneTestCase {
 
     @Test
     public void testLoadShadedClasses() throws ClassNotFoundException {
-        Class.forName("org.elasticsearch.common.collect.ImmutableList");
+        Class.forName("org.elasticsearch.common.cache.LoadingCache");
         Class.forName("org.elasticsearch.common.joda.time.DateTime");
         Class.forName("org.elasticsearch.common.util.concurrent.jsr166e.LongAdder");
     }
 
     @Test(expected = ClassNotFoundException.class)
     public void testGuavaIsNotOnTheCP() throws ClassNotFoundException {
-        Class.forName("com.google.common.collect.ImmutableList");
+        Class.forName("com.google.common.cache.LoadingCache");
     }
 
     @Test(expected = ClassNotFoundException.class)

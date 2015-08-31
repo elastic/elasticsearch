@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.aggregations;
 
-import com.google.common.collect.ImmutableList;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -35,6 +34,7 @@ import org.elasticsearch.search.aggregations.support.AggregationPath;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -225,7 +225,7 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, St
         metaData = in.readMap();
         int size = in.readVInt();
         if (size == 0) {
-            pipelineAggregators = ImmutableList.of();
+            pipelineAggregators = Collections.emptyList();
         } else {
             pipelineAggregators = new ArrayList<>(size);
             for (int i = 0; i < size; i++) {

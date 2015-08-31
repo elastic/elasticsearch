@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.indices.segments;
 
-import com.google.common.collect.ImmutableList;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -28,6 +27,7 @@ import org.elasticsearch.index.engine.Segment;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 
@@ -91,7 +91,7 @@ public class ShardSegments implements Streamable, Iterable<Segment> {
         shardRouting = readShardRoutingEntry(in);
         int size = in.readVInt();
         if (size == 0) {
-            segments = ImmutableList.of();
+            segments = Collections.emptyList();
         } else {
             segments = new ArrayList<>(size);
             for (int i = 0; i < size; i++) {

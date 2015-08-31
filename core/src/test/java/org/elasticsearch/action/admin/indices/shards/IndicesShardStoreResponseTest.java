@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.indices.shards;
 
-import com.google.common.collect.ImmutableList;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -42,7 +41,7 @@ public class IndicesShardStoreResponseTest extends ESTestCase {
     @Test
     public void testBasicSerialization() throws Exception {
         ImmutableOpenMap.Builder<String, ImmutableOpenIntMap<List<IndicesShardStoresResponse.StoreStatus>>> indexStoreStatuses = ImmutableOpenMap.builder();
-        ImmutableList.Builder<IndicesShardStoresResponse.Failure> failures = ImmutableList.builder();
+        List<IndicesShardStoresResponse.Failure> failures = new ArrayList<>();
         ImmutableOpenIntMap.Builder<List<IndicesShardStoresResponse.StoreStatus>> storeStatuses = ImmutableOpenIntMap.builder();
 
         DiscoveryNode node1 = new DiscoveryNode("node1", DummyTransportAddress.INSTANCE, Version.CURRENT);
@@ -59,7 +58,7 @@ public class IndicesShardStoreResponseTest extends ESTestCase {
 
         failures.add(new IndicesShardStoresResponse.Failure("node1", "test", 3, new NodeDisconnectedException(node1, "")));
 
-        IndicesShardStoresResponse storesResponse = new IndicesShardStoresResponse(indexStoreStatuses.build(), failures.build());
+        IndicesShardStoresResponse storesResponse = new IndicesShardStoresResponse(indexStoreStatuses.build(), Collections.unmodifiableList(failures));
         XContentBuilder contentBuilder = XContentFactory.jsonBuilder();
         contentBuilder.startObject();
         storesResponse.toXContent(contentBuilder, ToXContent.EMPTY_PARAMS);

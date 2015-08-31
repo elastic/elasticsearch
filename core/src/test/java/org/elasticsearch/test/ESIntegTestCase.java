@@ -1739,7 +1739,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 throw new IllegalArgumentException("port is not valid, expected number but was [" + split[1] + "]");
             }
         }
-        return new ExternalTestCluster(createTempDir(), externalClusterClientSettings(), transportAddresses);
+        return new ExternalTestCluster(createTempDir(), externalClusterClientSettings(), transportClientPlugins(), transportAddresses);
     }
 
     protected Settings externalClusterClientSettings() {

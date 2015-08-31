@@ -63,6 +63,8 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
     /** Name for (de-)serialization. */
     public static final String NAME = "simple_query_string";
 
+    static final SimpleQueryStringBuilder PROTOTYPE = new SimpleQueryStringBuilder(null);
+
     /** Query text to parse. */
     private final String queryText;
     /**
@@ -85,8 +87,6 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
 
     /** Further search settings needed by the ES specific query string parser only. */
     private Settings settings = new Settings();
-
-    static final SimpleQueryStringBuilder PROTOTYPE = new SimpleQueryStringBuilder(null);
 
     /** Construct a new simple query with this query string. */
     public SimpleQueryStringBuilder(String queryText) {
@@ -320,13 +320,7 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         if (fieldsAndWeights.size() > 0) {
             builder.startArray("fields");
             for (Map.Entry<String, Float> entry : fieldsAndWeights.entrySet()) {
-                String field = entry.getKey();
-                Float boost = entry.getValue();
-                if (boost != null) {
-                    builder.value(field + "^" + boost);
-                } else {
-                    builder.value(field);
-                }
+                builder.value(entry.getKey() + "^" + entry.getValue());
             }
             builder.endArray();
         }

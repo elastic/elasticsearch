@@ -154,15 +154,6 @@ public final class InternalTestCluster extends TestCluster {
     static NodeConfigurationSource DEFAULT_SETTINGS_SOURCE = NodeConfigurationSource.EMPTY;
 
     /**
-     * A boolean value to enable or disable mock modules. This is useful to test the
-     * system without asserting modules that to make sure they don't hide any bugs in
-     * production.
-     *
-     * @see ESIntegTestCase
-     */
-    public static final String TESTS_ENABLE_MOCK_MODULES = "tests.enable_mock_modules";
-
-    /**
      * A node level setting that holds a per node random seed that is consistent across node restarts
      */
     public static final String SETTING_CLUSTER_NODE_SEED = "test.cluster.node.seed";
@@ -191,8 +182,6 @@ public final class InternalTestCluster extends TestCluster {
     public final int TRANSPORT_BASE_PORT = GLOBAL_TRANSPORT_BASE_PORT + CLUSTER_BASE_PORT_OFFSET;
     public final int HTTP_BASE_PORT = GLOBAL_HTTP_BASE_PORT + CLUSTER_BASE_PORT_OFFSET;
 
-
-    private static final boolean ENABLE_MOCK_MODULES = RandomizedTest.systemPropertyAsBoolean(TESTS_ENABLE_MOCK_MODULES, true);
 
     static final int DEFAULT_MIN_NUM_DATA_NODES = 1;
     static final int DEFAULT_MAX_NUM_DATA_NODES = TEST_NIGHTLY ? 6 : 3;
@@ -229,6 +218,8 @@ public final class InternalTestCluster extends TestCluster {
 
     private final ExecutorService executor;
 
+    private final boolean enableMockModules;
+
     /**
      * All nodes started by the cluster will have their name set to nodePrefix followed by a positive number
      */
@@ -240,7 +231,7 @@ public final class InternalTestCluster extends TestCluster {
 
     public InternalTestCluster(String nodeMode, long clusterSeed, Path baseDir,
                                int minNumDataNodes, int maxNumDataNodes, String clusterName, NodeConfigurationSource nodeConfigurationSource, int numClientNodes,
-                               boolean enableHttpPipelining, String nodePrefix) {
+                               boolean enableHttpPipelining, String nodePrefix, boolean enableMockModules) {
         super(clusterSeed);
         if ("network".equals(nodeMode) == false && "local".equals(nodeMode) == false) {
             throw new IllegalArgumentException("Unknown nodeMode: " + nodeMode);
@@ -276,6 +267,7 @@ public final class InternalTestCluster extends TestCluster {
         this.nodePrefix = nodePrefix;
 
         assert nodePrefix != null;
+        this.enableMockModules = enableMockModules;
 
         /*
          *  TODO
@@ -387,15 +379,15 @@ public final class InternalTestCluster extends TestCluster {
     private Collection<Class<? extends Plugin>> getPlugins(long seed) {
         Set<Class<? extends Plugin>> plugins = new HashSet<>(nodeConfigurationSource.nodePlugins());
         Random random = new Random(seed);
-        if (ENABLE_MOCK_MODULES && usually(random)) {
+        if (enableMockModules && usually(random)) {
             plugins.add(MockTransportService.TestPlugin.class);
             plugins.add(MockFSIndexStore.TestPlugin.class);
             plugins.add(NodeMocksPlugin.class);
             plugins.add(MockEngineFactoryPlugin.class);
             plugins.add(MockSearchService.TestPlugin.class);
-        }
-        if (isLocalTransportConfigured()) {
-            plugins.add(AssertingLocalTransport.TestPlugin.class);
+            if (isLocalTransportConfigured()) {
+                plugins.add(AssertingLocalTransport.TestPlugin.class);
+            }
         }
         return plugins;
     }

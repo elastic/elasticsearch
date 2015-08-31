@@ -34,8 +34,6 @@ import static org.hamcrest.Matchers.*;
 
 public class SimpleQueryStringBuilderTests extends BaseQueryTestCase<SimpleQueryStringBuilder> {
 
-    private static final String[] MINIMUM_SHOULD_MATCH = new String[] { "1", "-1", "75%", "-25%", "2<75%", "2<-25%" };
-
     @Override
     protected SimpleQueryStringBuilder doCreateTestQueryBuilder() {
         SimpleQueryStringBuilder result = new SimpleQueryStringBuilder(randomAsciiOfLengthBetween(1, 10));
@@ -52,13 +50,13 @@ public class SimpleQueryStringBuilderTests extends BaseQueryTestCase<SimpleQuery
             result.locale(randomLocale(getRandom()));
         }
         if (randomBoolean()) {
-            result.minimumShouldMatch(randomFrom(MINIMUM_SHOULD_MATCH));
+            result.minimumShouldMatch(randomMinimumShouldMatch());
         }
         if (randomBoolean()) {
-            result.analyzer("simple");
+            result.analyzer(randomAnalyzer());
         }
         if (randomBoolean()) {
-            result.defaultOperator(randomFrom(Operator.AND, Operator.OR));
+            result.defaultOperator(randomFrom(Operator.values()));
         }
         if (randomBoolean()) {
             Set<SimpleQueryStringFlag> flagSet = new HashSet<>();
@@ -72,12 +70,12 @@ public class SimpleQueryStringBuilderTests extends BaseQueryTestCase<SimpleQuery
         }
 
         int fieldCount = randomIntBetween(0, 10);
-        Map<String, Float> fields = new TreeMap<>();
+        Map<String, Float> fields = new HashMap<>();
         for (int i = 0; i < fieldCount; i++) {
             if (randomBoolean()) {
                 fields.put(randomAsciiOfLengthBetween(1, 10), AbstractQueryBuilder.DEFAULT_BOOST);
             } else {
-                fields.put(randomAsciiOfLengthBetween(1, 10), 2.0f / randomIntBetween(1, 20));
+                fields.put(randomBoolean() ? STRING_FIELD_NAME : randomAsciiOfLengthBetween(1, 10), 2.0f / randomIntBetween(1, 20));
             }
         }
         result.fields(fields);
@@ -274,22 +272,12 @@ public class SimpleQueryStringBuilderTests extends BaseQueryTestCase<SimpleQuery
             for (BooleanClause booleanClause : boolQuery) {
                 assertThat(booleanClause.getQuery(), instanceOf(TermQuery.class));
                 TermQuery termQuery = (TermQuery) booleanClause.getQuery();
-                assertThat(termQuery.getTerm(), equalTo(new Term(fields.next(), queryBuilder.value().toLowerCase(Locale.ROOT))));
+                assertThat(termQuery.getTerm().field(), equalTo(fields.next()));
+                assertThat(termQuery.getTerm().text().toLowerCase(Locale.ROOT), equalTo(queryBuilder.value().toLowerCase(Locale.ROOT)));
             }
 
             if (queryBuilder.minimumShouldMatch() != null) {
-                Collection<String> minMatchAlways = Arrays.asList("1", "-1", "75%", "-25%");
-                Collection<String> minMatchLarger = Arrays.asList("2<75%", "2<-25%");
-
-                if (minMatchAlways.contains(queryBuilder.minimumShouldMatch())) {
-                    assertThat(boolQuery.getMinimumNumberShouldMatch(), greaterThan(0));
-                } else if (minMatchLarger.contains(queryBuilder.minimumShouldMatch())) {
-                    if (shouldClauses(boolQuery) > 2) {
-                        assertThat(boolQuery.getMinimumNumberShouldMatch(), greaterThan(0));
-                    }
-                } else {
-                    assertEquals(0, boolQuery.getMinimumNumberShouldMatch());
-                }
+                assertThat(boolQuery.getMinimumNumberShouldMatch(), greaterThan(0));
             }
         } else if (queryBuilder.fields().size() <= 1) {
             assertTrue("Query should have been TermQuery but was " + query.getClass().getName(), query instanceof TermQuery);
@@ -301,11 +289,8 @@ public class SimpleQueryStringBuilderTests extends BaseQueryTestCase<SimpleQuery
             } else {
                 field = queryBuilder.fields().keySet().iterator().next();
             }
-            assertThat(termQuery.getTerm(), equalTo(new Term(field, queryBuilder.value().toLowerCase(Locale.ROOT))));
-
-            if (queryBuilder.lowercaseExpandedTerms()) {
-                assertThat(termQuery.getTerm().bytes().toString(), is(termQuery.getTerm().bytes().toString().toLowerCase(Locale.ROOT)));
-            }
+            assertThat(termQuery.getTerm().field(), equalTo(field));
+            assertThat(termQuery.getTerm().text().toLowerCase(Locale.ROOT), equalTo(queryBuilder.value().toLowerCase(Locale.ROOT)));
         } else {
             fail("Encountered lucene query type we do not have a validation implementation for in our " + SimpleQueryStringBuilderTests.class.getSimpleName());
         }

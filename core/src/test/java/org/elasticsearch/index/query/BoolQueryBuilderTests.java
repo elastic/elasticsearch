@@ -43,7 +43,7 @@ public class BoolQueryBuilderTests extends BaseQueryTestCase<BoolQueryBuilder> {
             query.disableCoord(randomBoolean());
         }
         if (randomBoolean()) {
-            query.minimumNumberShouldMatch(randomIntBetween(1, 10));
+            query.minimumNumberShouldMatch(randomMinimumShouldMatch());
         }
         int mustClauses = randomIntBetween(0, 3);
         for (int i = 0; i < mustClauses; i++) {

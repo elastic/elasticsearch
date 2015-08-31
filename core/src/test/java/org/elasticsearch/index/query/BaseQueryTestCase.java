@@ -73,7 +73,9 @@ import org.joda.time.DateTimeZone;
 import org.junit.*;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.*;
@@ -81,6 +83,7 @@ import static org.hamcrest.Matchers.*;
 public abstract class BaseQueryTestCase<QB extends AbstractQueryBuilder<QB>> extends ESTestCase {
 
     protected static final String STRING_FIELD_NAME = "mapped_string";
+    protected static final String STRING_FIELD_NAME_2 = "mapped_string_2";
     protected static final String INT_FIELD_NAME = "mapped_int";
     protected static final String DOUBLE_FIELD_NAME = "mapped_double";
     protected static final String BOOLEAN_FIELD_NAME = "mapped_boolean";
@@ -165,6 +168,7 @@ public abstract class BaseQueryTestCase<QB extends AbstractQueryBuilder<QB>> ext
             String type = randomAsciiOfLengthBetween(1, 10);
             mapperService.merge(type, new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef(type,
                     STRING_FIELD_NAME, "type=string",
+                    STRING_FIELD_NAME_2, "type=string",
                     INT_FIELD_NAME, "type=integer",
                     DOUBLE_FIELD_NAME, "type=double",
                     BOOLEAN_FIELD_NAME, "type=boolean",
@@ -520,25 +524,39 @@ public abstract class BaseQueryTestCase<QB extends AbstractQueryBuilder<QB>> ext
     }
 
     protected static Fuzziness randomFuzziness(String fieldName) {
-        Fuzziness fuzziness = Fuzziness.AUTO;
-        switch (fieldName) {
-            case INT_FIELD_NAME:
-                fuzziness = Fuzziness.build(randomIntBetween(3, 100));
-                break;
-            case DOUBLE_FIELD_NAME:
-                fuzziness = Fuzziness.build(1 + randomFloat() * 10);
-                break;
-            case DATE_FIELD_NAME:
-                fuzziness = Fuzziness.build(randomTimeValue());
-                break;
+        if (randomBoolean()) {
+            return Fuzziness.fromEdits(randomIntBetween(0, 2));
         }
         if (randomBoolean()) {
-            fuzziness = Fuzziness.fromEdits(randomIntBetween(0, 2));
+            return Fuzziness.AUTO;
         }
-        return fuzziness;
+        switch (fieldName) {
+            case INT_FIELD_NAME:
+                return Fuzziness.build(randomIntBetween(3, 100));
+            case DOUBLE_FIELD_NAME:
+                return Fuzziness.build(1 + randomFloat() * 10);
+            case DATE_FIELD_NAME:
+                return Fuzziness.build(randomTimeValue());
+            default:
+                return Fuzziness.AUTO;
+        }
     }
 
     protected static boolean isNumericFieldName(String fieldName) {
         return INT_FIELD_NAME.equals(fieldName) || DOUBLE_FIELD_NAME.equals(fieldName);
     }
+
+    protected static String randomAnalyzer() {
+        return randomFrom("simple", "standard", "keyword", "whitespace");
+    }
+
+    protected static String randomMinimumShouldMatch() {
+        return randomFrom("1", "-1", "75%", "-25%", "2<75%", "2<-25%");
+    }
+
+    protected static String randomTimeZone() {
+        return randomFrom(TIMEZONE_IDS);
+    }
+
+    private static final List<String> TIMEZONE_IDS = new ArrayList<>(DateTimeZone.getAvailableIDs());
 }

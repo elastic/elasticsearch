@@ -964,12 +964,12 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         assertHighlight(resp, 0, "foo", 0, equalTo("junk junk <em>cats</em> junk junk"));
 
         // which can also be written by searching on the subfield
-        resp = req.setQuery(queryStringQuery("cats").field("foo").field("foo.plain^5")).get();
+        resp = req.setQuery(queryStringQuery("cats").field("foo").field("foo.plain", 5)).get();
         assertHighlight(resp, 0, "foo", 0, equalTo("junk junk <em>cats</em> junk junk"));
 
         // Speaking of two fields, you can have two fields, only one of which has matchedFields enabled
-        QueryBuilder twoFieldsQuery = queryStringQuery("cats").field("foo").field("foo.plain^5")
-                .field("bar").field("bar.plain^5");
+        QueryBuilder twoFieldsQuery = queryStringQuery("cats").field("foo").field("foo.plain", 5)
+                .field("bar").field("bar.plain", 5);
         resp = req.setQuery(twoFieldsQuery).addHighlightedField(barField).get();
         assertHighlight(resp, 0, "foo", 0, equalTo("junk junk <em>cats</em> junk junk"));
         assertHighlight(resp, 0, "bar", 0, equalTo("<em>cat</em> <em>cat</em> junk junk junk junk"));
@@ -2610,7 +2610,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         // Query string boosting the field
         phraseBoostTestCaseForClauses(highlighterType, 1f,
                 queryStringQuery("highlight words together").field("field1"),
-                queryStringQuery("\"highlight words together\"").field("field1^100").autoGeneratePhraseQueries(true));
+                queryStringQuery("\"highlight words together\"").field("field1", 100).autoGeneratePhraseQueries(true));
     }
 
     private <P extends AbstractQueryBuilder<P>> void

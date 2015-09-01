@@ -93,7 +93,7 @@ setup() {
     systemctl stop elasticsearch.service
 
     run systemctl status elasticsearch.service
-    [ "$status" -eq 0 ]
+    [ "$status" -eq 3 ] || "Expected exit code 3 meaning stopped"
     echo "$output" | grep "Active:" | grep "inactive"
 }
 
@@ -101,13 +101,13 @@ setup() {
     systemctl stop elasticsearch.service
 
     run systemctl status elasticsearch.service
-    [ "$status" -eq 0 ]
+    [ "$status" -eq 3 ] || "Expected exit code 3 meaning stopped"
     echo "$output" | grep "Active:" | grep "inactive"
 }
 
 @test "[SYSTEMD] status (stopped)" {
     run systemctl status elasticsearch.service
-    [ "$status" -eq 0 ]
+    [ "$status" -eq 3 ] || "Expected exit code 3 meaning stopped"
     echo "$output" | grep "Active:" | grep "inactive"
 }
 

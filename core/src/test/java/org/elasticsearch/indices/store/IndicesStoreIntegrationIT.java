@@ -432,12 +432,12 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
      * state processing when a recover starts and only unblocking it shortly after the node receives
      * the ShardActiveRequest.
      */
-    static class ReclocationStartEndTracer extends MockTransportService.Tracer {
+    public static class ReclocationStartEndTracer extends MockTransportService.Tracer {
         private final ESLogger logger;
         private final CountDownLatch beginRelocationLatch;
         private final CountDownLatch receivedShardExistsRequestLatch;
 
-        ReclocationStartEndTracer(ESLogger logger, CountDownLatch beginRelocationLatch, CountDownLatch receivedShardExistsRequestLatch) {
+        public ReclocationStartEndTracer(ESLogger logger, CountDownLatch beginRelocationLatch, CountDownLatch receivedShardExistsRequestLatch) {
             this.logger = logger;
             this.beginRelocationLatch = beginRelocationLatch;
             this.receivedShardExistsRequestLatch = receivedShardExistsRequestLatch;

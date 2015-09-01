@@ -362,6 +362,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
             finishWithUnexpectedFailure(e);
         }
 
+        @Override
         protected void doRun() {
             if (checkBlocks() == false) {
                 return;
@@ -727,7 +728,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
             // new primary shard as well...
             ClusterState newState = clusterService.state();
 
-            int numberOfUnassignedOrShadowReplicas = 0;
+            int numberOfUnassignedOrIgnoredReplicas = 0;
             int numberOfPendingShardInstances = 0;
             if (observer.observedState() != newState) {
                 observer.reset(newState);
@@ -741,7 +742,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                         if (shard.relocating()) {
                             numberOfPendingShardInstances++;
                         }
-                    } else if (IndexMetaData.isIndexUsingShadowReplicas(indexMetaData.settings())) {
+                    } else if (shouldExecuteReplication(indexMetaData.settings()) == false) {
                         // If the replicas use shadow replicas, there is no reason to
                         // perform the action on the replica, so skip it and
                         // immediately return
@@ -750,9 +751,9 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                         // to wait until they get the new mapping through the cluster
                         // state, which is why we recommend pre-defined mappings for
                         // indices using shadow replicas
-                        numberOfUnassignedOrShadowReplicas++;
+                        numberOfUnassignedOrIgnoredReplicas++;
                     } else if (shard.unassigned()) {
-                        numberOfUnassignedOrShadowReplicas++;
+                        numberOfUnassignedOrIgnoredReplicas++;
                     } else if (shard.relocating()) {
                         // we need to send to two copies
                         numberOfPendingShardInstances += 2;
@@ -769,13 +770,13 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                         replicaRequest.setCanHaveDuplicates();
                     }
                     if (shard.unassigned()) {
-                        numberOfUnassignedOrShadowReplicas++;
+                        numberOfUnassignedOrIgnoredReplicas++;
                     } else if (shard.primary()) {
                         if (shard.relocating()) {
                             // we have to replicate to the other copy
                             numberOfPendingShardInstances += 1;
                         }
-                    } else if (IndexMetaData.isIndexUsingShadowReplicas(indexMetaData.settings())) {
+                    } else if (shouldExecuteReplication(indexMetaData.settings()) == false) {
                         // If the replicas use shadow replicas, there is no reason to
                         // perform the action on the replica, so skip it and
                         // immediately return
@@ -784,7 +785,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                         // to wait until they get the new mapping through the cluster
                         // state, which is why we recommend pre-defined mappings for
                         // indices using shadow replicas
-                        numberOfUnassignedOrShadowReplicas++;
+                        numberOfUnassignedOrIgnoredReplicas++;
                     } else if (shard.relocating()) {
                         // we need to send to two copies
                         numberOfPendingShardInstances += 2;
@@ -795,7 +796,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
             }
 
             // one for the primary already done
-            this.totalShards = 1 + numberOfPendingShardInstances + numberOfUnassignedOrShadowReplicas;
+            this.totalShards = 1 + numberOfPendingShardInstances + numberOfUnassignedOrIgnoredReplicas;
             this.pending = new AtomicInteger(numberOfPendingShardInstances);
         }
 
@@ -854,7 +855,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                     if (shard.relocating()) {
                         performOnReplica(shard, shard.relocatingNodeId());
                     }
-                } else if (IndexMetaData.isIndexUsingShadowReplicas(indexMetaData.settings()) == false) {
+                } else if (shouldExecuteReplication(indexMetaData.settings())) {
                     performOnReplica(shard, shard.currentNodeId());
                     if (shard.relocating()) {
                         performOnReplica(shard, shard.relocatingNodeId());
@@ -983,6 +984,14 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
             }
         }
 
+    }
+
+    /**
+     * Indicated whether this operation should be replicated to shadow replicas or not. If this method returns true the replication phase will be skipped.
+     * For example writes such as index and delete don't need to be replicated on shadow replicas but refresh and flush do.
+     */
+    protected boolean shouldExecuteReplication(Settings settings) {
+        return IndexMetaData.isIndexUsingShadowReplicas(settings) == false;
     }
 
     /**

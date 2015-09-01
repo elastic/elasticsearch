@@ -9,13 +9,13 @@ cluster:admin/shield/realm/cache/clear
 cluster:admin/shield/realm/cache/clear[n]
 indices:admin/analyze[s]
 indices:admin/cache/clear[n]
-indices:data/write/flush
-indices:data/write/flush[r]
+indices:admin/flush[s]
+indices:admin/flush[s][r]
 indices:admin/mappings/fields/get[index]
 indices:admin/mappings/fields/get[index][s]
 indices:admin/optimize[n]
-indices:data/write/refresh
-indices:data/write/refresh[r]
+indices:admin/refresh[s]
+indices:admin/refresh[s][r]
 indices:admin/render/template/search
 indices:admin/upgrade
 indices:admin/upgrade[n]

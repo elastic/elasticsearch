@@ -44,7 +44,7 @@ import org.elasticsearch.transport.TransportService;
  */
 public class TransportShardFlushAction extends TransportReplicationAction<ShardFlushRequest, ShardFlushRequest, ActionWriteResponse> {
 
-    public static final String NAME = "indices:data/write/flush";
+    public static final String NAME = FlushAction.NAME + "[s]";
 
     @Inject
     public TransportShardFlushAction(Settings settings, TransportService transportService, ClusterService clusterService,

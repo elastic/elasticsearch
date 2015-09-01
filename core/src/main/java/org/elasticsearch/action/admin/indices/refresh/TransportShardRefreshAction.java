@@ -45,7 +45,7 @@ import org.elasticsearch.transport.TransportService;
  */
 public class TransportShardRefreshAction extends TransportReplicationAction<ReplicationRequest, ReplicationRequest, ActionWriteResponse> {
 
-    public static final String NAME = "indices:data/write/refresh";
+    public static final String NAME = RefreshAction.NAME + "[s]";
 
     @Inject
     public TransportShardRefreshAction(Settings settings, TransportService transportService, ClusterService clusterService,

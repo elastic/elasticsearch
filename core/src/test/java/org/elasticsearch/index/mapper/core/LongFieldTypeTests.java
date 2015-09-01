@@ -20,6 +20,7 @@ package org.elasticsearch.index.mapper.core;
 
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.junit.Before;
 
 public class LongFieldTypeTests extends FieldTypeTestCase {
     @Override
@@ -27,8 +28,8 @@ public class LongFieldTypeTests extends FieldTypeTestCase {
         return new LongFieldMapper.LongFieldType();
     }
 
-    @Override
-    protected Object dummyNullValue() {
-        return (long)10;
+    @Before
+    public void setupProperties() {
+        setDummyNullValue((long)10);
     }
 }

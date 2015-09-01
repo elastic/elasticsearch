@@ -280,21 +280,30 @@ public class GeoShapeFieldMapper extends FieldMapper {
             GeoShapeFieldType other = (GeoShapeFieldType)fieldType;
             // prevent user from changing strategies
             if (strategyName().equals(other.strategyName()) == false) {
-                conflicts.add("mapper [" + names().fullName() + "] has different strategy");
+                conflicts.add("mapper [" + names().fullName() + "] has different [strategy]");
             }
 
             // prevent user from changing trees (changes encoding)
             if (tree().equals(other.tree()) == false) {
-                conflicts.add("mapper [" + names().fullName() + "] has different tree");
+                conflicts.add("mapper [" + names().fullName() + "] has different [tree]");
             }
 
             // TODO we should allow this, but at the moment levels is used to build bookkeeping variables
             // in lucene's SpatialPrefixTree implementations, need a patch to correct that first
             if (treeLevels() != other.treeLevels()) {
-                conflicts.add("mapper [" + names().fullName() + "] has different tree_levels");
+                conflicts.add("mapper [" + names().fullName() + "] has different [tree_levels]");
             }
             if (precisionInMeters() != other.precisionInMeters()) {
-                conflicts.add("mapper [" + names().fullName() + "] has different precision");
+                conflicts.add("mapper [" + names().fullName() + "] has different [precision]");
+            }
+
+            if (strict) {
+                if (orientation() != other.orientation()) {
+                    conflicts.add("mapper [" + names().fullName() + "] is used by multiple types. Set update_all_types to true to update [orientation] across all types.");
+                }
+                if (distanceErrorPct() != other.distanceErrorPct()) {
+                    conflicts.add("mapper [" + names().fullName() + "] is used by multiple types. Set update_all_types to true to update [distance_error_pct] across all types.");
+                }
             }
         }
 

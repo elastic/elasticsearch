@@ -50,17 +50,10 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.dateHistogram;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.max;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.stats;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.*;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.*;
 import static org.hamcrest.core.IsNull.notNullValue;
 
 /**
@@ -1260,6 +1253,7 @@ public class DateHistogramIT extends ESIntegTestCase {
                 assertThat(bucket.getDocCount(), equalTo(0l));
             }
         }
+        internalCluster().wipeIndices("test12278");
     }
 
     @Test
@@ -1343,6 +1337,7 @@ public class DateHistogramIT extends ESIntegTestCase {
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo.getBuckets().size(), equalTo(1));
         assertThat(histo.getBuckets().get(0).getKeyAsString(), equalTo("2014-01-01T00:00:00.000+02:00"));
+        internalCluster().wipeIndices("test9491");
     }
 
     public void testIssue8209() throws InterruptedException, ExecutionException {
@@ -1367,6 +1362,7 @@ public class DateHistogramIT extends ESIntegTestCase {
         assertThat(histo.getBuckets().get(2).getDocCount(), equalTo(0L));
         assertThat(histo.getBuckets().get(3).getKeyAsString(), equalTo("2014-04-01T00:00:00.000+02:00"));
         assertThat(histo.getBuckets().get(3).getDocCount(), equalTo(2L));
+        internalCluster().wipeIndices("test8209");
     }
 
     /**

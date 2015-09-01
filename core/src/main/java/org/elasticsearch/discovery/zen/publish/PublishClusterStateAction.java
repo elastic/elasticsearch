@@ -57,32 +57,27 @@ public class PublishClusterStateAction extends AbstractComponent {
     public static final String SEND_ACTION_NAME = "internal:discovery/zen/publish/send";
     public static final String COMMIT_ACTION_NAME = "internal:discovery/zen/publish/commit";
 
-    public interface NewClusterStateListener {
+    public interface NewPendingClusterStateListener {
 
-        interface NewStateProcessed {
-
-            void onNewClusterStateProcessed();
-
-            void onNewClusterStateFailed(Throwable t);
-        }
-
-        void onNewClusterState(ClusterState clusterState, NewStateProcessed newStateProcessed);
+        void onNewClusterState(String reason);
     }
 
     private final TransportService transportService;
     private final DiscoveryNodesProvider nodesProvider;
-    private final NewClusterStateListener listener;
+    private final NewPendingClusterStateListener newPendingClusterStatelistener;
     private final DiscoverySettings discoverySettings;
     private final ClusterName clusterName;
+    private final PendingClusterStatesQueue pendingStatesQueue;
 
     public PublishClusterStateAction(Settings settings, TransportService transportService, DiscoveryNodesProvider nodesProvider,
-                                     NewClusterStateListener listener, DiscoverySettings discoverySettings, ClusterName clusterName) {
+                                     NewPendingClusterStateListener listener, DiscoverySettings discoverySettings, ClusterName clusterName) {
         super(settings);
         this.transportService = transportService;
         this.nodesProvider = nodesProvider;
-        this.listener = listener;
+        this.newPendingClusterStatelistener = listener;
         this.discoverySettings = discoverySettings;
         this.clusterName = clusterName;
+        this.pendingStatesQueue = new PendingClusterStatesQueue(logger);
         transportService.registerRequestHandler(SEND_ACTION_NAME, BytesTransportRequest.class, ThreadPool.Names.SAME, new SendClusterStateRequestHandler());
         transportService.registerRequestHandler(COMMIT_ACTION_NAME, CommitClusterStateRequest.class, ThreadPool.Names.SAME, new CommitClusterStateRequestHandler());
     }
@@ -90,6 +85,10 @@ public class PublishClusterStateAction extends AbstractComponent {
     public void close() {
         transportService.removeHandler(SEND_ACTION_NAME);
         transportService.removeHandler(COMMIT_ACTION_NAME);
+    }
+
+    public PendingClusterStatesQueue pendingStatesQueue() {
+        return pendingStatesQueue;
     }
 
     /**
@@ -359,6 +358,7 @@ public class PublishClusterStateAction extends AbstractComponent {
             // sanity check incoming state
             validateIncomingState(incomingState, lastSeenClusterState);
 
+            pendingStatesQueue.addPending(incomingState);
             lastSeenClusterState = incomingState;
             lastSeenClusterState.status(ClusterState.ClusterStateStatus.RECEIVED);
         }
@@ -384,6 +384,7 @@ public class PublishClusterStateAction extends AbstractComponent {
         }
         // state from another master requires more subtle checks, so we let it pass for now (it will be checked in ZenDiscovery)
         if (currentNodes.localNodeMaster() == false) {
+            // NOCOMMIT: move the local node master check
             ZenDiscovery.validateStateIsFromCurrentMaster(logger, currentNodes, incomingState);
         }
 
@@ -397,41 +398,28 @@ public class PublishClusterStateAction extends AbstractComponent {
     }
 
     protected void handleCommitRequest(CommitClusterStateRequest request, final TransportChannel channel) {
-        ClusterState committedClusterState;
-        synchronized (lastSeenClusterStateMutex) {
-            committedClusterState = lastSeenClusterState;
-        }
-
-        // if this message somehow comes without a previous send, we won't have a cluster state
-        String lastSeenUUID = committedClusterState == null ? null : committedClusterState.stateUUID();
-        if (request.stateUUID.equals(lastSeenUUID) == false) {
-            throw new IllegalStateException("tried to commit cluster state UUID [" + request.stateUUID + "], but last seen UUID is [" + lastSeenUUID + "]");
-        }
-
-        try {
-            listener.onNewClusterState(committedClusterState, new NewClusterStateListener.NewStateProcessed() {
-                @Override
-                public void onNewClusterStateProcessed() {
-                    try {
-                        channel.sendResponse(TransportResponse.Empty.INSTANCE);
-                    } catch (Throwable e) {
-                        logger.debug("failed to send response on cluster state processed", e);
-                        onNewClusterStateFailed(e);
-                    }
+        final ClusterState state = pendingStatesQueue.markAsCommitted(request.stateUUID, new PendingClusterStatesQueue.StateProcessedListener() {
+            @Override
+            public void onNewClusterStateProcessed() {
+                try {
+                    channel.sendResponse(TransportResponse.Empty.INSTANCE);
+                } catch (Throwable e) {
+                    logger.debug("failed to send response on cluster state processed", e);
+                    onNewClusterStateFailed(e);
                 }
+            }
 
-                @Override
-                public void onNewClusterStateFailed(Throwable t) {
-                    try {
-                        channel.sendResponse(t);
-                    } catch (Throwable e) {
-                        logger.debug("failed to send response on cluster state processed", e);
-                    }
+            @Override
+            public void onNewClusterStateFailed(Throwable t) {
+                try {
+                    channel.sendResponse(t);
+                } catch (Throwable e) {
+                    logger.debug("failed to send response on cluster state processed", e);
                 }
-            });
-        } catch (Exception e) {
-            logger.warn("unexpected error while processing cluster state version [{}]", e, lastSeenClusterState.version());
-            throw e;
+            }
+        });
+        if (state != null) {
+            newPendingClusterStatelistener.onNewClusterState("master " + state.nodes().masterNode() + " committed version [" + state.version() + "]");
         }
     }
 

@@ -71,7 +71,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
     protected ThreadPool threadPool;
     protected Map<String, MockNode> nodes = newHashMap();
 
-    public static class MockNode implements PublishClusterStateAction.NewClusterStateListener, DiscoveryNodesProvider {
+    public static class MockNode implements PublishClusterStateAction.NewPendingClusterStateListener, DiscoveryNodesProvider {
         public final DiscoveryNode discoveryNode;
         public final MockTransportService service;
         public MockPublishAction action;
@@ -94,14 +94,15 @@ public class PublishClusterStateActionTests extends ESTestCase {
         }
 
         @Override
-        public void onNewClusterState(ClusterState newClusterState, NewStateProcessed newStateProcessed) {
+        public void onNewClusterState(String reason) {
+            ClusterState newClusterState = action.pendingStatesQueue().getNextClusterStateToProcess();
             logger.debug("[{}] received version [{}], uuid [{}]", discoveryNode.name(), newClusterState.version(), newClusterState.stateUUID());
             if (listener != null) {
                 ClusterChangedEvent event = new ClusterChangedEvent("", newClusterState, clusterState);
                 listener.clusterChanged(event);
             }
             clusterState = newClusterState;
-            newStateProcessed.onNewClusterStateProcessed();
+            action.pendingStatesQueue().markAsProccessed(newClusterState);
         }
 
         @Override
@@ -211,7 +212,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
     }
 
     protected MockPublishAction buildPublishClusterStateAction(Settings settings, MockTransportService transportService, DiscoveryNodesProvider nodesProvider,
-                                                               PublishClusterStateAction.NewClusterStateListener listener) {
+                                                               PublishClusterStateAction.NewPendingClusterStateListener listener) {
         DiscoverySettings discoverySettings = new DiscoverySettings(settings, new NodeSettingsService(settings));
         return new MockPublishAction(settings, transportService, nodesProvider, listener, discoverySettings, ClusterName.DEFAULT);
     }
@@ -638,8 +639,10 @@ public class PublishClusterStateActionTests extends ESTestCase {
         MockNode node = createMockNode("node");
         final ClusterState state1 = ClusterState.builder(node.clusterState).incrementVersion().build();
         final ClusterState state2 = ClusterState.builder(state1).incrementVersion().build();
+        final ClusterState state3 = ClusterState.builder(state2).incrementVersion().build();
         final BytesReference state1Bytes = PublishClusterStateAction.serializeFullClusterState(state1, Version.CURRENT);
         final BytesReference state2Bytes = PublishClusterStateAction.serializeFullClusterState(state2, Version.CURRENT);
+        final BytesReference state3Bytes = PublishClusterStateAction.serializeFullClusterState(state3, Version.CURRENT);
         final CapturingTransportChannel channel = new CapturingTransportChannel();
 
         node.action.handleIncomingClusterStateRequest(new BytesTransportRequest(state1Bytes, Version.CURRENT), channel);
@@ -653,9 +656,27 @@ public class PublishClusterStateActionTests extends ESTestCase {
         assertThat(channel.error.get(), nullValue());
         channel.clear();
 
-        // committing previous state should fail
+        // another incoming state is OK. Should just override pending state
+        node.action.handleIncomingClusterStateRequest(new BytesTransportRequest(state3Bytes, Version.CURRENT), channel);
+        assertThat(channel.response.get(), equalTo((TransportResponse) TransportResponse.Empty.INSTANCE));
+        assertThat(channel.error.get(), nullValue());
+        channel.clear();
+
+        // committing previous state should be OK
+        node.action.handleCommitRequest(new PublishClusterStateAction.CommitClusterStateRequest(state1.stateUUID()), channel);
+        assertThat(channel.response.get(), equalTo((TransportResponse) TransportResponse.Empty.INSTANCE));
+        assertThat(channel.error.get(), nullValue());
+        channel.clear();
+
+        // committing last cluster state should be OK
+        node.action.handleCommitRequest(new PublishClusterStateAction.CommitClusterStateRequest(state3.stateUUID()), channel);
+        assertThat(channel.response.get(), equalTo((TransportResponse) TransportResponse.Empty.INSTANCE));
+        assertThat(channel.error.get(), nullValue());
+        channel.clear();
+
+        // committing out of order should fail
         try {
-            node.action.handleCommitRequest(new PublishClusterStateAction.CommitClusterStateRequest(state1.stateUUID()), channel);
+            node.action.handleCommitRequest(new PublishClusterStateAction.CommitClusterStateRequest(state2.stateUUID()), channel);
             // sadly, there are ways to percolate errors
             assertThat(channel.response.get(), nullValue());
             assertThat(channel.error.get(), notNullValue());
@@ -667,14 +688,8 @@ public class PublishClusterStateActionTests extends ESTestCase {
         }
         channel.clear();
 
-        // committing second state should succeed
-        node.action.handleCommitRequest(new PublishClusterStateAction.CommitClusterStateRequest(state2.stateUUID()), channel);
-        assertThat(channel.response.get(), equalTo((TransportResponse) TransportResponse.Empty.INSTANCE));
-        assertThat(channel.error.get(), nullValue());
-        channel.clear();
-
-        // now check it was really committed
-        assertSameState(node.clusterState, state2);
+        // now check state3 was really committed
+        assertSameState(node.clusterState, state3);
     }
 
     /**
@@ -809,7 +824,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
         AtomicBoolean timeoutOnCommit = new AtomicBoolean();
         AtomicBoolean errorOnCommit = new AtomicBoolean();
 
-        public MockPublishAction(Settings settings, TransportService transportService, DiscoveryNodesProvider nodesProvider, NewClusterStateListener listener, DiscoverySettings discoverySettings, ClusterName clusterName) {
+        public MockPublishAction(Settings settings, TransportService transportService, DiscoveryNodesProvider nodesProvider, NewPendingClusterStateListener listener, DiscoverySettings discoverySettings, ClusterName clusterName) {
             super(settings, transportService, nodesProvider, listener, discoverySettings, clusterName);
         }
 

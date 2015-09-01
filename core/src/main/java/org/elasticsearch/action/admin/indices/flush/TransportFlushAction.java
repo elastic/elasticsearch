@@ -53,7 +53,7 @@ public class TransportFlushAction extends TransportBroadcastReplicationAction<Fl
 
     @Override
     protected ShardFlushRequest newShardRequest(FlushRequest request, ShardId shardId) {
-        return new ShardFlushRequest(request).setShardId(shardId).timeout("0ms");
+        return new ShardFlushRequest(request).setShardId(shardId);
     }
 
     @Override

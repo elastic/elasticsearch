@@ -24,15 +24,6 @@
         <deb.sign.method>dpkg-sig</deb.sign.method>
     </properties>
 
-    <dependencies>
-        <dependency>
-            <groupId>org.elasticsearch.distribution.fully-loaded</groupId>
-            <artifactId>elasticsearch</artifactId>
-            <version>${elasticsearch.version}</version>
-            <type>pom</type>
-        </dependency>
-    </dependencies>
-
     <build>
 
         <filters>
@@ -172,7 +163,7 @@
                                 </data>
                                 <data>
                                     <src>${project.build.directory}/../target/lib</src>
-                                    <excludes>${project.build.finalName}-shaded.jar,${project.build.finalName}-sources.jar,${project.build.finalName}-tests.jar,${project.build.finalName}-test-sources.jar,slf4j-api-*.jar</excludes>
+                                    <excludes>${project.build.finalName}-sources.jar,${project.build.finalName}-tests.jar,${project.build.finalName}-test-sources.jar,slf4j-api-*.jar</excludes>
                                     <type>directory</type>
                                     <mapper>
                                         <type>perm</type>

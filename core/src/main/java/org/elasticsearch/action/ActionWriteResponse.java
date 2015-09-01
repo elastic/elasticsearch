@@ -39,7 +39,7 @@ import java.util.Collections;
 /**
  * Base class for write action responses.
  */
-public abstract class ActionWriteResponse extends ActionResponse {
+public class ActionWriteResponse extends ActionResponse {
 
     public final static ActionWriteResponse.ShardInfo.Failure[] EMPTY = new ActionWriteResponse.ShardInfo.Failure[0];
 

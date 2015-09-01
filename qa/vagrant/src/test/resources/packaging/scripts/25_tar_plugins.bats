@@ -51,7 +51,7 @@ setup() {
     [ -e "$EXAMPLE_PLUGIN_ZIP" ]
 
     # Install jvm-example
-    run /tmp/elasticsearch/bin/plugin install jvm-example -u "file://$EXAMPLE_PLUGIN_ZIP"
+    run /tmp/elasticsearch/bin/plugin install "file://$EXAMPLE_PLUGIN_ZIP"
     [ "$status" -eq 0 ]
 
     # Checks that the plugin is correctly installed
@@ -61,7 +61,7 @@ setup() {
     assert_file_exist "/tmp/elasticsearch/config/jvm-example/example.yaml"
     assert_file_exist "/tmp/elasticsearch/plugins/jvm-example"
     assert_file_exist "/tmp/elasticsearch/plugins/jvm-example/plugin-descriptor.properties"
-    assert_file_exist "/tmp/elasticsearch/plugins/jvm-example/elasticsearch-jvm-example-"*".jar"
+    assert_file_exist "/tmp/elasticsearch/plugins/jvm-example/jvm-example-"*".jar"
     echo "Running jvm-example's bin script...."
     /tmp/elasticsearch/bin/jvm-example/test | grep test
 
@@ -96,7 +96,7 @@ setup() {
     [ -e "$EXAMPLE_PLUGIN_ZIP" ]
 
     # Install jvm-example
-    run /tmp/elasticsearch/bin/plugin install jvm-example -u "file://$EXAMPLE_PLUGIN_ZIP"
+    run /tmp/elasticsearch/bin/plugin install "file://$EXAMPLE_PLUGIN_ZIP"
     [ "$status" -eq 0 ]
 
     # Checks that the plugin is correctly installed
@@ -106,7 +106,7 @@ setup() {
     assert_file_exist "/tmp/elasticsearch/config/jvm-example/example.yaml"
     assert_file_exist "$TEMP_PLUGINS_DIR/jvm-example"
     assert_file_exist "$TEMP_PLUGINS_DIR/jvm-example/plugin-descriptor.properties"
-    assert_file_exist "$TEMP_PLUGINS_DIR/jvm-example/elasticsearch-jvm-example-"*".jar"
+    assert_file_exist "$TEMP_PLUGINS_DIR/jvm-example/jvm-example-"*".jar"
 
     # Remove the plugin
     run /tmp/elasticsearch/bin/plugin remove jvm-example
@@ -146,7 +146,7 @@ setup() {
     [ -e "$EXAMPLE_PLUGIN_ZIP" ]
 
     # Install jvm-example with the CONF_DIR environment variable
-    run env "CONF_DIR=$TEMP_CONFIG_DIR" /tmp/elasticsearch/bin/plugin install jvm-example -u "file://$EXAMPLE_PLUGIN_ZIP"
+    run env "CONF_DIR=$TEMP_CONFIG_DIR" /tmp/elasticsearch/bin/plugin install "file://$EXAMPLE_PLUGIN_ZIP"
     [ "$status" -eq 0 ]
 
     # Checks that jvm-example is correctly installed
@@ -156,7 +156,7 @@ setup() {
     assert_file_exist "$TEMP_CONFIG_DIR/jvm-example/example.yaml"
     assert_file_exist "/tmp/elasticsearch/plugins/jvm-example"
     assert_file_exist "/tmp/elasticsearch/plugins/jvm-example/plugin-descriptor.properties"
-    assert_file_exist "/tmp/elasticsearch/plugins/jvm-example/elasticsearch-jvm-example-"*".jar"
+    assert_file_exist "/tmp/elasticsearch/plugins/jvm-example/jvm-example-"*".jar"
 
     # Remove the plugin
     run /tmp/elasticsearch/bin/plugin remove jvm-example
@@ -200,7 +200,7 @@ setup() {
     [ -e "$EXAMPLE_PLUGIN_ZIP" ]
 
     # Install jvm-example
-    run /tmp/elasticsearch/bin/plugin install jvm-example -u "file://$EXAMPLE_PLUGIN_ZIP"
+    run /tmp/elasticsearch/bin/plugin install "file://$EXAMPLE_PLUGIN_ZIP"
     [ "$status" -eq 0 ]
 
     # Checks that jvm-example is correctly installed
@@ -210,7 +210,7 @@ setup() {
     assert_file_exist "$TEMP_CONFIG_DIR/jvm-example/example.yaml"
     assert_file_exist "/tmp/elasticsearch/plugins/jvm-example"
     assert_file_exist "/tmp/elasticsearch/plugins/jvm-example/plugin-descriptor.properties"
-    assert_file_exist "/tmp/elasticsearch/plugins/jvm-example/elasticsearch-jvm-example-"*".jar"
+    assert_file_exist "/tmp/elasticsearch/plugins/jvm-example/jvm-example-"*".jar"
 
     # Remove the plugin
     run /tmp/elasticsearch/bin/plugin remove jvm-example
@@ -244,7 +244,7 @@ setup() {
     [ -e "$EXAMPLE_PLUGIN_ZIP" ]
 
     # Install jvm-example
-    run "$ES_DIR/bin/plugin" install jvm-example -u "file://$EXAMPLE_PLUGIN_ZIP"
+    run "$ES_DIR/bin/plugin" install "file://$EXAMPLE_PLUGIN_ZIP"
     [ "$status" -eq 0 ]
 
     # Checks that jvm-example is correctly installed
@@ -254,7 +254,7 @@ setup() {
     assert_file_exist "$ES_DIR/config/jvm-example/example.yaml"
     assert_file_exist "$ES_DIR/plugins/jvm-example"
     assert_file_exist "$ES_DIR/plugins/jvm-example/plugin-descriptor.properties"
-    assert_file_exist "$ES_DIR/plugins/jvm-example/elasticsearch-jvm-example-"*".jar"
+    assert_file_exist "$ES_DIR/plugins/jvm-example/jvm-example-"*".jar"
 
     # Remove the plugin
     run "$ES_DIR/bin/plugin" remove jvm-example
@@ -288,7 +288,7 @@ setup() {
     cp $EXAMPLE_PLUGIN_ZIP "$EXAMPLE_PLUGIN_ZIP_WITH_SPACE"
 
     # Install jvm-example
-    run /tmp/elasticsearch/bin/plugin install jvm-example -u "file://$EXAMPLE_PLUGIN_ZIP_WITH_SPACE"
+    run /tmp/elasticsearch/bin/plugin install "file://$EXAMPLE_PLUGIN_ZIP_WITH_SPACE"
     [ "$status" -eq 0 ]
 
     # Checks that the plugin is correctly installed
@@ -298,7 +298,7 @@ setup() {
     assert_file_exist "/tmp/elasticsearch/config/jvm-example/example.yaml"
     assert_file_exist "/tmp/elasticsearch/plugins/jvm-example"
     assert_file_exist "/tmp/elasticsearch/plugins/jvm-example/plugin-descriptor.properties"
-    assert_file_exist "/tmp/elasticsearch/plugins/jvm-example/elasticsearch-jvm-example-"*".jar"
+    assert_file_exist "/tmp/elasticsearch/plugins/jvm-example/jvm-example-"*".jar"
 
     # Remove the plugin
     run /tmp/elasticsearch/bin/plugin remove jvm-example

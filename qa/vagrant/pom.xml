@@ -94,7 +94,7 @@
                                 </artifactItem>
                                 <artifactItem>
                                     <groupId>org.elasticsearch.plugin</groupId>
-                                    <artifactId>elasticsearch-jvm-example</artifactId>
+                                    <artifactId>jvm-example</artifactId>
                                     <version>${elasticsearch.version}</version>
                                     <type>zip</type>
                                 </artifactItem>

@@ -57,6 +57,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.SortedMap;
 
@@ -238,6 +239,27 @@ public class CompletionFieldMapper extends FieldMapper {
         }
 
         @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (!(o instanceof CompletionFieldType)) return false;
+            if (!super.equals(o)) return false;
+            CompletionFieldType fieldType = (CompletionFieldType) o;
+            return analyzingSuggestLookupProvider.getPreserveSep() == fieldType.analyzingSuggestLookupProvider.getPreserveSep() &&
+                analyzingSuggestLookupProvider.getPreservePositionsIncrements() == fieldType.analyzingSuggestLookupProvider.getPreservePositionsIncrements() &&
+                analyzingSuggestLookupProvider.hasPayloads() == fieldType.analyzingSuggestLookupProvider.hasPayloads() &&
+                Objects.equals(getContextMapping(), fieldType.getContextMapping());
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(super.hashCode(),
+                analyzingSuggestLookupProvider.getPreserveSep(),
+                analyzingSuggestLookupProvider.getPreservePositionsIncrements(),
+                analyzingSuggestLookupProvider.hasPayloads(),
+                getContextMapping());
+        }
+
+        @Override
         public CompletionFieldType clone() {
             return new CompletionFieldType(this);
         }
@@ -252,16 +274,16 @@ public class CompletionFieldMapper extends FieldMapper {
             super.checkCompatibility(fieldType, conflicts, strict);
             CompletionFieldType other = (CompletionFieldType)fieldType;
             if (analyzingSuggestLookupProvider.hasPayloads() != other.analyzingSuggestLookupProvider.hasPayloads()) {
-                conflicts.add("mapper [" + names().fullName() + "] has different payload values");
+                conflicts.add("mapper [" + names().fullName() + "] has different [payload] values");
             }
             if (analyzingSuggestLookupProvider.getPreservePositionsIncrements() != other.analyzingSuggestLookupProvider.getPreservePositionsIncrements()) {
-                conflicts.add("mapper [" + names().fullName() + "] has different 'preserve_position_increments' values");
+                conflicts.add("mapper [" + names().fullName() + "] has different [preserve_position_increments] values");
             }
             if (analyzingSuggestLookupProvider.getPreserveSep() != other.analyzingSuggestLookupProvider.getPreserveSep()) {
-                conflicts.add("mapper [" + names().fullName() + "] has different 'preserve_separators' values");
+                conflicts.add("mapper [" + names().fullName() + "] has different [preserve_separators] values");
             }
             if(!ContextMapping.mappingsAreEqual(getContextMapping(), other.getContextMapping())) {
-                conflicts.add("mapper [" + names().fullName() + "] has different 'context_mapping' values");
+                conflicts.add("mapper [" + names().fullName() + "] has different [context_mapping] values");
             }
         }
 

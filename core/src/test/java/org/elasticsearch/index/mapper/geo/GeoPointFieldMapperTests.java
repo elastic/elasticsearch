@@ -628,8 +628,9 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(mergeResult.hasConflicts(), equalTo(true));
         assertThat(mergeResult.buildConflicts().length, equalTo(2));
         // todo better way of checking conflict?
-        assertThat("mapper [point] has different lat_lon", isIn(new ArrayList<>(Arrays.asList(mergeResult.buildConflicts()))));
-        assertThat("mapper [point] has different coerce", isIn(new ArrayList<>(Arrays.asList(mergeResult.buildConflicts()))));
+        assertThat("mapper [point] has different [lat_lon]", isIn(new ArrayList<>(Arrays.asList(mergeResult.buildConflicts()))));
+        assertThat("mapper [point] has different [coerce]", isIn(new ArrayList<>(Arrays.asList(mergeResult.buildConflicts()))));
+
         // correct mapping and ensure no failures
         stage2Mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("point").field("type", "geo_point").field("lat_lon", true).field("geohash", true)

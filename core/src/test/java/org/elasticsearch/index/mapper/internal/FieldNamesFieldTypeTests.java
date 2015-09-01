@@ -20,6 +20,7 @@ package org.elasticsearch.index.mapper.internal;
 
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.junit.Before;
 
 public class FieldNamesFieldTypeTests extends FieldTypeTestCase {
     @Override
@@ -27,17 +28,14 @@ public class FieldNamesFieldTypeTests extends FieldTypeTestCase {
         return new FieldNamesFieldMapper.FieldNamesFieldType();
     }
 
-    @Override
-    protected int numProperties() {
-        return 1 + super.numProperties();
-    }
-
-    @Override
-    protected void modifyProperty(MappedFieldType ft, int propNum) {
-        FieldNamesFieldMapper.FieldNamesFieldType fnft = (FieldNamesFieldMapper.FieldNamesFieldType)ft;
-        switch (propNum) {
-            case 0: fnft.setEnabled(!fnft.isEnabled()); break;
-            default: super.modifyProperty(ft, propNum - 1);
-        }
+    @Before
+    public void setupProperties() {
+        addModifier(new Modifier("enabled", true, true) {
+            @Override
+            public void modify(MappedFieldType ft) {
+                FieldNamesFieldMapper.FieldNamesFieldType fnft = (FieldNamesFieldMapper.FieldNamesFieldType)ft;
+                fnft.setEnabled(!fnft.isEnabled());
+            }
+        });
     }
 }

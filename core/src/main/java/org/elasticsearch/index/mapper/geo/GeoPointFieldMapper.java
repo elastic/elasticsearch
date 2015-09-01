@@ -368,20 +368,20 @@ public class GeoPointFieldMapper extends FieldMapper implements ArrayValueMapper
             super.checkCompatibility(fieldType, conflicts, strict);
             GeoPointFieldType other = (GeoPointFieldType)fieldType;
             if (isLatLonEnabled() != other.isLatLonEnabled()) {
-                conflicts.add("mapper [" + names().fullName() + "] has different lat_lon");
+                conflicts.add("mapper [" + names().fullName() + "] has different [lat_lon]");
             }
             if (isGeohashEnabled() != other.isGeohashEnabled()) {
-                conflicts.add("mapper [" + names().fullName() + "] has different geohash");
+                conflicts.add("mapper [" + names().fullName() + "] has different [geohash]");
             }
             if (geohashPrecision() != other.geohashPrecision()) {
-                conflicts.add("mapper [" + names().fullName() + "] has different geohash_precision");
+                conflicts.add("mapper [" + names().fullName() + "] has different [geohash_precision]");
             }
             if (isGeohashPrefixEnabled() != other.isGeohashPrefixEnabled()) {
-                conflicts.add("mapper [" + names().fullName() + "] has different geohash_prefix");
+                conflicts.add("mapper [" + names().fullName() + "] has different [geohash_prefix]");
             }
             if (isLatLonEnabled() && other.isLatLonEnabled() &&
                 latFieldType().numericPrecisionStep() != other.latFieldType().numericPrecisionStep()) {
-                conflicts.add("mapper [" + names().fullName() + "] has different precision_step");
+                conflicts.add("mapper [" + names().fullName() + "] has different [precision_step]");
             }
         }
 

@@ -43,9 +43,16 @@ public abstract class IndexingOperationListener {
     }
 
     /**
-     * Called after the indexing operation occurred.
+     * Called after create index operation occurred.
      */
     public void postCreate(Engine.Create create) {
+
+    }
+
+    /**
+     * Called after create index operation occurred with exception.
+     */
+    public void postCreate(Engine.Create create, Throwable ex) {
 
     }
 
@@ -101,6 +108,13 @@ public abstract class IndexingOperationListener {
      * Called after the delete operation occurred.
      */
     public void postDelete(Engine.Delete delete) {
+
+    }
+
+    /**
+     * Called after the delete operation occurred with exception.
+     */
+    public void postDelete(Engine.Delete delete, Throwable ex) {
 
     }
 }

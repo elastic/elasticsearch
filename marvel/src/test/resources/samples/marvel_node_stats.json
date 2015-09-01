@@ -48,13 +48,13 @@
       }
     },
     "thread_pool": {
+      "bulk": {
+        "rejected": 0
+      },
       "index": {
         "rejected": 0
       },
       "search": {
-        "rejected": 0
-      },
-      "bulk": {
         "rejected": 0
       }
     },

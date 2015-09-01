@@ -68,7 +68,7 @@ public final class XContentBuilder implements BytesStream, Releasable {
         CAMELCASE
     }
 
-    public final static DateTimeFormatter defaultDatePrinter = ISODateTimeFormat.dateTime().withZone(DateTimeZone.UTC);
+    public static DateTimeFormatter defaultDatePrinter = ISODateTimeFormat.dateTime().withZone(DateTimeZone.UTC);
 
     protected static FieldCaseConversion globalFieldCaseConversion = FieldCaseConversion.NONE;
 
@@ -1354,5 +1354,13 @@ public final class XContentBuilder implements BytesStream, Releasable {
             generator.writeString(value.toString());
             //throw new ElasticsearchIllegalArgumentException("type not supported for generic value conversion: " + type);
         }
+
+    }
+
+    public static void setDefaultDatePrinter(DateTimeFormatter defaultDatePrinter) {
+      if (defaultDatePrinter == null) {
+          throw new NullPointerException("defaultDatePrinter");
+      }
+      XContentBuilder.defaultDatePrinter = defaultDatePrinter;
     }
 }

@@ -27,6 +27,7 @@ public class MarvelSettings extends AbstractComponent implements NodeSettingsSer
     public static final String INTERVAL                     = PREFIX + "interval";
     public static final String STARTUP_DELAY                = PREFIX + "startup.delay";
     public static final String INDEX_STATS_TIMEOUT          = PREFIX + "index.stats.timeout";
+    public static final String INDICES_STATS_TIMEOUT        = PREFIX + "indices.stats.timeout";
     public static final String INDICES                      = PREFIX + "indices";
     public static final String CLUSTER_STATE_TIMEOUT        = PREFIX + "cluster.state.timeout";
     public static final String CLUSTER_STATS_TIMEOUT        = PREFIX + "cluster.stats.timeout";
@@ -44,7 +45,9 @@ public class MarvelSettings extends AbstractComponent implements NodeSettingsSer
         map.put(STARTUP_DELAY, timeSetting(STARTUP_DELAY, null,
                 "Waiting time before the agent start to collect data (default to sampling interval)", false));
         map.put(INDEX_STATS_TIMEOUT, timeoutSetting(INDEX_STATS_TIMEOUT, TimeValue.timeValueMinutes(10),
-                "Timeout value when collecting indices statistics (default to 10m)", true));
+                "Timeout value when collecting index statistics (default to 10m)", true));
+        map.put(INDICES_STATS_TIMEOUT, timeoutSetting(INDICES_STATS_TIMEOUT, TimeValue.timeValueMinutes(10),
+                "Timeout value when collecting total indices statistics (default to 10m)", true));
         map.put(INDICES, arraySetting(INDICES, Strings.EMPTY_ARRAY,
                 "List of indices names whose stats will be exported (default to all indices)", true));
         map.put(CLUSTER_STATE_TIMEOUT, timeoutSetting(CLUSTER_STATE_TIMEOUT, TimeValue.timeValueMinutes(10),
@@ -54,7 +57,7 @@ public class MarvelSettings extends AbstractComponent implements NodeSettingsSer
         map.put(INDEX_RECOVERY_TIMEOUT, timeoutSetting(INDEX_RECOVERY_TIMEOUT, TimeValue.timeValueMinutes(10),
                 "Timeout value when collecting the recovery information (default to 10m)", true));
         map.put(INDEX_RECOVERY_ACTIVE_ONLY, booleanSetting(INDEX_RECOVERY_ACTIVE_ONLY, Boolean.FALSE,
-                "INDEX_RECOVERY_ACTIVE_ONLY to indicate if only active recoveries should be collected (default to false: all recoveries are collected)", true));
+                "Flag to indicate if only active recoveries should be collected (default to false: all recoveries are collected)", true));
         map.put(COLLECTORS, arraySetting(COLLECTORS, Strings.EMPTY_ARRAY,
                 "List of collectors allowed to collect data (default to all)", false));
         map.put(LICENSE_GRACE_PERIOD, timeSetting(LICENSE_GRACE_PERIOD, MAX_LICENSE_GRACE_PERIOD,
@@ -143,6 +146,10 @@ public class MarvelSettings extends AbstractComponent implements NodeSettingsSer
 
     public TimeValue indexStatsTimeout() {
         return getSettingValue(INDEX_STATS_TIMEOUT);
+    }
+
+    public TimeValue indicesStatsTimeout() {
+        return getSettingValue(INDICES_STATS_TIMEOUT);
     }
 
     public String[] indices() {

@@ -205,6 +205,13 @@
         }
       }
     },
+    "marvel_shards": {
+      "properties": {
+        "shard": {
+          "type": "object"
+        }
+      }
+    },
     "marvel_index_recovery": {
       "properties": {
         "shards": {

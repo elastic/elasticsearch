@@ -396,36 +396,4 @@
   <target name="start-external-cluster-rpm" depends="setup-workspace-rpm">
     <startup-elasticsearch home="${integ.scratch}/rpm-extracted/usr/share/elasticsearch/"/>
   </target>
-
-  <!-- check shaded jar for jar hell -->
-  <target name="check-for-jar-hell">
-    <java failonerror="true" fork="true" classname="org.elasticsearch.bootstrap.JarHell">
-        <classpath>
-           <pathelement location="${project.build.directory}/${project.artifactId}-${project.version}.jar"/>
-           <pathelement location="${org.apache.lucene:lucene-core:jar}"/>
-        </classpath>
-    </java>
-  </target>
-
-  <target name="check-shaded-jar-packages">
-    <!-- we unzip the jar, vs zipfileset, zipfileset toString is useless -->
-    <delete dir="${integ.temp}/unzipped"/>
-    <mkdir dir="${integ.temp}/unzipped"/>
-    <unzip src="${project.build.directory}/${project.artifactId}-${project.version}.jar"
-           dest="${integ.temp}/unzipped"/>
-    <local name="unshaded.classes"/>
-    <fileset id="unshaded.classes"
-             dir="${integ.temp}/unzipped"
-             includes="**/*.class"
-             excludes="org/elasticsearch/**,org/apache/lucene/**"/>
-    <fail message="shaded jar contains packages outside of org.elasticsearch: ${toString:unshaded.classes}">
-       <condition>
-         <not>
-           <resourcecount count="0">
-             <fileset refid="unshaded.classes"/>
-           </resourcecount>
-         </not>
-       </condition>
-    </fail>
-  </target>
 </project>

@@ -15,15 +15,6 @@
     <packaging>rpm</packaging>
     <description>The RPM distribution of Elasticsearch</description>
 
-    <dependencies>
-        <dependency>
-            <groupId>org.elasticsearch.distribution.fully-loaded</groupId>
-            <artifactId>elasticsearch</artifactId>
-            <version>${elasticsearch.version}</version>
-            <type>pom</type>
-        </dependency>
-    </dependencies>
-
     <properties>
         <skip.unit.tests>true</skip.unit.tests>
         <rpm.outputDirectory>${project.build.directory}/releases/</rpm.outputDirectory>
@@ -187,7 +178,6 @@
                                 <source>
                                     <location>target/lib/</location>
                                     <excludes>
-                                        <exclude>${project.build.finalName}-shaded.jar</exclude>
                                         <exclude>${project.build.finalName}-sources.jar</exclude>
                                         <exclude>${project.build.finalName}-tests.jar</exclude>
                                         <exclude>${project.build.finalName}-test-sources.jar</exclude>

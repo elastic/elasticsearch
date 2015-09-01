@@ -14,8 +14,7 @@
 # either express or implied. See the License for the specific
 # language governing permissions and limitations under the License.
 
-# For shaded dependencies, please put signatures in third-party-shaded.txt 
-# and third-party-unshaded.txt instead of here.
+# For third-party dependencies, please put signatures in third-party.txt instead of here.
 
 @defaultMessage spawns threads with vague names; use a custom thread factory and name threads so that you can tell (by its name) which executor it is associated with
 
@@ -47,7 +46,7 @@ org.apache.lucene.search.NumericRangeFilter#newFloatRange(java.lang.String,java.
 org.apache.lucene.search.NumericRangeFilter#newIntRange(java.lang.String,java.lang.Integer,java.lang.Integer,boolean,boolean)
 org.apache.lucene.search.NumericRangeFilter#newLongRange(java.lang.String,java.lang.Long,java.lang.Long,boolean,boolean)
 
-@defaultMessage Only use wait / notify when really needed try to use concurrency primitives, latches or callbacks instead. 
+@defaultMessage Only use wait / notify when really needed try to use concurrency primitives, latches or callbacks instead.
 java.lang.Object#wait()
 java.lang.Object#wait(long)
 java.lang.Object#wait(long,int)

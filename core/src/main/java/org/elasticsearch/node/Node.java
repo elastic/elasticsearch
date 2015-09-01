@@ -133,7 +133,7 @@ public class Node implements Releasable {
     Node(Settings preparedSettings, boolean loadConfigSettings, Version version, Collection<Class<? extends Plugin>> classpathPlugins) {
         final Settings pSettings = settingsBuilder().put(preparedSettings)
                 .put(Client.CLIENT_TYPE_SETTING, CLIENT_TYPE).build();
-        Tuple<Settings, Environment> tuple = InternalSettingsPreparer.prepareSettings(pSettings, loadConfigSettings);
+        Tuple<Settings, Environment> tuple = InternalSettingsPreparer.prepareSettingsAndEnvironment(pSettings, null);
         tuple = new Tuple<>(TribeService.processSettings(tuple.v1()), tuple.v2());
 
         ESLogger logger = Loggers.getLogger(Node.class, tuple.v1().get("name"));
@@ -147,7 +147,7 @@ public class Node implements Releasable {
                     env.configFile(), Arrays.toString(env.dataFiles()), env.logsFile(), env.pluginsFile());
         }
 
-        this.pluginsService = new PluginsService(tuple.v1(), tuple.v2(), classpathPlugins);
+        this.pluginsService = new PluginsService(tuple.v1(), tuple.v2().pluginsFile(), classpathPlugins);
         this.settings = pluginsService.updatedSettings();
         // create the environment based on the finalized (processed) view of the settings
         this.environment = new Environment(this.settings());

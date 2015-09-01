@@ -652,7 +652,7 @@ public class PluginManagerIT extends ESIntegTestCase {
         Settings settings = settingsBuilder()
                 .put("http.enabled", true)
                 .put("path.home", createTempDir()).build();
-        return InternalSettingsPreparer.prepareSettings(settings, false);
+        return InternalSettingsPreparer.prepareSettingsAndEnvironment(settings, null);
     }
 
     private void assertStatusOk(String command) {

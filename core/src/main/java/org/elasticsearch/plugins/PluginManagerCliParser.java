@@ -50,7 +50,7 @@ public class PluginManagerCliParser extends CliTool {
             .build();
 
     public static void main(String[] args) {
-        Tuple<Settings, Environment> initialSettings = InternalSettingsPreparer.prepareSettings(EMPTY, true, Terminal.DEFAULT);
+        Tuple<Settings, Environment> initialSettings = InternalSettingsPreparer.prepareSettingsAndEnvironment(EMPTY, Terminal.DEFAULT);
         LogConfigurator.configure(initialSettings.v1());
         int status = new PluginManagerCliParser().execute(args).status();
         System.exit(status);

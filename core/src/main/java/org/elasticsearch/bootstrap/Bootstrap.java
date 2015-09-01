@@ -197,7 +197,7 @@ final class Bootstrap {
 
     private static Tuple<Settings, Environment> initialSettings(boolean foreground) {
         Terminal terminal = foreground ? Terminal.DEFAULT : null;
-        return InternalSettingsPreparer.prepareSettings(EMPTY_SETTINGS, true, terminal);
+        return InternalSettingsPreparer.prepareSettingsAndEnvironment(EMPTY_SETTINGS, terminal);
     }
 
     private void start() {

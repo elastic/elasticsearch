@@ -5,9 +5,9 @@
  */
 package org.elasticsearch.marvel.agent.renderer;
 
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.inject.Inject;
 
+import java.util.Collections;
 import java.util.Map;
 
 public class RendererRegistry {
@@ -16,7 +16,7 @@ public class RendererRegistry {
 
     @Inject
     public RendererRegistry(Map<String, Renderer> renderers) {
-        this.renderers = ImmutableMap.copyOf(renderers);
+        this.renderers = Collections.unmodifiableMap(renderers);
     }
 
     public Renderer renderer(String type) {

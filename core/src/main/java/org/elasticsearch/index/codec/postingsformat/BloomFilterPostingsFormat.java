@@ -21,14 +21,12 @@ package org.elasticsearch.index.codec.postingsformat;
 
 import org.apache.lucene.codecs.*;
 import org.apache.lucene.index.*;
-import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.store.*;
 import org.apache.lucene.util.*;
 import org.elasticsearch.common.util.BloomFilter;
 
 import java.io.IOException;
 import java.util.*;
-import java.util.Map.Entry;
 
 /**
  * <p>
@@ -39,7 +37,7 @@ import java.util.Map.Entry;
  * </p>
  * <p>
  * This is a special bloom filter version, based on {@link org.elasticsearch.common.util.BloomFilter} and inspired
- * by Lucene {@link org.apache.lucene.codecs.bloom.BloomFilteringPostingsFormat}.
+ * by Lucene <tt>org.apache.lucene.codecs.bloom.BloomFilteringPostingsFormat</tt>.
  * </p>
  * @deprecated only for reading old segments
  */
@@ -84,7 +82,7 @@ public class BloomFilterPostingsFormat extends PostingsFormat {
     }
 
     @Override
-    public BloomFilteredFieldsConsumer fieldsConsumer(SegmentWriteState state) throws IOException {
+    public FieldsConsumer fieldsConsumer(SegmentWriteState state) throws IOException {
         throw new UnsupportedOperationException("this codec can only be used for reading");
     }
 
@@ -326,116 +324,5 @@ public class BloomFilterPostingsFormat extends PostingsFormat {
         public PostingsEnum postings(Bits liveDocs, PostingsEnum reuse, int flags) throws IOException {
             return getDelegate().postings(liveDocs, reuse, flags);
         }
-    }
-
-    // TODO: would be great to move this out to test code, but the interaction between es090 and bloom is complex
-    // at least it is not accessible via SPI
-    public final class BloomFilteredFieldsConsumer extends FieldsConsumer {
-        private final FieldsConsumer delegateFieldsConsumer;
-        private final Map<FieldInfo, BloomFilter> bloomFilters = new HashMap<>();
-        private final SegmentWriteState state;
-        private boolean closed = false;
-
-        // private PostingsFormat delegatePostingsFormat;
-
-        public BloomFilteredFieldsConsumer(FieldsConsumer fieldsConsumer,
-                                           SegmentWriteState state, PostingsFormat delegatePostingsFormat) {
-            this.delegateFieldsConsumer = fieldsConsumer;
-            // this.delegatePostingsFormat=delegatePostingsFormat;
-            this.state = state;
-        }
-
-        // for internal use only
-        public FieldsConsumer getDelegate() {
-            return delegateFieldsConsumer;
-        }
-
-
-        @Override
-        public void write(Fields fields) throws IOException {
-
-            // Delegate must write first: it may have opened files
-            // on creating the class
-            // (e.g. Lucene41PostingsConsumer), and write() will
-            // close them; alternatively, if we delayed pulling
-            // the fields consumer until here, we could do it
-            // afterwards:
-            delegateFieldsConsumer.write(fields);
-
-            for(String field : fields) {
-                Terms terms = fields.terms(field);
-                if (terms == null) {
-                    continue;
-                }
-                FieldInfo fieldInfo = state.fieldInfos.fieldInfo(field);
-                TermsEnum termsEnum = terms.iterator();
-
-                BloomFilter bloomFilter = null;
-
-                PostingsEnum postings = null;
-                while (true) {
-                    BytesRef term = termsEnum.next();
-                    if (term == null) {
-                        break;
-                    }
-                    if (bloomFilter == null) {
-                        bloomFilter = bloomFilterFactory.createFilter(state.segmentInfo.maxDoc());
-                        assert bloomFilters.containsKey(field) == false;
-                        bloomFilters.put(fieldInfo, bloomFilter);
-                    }
-                    // Make sure there's at least one doc for this term:
-                    postings = termsEnum.postings(null, postings, 0);
-                    if (postings.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
-                        bloomFilter.put(term);
-                    }
-                }
-            }
-        }
-
-        @Override
-        public void close() throws IOException {
-            if (closed) {
-                return;
-            }
-            closed = true;
-            delegateFieldsConsumer.close();
-            // Now we are done accumulating values for these fields
-            List<Entry<FieldInfo, BloomFilter>> nonSaturatedBlooms = new ArrayList<>();
-
-            for (Entry<FieldInfo, BloomFilter> entry : bloomFilters.entrySet()) {
-                nonSaturatedBlooms.add(entry);
-            }
-            String bloomFileName = IndexFileNames.segmentFileName(
-                    state.segmentInfo.name, state.segmentSuffix, BLOOM_EXTENSION);
-            IndexOutput bloomOutput = null;
-            try {
-                bloomOutput = state.directory
-                        .createOutput(bloomFileName, state.context);
-                CodecUtil.writeHeader(bloomOutput, BLOOM_CODEC_NAME,
-                        BLOOM_CODEC_VERSION_CURRENT);
-                // remember the name of the postings format we will delegate to
-                bloomOutput.writeString(delegatePostingsFormat.getName());
-
-                // First field in the output file is the number of fields+blooms saved
-                bloomOutput.writeInt(nonSaturatedBlooms.size());
-                for (Entry<FieldInfo, BloomFilter> entry : nonSaturatedBlooms) {
-                    FieldInfo fieldInfo = entry.getKey();
-                    BloomFilter bloomFilter = entry.getValue();
-                    bloomOutput.writeInt(fieldInfo.number);
-                    saveAppropriatelySizedBloomFilter(bloomOutput, bloomFilter, fieldInfo);
-                }
-                CodecUtil.writeFooter(bloomOutput);
-            } finally {
-                IOUtils.close(bloomOutput);
-            }
-            //We are done with large bitsets so no need to keep them hanging around
-            bloomFilters.clear();
-        }
-
-        private void saveAppropriatelySizedBloomFilter(IndexOutput bloomOutput,
-                                                       BloomFilter bloomFilter, FieldInfo fieldInfo) throws IOException {
-            BloomFilter.serilaize(bloomFilter, bloomOutput);
-        }
-
     }
 }

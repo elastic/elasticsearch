@@ -22,7 +22,6 @@ package org.elasticsearch.env;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
-import com.google.common.primitives.Ints;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.*;
@@ -30,12 +29,10 @@ import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.FileSystemUtils;
-import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -692,17 +689,20 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
         return shardIds;
     }
 
-    private static Set<ShardId> findAllShardsForIndex(Path indexPath) throws IOException {
+    public Set<ShardId> findAllShardsForIndex(Path indexPath) throws IOException {
         Set<ShardId> shardIds = new HashSet<>();
         if (Files.isDirectory(indexPath)) {
             try (DirectoryStream<Path> stream = Files.newDirectoryStream(indexPath)) {
                 String currentIndex = indexPath.getFileName().toString();
                 for (Path shardPath : stream) {
-                    if (Files.isDirectory(shardPath)) {
-                        Integer shardId = Ints.tryParse(shardPath.getFileName().toString());
-                        if (shardId != null) {
-                            ShardId id = new ShardId(currentIndex, shardId);
+                    if ("_state".equals(shardPath.getFileName().toString()) == false && Files.isDirectory(shardPath)) {
+                        try {
+                            ShardId id = new ShardId(currentIndex, Integer.parseInt(shardPath.getFileName().toString()));
                             shardIds.add(id);
+                        } catch (NumberFormatException ex) {
+                            logger.warn("Failed to parse shard id from directory {}", ex, shardPath);
+                            // weirdness - we are too sloppy here
+                            // TODO we might need a index descriptor here that has a listing for all shards created / valid.
                         }
                     }
                 }

@@ -19,23 +19,17 @@
 package org.elasticsearch.index.codec.postingsformat;
 
 import com.google.common.base.Predicate;
-import com.google.common.base.Predicates;
-import com.google.common.collect.Iterators;
 import org.apache.lucene.codecs.FieldsConsumer;
 import org.apache.lucene.codecs.FieldsProducer;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.lucene50.Lucene50PostingsFormat;
-import org.apache.lucene.index.Fields;
-import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.BloomFilter;
-import org.elasticsearch.index.codec.postingsformat.BloomFilterPostingsFormat.BloomFilteredFieldsConsumer;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 
 import java.io.IOException;
-import java.util.Iterator;
 
 /**
  * This is the old default postings format for Elasticsearch that special cases
@@ -56,17 +50,6 @@ public class Elasticsearch090PostingsFormat extends PostingsFormat {
         assert delegate.getName().equals(Lucene.LATEST_POSTINGS_FORMAT);
         bloomPostings = new BloomFilterPostingsFormat(delegate, BloomFilter.Factory.DEFAULT);
     }
-
-    public PostingsFormat getDefaultWrapped() {
-        return bloomPostings.getDelegate();
-    }
-    protected static final Predicate<String> UID_FIELD_FILTER = new Predicate<String>() {
-
-        @Override
-        public boolean apply(String s) {
-            return  UidFieldMapper.NAME.equals(s);
-        }
-    };
 
     @Override
     public FieldsConsumer fieldsConsumer(SegmentWriteState state) throws IOException {

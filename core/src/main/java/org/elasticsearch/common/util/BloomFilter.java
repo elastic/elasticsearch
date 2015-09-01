@@ -18,11 +18,8 @@
  */
 package org.elasticsearch.common.util;
 
-import com.google.common.math.LongMath;
-import com.google.common.primitives.Ints;
 import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.DataOutput;
-import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.Nullable;
@@ -33,7 +30,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.SizeValue;
 
 import java.io.IOException;
-import java.math.RoundingMode;
 import java.util.Arrays;
 import java.util.Comparator;
 
@@ -109,15 +105,6 @@ public class BloomFilter {
             });
         }
 
-        public BloomFilter createFilter(int expectedInsertions) {
-            for (Entry entry : entries) {
-                if (expectedInsertions > entry.expectedInsertions) {
-                    return BloomFilter.create(expectedInsertions, entry.fpp);
-                }
-            }
-            return BloomFilter.create(expectedInsertions, 0.03);
-        }
-
         public static class Entry {
             public final int expectedInsertions;
             public final double fpp;
@@ -129,54 +116,6 @@ public class BloomFilter {
         }
     }
 
-    /**
-     * Creates a bloom filter based on the with the expected number
-     * of insertions and expected false positive probability.
-     *
-     * @param expectedInsertions the number of expected insertions to the constructed
-     * @param fpp                the desired false positive probability (must be positive and less than 1.0)
-     */
-    public static BloomFilter create(int expectedInsertions, double fpp) {
-        return create(expectedInsertions, fpp, -1);
-    }
-
-    /**
-     * Creates a bloom filter based on the expected number of insertions, expected false positive probability,
-     * and number of hash functions.
-     *
-     * @param expectedInsertions the number of expected insertions to the constructed
-     * @param fpp                the desired false positive probability (must be positive and less than 1.0)
-     * @param numHashFunctions   the number of hash functions to use (must be less than or equal to 255)
-     */
-    public static BloomFilter create(int expectedInsertions, double fpp, int numHashFunctions) {
-        if (expectedInsertions == 0) {
-            expectedInsertions = 1;
-        }
-        /*
-         * TODO(user): Put a warning in the javadoc about tiny fpp values,
-         * since the resulting size is proportional to -log(p), but there is not
-         * much of a point after all, e.g. optimalM(1000, 0.0000000000000001) = 76680
-         * which is less that 10kb. Who cares!
-         */
-        long numBits = optimalNumOfBits(expectedInsertions, fpp);
-
-        // calculate the optimal number of hash functions
-        if (numHashFunctions == -1) {
-            numHashFunctions = optimalNumOfHashFunctions(expectedInsertions, numBits);
-        }
-
-        try {
-            return new BloomFilter(new BitArray(numBits), numHashFunctions, Hashing.DEFAULT);
-        } catch (IllegalArgumentException e) {
-            throw new IllegalArgumentException("Could not create BloomFilter of " + numBits + " bits", e);
-        }
-    }
-
-    public static void skipBloom(IndexInput in) throws IOException {
-        int version = in.readInt(); // we do nothing with this now..., defaults to 0
-        final int numLongs = in.readInt();
-        in.seek(in.getFilePointer() + (numLongs * 8) + 4 + 4); // filter + numberOfHashFunctions + hashType
-    }
 
     public static BloomFilter deserialize(DataInput in) throws IOException {
         int version = in.readInt(); // we do nothing with this now..., defaults to 0
@@ -319,10 +258,6 @@ public class BloomFilter {
         final long[] data;
         final long bitSize;
         long bitCount;
-
-        BitArray(long bits) {
-            this(new long[Ints.checkedCast(LongMath.divide(bits, 64, RoundingMode.CEILING))]);
-        }
 
         // Used by serialization
         BitArray(long[] data) {

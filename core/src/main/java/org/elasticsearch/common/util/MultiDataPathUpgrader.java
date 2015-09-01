@@ -20,7 +20,6 @@ package org.elasticsearch.common.util;
 
 import com.google.common.base.Charsets;
 import com.google.common.collect.Sets;
-import com.google.common.primitives.Ints;
 import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.store.Directory;
@@ -323,7 +322,7 @@ public class MultiDataPathUpgrader {
             final Set<String> allIndices = nodeEnv.findAllIndices();
 
             for (String index : allIndices) {
-                for (ShardId shardId : findAllShardIds(nodeEnv.indexPaths(new Index(index)))) {
+                for (ShardId shardId : upgrader.findAllShardIds(nodeEnv.indexPaths(new Index(index)))) {
                     try (ShardLock lock = nodeEnv.shardLock(shardId, 0)) {
                         if (upgrader.needsUpgrading(shardId)) {
                             final ShardPath shardPath = upgrader.pickShardPath(shardId);
@@ -343,30 +342,11 @@ public class MultiDataPathUpgrader {
         }
     }
 
-    private static Set<ShardId> findAllShardIds(Path... locations) throws IOException {
+    private Set<ShardId> findAllShardIds(Path... locations) throws IOException {
         final Set<ShardId> shardIds = Sets.newHashSet();
         for (final Path location : locations) {
             if (Files.isDirectory(location)) {
-                shardIds.addAll(findAllShardsForIndex(location));
-            }
-        }
-        return shardIds;
-    }
-
-    private static Set<ShardId> findAllShardsForIndex(Path indexPath) throws IOException {
-        Set<ShardId> shardIds = new HashSet<>();
-        if (Files.isDirectory(indexPath)) {
-            try (DirectoryStream<Path> stream = Files.newDirectoryStream(indexPath)) {
-                String currentIndex = indexPath.getFileName().toString();
-                for (Path shardPath : stream) {
-                    if (Files.isDirectory(shardPath)) {
-                        Integer shardId = Ints.tryParse(shardPath.getFileName().toString());
-                        if (shardId != null) {
-                            ShardId id = new ShardId(currentIndex, shardId);
-                            shardIds.add(id);
-                        }
-                    }
-                }
+                shardIds.addAll(nodeEnvironment.findAllShardsForIndex(location));
             }
         }
         return shardIds;

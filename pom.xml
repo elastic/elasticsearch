@@ -544,6 +544,19 @@
                             </configuration>
                         </execution>
                         <execution>
+                            <id>enforce-maven-version</id>
+                            <goals>
+                                <goal>enforce</goal>
+                            </goals>
+                            <configuration>
+                                <rules>
+                                    <requireMavenVersion>
+                                        <version>[3.1.0,3.3.0)</version>
+                                    </requireMavenVersion>
+                                </rules>
+                            </configuration>
+                        </execution>
+                        <execution>
                             <id>print-versions</id>
                             <phase>validate</phase>
                             <goals>

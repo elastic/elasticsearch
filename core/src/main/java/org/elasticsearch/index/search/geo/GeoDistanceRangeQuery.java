@@ -141,10 +141,10 @@ public class GeoDistanceRangeQuery extends Query {
         }
         return new ConstantScoreWeight(this) {
             @Override
-            public Scorer scorer(LeafReaderContext context, final Bits acceptDocs) throws IOException {
+            public Scorer scorer(LeafReaderContext context) throws IOException {
                 final DocIdSetIterator approximation;
                 if (boundingBoxWeight != null) {
-                    approximation = boundingBoxWeight.scorer(context, null);
+                    approximation = boundingBoxWeight.scorer(context);
                 } else {
                     approximation = DocIdSetIterator.all(context.reader().maxDoc());
                 }
@@ -157,9 +157,6 @@ public class GeoDistanceRangeQuery extends Query {
                     @Override
                     public boolean matches() throws IOException {
                         final int doc = approximation.docID();
-                        if (acceptDocs != null && acceptDocs.get(doc) == false) {
-                            return false;
-                        }
                         values.setDocument(doc);
                         final int length = values.count();
                         for (int i = 0; i < length; i++) {

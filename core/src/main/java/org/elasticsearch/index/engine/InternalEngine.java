@@ -136,7 +136,7 @@ public class InternalEngine extends Engine {
             this.indexingService = engineConfig.getIndexingService();
             this.warmer = engineConfig.getWarmer();
             mergeScheduler = scheduler = new EngineMergeScheduler(engineConfig.getShardId(), engineConfig.getIndexSettings(), engineConfig.getMergeSchedulerConfig());
-            this.dirtyLocks = new Object[engineConfig.getIndexConcurrency() * 50]; // we multiply it to have enough...
+            this.dirtyLocks = new Object[Runtime.getRuntime().availableProcessors() * 10]; // we multiply it to have enough...
             for (int i = 0; i < dirtyLocks.length; i++) {
                 dirtyLocks[i] = new Object();
             }
@@ -1038,7 +1038,6 @@ public class InternalEngine extends Engine {
             iwc.setMergePolicy(mergePolicy);
             iwc.setSimilarity(engineConfig.getSimilarity());
             iwc.setRAMBufferSizeMB(engineConfig.getIndexingBufferSize().mbFrac());
-            iwc.setMaxThreadStates(engineConfig.getIndexConcurrency());
             iwc.setCodec(engineConfig.getCodec());
             /* We set this timeout to a highish value to work around
              * the default poll interval in the Lucene lock that is

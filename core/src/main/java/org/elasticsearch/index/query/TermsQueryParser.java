@@ -201,8 +201,7 @@ public class TermsQueryParser implements QueryParser {
                     bq.add(new TermQuery(new Term(fieldName, BytesRefs.toBytesRef(term))), Occur.SHOULD);
                 }
             }
-            Queries.applyMinimumShouldMatch(bq, minShouldMatch);
-            query = bq;
+            query = Queries.applyMinimumShouldMatch(bq, minShouldMatch);
         }
         query.setBoost(boost);
 

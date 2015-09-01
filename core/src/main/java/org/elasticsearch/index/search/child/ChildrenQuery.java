@@ -262,8 +262,8 @@ public final class ChildrenQuery extends IndexCacheableQuery {
         }
 
         @Override
-        public Scorer scorer(LeafReaderContext context, Bits acceptDocs) throws IOException {
-            DocIdSet parentsSet = parentFilter.getDocIdSet(context, acceptDocs);
+        public Scorer scorer(LeafReaderContext context) throws IOException {
+            DocIdSet parentsSet = parentFilter.getDocIdSet(context, null);
             if (Lucene.isEmpty(parentsSet) || remaining == 0) {
                 return null;
             }

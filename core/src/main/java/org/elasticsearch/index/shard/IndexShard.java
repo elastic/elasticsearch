@@ -251,7 +251,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         if (indexSettings.getAsBoolean(IndexCacheModule.QUERY_CACHE_EVERYTHING, false)) {
             cachingPolicy = QueryCachingPolicy.ALWAYS_CACHE;
         } else {
-            assert Version.CURRENT.luceneVersion == org.apache.lucene.util.Version.LUCENE_5_2_1;
+            assert Version.CURRENT.luceneVersion == org.apache.lucene.util.Version.LUCENE_5_3_0;
             // TODO: remove this hack in Lucene 5.4, use UsageTrackingQueryCachingPolicy directly
             // See https://issues.apache.org/jira/browse/LUCENE-6748
             // cachingPolicy = new UsageTrackingQueryCachingPolicy();

@@ -85,7 +85,7 @@ public class MatchedQueriesFetchSubPhase implements FetchSubPhase {
             Query filter = entry.getValue();
 
             final Weight weight = hitContext.topLevelSearcher().createNormalizedWeight(filter, false);
-            final Scorer scorer = weight.scorer(hitContext.readerContext(), null);
+            final Scorer scorer = weight.scorer(hitContext.readerContext());
             if (scorer == null) {
                 continue;
             }

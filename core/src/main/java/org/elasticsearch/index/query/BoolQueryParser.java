@@ -166,7 +166,7 @@ public class BoolQueryParser implements QueryParser {
             booleanQuery.add(clause);
         }
         booleanQuery.setBoost(boost);
-        Queries.applyMinimumShouldMatch(booleanQuery, minimumShouldMatch);
+        booleanQuery = Queries.applyMinimumShouldMatch(booleanQuery, minimumShouldMatch);
         Query query = adjustPureNegative ? fixNegativeQueryIfNeeded(booleanQuery) : booleanQuery;
         if (queryName != null) {
             parseContext.addNamedQuery(queryName, query);

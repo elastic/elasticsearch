@@ -30,7 +30,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.text.Text;
 import org.joda.time.ReadableInstant;
 
@@ -43,8 +42,6 @@ import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
  *
@@ -456,14 +453,6 @@ public abstract class StreamOutput extends OutputStream {
         }
     }
 
-    static {
-        assert Version.CURRENT.luceneVersion == org.apache.lucene.util.Version.LUCENE_5_2_1: "Remove these regex once we upgrade to Lucene 5.3 and get proper getters for these expections";
-    }
-    private final static Pattern CORRUPT_INDEX_EXCEPTION_REGEX = Regex.compile("^(.+) \\(resource=(.+)\\)$", "");
-    private final static Pattern INDEX_FORMAT_TOO_NEW_EXCEPTION_REGEX = Regex.compile("Format version is not supported \\(resource (.+)\\): (-?\\d+) \\(needs to be between (-?\\d+) and (-?\\d+)\\)", "");
-    private final static Pattern INDEX_FORMAT_TOO_OLD_EXCEPTION_REGEX_1 = Regex.compile("Format version is not supported \\(resource (.+)\\): (-?\\d+)(?: \\(needs to be between (-?\\d+) and (-?\\d+)\\)). This version of Lucene only supports indexes created with release 4.0 and later\\.", "");
-    private final static Pattern INDEX_FORMAT_TOO_OLD_EXCEPTION_REGEX_2 = Regex.compile("Format version is not supported \\(resource (.+)\\): (.+). This version of Lucene only supports indexes created with release 4.0 and later\\.", "");
-
     private static int parseIntSafe(String val, int defaultVal) {
         try {
             return Integer.parseInt(val);
@@ -481,73 +470,29 @@ public abstract class StreamOutput extends OutputStream {
             boolean writeMessage = true;
             if (throwable instanceof CorruptIndexException) {
                 writeVInt(1);
-                // Lucene 5.3 will have getters for all these
-                // we should switch to using getters instead of trying to parse the message:
-                // writeOptionalString(((CorruptIndexException)throwable).getDescription());
-                // writeOptionalString(((CorruptIndexException)throwable).getResource());
-                Matcher matcher = CORRUPT_INDEX_EXCEPTION_REGEX.matcher(throwable.getMessage());
-                if (matcher.find()) {
-                    writeOptionalString(matcher.group(1)); // message
-                    writeOptionalString(matcher.group(2)); // resource
-                } else {
-                    // didn't match
-                    writeOptionalString("???"); // message
-                    writeOptionalString("???"); // resource
-                }
+                writeOptionalString(((CorruptIndexException)throwable).getOriginalMessage());
+                writeOptionalString(((CorruptIndexException)throwable).getResourceDescription());
                 writeMessage = false;
             } else if (throwable instanceof IndexFormatTooNewException) {
                 writeVInt(2);
-                // Lucene 5.3 will have getters for all these
-                // we should switch to using getters instead of trying to parse the message:
-                // writeOptionalString(((CorruptIndexException)throwable).getResource());
-                // writeInt(((IndexFormatTooNewException)throwable).getVersion());
-                // writeInt(((IndexFormatTooNewException)throwable).getMinVersion());
-                // writeInt(((IndexFormatTooNewException)throwable).getMaxVersion());
-                Matcher matcher = INDEX_FORMAT_TOO_NEW_EXCEPTION_REGEX.matcher(throwable.getMessage());
-                if (matcher.find()) {
-                    writeOptionalString(matcher.group(1)); // resource
-                    writeInt(parseIntSafe(matcher.group(2), -1)); // version
-                    writeInt(parseIntSafe(matcher.group(3), -1)); // min version
-                    writeInt(parseIntSafe(matcher.group(4), -1)); // max version
-                } else {
-                    // didn't match
-                    writeOptionalString("???"); // resource
-                    writeInt(-1); // version
-                    writeInt(-1); // min version
-                    writeInt(-1); // max version
-                }
+                writeOptionalString(((IndexFormatTooNewException)throwable).getResourceDescription());
+                writeInt(((IndexFormatTooNewException)throwable).getVersion());
+                writeInt(((IndexFormatTooNewException)throwable).getMinVersion());
+                writeInt(((IndexFormatTooNewException)throwable).getMaxVersion());
                 writeMessage = false;
                 writeCause = false;
             } else if (throwable instanceof IndexFormatTooOldException) {
                 writeVInt(3);
-                // Lucene 5.3 will have getters for all these
-                // we should switch to using getters instead of trying to parse the message:
-                // writeOptionalString(((CorruptIndexException)throwable).getResource());
-                // writeInt(((IndexFormatTooNewException)throwable).getVersion());
-                // writeInt(((IndexFormatTooNewException)throwable).getMinVersion());
-                // writeInt(((IndexFormatTooNewException)throwable).getMaxVersion());
-                Matcher matcher = INDEX_FORMAT_TOO_OLD_EXCEPTION_REGEX_1.matcher(throwable.getMessage());
-                if (matcher.find()) {
-                    // version with numeric version in constructor
-                    writeOptionalString(matcher.group(1)); // resource
-                    writeBoolean(true);
-                    writeInt(parseIntSafe(matcher.group(2), -1)); // version
-                    writeInt(parseIntSafe(matcher.group(3), -1)); // min version
-                    writeInt(parseIntSafe(matcher.group(4), -1)); // max version
+                IndexFormatTooOldException t = (IndexFormatTooOldException) throwable;
+                writeOptionalString(t.getResourceDescription());
+                if (t.getVersion() == null) {
+                    writeBoolean(false);
+                    writeOptionalString(t.getReason());
                 } else {
-                    matcher = INDEX_FORMAT_TOO_OLD_EXCEPTION_REGEX_2.matcher(throwable.getMessage());
-                    if (matcher.matches()) {
-                        writeOptionalString(matcher.group(1)); // resource
-                        writeBoolean(false);
-                        writeOptionalString(matcher.group(2)); // version
-                    } else {
-                        // didn't match
-                        writeOptionalString("???"); // resource
-                        writeBoolean(true);
-                        writeInt(-1); // version
-                        writeInt(-1); // min version
-                        writeInt(-1); // max version
-                    }
+                    writeBoolean(true);
+                    writeInt(t.getVersion());
+                    writeInt(t.getMinVersion());
+                    writeInt(t.getMaxVersion());
                 }
                 writeMessage = false;
                 writeCause = false;

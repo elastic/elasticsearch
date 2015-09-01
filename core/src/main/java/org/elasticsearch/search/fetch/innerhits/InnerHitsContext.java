@@ -190,7 +190,7 @@ public final class InnerHitsContext {
             public Weight createWeight(IndexSearcher searcher, boolean needsScores) throws IOException {
                 return new ConstantScoreWeight(this) {
                     @Override
-                    public Scorer scorer(LeafReaderContext context, Bits acceptDocs) throws IOException {
+                    public Scorer scorer(LeafReaderContext context) throws IOException {
                         // Nested docs only reside in a single segment, so no need to evaluate all segments
                         if (!context.reader().getCoreCacheKey().equals(leafReader.getCoreCacheKey())) {
                             return null;
@@ -209,7 +209,7 @@ public final class InnerHitsContext {
                             return null;
                         }
 
-                        final DocIdSet children = childFilter.getDocIdSet(context, acceptDocs);
+                        final DocIdSet children = childFilter.getDocIdSet(context, null);
                         if (children == null) {
                             return null;
                         }

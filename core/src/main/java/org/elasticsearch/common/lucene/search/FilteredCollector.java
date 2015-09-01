@@ -44,7 +44,7 @@ public class FilteredCollector implements Collector {
 
     @Override
     public LeafCollector getLeafCollector(LeafReaderContext context) throws IOException {
-        final Scorer filterScorer = filter.scorer(context, null);
+        final Scorer filterScorer = filter.scorer(context);
         final LeafCollector in = collector.getLeafCollector(context);
         final Bits bits = Lucene.asSequentialAccessBits(context.reader().maxDoc(), filterScorer);
 

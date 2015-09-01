@@ -97,7 +97,7 @@ public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
                 final long termOrd = builder.nextOrdinal();
                 assert termOrd == termOrdToBytesOffset.size();
                 termOrdToBytesOffset.add(bytes.copyUsingLengthPrefix(term));
-                docsEnum = termsEnum.postings(null, docsEnum, PostingsEnum.NONE);
+                docsEnum = termsEnum.postings(docsEnum, PostingsEnum.NONE);
                 for (int docId = docsEnum.nextDoc(); docId != DocIdSetIterator.NO_MORE_DOCS; docId = docsEnum.nextDoc()) {
                     builder.addDoc(docId);
                 }

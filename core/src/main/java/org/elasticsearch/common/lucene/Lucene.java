@@ -62,7 +62,7 @@ public class Lucene {
     public static final Version QUERYPARSER_VERSION = VERSION;
     public static final String LATEST_DOC_VALUES_FORMAT = "Lucene50";
     public static final String LATEST_POSTINGS_FORMAT = "Lucene50";
-    public static final String LATEST_CODEC = "Lucene50";
+    public static final String LATEST_CODEC = "Lucene53";
 
     static {
         Deprecated annotation = PostingsFormat.forName(LATEST_POSTINGS_FORMAT).getClass().getAnnotation(Deprecated.class);
@@ -139,36 +139,6 @@ public class Lucene {
     }
 
     /**
-     * Tries to acquire the {@link IndexWriter#WRITE_LOCK_NAME} on the given directory. The returned lock must be closed once
-     * the lock is released. If the lock can't be obtained a {@link LockObtainFailedException} is thrown.
-     * This method uses the {@link IndexWriterConfig#getDefaultWriteLockTimeout()} as the lock timeout.
-     */
-    public static Lock acquireWriteLock(Directory directory) throws IOException {
-        return acquireLock(directory, IndexWriter.WRITE_LOCK_NAME, IndexWriterConfig.getDefaultWriteLockTimeout());
-    }
-
-    /**
-     * Tries to acquire a lock on the given directory. The returned lock must be closed once
-     * the lock is released. If the lock can't be obtained a {@link LockObtainFailedException} is thrown.
-     */
-    @SuppressForbidden(reason = "this method uses trappy Directory#makeLock API")
-    public static Lock acquireLock(Directory directory, String lockName, long timeout) throws IOException {
-        final Lock writeLock = directory.makeLock(lockName);
-        boolean success = false;
-        try {
-            if (writeLock.obtain(timeout) == false) {
-                throw new LockObtainFailedException("failed to obtain lock: " + writeLock);
-            }
-            success = true;
-        } finally {
-            if (success == false) {
-                writeLock.close();
-            }
-        }
-        return writeLock;
-    }
-
-    /**
      * This method removes all files from the given directory that are not referenced by the given segments file.
      * This method will open an IndexWriter and relies on index file deleter to remove all unreferenced files. Segment files
      * that are newer than the given segments file are removed forcefully to prevent problems with IndexWriter opening a potentially
@@ -179,7 +149,7 @@ public class Lucene {
      */
     public static SegmentInfos pruneUnreferencedFiles(String segmentsFileName, Directory directory) throws IOException {
         final SegmentInfos si = readSegmentInfos(segmentsFileName, directory);
-        try (Lock writeLock = acquireWriteLock(directory)) {
+        try (Lock writeLock = directory.obtainLock(IndexWriter.WRITE_LOCK_NAME)) {
             int foundSegmentFiles = 0;
             for (final String file : directory.listAll()) {
                 /**
@@ -218,7 +188,7 @@ public class Lucene {
      * this operation fails.
      */
     public static void cleanLuceneIndex(Directory directory) throws IOException {
-        try (Lock writeLock = acquireWriteLock(directory)) {
+        try (Lock writeLock = directory.obtainLock(IndexWriter.WRITE_LOCK_NAME)) {
             for (final String file : directory.listAll()) {
                 if (file.startsWith(IndexFileNames.SEGMENTS) || file.equals(IndexFileNames.OLD_SEGMENTS_GEN)) {
                     directory.deleteFile(file); // remove all segment_N files

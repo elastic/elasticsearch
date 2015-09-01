@@ -31,6 +31,7 @@ import org.apache.lucene.search.similarities.Similarity;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
@@ -41,7 +42,10 @@ import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.indices.cache.query.terms.TermsLookup;
+import org.elasticsearch.script.ExecutableScript;
+import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.Template;
 import org.elasticsearch.search.fetch.innerhits.InnerHitsContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -322,5 +326,13 @@ public class QueryShardContext {
 
     public List<Object> handleTermsLookup(TermsLookup termsLookup) {
         return this.indexQueryParser.handleTermsLookup(termsLookup);
+    }
+
+    /*
+    * Executes the given template, and returns the response.
+    */
+    public BytesReference executeQueryTemplate(Template template, SearchContext searchContext) {
+        ExecutableScript executable = scriptService().executable(template, ScriptContext.Standard.SEARCH, searchContext);
+        return (BytesReference) executable.run();
     }
 }

@@ -18,18 +18,11 @@
  */
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.script.ExecutableScript;
-import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.Template;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -39,23 +32,13 @@ import java.util.Map;
  * In the simplest case, parse template string and variables from the request,
  * compile the template and execute the template against the given variables.
  * */
-public class TemplateQueryParser extends BaseQueryParserTemp {
-
-    /** Name of query parameter containing the template string. */
-    public static final String QUERY = "query";
-
-    private final ScriptService scriptService;
+public class TemplateQueryParser extends BaseQueryParser<TemplateQueryBuilder> {
 
     private final static Map<String, ScriptService.ScriptType> parametersToTypes = new HashMap<>();
     static {
         parametersToTypes.put("query", ScriptService.ScriptType.INLINE);
         parametersToTypes.put("file", ScriptService.ScriptType.FILE);
         parametersToTypes.put("id", ScriptService.ScriptType.INDEXED);
-    }
-
-    @Inject
-    public TemplateQueryParser(ScriptService scriptService) {
-        this.scriptService = scriptService;
     }
 
     @Override
@@ -68,28 +51,17 @@ public class TemplateQueryParser extends BaseQueryParserTemp {
      * values. Handles both submitting the template as part of the request as
      * well as referencing only the template name.
      *
-     * @param context
-     *            parse context containing the templated query.
+     * @param parseContext parse context containing the templated query.
      */
     @Override
     @Nullable
-    public Query parse(QueryShardContext context) throws IOException {
-        QueryParseContext parseContext = context.parseContext();
+    public TemplateQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
         Template template = parse(parser, parseContext.parseFieldMatcher());
-        ExecutableScript executable = this.scriptService.executable(template, ScriptContext.Standard.SEARCH, SearchContext.current());
-
-        BytesReference querySource = (BytesReference) executable.run();
-
-        try (XContentParser qSourceParser = XContentFactory.xContent(querySource).createParser(querySource)) {
-            final QueryShardContext contextCopy = new QueryShardContext(context.index(), context.indexQueryParserService());
-            contextCopy.reset(qSourceParser);
-            return contextCopy.parseContext().parseInnerQuery();
-        }
+        return new TemplateQueryBuilder(template);
     }
 
     public static Template parse(XContentParser parser, ParseFieldMatcher parseFieldMatcher, String... parameters) throws IOException {
-
         Map<String, ScriptService.ScriptType> parameterMap = new HashMap<>(parametersToTypes);
         for (String parameter : parameters) {
             parameterMap.put(parameter, ScriptService.ScriptType.INLINE);

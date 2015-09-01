@@ -18,12 +18,20 @@
  */
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.Query;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.Template;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Facilitates creating template query requests.
@@ -34,15 +42,9 @@ public class TemplateQueryBuilder extends AbstractQueryBuilder<TemplateQueryBuil
     public static final String NAME = "template";
 
     /** Template to fill. */
-    private Template template;
-    /** Parameters to fill the template with. */
-    private Map<String, Object> vars;
-    /** Template to fill.*/
-    private String templateString;
+    private final Template template;
 
-    private ScriptService.ScriptType templateType;
-
-    static final TemplateQueryBuilder PROTOTYPE = new TemplateQueryBuilder(null, null);
+    static final TemplateQueryBuilder PROTOTYPE = new TemplateQueryBuilder(null);
 
     /**
      * @param template
@@ -50,6 +52,10 @@ public class TemplateQueryBuilder extends AbstractQueryBuilder<TemplateQueryBuil
      * */
     public TemplateQueryBuilder(Template template) {
         this.template = template;
+    }
+
+    public Template template() {
+        return template;
     }
 
     /**
@@ -61,7 +67,7 @@ public class TemplateQueryBuilder extends AbstractQueryBuilder<TemplateQueryBuil
      * */
     @Deprecated
     public TemplateQueryBuilder(String template, Map<String, Object> vars) {
-        this(template, ScriptService.ScriptType.INLINE, vars);
+        this(new Template(template, ScriptService.ScriptType.INLINE, null, null, vars));
     }
 
     /**
@@ -75,23 +81,64 @@ public class TemplateQueryBuilder extends AbstractQueryBuilder<TemplateQueryBuil
      * */
     @Deprecated
     public TemplateQueryBuilder(String template, ScriptService.ScriptType templateType, Map<String, Object> vars) {
-        this.templateString = template;
-        this.vars = vars;
-        this.templateType = templateType;
+        this(new Template(template, templateType, null, null, vars));
     }
 
     @Override
     protected void doXContent(XContentBuilder builder, Params builderParams) throws IOException {
         builder.field(TemplateQueryBuilder.NAME);
-        if (template == null) {
-            new Template(templateString, templateType, null, null, this.vars).toXContent(builder, builderParams);
-        } else {
-            template.toXContent(builder, builderParams);
-        }
+        template.toXContent(builder, builderParams);
     }
 
     @Override
     public String getWriteableName() {
         return NAME;
+    }
+
+    @Override
+    protected Query doToQuery(QueryShardContext context) throws IOException {
+        BytesReference querySource = context.executeQueryTemplate(template, SearchContext.current());
+        try (XContentParser qSourceParser = XContentFactory.xContent(querySource).createParser(querySource)) {
+            final QueryShardContext contextCopy = new QueryShardContext(context.index(), context.indexQueryParserService());
+            contextCopy.reset(qSourceParser);
+            QueryBuilder result = contextCopy.parseContext().parseInnerQueryBuilder();
+            context.combineNamedQueries(contextCopy);
+            return result.toQuery(context);
+        }
+    }
+
+    @Override
+    protected void setFinalBoost(Query query) {
+        //no-op this query doesn't support boost
+    }
+
+    @Override
+    public QueryValidationException validate() {
+        QueryValidationException validationException = null;
+        if (this.template == null) {
+            validationException = addValidationError("query template cannot be null", validationException);
+        }
+        return validationException;
+    }
+
+    @Override
+    protected TemplateQueryBuilder doReadFrom(StreamInput in) throws IOException {
+        TemplateQueryBuilder templateQueryBuilder = new TemplateQueryBuilder(Template.readTemplate(in));
+        return templateQueryBuilder;
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        template.writeTo(out);
+    }
+
+    @Override
+    protected int doHashCode() {
+        return Objects.hash(template);
+    }
+
+    @Override
+    protected boolean doEquals(TemplateQueryBuilder other) {
+        return Objects.equals(template, other.template);
     }
 }

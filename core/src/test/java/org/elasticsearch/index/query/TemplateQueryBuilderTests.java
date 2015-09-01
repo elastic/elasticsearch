@@ -16,23 +16,60 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.Query;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.script.Template;
-import org.elasticsearch.test.ESTestCase;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-/**
- * Test building and serialising a template search request.
- * */
-public class TemplateQueryBuilderTests extends ESTestCase {
+import static org.hamcrest.Matchers.is;
+
+public class TemplateQueryBuilderTests extends BaseQueryTestCase<TemplateQueryBuilder> {
+
+    /**
+     * The query type all template tests will be based on.
+     */
+    private static QueryBuilder<?> templateBase;
+
+    @BeforeClass
+    public static void setupClass() {
+        templateBase = RandomQueryBuilder.createQuery(getRandom());
+    }
+
+    @Override
+    protected boolean supportsBoostAndQueryName() {
+        return false;
+    }
+
+    @Override
+    protected TemplateQueryBuilder doCreateTestQueryBuilder() {
+        return new TemplateQueryBuilder(new Template(templateBase.toString()));
+    }
+
+    @Override
+    protected void doAssertLuceneQuery(TemplateQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
+        assertEquals(templateBase.toQuery(createShardContext()), query);
+    }
+
+    @Test
+    public void testValidate() {
+        TemplateQueryBuilder templateQueryBuilder = new TemplateQueryBuilder(null);
+        assertThat(templateQueryBuilder.validate().validationErrors().size(), is(1));
+    }
+
+    @Override
+    protected void assertBoost(TemplateQueryBuilder queryBuilder, Query query) throws IOException {
+        //no-op boost is checked already above as part of doAssertLuceneQuery as we rely on lucene equals impl
+    }
 
     @Test
     public void testJSONGeneration() throws IOException {

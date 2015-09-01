@@ -71,6 +71,11 @@ public class MarvelSettingsTests extends ESIntegTestCase {
 
     @Test
     public void testMarvelSettingService() throws Exception {
+        logger.info("--> printing marvel settings values");
+        for (MarvelSetting setting : MarvelSettings.settings()) {
+            logger.info("\t{}", setting);
+        }
+
         logger.info("--> testing marvel settings service initialization");
         for (final MarvelSettings marvelSettings : internalCluster().getInstances(MarvelSettings.class)) {
             assertThat(marvelSettings.startUpDelay().millis(), equalTo(startUp.millis()));
@@ -152,7 +157,7 @@ public class MarvelSettingsTests extends ESIntegTestCase {
     }
 
     private TimeValue randomTimeValue() {
-        return TimeValue.parseTimeValue(randomFrom("1s", "10s", "30s", "1m", "30m", "1h"), null, getClass().getSimpleName());
+        return TimeValue.parseTimeValue(randomFrom("30m", "1h", "3h", "5h", "7h", "10h", "1d"), null, getClass().getSimpleName());
     }
 
     private String[] randomStringArray() {

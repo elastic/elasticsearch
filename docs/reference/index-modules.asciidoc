@@ -68,6 +68,12 @@ corruption is detected, it will prevent the shard from being opened. Accepts:
 Checking shards may take a lot of time on large indices.
 --
 
+[[index-codec]] `index.codec`::
+
+    experimental[] The `default` value compresses stored data with LZ4
+    compression, but this can be set to `best_compression` for a higher
+    compression ratio, at the expense of slower stored fields performance.
+
 [float]
 [[dynamic-index-settings]]
 === Dynamic index settings
@@ -91,12 +97,6 @@ specific index module:
     How often to perform a refresh operation, which makes recent changes to the
     index visible to search.  Defaults to `1s`.  Can be set to `-1` to disable
     refresh.
-
-[[index-codec]] `index.codec`::
-
-    experimental[] The `default` value compresses stored data with LZ4
-    compression, but this can be set to `best_compression` for a higher
-    compression ratio, at the expense of slower stored fields performance.
 
 `index.blocks.read_only`::
 

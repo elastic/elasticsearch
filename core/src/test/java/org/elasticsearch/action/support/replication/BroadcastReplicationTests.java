@@ -228,6 +228,7 @@ public class BroadcastReplicationTests extends ESTestCase {
     }
 
     @Test
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/13238")
     public void testTimeoutFlush() throws ExecutionException, InterruptedException {
 
         final String index = "test";
@@ -269,6 +270,7 @@ public class BroadcastReplicationTests extends ESTestCase {
     }
 
     @Test
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/13238")
     public void testTimeoutRefresh() throws ExecutionException, InterruptedException {
 
         final String index = "test";

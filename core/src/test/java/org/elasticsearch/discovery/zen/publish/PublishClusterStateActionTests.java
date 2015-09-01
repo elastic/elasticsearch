@@ -29,7 +29,6 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -52,10 +51,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -71,7 +67,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
     protected ThreadPool threadPool;
     protected Map<String, MockNode> nodes = newHashMap();
 
-    public static class MockNode implements PublishClusterStateAction.NewClusterStateListener, DiscoveryNodesProvider {
+    public static class MockNode implements PublishClusterStateAction.NewPendingClusterStateListener, DiscoveryNodesProvider {
         public final DiscoveryNode discoveryNode;
         public final MockTransportService service;
         public MockPublishAction action;
@@ -89,19 +85,33 @@ public class PublishClusterStateActionTests extends ESTestCase {
             this.clusterState = ClusterState.builder(ClusterName.DEFAULT).nodes(DiscoveryNodes.builder().put(discoveryNode).localNodeId(discoveryNode.id()).build()).build();
         }
 
+        public MockNode setAsMaster() {
+            this.clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).masterNodeId(discoveryNode.id())).build();
+            return this;
+        }
+
+        public MockNode resetMasterId() {
+            this.clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).masterNodeId(null)).build();
+            return this;
+        }
+
+
         public void connectTo(DiscoveryNode node) {
             service.connectToNode(node);
         }
 
         @Override
-        public void onNewClusterState(ClusterState newClusterState, NewStateProcessed newStateProcessed) {
+        public void onNewClusterState(String reason) {
+            ClusterState newClusterState = action.pendingStatesQueue().getNextClusterStateToProcess();
             logger.debug("[{}] received version [{}], uuid [{}]", discoveryNode.name(), newClusterState.version(), newClusterState.stateUUID());
             if (listener != null) {
                 ClusterChangedEvent event = new ClusterChangedEvent("", newClusterState, clusterState);
                 listener.clusterChanged(event);
             }
-            clusterState = newClusterState;
-            newStateProcessed.onNewClusterStateProcessed();
+            if (clusterState.nodes().masterNode() == null || newClusterState.supersedes(clusterState)) {
+                clusterState = newClusterState;
+            }
+            action.pendingStatesQueue().markAsProcessed(newClusterState);
         }
 
         @Override
@@ -211,22 +221,21 @@ public class PublishClusterStateActionTests extends ESTestCase {
     }
 
     protected MockPublishAction buildPublishClusterStateAction(Settings settings, MockTransportService transportService, DiscoveryNodesProvider nodesProvider,
-                                                               PublishClusterStateAction.NewClusterStateListener listener) {
+                                                               PublishClusterStateAction.NewPendingClusterStateListener listener) {
         DiscoverySettings discoverySettings = new DiscoverySettings(settings, new NodeSettingsService(settings));
         return new MockPublishAction(settings, transportService, nodesProvider, listener, discoverySettings, ClusterName.DEFAULT);
     }
 
     @Test
     public void testSimpleClusterStatePublishing() throws Exception {
-        MockNode nodeA = createMockNode("nodeA", Settings.EMPTY, Version.CURRENT);
+        MockNode nodeA = createMockNode("nodeA", Settings.EMPTY, Version.CURRENT).setAsMaster();
         MockNode nodeB = createMockNode("nodeB", Settings.EMPTY, Version.CURRENT);
 
         // Initial cluster state
-        DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().put(nodeA.discoveryNode).localNodeId(nodeA.discoveryNode.id()).build();
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).nodes(discoveryNodes).build();
+        ClusterState clusterState = nodeA.clusterState;
 
         // cluster state update - add nodeB
-        discoveryNodes = DiscoveryNodes.builder(discoveryNodes).put(nodeB.discoveryNode).build();
+        DiscoveryNodes discoveryNodes = DiscoveryNodes.builder(clusterState.nodes()).put(nodeB.discoveryNode).build();
         ClusterState previousClusterState = clusterState;
         clusterState = ClusterState.builder(clusterState).nodes(discoveryNodes).incrementVersion().build();
         publishStateAndWait(nodeA.action, clusterState, previousClusterState);
@@ -277,6 +286,11 @@ public class PublishClusterStateActionTests extends ESTestCase {
         assertSameStateFromFull(nodeC.clusterState, clusterState);
         assertFalse(nodeC.clusterState.wasReadFromDiff());
 
+        // node A steps down from being master
+        nodeA.resetMasterId();
+        nodeB.resetMasterId();
+        nodeC.resetMasterId();
+
         // node B becomes the master and sends a version of the cluster state that goes back
         discoveryNodes = DiscoveryNodes.builder(discoveryNodes)
                 .put(nodeA.discoveryNode)
@@ -300,12 +314,12 @@ public class PublishClusterStateActionTests extends ESTestCase {
             public void clusterChanged(ClusterChangedEvent event) {
                 fail("Shouldn't send cluster state to myself");
             }
-        });
+        }).setAsMaster();
 
         MockNode nodeB = createMockNode("nodeB", Settings.EMPTY, Version.CURRENT);
 
         // Initial cluster state with both states - the second node still shouldn't get diff even though it's present in the previous cluster state
-        DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().put(nodeA.discoveryNode).put(nodeB.discoveryNode).localNodeId(nodeA.discoveryNode.id()).build();
+        DiscoveryNodes discoveryNodes = DiscoveryNodes.builder(nodeA.nodes()).put(nodeB.discoveryNode).build();
         ClusterState previousClusterState = ClusterState.builder(ClusterName.DEFAULT).nodes(discoveryNodes).build();
         ClusterState clusterState = ClusterState.builder(previousClusterState).incrementVersion().build();
         publishStateAndWait(nodeA.action, clusterState, previousClusterState);
@@ -337,7 +351,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
         });
 
         // Initial cluster state
-        DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().put(nodeA.discoveryNode).localNodeId(nodeA.discoveryNode.id()).build();
+        DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().put(nodeA.discoveryNode).localNodeId(nodeA.discoveryNode.id()).masterNodeId(nodeA.discoveryNode.id()).build();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).nodes(discoveryNodes).build();
 
         // cluster state update - add nodeB
@@ -354,16 +368,21 @@ public class PublishClusterStateActionTests extends ESTestCase {
 
 
     /**
-     * Test not waiting publishing works correctly (i.e., publishing times out)
+     * Test not waiting on publishing works correctly (i.e., publishing times out)
      */
     @Test
     public void testSimultaneousClusterStatePublishing() throws Exception {
         int numberOfNodes = randomIntBetween(2, 10);
         int numberOfIterations = scaledRandomIntBetween(5, 50);
         Settings settings = Settings.builder().put(DiscoverySettings.PUBLISH_DIFF_ENABLE, randomBoolean()).build();
-        DiscoveryNodes.Builder discoveryNodesBuilder = DiscoveryNodes.builder();
-        MockNode master = null;
-        for (int i = 0; i < numberOfNodes; i++) {
+        MockNode master = createMockNode("node0", settings, Version.CURRENT, new ClusterStateListener() {
+            @Override
+            public void clusterChanged(ClusterChangedEvent event) {
+                assertProperMetaDataForVersion(event.state().metaData(), event.state().version());
+            }
+        }).setAsMaster();
+        DiscoveryNodes.Builder discoveryNodesBuilder = DiscoveryNodes.builder(master.nodes());
+        for (int i = 1; i < numberOfNodes; i++) {
             final String name = "node" + i;
             final MockNode node = createMockNode(name, settings, Version.CURRENT, new ClusterStateListener() {
                 @Override
@@ -371,14 +390,10 @@ public class PublishClusterStateActionTests extends ESTestCase {
                     assertProperMetaDataForVersion(event.state().metaData(), event.state().version());
                 }
             });
-            if (i == 0) {
-                master = node;
-            }
             discoveryNodesBuilder.put(node.discoveryNode);
         }
 
         AssertingAckListener[] listeners = new AssertingAckListener[numberOfIterations];
-        discoveryNodesBuilder.localNodeId(master.discoveryNode.id());
         DiscoveryNodes discoveryNodes = discoveryNodesBuilder.build();
         MetaData metaData = MetaData.EMPTY_META_DATA;
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metaData(metaData).build();
@@ -398,8 +413,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
         master.clusterState = clusterState;
 
         for (MockNode node : nodes.values()) {
-            assertThat(node.discoveryNode + " misses a cluster state", node.clusterState, notNullValue());
-            assertThat(node.discoveryNode + " unexpected cluster state: " + node.clusterState, node.clusterState.version(), equalTo(clusterState.version()));
+            assertSameState(node.clusterState, clusterState);
             assertThat(node.clusterState.nodes().localNode(), equalTo(node.discoveryNode));
         }
     }
@@ -412,12 +426,12 @@ public class PublishClusterStateActionTests extends ESTestCase {
             public void clusterChanged(ClusterChangedEvent event) {
                 fail("Shouldn't send cluster state to myself");
             }
-        });
+        }).setAsMaster();
 
         MockNode nodeB = createMockNode("nodeB", Settings.EMPTY, Version.CURRENT);
 
         // Initial cluster state with both states - the second node still shouldn't get diff even though it's present in the previous cluster state
-        DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().put(nodeA.discoveryNode).put(nodeB.discoveryNode).localNodeId(nodeA.discoveryNode.id()).build();
+        DiscoveryNodes discoveryNodes = DiscoveryNodes.builder(nodeA.nodes()).put(nodeB.discoveryNode).build();
         ClusterState previousClusterState = ClusterState.builder(ClusterName.DEFAULT).nodes(discoveryNodes).build();
         ClusterState clusterState = ClusterState.builder(previousClusterState).incrementVersion().build();
         publishStateAndWait(nodeA.action, clusterState, previousClusterState);
@@ -612,69 +626,59 @@ public class PublishClusterStateActionTests extends ESTestCase {
         } catch (IllegalStateException OK) {
         }
 
-        logger.info("--> testing rejection of an old cluster state");
+        logger.info("--> testing acceptance of an old cluster state");
         state = node.clusterState;
         node.clusterState = ClusterState.builder(node.clusterState).incrementVersion().build();
-        try {
-            node.action.validateIncomingState(state, node.clusterState);
-            fail("node accepted state with an older version");
-        } catch (IllegalStateException OK) {
-        }
+        node.action.validateIncomingState(state, node.clusterState);
 
-        // an older version from a *new* master is OK!
+        // an older version from a *new* master is also OK!
         ClusterState previousState = ClusterState.builder(node.clusterState).incrementVersion().build();
         state = ClusterState.builder(node.clusterState)
                 .nodes(DiscoveryNodes.builder(node.clusterState.nodes()).masterNodeId("_new_master_").build())
                 .build();
         // remove the master of the node (but still have a previous cluster state with it)!
-        node.clusterState = ClusterState.builder(node.clusterState)
-                .nodes(DiscoveryNodes.builder(node.clusterState.nodes()).masterNodeId(null).build())
-                .build();
+        node.resetMasterId();
 
         node.action.validateIncomingState(state, previousState);
     }
 
     public void testInterleavedPublishCommit() throws Throwable {
-        MockNode node = createMockNode("node");
-        final ClusterState state1 = ClusterState.builder(node.clusterState).incrementVersion().build();
-        final ClusterState state2 = ClusterState.builder(state1).incrementVersion().build();
-        final BytesReference state1Bytes = PublishClusterStateAction.serializeFullClusterState(state1, Version.CURRENT);
-        final BytesReference state2Bytes = PublishClusterStateAction.serializeFullClusterState(state2, Version.CURRENT);
+        MockNode node = createMockNode("node").setAsMaster();
         final CapturingTransportChannel channel = new CapturingTransportChannel();
 
-        node.action.handleIncomingClusterStateRequest(new BytesTransportRequest(state1Bytes, Version.CURRENT), channel);
-        assertThat(channel.response.get(), equalTo((TransportResponse) TransportResponse.Empty.INSTANCE));
-        assertThat(channel.error.get(), nullValue());
-        channel.clear();
+        List<ClusterState> states = new ArrayList<>();
+        final int numOfStates = scaledRandomIntBetween(3, 10);
+        for (int i = 1; i <= numOfStates; i++) {
+            states.add(ClusterState.builder(node.clusterState).version(i).stateUUID(ClusterState.UNKNOWN_UUID).build());
+        }
 
-        // another incoming state is OK. Should just override pending state
-        node.action.handleIncomingClusterStateRequest(new BytesTransportRequest(state2Bytes, Version.CURRENT), channel);
-        assertThat(channel.response.get(), equalTo((TransportResponse) TransportResponse.Empty.INSTANCE));
-        assertThat(channel.error.get(), nullValue());
-        channel.clear();
+        final ClusterState finalState = states.get(numOfStates - 1);
+        Collections.shuffle(states, random());
 
-        // committing previous state should fail
-        try {
-            node.action.handleCommitRequest(new PublishClusterStateAction.CommitClusterStateRequest(state1.stateUUID()), channel);
-            // sadly, there are ways to percolate errors
-            assertThat(channel.response.get(), nullValue());
-            assertThat(channel.error.get(), notNullValue());
-            if (channel.error.get() instanceof IllegalStateException == false) {
+        logger.info("--> publishing states");
+        for (ClusterState state : states) {
+            node.action.handleIncomingClusterStateRequest(
+                    new BytesTransportRequest(PublishClusterStateAction.serializeFullClusterState(state, Version.CURRENT), Version.CURRENT),
+                    channel);
+            assertThat(channel.response.get(), equalTo((TransportResponse) TransportResponse.Empty.INSTANCE));
+            assertThat(channel.error.get(), nullValue());
+            channel.clear();
+        }
+
+        logger.info("--> committing states");
+
+        Collections.shuffle(states, random());
+        for (ClusterState state : states) {
+            node.action.handleCommitRequest(new PublishClusterStateAction.CommitClusterStateRequest(state.stateUUID()), channel);
+            assertThat(channel.response.get(), equalTo((TransportResponse) TransportResponse.Empty.INSTANCE));
+            if (channel.error.get() != null) {
                 throw channel.error.get();
             }
-        } catch (IllegalStateException OK) {
-
         }
         channel.clear();
 
-        // committing second state should succeed
-        node.action.handleCommitRequest(new PublishClusterStateAction.CommitClusterStateRequest(state2.stateUUID()), channel);
-        assertThat(channel.response.get(), equalTo((TransportResponse) TransportResponse.Empty.INSTANCE));
-        assertThat(channel.error.get(), nullValue());
-        channel.clear();
-
-        // now check it was really committed
-        assertSameState(node.clusterState, state2);
+        //now check the last state held
+        assertSameState(node.clusterState, finalState);
     }
 
     /**
@@ -809,7 +813,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
         AtomicBoolean timeoutOnCommit = new AtomicBoolean();
         AtomicBoolean errorOnCommit = new AtomicBoolean();
 
-        public MockPublishAction(Settings settings, TransportService transportService, DiscoveryNodesProvider nodesProvider, NewClusterStateListener listener, DiscoverySettings discoverySettings, ClusterName clusterName) {
+        public MockPublishAction(Settings settings, TransportService transportService, DiscoveryNodesProvider nodesProvider, NewPendingClusterStateListener listener, DiscoverySettings discoverySettings, ClusterName clusterName) {
             super(settings, transportService, nodesProvider, listener, discoverySettings, clusterName);
         }
 

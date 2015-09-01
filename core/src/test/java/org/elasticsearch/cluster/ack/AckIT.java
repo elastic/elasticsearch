@@ -19,6 +19,9 @@
 
 package org.elasticsearch.cluster.ack;
 
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+import com.google.common.base.Predicate;
+import com.google.common.collect.ImmutableList;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
@@ -34,8 +37,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.AliasOrIndex;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.common.settings.Settings;
@@ -44,9 +47,6 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.warmer.IndexWarmersMetaData;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import com.google.common.base.Predicate;
-import com.google.common.collect.ImmutableList;
 
 import java.util.concurrent.TimeUnit;
 
@@ -72,7 +72,7 @@ public class AckIT extends ESIntegTestCase {
         createIndex("test");
 
         assertAcked(client().admin().indices().prepareUpdateSettings("test")
-                    .setSettings(Settings.builder().put("refresh_interval", 9999, TimeUnit.MILLISECONDS)));
+                .setSettings(Settings.builder().put("refresh_interval", 9999, TimeUnit.MILLISECONDS)));
 
         for (Client client : clients()) {
             String refreshInterval = getLocalClusterState(client).metaData().index("test").settings().get("index.refresh_interval");
@@ -178,9 +178,9 @@ public class AckIT extends ESIntegTestCase {
     @Test
     public void testClusterRerouteAcknowledgement() throws InterruptedException {
         assertAcked(prepareCreate("test").setSettings(Settings.builder()
-                .put(indexSettings())
-                .put(SETTING_NUMBER_OF_SHARDS, between(cluster().numDataNodes(), DEFAULT_MAX_NUM_SHARDS))
-                .put(SETTING_NUMBER_OF_REPLICAS, 0)
+                        .put(indexSettings())
+                        .put(SETTING_NUMBER_OF_SHARDS, between(cluster().numDataNodes(), DEFAULT_MAX_NUM_SHARDS))
+                        .put(SETTING_NUMBER_OF_REPLICAS, 0)
         ));
         ensureGreen();
 

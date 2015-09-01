@@ -357,7 +357,7 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
                     discovery.clusterService.submitStateUpdateTask("local-disco-receive(from master)", new ProcessedClusterStateNonMasterUpdateTask() {
                         @Override
                         public ClusterState execute(ClusterState currentState) {
-                            if (nodeSpecificClusterState.version() < currentState.version() && Objects.equal(nodeSpecificClusterState.nodes().masterNodeId(), currentState.nodes().masterNodeId())) {
+                            if (currentState.supersedes(nodeSpecificClusterState)) {
                                 return currentState;
                             }
 

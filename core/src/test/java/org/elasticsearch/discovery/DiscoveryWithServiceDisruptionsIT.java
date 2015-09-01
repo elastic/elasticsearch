@@ -22,8 +22,6 @@ package org.elasticsearch.discovery;
 import com.google.common.base.Predicate;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.Client;
@@ -54,7 +52,11 @@ import org.elasticsearch.test.discovery.ClusterDiscoveryConfiguration;
 import org.elasticsearch.test.disruption.*;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.transport.*;
+import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportRequestOptions;
+import org.elasticsearch.transport.TransportService;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -734,7 +736,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
      */
     @Test
     public void unicastSinglePingResponseContainsMaster() throws Exception {
-        List<String> nodes = startCluster(4, -1, new int[] {0});
+        List<String> nodes = startCluster(4, -1, new int[]{0});
         // Figure out what is the elected master node
         final String masterNode = internalCluster().getMasterName();
         logger.info("---> legit elected master node=" + masterNode);
@@ -853,6 +855,10 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         nonMasterTransportService.clearRule(discoveryNodes.masterNode());
 
         ensureStableCluster(2);
+
+        // shutting down the nodes, to avoid the leakage check tripping
+        // on the states associated with the commit requests we may have dropped
+        internalCluster().stopRandomNonMasterNode();
     }
 
 
@@ -943,7 +949,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
     @Test
     public void testIndicesDeleted() throws Exception {
         configureUnicastCluster(3, null, 2);
-        Future<List<String>> masterNodes= internalCluster().startMasterOnlyNodesAsync(2);
+        Future<List<String>> masterNodes = internalCluster().startMasterOnlyNodesAsync(2);
         Future<String> dataNode = internalCluster().startDataOnlyNodeAsync();
         dataNode.get();
         masterNodes.get();

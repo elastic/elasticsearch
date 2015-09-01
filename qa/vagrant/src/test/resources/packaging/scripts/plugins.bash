@@ -36,6 +36,12 @@ install_plugin() {
 
     assert_file_exist "$ESPLUGINS/$name"
     assert_file_exist "$ESPLUGINS/$name/plugin-descriptor.properties"
+}
+
+install_jvm_plugin() {
+    local name=$1
+    local path="$2"
+    install_plugin $name "$path"
     assert_file_exist "$ESPLUGINS/$name/$name"*".jar"
 }
 
@@ -53,7 +59,7 @@ remove_plugin() {
 # placements for non-site plugins.
 install_jvm_example() {
     local relativePath=${1:-$(readlink -m jvm-example-*.zip)}
-    install_plugin jvm-example "$relativePath"
+    install_jvm_plugin jvm-example "$relativePath"
 
     assert_file_exist "$ESHOME/bin/jvm-example"
     assert_file_exist "$ESHOME/bin/jvm-example/test"
@@ -74,14 +80,14 @@ remove_jvm_example() {
     assert_file_exist "$ESCONFIG/jvm-example/example.yaml"
 }
 
-# Install and remove a plugin with a special prefix. For the most part prefixes
-# are just useful for grouping but the "analysis" prefix is special because all
+# Install a plugin with a special prefix. For the most part prefixes are just
+# useful for grouping but the "analysis" prefix is special because all
 # analysis plugins come with a corresponding lucene-analyzers jar.
 # $1 - the prefix
 # $2 - the plugin name
 # $@ - all remaining arguments are jars that must exist in the plugin's
 #      installation directory
-install_and_remove_special_plugin() {
+install_and_check_plugin() {
     local prefix=$1
     shift
     local name=$1
@@ -93,12 +99,11 @@ install_and_remove_special_plugin() {
         local fullName="$prefix-$name"
     fi
 
-    install_plugin $fullName "$(readlink -m $fullName-*.zip)"
+    install_jvm_plugin $fullName "$(readlink -m $fullName-*.zip)"
     if [ $prefix == 'analysis' ]; then
         assert_file_exist "$(readlink -m $ESPLUGINS/$fullName/lucene-analyzers-$name-*.jar)"
     fi
     for file in "$@"; do
         assert_file_exist "$(readlink -m $ESPLUGINS/$fullName/$file)"
     done
-    remove_plugin $fullName
 }

@@ -34,6 +34,8 @@
 
       <!-- rpmbuild location : default to /usr/bin/rpmbuild -->
       <packaging.rpm.rpmbuild>/usr/bin/rpmbuild</packaging.rpm.rpmbuild>
+
+      <upgrade.from.version>2.0.0-beta1</upgrade.from.version>
     </properties>
 
     <build>
@@ -90,6 +92,14 @@
                                     <groupId>org.elasticsearch.distribution.deb</groupId>
                                     <artifactId>elasticsearch</artifactId>
                                     <version>${elasticsearch.version}</version>
+                                    <type>deb</type>
+                                </artifactItem>
+                                <artifactItem>
+                                    <!-- We also use an old version of elasticsearch for
+                                         testing upgrades -->
+                                    <groupId>org.elasticsearch.distribution.deb</groupId>
+                                    <artifactId>elasticsearch</artifactId>
+                                    <version>${upgrade.from.version}</version>
                                     <type>deb</type>
                                 </artifactItem>
                                 <artifactItem>
@@ -220,6 +230,21 @@
                         </configuration>
                     </execution>
                     <execution>
+                        <id>setup-version-files</id>
+                        <phase>pre-integration-test</phase>
+                        <goals>
+                            <goal>run</goal>
+                        </goals>
+                        <configuration>
+                            <target>
+                                <echo message="${project.version}"
+                                    file="${project.build.directory}/testroot/version"/>
+                                <echo message="${upgrade.from.version}"
+                                    file="${project.build.directory}/testroot/upgrade_from_version"/>
+                            </target>
+                        </configuration>
+                    </execution>
+                    <execution>
                         <id>test-vms</id>
                         <phase>integration-test</phase>
                         <goals>
@@ -269,6 +294,14 @@
                                             <version>${elasticsearch.version}</version>
                                             <type>rpm</type>
                                         </artifactItem>
+                                        <artifactItem>
+                                            <!-- We also use an old version of elasticsearch for
+                                                 testing upgrades -->
+                                            <groupId>org.elasticsearch.distribution.rpm</groupId>
+                                            <artifactId>elasticsearch</artifactId>
+                                            <version>${upgrade.from.version}</version>
+                                            <type>rpm</type>
+                                        </artifactItem>
                                     </artifactItems>
                                 </configuration>
                             </execution>
@@ -307,6 +340,14 @@
                                             <groupId>org.elasticsearch.distribution.rpm</groupId>
                                             <artifactId>elasticsearch</artifactId>
                                             <version>${elasticsearch.version}</version>
+                                            <type>rpm</type>
+                                        </artifactItem>
+                                        <artifactItem>
+                                            <!-- We also use an old version of elasticsearch for
+                                                 testing upgrades -->
+                                            <groupId>org.elasticsearch.distribution.rpm</groupId>
+                                            <artifactId>elasticsearch</artifactId>
+                                            <version>${upgrade.from.version}</version>
                                             <type>rpm</type>
                                         </artifactItem>
                                     </artifactItems>

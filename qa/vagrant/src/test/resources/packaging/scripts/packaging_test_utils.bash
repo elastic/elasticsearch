@@ -234,10 +234,25 @@ verify_package_installation() {
 
 # Install the rpm or deb package
 install_package() {
+    local version=$(cat version)
+    local rpmCommand='-i'
+    while getopts ":uv:" opt; do
+        case $opt in
+            u)
+                rpmCommand='-U'
+                ;;
+            v)
+                version=$OPTARG
+                ;;
+            \?)
+                echo "Invalid option: -$OPTARG" >&2
+                ;;
+        esac
+    done
     if is_rpm; then
-        rpm -i elasticsearch*.rpm
+        rpm $rpmCommand elasticsearch-$version.rpm
     elif is_dpkg; then
-        dpkg -i elasticsearch*.deb
+        dpkg -i elasticsearch-$version.deb
     else
         skip "Only rpm or deb supported"
     fi
@@ -318,6 +333,8 @@ clean_before_test() {
 }
 
 start_elasticsearch_service() {
+    local desiredStatus=${1:-green}
+
     if [ -f "/tmp/elasticsearch/bin/elasticsearch" ]; then
         # su and the Elasticsearch init script work together to break bats.
         # sudo isolates bats enough from the init script so everything continues
@@ -342,7 +359,7 @@ start_elasticsearch_service() {
         [ "$status" -eq 0 ]
     fi
 
-    wait_for_elasticsearch_status
+    wait_for_elasticsearch_status $desiredStatus
 
     if [ -r "/tmp/elasticsearch/elasticsearch.pid" ]; then
         pid=$(cat /tmp/elasticsearch/elasticsearch.pid)
@@ -389,10 +406,7 @@ stop_elasticsearch_service() {
 
 # Waits for Elasticsearch to reach a given status (defaults to "green")
 wait_for_elasticsearch_status() {
-    local desired_status="green"
-    if [ "x$1" != "x" ]; then
-        status="$1"
-    fi
+    local desiredStatus=${1:-green}
 
     echo "Making sure elasticsearch is up..."
     wget -O - --retry-connrefused --waitretry=1 --timeout=60 http://localhost:9200 || {
@@ -411,7 +425,7 @@ wait_for_elasticsearch_status() {
     }
 
     echo "Tring to connect to elasticsearch and wait for expected status..."
-    curl -sS "http://localhost:9200/_cluster/health?wait_for_status=$desired_status&timeout=60s&pretty"
+    curl -sS "http://localhost:9200/_cluster/health?wait_for_status=$desiredStatus&timeout=60s&pretty"
     if [ $? -eq 0 ]; then
         echo "Connected"
     else
@@ -426,8 +440,8 @@ wait_for_elasticsearch_status() {
         echo $output
         false
     fi
-    echo $output | grep $desired_status || {
-        echo "unexpected status:  '$output' wanted '$desired_status'"
+    echo $output | grep $desiredStatus || {
+        echo "unexpected status:  '$output' wanted '$desiredStatus'"
         false
     }
 }

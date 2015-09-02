@@ -7,53 +7,29 @@ package org.elasticsearch.marvel.agent.renderer.cluster;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.license.core.License;
-import org.elasticsearch.license.plugin.LicensePlugin;
-import org.elasticsearch.marvel.MarvelPlugin;
 import org.elasticsearch.marvel.agent.collector.cluster.ClusterInfoCollector;
+import org.elasticsearch.marvel.agent.renderer.AbstractRendererTestCase;
 import org.elasticsearch.marvel.agent.settings.MarvelSettings;
-import org.elasticsearch.node.Node;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.junit.Test;
 
-import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.*;
 
-@ClusterScope(scope = ESIntegTestCase.Scope.SUITE, transportClientRatio = 0.0)
-public class ClusterInfoIT extends ESIntegTestCase {
+public class ClusterInfoIT extends AbstractRendererTestCase {
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal))
-                .put(Node.HTTP_ENABLED, true)
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(MarvelSettings.STARTUP_DELAY, "1s")
-                .put(MarvelSettings.COLLECTORS, ClusterInfoCollector.NAME)
-                .build();
-    }
-
-    @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(LicensePlugin.class, MarvelPlugin.class);
-    }
-
-    @Override
-    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return nodePlugins();
+    protected Collection<String> collectors() {
+        return Collections.singletonList(ClusterInfoCollector.NAME);
     }
 
     @Test
@@ -69,11 +45,12 @@ public class ClusterInfoIT extends ESIntegTestCase {
                 assertTrue(MarvelSettings.MARVEL_DATA_INDEX_NAME + " index does not exist", client().admin().indices().prepareExists(MarvelSettings.MARVEL_DATA_INDEX_NAME).get().isExists());
                 ensureYellow(MarvelSettings.MARVEL_DATA_INDEX_NAME);
 
+                client().admin().indices().prepareRefresh(MarvelSettings.MARVEL_DATA_INDEX_NAME).get();
                 GetResponse response = client().prepareGet(MarvelSettings.MARVEL_DATA_INDEX_NAME, ClusterInfoCollector.TYPE, clusterUUID).get();
                 assertTrue(MarvelSettings.MARVEL_DATA_INDEX_NAME + " document does not exist", response.isExists());
                 return response;
             }
-        });
+        }, 30L, TimeUnit.SECONDS);
 
         logger.debug("--> checking that the document contains license information");
         assertThat(response.getIndex(), equalTo(MarvelSettings.MARVEL_DATA_INDEX_NAME));

@@ -716,7 +716,6 @@
                                 </balancers>
                                 <includes>
                                     <include>**/*Tests.class</include>
-                                    <include>**/*Test.class</include>
                                 </includes>
                                 <excludes>
                                     <exclude>**/*$*.class</exclude>

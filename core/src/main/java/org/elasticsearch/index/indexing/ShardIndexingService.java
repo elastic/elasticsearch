@@ -131,23 +131,14 @@ public class ShardIndexingService extends AbstractIndexShardComponent {
         totalStats.indexCurrent.inc();
         typeStats(index.type()).indexCurrent.inc();
         for (IndexingOperationListener listener : listeners) {
-            try {
-                listener.preIndex(index);
-            } catch (Exception e) {
-                logger.warn("preIndex listener [{}] failed", e, listener);
-            }
-
+            listener.preIndex(index);
         }
         return index;
     }
 
     public void postIndexUnderLock(Engine.Index index) {
         for (IndexingOperationListener listener : listeners) {
-            try {
-                listener.postIndexUnderLock(index);
-            } catch (Exception e) {
-                logger.warn("postIndexUnderLock listener [{}] failed", e, listener);
-            }
+            listener.postIndexUnderLock(index);
         }
     }
 
@@ -160,11 +151,7 @@ public class ShardIndexingService extends AbstractIndexShardComponent {
         typeStats.indexCurrent.dec();
         slowLog.postIndex(index, took);
         for (IndexingOperationListener listener : listeners) {
-            try {
-                listener.postIndex(index);
-            } catch (Exception e) {
-                logger.warn("postIndex listener [{}] failed", e, listener);
-            }
+            listener.postIndex(index);
         }
     }
 

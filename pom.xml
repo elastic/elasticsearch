@@ -720,7 +720,6 @@
                                 </includes>
                                 <excludes>
                                     <exclude>**/*$*.class</exclude>
-                                    <exclude>**/*StressTest.class</exclude>
                                 </excludes>
                             </configuration>
                         </execution>

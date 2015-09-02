@@ -46,7 +46,7 @@ import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 /**
  *
  */
-public class NodesStressTest {
+public class NodesStressBenchmark {
 
     private Node[] nodes;
 
@@ -71,50 +71,50 @@ public class NodesStressTest {
     private CyclicBarrier barrier1;
     private CyclicBarrier barrier2;
 
-    public NodesStressTest() {
+    public NodesStressBenchmark() {
     }
 
-    public NodesStressTest numberOfNodes(int numberOfNodes) {
+    public NodesStressBenchmark numberOfNodes(int numberOfNodes) {
         this.numberOfNodes = numberOfNodes;
         return this;
     }
 
-    public NodesStressTest fieldNumLimit(int fieldNumLimit) {
+    public NodesStressBenchmark fieldNumLimit(int fieldNumLimit) {
         this.fieldNumLimit = fieldNumLimit;
         return this;
     }
 
-    public NodesStressTest searchIterations(int searchIterations) {
+    public NodesStressBenchmark searchIterations(int searchIterations) {
         this.searcherIterations = searchIterations;
         return this;
     }
 
-    public NodesStressTest searcherThreads(int numberOfSearcherThreads) {
+    public NodesStressBenchmark searcherThreads(int numberOfSearcherThreads) {
         searcherThreads = new Searcher[numberOfSearcherThreads];
         return this;
     }
 
-    public NodesStressTest indexIterations(long indexIterations) {
+    public NodesStressBenchmark indexIterations(long indexIterations) {
         this.indexIterations = indexIterations;
         return this;
     }
 
-    public NodesStressTest indexThreads(int numberOfWriterThreads) {
+    public NodesStressBenchmark indexThreads(int numberOfWriterThreads) {
         indexThreads = new Indexer[numberOfWriterThreads];
         return this;
     }
 
-    public NodesStressTest sleepAfterDone(TimeValue time) {
+    public NodesStressBenchmark sleepAfterDone(TimeValue time) {
         this.sleepAfterDone = time;
         return this;
     }
 
-    public NodesStressTest sleepBeforeClose(TimeValue time) {
+    public NodesStressBenchmark sleepBeforeClose(TimeValue time) {
         this.sleepBeforeClose = time;
         return this;
     }
 
-    public NodesStressTest build(Settings settings) throws Exception {
+    public NodesStressBenchmark build(Settings settings) throws Exception {
         settings = settingsBuilder()
 //                .put("index.refresh_interval", 1, TimeUnit.SECONDS)
                 .put(SETTING_NUMBER_OF_SHARDS, 5)
@@ -267,7 +267,7 @@ public class NodesStressTest {
     }
 
     public static void main(String[] args) throws Exception {
-        NodesStressTest test = new NodesStressTest()
+        NodesStressBenchmark test = new NodesStressBenchmark()
                 .numberOfNodes(2)
                 .indexThreads(5)
                 .indexIterations(10 * 1000)

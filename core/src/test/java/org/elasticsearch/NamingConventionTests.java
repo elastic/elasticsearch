@@ -59,16 +59,11 @@ public class NamingConventionTests extends ESTestCase {
         for (final String packageName : packages) {
             final String path = "/" + packageName.replace('.', '/');
             final Path startPath = getDataPath(path);
-            final Set<Path> ignore = Sets.newHashSet(PathUtils.get("/org/elasticsearch/stresstest"), PathUtils.get("/org/elasticsearch/benchmark/stress"));
             Files.walkFileTree(startPath, new FileVisitor<Path>() {
                 private Path pkgPrefix = PathUtils.get(path).getParent();
                 @Override
                 public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
-                    Path next =  pkgPrefix.resolve(dir.getFileName());
-                    if (ignore.contains(next)) {
-                        return FileVisitResult.SKIP_SUBTREE;
-                    }
-                    pkgPrefix = next;
+                    pkgPrefix = pkgPrefix.resolve(dir.getFileName());
                     return FileVisitResult.CONTINUE;
                 }
 
@@ -170,7 +165,7 @@ public class NamingConventionTests extends ESTestCase {
             innerClasses.isEmpty());
         assertTrue("Pure Unit-Test found must subclass one of [" + classesToSubclass +"]:\n" + Joiner.on('\n').join(pureUnitTest),
             pureUnitTest.isEmpty());
-        assertTrue("Classes ending with Test|Tests] must subclass [" + classesToSubclass +"]:\n" + Joiner.on('\n').join(notImplementing),
+        assertTrue("Classes ending with [Test|Tests] must subclass [" + classesToSubclass +"]:\n" + Joiner.on('\n').join(notImplementing),
             notImplementing.isEmpty());
         assertTrue("Subclasses of ESIntegTestCase should end with IT as they are integration tests:\n" + Joiner.on('\n').join(integTestsInDisguise),
             integTestsInDisguise.isEmpty());

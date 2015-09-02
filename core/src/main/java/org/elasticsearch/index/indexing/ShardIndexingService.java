@@ -131,7 +131,7 @@ public class ShardIndexingService extends AbstractIndexShardComponent {
         totalStats.indexCurrent.inc();
         typeStats(index.type()).indexCurrent.inc();
         for (IndexingOperationListener listener : listeners) {
-            listener.preIndex(index);
+            index = listener.preIndex(index);
         }
         return index;
     }

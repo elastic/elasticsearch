@@ -178,6 +178,9 @@ The text to find documents like it.
 `ids` or `docs`:: deprecated[2.0.0-beta1,Replaced by `like`]
 A list of documents following the same syntax as the <<docs-multi-get,Multi GET API>>.
 
+NOTE: Under the hood More Like This uses the <<docs-multi-termvectors, Multi Term Vectors API>>
+when fetching the terms of the provided documents.
+
 [float]
 [[mlt-query-term-selection]]
 ==== Term Selection Parameters

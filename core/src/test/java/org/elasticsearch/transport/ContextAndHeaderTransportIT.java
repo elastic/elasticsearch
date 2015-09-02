@@ -51,7 +51,8 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.GeoShapeQueryBuilder;
-import org.elasticsearch.index.query.MoreLikeThisQueryBuilder;
+import org.elasticsearch.index.query.morelikethis.Item;
+import org.elasticsearch.index.query.morelikethis.MoreLikeThisQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermsLookupQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
@@ -229,7 +230,7 @@ public class ContextAndHeaderTransportIT extends ESIntegTestCase {
         transportClient().admin().indices().prepareRefresh(lookupIndex, queryIndex).get();
 
         MoreLikeThisQueryBuilder moreLikeThisQueryBuilder = QueryBuilders.moreLikeThisQuery("name")
-                .addItem(new MoreLikeThisQueryBuilder.Item(lookupIndex, "type", "1"))
+                .addLikeItem(new Item(lookupIndex, "type", "1"))
                 .minTermFreq(1)
                 .minDocFreq(1);
 

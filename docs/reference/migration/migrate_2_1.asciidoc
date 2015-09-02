@@ -42,3 +42,14 @@ thought of as a delete operation followed by an index operation.
 
 The experimental feature `indices.fielddata.cache.expire` has been removed.
 For indices that have this setting configured, this config will be ignored.
+
+=== More Like This
+
+The MoreLikeThis builders have been moved to their own org.elasticsearch.index.query.morelikethis
+package. MoreLikeThisQueryBuilder.Item has been moved to its own class.
+
+The MoreLikeThisQueryBuilder#ignoreLike methods have been deprecating in favor
+to using the unlike methods.
+
+MoreLikeThisBuilder#addItem has been deprecated in favor to using
+MoreLikeThisBuilder#addLikeItem.

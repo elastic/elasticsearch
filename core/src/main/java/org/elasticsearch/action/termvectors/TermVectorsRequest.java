@@ -640,7 +640,7 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
         }
     }
 
-    private static Map<String, String> readPerFieldAnalyzer(Map<String, Object> map) {
+    public static Map<String, String> readPerFieldAnalyzer(Map<String, Object> map) {
         Map<String, String> mapStrStr = new HashMap<>();
         for (Map.Entry<String, Object> e : map.entrySet()) {
             if (e.getValue() instanceof String) {

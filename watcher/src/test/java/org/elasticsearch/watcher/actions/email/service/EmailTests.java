@@ -23,7 +23,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
-public class EmailTest extends ESTestCase {
+public class EmailTests extends ESTestCase {
 
     @Test
     public void testEmail_Parser_SelfGenerated() throws Exception {

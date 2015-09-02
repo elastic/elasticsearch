@@ -44,7 +44,7 @@ class TestProgressLogger implements AggregatedEventListener {
     AtomicInteger testsIgnored = new AtomicInteger()
 
     @Subscribe
-    public void onStart(AggregatedStartEvent e) throws IOException {
+    void onStart(AggregatedStartEvent e) throws IOException {
         totalSuites = e.getSuiteCount();
         progressLogger = factory.newOperation(TestProgressLogger)
         progressLogger.setDescription('Randomized test runner')
@@ -53,7 +53,7 @@ class TestProgressLogger implements AggregatedEventListener {
     }
 
     @Subscribe
-    public void onSuiteResult(AggregatedSuiteResultEvent e) throws IOException {
+    void onSuiteResult(AggregatedSuiteResultEvent e) throws IOException {
         final int suitesCompleted = suitesCompleted.incrementAndGet();
         final int testsCompleted = testsCompleted.addAndGet(e.getDescription().testCount())
         final int testsFailed = testsFailed.addAndGet(e.getErrorCount() + e.getFailureCount())
@@ -65,5 +65,5 @@ class TestProgressLogger implements AggregatedEventListener {
     }
 
     @Override
-    public void setOuter(JUnit4 junit) {}
+    void setOuter(JUnit4 junit) {}
 }

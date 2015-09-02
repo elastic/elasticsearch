@@ -67,6 +67,13 @@ setup() {
     verify_package_installation
 }
 
+@test "[DEB] elasticsearch isn't started by package install" {
+    # Wait a second to give Elasticsearch a change to start if it is going to.
+    # This isn't perfect by any means but its something.
+    sleep 1
+    ! ps aux | grep elasticsearch | grep java
+}
+
 @test "[DEB] test elasticsearch" {
     start_elasticsearch_service
 

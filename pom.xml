@@ -1105,12 +1105,6 @@ org.eclipse.jdt.ui.text.custom_code_templates=<?xml version\="1.0" encoding\="UT
                                 <goal>report</goal>
                             </goals>
                         </execution>
-                        <execution>
-                            <id>default-check</id>
-                            <goals>
-                                <goal>check</goal>
-                            </goals>
-                        </execution>
                     </executions>
                 </plugin>
                 <plugin>

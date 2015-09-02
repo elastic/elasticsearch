@@ -19,7 +19,7 @@
 
 package org.elasticsearch.discovery.azure;
 
-import org.elasticsearch.cloud.azure.AbstractAzureComputeServiceTest;
+import org.elasticsearch.cloud.azure.AbstractAzureComputeServiceTestCase;
 import org.elasticsearch.cloud.azure.management.AzureComputeService.Discovery;
 import org.elasticsearch.cloud.azure.management.AzureComputeService.Management;
 import org.elasticsearch.cloud.azure.AzureComputeServiceTwoNodesMock;
@@ -33,7 +33,7 @@ import static org.hamcrest.Matchers.notNullValue;
         numDataNodes = 0,
         transportClientRatio = 0.0,
         numClientNodes = 0)
-public class AzureTwoStartedNodesTest extends AbstractAzureComputeServiceTest {
+public class AzureTwoStartedNodesTest extends AbstractAzureComputeServiceTestCase {
 
     public AzureTwoStartedNodesTest() {
         super(AzureComputeServiceTwoNodesMock.TestPlugin.class);

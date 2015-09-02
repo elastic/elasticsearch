@@ -19,7 +19,7 @@
 
 package org.elasticsearch.discovery.azure;
 
-import org.elasticsearch.cloud.azure.AbstractAzureComputeServiceTest;
+import org.elasticsearch.cloud.azure.AbstractAzureComputeServiceTestCase;
 import org.elasticsearch.cloud.azure.AzureComputeServiceTwoNodesMock;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
@@ -41,7 +41,7 @@ import static org.hamcrest.Matchers.nullValue;
         transportClientRatio = 0.0,
         numClientNodes = 0)
 @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-cloud-azure/issues/89")
-public class AzureMinimumMasterNodesTest extends AbstractAzureComputeServiceTest {
+public class AzureMinimumMasterNodesTest extends AbstractAzureComputeServiceTestCase {
 
     public AzureMinimumMasterNodesTest() {
         super(AzureComputeServiceTwoNodesMock.TestPlugin.class);

@@ -20,7 +20,7 @@
 package org.elasticsearch.discovery.ec2;
 
 
-import org.elasticsearch.cloud.aws.AbstractAwsTest;
+import org.elasticsearch.cloud.aws.AbstractAwsTestCase;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugin.cloud.aws.CloudAwsPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -38,7 +38,7 @@ import static org.elasticsearch.common.settings.Settings.settingsBuilder;
  * This test requires AWS to run.
  */
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0, numClientNodes = 0, transportClientRatio = 0.0)
-public class Ec2DiscoveryITest extends AbstractAwsTest {
+public class Ec2DiscoveryITest extends AbstractAwsTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

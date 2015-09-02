@@ -41,7 +41,7 @@ import java.util.Map;
  * in order to run these tests.
  */
 @ThirdParty
-public abstract class AbstractAwsTest extends ESIntegTestCase {
+public abstract class AbstractAwsTestCase extends ESIntegTestCase {
 
     /**
      * Those properties are set by the AWS SDK v1.9.4 and if not ignored,

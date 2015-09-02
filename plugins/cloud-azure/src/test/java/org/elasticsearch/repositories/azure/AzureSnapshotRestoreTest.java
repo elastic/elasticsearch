@@ -24,8 +24,7 @@ import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResp
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cloud.azure.AbstractAzureRepositoryServiceTest;
-import org.elasticsearch.cloud.azure.storage.AzureStorageServiceMock;
+import org.elasticsearch.cloud.azure.AbstractAzureRepositoryServiceTestCaseCase;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -41,7 +40,7 @@ import static org.hamcrest.Matchers.greaterThan;
         numDataNodes = 1,
         numClientNodes = 0,
         transportClientRatio = 0.0)
-public class AzureSnapshotRestoreTest extends AbstractAzureRepositoryServiceTest {
+public class AzureSnapshotRestoreTest extends AbstractAzureRepositoryServiceTestCaseCase {
 
     public AzureSnapshotRestoreTest() {
         super("/snapshot-test/repo-" + randomInt());

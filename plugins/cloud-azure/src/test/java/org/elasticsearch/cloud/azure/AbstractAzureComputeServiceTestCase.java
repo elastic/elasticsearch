@@ -29,11 +29,11 @@ import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.Collection;
 
-public abstract class AbstractAzureComputeServiceTest extends ESIntegTestCase {
+public abstract class AbstractAzureComputeServiceTestCase extends ESIntegTestCase {
 
     private Class<? extends Plugin> mockPlugin;
 
-    public AbstractAzureComputeServiceTest(Class<? extends Plugin> mockPlugin) {
+    public AbstractAzureComputeServiceTestCase(Class<? extends Plugin> mockPlugin) {
         // We want to inject the Azure API Mock
         this.mockPlugin = mockPlugin;
     }

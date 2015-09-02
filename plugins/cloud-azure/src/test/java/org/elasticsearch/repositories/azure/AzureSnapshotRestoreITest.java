@@ -27,7 +27,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRes
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ClusterAdminClient;
-import org.elasticsearch.cloud.azure.AbstractAzureTest;
+import org.elasticsearch.cloud.azure.AbstractAzureTestCase;
 import org.elasticsearch.cloud.azure.storage.AzureStorageService;
 import org.elasticsearch.cloud.azure.storage.AzureStorageServiceImpl;
 import org.elasticsearch.cluster.ClusterState;
@@ -55,13 +55,13 @@ import static org.hamcrest.Matchers.greaterThan;
 /**
  * This test needs Azure to run and -Dtests.thirdparty=true to be set
  * and -Dtests.config=/path/to/elasticsearch.yml
- * @see org.elasticsearch.cloud.azure.AbstractAzureTest
+ * @see AbstractAzureTestCase
  */
 @ESIntegTestCase.ClusterScope(
         scope = ESIntegTestCase.Scope.SUITE,
         numDataNodes = 1,
         transportClientRatio = 0.0)
-public class AzureSnapshotRestoreITest extends AbstractAzureTest {
+public class AzureSnapshotRestoreITest extends AbstractAzureTestCase {
 
     private String getRepositoryPath() {
         String testName = "it-".concat(Strings.toUnderscoreCase(getTestName()).replaceAll("_", "-"));

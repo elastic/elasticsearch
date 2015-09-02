@@ -30,7 +30,7 @@ import java.util.Collection;
 
 import static org.hamcrest.Matchers.is;
 
-abstract public class AbstractAzureFsTest extends ESIntegTestCase {
+abstract public class AbstractAzureFsTestCase extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

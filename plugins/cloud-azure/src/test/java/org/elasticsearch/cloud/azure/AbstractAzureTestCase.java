@@ -37,7 +37,7 @@ import java.util.Collection;
  * in order to run these tests.
  */
 @ThirdParty
-public abstract class AbstractAzureTest extends ESIntegTestCase {
+public abstract class AbstractAzureTestCase extends ESIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {

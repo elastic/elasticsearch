@@ -35,7 +35,7 @@ import org.junit.Before;
 import java.net.URISyntaxException;
 import java.util.Collection;
 
-public abstract class AbstractAzureRepositoryServiceTest extends AbstractAzureTest {
+public abstract class AbstractAzureRepositoryServiceTestCaseCase extends AbstractAzureTestCase {
 
     public static class TestPlugin extends Plugin {
         @Override
@@ -54,7 +54,7 @@ public abstract class AbstractAzureRepositoryServiceTest extends AbstractAzureTe
     protected String basePath;
     private Class<? extends AzureStorageService> mock;
 
-    public AbstractAzureRepositoryServiceTest(String basePath) {
+    public AbstractAzureRepositoryServiceTestCaseCase(String basePath) {
         this.basePath = basePath;
     }
 

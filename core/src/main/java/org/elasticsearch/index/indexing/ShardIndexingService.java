@@ -131,7 +131,11 @@ public class ShardIndexingService extends AbstractIndexShardComponent {
 
     public void postCreate(Engine.Create create, Throwable ex) {
         for (IndexingOperationListener listener : listeners) {
-            listener.postCreate(create, ex);
+            try {
+                listener.postCreate(create, ex);
+            } catch (Throwable t) {
+                logger.warn("postCreate listener [{}] failed", t, listener);
+            }
         }
     }
 
@@ -175,7 +179,11 @@ public class ShardIndexingService extends AbstractIndexShardComponent {
         totalStats.indexCurrent.dec();
         typeStats(index.type()).indexCurrent.dec();
         for (IndexingOperationListener listener : listeners) {
-            listener.postIndex(index, ex);
+            try {
+                listener.postIndex(index, ex);
+            } catch (Throwable t) {
+                logger.warn("postIndex listener [{}] failed", t, listener);
+            }
         }
     }
 
@@ -218,7 +226,11 @@ public class ShardIndexingService extends AbstractIndexShardComponent {
         totalStats.deleteCurrent.dec();
         typeStats(delete.type()).deleteCurrent.dec();
         for (IndexingOperationListener listener : listeners) {
-            listener.postDelete(delete, ex);
+            try {
+                listener. postDelete(delete, ex);
+            } catch (Throwable t) {
+                logger.warn("postDelete listener [{}] failed", t, listener);
+            }
         }
     }
 

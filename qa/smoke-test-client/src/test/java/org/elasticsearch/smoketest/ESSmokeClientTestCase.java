@@ -56,6 +56,7 @@ import static org.hamcrest.Matchers.notNullValue;
  * then run JUnit. If you changed the default port, set "tests.cluster=localhost:PORT" when running
  * your test.
  */
+@LuceneTestCase.SuppressSysoutChecks(bugUrl = "we log a lot on purpose")
 public abstract class ESSmokeClientTestCase extends LuceneTestCase {
 
     /**

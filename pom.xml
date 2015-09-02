@@ -47,7 +47,7 @@
         <jackson.version>2.5.3</jackson.version>
         <slf4j.version>1.6.2</slf4j.version>
         <log4j.version>1.2.17</log4j.version>
-        <jacoco.version>0.7.2.201409121644</jacoco.version>
+        <jacoco.version>0.7.5.201505241946</jacoco.version>
         <elasticsearch.s3.repository>s3://download.elasticsearch.org/elasticsearch/staging/</elasticsearch.s3.repository>
 
         <!-- Build resources properties -->
@@ -646,6 +646,8 @@
                             <tests.showSuccess>${tests.showSuccess}</tests.showSuccess>
                             <tests.thirdparty>${tests.thirdparty}</tests.thirdparty>
                             <tests.config>${tests.config}</tests.config>
+                            <tests.coverage>${tests.coverage}</tests.coverage>
+                            <tests.coverage.dir>${project.build.directory}</tests.coverage.dir>
                             <tests.client.ratio>${tests.client.ratio}</tests.client.ratio>
                             <tests.enable_mock_modules>${tests.enable_mock_modules}</tests.enable_mock_modules>
                             <tests.assertion.disabled>${tests.assertion.disabled}</tests.assertion.disabled>
@@ -1415,7 +1417,8 @@ org.eclipse.jdt.ui.text.custom_code_templates=<?xml version\="1.0" encoding\="UT
                 </property>
             </activation>
             <properties>
-                <tests.security.manager>false</tests.security.manager> <!-- security policy doesn't have appropriate permissions for instrumentation -->
+                <!-- in case activated otherwise -->
+                <tests.coverage>true</tests.coverage>
             </properties>
             <build>
                 <plugins>

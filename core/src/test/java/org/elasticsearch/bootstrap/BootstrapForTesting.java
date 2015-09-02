@@ -106,6 +106,13 @@ public class BootstrapForTesting {
                 if (Strings.hasLength(System.getProperty("tests.config"))) {
                     perms.add(new FilePermission(System.getProperty("tests.config"), "read,readlink"));
                 }
+                // jacoco coverage output file
+                if (Boolean.getBoolean("tests.coverage")) {
+                    Path coverageDir = PathUtils.get(System.getProperty("tests.coverage.dir"));
+                    perms.add(new FilePermission(coverageDir.resolve("jacoco.exec").toString(), "read,write"));
+                    // in case we get fancy and use the -integration goals later:
+                    perms.add(new FilePermission(coverageDir.resolve("jacoco-it.exec").toString(), "read,write"));
+                }
                 Policy.setPolicy(new ESPolicy(perms));
                 System.setSecurityManager(new TestSecurityManager());
                 Security.selfTest();

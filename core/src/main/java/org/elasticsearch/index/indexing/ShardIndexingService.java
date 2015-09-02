@@ -159,11 +159,7 @@ public class ShardIndexingService extends AbstractIndexShardComponent {
         totalStats.indexCurrent.dec();
         typeStats(index.type()).indexCurrent.dec();
         for (IndexingOperationListener listener : listeners) {
-            try {
-                listener.postIndex(index, ex);
-            } catch (Exception e) {
-                logger.warn("postIndex listener [{}] failed", e, listener);
-            }
+            listener.postIndex(index, ex);
         }
     }
 

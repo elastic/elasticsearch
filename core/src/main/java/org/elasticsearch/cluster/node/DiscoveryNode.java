@@ -19,7 +19,6 @@
 
 package org.elasticsearch.cluster.node;
 
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 
 import org.elasticsearch.Version;
@@ -35,6 +34,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.net.InetAddress;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.transport.TransportAddressSerializers.addressToStream;
@@ -92,7 +93,7 @@ public class DiscoveryNode implements Streamable, ToXContent {
         return Booleans.isExplicitTrue(data);
     }
 
-    public static final ImmutableList<DiscoveryNode> EMPTY_LIST = ImmutableList.of();
+    public static final List<DiscoveryNode> EMPTY_LIST = Collections.emptyList();
 
     private String nodeName = "";
     private String nodeId;

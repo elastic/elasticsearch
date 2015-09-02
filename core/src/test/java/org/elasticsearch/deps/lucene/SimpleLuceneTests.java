@@ -214,7 +214,7 @@ public class SimpleLuceneTests extends ESTestCase {
         TermsEnum termsEnum = terms.iterator();
         termsEnum.next();
 
-        PostingsEnum termDocs = termsEnum.postings(atomicReader.getLiveDocs(), null);
+        PostingsEnum termDocs = termsEnum.postings(null);
         assertThat(termDocs.nextDoc(), equalTo(0));
         assertThat(termDocs.docID(), equalTo(0));
         assertThat(termDocs.freq(), equalTo(1));
@@ -222,7 +222,7 @@ public class SimpleLuceneTests extends ESTestCase {
         terms = atomicReader.terms("int2");
         termsEnum = terms.iterator();
         termsEnum.next();
-        termDocs =  termsEnum.postings(atomicReader.getLiveDocs(), termDocs);
+        termDocs =  termsEnum.postings(termDocs);
         assertThat(termDocs.nextDoc(), equalTo(0));
         assertThat(termDocs.docID(), equalTo(0));
         assertThat(termDocs.freq(), equalTo(2));

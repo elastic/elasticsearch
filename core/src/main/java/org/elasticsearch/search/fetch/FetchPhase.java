@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.fetch;
 
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
@@ -59,6 +58,7 @@ import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -285,7 +285,7 @@ public class FetchPhase implements SearchPhase {
                     nestedParsedSource = (List<Map<String, Object>>) extractedValue;
                 } else if (extractedValue instanceof Map) {
                     // nested field has an object value in the _source. This just means the nested field has just one inner object, which is valid, but uncommon.
-                    nestedParsedSource = ImmutableList.of((Map < String, Object >) extractedValue);
+                    nestedParsedSource = Collections.singletonList((Map<String, Object>) extractedValue);
                 } else {
                     throw new IllegalStateException("extracted source isn't an object or an array");
                 }

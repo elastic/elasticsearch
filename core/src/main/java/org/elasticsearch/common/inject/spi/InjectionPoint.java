@@ -16,7 +16,6 @@
 
 package org.elasticsearch.common.inject.spi;
 
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.common.inject.ConfigurationException;
 import org.elasticsearch.common.inject.Inject;
@@ -38,6 +37,7 @@ import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
@@ -56,10 +56,10 @@ public final class InjectionPoint {
 
     private final boolean optional;
     private final Member member;
-    private final ImmutableList<Dependency<?>> dependencies;
+    private final List<Dependency<?>> dependencies;
 
     private InjectionPoint(Member member,
-                           ImmutableList<Dependency<?>> dependencies, boolean optional) {
+                           List<Dependency<?>> dependencies, boolean optional) {
         this.member = member;
         this.dependencies = dependencies;
         this.optional = optional;
@@ -97,11 +97,11 @@ public final class InjectionPoint {
         }
         errors.throwConfigurationExceptionIfErrorsExist();
 
-        this.dependencies = ImmutableList.<Dependency<?>>of(
-                newDependency(key, Nullability.allowsNull(annotations), -1));
+        this.dependencies = Collections.<Dependency<?>>singletonList(
+            newDependency(key, Nullability.allowsNull(annotations), -1));
     }
 
-    private ImmutableList<Dependency<?>> forMember(Member member, TypeLiteral<?> type,
+    private List<Dependency<?>> forMember(Member member, TypeLiteral<?> type,
                                                    Annotation[][] parameterAnnotations) {
         Errors errors = new Errors(member);
         Iterator<Annotation[]> annotationsIterator = Arrays.asList(parameterAnnotations).iterator();
@@ -121,7 +121,7 @@ public final class InjectionPoint {
         }
 
         errors.throwConfigurationExceptionIfErrorsExist();
-        return ImmutableList.copyOf(dependencies);
+        return Collections.unmodifiableList(dependencies);
     }
 
     // This metohd is necessary to create a Dependency<T> with proper generic type information

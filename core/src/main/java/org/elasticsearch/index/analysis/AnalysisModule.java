@@ -492,6 +492,7 @@ public class AnalysisModule extends AbstractModule {
             analyzersBindings.processAnalyzer("irish", IrishAnalyzerProvider.class);
             analyzersBindings.processAnalyzer("italian", ItalianAnalyzerProvider.class);
             analyzersBindings.processAnalyzer("latvian", LatvianAnalyzerProvider.class);
+            analyzersBindings.processAnalyzer("lithuanian", LithuanianAnalyzerProvider.class);
             analyzersBindings.processAnalyzer("norwegian", NorwegianAnalyzerProvider.class);
             analyzersBindings.processAnalyzer("persian", PersianAnalyzerProvider.class);
             analyzersBindings.processAnalyzer("portuguese", PortugueseAnalyzerProvider.class);

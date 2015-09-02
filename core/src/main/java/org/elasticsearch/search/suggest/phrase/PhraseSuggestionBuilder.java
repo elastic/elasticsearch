@@ -20,11 +20,16 @@ package org.elasticsearch.search.suggest.phrase;
 
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.script.Template;
 import org.elasticsearch.search.suggest.SuggestBuilder.SuggestionBuilder;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Set;
 
 /**
  * Defines the actual suggest command for phrase suggestions ( <tt>phrase</tt>).
@@ -41,7 +46,7 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
     private Integer tokenLimit;
     private String preTag;
     private String postTag;
-    private String collateQuery;
+    private Template collateQuery;
     private Map<String, Object> collateParams;
     private Boolean collatePrune;
 
@@ -67,7 +72,7 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
      * misspellings in order to form a correction. This method accepts a float
      * value in the range [0..1) as a fraction of the actual query terms a
      * number <tt>&gt;=1</tt> as an absolut number of query terms.
-     * 
+     *
      * The default is set to <tt>1.0</tt> which corresponds to that only
      * corrections with at most 1 missspelled term are returned.
      */
@@ -131,13 +136,13 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
         this.generators.clear();
         return this;
     }
-    
+
     /**
      * If set to <code>true</code> the phrase suggester will fail if the analyzer only
      * produces ngrams. the default it <code>true</code>.
      */
     public PhraseSuggestionBuilder forceUnigrams(boolean forceUnigrams) {
-        this.forceUnigrams = forceUnigrams; 
+        this.forceUnigrams = forceUnigrams;
         return this;
     }
 
@@ -149,7 +154,7 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
         this.model = model;
         return this;
     }
-    
+
     public PhraseSuggestionBuilder tokenLimit(int tokenLimit) {
         this.tokenLimit = tokenLimit;
         return this;
@@ -172,7 +177,15 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
      * Sets a query used for filtering out suggested phrases (collation).
      */
     public PhraseSuggestionBuilder collateQuery(String collateQuery) {
-        this.collateQuery = collateQuery;
+        this.collateQuery = new Template(collateQuery);
+        return this;
+    }
+
+    /**
+     * Sets a query used for filtering out suggested phrases (collation).
+     */
+    public PhraseSuggestionBuilder collateQuery(Template collateQueryTemplate) {
+        this.collateQuery = collateQueryTemplate;
         return this;
     }
 
@@ -252,7 +265,7 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
 
     /**
      * Creates a new {@link DirectCandidateGenerator}
-     * 
+     *
      * @param field
      *            the field this candidate generator operates on.
      */
@@ -275,7 +288,7 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
 
         /**
          * Creates a Stupid-Backoff smoothing model.
-         * 
+         *
          * @param discount
          *            the discount given to lower order ngrams if the higher order ngram doesn't exits
          */
@@ -293,7 +306,7 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
 
     /**
      * An <a href="http://en.wikipedia.org/wiki/Additive_smoothing">additive
-     * smoothing</a> model. 
+     * smoothing</a> model.
      * <p>
      * See <a
      * href="http://en.wikipedia.org/wiki/N-gram#Smoothing_techniques">N-Gram
@@ -304,7 +317,7 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
         private final double alpha;
         /**
          * Creates a Laplace smoothing model.
-         * 
+         *
          * @param discount
          *            the discount given to lower order ngrams if the higher order ngram doesn't exits
          */
@@ -319,8 +332,8 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
             return builder;
         }
     }
-    
-    
+
+
     public static abstract class SmoothingModel implements ToXContent {
         private final String type;
 
@@ -335,7 +348,7 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
             builder.endObject();
             return builder;
         }
-        
+
         protected abstract XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException;
     }
 
@@ -354,9 +367,9 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
 
         /**
          * Creates a linear interpolation smoothing model.
-         * 
+         *
          * Note: the lambdas must sum up to one.
-         * 
+         *
          * @param trigramLambda
          *            the trigram lambda
          * @param bigramLambda
@@ -381,7 +394,7 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
     }
 
     /**
-     * {@link CandidateGenerator} base class. 
+     * {@link CandidateGenerator} base class.
      */
     public static abstract class CandidateGenerator implements ToXContent {
         private final String type;
@@ -397,7 +410,7 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
     }
 
     /**
-     * 
+     *
      *
      */
     public static final class DirectCandidateGenerator extends CandidateGenerator {
@@ -595,7 +608,7 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
             this.postFilter = postFilter;
             return this;
         }
-        
+
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();

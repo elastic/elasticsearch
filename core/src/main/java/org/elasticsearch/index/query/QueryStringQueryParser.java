@@ -233,7 +233,7 @@ public class QueryStringQueryParser extends BaseQueryParserTemp {
             }
             query = fixNegativeQueryIfNeeded(query);
             if (query instanceof BooleanQuery) {
-                Queries.applyMinimumShouldMatch((BooleanQuery) query, qpSettings.minimumShouldMatch());
+                query = Queries.applyMinimumShouldMatch((BooleanQuery) query, qpSettings.minimumShouldMatch());
             }
             if (queryName != null) {
                 context.addNamedQuery(queryName, query);

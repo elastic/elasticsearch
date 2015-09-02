@@ -260,7 +260,7 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
             return new MatchAllDocsQuery();
         }
 
-        Queries.applyMinimumShouldMatch(booleanQuery, minimumShouldMatch);
+        booleanQuery = Queries.applyMinimumShouldMatch(booleanQuery, minimumShouldMatch);
         return adjustPureNegative ? fixNegativeQueryIfNeeded(booleanQuery) : booleanQuery;
     }
 

@@ -46,6 +46,7 @@ import org.apache.lucene.analysis.hu.HungarianAnalyzer;
 import org.apache.lucene.analysis.hy.ArmenianAnalyzer;
 import org.apache.lucene.analysis.id.IndonesianAnalyzer;
 import org.apache.lucene.analysis.it.ItalianAnalyzer;
+import org.apache.lucene.analysis.lt.LithuanianAnalyzer;
 import org.apache.lucene.analysis.lv.LatvianAnalyzer;
 import org.apache.lucene.analysis.nl.DutchAnalyzer;
 import org.apache.lucene.analysis.no.NorwegianAnalyzer;
@@ -373,6 +374,15 @@ public enum PreBuiltAnalyzers {
         @Override
         protected Analyzer create(Version version) {
             Analyzer a = new LatvianAnalyzer();
+            a.setVersion(version.luceneVersion);
+            return a;
+        }
+    },
+
+    LITHUANIAN {
+        @Override
+        protected Analyzer create(Version version) {
+            Analyzer a = new LithuanianAnalyzer();
             a.setVersion(version.luceneVersion);
             return a;
         }

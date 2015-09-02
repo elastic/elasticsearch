@@ -25,10 +25,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-
-# Variables used by tests
-EXAMPLE_PLUGIN_ZIP=$(readlink -m jvm-example-*.zip)
-
 # Checks if necessary commands are available to run the tests
 
 if [ ! -x /usr/bin/which ]; then
@@ -83,16 +79,16 @@ is_rpm() {
 
 # Skip test if the 'dpkg' command is not supported
 skip_not_dpkg() {
-    if [ ! -x "`which dpkg 2>/dev/null`" ]; then
-        skip "dpkg is not supported"
-    fi
+    is_dpkg || skip "dpkg is not supported"
 }
 
 # Skip test if the 'rpm' command is not supported
 skip_not_rpm() {
-    if [ ! -x "`which rpm 2>/dev/null`" ]; then
-        skip "rpm is not supported"
-    fi
+    is_rpm || skip "rpm is not supported"
+}
+
+skip_not_dpkg_or_rpm() {
+    is_dpkg || is_rpm || skip "only dpkg or rpm systems are supported"
 }
 
 # Returns 0 if the system supports Systemd
@@ -151,16 +147,18 @@ assert_file_not_exist() {
 }
 
 assert_file() {
-    local file=$1
+    local file="$1"
     local type=$2
     local user=$3
     local privileges=$4
 
-    [ -n "$file" ] && [ -e "$file" ]
+    assert_file_exist "$file"
 
     if [ "$type" = "d" ]; then
+        echo "And be a directory...."
         [ -d "$file" ]
     else
+        echo "And be a regular file...."
         [ -f "$file" ]
     fi
 
@@ -234,59 +232,32 @@ verify_package_installation() {
     fi
 }
 
-
-# Install the tar.gz archive
-install_archive() {
-    local eshome="/tmp"
-    if [ "x$1" != "x" ]; then
-        eshome="$1"
+# Install the rpm or deb package
+install_package() {
+    if is_rpm; then
+        rpm -i elasticsearch*.rpm
+    elif is_dpkg; then
+        dpkg -i elasticsearch*.deb
+    else
+        skip "Only rpm or deb supported"
     fi
-
-    tar -xzvf elasticsearch*.tar.gz -C "$eshome"
-
-    find "$eshome" -depth -type d -name 'elasticsearch*' -exec mv {} "$eshome/elasticsearch" \;
-
-    # ES cannot run as root so create elasticsearch user & group if needed
-    if ! getent group "elasticsearch" > /dev/null 2>&1 ; then
-        if is_dpkg; then
-            addgroup --system "elasticsearch"
-        else
-            groupadd -r "elasticsearch"
-        fi
-    fi
-    if ! id "elasticsearch" > /dev/null 2>&1 ; then
-        if is_dpkg; then
-            adduser --quiet --system --no-create-home --ingroup "elasticsearch" --disabled-password --shell /bin/false "elasticsearch"
-        else
-            useradd --system -M --gid "elasticsearch" --shell /sbin/nologin --comment "elasticsearch user" "elasticsearch"
-        fi
-    fi
-
-    chown -R elasticsearch:elasticsearch "$eshome/elasticsearch"
 }
-
 
 # Checks that all directories & files are correctly installed
 # after a archive (tar.gz/zip) install
 verify_archive_installation() {
-    local eshome="/tmp/elasticsearch"
-    if [ "x$1" != "x" ]; then
-        eshome="$1"
-    fi
-
-    assert_file "$eshome" d
-    assert_file "$eshome/bin" d
-    assert_file "$eshome/bin/elasticsearch" f
-    assert_file "$eshome/bin/elasticsearch.in.sh" f
-    assert_file "$eshome/bin/plugin" f
-    assert_file "$eshome/config" d
-    assert_file "$eshome/config/elasticsearch.yml" f
-    assert_file "$eshome/config/logging.yml" f
-    assert_file "$eshome/config" d
-    assert_file "$eshome/lib" d
-    assert_file "$eshome/NOTICE.txt" f
-    assert_file "$eshome/LICENSE.txt" f
-    assert_file "$eshome/README.textile" f
+    assert_file "$ESHOME" d
+    assert_file "$ESHOME/bin" d
+    assert_file "$ESHOME/bin/elasticsearch" f
+    assert_file "$ESHOME/bin/elasticsearch.in.sh" f
+    assert_file "$ESHOME/bin/plugin" f
+    assert_file "$ESCONFIG" d
+    assert_file "$ESCONFIG/elasticsearch.yml" f
+    assert_file "$ESCONFIG/logging.yml" f
+    assert_file "$ESHOME/lib" d
+    assert_file "$ESHOME/NOTICE.txt" f
+    assert_file "$ESHOME/LICENSE.txt" f
+    assert_file "$ESHOME/README.textile" f
 }
 
 # Deletes everything before running a test file
@@ -477,4 +448,16 @@ run_elasticsearch_tests() {
       grep -w "1"
 
     curl -s -XDELETE 'http://localhost:9200/_all'
+}
+
+# Move the config directory to another directory and properly chown it.
+move_config() {
+    local oldConfig="$ESCONFIG"
+    export ESCONFIG="${1:-$(mktemp -d -t 'config.XXXX')}"
+    echo "Moving configuration directory from $oldConfig to $ESCONFIG"
+
+    # Move configuration files to the new configuration directory
+    mv "$oldConfig"/* "$ESCONFIG"
+    chown -R elasticsearch:elasticsearch "$ESCONFIG"
+    assert_file_exist "$ESCONFIG/elasticsearch.yml"
 }

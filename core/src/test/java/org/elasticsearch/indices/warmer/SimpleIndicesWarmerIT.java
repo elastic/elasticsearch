@@ -20,32 +20,22 @@
 package org.elasticsearch.indices.warmer;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import com.google.common.collect.ImmutableList;
-import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
-import org.elasticsearch.action.admin.indices.segments.IndexSegments;
-import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
-import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
-import org.elasticsearch.action.admin.indices.segments.ShardSegments;
+
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.warmer.delete.DeleteWarmerResponse;
 import org.elasticsearch.action.admin.indices.warmer.get.GetWarmersResponse;
 import org.elasticsearch.action.admin.indices.warmer.put.PutWarmerResponse;
-import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.index.engine.Segment;
-import org.elasticsearch.index.mapper.MappedFieldType.Loading;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.cache.request.IndicesRequestCache;
-import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.warmer.IndexWarmerMissingException;
 import org.elasticsearch.search.warmer.IndexWarmersMetaData;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
-import java.util.Locale;
+import java.util.List;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
@@ -199,7 +189,7 @@ public class SimpleIndicesWarmerIT extends ESIntegTestCase {
 
         GetWarmersResponse getWarmersResponse = client().admin().indices().prepareGetWarmers("test").get();
         assertThat(getWarmersResponse.warmers().size(), equalTo(1));
-        ObjectObjectCursor<String, ImmutableList<IndexWarmersMetaData.Entry>> entry = getWarmersResponse.warmers().iterator().next();
+        ObjectObjectCursor<String, List<IndexWarmersMetaData.Entry>> entry = getWarmersResponse.warmers().iterator().next();
         assertThat(entry.key, equalTo("test"));
         assertThat(entry.value.size(), equalTo(1));
         assertThat(entry.value.iterator().next().name(), equalTo("custom_warmer"));
@@ -265,94 +255,6 @@ public class SimpleIndicesWarmerIT extends ESIntegTestCase {
     private long getWarmerRuns() {
         IndicesStatsResponse indicesStatsResponse = client().admin().indices().prepareStats("test").clear().setWarmer(true).execute().actionGet();
         return indicesStatsResponse.getIndex("test").getPrimaries().warmer.total();
-    }
-
-    private long getSegmentsMemoryUsage(String idx) {
-        IndicesSegmentResponse response = client().admin().indices().segments(Requests.indicesSegmentsRequest(idx)).actionGet();
-        IndexSegments indicesSegments = response.getIndices().get(idx);
-        long total = 0;
-        for (IndexShardSegments indexShardSegments : indicesSegments) {
-            for (ShardSegments shardSegments : indexShardSegments) {
-                for (Segment segment : shardSegments) {
-                    logger.debug("+=" + segment.memoryInBytes + " " + indexShardSegments.getShardId() + " " + shardSegments.getShardRouting().getIndex());
-                    total += segment.memoryInBytes;
-                }
-            }
-        }
-        return total;
-    }
-
-    private enum LoadingMethod {
-        LAZY {
-            @Override
-            CreateIndexRequestBuilder createIndex(String indexName, String type, String fieldName) {
-                return client().admin().indices().prepareCreate(indexName).setSettings(Settings.builder().put(SINGLE_SHARD_NO_REPLICA).put(SearchService.NORMS_LOADING_KEY, Loading.LAZY_VALUE));
-            }
-        },
-        EAGER {
-            @Override
-            CreateIndexRequestBuilder createIndex(String indexName, String type, String fieldName) {
-                return client().admin().indices().prepareCreate(indexName).setSettings(Settings.builder().put(SINGLE_SHARD_NO_REPLICA).put(SearchService.NORMS_LOADING_KEY, Loading.EAGER_VALUE));
-            }
-
-            @Override
-            boolean isLazy() {
-                return false;
-            }
-        },
-        EAGER_PER_FIELD {
-            @Override
-            CreateIndexRequestBuilder createIndex(String indexName, String type, String fieldName) throws Exception {
-                return client().admin().indices().prepareCreate(indexName).setSettings(Settings.builder().put(SINGLE_SHARD_NO_REPLICA).put(SearchService.NORMS_LOADING_KEY, Loading.LAZY_VALUE)).addMapping(type, JsonXContent.contentBuilder()
-                                .startObject()
-                                    .startObject(type)
-                                        .startObject("properties")
-                                            .startObject(fieldName)
-                                                .field("type", "string")
-                                                .startObject("norms")
-                                                    .field("loading", Loading.EAGER_VALUE)
-                                                .endObject()
-                                            .endObject()
-                                        .endObject()
-                                    .endObject()
-                                .endObject()
-                );
-            }
-
-            @Override
-            boolean isLazy() {
-                return false;
-            }
-        };
-        private static Settings SINGLE_SHARD_NO_REPLICA = Settings.builder().put("number_of_shards", 1).put("number_of_replicas", 0).build();
-
-        abstract CreateIndexRequestBuilder createIndex(String indexName, String type, String fieldName) throws Exception;
-
-        boolean isLazy() {
-            return true;
-        }
-    }
-
-    // NOTE: we have to ensure we defeat compression strategies of the default codec...
-    public void testEagerLoading() throws Exception {
-        for (LoadingMethod method : LoadingMethod.values()) {
-            logger.debug("METHOD " + method);
-            String indexName = method.name().toLowerCase(Locale.ROOT);
-            assertAcked(method.createIndex(indexName, "t", "foo"));
-            // index a doc with 1 token, and one with 3 tokens so we dont get CONST compressed (otherwise norms take zero memory usage)
-            client().prepareIndex(indexName, "t", "1").setSource("foo", "bar").execute().actionGet();
-            client().prepareIndex(indexName, "t", "2").setSource("foo", "bar baz foo").setRefresh(true).execute().actionGet();
-            ensureGreen(indexName);
-            long memoryUsage0 = getSegmentsMemoryUsage(indexName);
-            // queries load norms if they were not loaded before
-            client().prepareSearch(indexName).setQuery(QueryBuilders.matchQuery("foo", "bar")).execute().actionGet();
-            long memoryUsage1 = getSegmentsMemoryUsage(indexName);
-            if (method.isLazy()) {
-                assertThat(memoryUsage1, greaterThan(memoryUsage0));
-            } else {
-                assertThat(memoryUsage1, equalTo(memoryUsage0));
-            }
-        }
     }
 
     public void testQueryCacheOnWarmer() {

@@ -21,7 +21,6 @@ package org.elasticsearch.test;
 import com.carrotsearch.randomizedtesting.RandomizedContext;
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.carrotsearch.randomizedtesting.annotations.Listeners;
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakLingering;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope.Scope;
@@ -91,10 +90,6 @@ import static org.hamcrest.Matchers.equalTo;
         ReproduceInfoPrinter.class,
         LoggingListener.class,
         AssertionErrorThreadDumpPrinter.class
-})
-// remove this entire annotation on upgrade to 5.3!
-@ThreadLeakFilters(defaultFilters = true, filters = {
-        IBMJ9HackThreadFilters.class,
 })
 @ThreadLeakScope(Scope.SUITE)
 @ThreadLeakLingering(linger = 5000) // 5 sec lingering

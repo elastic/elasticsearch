@@ -198,13 +198,13 @@ public class ChildrenConstantScoreQuery extends IndexCacheableQuery {
         }
 
         @Override
-        public Scorer scorer(LeafReaderContext context, Bits acceptDocs) throws IOException {
+        public Scorer scorer(LeafReaderContext context) throws IOException {
             if (remaining == 0) {
                 return null;
             }
 
             if (shortCircuitFilter != null) {
-                DocIdSet docIdSet = shortCircuitFilter.getDocIdSet(context, acceptDocs);
+                DocIdSet docIdSet = shortCircuitFilter.getDocIdSet(context, null);
                 if (!Lucene.isEmpty(docIdSet)) {
                     DocIdSetIterator iterator = docIdSet.iterator();
                     if (iterator != null) {
@@ -214,7 +214,7 @@ public class ChildrenConstantScoreQuery extends IndexCacheableQuery {
                 return null;
             }
 
-            DocIdSet parentDocIdSet = this.parentFilter.getDocIdSet(context, acceptDocs);
+            DocIdSet parentDocIdSet = this.parentFilter.getDocIdSet(context, null);
             if (!Lucene.isEmpty(parentDocIdSet)) {
                 // We can't be sure of the fact that liveDocs have been applied, so we apply it here. The "remaining"
                 // count down (short circuit) logic will then work as expected.

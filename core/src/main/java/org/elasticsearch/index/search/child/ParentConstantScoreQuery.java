@@ -22,7 +22,17 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.BitsFilteredDocIdSet;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.DocIdSet;
+import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.Explanation;
+import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.FilteredDocIdSetIterator;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.LongBitSet;
 import org.elasticsearch.common.lucene.IndexCacheableQuery;
@@ -162,14 +172,16 @@ public class ParentConstantScoreQuery extends IndexCacheableQuery {
         }
 
         @Override
-        public Scorer scorer(LeafReaderContext context, Bits acceptDocs) throws IOException {
-            DocIdSet childrenDocIdSet = childrenFilter.getDocIdSet(context, acceptDocs);
+        public Scorer scorer(LeafReaderContext context) throws IOException {
+            DocIdSet childrenDocIdSet = childrenFilter.getDocIdSet(context, null);
             if (Lucene.isEmpty(childrenDocIdSet)) {
                 return null;
             }
 
             SortedDocValues globalValues = globalIfd.load(context).getOrdinalsValues(parentType);
             if (globalValues != null) {
+                // we forcefully apply live docs here so that deleted children don't give matching parents
+                childrenDocIdSet = BitsFilteredDocIdSet.wrap(childrenDocIdSet, context.reader().getLiveDocs());
                 DocIdSetIterator innerIterator = childrenDocIdSet.iterator();
                 if (innerIterator != null) {
                     ChildrenDocIdIterator childrenDocIdIterator = new ChildrenDocIdIterator(

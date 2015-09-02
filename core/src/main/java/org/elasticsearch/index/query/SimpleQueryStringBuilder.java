@@ -298,7 +298,7 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
 
         Query query = sqp.parse(queryText);
         if (minimumShouldMatch != null && query instanceof BooleanQuery) {
-            Queries.applyMinimumShouldMatch((BooleanQuery) query, minimumShouldMatch);
+            query = Queries.applyMinimumShouldMatch((BooleanQuery) query, minimumShouldMatch);
         }
         return query;
     }

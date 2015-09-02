@@ -16,7 +16,6 @@
 
 package org.elasticsearch.common.inject.internal;
 
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.common.inject.ConfigurationException;
@@ -42,7 +41,9 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Member;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.Formatter;
 import java.util.List;
@@ -451,7 +452,7 @@ public final class Errors implements Serializable {
 
     public List<Message> getMessages() {
         if (root.errors == null) {
-            return ImmutableList.of();
+            return Collections.emptyList();
         }
 
         List<Message> result = new ArrayList<>(root.errors);
@@ -568,7 +569,7 @@ public final class Errors implements Serializable {
         abstract String toString(T t);
     }
 
-    private static final Collection<Converter<?>> converters = ImmutableList.of(
+    private static final Collection<Converter<?>> converters = Arrays.asList(
             new Converter<Class>(Class.class) {
                 @Override
                 public String toString(Class c) {

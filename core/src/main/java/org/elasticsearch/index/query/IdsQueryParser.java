@@ -19,12 +19,12 @@
 
 package org.elasticsearch.index.query;
 
-import com.google.common.collect.ImmutableList;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -87,7 +87,7 @@ public class IdsQueryParser extends BaseQueryParser<IdsQueryBuilder> {
                 }
             } else if (token.isValue()) {
                 if ("type".equals(currentFieldName) || "_type".equals(currentFieldName)) {
-                    types = ImmutableList.of(parser.text());
+                    types = Collections.singletonList(parser.text());
                 } else if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
                 } else if ("_name".equals(currentFieldName)) {

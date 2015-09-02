@@ -158,7 +158,7 @@ public class MatchQueryParser extends BaseQueryParserTemp {
         }
 
         if (query instanceof BooleanQuery) {
-            Queries.applyMinimumShouldMatch((BooleanQuery) query, minimumShouldMatch);
+            query = Queries.applyMinimumShouldMatch((BooleanQuery) query, minimumShouldMatch);
         } else if (query instanceof ExtendedCommonTermsQuery) {
             ((ExtendedCommonTermsQuery)query).setLowFreqMinimumNumberShouldMatch(minimumShouldMatch);
         }

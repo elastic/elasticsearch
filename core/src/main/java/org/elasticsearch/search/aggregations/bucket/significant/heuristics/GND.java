@@ -29,6 +29,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryShardException;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 
@@ -115,7 +116,8 @@ public class GND extends NXYSignificanceHeuristic {
         }
 
         @Override
-        public SignificanceHeuristic parse(XContentParser parser, ParseFieldMatcher parseFieldMatcher) throws IOException, QueryShardException {
+        public SignificanceHeuristic parse(XContentParser parser, ParseFieldMatcher parseFieldMatcher, SearchContext context)
+                throws IOException, QueryShardException {
             String givenName = parser.currentName();
             boolean backgroundIsSuperset = true;
             XContentParser.Token token = parser.nextToken();

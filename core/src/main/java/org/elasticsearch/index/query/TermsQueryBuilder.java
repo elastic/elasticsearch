@@ -364,7 +364,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
                     bq.add(new TermQuery(new Term(indexFieldName, BytesRefs.toBytesRef(term))), BooleanClause.Occur.SHOULD);
                 }
             }
-            Queries.applyMinimumShouldMatch(bq, minimumShouldMatch);
+            bq = Queries.applyMinimumShouldMatch(bq, minimumShouldMatch);
             query = bq;
         }
         return query;

@@ -109,9 +109,9 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator {
 
         final SortedDocValues globalOrdinals = valuesSource.globalOrdinalsValues(parentType, ctx);
         assert globalOrdinals != null;
-        Scorer parentScorer = parentFilter.scorer(ctx, null);
+        Scorer parentScorer = parentFilter.scorer(ctx);
         final Bits parentDocs = Lucene.asSequentialAccessBits(ctx.reader().maxDoc(), parentScorer);
-        if (childFilter.scorer(ctx, null) != null) {
+        if (childFilter.scorer(ctx) != null) {
             replay.add(ctx);
         }
         return new LeafBucketCollector() {
@@ -146,7 +146,7 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator {
         this.replay = null;
 
         for (LeafReaderContext ctx : replay) {
-            DocIdSetIterator childDocsIter = childFilter.scorer(ctx, ctx.reader().getLiveDocs());
+            DocIdSetIterator childDocsIter = childFilter.scorer(ctx);
             if (childDocsIter == null) {
                 continue;
             }
@@ -157,7 +157,11 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator {
             // Set the scorer, since we now replay only the child docIds
             sub.setScorer(ConstantScorer.create(childDocsIter, null, 1f));
 
+            final Bits liveDocs = ctx.reader().getLiveDocs();
             for (int docId = childDocsIter.nextDoc(); docId != DocIdSetIterator.NO_MORE_DOCS; docId = childDocsIter.nextDoc()) {
+                if (liveDocs != null && liveDocs.get(docId) == false) {
+                    continue;
+                }
                 long globalOrdinal = globalOrdinals.getOrd(docId);
                 if (globalOrdinal != -1) {
                     long bucketOrd = parentOrdToBuckets.get(globalOrdinal);

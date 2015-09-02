@@ -515,7 +515,7 @@ public class SimpleStringMappingTests extends ESSingleNodeTestCase {
         mergeResult = defaultMapper.merge(parser.parse(updatedMapping).mapping(), true, false);
         assertTrue(mergeResult.hasConflicts());
         assertEquals(1, mergeResult.buildConflicts().length);
-        assertTrue(mergeResult.buildConflicts()[0].contains("cannot enable norms"));
+        assertTrue(mergeResult.buildConflicts()[0].contains("different [omit_norms]"));
     }
 
     /**

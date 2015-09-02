@@ -87,11 +87,15 @@ public class FieldValueFactorFunctionParser implements ScoreFunctionParser {
 
         SearchContext searchContext = SearchContext.current();
         MappedFieldType fieldType = searchContext.mapperService().smartNameFieldType(field);
+        IndexNumericFieldData fieldData = null;
         if (fieldType == null) {
-            throw new ElasticsearchException("Unable to find a field mapper for field [" + field + "]");
+            if(missing == null) {
+                throw new ElasticsearchException("Unable to find a field mapper for field [" + field + "]. No 'missing' value defined.");
+            }
+        } else {
+            fieldData = searchContext.fieldData().getForField(fieldType);
         }
-        return new FieldValueFactorFunction(field, boostFactor, modifier, missing,
-                (IndexNumericFieldData)searchContext.fieldData().getForField(fieldType));
+        return new FieldValueFactorFunction(field, boostFactor, modifier, missing, fieldData);
     }
 
     @Override

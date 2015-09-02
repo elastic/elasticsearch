@@ -22,6 +22,8 @@ package org.elasticsearch.bootstrap;
 import org.elasticsearch.common.SuppressForbidden;
 
 import java.net.URI;
+import java.net.URL;
+import java.security.CodeSource;
 import java.security.Permission;
 import java.security.PermissionCollection;
 import java.security.Policy;
@@ -44,11 +46,22 @@ final class ESPolicy extends Policy {
     }
 
     @Override @SuppressForbidden(reason = "fast equals check is desired")
-    public boolean implies(ProtectionDomain domain, Permission permission) {
-        // run groovy scripts with no permissions
-        if ("/groovy/script".equals(domain.getCodeSource().getLocation().getFile())) {
-            return false;
+    public boolean implies(ProtectionDomain domain, Permission permission) {        
+        CodeSource codeSource = domain.getCodeSource();
+        // codesource can be null when reducing privileges via doPrivileged()
+        if (codeSource != null) {
+            URL location = codeSource.getLocation();
+            // location can be null... ??? nobody knows
+            // https://bugs.openjdk.java.net/browse/JDK-8129972
+            if (location != null) {
+                // run groovy scripts with no permissions
+                if ("/groovy/script".equals(location.getFile())) {
+                    return false;
+                }
+            }
         }
+
+        // otherwise defer to template + dynamic file permissions
         return template.implies(domain, permission) || dynamic.implies(permission);
     }
 }

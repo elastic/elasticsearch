@@ -20,6 +20,7 @@
 package org.elasticsearch.script;
 
 import com.google.common.collect.ImmutableSet;
+import org.elasticsearch.common.ContextAndHeaderHolder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.expression.ExpressionScriptEngineService;
@@ -54,12 +55,14 @@ public class CustomScriptContextIT extends ESIntegTestCase {
 
     @Test
     public void testCustomScriptContextsSettings() {
+        ContextAndHeaderHolder contextAndHeaders = new ContextAndHeaderHolder();
+
         ScriptService scriptService = internalCluster().getInstance(ScriptService.class);
         for (String lang : LANG_SET) {
             for (ScriptService.ScriptType scriptType : ScriptService.ScriptType.values()) {
                 try {
                     scriptService.compile(new Script("test", scriptType, lang, null), new ScriptContext.Plugin(PLUGIN_NAME,
-                            "custom_globally_disabled_op"));
+                            "custom_globally_disabled_op"), contextAndHeaders);
                     fail("script compilation should have been rejected");
                 } catch(ScriptException e) {
                     assertThat(e.getMessage(), containsString("scripts of type [" + scriptType + "], operation [" + PLUGIN_NAME + "_custom_globally_disabled_op] and lang [" + lang + "] are disabled"));
@@ -69,34 +72,35 @@ public class CustomScriptContextIT extends ESIntegTestCase {
 
         try {
             scriptService.compile(new Script("1", ScriptService.ScriptType.INLINE, "expression", null), new ScriptContext.Plugin(
-                    PLUGIN_NAME, "custom_exp_disabled_op"));
+                    PLUGIN_NAME, "custom_exp_disabled_op"), contextAndHeaders);
             fail("script compilation should have been rejected");
         } catch(ScriptException e) {
             assertThat(e.getMessage(), containsString("scripts of type [inline], operation [" + PLUGIN_NAME + "_custom_exp_disabled_op] and lang [expression] are disabled"));
         }
 
         CompiledScript compiledScript = scriptService.compile(new Script("1", ScriptService.ScriptType.INLINE, "expression", null),
-                randomFrom(new ScriptContext[] {ScriptContext.Standard.AGGS, ScriptContext.Standard.SEARCH}));
+                randomFrom(new ScriptContext[] { ScriptContext.Standard.AGGS, ScriptContext.Standard.SEARCH }), contextAndHeaders);
         assertThat(compiledScript, notNullValue());
 
         compiledScript = scriptService.compile(new Script("1", ScriptService.ScriptType.INLINE, "mustache", null),
-                new ScriptContext.Plugin(PLUGIN_NAME, "custom_exp_disabled_op"));
+                new ScriptContext.Plugin(PLUGIN_NAME, "custom_exp_disabled_op"), contextAndHeaders);
         assertThat(compiledScript, notNullValue());
 
         for (String lang : LANG_SET) {
             compiledScript = scriptService.compile(new Script("1", ScriptService.ScriptType.INLINE, lang, null), new ScriptContext.Plugin(
-                    PLUGIN_NAME, "custom_op"));
+                    PLUGIN_NAME, "custom_op"), contextAndHeaders);
             assertThat(compiledScript, notNullValue());
         }
     }
 
     @Test
     public void testCompileNonRegisteredPluginContext() {
+        ContextAndHeaderHolder contextAndHeaders = new ContextAndHeaderHolder();
         ScriptService scriptService = internalCluster().getInstance(ScriptService.class);
         try {
             scriptService.compile(
                     new Script("test", randomFrom(ScriptService.ScriptType.values()), randomFrom(LANG_SET.toArray(new String[LANG_SET
-                            .size()])), null), new ScriptContext.Plugin("test", "unknown"));
+                            .size()])), null), new ScriptContext.Plugin("test", "unknown"), contextAndHeaders);
             fail("script compilation should have been rejected");
         } catch(IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("script context [test_unknown] not supported"));
@@ -105,6 +109,7 @@ public class CustomScriptContextIT extends ESIntegTestCase {
 
     @Test
     public void testCompileNonRegisteredScriptContext() {
+        ContextAndHeaderHolder contextAndHeaders = new ContextAndHeaderHolder();
         ScriptService scriptService = internalCluster().getInstance(ScriptService.class);
         try {
             scriptService.compile(
@@ -114,7 +119,7 @@ public class CustomScriptContextIT extends ESIntegTestCase {
                 public String getKey() {
                     return "test";
                 }
-            });
+                    }, contextAndHeaders);
             fail("script compilation should have been rejected");
         } catch(IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("script context [test] not supported"));
@@ -133,9 +138,9 @@ public class CustomScriptContextIT extends ESIntegTestCase {
         }
 
         public void onModule(ScriptModule scriptModule) {
-            scriptModule.registerScriptContext(new ScriptContext.Plugin(PLUGIN_NAME, "custom_op"));
-            scriptModule.registerScriptContext(new ScriptContext.Plugin(PLUGIN_NAME, "custom_exp_disabled_op"));
-            scriptModule.registerScriptContext(new ScriptContext.Plugin(PLUGIN_NAME, "custom_globally_disabled_op"));
+                scriptModule.registerScriptContext(new ScriptContext.Plugin(PLUGIN_NAME, "custom_op"));
+                scriptModule.registerScriptContext(new ScriptContext.Plugin(PLUGIN_NAME, "custom_exp_disabled_op"));
+                scriptModule.registerScriptContext(new ScriptContext.Plugin(PLUGIN_NAME, "custom_globally_disabled_op"));
+            }
         }
-    }
 }

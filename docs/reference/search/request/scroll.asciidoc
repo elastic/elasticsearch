@@ -115,7 +115,7 @@ process all data -- it just needs to be long enough to process the previous
 batch of results. Each `scroll` request (with the `scroll` parameter) sets a
 new  expiry time.
 
-Normally, the <<index-modules-merge,background merge process>> optimizes the
+Normally, the background merge process optimizes the
 index by merging together smaller segments to create new bigger segments, at
 which time the smaller segments are deleted. This process continues during
 scrolling, but an open search context prevents the old segments from being

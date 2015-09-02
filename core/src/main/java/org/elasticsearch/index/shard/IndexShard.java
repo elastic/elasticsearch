@@ -111,6 +111,7 @@ import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.channels.ClosedByInterruptException;
 import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -191,6 +192,8 @@ public class IndexShard extends AbstractIndexShardComponent {
 
     private final IndexShardOperationCounter indexShardOperationCounter;
 
+    private EnumSet<IndexShardState> readAllowedStates = EnumSet.of(IndexShardState.STARTED, IndexShardState.RELOCATED, IndexShardState.POST_RECOVERY);
+
     @Inject
     public IndexShard(ShardId shardId, IndexSettingsService indexSettingsService, IndicesLifecycle indicesLifecycle, Store store, StoreRecoveryService storeRecoveryService,
                       ThreadPool threadPool, MapperService mapperService, IndexQueryParserService queryParserService, IndexCache indexCache, IndexAliasesService indexAliasesService,
@@ -251,7 +254,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         if (indexSettings.getAsBoolean(IndexCacheModule.QUERY_CACHE_EVERYTHING, false)) {
             cachingPolicy = QueryCachingPolicy.ALWAYS_CACHE;
         } else {
-            assert Version.CURRENT.luceneVersion == org.apache.lucene.util.Version.LUCENE_5_2_1;
+            assert Version.CURRENT.luceneVersion == org.apache.lucene.util.Version.LUCENE_5_3_0;
             // TODO: remove this hack in Lucene 5.4, use UsageTrackingQueryCachingPolicy directly
             // See https://issues.apache.org/jira/browse/LUCENE-6748
             // cachingPolicy = new UsageTrackingQueryCachingPolicy();
@@ -953,8 +956,8 @@ public class IndexShard extends AbstractIndexShardComponent {
 
     public void readAllowed() throws IllegalIndexShardStateException {
         IndexShardState state = this.state; // one time volatile read
-        if (state != IndexShardState.STARTED && state != IndexShardState.RELOCATED) {
-            throw new IllegalIndexShardStateException(shardId, state, "operations only allowed when started/relocated");
+        if (readAllowedStates.contains(state) == false) {
+            throw new IllegalIndexShardStateException(shardId, state, "operations only allowed when shard state is one of " + readAllowedStates.toString());
         }
     }
 

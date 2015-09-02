@@ -41,18 +41,17 @@
         <maven.compiler.target>1.7</maven.compiler.target>
 
         <!-- libraries -->
-        <lucene.version>5.2.1</lucene.version>
-        <lucene.maven.version>5.2.1</lucene.maven.version>
+        <lucene.version>5.3.0</lucene.version>
+        <lucene.maven.version>5.3.0</lucene.maven.version>
         <testframework.version>2.1.16</testframework.version>
         <jackson.version>2.5.3</jackson.version>
         <slf4j.version>1.6.2</slf4j.version>
         <log4j.version>1.2.17</log4j.version>
-        <jacoco.version>0.7.2.201409121644</jacoco.version>
+        <jacoco.version>0.7.5.201505241946</jacoco.version>
         <elasticsearch.s3.repository>s3://download.elasticsearch.org/elasticsearch/staging/</elasticsearch.s3.repository>
 
         <!-- Build resources properties -->
         <elasticsearch.tools.directory>${project.build.directory}/dev-tools</elasticsearch.tools.directory>
-        <elasticsearch.thirdparty.config>unshaded</elasticsearch.thirdparty.config>
         <elasticsearch.license.header>${elasticsearch.tools.directory}/license-check/elasticsearch_license_header.txt</elasticsearch.license.header>
         <elasticsearch.license.headerDefinition>${elasticsearch.tools.directory}/license-check/license_header_definition.xml</elasticsearch.license.headerDefinition>
         <elasticsearch.integ.antfile.default>${elasticsearch.tools.directory}/ant/integration-tests.xml</elasticsearch.integ.antfile.default>
@@ -336,7 +335,6 @@
                 <version>${lucene.maven.version}</version>
             </dependency>
 
-            <!-- START: dependencies that might be shaded -->
             <dependency>
                 <groupId>com.google.guava</groupId>
                 <artifactId>guava</artifactId>
@@ -415,8 +413,6 @@
                 <artifactId>commons-cli</artifactId>
                 <version>1.3.1</version>
             </dependency>
-
-            <!-- END: dependencies that might be shaded -->
 
             <dependency>
                 <groupId>org.codehaus.groovy</groupId>
@@ -544,6 +540,19 @@
                             </configuration>
                         </execution>
                         <execution>
+                            <id>enforce-maven-version</id>
+                            <goals>
+                                <goal>enforce</goal>
+                            </goals>
+                            <configuration>
+                                <rules>
+                                    <requireMavenVersion>
+                                        <version>[3.1.0,)</version>
+                                    </requireMavenVersion>
+                                </rules>
+                            </configuration>
+                        </execution>
+                        <execution>
                             <id>print-versions</id>
                             <phase>validate</phase>
                             <goals>
@@ -633,6 +642,8 @@
                             <tests.showSuccess>${tests.showSuccess}</tests.showSuccess>
                             <tests.thirdparty>${tests.thirdparty}</tests.thirdparty>
                             <tests.config>${tests.config}</tests.config>
+                            <tests.coverage>${tests.coverage}</tests.coverage>
+                            <tests.coverage.dir>${project.build.directory}</tests.coverage.dir>
                             <tests.client.ratio>${tests.client.ratio}</tests.client.ratio>
                             <tests.enable_mock_modules>${tests.enable_mock_modules}</tests.enable_mock_modules>
                             <tests.assertion.disabled>${tests.assertion.disabled}</tests.assertion.disabled>
@@ -831,7 +842,7 @@
                                      <signaturesFiles>
                                           <signaturesFile>${elasticsearch.tools.directory}/forbidden/core-signatures.txt</signaturesFile>
                                           <signaturesFile>${elasticsearch.tools.directory}/forbidden/all-signatures.txt</signaturesFile>
-                                          <signaturesFile>${elasticsearch.tools.directory}/forbidden/third-party-${elasticsearch.thirdparty.config}-signatures.txt</signaturesFile>
+                                          <signaturesFile>${elasticsearch.tools.directory}/forbidden/third-party-signatures.txt</signaturesFile>
                                      </signaturesFiles>
                                      <signatures>${forbidden.signatures}</signatures>
                                      <suppressAnnotations><annotation>**.SuppressForbidden</annotation></suppressAnnotations>
@@ -878,7 +889,7 @@
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-resources-plugin</artifactId>
                     <version>2.7</version>
-                    <!-- add some additonal binary types to prevent maven from 
+                    <!-- add some additional binary types to prevent maven from
                          screwing them up with resource filtering  -->
                     <configuration>
                         <nonFilteredFileExtensions>
@@ -1090,12 +1101,6 @@ org.eclipse.jdt.ui.text.custom_code_templates=<?xml version\="1.0" encoding\="UT
                             <phase>prepare-package</phase>
                             <goals>
                                 <goal>report</goal>
-                            </goals>
-                        </execution>
-                        <execution>
-                            <id>default-check</id>
-                            <goals>
-                                <goal>check</goal>
                             </goals>
                         </execution>
                     </executions>
@@ -1408,7 +1413,8 @@ org.eclipse.jdt.ui.text.custom_code_templates=<?xml version\="1.0" encoding\="UT
                 </property>
             </activation>
             <properties>
-                <tests.security.manager>false</tests.security.manager> <!-- security policy doesn't have appropriate permissions for instrumentation -->
+                <!-- in case activated otherwise -->
+                <tests.coverage>true</tests.coverage>
             </properties>
             <build>
                 <plugins>

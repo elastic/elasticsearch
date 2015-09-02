@@ -81,7 +81,8 @@ public class TransportSearchQueryAndFetchAction extends TransportSearchTypeActio
                 public void doRun() throws IOException {
                     boolean useScroll = request.scroll() != null;
                     sortedShardList = searchPhaseController.sortDocs(useScroll, firstResults);
-                    final InternalSearchResponse internalResponse = searchPhaseController.merge(sortedShardList, firstResults, firstResults);
+                    final InternalSearchResponse internalResponse = searchPhaseController.merge(sortedShardList, firstResults,
+                            firstResults, request);
                     String scrollId = null;
                     if (request.scroll() != null) {
                         scrollId = buildScrollId(request.searchType(), firstResults, null);

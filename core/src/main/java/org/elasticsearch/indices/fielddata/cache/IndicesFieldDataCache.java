@@ -54,7 +54,6 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
     public static final String FIELDDATA_CLEAN_INTERVAL_SETTING = "indices.fielddata.cache.cleanup_interval";
     public static final String FIELDDATA_CACHE_CONCURRENCY_LEVEL = "indices.fielddata.cache.concurrency_level";
     public static final String INDICES_FIELDDATA_CACHE_SIZE_KEY = "indices.fielddata.cache.size";
-    public static final String INDICES_FIELDDATA_CACHE_EXPIRE_KEY = "indices.fielddata.cache.expire";
 
 
     private final IndicesFieldDataCacheListener indicesFieldDataCacheListener;
@@ -70,7 +69,6 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
         this.indicesFieldDataCacheListener = indicesFieldDataCacheListener;
         final String size = settings.get(INDICES_FIELDDATA_CACHE_SIZE_KEY, "-1");
         final long sizeInBytes = settings.getAsMemory(INDICES_FIELDDATA_CACHE_SIZE_KEY, "-1").bytes();
-        final TimeValue expire = settings.getAsTime(INDICES_FIELDDATA_CACHE_EXPIRE_KEY, null);
         CacheBuilder<Key, Accountable> cacheBuilder = CacheBuilder.newBuilder()
                 .removalListener(this);
         if (sizeInBytes > 0) {
@@ -82,10 +80,8 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
             throw new IllegalArgumentException("concurrency_level must be > 0 but was: " + concurrencyLevel);
         }
         cacheBuilder.concurrencyLevel(concurrencyLevel);
-        if (expire != null && expire.millis() > 0) {
-            cacheBuilder.expireAfterAccess(expire.millis(), TimeUnit.MILLISECONDS);
-        }
-        logger.debug("using size [{}] [{}], expire [{}]", size, new ByteSizeValue(sizeInBytes), expire);
+
+        logger.debug("using size [{}] [{}]", size, new ByteSizeValue(sizeInBytes));
         cache = cacheBuilder.build();
 
         this.cleanInterval = settings.getAsTime(FIELDDATA_CLEAN_INTERVAL_SETTING, TimeValue.timeValueMinutes(1));

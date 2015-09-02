@@ -22,6 +22,7 @@ package org.elasticsearch.action.bulk;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -31,8 +32,6 @@ import java.util.List;
  *
  */
 public class BulkShardRequest extends ReplicationRequest<BulkShardRequest> {
-
-    private int shardId;
 
     private BulkItemRequest[] items;
 
@@ -44,17 +43,13 @@ public class BulkShardRequest extends ReplicationRequest<BulkShardRequest> {
     BulkShardRequest(BulkRequest bulkRequest, String index, int shardId, boolean refresh, BulkItemRequest[] items) {
         super(bulkRequest);
         this.index = index;
-        this.shardId = shardId;
+        this.setShardId(new ShardId(index, shardId));
         this.items = items;
         this.refresh = refresh;
     }
 
     boolean refresh() {
         return this.refresh;
-    }
-
-    int shardId() {
-        return shardId;
     }
 
     BulkItemRequest[] items() {
@@ -75,7 +70,6 @@ public class BulkShardRequest extends ReplicationRequest<BulkShardRequest> {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeVInt(shardId);
         out.writeVInt(items.length);
         for (BulkItemRequest item : items) {
             if (item != null) {
@@ -91,7 +85,6 @@ public class BulkShardRequest extends ReplicationRequest<BulkShardRequest> {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        shardId = in.readVInt();
         items = new BulkItemRequest[in.readVInt()];
         for (int i = 0; i < items.length; i++) {
             if (in.readBoolean()) {

@@ -73,8 +73,7 @@ public class NamingConventionTests extends ESTestCase {
                         String filename = file.getFileName().toString();
                         if (filename.endsWith(".class")) {
                             Class<?> clazz = loadClass(filename);
-                            if (clazz.getName().endsWith("Tests") ||
-                                clazz.getName().endsWith("Test")) { // don't worry about the ones that match the pattern
+                            if (clazz.getName().endsWith("Tests")) { // don't worry about the ones that match the pattern
 
                                 if (ESIntegTestCase.class.isAssignableFrom(clazz)) {
                                     integTestsInDisguise.add(clazz);
@@ -147,7 +146,6 @@ public class NamingConventionTests extends ESTestCase {
         assertTrue(notRunnable.remove(DummyInterfaceTests.class));
         assertTrue(innerClasses.remove(InnerTests.class));
         assertTrue(notImplementing.remove(NotImplementingTests.class));
-        assertTrue(notImplementing.remove(NotImplementingTest.class));
         assertTrue(pureUnitTest.remove(PlainUnit.class));
         assertTrue(pureUnitTest.remove(PlainUnitTheSecond.class));
 
@@ -176,8 +174,6 @@ public class NamingConventionTests extends ESTestCase {
      */
 
     public static final class NotImplementingTests {}
-
-    public static final class NotImplementingTest {}
 
     public static final class WrongName extends ESTestCase {}
 

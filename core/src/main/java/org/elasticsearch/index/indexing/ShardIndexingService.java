@@ -117,7 +117,11 @@ public class ShardIndexingService extends AbstractIndexShardComponent {
         typeStats.indexCurrent.dec();
         slowLog.postCreate(create, took);
         for (IndexingOperationListener listener : listeners) {
-            listener.postCreate(create);
+            try {
+                listener.postCreate(create);
+            } catch (Exception e) {
+                logger.warn("postCreate listener [{}] failed", e, listener);
+            }
         }
     }
 
@@ -138,7 +142,11 @@ public class ShardIndexingService extends AbstractIndexShardComponent {
 
     public void postIndexUnderLock(Engine.Index index) {
         for (IndexingOperationListener listener : listeners) {
-            listener.postIndexUnderLock(index);
+            try {
+                listener.postIndexUnderLock(index);
+            } catch (Exception e) {
+                logger.warn("postIndexUnderLock listener [{}] failed", e, listener);
+            }
         }
     }
 
@@ -151,7 +159,11 @@ public class ShardIndexingService extends AbstractIndexShardComponent {
         typeStats.indexCurrent.dec();
         slowLog.postIndex(index, took);
         for (IndexingOperationListener listener : listeners) {
-            listener.postIndex(index);
+            try {
+                listener.postIndex(index);
+            } catch (Exception e) {
+                logger.warn("postIndex listener [{}] failed", e, listener);
+            }
         }
     }
 
@@ -174,7 +186,11 @@ public class ShardIndexingService extends AbstractIndexShardComponent {
 
     public void postDeleteUnderLock(Engine.Delete delete) {
         for (IndexingOperationListener listener : listeners) {
-            listener.postDeleteUnderLock(delete);
+            try {
+                listener.postDeleteUnderLock(delete);
+            } catch (Exception e) {
+                logger.warn("postDeleteUnderLock listener [{}] failed", e, listener);
+            }
         }
     }
 
@@ -186,6 +202,11 @@ public class ShardIndexingService extends AbstractIndexShardComponent {
         typeStats.deleteMetric.inc(took);
         typeStats.deleteCurrent.dec();
         for (IndexingOperationListener listener : listeners) {
+            try {
+                listener.postDelete(delete);
+            } catch (Exception e) {
+                logger.warn("postDelete listener [{}] failed", e, listener);
+            }
             listener.postDelete(delete);
         }
     }

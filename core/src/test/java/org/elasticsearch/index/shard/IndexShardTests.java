@@ -654,4 +654,38 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         assertTrue(listenerInfo.get("postIndexCalled"));
     }
 
+    public void testPostIndexWithException() throws IOException {
+        createIndex("testpostindexwithexception");
+        ensureGreen();
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        IndexService test = indicesService.indexService("testpostindexwithexception");
+        IndexShard shard = test.shard(0);
+        ShardIndexingService shardIndexingService = shard.indexingService();
+
+        shard.close("Unexpected close", true);
+        shard.state = IndexShardState.STARTED; // It will generate exception
+
+        final HashMap<String, Boolean> listenerInfo = new HashMap<>();
+        listenerInfo.put("postIndexWithExceptionCalled", false);
+
+        shardIndexingService.addListener(new IndexingOperationListener() {
+            @Override
+            public void postIndex(Engine.Index index, Throwable ex) {
+                listenerInfo.put("postIndexWithExceptionCalled", true);
+                super.postIndex(index, ex);
+            }
+        });
+
+        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, new ParseContext.Document(), new BytesArray(new byte[]{1}), null);
+        Engine.Index index = new Engine.Index(new Term("_uid", "1"), doc);
+
+        try {
+            shard.index(index);
+        }catch (IllegalIndexShardStateException e){
+
+        }
+
+        assertTrue(listenerInfo.get("postIndexWithExceptionCalled"));
+    }
+
 }

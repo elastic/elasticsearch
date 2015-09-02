@@ -297,6 +297,11 @@
     <startup-elasticsearch/>
   </target>
 
+  <!-- unzip core release artifact then start ES -->
+  <target name="start-external-cluster" depends="setup-workspace">
+    <startup-elasticsearch/>
+  </target>
+
   <target name="stop-external-cluster" if="integ.pidfile.exists">
     <stop-node/>
   </target>

@@ -147,6 +147,7 @@
     <modules>
         <module>smoke-test-plugins</module>
         <module>smoke-test-multinode</module>
+        <module>smoke-test-client</module>
     </modules>
 
     <profiles>

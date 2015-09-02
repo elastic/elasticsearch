@@ -48,7 +48,7 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-public abstract class AbstractSimpleTransportTests extends ESTestCase {
+public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
     protected ThreadPool threadPool;
 

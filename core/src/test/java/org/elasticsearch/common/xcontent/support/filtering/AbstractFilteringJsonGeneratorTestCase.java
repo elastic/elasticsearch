@@ -31,7 +31,7 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
-public abstract class AbstractFilteringJsonGeneratorTests extends ESTestCase {
+public abstract class AbstractFilteringJsonGeneratorTestCase extends ESTestCase {
 
     protected abstract XContentType getXContentType();
 

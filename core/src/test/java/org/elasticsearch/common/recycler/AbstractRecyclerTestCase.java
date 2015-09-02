@@ -26,7 +26,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-public abstract class AbstractRecyclerTests extends ESTestCase {
+public abstract class AbstractRecyclerTestCase extends ESTestCase {
 
     // marker states for data
     protected static final byte FRESH = 1;

@@ -24,13 +24,12 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource;
 import org.elasticsearch.search.MultiValueMode;
 import org.junit.Test;
 
 import static org.hamcrest.Matchers.*;
 
-public abstract class AbstractFieldDataImplTests extends AbstractFieldDataTests {
+public abstract class AbstractFieldDataImplTestCase extends AbstractFieldDataTestCase {
 
     protected String one() {
         return "1";

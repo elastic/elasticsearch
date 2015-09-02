@@ -22,7 +22,7 @@ package org.elasticsearch.index.fielddata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.ordinals.OrdinalsBuilder;
 
-public class SortedSetDVStringFieldDataTests extends AbstractStringFieldDataTests {
+public class SortedSetDVStringFieldDataTests extends AbstractStringFieldDataTestCase {
 
     @Override
     protected FieldDataType getFieldDataType() {

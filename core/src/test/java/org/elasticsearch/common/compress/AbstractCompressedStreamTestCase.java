@@ -37,11 +37,11 @@ import java.util.concurrent.CountDownLatch;
 /**
  * Test streaming compression (e.g. used for recovery)
  */
-public abstract class AbstractCompressedStreamTests extends ESTestCase {
+public abstract class AbstractCompressedStreamTestCase extends ESTestCase {
 
     private final Compressor compressor;
 
-    protected AbstractCompressedStreamTests(Compressor compressor) {
+    protected AbstractCompressedStreamTestCase(Compressor compressor) {
         this.compressor = compressor;
     }
 

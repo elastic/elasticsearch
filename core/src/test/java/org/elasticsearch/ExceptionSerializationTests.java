@@ -28,6 +28,7 @@ import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.TimestampParsingException;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.client.AbstractClientHeadersTestCase;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.SnapshotId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -78,7 +79,6 @@ import java.nio.file.FileVisitor;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributes;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -97,7 +97,7 @@ public class ExceptionSerializationTests extends ESTestCase {
                 org.elasticsearch.test.rest.client.RestException.class,
                 org.elasticsearch.common.util.CancellableThreadsTest.CustomException.class,
                 org.elasticsearch.rest.BytesRestResponseTests.WithHeadersException.class,
-                org.elasticsearch.client.AbstractClientHeadersTests.InternalException.class);
+                AbstractClientHeadersTestCase.InternalException.class);
         FileVisitor<Path> visitor = new FileVisitor<Path>() {
             private Path pkgPrefix = PathUtils.get(path).getParent();
 

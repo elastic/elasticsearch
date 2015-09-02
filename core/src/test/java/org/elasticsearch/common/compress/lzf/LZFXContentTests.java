@@ -19,9 +19,9 @@
 
 package org.elasticsearch.common.compress.lzf;
 
-import org.elasticsearch.common.compress.AbstractCompressedXContentTests;
+import org.elasticsearch.common.compress.AbstractCompressedXContentTestCase;
 
-public class LZFXContentTests extends AbstractCompressedXContentTests {
+public class LZFXContentTests extends AbstractCompressedXContentTestCase {
 
     public LZFXContentTests() {
         super(new LZFTestCompressor());

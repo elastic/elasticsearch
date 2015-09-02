@@ -64,7 +64,7 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-public abstract class AbstractClientHeadersTests extends ESTestCase {
+public abstract class AbstractClientHeadersTestCase extends ESTestCase {
 
     protected static final Settings HEADER_SETTINGS = Settings.builder()
             .put(Headers.PREFIX + ".key1", "val1")

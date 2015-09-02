@@ -25,7 +25,7 @@ import org.elasticsearch.action.admin.cluster.node.liveness.LivenessResponse;
 import org.elasticsearch.action.admin.cluster.node.liveness.TransportLivenessAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
-import org.elasticsearch.client.AbstractClientHeadersTests;
+import org.elasticsearch.client.AbstractClientHeadersTestCase;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -48,7 +48,6 @@ import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.junit.Test;
 
-import java.util.Collection;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -58,7 +57,7 @@ import static org.hamcrest.Matchers.is;
 /**
  *
  */
-public class TransportClientHeadersTests extends AbstractClientHeadersTests {
+public class TransportClientHeadersTests extends AbstractClientHeadersTestCase {
 
     private static final LocalTransportAddress address = new LocalTransportAddress("test");
 

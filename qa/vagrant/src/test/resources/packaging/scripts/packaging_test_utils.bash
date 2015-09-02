@@ -79,16 +79,16 @@ is_rpm() {
 
 # Skip test if the 'dpkg' command is not supported
 skip_not_dpkg() {
-    if [ ! -x "`which dpkg 2>/dev/null`" ]; then
-        skip "dpkg is not supported"
-    fi
+    is_dpkg || skip "dpkg is not supported"
 }
 
 # Skip test if the 'rpm' command is not supported
 skip_not_rpm() {
-    if [ ! -x "`which rpm 2>/dev/null`" ]; then
-        skip "rpm is not supported"
-    fi
+    is_rpm || skip "rpm is not supported"
+}
+
+skip_not_dpkg_or_rpm() {
+    is_dpkg || is_rpm || skip "only dpkg or rpm systems are supported"
 }
 
 # Returns 0 if the system supports Systemd
@@ -177,17 +177,6 @@ assert_output() {
     echo "$output" | grep -E "$1"
 }
 
-# Install the rpm or deb package
-install_package() {
-    if is_rpm; then
-        rpm -i elasticsearch*.rpm
-    elif is_dpkg; then
-        dpkg -i elasticsearch*.deb
-    else
-        skip "Only rpm or deb supported"
-    fi
-}
-
 # Checks that all directories & files are correctly installed
 # after a package (deb/rpm) install
 verify_package_installation() {
@@ -240,6 +229,17 @@ verify_package_installation() {
         assert_file "/usr/lib/systemd/system/elasticsearch.service" f root 644
         assert_file "/usr/lib/tmpfiles.d/elasticsearch.conf" f root 644
         assert_file "/usr/lib/sysctl.d/elasticsearch.conf" f root 644
+    fi
+}
+
+# Install the rpm or deb package
+install_package() {
+    if is_rpm; then
+        rpm -i elasticsearch*.rpm
+    elif is_dpkg; then
+        dpkg -i elasticsearch*.deb
+    else
+        skip "Only rpm or deb supported"
     fi
 }
 

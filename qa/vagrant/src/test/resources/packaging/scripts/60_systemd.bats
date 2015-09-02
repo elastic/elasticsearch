@@ -33,42 +33,27 @@ load packaging_test_utils
 
 # Cleans everything for the 1st execution
 setup() {
-    if [ "$BATS_TEST_NUMBER" -eq 1 ]; then
-        clean_before_test
-    fi
-
-
-    # Installs a package before test
-    if is_dpkg; then
-        dpkg -i elasticsearch*.deb >&2 || true
-    fi
-    if is_rpm; then
-        rpm -i elasticsearch*.rpm >&2 || true
-    fi
+    skip_not_systemd
+    skip_not_dpkg_or_rpm
 }
 
-@test "[SYSTEMD] daemon reload" {
-    skip_not_systemd
+@test "[SYSTEMD] install elasticsearch" {
+    clean_before_test
+    install_package
+}
 
-    run systemctl daemon-reload
-    [ "$status" -eq 0 ]
+@test "[SYSTEMD] daemon reload after install" {
+    systemctl daemon-reload
 }
 
 @test "[SYSTEMD] enable" {
-    skip_not_systemd
+    systemctl enable elasticsearch.service
 
-    run systemctl enable elasticsearch.service
-    [ "$status" -eq 0 ]
-
-    run systemctl is-enabled elasticsearch.service
-    [ "$status" -eq 0 ]
+    systemctl is-enabled elasticsearch.service
 }
 
 @test "[SYSTEMD] start" {
-    skip_not_systemd
-
-    run systemctl start elasticsearch.service
-    [ "$status" -eq 0 ]
+    systemctl start elasticsearch.service
 
     wait_for_elasticsearch_status
 
@@ -76,72 +61,53 @@ setup() {
 }
 
 @test "[SYSTEMD] start (running)" {
-    skip_not_systemd
-
-    run systemctl start elasticsearch.service
-    [ "$status" -eq 0 ]
+    systemctl start elasticsearch.service
 }
 
 @test "[SYSTEMD] is active (running)" {
-    skip_not_systemd
-
     run systemctl is-active elasticsearch.service
     [ "$status" -eq 0 ]
     [ "$output" = "active" ]
 }
 
 @test "[SYSTEMD] status (running)" {
-    skip_not_systemd
-
-    run systemctl status elasticsearch.service
-    [ "$status" -eq 0 ]
+    systemctl status elasticsearch.service
 }
 
 ##################################
 # Check that Elasticsearch is working
 ##################################
 @test "[SYSTEMD] test elasticsearch" {
-    skip_not_systemd
-
     run_elasticsearch_tests
 }
 
 @test "[SYSTEMD] restart" {
-    skip_not_systemd
-
-    run systemctl restart elasticsearch.service
-    [ "$status" -eq 0 ]
+    systemctl restart elasticsearch.service
 
     wait_for_elasticsearch_status
 
-    run service elasticsearch status
-    [ "$status" -eq 0 ]
+    service elasticsearch status
 }
 
 @test "[SYSTEMD] stop (running)" {
-    skip_not_systemd
-
-    run systemctl stop elasticsearch.service
-    [ "$status" -eq 0 ]
+    systemctl stop elasticsearch.service
 
     run systemctl status elasticsearch.service
+    [ "$status" -eq 3 ] || "Expected exit code 3 meaning stopped"
     echo "$output" | grep "Active:" | grep "inactive"
 }
 
 @test "[SYSTEMD] stop (stopped)" {
-    skip_not_systemd
-
-    run systemctl stop elasticsearch.service
-    [ "$status" -eq 0 ]
+    systemctl stop elasticsearch.service
 
     run systemctl status elasticsearch.service
+    [ "$status" -eq 3 ] || "Expected exit code 3 meaning stopped"
     echo "$output" | grep "Active:" | grep "inactive"
 }
 
 @test "[SYSTEMD] status (stopped)" {
-    skip_not_systemd
-
     run systemctl status elasticsearch.service
+    [ "$status" -eq 3 ] || "Expected exit code 3 meaning stopped"
     echo "$output" | grep "Active:" | grep "inactive"
 }
 
@@ -150,21 +116,15 @@ setup() {
 # but it should not block ES from starting
 # see https://github.com/elastic/elasticsearch/issues/11594
 @test "[SYSTEMD] delete PID_DIR and restart" {
-    skip_not_systemd
+    rm -rf /var/run/elasticsearch
 
-    run rm -rf /var/run/elasticsearch
-    [ "$status" -eq 0 ]
+    systemd-tmpfiles --create
 
-    run systemd-tmpfiles --create
-    [ "$status" -eq 0 ]
-
-    run systemctl start elasticsearch.service
-    [ "$status" -eq 0 ]
+    systemctl start elasticsearch.service
 
     wait_for_elasticsearch_status
 
     assert_file_exist "/var/run/elasticsearch/elasticsearch.pid"
 
-    run systemctl stop elasticsearch.service
-    [ "$status" -eq 0 ]
+    systemctl stop elasticsearch.service
 }

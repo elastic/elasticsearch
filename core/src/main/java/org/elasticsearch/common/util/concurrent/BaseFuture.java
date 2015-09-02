@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.util.concurrent;
 
-import com.google.common.annotations.Beta;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.transport.Transports;
 
@@ -195,7 +194,6 @@ public abstract class BaseFuture<V> implements Future<V> {
         return result;
     }
 
-    @Beta
     protected void done() {
     }
 

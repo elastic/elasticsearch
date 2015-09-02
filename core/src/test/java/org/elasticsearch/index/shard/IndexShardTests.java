@@ -667,6 +667,9 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         shardIndexingService.addListener(new IndexingOperationListener() {
             @Override
             public void postIndex(Engine.Index index, Throwable ex) {
+                if (ex == null){
+                    fail();
+                }
                 postIndexWithExceptionCalled.set(true);
                 super.postIndex(index, ex);
             }

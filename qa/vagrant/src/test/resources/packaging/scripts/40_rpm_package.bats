@@ -45,7 +45,7 @@ setup() {
 }
 
 @test "[RPM] package is available" {
-    count=$(find . -type f -name 'elastic*.rpm' | wc -l)
+    count=$(ls elasticsearch-$(cat version).rpm | wc -l)
     [ "$count" -eq 1 ]
 }
 
@@ -55,7 +55,7 @@ setup() {
 }
 
 @test "[RPM] install package" {
-    rpm -i elasticsearch*.rpm
+    rpm -i elasticsearch-$(cat version).rpm
 }
 
 @test "[RPM] package is installed" {

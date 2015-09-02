@@ -25,6 +25,7 @@ import org.elasticsearch.client.Client;
 import org.junit.Test;
 
 import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.Matchers.greaterThan;
 
 public class SmokeTestClientIT extends ESSmokeClientTestCase {
 
@@ -37,8 +38,10 @@ public class SmokeTestClientIT extends ESSmokeClientTestCase {
 
         // START SNIPPET: java-doc-admin-cluster-health
         ClusterHealthResponse health = client.admin().cluster().prepareHealth().setWaitForYellowStatus().get();
+        String clusterName = health.getClusterName();
+        int numberOfNodes = health.getNumberOfNodes();
         // END SNIPPET: java-doc-admin-cluster-health
-        assertThat(health.getClusterName(), is("elasticsearch"));
+        assertThat("cluster [" + clusterName + "] should have at least 1 node", numberOfNodes, greaterThan(0));
     }
 
     /**

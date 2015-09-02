@@ -527,11 +527,25 @@ sudo bats $BATS/*.bats
 
 == Coverage analysis
 
-To run tests instrumented with jacoco and produce a coverage report in
-`target/site/jacoco/`:
+Tests can be run instrumented with jacoco to produce a coverage report in
+`target/site/jacoco/`.
+
+Unit test coverage:
 
 ---------------------------------------------------------------------------
 mvn -Dtests.coverage test jacoco:report
+---------------------------------------------------------------------------
+
+Integration test coverage:
+
+---------------------------------------------------------------------------
+mvn -Dtests.coverage -Dskip.unit.tests verify jacoco:report
+---------------------------------------------------------------------------
+
+Combined (Unit+Integration) coverage:
+
+---------------------------------------------------------------------------
+mvn -Dtests.coverage verify jacoco:report
 ---------------------------------------------------------------------------
 
 == Debugging from an IDE

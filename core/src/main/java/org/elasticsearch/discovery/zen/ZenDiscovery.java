@@ -744,7 +744,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                 sendInitialStateEventIfNeeded();
                 if (newClusterState != null) {
-                    publishClusterState.pendingStatesQueue().markAsProccessed(newClusterState);
+                    publishClusterState.pendingStatesQueue().markAsProcessed(newClusterState);
                 }
             }
         });
@@ -758,7 +758,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
      */
     static boolean shouldIgnoreOrRejectNewClusterState(ESLogger logger, ClusterState currentState, ClusterState newClusterState) {
         validateStateIsFromCurrentMaster(logger, currentState.nodes(), newClusterState);
-        if (currentState.nodes().masterNodeId() != null && newClusterState.version() < currentState.version()) {
+        if (currentState.supersedes(newClusterState)) {
             // if the new state has a smaller version, and it has the same master node, then no need to process it
             logger.debug("received a cluster state that has a lower version than the current one, ignoring (received {}, current {})", newClusterState.version(), currentState.version());
             return true;
@@ -1009,11 +1009,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
             // means we potentially have two masters in the cluster.
             if (!localNodeMaster()) {
                 pingsWhileMaster.set(0);
-                return;
-            }
-
-            // nodes pre 1.4.0 do not send this information
-            if (pingRequest.masterNode() == null) {
                 return;
             }
 

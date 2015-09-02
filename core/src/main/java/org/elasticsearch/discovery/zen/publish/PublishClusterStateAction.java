@@ -382,19 +382,8 @@ public class PublishClusterStateAction extends AbstractComponent {
             logger.warn("received a cluster state from [{}] and not part of the cluster, should not happen", incomingState.nodes().masterNode());
             throw new IllegalStateException("received state from a node that is not part of the cluster");
         }
-        // state from another master requires more subtle checks, so we let it pass for now (it will be checked in ZenDiscovery)
-        if (currentNodes.localNodeMaster() == false) {
-            // NOCOMMIT: move the local node master check
-            ZenDiscovery.validateStateIsFromCurrentMaster(logger, currentNodes, incomingState);
-        }
 
-        if (lastSeenClusterState != null
-                && Objects.equals(lastSeenClusterState.nodes().masterNodeId(), incomingState.nodes().masterNodeId())
-                && lastSeenClusterState.version() > incomingState.version()) {
-            logger.debug("received an older cluster state from master, rejecting (received version [{}], last version is [{}])",
-                    incomingState.version(), lastSeenClusterState.version());
-            throw new IllegalStateException("cluster state version [" + incomingState.version() + "] is old (last seen version [" + lastSeenClusterState.version() + "])");
-        }
+        ZenDiscovery.validateStateIsFromCurrentMaster(logger, currentNodes, incomingState);
     }
 
     protected void handleCommitRequest(CommitClusterStateRequest request, final TransportChannel channel) {

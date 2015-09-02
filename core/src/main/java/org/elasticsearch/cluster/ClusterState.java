@@ -52,10 +52,7 @@ import org.elasticsearch.discovery.local.LocalDiscovery;
 import org.elasticsearch.discovery.zen.publish.PublishClusterStateAction;
 
 import java.io.IOException;
-import java.util.EnumSet;
-import java.util.HashMap;
-import java.util.Locale;
-import java.util.Map;
+import java.util.*;
 
 /**
  * Represents the current state of the cluster.
@@ -294,6 +291,11 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
         } catch (IOException e) {
             return "{ \"error\" : \"" + e.getMessage() + "\"}";
         }
+    }
+
+    public boolean supersedes(ClusterState other) {
+        return this.nodes().masterNodeId() != null && this.nodes().masterNodeId().equals(other.nodes().masterNodeId()) && this.version() > other.version();
+
     }
 
     public enum Metric {
@@ -814,6 +816,7 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
             builder.fromDiff(true);
             return builder.build();
         }
+
     }
 
 }

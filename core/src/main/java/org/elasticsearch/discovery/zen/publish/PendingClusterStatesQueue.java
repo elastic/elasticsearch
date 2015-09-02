@@ -34,7 +34,7 @@ public class PendingClusterStatesQueue {
         void onNewClusterStateFailed(Throwable t);
     }
 
-    final ArrayList<PendingClusterState> pendingStates = new ArrayList<>();
+    final ArrayList<ClusterStateContext> pendingStates = new ArrayList<>();
     final ESLogger logger;
 
     public PendingClusterStatesQueue(ESLogger logger) {
@@ -42,7 +42,7 @@ public class PendingClusterStatesQueue {
     }
 
     public synchronized void addPending(ClusterState state) {
-        pendingStates.add(new PendingClusterState(state));
+        pendingStates.add(new ClusterStateContext(state));
     }
 
     public synchronized ClusterState markAsCommitted(String stateUUID, StateProcessedListener listener) {
@@ -51,13 +51,13 @@ public class PendingClusterStatesQueue {
             listener.onNewClusterStateFailed(new IllegalStateException("can't resolve cluster state with uuid [" + stateUUID + "] to commit"));
             return null;
         }
-        PendingClusterState pendingClusterState = pendingStates.get(stateIndex);
-        if (pendingClusterState.committed()) {
+        ClusterStateContext context = pendingStates.get(stateIndex);
+        if (context.committed()) {
             listener.onNewClusterStateFailed(new IllegalStateException("cluster state with uuid [" + stateUUID + "] is already committed"));
             return null;
         }
-        pendingClusterState.markAsCommitted(listener);
-        return pendingClusterState.clusterState;
+        context.markAsCommitted(listener);
+        return context.clusterState;
     }
 
     public synchronized void markAsFailed(ClusterState state, Throwable reason) {
@@ -67,55 +67,52 @@ public class PendingClusterStatesQueue {
         }
         assert pendingStates.get(failedIndex).committed() : "failed cluster state is not committed " + state;
 
-        // fail or process all states *with the same master** up to and including the given one
-        ArrayList<PendingClusterState> statesToRemove = new ArrayList<>();
-        for (int index = 0; index < failedIndex; index++) {
-            final StateProcessedListener pendingListener = pendingStates.get(index).listener;
-            final ClusterState pendingState = pendingStates.get(index).clusterState;
-            final DiscoveryNode pendingMasterNode = pendingState.nodes().masterNode();
-            final DiscoveryNode currentMaster = state.nodes().masterNode();
-            if (Objects.equals(currentMaster, pendingMasterNode) == true) {
-                assert pendingState.version() <= state.version() :
-                        "found a pending state with version [" + pendingState.version() + "] before processed state with version [" + state.version() + "]";
-                statesToRemove.add(pendingStates.get(index));
-                if (pendingListener != null) {
-                    logger.debug("failing committed state uuid[{}]/v[{}] together with state uuid[{}]/v[{}]",
-                            pendingState.stateUUID(), pendingState.version(), state.stateUUID(), state.version()
-                    );
-                    pendingListener.onNewClusterStateFailed(reason);
-                } else {
-                    logger.trace("failing non-committed pending state uuid[{}]/v[{}] together with state uuid[{}]/v[{}]",
-                            pendingState.stateUUID(), pendingState.version(), state.stateUUID(), state.version()
-                    );
-                }
+        // fail all committed states which are batch together with the failed state
+        ArrayList<ClusterStateContext> statesToRemove = new ArrayList<>();
+        for (int index = 0; index < pendingStates.size(); index++) {
+            final ClusterStateContext pendingContext = pendingStates.get(index);
+            if (pendingContext.committed() == false) {
+                continue;
+            }
+            final ClusterState pendingState = pendingContext.clusterState;
+            if (pendingState.equals(state)) {
+                statesToRemove.add(pendingContext);
+                pendingContext.listener.onNewClusterStateFailed(reason);
+            } else if (state.supersedes(pendingState)) {
+                statesToRemove.add(pendingContext);
+                logger.debug("failing committed state uuid[{}]/v[{}] together with state uuid[{}]/v[{}]",
+                        pendingState.stateUUID(), pendingState.version(), state.stateUUID(), state.version()
+                );
+                pendingContext.listener.onNewClusterStateFailed(reason);
             }
         }
-
-        // now fail the given state
-        statesToRemove.add(pendingStates.get(failedIndex));
-        pendingStates.get(failedIndex).listener.onNewClusterStateFailed(reason);
         pendingStates.removeAll(statesToRemove);
+        assert findState(state.stateUUID()) == -1 : "state was marked as processed but can still be found in pending list " + state;
     }
 
-    public synchronized void markAsProccessed(ClusterState state) {
+    public synchronized void markAsProcessed(ClusterState state) {
         final int processedIndex = findState(state.stateUUID());
         if (processedIndex < 0) {
             throw new IllegalStateException("can't resolve processed cluster state with uuid [" + state.stateUUID() + "], version [" + state.version() + "]");
         }
-        assert pendingStates.get(processedIndex).committed() : "processed cluster state is not committed " + state;
-        // fail or process all states up to and including the given one
-        for (int index = 0; index < processedIndex; index++) {
-            final StateProcessedListener pendingListener = pendingStates.get(index).listener;
-            final ClusterState pendingState = pendingStates.get(index).clusterState;
+        final DiscoveryNode currentMaster = state.nodes().masterNode();
+        assert currentMaster != null : "processed cluster state mast have a master. " + state;
+
+        // fail or remove any incoming state from a different master
+        // respond to any committed state from the same master with same or lower version (we processed a higher version)
+        ArrayList<ClusterStateContext> contextsToRemove = new ArrayList<>();
+        for (int index = 0; index < pendingStates.size(); index++) {
+            final ClusterStateContext pendingContext = pendingStates.get(index);
+            final ClusterState pendingState = pendingContext.clusterState;
             final DiscoveryNode pendingMasterNode = pendingState.nodes().masterNode();
-            final DiscoveryNode currentMaster = state.nodes().masterNode();
             if (Objects.equals(currentMaster, pendingMasterNode) == false) {
-                if (pendingListener != null) {
+                contextsToRemove.add(pendingContext);
+                if (pendingContext.listener != null) {
                     // this is a committed state , warn
                     logger.warn("received a cluster state (uuid[{}]/v[{}]) from a different master than the current one, rejecting (received {}, current {})",
                             pendingState.stateUUID(), pendingState.version(),
                             pendingMasterNode, currentMaster);
-                    pendingListener.onNewClusterStateFailed(
+                    pendingContext.listener.onNewClusterStateFailed(
                             new IllegalStateException("cluster state from a different master than the current one, rejecting (received " + pendingMasterNode + ", current " + currentMaster + ")")
                     );
                 } else {
@@ -124,20 +121,22 @@ public class PendingClusterStatesQueue {
                             currentMaster
                     );
                 }
-            } else {
-                assert pendingState.version() <= state.version() :
-                        "found a pending state with version [" + pendingState.version() + "] before processed state with version [" + state.version() + "]";
-                logger.trace("processing pending state uuid[{}]/v[{}] together with state uuid[{}]/v[{}]",
-                        pendingState.stateUUID(), pendingState.version(), state.stateUUID(), state.version()
-                );
-                if (pendingListener != null) {
-                    pendingListener.onNewClusterStateProcessed();
-                }
+            } else if (state.supersedes(pendingState) && pendingContext.committed()) {
+                    logger.trace("processing pending state uuid[{}]/v[{}] together with state uuid[{}]/v[{}]",
+                            pendingState.stateUUID(), pendingState.version(), state.stateUUID(), state.version()
+                    );
+                contextsToRemove.add(pendingContext);
+                pendingContext.listener.onNewClusterStateProcessed();
+            } else if (pendingState.equals(state)) {
+                assert pendingStates.get(processedIndex).committed() : "processed cluster state is not committed " + state;
+                contextsToRemove.add(pendingContext);
+                pendingContext.listener.onNewClusterStateProcessed();
             }
         }
         // now ack the processed state
-        pendingStates.get(processedIndex).listener.onNewClusterStateProcessed();
-        pendingStates.subList(0, processedIndex + 1).clear();
+        pendingStates.removeAll(contextsToRemove);
+        assert findState(state.stateUUID()) == -1 : "state was marked as processed but can still be found in pending list " + state;
+
     }
 
     private int findState(String stateUUID) {
@@ -150,7 +149,7 @@ public class PendingClusterStatesQueue {
     }
 
     public synchronized void failAllStatesAndClear(Throwable reason) {
-        for (PendingClusterState pendingState : pendingStates) {
+        for (ClusterStateContext pendingState : pendingStates) {
             if (pendingState.committed()) {
                 pendingState.listener.onNewClusterStateFailed(reason);
             }
@@ -163,10 +162,10 @@ public class PendingClusterStatesQueue {
             return null;
         }
 
-        PendingClusterState stateToProcess = null;
+        ClusterStateContext stateToProcess = null;
         int index = 0;
         for (; index < pendingStates.size(); index++) {
-            PendingClusterState potentialState = pendingStates.get(index);
+            ClusterStateContext potentialState = pendingStates.get(index);
             if (potentialState.committed()) {
                 stateToProcess = potentialState;
                 break;
@@ -178,13 +177,9 @@ public class PendingClusterStatesQueue {
 
         // now try to find the highest committed state from the same master
         for (; index < pendingStates.size(); index++) {
-            PendingClusterState potentialState = pendingStates.get(index);
-            // if its not from the same master, then bail
-            if (!Objects.equals(stateToProcess.clusterState.nodes().masterNodeId(), potentialState.clusterState.nodes().masterNodeId())) {
-                break;
-            }
+            ClusterStateContext potentialState = pendingStates.get(index);
 
-            if (potentialState.clusterState.version() > stateToProcess.clusterState.version() && potentialState.committed()) {
+            if (potentialState.clusterState.supersedes(stateToProcess.clusterState) && potentialState.committed()) {
                 // we found a new one
                 stateToProcess = potentialState;
             }
@@ -193,11 +188,11 @@ public class PendingClusterStatesQueue {
         return stateToProcess.clusterState;
     }
 
-    static class PendingClusterState {
+    static class ClusterStateContext {
         final ClusterState clusterState;
         StateProcessedListener listener;
 
-        PendingClusterState(ClusterState clusterState) {
+        ClusterStateContext(ClusterState clusterState) {
             this.clusterState = clusterState;
         }
 

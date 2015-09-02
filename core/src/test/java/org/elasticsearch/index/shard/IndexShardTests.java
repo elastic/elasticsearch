@@ -78,6 +78,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.EMPTY_PARAMS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
@@ -611,14 +612,12 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         IndexService test = indicesService.indexService("testpreindex");
         IndexShard shard = test.shard(0);
         ShardIndexingService shardIndexingService = shard.indexingService();
-
-        final HashMap<String, Boolean> listenerInfo = new HashMap<>();
-        listenerInfo.put("preIndexCalled", false);
+        final AtomicBoolean preIndexCalled = new AtomicBoolean(false);
 
         shardIndexingService.addListener(new IndexingOperationListener() {
             @Override
             public Engine.Index preIndex(Engine.Index index) {
-                listenerInfo.put("preIndexCalled", true);
+                preIndexCalled.set(true);
                 return super.preIndex(index);
             }
         });
@@ -626,7 +625,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, new ParseContext.Document(), new BytesArray(new byte[]{1}), null);
         Engine.Index index = new Engine.Index(new Term("_uid", "1"), doc);
         shard.index(index);
-        assertTrue(listenerInfo.get("preIndexCalled"));
+        assertTrue(preIndexCalled.get());
     }
 
     public void testPostIndex() throws IOException {
@@ -636,14 +635,12 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         IndexService test = indicesService.indexService("testpostindex");
         IndexShard shard = test.shard(0);
         ShardIndexingService shardIndexingService = shard.indexingService();
-
-        final HashMap<String, Boolean> listenerInfo = new HashMap<>();
-        listenerInfo.put("postIndexCalled", false);
+        final AtomicBoolean postIndexCalled = new AtomicBoolean(false);
 
         shardIndexingService.addListener(new IndexingOperationListener() {
             @Override
             public void postIndex(Engine.Index index) {
-                listenerInfo.put("postIndexCalled", true);
+                postIndexCalled.set(true);
                 super.postIndex(index);
             }
         });
@@ -651,7 +648,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, new ParseContext.Document(), new BytesArray(new byte[]{1}), null);
         Engine.Index index = new Engine.Index(new Term("_uid", "1"), doc);
         shard.index(index);
-        assertTrue(listenerInfo.get("postIndexCalled"));
+        assertTrue(postIndexCalled.get());
     }
 
     public void testPostIndexWithException() throws IOException {
@@ -665,13 +662,12 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         shard.close("Unexpected close", true);
         shard.state = IndexShardState.STARTED; // It will generate exception
 
-        final HashMap<String, Boolean> listenerInfo = new HashMap<>();
-        listenerInfo.put("postIndexWithExceptionCalled", false);
+        final AtomicBoolean postIndexWithExceptionCalled = new AtomicBoolean(false);
 
         shardIndexingService.addListener(new IndexingOperationListener() {
             @Override
             public void postIndex(Engine.Index index, Throwable ex) {
-                listenerInfo.put("postIndexWithExceptionCalled", true);
+                postIndexWithExceptionCalled.set(true);
                 super.postIndex(index, ex);
             }
         });
@@ -681,11 +677,12 @@ public class IndexShardTests extends ESSingleNodeTestCase {
 
         try {
             shard.index(index);
+            fail();
         }catch (IllegalIndexShardStateException e){
 
         }
 
-        assertTrue(listenerInfo.get("postIndexWithExceptionCalled"));
+        assertTrue(postIndexWithExceptionCalled.get());
     }
 
 }

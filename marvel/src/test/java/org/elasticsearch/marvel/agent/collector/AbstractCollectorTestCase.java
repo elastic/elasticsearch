@@ -54,7 +54,7 @@ public class AbstractCollectorTestCase extends ESIntegTestCase {
         assertNotNull(collector);
         assertTrue("collector [" + collector.name() + "] should be able to collect data", collector.canCollect());
         Collection results = collector.collect();
-        assertTrue(results != null && !results.isEmpty());
+        assertNotNull(results);
     }
 
     protected void assertCannotCollect(AbstractCollector collector) {

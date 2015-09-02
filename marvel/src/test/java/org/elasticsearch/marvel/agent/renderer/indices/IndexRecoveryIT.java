@@ -28,7 +28,7 @@ public class IndexRecoveryIT extends AbstractRendererTestCase {
     public void testIndexRecovery() throws Exception {
         logger.debug("--> creating some indices so that index recovery collector reports data");
         for (int i = 0; i < randomIntBetween(1, 5); i++) {
-            createIndex("test-" + i);
+            client().prepareIndex("test-" + i, "foo").setRefresh(true).setSource("field1", "value1").get();
         }
 
         waitForMarvelDocs(IndexRecoveryCollector.TYPE);

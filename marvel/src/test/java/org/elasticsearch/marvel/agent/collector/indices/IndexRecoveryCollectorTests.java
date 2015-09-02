@@ -117,7 +117,7 @@ public class IndexRecoveryCollectorTests extends AbstractCollectorTestCase {
     }
 
     @Test
-    public void tesIndexRecoveryCollectorWithLicensing() {
+    public void testIndexRecoveryCollectorWithLicensing() {
         String[] nodes = internalCluster().getNodeNames();
         for (String node : nodes) {
             logger.debug("--> creating a new instance of the collector");

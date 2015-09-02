@@ -5,10 +5,8 @@
  */
 package org.elasticsearch.marvel.agent.collector.cluster;
 
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.marvel.agent.collector.AbstractCollectorTestCase;
 import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
@@ -20,7 +18,6 @@ import java.util.Collection;
 
 import static org.hamcrest.Matchers.*;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/13017")
 public class ClusterInfoCollectorTests extends AbstractCollectorTestCase {
 
     @Test
@@ -48,7 +45,7 @@ public class ClusterInfoCollectorTests extends AbstractCollectorTestCase {
     }
 
     @Test
-    public void tesClusterInfoCollectorWithLicensing() {
+    public void testClusterInfoCollectorWithLicensing() {
         String[] nodes = internalCluster().getNodeNames();
         for (String node : nodes) {
             logger.debug("--> creating a new instance of the collector");
@@ -90,13 +87,12 @@ public class ClusterInfoCollectorTests extends AbstractCollectorTestCase {
     }
 
     private ClusterInfoCollector newClusterInfoCollector() {
-        return newClusterInfoCollector(null);
+        // This collector runs on master node only
+        return newClusterInfoCollector(internalCluster().getMasterName());
     }
 
     private ClusterInfoCollector newClusterInfoCollector(String nodeId) {
-        if (!Strings.hasText(nodeId)) {
-            nodeId = randomFrom(internalCluster().getNodeNames());
-        }
+        assertNotNull(nodeId);
         return new ClusterInfoCollector(internalCluster().getInstance(Settings.class, nodeId),
                 internalCluster().getInstance(ClusterService.class, nodeId),
                 internalCluster().getInstance(MarvelSettings.class, nodeId),

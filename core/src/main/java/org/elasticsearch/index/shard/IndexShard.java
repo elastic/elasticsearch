@@ -111,6 +111,7 @@ import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.channels.ClosedByInterruptException;
 import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -190,6 +191,8 @@ public class IndexShard extends AbstractIndexShardComponent {
     private final ShardPath path;
 
     private final IndexShardOperationCounter indexShardOperationCounter;
+
+    private EnumSet<IndexShardState> readAllowedStates = EnumSet.of(IndexShardState.STARTED, IndexShardState.RELOCATED, IndexShardState.POST_RECOVERY);
 
     @Inject
     public IndexShard(ShardId shardId, IndexSettingsService indexSettingsService, IndicesLifecycle indicesLifecycle, Store store, StoreRecoveryService storeRecoveryService,
@@ -953,8 +956,8 @@ public class IndexShard extends AbstractIndexShardComponent {
 
     public void readAllowed() throws IllegalIndexShardStateException {
         IndexShardState state = this.state; // one time volatile read
-        if (state != IndexShardState.STARTED && state != IndexShardState.RELOCATED) {
-            throw new IllegalIndexShardStateException(shardId, state, "operations only allowed when started/relocated");
+        if (readAllowedStates.contains(state) == false) {
+            throw new IllegalIndexShardStateException(shardId, state, "operations only allowed when shard state is one of " + readAllowedStates.toString());
         }
     }
 

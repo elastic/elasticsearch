@@ -18,20 +18,22 @@
  */
 package org.elasticsearch.search.suggest;
 
-import com.google.common.collect.Lists;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.junit.Test;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.test.ESIntegTestCase.*;
+import static org.elasticsearch.test.ESIntegTestCase.Scope;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
@@ -42,8 +44,8 @@ import static org.hamcrest.Matchers.is;
 public class CustomSuggesterSearchIT extends ESIntegTestCase {
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.settingsBuilder().put(super.nodeSettings(nodeOrdinal)).put("plugin.types", CustomSuggesterPlugin.class.getName()).build();
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return pluginList(CustomSuggesterPlugin.class);
     }
 
     @Test
@@ -76,7 +78,9 @@ public class CustomSuggesterSearchIT extends ESIntegTestCase {
         SearchResponse searchResponse = searchRequestBuilder.execute().actionGet();
 
         // TODO: infer type once JI-9019884 is fixed
-        List<Suggest.Suggestion.Entry<? extends Suggest.Suggestion.Entry.Option>> suggestions = Lists.<Suggest.Suggestion.Entry<? extends Suggest.Suggestion.Entry.Option>>newArrayList(searchResponse.getSuggest().getSuggestion("someName").iterator());
+        // TODO: see also JDK-8039214
+        List<Suggest.Suggestion.Entry<? extends Suggest.Suggestion.Entry.Option>> suggestions
+                = CollectionUtils.<Suggest.Suggestion.Entry<? extends Suggest.Suggestion.Entry.Option>>iterableAsArrayList(searchResponse.getSuggest().getSuggestion("someName"));
         assertThat(suggestions, hasSize(2));
         assertThat(suggestions.get(0).getText().string(), is(String.format(Locale.ROOT, "%s-%s-%s-12", randomText, randomField, randomSuffix)));
         assertThat(suggestions.get(1).getText().string(), is(String.format(Locale.ROOT, "%s-%s-%s-123", randomText, randomField, randomSuffix)));

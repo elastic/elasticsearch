@@ -19,12 +19,12 @@
 
 package org.elasticsearch.index.query.support;
 
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsParseElement;
+import org.elasticsearch.search.fetch.innerhits.InnerHitsSubSearchContext;
 import org.elasticsearch.search.fetch.script.ScriptFieldsParseElement;
 import org.elasticsearch.search.fetch.source.FetchSourceParseElement;
 import org.elasticsearch.search.highlight.HighlighterParseElement;
@@ -51,7 +51,7 @@ public class InnerHitsQueryParserHelper {
         this.fieldDataFieldsParseElement = fieldDataFieldsParseElement;
     }
 
-    public Tuple<String, SubSearchContext> parse(QueryParseContext parserContext) throws IOException, QueryParsingException {
+    public InnerHitsSubSearchContext parse(QueryParseContext parserContext) throws IOException, QueryParsingException {
         String fieldName = null;
         XContentParser.Token token;
         String innerHitName = null;
@@ -74,7 +74,7 @@ public class InnerHitsQueryParserHelper {
         } catch (Exception e) {
             throw new QueryParsingException(parserContext, "Failed to parse [_inner_hits]", e);
         }
-        return new Tuple<>(innerHitName, subSearchContext);
+        return new InnerHitsSubSearchContext(innerHitName, subSearchContext);
     }
 
     public static void parseCommonInnerHitOptions(XContentParser parser, XContentParser.Token token, String fieldName, SubSearchContext subSearchContext,

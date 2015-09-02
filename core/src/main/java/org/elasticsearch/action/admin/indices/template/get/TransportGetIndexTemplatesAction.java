@@ -19,7 +19,6 @@
 package org.elasticsearch.action.admin.indices.template.get;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import com.google.common.collect.Lists;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
@@ -35,6 +34,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -69,9 +70,9 @@ public class TransportGetIndexTemplatesAction extends TransportMasterNodeReadAct
 
         // If we did not ask for a specific name, then we return all templates
         if (request.names().length == 0) {
-            results = Lists.newArrayList(state.metaData().templates().values().toArray(IndexTemplateMetaData.class));
+            results = Arrays.asList(state.metaData().templates().values().toArray(IndexTemplateMetaData.class));
         } else {
-            results = Lists.newArrayList();
+            results = new ArrayList<>();
         }
 
         for (String name : request.names()) {

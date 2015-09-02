@@ -943,7 +943,8 @@ public class Strings {
         boolean changed = false;
         for (int i = 0; i < value.length(); i++) {
             char c = value.charAt(i);
-            if (c == '_') {
+            //e.g. _name stays as-is, _first_name becomes _firstName
+            if (c == '_' && i > 0) {
                 if (!changed) {
                     if (sb != null) {
                         sb.setLength(0);

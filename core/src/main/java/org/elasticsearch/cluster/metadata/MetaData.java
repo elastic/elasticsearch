@@ -23,7 +23,9 @@ import com.carrotsearch.hppc.ObjectHashSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.base.Predicate;
-import com.google.common.collect.*;
+import com.google.common.collect.Collections2;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.UnmodifiableIterator;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.Diffable;
@@ -45,7 +47,12 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.loader.SettingsLoader;
-import org.elasticsearch.common.xcontent.*;
+import org.elasticsearch.common.xcontent.FromXContentBuilder;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.recovery.RecoverySettings;
@@ -55,7 +62,18 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.warmer.IndexWarmersMetaData;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.SortedMap;
+import java.util.TreeMap;
 
 import static org.elasticsearch.common.settings.Settings.*;
 
@@ -234,7 +252,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
      * @param concreteIndices The concrete indexes the index aliases must point to order to be returned.
      * @return the found index aliases grouped by index
      */
-    public ImmutableOpenMap<String, ImmutableList<AliasMetaData>> findAliases(final String[] aliases, String[] concreteIndices) {
+    public ImmutableOpenMap<String, List<AliasMetaData>> findAliases(final String[] aliases, String[] concreteIndices) {
         assert aliases != null;
         assert concreteIndices != null;
         if (concreteIndices.length == 0) {
@@ -242,11 +260,11 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
         }
 
         boolean matchAllAliases = matchAllAliases(aliases);
-        ImmutableOpenMap.Builder<String, ImmutableList<AliasMetaData>> mapBuilder = ImmutableOpenMap.builder();
+        ImmutableOpenMap.Builder<String, List<AliasMetaData>> mapBuilder = ImmutableOpenMap.builder();
         Iterable<String> intersection = HppcMaps.intersection(ObjectHashSet.from(concreteIndices), indices.keys());
         for (String index : intersection) {
             IndexMetaData indexMetaData = indices.get(index);
-            List<AliasMetaData> filteredValues = Lists.newArrayList();
+            List<AliasMetaData> filteredValues = new ArrayList<>();
             for (ObjectCursor<AliasMetaData> cursor : indexMetaData.getAliases().values()) {
                 AliasMetaData value = cursor.value;
                 if (matchAllAliases || Regex.simpleMatch(aliases, value.alias())) {
@@ -262,7 +280,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
                         return o1.alias().compareTo(o2.alias());
                     }
                 });
-                mapBuilder.put(index, ImmutableList.copyOf(filteredValues));
+                mapBuilder.put(index, Collections.unmodifiableList(filteredValues));
             }
         }
         return mapBuilder.build();
@@ -295,7 +313,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
         Iterable<String> intersection = HppcMaps.intersection(ObjectHashSet.from(concreteIndices), indices.keys());
         for (String index : intersection) {
             IndexMetaData indexMetaData = indices.get(index);
-            List<AliasMetaData> filteredValues = Lists.newArrayList();
+            List<AliasMetaData> filteredValues = new ArrayList<>();
             for (ObjectCursor<AliasMetaData> cursor : indexMetaData.getAliases().values()) {
                 AliasMetaData value = cursor.value;
                 if (Regex.simpleMatch(aliases, value.alias())) {
@@ -345,7 +363,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
         return indexMapBuilder.build();
     }
 
-    public ImmutableOpenMap<String, ImmutableList<IndexWarmersMetaData.Entry>> findWarmers(String[] concreteIndices, final String[] types, final String[] uncheckedWarmers) {
+    public ImmutableOpenMap<String, List<IndexWarmersMetaData.Entry>> findWarmers(String[] concreteIndices, final String[] types, final String[] uncheckedWarmers) {
         assert uncheckedWarmers != null;
         assert concreteIndices != null;
         if (concreteIndices.length == 0) {
@@ -354,7 +372,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
         // special _all check to behave the same like not specifying anything for the warmers (not for the indices)
         final String[] warmers = Strings.isAllOrWildcard(uncheckedWarmers) ? Strings.EMPTY_ARRAY : uncheckedWarmers;
 
-        ImmutableOpenMap.Builder<String, ImmutableList<IndexWarmersMetaData.Entry>> mapBuilder = ImmutableOpenMap.builder();
+        ImmutableOpenMap.Builder<String, List<IndexWarmersMetaData.Entry>> mapBuilder = ImmutableOpenMap.builder();
         Iterable<String> intersection = HppcMaps.intersection(ObjectHashSet.from(concreteIndices), indices.keys());
         for (String index : intersection) {
             IndexMetaData indexMetaData = indices.get(index);
@@ -363,6 +381,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
                 continue;
             }
 
+            // TODO: make this a List so we don't have to copy below
             Collection<IndexWarmersMetaData.Entry> filteredWarmers = Collections2.filter(indexWarmersMetaData.entries(), new Predicate<IndexWarmersMetaData.Entry>() {
 
                 @Override
@@ -380,7 +399,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
 
             });
             if (!filteredWarmers.isEmpty()) {
-                mapBuilder.put(index, ImmutableList.copyOf(filteredWarmers));
+                mapBuilder.put(index, Collections.unmodifiableList(new ArrayList<>(filteredWarmers)));
             }
         }
         return mapBuilder.build();
@@ -978,14 +997,14 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
             // TODO: I think we can remove these arrays. it isn't worth the effort, for operations on all indices.
             // When doing an operation across all indices, most of the time is spent on actually going to all shards and
             // do the required operations, the bottleneck isn't resolving expressions into concrete indices.
-            List<String> allIndicesLst = Lists.newArrayList();
+            List<String> allIndicesLst = new ArrayList<>();
             for (ObjectCursor<IndexMetaData> cursor : indices.values()) {
                 allIndicesLst.add(cursor.value.index());
             }
             String[] allIndices = allIndicesLst.toArray(new String[allIndicesLst.size()]);
 
-            List<String> allOpenIndicesLst = Lists.newArrayList();
-            List<String> allClosedIndicesLst = Lists.newArrayList();
+            List<String> allOpenIndicesLst = new ArrayList<>();
+            List<String> allClosedIndicesLst = new ArrayList<>();
             for (ObjectCursor<IndexMetaData> cursor : indices.values()) {
                 IndexMetaData indexMetaData = cursor.value;
                 if (indexMetaData.state() == IndexMetaData.State.OPEN) {

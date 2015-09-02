@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.test.disruption;
 
-import com.google.common.collect.ImmutableList;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
@@ -27,6 +26,8 @@ import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Random;
@@ -68,15 +69,15 @@ public abstract class NetworkPartition implements ServiceDisruptionScheme {
     }
 
 
-    public List<String> getNodesSideOne() {
-        return ImmutableList.copyOf(nodesSideOne);
+    public Collection<String> getNodesSideOne() {
+        return Collections.unmodifiableCollection(nodesSideOne);
     }
 
-    public List<String> getNodesSideTwo() {
-        return ImmutableList.copyOf(nodesSideTwo);
+    public Collection<String> getNodesSideTwo() {
+        return Collections.unmodifiableCollection(nodesSideTwo);
     }
 
-    public List<String> getMajoritySide() {
+    public Collection<String> getMajoritySide() {
         if (nodesSideOne.size() >= nodesSideTwo.size()) {
             return getNodesSideOne();
         } else {
@@ -84,7 +85,7 @@ public abstract class NetworkPartition implements ServiceDisruptionScheme {
         }
     }
 
-    public List<String> getMinoritySide() {
+    public Collection<String> getMinoritySide() {
         if (nodesSideOne.size() >= nodesSideTwo.size()) {
             return getNodesSideTwo();
         } else {

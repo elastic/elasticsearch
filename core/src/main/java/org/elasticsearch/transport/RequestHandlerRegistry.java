@@ -21,6 +21,7 @@ package org.elasticsearch.transport;
 
 
 import java.lang.reflect.Constructor;
+import java.util.concurrent.Callable;
 
 /**
  *
@@ -28,20 +29,19 @@ import java.lang.reflect.Constructor;
 public class RequestHandlerRegistry<Request extends TransportRequest> {
 
     private final String action;
-    private final Constructor<Request> requestConstructor;
     private final TransportRequestHandler<Request> handler;
     private final boolean forceExecution;
     private final String executor;
+    private final Callable<Request> requestFactory;
 
     RequestHandlerRegistry(String action, Class<Request> request, TransportRequestHandler<Request> handler,
                            String executor, boolean forceExecution) {
+        this(action, new ReflectionFactory<>(request), handler, executor, forceExecution);
+    }
+
+    public RequestHandlerRegistry(String action, Callable<Request> requestFactory, TransportRequestHandler<Request> handler, String executor, boolean forceExecution) {
         this.action = action;
-        try {
-            this.requestConstructor = request.getDeclaredConstructor();
-        } catch (NoSuchMethodException e) {
-            throw new IllegalStateException("failed to create constructor (does it have a default constructor?) for request " + request, e);
-        }
-        this.requestConstructor.setAccessible(true);
+        this.requestFactory = requestFactory;
         assert newRequest() != null;
         this.handler = handler;
         this.forceExecution = forceExecution;
@@ -54,7 +54,7 @@ public class RequestHandlerRegistry<Request extends TransportRequest> {
 
     public Request newRequest() {
         try {
-            return requestConstructor.newInstance();
+            return requestFactory.call();
         } catch (Exception e) {
             throw new IllegalStateException("failed to instantiate request ", e);
         }
@@ -70,5 +70,23 @@ public class RequestHandlerRegistry<Request extends TransportRequest> {
 
     public String getExecutor() {
         return executor;
+    }
+
+    private final static class ReflectionFactory<Request> implements Callable<Request> {
+        private final Constructor<Request> requestConstructor;
+
+        public ReflectionFactory(Class<Request> request) {
+            try {
+                this.requestConstructor = request.getDeclaredConstructor();
+            } catch (NoSuchMethodException e) {
+                throw new IllegalStateException("failed to create constructor (does it have a default constructor?) for request " + request, e);
+            }
+            this.requestConstructor.setAccessible(true);
+        }
+
+        @Override
+        public Request call() throws Exception {
+            return requestConstructor.newInstance();
+        }
     }
 }

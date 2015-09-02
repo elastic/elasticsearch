@@ -22,10 +22,8 @@ package org.elasticsearch.cluster.routing;
 import com.carrotsearch.hppc.IntSet;
 import com.carrotsearch.hppc.cursors.IntCursor;
 import com.carrotsearch.hppc.cursors.IntObjectCursor;
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Sets;
 import com.google.common.collect.UnmodifiableIterator;
-
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -37,12 +35,11 @@ import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
-
-import static com.google.common.collect.Lists.*;
 
 /**
  * The {@link IndexRoutingTable} represents routing information for a single
@@ -76,7 +73,7 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
         this.index = index;
         this.shuffler = new RotationShardShuffler(ThreadLocalRandom.current().nextInt());
         this.shards = shards;
-        ImmutableList.Builder<ShardRouting> allActiveShards = ImmutableList.builder();
+        List<ShardRouting> allActiveShards = new ArrayList<>();
         for (IntObjectCursor<IndexShardRoutingTable> cursor : shards) {
             for (ShardRouting shardRouting : cursor.value) {
                 shardRouting.freeze();
@@ -85,7 +82,7 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
                 }
             }
         }
-        this.allActiveShards = allActiveShards.build();
+        this.allActiveShards = Collections.unmodifiableList(allActiveShards);
     }
 
     /**
@@ -265,7 +262,7 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
      * @return a {@link List} of shards that match one of the given {@link ShardRoutingState states}
      */
     public List<ShardRouting> shardsWithState(ShardRoutingState state) {
-        List<ShardRouting> shards = newArrayList();
+        List<ShardRouting> shards = new ArrayList<>();
         for (IndexShardRoutingTable shardRoutingTable : this) {
             shards.addAll(shardRoutingTable.shardsWithState(state));
         }

@@ -82,12 +82,12 @@ public class PluginManagerUnitTests extends ESTestCase {
         Iterator<URL> iterator = handle.urls().iterator();
 
         if (supportStagingUrls) {
-            String expectedStagingURL = String.format(Locale.ROOT, "http://download.elastic.co/elasticsearch/staging/%s-%s/org/elasticsearch/plugin/%s/%s/%s-%s.zip",
+            String expectedStagingURL = String.format(Locale.ROOT, "https://download.elastic.co/elasticsearch/staging/%s-%s/org/elasticsearch/plugin/%s/%s/%s-%s.zip",
                     Version.CURRENT.number(), Build.CURRENT.hashShort(), pluginName, Version.CURRENT.number(), pluginName, Version.CURRENT.number());
             assertThat(iterator.next().toExternalForm(), is(expectedStagingURL));
         }
 
-        URL expected = new URL("http", "download.elastic.co", "/elasticsearch/release/org/elasticsearch/plugin/" + pluginName + "/" + Version.CURRENT.number() + "/" +
+        URL expected = new URL("https", "download.elastic.co", "/elasticsearch/release/org/elasticsearch/plugin/" + pluginName + "/" + Version.CURRENT.number() + "/" +
                 pluginName + "-" + Version.CURRENT.number() + ".zip");
         assertThat(iterator.next().toExternalForm(), is(expected.toExternalForm()));
 
@@ -108,12 +108,12 @@ public class PluginManagerUnitTests extends ESTestCase {
         Iterator<URL> iterator = handle.urls().iterator();
 
         if (supportStagingUrls) {
-            String expectedStagingUrl = String.format(Locale.ROOT, "http://download.elastic.co/elasticsearch/staging/%s-%s/org/elasticsearch/plugin/%s/%s/%s-%s.zip",
+            String expectedStagingUrl = String.format(Locale.ROOT, "https://download.elastic.co/elasticsearch/staging/%s-%s/org/elasticsearch/plugin/%s/%s/%s-%s.zip",
                     Version.CURRENT.number(), Build.CURRENT.hashShort(), randomPluginName, Version.CURRENT.number(), randomPluginName, Version.CURRENT.number());
             assertThat(iterator.next().toExternalForm(), is(expectedStagingUrl));
         }
 
-        String releaseUrl = String.format(Locale.ROOT, "http://download.elastic.co/elasticsearch/release/org/elasticsearch/plugin/%s/%s/%s-%s.zip",
+        String releaseUrl = String.format(Locale.ROOT, "https://download.elastic.co/elasticsearch/release/org/elasticsearch/plugin/%s/%s/%s-%s.zip",
                 randomPluginName, Version.CURRENT.number(), randomPluginName, Version.CURRENT.number());
         assertThat(iterator.next().toExternalForm(), is(releaseUrl));
 

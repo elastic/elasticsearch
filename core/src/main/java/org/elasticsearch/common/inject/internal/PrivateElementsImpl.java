@@ -16,9 +16,7 @@
 
 package org.elasticsearch.common.inject.internal;
 
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import org.elasticsearch.common.inject.Binder;
 import org.elasticsearch.common.inject.Injector;
@@ -28,6 +26,8 @@ import org.elasticsearch.common.inject.spi.Element;
 import org.elasticsearch.common.inject.spi.ElementVisitor;
 import org.elasticsearch.common.inject.spi.PrivateElements;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -47,13 +47,13 @@ public final class PrivateElementsImpl implements PrivateElements {
 
     private final Object source;
 
-    private List<Element> elementsMutable = Lists.newArrayList();
-    private List<ExposureBuilder<?>> exposureBuilders = Lists.newArrayList();
+    private List<Element> elementsMutable = new ArrayList<>();
+    private List<ExposureBuilder<?>> exposureBuilders = new ArrayList<>();
 
     /**
      * lazily instantiated
      */
-    private ImmutableList<Element> elements;
+    private List<Element> elements;
 
     /**
      * lazily instantiated
@@ -73,7 +73,7 @@ public final class PrivateElementsImpl implements PrivateElements {
     @Override
     public List<Element> getElements() {
         if (elements == null) {
-            elements = ImmutableList.copyOf(elementsMutable);
+            elements = Collections.unmodifiableList(elementsMutable);
             elementsMutable = null;
         }
 

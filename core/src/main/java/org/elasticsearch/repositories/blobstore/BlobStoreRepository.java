@@ -19,7 +19,6 @@
 
 package org.elasticsearch.repositories.blobstore;
 
-import com.google.common.collect.ImmutableList;
 import com.google.common.io.ByteStreams;
 import org.apache.lucene.store.RateLimiter;
 import org.elasticsearch.ElasticsearchParseException;
@@ -56,7 +55,12 @@ import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.RepositorySettings;
 import org.elasticsearch.repositories.RepositoryVerificationException;
-import org.elasticsearch.snapshots.*;
+import org.elasticsearch.snapshots.InvalidSnapshotNameException;
+import org.elasticsearch.snapshots.Snapshot;
+import org.elasticsearch.snapshots.SnapshotCreationException;
+import org.elasticsearch.snapshots.SnapshotException;
+import org.elasticsearch.snapshots.SnapshotMissingException;
+import org.elasticsearch.snapshots.SnapshotShardFailure;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -67,8 +71,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-
-import static com.google.common.collect.Lists.newArrayList;
 
 /**
  * BlobStore - based implementation of Snapshot Repository
@@ -168,6 +170,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
 
     private LegacyBlobStoreFormat<Snapshot> snapshotLegacyFormat;
 
+    private final boolean readOnly;
+
     /**
      * Constructs new BlobStoreRepository
      *
@@ -181,6 +185,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
         this.indexShardRepository = (BlobStoreIndexShardRepository) indexShardRepository;
         snapshotRateLimiter = getRateLimiter(repositorySettings, "max_snapshot_bytes_per_sec", new ByteSizeValue(40, ByteSizeUnit.MB));
         restoreRateLimiter = getRateLimiter(repositorySettings, "max_restore_bytes_per_sec", new ByteSizeValue(40, ByteSizeUnit.MB));
+        readOnly = repositorySettings.settings().getAsBoolean("readonly", false);
     }
 
     /**
@@ -260,6 +265,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
      */
     @Override
     public void initializeSnapshot(SnapshotId snapshotId, List<String> indices, MetaData metaData) {
+        if (readOnly()) {
+            throw new RepositoryException(this.repositoryName, "cannot create snapshot in a readonly repository");
+        }
         try {
             if (snapshotFormat.exists(snapshotsBlobContainer, snapshotId.getSnapshot()) ||
                     snapshotLegacyFormat.exists(snapshotsBlobContainer, snapshotId.getSnapshot())) {
@@ -283,6 +291,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
      */
     @Override
     public void deleteSnapshot(SnapshotId snapshotId) {
+        if (readOnly()) {
+            throw new RepositoryException(this.repositoryName, "cannot delete snapshot from a readonly repository");
+        }
         List<String> indices = Collections.EMPTY_LIST;
         Snapshot snapshot = null;
         try {
@@ -318,13 +329,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
             // Delete snapshot from the snapshot list
             List<SnapshotId> snapshotIds = snapshots();
             if (snapshotIds.contains(snapshotId)) {
-                ImmutableList.Builder<SnapshotId> builder = ImmutableList.builder();
+                List<SnapshotId> builder = new ArrayList<>();
                 for (SnapshotId id : snapshotIds) {
                     if (!snapshotId.equals(id)) {
                         builder.add(id);
                     }
                 }
-                snapshotIds = builder.build();
+                snapshotIds = Collections.unmodifiableList(builder);
             }
             writeSnapshotList(snapshotIds);
             // Now delete all indices
@@ -365,7 +376,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
             snapshotFormat.write(blobStoreSnapshot, snapshotsBlobContainer, snapshotId.getSnapshot());
             List<SnapshotId> snapshotIds = snapshots();
             if (!snapshotIds.contains(snapshotId)) {
-                snapshotIds = ImmutableList.<SnapshotId>builder().addAll(snapshotIds).add(snapshotId).build();
+                snapshotIds = new ArrayList<>(snapshotIds);
+                snapshotIds.add(snapshotId);
+                snapshotIds = Collections.unmodifiableList(snapshotIds);
             }
             writeSnapshotList(snapshotIds);
             return blobStoreSnapshot;
@@ -380,7 +393,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
     @Override
     public List<SnapshotId> snapshots() {
         try {
-            List<SnapshotId> snapshots = newArrayList();
+            List<SnapshotId> snapshots = new ArrayList<>();
             Map<String, BlobMetaData> blobs;
             try {
                 blobs = snapshotsBlobContainer.listBlobsByPrefix(COMMON_SNAPSHOT_PREFIX);
@@ -404,7 +417,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
                 }
                 snapshots.add(new SnapshotId(repositoryName, name));
             }
-            return ImmutableList.copyOf(snapshots);
+            return Collections.unmodifiableList(snapshots);
         } catch (IOException ex) {
             throw new RepositoryException(repositoryName, "failed to list snapshots in repository", ex);
         }
@@ -595,7 +608,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
                     }
                 }
             }
-            return ImmutableList.copyOf(snapshots);
+            return Collections.unmodifiableList(snapshots);
         }
     }
 
@@ -622,16 +635,21 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
     @Override
     public String startVerification() {
         try {
-            String seed = Strings.randomBase64UUID();
-            byte[] testBytes = Strings.toUTF8Bytes(seed);
-            BlobContainer testContainer = blobStore().blobContainer(basePath().add(testBlobPrefix(seed)));
-            String blobName = "master.dat";
-            try (OutputStream outputStream = testContainer.createOutput(blobName + "-temp")) {
-                outputStream.write(testBytes);
+            if (readOnly()) {
+                // It's readonly - so there is not much we can do here to verify it
+                return null;
+            } else {
+                String seed = Strings.randomBase64UUID();
+                byte[] testBytes = Strings.toUTF8Bytes(seed);
+                BlobContainer testContainer = blobStore().blobContainer(basePath().add(testBlobPrefix(seed)));
+                String blobName = "master.dat";
+                try (OutputStream outputStream = testContainer.createOutput(blobName + "-temp")) {
+                    outputStream.write(testBytes);
+                }
+                // Make sure that move is supported
+                testContainer.move(blobName + "-temp", blobName);
+                return seed;
             }
-            // Make sure that move is supported
-            testContainer.move(blobName + "-temp", blobName);
-            return seed;
         } catch (IOException exp) {
             throw new RepositoryVerificationException(repositoryName, "path " + basePath() + " is not accessible on master node", exp);
         }
@@ -639,6 +657,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
 
     @Override
     public void endVerification(String seed) {
+        if (readOnly()) {
+            throw new UnsupportedOperationException("shouldn't be called");
+        }
         try {
             blobStore().delete(basePath().add(testBlobPrefix(seed)));
         } catch (IOException exp) {
@@ -648,5 +669,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
 
     public static String testBlobPrefix(String seed) {
         return TESTS_FILE + seed;
+    }
+
+    @Override
+    public boolean readOnly() {
+        return readOnly;
     }
 }

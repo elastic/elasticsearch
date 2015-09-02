@@ -20,6 +20,7 @@ package org.elasticsearch.index.mapper.core;
 
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.junit.Before;
 
 public class BooleanFieldTypeTests extends FieldTypeTestCase {
     @Override
@@ -27,8 +28,8 @@ public class BooleanFieldTypeTests extends FieldTypeTestCase {
         return new BooleanFieldMapper.BooleanFieldType();
     }
 
-    @Override
-    protected Object dummyNullValue() {
-        return true;
+    @Before
+    public void setupProperties() {
+        setDummyNullValue(true);
     }
 }

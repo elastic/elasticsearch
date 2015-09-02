@@ -67,6 +67,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.rest.client.http.HttpResponse;
+import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 import org.junit.Assert;
@@ -124,6 +125,22 @@ public class ElasticsearchAssertions {
      */
     public static void assertBlocked(ActionRequestBuilder builder) {
         assertBlocked(builder, null);
+    }
+
+    /**
+     * Checks that all shard requests of a replicated brodcast request failed due to a cluster block
+     *
+     * @param replicatedBroadcastResponse the response that should only contain failed shard responses
+     *
+     * */
+    public static void assertBlocked(BroadcastResponse replicatedBroadcastResponse) {
+        assertThat("all shard requests should have failed", replicatedBroadcastResponse.getFailedShards(), Matchers.equalTo(replicatedBroadcastResponse.getTotalShards()));
+        for (ShardOperationFailedException exception : replicatedBroadcastResponse.getShardFailures()) {
+            ClusterBlockException clusterBlockException = (ClusterBlockException) ExceptionsHelper.unwrap(exception.getCause(), ClusterBlockException.class);
+            assertNotNull("expected the cause of failure to be a ClusterBlockException but got " + exception.getCause().getMessage(), clusterBlockException);
+            assertThat(clusterBlockException.blocks().size(), greaterThan(0));
+            assertThat(clusterBlockException.status(), CoreMatchers.equalTo(RestStatus.FORBIDDEN));
+        }
     }
 
     /**

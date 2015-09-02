@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.status;
 
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -42,6 +41,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -138,7 +139,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
     private SnapshotsStatusResponse buildResponse(SnapshotsStatusRequest request, List<SnapshotsInProgress.Entry> currentSnapshots,
                                                   TransportNodesSnapshotsStatus.NodesSnapshotStatus nodeSnapshotStatuses) throws IOException {
         // First process snapshot that are currently processed
-        ImmutableList.Builder<SnapshotStatus> builder = ImmutableList.builder();
+        List<SnapshotStatus> builder = new ArrayList<>();
         Set<SnapshotId> currentSnapshotIds = newHashSet();
         if (!currentSnapshots.isEmpty()) {
             Map<String, TransportNodesSnapshotsStatus.NodeSnapshotStatus> nodeSnapshotStatusMap;
@@ -150,7 +151,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
 
             for (SnapshotsInProgress.Entry entry : currentSnapshots) {
                 currentSnapshotIds.add(entry.snapshotId());
-                ImmutableList.Builder<SnapshotIndexShardStatus> shardStatusBuilder = ImmutableList.builder();
+                List<SnapshotIndexShardStatus> shardStatusBuilder = new ArrayList<>();
                 for (ImmutableMap.Entry<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shardEntry : entry.shards().entrySet()) {
                     SnapshotsInProgress.ShardSnapshotStatus status = shardEntry.getValue();
                     if (status.nodeId() != null) {
@@ -189,7 +190,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                     SnapshotIndexShardStatus shardStatus = new SnapshotIndexShardStatus(shardEntry.getKey(), stage);
                     shardStatusBuilder.add(shardStatus);
                 }
-                builder.add(new SnapshotStatus(entry.snapshotId(), entry.state(), shardStatusBuilder.build()));
+                builder.add(new SnapshotStatus(entry.snapshotId(), entry.state(), Collections.unmodifiableList(shardStatusBuilder)));
             }
         }
         // Now add snapshots on disk that are not currently running
@@ -202,7 +203,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                         continue;
                     }
                     Snapshot snapshot = snapshotsService.snapshot(snapshotId);
-                    ImmutableList.Builder<SnapshotIndexShardStatus> shardStatusBuilder = ImmutableList.builder();
+                    List<SnapshotIndexShardStatus> shardStatusBuilder = new ArrayList<>();
                     if (snapshot.state().completed()) {
                         ImmutableMap<ShardId, IndexShardSnapshotStatus> shardStatues = snapshotsService.snapshotShards(snapshotId);
                         for (ImmutableMap.Entry<ShardId, IndexShardSnapshotStatus> shardStatus : shardStatues.entrySet()) {
@@ -222,13 +223,13 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                             default:
                                 throw new IllegalArgumentException("Unknown snapshot state " + snapshot.state());
                         }
-                        builder.add(new SnapshotStatus(snapshotId, state, shardStatusBuilder.build()));
+                        builder.add(new SnapshotStatus(snapshotId, state, Collections.unmodifiableList(shardStatusBuilder)));
                     }
                 }
             }
         }
 
-        return new SnapshotsStatusResponse(builder.build());
+        return new SnapshotsStatusResponse(Collections.unmodifiableList(builder));
     }
 
 }

@@ -43,12 +43,11 @@ import org.elasticsearch.percolator.PercolatorService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReferenceArray;
-
-import static com.google.common.collect.Lists.newArrayList;
 
 /**
  *
@@ -126,7 +125,7 @@ public class TransportPercolateAction extends TransportBroadcastAction<Percolate
             } else if (shardResponse instanceof BroadcastShardOperationFailedException) {
                 failedShards++;
                 if (shardFailures == null) {
-                    shardFailures = newArrayList();
+                    shardFailures = new ArrayList<>();
                 }
                 shardFailures.add(new DefaultShardOperationFailedException((BroadcastShardOperationFailedException) shardResponse));
             } else {
@@ -135,7 +134,7 @@ public class TransportPercolateAction extends TransportBroadcastAction<Percolate
                 if (!percolateShardResponse.isEmpty()) {
                     if (shardResults == null) {
                         percolatorTypeId = percolateShardResponse.percolatorTypeId();
-                        shardResults = newArrayList();
+                        shardResults = new ArrayList<>();
                     }
                     shardResults.add(percolateShardResponse);
                 }
@@ -147,7 +146,7 @@ public class TransportPercolateAction extends TransportBroadcastAction<Percolate
             PercolateResponse.Match[] matches = request.onlyCount() ? null : PercolateResponse.EMPTY;
             return new PercolateResponse(shardsResponses.length(), successfulShards, failedShards, shardFailures, tookInMillis, matches);
         } else {
-            PercolatorService.ReduceResult result = percolatorService.reduce(percolatorTypeId, shardResults);
+            PercolatorService.ReduceResult result = percolatorService.reduce(percolatorTypeId, shardResults, request);
             long tookInMillis =  Math.max(1, System.currentTimeMillis() - request.startTime);
             return new PercolateResponse(
                     shardsResponses.length(), successfulShards, failedShards, shardFailures,

@@ -20,6 +20,7 @@ package org.elasticsearch.index.mapper.core;
 
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.junit.Before;
 
 public class BinaryFieldTypeTests extends FieldTypeTestCase {
 
@@ -28,17 +29,14 @@ public class BinaryFieldTypeTests extends FieldTypeTestCase {
         return new BinaryFieldMapper.BinaryFieldType();
     }
 
-    @Override
-    protected int numProperties() {
-        return 1 + super.numProperties();
-    }
-
-    @Override
-    protected void modifyProperty(MappedFieldType ft, int propNum) {
-        BinaryFieldMapper.BinaryFieldType bft = (BinaryFieldMapper.BinaryFieldType)ft;
-        switch (propNum) {
-            case 0: bft.setTryUncompressing(!bft.tryUncompressing()); break;
-            default: super.modifyProperty(ft, propNum - 1);
-        }
+    @Before
+    public void setupProperties() {
+        addModifier(new Modifier("try_uncompressing", false, true) {
+            @Override
+            public void modify(MappedFieldType ft) {
+                BinaryFieldMapper.BinaryFieldType bft = (BinaryFieldMapper.BinaryFieldType)ft;
+                bft.setTryUncompressing(!bft.tryUncompressing());
+            }
+        });
     }
 }

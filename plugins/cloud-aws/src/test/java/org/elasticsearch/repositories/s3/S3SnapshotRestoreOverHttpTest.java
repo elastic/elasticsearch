@@ -23,7 +23,7 @@ import org.elasticsearch.common.settings.Settings;
 
 /**
  */
-public class S3SnapshotRestoreOverHttpTest extends AbstractS3SnapshotRestoreTest {
+public class S3SnapshotRestoreOverHttpTest extends AbstractS3SnapshotRestoreTestCase {
     @Override
     public Settings nodeSettings(int nodeOrdinal) {
         Settings.Builder settings = Settings.builder()

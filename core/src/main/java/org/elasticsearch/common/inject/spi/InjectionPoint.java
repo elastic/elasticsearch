@@ -16,18 +16,31 @@
 
 package org.elasticsearch.common.inject.spi;
 
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Lists;
 import org.elasticsearch.common.inject.ConfigurationException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Key;
 import org.elasticsearch.common.inject.TypeLiteral;
-import org.elasticsearch.common.inject.internal.*;
+import org.elasticsearch.common.inject.internal.Annotations;
+import org.elasticsearch.common.inject.internal.Errors;
+import org.elasticsearch.common.inject.internal.ErrorsException;
+import org.elasticsearch.common.inject.internal.MoreTypes;
+import org.elasticsearch.common.inject.internal.Nullability;
 
 import java.lang.annotation.Annotation;
-import java.lang.reflect.*;
-import java.util.*;
+import java.lang.reflect.AnnotatedElement;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
+import java.lang.reflect.Member;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.common.inject.internal.MoreTypes.getRawType;
 
@@ -43,10 +56,10 @@ public final class InjectionPoint {
 
     private final boolean optional;
     private final Member member;
-    private final ImmutableList<Dependency<?>> dependencies;
+    private final List<Dependency<?>> dependencies;
 
     private InjectionPoint(Member member,
-                           ImmutableList<Dependency<?>> dependencies, boolean optional) {
+                           List<Dependency<?>> dependencies, boolean optional) {
         this.member = member;
         this.dependencies = dependencies;
         this.optional = optional;
@@ -84,16 +97,16 @@ public final class InjectionPoint {
         }
         errors.throwConfigurationExceptionIfErrorsExist();
 
-        this.dependencies = ImmutableList.<Dependency<?>>of(
-                newDependency(key, Nullability.allowsNull(annotations), -1));
+        this.dependencies = Collections.<Dependency<?>>singletonList(
+            newDependency(key, Nullability.allowsNull(annotations), -1));
     }
 
-    private ImmutableList<Dependency<?>> forMember(Member member, TypeLiteral<?> type,
+    private List<Dependency<?>> forMember(Member member, TypeLiteral<?> type,
                                                    Annotation[][] parameterAnnotations) {
         Errors errors = new Errors(member);
         Iterator<Annotation[]> annotationsIterator = Arrays.asList(parameterAnnotations).iterator();
 
-        List<Dependency<?>> dependencies = Lists.newArrayList();
+        List<Dependency<?>> dependencies = new ArrayList<>();
         int index = 0;
 
         for (TypeLiteral<?> parameterType : type.getParameterTypes(member)) {
@@ -108,7 +121,7 @@ public final class InjectionPoint {
         }
 
         errors.throwConfigurationExceptionIfErrorsExist();
-        return ImmutableList.copyOf(dependencies);
+        return Collections.unmodifiableList(dependencies);
     }
 
     // This metohd is necessary to create a Dependency<T> with proper generic type information
@@ -240,7 +253,7 @@ public final class InjectionPoint {
      *                                of the valid injection points.
      */
     public static Set<InjectionPoint> forStaticMethodsAndFields(TypeLiteral type) {
-        List<InjectionPoint> sink = Lists.newArrayList();
+        List<InjectionPoint> sink = new ArrayList<>();
         Errors errors = new Errors();
 
         addInjectionPoints(type, Factory.FIELDS, true, sink, errors);
@@ -280,7 +293,7 @@ public final class InjectionPoint {
      *                                of the valid injection points.
      */
     public static Set<InjectionPoint> forInstanceMethodsAndFields(TypeLiteral<?> type) {
-        List<InjectionPoint> sink = Lists.newArrayList();
+        List<InjectionPoint> sink = new ArrayList<>();
         Errors errors = new Errors();
 
         // TODO (crazybob): Filter out overridden members.

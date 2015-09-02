@@ -24,6 +24,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
@@ -37,7 +38,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  *
  */
-public abstract class ReplicationRequest<T extends ReplicationRequest> extends ActionRequest<T> implements IndicesRequest {
+public class ReplicationRequest<T extends ReplicationRequest> extends ActionRequest<T> implements IndicesRequest {
 
     public static final TimeValue DEFAULT_TIMEOUT = new TimeValue(1, TimeUnit.MINUTES);
 
@@ -46,18 +47,17 @@ public abstract class ReplicationRequest<T extends ReplicationRequest> extends A
     protected TimeValue timeout = DEFAULT_TIMEOUT;
     protected String index;
 
-    private boolean threadedOperation = true;
     private WriteConsistencyLevel consistencyLevel = WriteConsistencyLevel.DEFAULT;
     private volatile boolean canHaveDuplicates = false;
 
-    protected ReplicationRequest() {
+    public ReplicationRequest() {
 
     }
 
     /**
      * Creates a new request that inherits headers and context from the request provided as argument.
      */
-    protected ReplicationRequest(ActionRequest request) {
+    public ReplicationRequest(ActionRequest request) {
         super(request);
     }
 
@@ -76,7 +76,6 @@ public abstract class ReplicationRequest<T extends ReplicationRequest> extends A
         super(originalRequest);
         this.timeout = request.timeout();
         this.index = request.index();
-        this.threadedOperation = request.operationThreaded();
         this.consistencyLevel = request.consistencyLevel();
     }
 
@@ -89,23 +88,6 @@ public abstract class ReplicationRequest<T extends ReplicationRequest> extends A
      */
     public boolean canHaveDuplicates() {
         return canHaveDuplicates;
-    }
-
-    /**
-     * Controls if the operation will be executed on a separate thread when executed locally.
-     */
-    public final boolean operationThreaded() {
-        return threadedOperation;
-    }
-
-    /**
-     * Controls if the operation will be executed on a separate thread when executed locally. Defaults
-     * to <tt>true</tt> when running in embedded mode.
-     */
-    @SuppressWarnings("unchecked")
-    public final T operationThreaded(boolean threadedOperation) {
-        this.threadedOperation = threadedOperation;
-        return (T) this;
     }
 
     /**
@@ -153,6 +135,16 @@ public abstract class ReplicationRequest<T extends ReplicationRequest> extends A
     }
 
     /**
+     * @return the shardId of the shard where this operation should be executed on.
+     * can be null in case the shardId is determined by a single document (index, type, id) for example for index or delete request.
+     */
+    public
+    @Nullable
+    ShardId shardId() {
+        return internalShardId;
+    }
+
+    /**
      * Sets the consistency level of write. Defaults to {@link org.elasticsearch.action.WriteConsistencyLevel#DEFAULT}
      */
     @SuppressWarnings("unchecked")
@@ -191,5 +183,11 @@ public abstract class ReplicationRequest<T extends ReplicationRequest> extends A
         timeout.writeTo(out);
         out.writeString(index);
         out.writeBoolean(canHaveDuplicates);
+    }
+
+    public T setShardId(ShardId shardId) {
+        this.internalShardId = shardId;
+        this.index = shardId.getIndex();
+        return (T) this;
     }
 }

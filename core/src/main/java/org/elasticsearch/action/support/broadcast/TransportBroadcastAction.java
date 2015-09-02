@@ -47,7 +47,6 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
 public abstract class TransportBroadcastAction<Request extends BroadcastRequest, Response extends BroadcastResponse, ShardRequest extends BroadcastShardRequest, ShardResponse extends BroadcastShardResponse>
         extends HandledTransportAction<Request, Response> {
 
-    protected final ThreadPool threadPool;
     protected final ClusterService clusterService;
     protected final TransportService transportService;
 
@@ -59,7 +58,6 @@ public abstract class TransportBroadcastAction<Request extends BroadcastRequest,
         super(settings, actionName, threadPool, transportService, actionFilters, indexNameExpressionResolver, request);
         this.clusterService = clusterService;
         this.transportService = transportService;
-        this.threadPool = threadPool;
         this.transportShardAction = actionName + "[s]";
 
         transportService.registerRequestHandler(transportShardAction, shardRequest, shardExecutor, new ShardTransportHandler());

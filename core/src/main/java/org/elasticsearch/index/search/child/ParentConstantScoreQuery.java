@@ -22,6 +22,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BitsFilteredDocIdSet;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -92,10 +93,7 @@ public class ParentConstantScoreQuery extends IndexCacheableQuery {
         }
 
         ParentOrdsCollector collector = new ParentOrdsCollector(globalIfd, maxOrd, parentType);
-        IndexSearcher indexSearcher = new IndexSearcher(searcher.getIndexReader());
-        indexSearcher.setSimilarity(searcher.getSimilarity(true));
-        indexSearcher.setQueryCache(null);
-        indexSearcher.search(parentQuery, collector);
+        searcher.search(parentQuery, collector);
 
         if (collector.parentCount() == 0) {
             return new BooleanQuery().createWeight(searcher, needsScores);
@@ -174,14 +172,16 @@ public class ParentConstantScoreQuery extends IndexCacheableQuery {
         }
 
         @Override
-        public Scorer scorer(LeafReaderContext context, Bits acceptDocs) throws IOException {
-            DocIdSet childrenDocIdSet = childrenFilter.getDocIdSet(context, acceptDocs);
+        public Scorer scorer(LeafReaderContext context) throws IOException {
+            DocIdSet childrenDocIdSet = childrenFilter.getDocIdSet(context, null);
             if (Lucene.isEmpty(childrenDocIdSet)) {
                 return null;
             }
 
             SortedDocValues globalValues = globalIfd.load(context).getOrdinalsValues(parentType);
             if (globalValues != null) {
+                // we forcefully apply live docs here so that deleted children don't give matching parents
+                childrenDocIdSet = BitsFilteredDocIdSet.wrap(childrenDocIdSet, context.reader().getLiveDocs());
                 DocIdSetIterator innerIterator = childrenDocIdSet.iterator();
                 if (innerIterator != null) {
                     ChildrenDocIdIterator childrenDocIdIterator = new ChildrenDocIdIterator(

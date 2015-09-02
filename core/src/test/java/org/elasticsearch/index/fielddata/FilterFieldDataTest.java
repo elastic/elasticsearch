@@ -30,7 +30,7 @@ import java.util.Random;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class FilterFieldDataTest extends AbstractFieldDataTests {
+public class FilterFieldDataTest extends AbstractFieldDataTestCase {
 
     @Override
     protected FieldDataType getFieldDataType() {

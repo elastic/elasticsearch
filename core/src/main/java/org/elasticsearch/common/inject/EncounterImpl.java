@@ -16,13 +16,13 @@
 
 package org.elasticsearch.common.inject;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Lists;
 import org.elasticsearch.common.inject.internal.Errors;
 import org.elasticsearch.common.inject.spi.InjectionListener;
 import org.elasticsearch.common.inject.spi.Message;
 import org.elasticsearch.common.inject.spi.TypeEncounter;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import static com.google.common.base.Preconditions.checkState;
@@ -47,16 +47,16 @@ final class EncounterImpl<T> implements TypeEncounter<T> {
         valid = false;
     }
 
-    public ImmutableList<MembersInjector<? super T>> getMembersInjectors() {
+    public List<MembersInjector<? super T>> getMembersInjectors() {
         return membersInjectors == null
-                ? ImmutableList.<MembersInjector<? super T>>of()
-                : ImmutableList.copyOf(membersInjectors);
+                ? Collections.<MembersInjector<? super T>>emptyList()
+                : Collections.unmodifiableList(membersInjectors);
     }
 
-    public ImmutableList<InjectionListener<? super T>> getInjectionListeners() {
+    public List<InjectionListener<? super T>> getInjectionListeners() {
         return injectionListeners == null
-                ? ImmutableList.<InjectionListener<? super T>>of()
-                : ImmutableList.copyOf(injectionListeners);
+                ? Collections.<InjectionListener<? super T>>emptyList()
+                : Collections.unmodifiableList(injectionListeners);
     }
 
     @Override
@@ -64,7 +64,7 @@ final class EncounterImpl<T> implements TypeEncounter<T> {
         checkState(valid, "Encounters may not be used after hear() returns.");
 
         if (membersInjectors == null) {
-            membersInjectors = Lists.newArrayList();
+            membersInjectors = new ArrayList<>();
         }
 
         membersInjectors.add(membersInjector);
@@ -75,7 +75,7 @@ final class EncounterImpl<T> implements TypeEncounter<T> {
         checkState(valid, "Encounters may not be used after hear() returns.");
 
         if (injectionListeners == null) {
-            injectionListeners = Lists.newArrayList();
+            injectionListeners = new ArrayList<>();
         }
 
         injectionListeners.add(injectionListener);

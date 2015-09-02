@@ -171,29 +171,26 @@ public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.Simp
             // rewind buffer
             buffer.reset();
 
-            BytesRef bytes = termAtt == null ? null : termAtt.getBytesRef();
             if (numTokens == 0) {
                 return null;
             } else if (numTokens == 1) {
                 try {
                     boolean hasNext = buffer.incrementToken();
                     assert hasNext == true;
-                    termAtt.fillBytesRef();
                 } catch (IOException e) {
                     // safe to ignore, because we know the number of tokens
                 }
-                return new PrefixQuery(new Term(field, BytesRef.deepCopyOf(bytes)));
+                return new PrefixQuery(new Term(field, BytesRef.deepCopyOf(termAtt.getBytesRef())));
             } else {
                 BooleanQuery bq = new BooleanQuery();
                 for (int i = 0; i < numTokens; i++) {
                     try {
                         boolean hasNext = buffer.incrementToken();
                         assert hasNext == true;
-                        termAtt.fillBytesRef();
                     } catch (IOException e) {
                         // safe to ignore, because we know the number of tokens
                     }
-                    bq.add(new BooleanClause(new PrefixQuery(new Term(field, BytesRef.deepCopyOf(bytes))), BooleanClause.Occur.SHOULD));
+                    bq.add(new BooleanClause(new PrefixQuery(new Term(field, BytesRef.deepCopyOf(termAtt.getBytesRef()))), BooleanClause.Occur.SHOULD));
                 }
                 return bq;
             }

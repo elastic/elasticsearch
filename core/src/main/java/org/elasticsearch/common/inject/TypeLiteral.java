@@ -16,11 +16,12 @@
 
 package org.elasticsearch.common.inject;
 
-import com.google.common.collect.ImmutableList;
 import org.elasticsearch.common.inject.internal.MoreTypes;
 import org.elasticsearch.common.inject.util.Types;
 
 import java.lang.reflect.*;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 import static com.google.common.base.Preconditions.checkArgument;
@@ -174,7 +175,7 @@ public class TypeLiteral<T> {
         for (int t = 0; t < types.length; t++) {
             result[t] = resolve(types[t]);
         }
-        return ImmutableList.copyOf(result);
+        return Arrays.asList(result);
     }
 
     /**

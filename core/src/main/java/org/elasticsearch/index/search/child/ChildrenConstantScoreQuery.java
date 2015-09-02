@@ -103,11 +103,8 @@ public class ChildrenConstantScoreQuery extends IndexCacheableQuery {
             return new BooleanQuery().createWeight(searcher, needsScores);
         }
 
-        IndexSearcher indexSearcher = new IndexSearcher(searcher.getIndexReader());
-        indexSearcher.setSimilarity(searcher.getSimilarity(true));
-        indexSearcher.setQueryCache(null);
         ParentOrdCollector collector = new ParentOrdCollector(globalIfd, valueCount, parentType);
-        indexSearcher.search(childQuery, collector);
+        searcher.search(childQuery, collector);
 
         final long remaining = collector.foundParents();
         if (remaining == 0) {
@@ -201,13 +198,13 @@ public class ChildrenConstantScoreQuery extends IndexCacheableQuery {
         }
 
         @Override
-        public Scorer scorer(LeafReaderContext context, Bits acceptDocs) throws IOException {
+        public Scorer scorer(LeafReaderContext context) throws IOException {
             if (remaining == 0) {
                 return null;
             }
 
             if (shortCircuitFilter != null) {
-                DocIdSet docIdSet = shortCircuitFilter.getDocIdSet(context, acceptDocs);
+                DocIdSet docIdSet = shortCircuitFilter.getDocIdSet(context, null);
                 if (!Lucene.isEmpty(docIdSet)) {
                     DocIdSetIterator iterator = docIdSet.iterator();
                     if (iterator != null) {
@@ -217,7 +214,7 @@ public class ChildrenConstantScoreQuery extends IndexCacheableQuery {
                 return null;
             }
 
-            DocIdSet parentDocIdSet = this.parentFilter.getDocIdSet(context, acceptDocs);
+            DocIdSet parentDocIdSet = this.parentFilter.getDocIdSet(context, null);
             if (!Lucene.isEmpty(parentDocIdSet)) {
                 // We can't be sure of the fact that liveDocs have been applied, so we apply it here. The "remaining"
                 // count down (short circuit) logic will then work as expected.

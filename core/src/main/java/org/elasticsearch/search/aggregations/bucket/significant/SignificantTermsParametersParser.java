@@ -60,11 +60,11 @@ public class SignificantTermsParametersParser extends AbstractTermsParametersPar
 
     @Override
     public void parseSpecial(String aggregationName, XContentParser parser, SearchContext context, XContentParser.Token token, String currentFieldName) throws IOException {
-        
+
         if (token == XContentParser.Token.START_OBJECT) {
             SignificanceHeuristicParser significanceHeuristicParser = significanceHeuristicParserMapper.get(currentFieldName);
             if (significanceHeuristicParser != null) {
-                significanceHeuristic = significanceHeuristicParser.parse(parser, context.parseFieldMatcher());
+                significanceHeuristic = significanceHeuristicParser.parse(parser, context.parseFieldMatcher(), context);
             } else if (context.parseFieldMatcher().match(currentFieldName, BACKGROUND_FILTER)) {
                 filter = context.queryParserService().parseInnerFilter(parser).query();
             } else {

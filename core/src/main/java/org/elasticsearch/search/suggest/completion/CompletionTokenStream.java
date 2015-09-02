@@ -136,11 +136,6 @@ public final class CompletionTokenStream extends TokenStream {
         private CharsRefBuilder charsRef;
 
         @Override
-        public void fillBytesRef() {
-            // does nothing - we change in place
-        }
-
-        @Override
         public BytesRefBuilder builder() {
             return bytes;
         }

@@ -18,12 +18,6 @@ and  perform poorly.
     absolute value, eg `12GB`. Defaults to unbounded.  Also see
     <<fielddata-circuit-breaker>>.
 
-`indices.fielddata.cache.expire`::
-
-    experimental[] A time based setting that expires field data after a
-    certain time of inactivity. Defaults to `-1`. For example, can be set to
-    `5m` for a 5 minute expiry.
-
 NOTE: These are static settings which must be configured on every data node in
 the cluster.
 

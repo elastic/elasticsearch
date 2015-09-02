@@ -31,6 +31,7 @@ import org.elasticsearch.transport.*;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
@@ -51,16 +52,17 @@ public class PluggableTransportModuleIT extends ESIntegTestCase {
         return settingsBuilder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put(DiscoveryModule.DISCOVERY_TYPE_KEY, "local")
-                .put("plugin.types", CountingSentRequestsPlugin.class.getName())
                 .build();
     }
 
     @Override
-    protected Settings transportClientSettings() {
-        return settingsBuilder()
-                .put("plugin.types", CountingSentRequestsPlugin.class.getName())
-                .put(super.transportClientSettings())
-                .build();
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return pluginList(CountingSentRequestsPlugin.class);
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
+        return pluginList(CountingSentRequestsPlugin.class);
     }
 
     @Test

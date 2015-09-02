@@ -20,6 +20,7 @@
 package org.elasticsearch.common.settings.loader;
 
 import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.io.FastStringReader;
 import org.elasticsearch.common.io.stream.StreamInput;
 
@@ -36,7 +37,7 @@ public class PropertiesSettingsLoader implements SettingsLoader {
 
     @Override
     public Map<String, String> load(String source) throws IOException {
-        Properties props = new Properties();
+        Properties props = new NoDuplicatesProperties();
         FastStringReader reader = new FastStringReader(source);
         try {
             props.load(reader);
@@ -52,7 +53,7 @@ public class PropertiesSettingsLoader implements SettingsLoader {
 
     @Override
     public Map<String, String> load(byte[] source) throws IOException {
-        Properties props = new Properties();
+        Properties props = new NoDuplicatesProperties();
         StreamInput stream = StreamInput.wrap(source);
         try {
             props.load(stream);
@@ -63,6 +64,17 @@ public class PropertiesSettingsLoader implements SettingsLoader {
             return result;
         } finally {
             IOUtils.closeWhileHandlingException(stream);
+        }
+    }
+
+    class NoDuplicatesProperties extends Properties {
+        @Override
+        public synchronized Object put(Object key, Object value) {
+            Object previousValue = super.put(key, value);
+            if (previousValue != null) {
+                throw new ElasticsearchParseException("duplicate settings key [{}] found, previous value [{}], current value [{}]", key, previousValue, value);
+            }
+            return previousValue;
         }
     }
 }

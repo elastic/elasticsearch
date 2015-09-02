@@ -20,10 +20,9 @@
 package org.elasticsearch.index.store;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.plugin.cloud.azure.CloudAzurePlugin;
 
 
-public class SmbSimpleFsTest extends AbstractAzureFsTest {
+public class SmbSimpleFsTest extends AbstractAzureFsTestCase {
     @Override
     public Settings indexSettings() {
         return Settings.builder()

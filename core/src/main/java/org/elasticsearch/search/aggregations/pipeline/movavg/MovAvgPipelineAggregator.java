@@ -21,8 +21,6 @@ package org.elasticsearch.search.aggregations.pipeline.movavg;
 
 import com.google.common.base.Function;
 import com.google.common.collect.EvictingQueue;
-import com.google.common.collect.Lists;
-
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.Aggregation;
@@ -51,6 +49,7 @@ import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
 
+import static org.elasticsearch.common.util.CollectionUtils.eagerTransform;
 import static org.elasticsearch.search.aggregations.pipeline.BucketHelpers.resolveBucketValue;
 
 public class MovAvgPipelineAggregator extends PipelineAggregator {
@@ -135,7 +134,7 @@ public class MovAvgPipelineAggregator extends PipelineAggregator {
                 if (model.hasValue(values.size())) {
                     double movavg = model.next(values);
 
-                    List<InternalAggregation> aggs = new ArrayList<>(Lists.transform(bucket.getAggregations().asList(), AGGREGATION_TRANFORM_FUNCTION));
+                    List<InternalAggregation> aggs = new ArrayList<>(eagerTransform(bucket.getAggregations().asList(), AGGREGATION_TRANFORM_FUNCTION));
                     aggs.add(new InternalSimpleValue(name(), movavg, formatter, new ArrayList<PipelineAggregator>(), metaData()));
                     newBucket = factory.createBucket(bucket.getKey(), bucket.getDocCount(), new InternalAggregations(
                             aggs), bucket.getKeyed(), bucket.getFormatter());
@@ -176,7 +175,7 @@ public class MovAvgPipelineAggregator extends PipelineAggregator {
                     InternalHistogram.Bucket bucket = (InternalHistogram.Bucket) newBuckets.get(lastValidPosition + i + 1);
 
                     // Get the existing aggs in the bucket so we don't clobber data
-                    aggs = new ArrayList<>(Lists.transform(bucket.getAggregations().asList(), AGGREGATION_TRANFORM_FUNCTION));
+                    aggs = new ArrayList<>(eagerTransform(bucket.getAggregations().asList(), AGGREGATION_TRANFORM_FUNCTION));
                     aggs.add(new InternalSimpleValue(name(), predictions[i], formatter, new ArrayList<PipelineAggregator>(), metaData()));
 
                     InternalHistogram.Bucket newBucket = factory.createBucket(newKey, 0, new InternalAggregations(

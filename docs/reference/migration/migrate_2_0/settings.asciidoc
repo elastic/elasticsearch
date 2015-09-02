@@ -38,6 +38,28 @@ PUT _settings
 In 2.0, the above request will throw an exception. Instead the refresh
 interval should be set to `"1s"` for one second.
 
+==== Merge and merge throttling settings
+
+The tiered merge policy is now the only supported merge policy. These settings
+have been removed:
+
+* `index.merge.policy.type`
+* `index.merge.policy.min_merge_size`
+* `index.merge.policy.max_merge_size`
+* `index.merge.policy.merge_factor`
+* `index.merge.policy.max_merge_docs`
+* `index.merge.policy.calibrate_size_by_deletes`
+* `index.merge.policy.min_merge_docs`
+* `index.merge.policy.max_merge_docs`
+
+Merge throttling now uses a feedback loop to auto-throttle.  These settings
+have been removed:
+
+* `indices.store.throttle.type`
+* `indices.store.throttle.max_bytes_per_sec`
+* `index.store.throttle.type`
+* `index.store.throttle.max_bytes_per_sec`
+
 ==== Shadow replica settings
 
 The `node.enable_custom_paths` setting has been removed and replaced by the

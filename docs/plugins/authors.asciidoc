@@ -43,20 +43,13 @@ instance, see
 https://github.com/elastic/elasticsearch/blob/master/plugins/site-example/pom.xml[`plugins/site-example/pom.xml`].
 
 [float]
-=== Loading plugins from the classpath
+=== Testing your plugin
 
 When testing a Java plugin, it will only be auto-loaded if it is in the
-`plugins/` directory.  If, instead, it is in your classpath, you can tell
-Elasticsearch to load it with the `plugin.types` setting:
+`plugins/` directory.  Use `bin/plugin install file://path/to/your/plugin`
+to install your plugin for testing.
 
-[source,java]
---------------------------
-settingsBuilder()
-    .put("cluster.name", cluster)
-    .put("path.home", getHome())
-    .put("plugin.types", MyCustomPlugin.class.getName()) <1>
-    .build();
---------------------------
-<1> Tells Elasticsearch to load your plugin.
+You may also load your plugin within the test framework for integration tests.
+Read more in {ref}/integration-tests.html#changing-node-configuration[Changing Node Configuration].
 
 

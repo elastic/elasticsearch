@@ -21,11 +21,14 @@ package org.elasticsearch.action.search.type;
 
 import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.search.*;
+import org.elasticsearch.action.search.ReduceSearchPhaseException;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchScrollRequest;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -115,15 +118,15 @@ public class TransportSearchScrollQueryAndFetchAction extends AbstractComponent 
                 return;
             }
 
-            Tuple<String, Long>[] context = scrollId.getContext();
+            ScrollIdForNode[] context = scrollId.getContext();
             for (int i = 0; i < context.length; i++) {
-                Tuple<String, Long> target = context[i];
-                DiscoveryNode node = nodes.get(target.v1());
+                ScrollIdForNode target = context[i];
+                DiscoveryNode node = nodes.get(target.getNode());
                 if (node != null) {
-                    executePhase(i, node, target.v2());
+                    executePhase(i, node, target.getScrollId());
                 } else {
                     if (logger.isDebugEnabled()) {
-                        logger.debug("Node [" + target.v1() + "] not available for scroll request [" + scrollId.getSource() + "]");
+                        logger.debug("Node [" + target.getNode() + "] not available for scroll request [" + scrollId.getSource() + "]");
                     }
                     successfulOps.decrementAndGet();
                     if (counter.decrementAndGet() == 0) {
@@ -132,11 +135,11 @@ public class TransportSearchScrollQueryAndFetchAction extends AbstractComponent 
                 }
             }
 
-            for (Tuple<String, Long> target : scrollId.getContext()) {
-                DiscoveryNode node = nodes.get(target.v1());
+            for (ScrollIdForNode target : scrollId.getContext()) {
+                DiscoveryNode node = nodes.get(target.getNode());
                 if (node == null) {
                     if (logger.isDebugEnabled()) {
-                        logger.debug("Node [" + target.v1() + "] not available for scroll request [" + scrollId.getSource() + "]");
+                        logger.debug("Node [" + target.getNode() + "] not available for scroll request [" + scrollId.getSource() + "]");
                     }
                     successfulOps.decrementAndGet();
                     if (counter.decrementAndGet() == 0) {
@@ -189,7 +192,8 @@ public class TransportSearchScrollQueryAndFetchAction extends AbstractComponent 
 
         private void innerFinishHim() throws Exception {
             ScoreDoc[] sortedShardList = searchPhaseController.sortDocs(true, queryFetchResults);
-            final InternalSearchResponse internalResponse = searchPhaseController.merge(sortedShardList, queryFetchResults, queryFetchResults);
+            final InternalSearchResponse internalResponse = searchPhaseController.merge(sortedShardList, queryFetchResults,
+                    queryFetchResults, request);
             String scrollId = null;
             if (request.scroll() != null) {
                 scrollId = request.scrollId();

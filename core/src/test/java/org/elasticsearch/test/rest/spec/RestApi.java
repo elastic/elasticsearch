@@ -18,11 +18,11 @@
  */
 package org.elasticsearch.test.rest.spec;
 
-import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -35,10 +35,10 @@ import java.util.regex.Pattern;
 public class RestApi {
 
     private final String name;
-    private List<String> methods = Lists.newArrayList();
-    private List<String> paths = Lists.newArrayList();
-    private List<String> pathParts = Lists.newArrayList();
-    private List<String> params = Lists.newArrayList();
+    private List<String> methods = new ArrayList<>();
+    private List<String> paths = new ArrayList<>();
+    private List<String> pathParts = new ArrayList<>();
+    private List<String> params = new ArrayList<>();
     private BODY body = BODY.NOT_SUPPORTED;
 
     public static enum BODY {
@@ -63,7 +63,7 @@ public class RestApi {
     public List<String> getSupportedMethods(Set<String> restParams) {
         //we try to avoid hardcoded mappings but the index api is the exception
         if ("index".equals(name) || "create".equals(name)) {
-            List<String> indexMethods = Lists.newArrayList();
+            List<String> indexMethods = new ArrayList<>();
             for (String method : methods) {
                 if (restParams.contains("id")) {
                     //PUT when the id is provided
@@ -163,7 +163,7 @@ public class RestApi {
      */
     private List<RestPath> findMatchingRestPaths(Set<String> restParams) {
 
-        List<RestPath> matchingRestPaths = Lists.newArrayList();
+        List<RestPath> matchingRestPaths = new ArrayList<>();
         RestPath[] restPaths = buildRestPaths();
 
         for (RestPath restPath : restPaths) {

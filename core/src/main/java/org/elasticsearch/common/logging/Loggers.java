@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.logging;
 
-import com.google.common.collect.Lists;
 import org.apache.lucene.util.SuppressForbidden;
 import org.elasticsearch.common.Classes;
 import org.elasticsearch.common.settings.Settings;
@@ -28,10 +27,11 @@ import org.elasticsearch.index.shard.ShardId;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.util.ArrayList;
 import java.util.List;
 
-import static com.google.common.collect.Lists.newArrayList;
 import static java.util.Arrays.asList;
+import static org.elasticsearch.common.util.CollectionUtils.asArrayList;
 
 /**
  * A set of utilities around Logging.
@@ -59,16 +59,16 @@ public class Loggers {
     }
 
     public static ESLogger getLogger(Class clazz, Settings settings, ShardId shardId, String... prefixes) {
-        return getLogger(clazz, settings, shardId.index(), Lists.asList(Integer.toString(shardId.id()), prefixes).toArray(new String[0]));
+        return getLogger(clazz, settings, shardId.index(), asArrayList(Integer.toString(shardId.id()), prefixes).toArray(new String[0]));
     }
 
     /** Just like {@link #getLogger(Class, org.elasticsearch.common.settings.Settings,ShardId,String...)} but String loggerName instead of Class. */
     public static ESLogger getLogger(String loggerName, Settings settings, ShardId shardId, String... prefixes) {
-        return getLogger(loggerName, settings, Lists.asList(shardId.index().name(), Integer.toString(shardId.id()), prefixes).toArray(new String[0]));
+        return getLogger(loggerName, settings, asArrayList(shardId.index().name(), Integer.toString(shardId.id()), prefixes).toArray(new String[0]));
     }
 
     public static ESLogger getLogger(Class clazz, Settings settings, Index index, String... prefixes) {
-        return getLogger(clazz, settings, Lists.asList(SPACE, index.name(), prefixes).toArray(new String[0]));
+        return getLogger(clazz, settings, asArrayList(SPACE, index.name(), prefixes).toArray(new String[0]));
     }
 
     public static ESLogger getLogger(Class clazz, Settings settings, String... prefixes) {
@@ -86,7 +86,7 @@ public class Loggers {
 
     @SuppressForbidden(reason = "do not know what this method does")
     public static ESLogger getLogger(String loggerName, Settings settings, String... prefixes) {
-        List<String> prefixesList = newArrayList();
+        List<String> prefixesList = new ArrayList<>();
         if (settings.getAsBoolean("logger.logHostAddress", false)) {
             final InetAddress addr = getHostAddress();
             if (addr != null) {

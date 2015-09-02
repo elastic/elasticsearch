@@ -90,12 +90,6 @@ public class MapperQueryParser extends QueryParser {
         this.parseContext = parseContext;
     }
 
-    public MapperQueryParser(QueryParserSettings settings, QueryParseContext parseContext) {
-        super(settings.defaultField(), settings.defaultAnalyzer());
-        this.parseContext = parseContext;
-        reset(settings);
-    }
-
     public void reset(QueryParserSettings settings) {
         this.settings = settings;
         this.field = settings.defaultField();
@@ -285,7 +279,7 @@ public class MapperQueryParser extends QueryParser {
                     if (q != null) {
                         added = true;
                         applyBoost(mField, q);
-                        applySlop(q, slop);
+                        q = applySlop(q, slop);
                         disMaxQuery.add(q);
                     }
                 }
@@ -299,7 +293,7 @@ public class MapperQueryParser extends QueryParser {
                     Query q = super.getFieldQuery(mField, queryText, slop);
                     if (q != null) {
                         applyBoost(mField, q);
-                        applySlop(q, slop);
+                        q = applySlop(q, slop);
                         clauses.add(new BooleanClause(q, BooleanClause.Occur.SHOULD));
                     }
                 }
@@ -725,15 +719,6 @@ public class MapperQueryParser extends QueryParser {
     }
 
     @Override
-    protected WildcardQuery newWildcardQuery(Term t) {
-        // Backport: https://issues.apache.org/jira/browse/LUCENE-6677
-        assert Version.LATEST == Version.LUCENE_5_2_1;
-        WildcardQuery query = new WildcardQuery(t, maxDeterminizedStates);
-        query.setRewriteMethod(multiTermRewriteMethod);
-        return query;
-    }
-
-    @Override
     protected Query getRegexpQuery(String field, String termStr) throws ParseException {
         if (lowercaseExpandedTerms) {
             termStr = termStr.toLowerCase(locale);
@@ -821,14 +806,24 @@ public class MapperQueryParser extends QueryParser {
         }
     }
 
-    private void applySlop(Query q, int slop) {
-        if (q instanceof FilteredQuery) {
-            applySlop(((FilteredQuery)q).getQuery(), slop);
-        }
+    private Query applySlop(Query q, int slop) {
         if (q instanceof PhraseQuery) {
-            ((PhraseQuery) q).setSlop(slop);
+            PhraseQuery pq = (PhraseQuery) q;
+            PhraseQuery.Builder builder = new PhraseQuery.Builder();
+            builder.setSlop(slop);
+            final Term[] terms = pq.getTerms();
+            final int[] positions = pq.getPositions();
+            for (int i = 0; i < terms.length; ++i) {
+                builder.add(terms[i], positions[i]);
+            }
+            pq = builder.build();
+            pq.setBoost(q.getBoost());
+            return pq;
         } else if (q instanceof MultiPhraseQuery) {
             ((MultiPhraseQuery) q).setSlop(slop);
+            return q;
+        } else {
+            return q;
         }
     }
 

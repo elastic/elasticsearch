@@ -20,7 +20,7 @@
 package org.elasticsearch.azure.itest;
 
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
-import org.elasticsearch.cloud.azure.AbstractAzureTest;
+import org.elasticsearch.cloud.azure.AbstractAzureTestCase;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matchers;
@@ -29,14 +29,14 @@ import org.junit.Test;
 /**
  * This test needs Azure to run and -Dtests.thirdparty=true to be set
  * and -Des.config=/path/to/elasticsearch.yml
- * @see org.elasticsearch.cloud.azure.AbstractAzureTest
+ * @see AbstractAzureTestCase
  */
 @ESIntegTestCase.ClusterScope(
         scope = ESIntegTestCase.Scope.TEST,
         numDataNodes = 1,
         numClientNodes = 0,
         transportClientRatio = 0.0)
-public class AzureSimpleITest extends AbstractAzureTest {
+public class AzureSimpleITest extends AbstractAzureTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {

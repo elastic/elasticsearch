@@ -54,13 +54,13 @@ import org.elasticsearch.search.query.QueryPhaseExecutionException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
-import static com.google.common.collect.Lists.newArrayList;
 import static org.elasticsearch.action.exists.ExistsRequest.DEFAULT_MIN_SCORE;
 
 public class TransportExistsAction extends TransportBroadcastAction<ExistsRequest, ExistsResponse, ShardExistsRequest, ShardExistsResponse> {
@@ -131,7 +131,7 @@ public class TransportExistsAction extends TransportBroadcastAction<ExistsReques
             } else if (shardResponse instanceof BroadcastShardOperationFailedException) {
                 failedShards++;
                 if (shardFailures == null) {
-                    shardFailures = newArrayList();
+                    shardFailures = new ArrayList<>();
                 }
                 shardFailures.add(new DefaultShardOperationFailedException((BroadcastShardOperationFailedException) shardResponse));
             } else {
@@ -174,9 +174,8 @@ public class TransportExistsAction extends TransportBroadcastAction<ExistsReques
             }
             context.preProcess();
             try {
-                Lucene.EarlyTerminatingCollector existsCollector = Lucene.createExistsCollector();
-                Lucene.exists(context.searcher(), context.query(), existsCollector);
-                return new ShardExistsResponse(request.shardId(), existsCollector.exists());
+                boolean exists = Lucene.exists(context, context.query(), Lucene.createExistsCollector());
+                return new ShardExistsResponse(request.shardId(), exists);
             } catch (Exception e) {
                 throw new QueryPhaseExecutionException(context, "failed to execute exists", e);
             }

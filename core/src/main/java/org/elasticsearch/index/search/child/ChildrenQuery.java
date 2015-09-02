@@ -152,9 +152,6 @@ public final class ChildrenQuery extends IndexCacheableQuery {
             // No docs of the specified type exist on this shard
             return new BooleanQuery().createWeight(searcher, needsScores);
         }
-        IndexSearcher indexSearcher = new IndexSearcher(searcher.getIndexReader());
-        indexSearcher.setSimilarity(searcher.getSimilarity(true));
-        indexSearcher.setQueryCache(null);
 
         boolean abort = true;
         long numFoundParents;
@@ -193,7 +190,7 @@ public final class ChildrenQuery extends IndexCacheableQuery {
                 }
             }
 
-            indexSearcher.search(childQuery, collector);
+            searcher.search(childQuery, collector);
             numFoundParents = collector.foundParents();
             if (numFoundParents == 0) {
                 return new BooleanQuery().createWeight(searcher, needsScores);
@@ -265,8 +262,8 @@ public final class ChildrenQuery extends IndexCacheableQuery {
         }
 
         @Override
-        public Scorer scorer(LeafReaderContext context, Bits acceptDocs) throws IOException {
-            DocIdSet parentsSet = parentFilter.getDocIdSet(context, acceptDocs);
+        public Scorer scorer(LeafReaderContext context) throws IOException {
+            DocIdSet parentsSet = parentFilter.getDocIdSet(context, null);
             if (Lucene.isEmpty(parentsSet) || remaining == 0) {
                 return null;
             }

@@ -27,8 +27,6 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 
-import static com.google.common.collect.Lists.newArrayList;
-
 /**
  * A {@link RoutingNode} represents a cluster node associated with a single {@link DiscoveryNode} including all shards
  * that are hosted on that nodes. Each {@link RoutingNode} has a unique node id that can be used to identify the node.
@@ -118,7 +116,7 @@ public class RoutingNode implements Iterable<ShardRouting> {
      * @return List of shards 
      */
     public List<ShardRouting> shardsWithState(ShardRoutingState... states) {
-        List<ShardRouting> shards = newArrayList();
+        List<ShardRouting> shards = new ArrayList<>();
         for (ShardRouting shardEntry : this) {
             for (ShardRoutingState state : states) {
                 if (shardEntry.state() == state) {
@@ -136,7 +134,7 @@ public class RoutingNode implements Iterable<ShardRouting> {
      * @return a list of shards
      */
     public List<ShardRouting> shardsWithState(String index, ShardRoutingState... states) {
-        List<ShardRouting> shards = newArrayList();
+        List<ShardRouting> shards = new ArrayList<>();
 
         for (ShardRouting shardEntry : this) {
             if (!shardEntry.index().equals(index)) {

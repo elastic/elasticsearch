@@ -19,11 +19,25 @@
 
 package org.elasticsearch.index.engine;
 
-import com.google.common.collect.Lists;
-import org.apache.lucene.index.*;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriter.IndexReaderWarmer;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.LiveIndexWriterConfig;
+import org.apache.lucene.index.MergePolicy;
+import org.apache.lucene.index.MultiReader;
+import org.apache.lucene.index.SegmentCommitInfo;
+import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause.Occur;
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.SearcherFactory;
+import org.apache.lucene.search.SearcherManager;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.LockObtainFailedException;
@@ -49,8 +63,11 @@ import org.elasticsearch.index.indexing.ShardIndexingService;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.merge.OnGoingMerge;
-import org.elasticsearch.index.shard.*;
 import org.elasticsearch.index.search.nested.IncludeNestedDocsQuery;
+import org.elasticsearch.index.shard.ElasticsearchMergePolicy;
+import org.elasticsearch.index.shard.MergeSchedulerConfig;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.TranslogRecoveryPerformer;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.index.translog.TranslogCorruptedException;
@@ -59,7 +76,12 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.Lock;
@@ -114,7 +136,7 @@ public class InternalEngine extends Engine {
             this.indexingService = engineConfig.getIndexingService();
             this.warmer = engineConfig.getWarmer();
             mergeScheduler = scheduler = new EngineMergeScheduler(engineConfig.getShardId(), engineConfig.getIndexSettings(), engineConfig.getMergeSchedulerConfig());
-            this.dirtyLocks = new Object[engineConfig.getIndexConcurrency() * 50]; // we multiply it to have enough...
+            this.dirtyLocks = new Object[Runtime.getRuntime().availableProcessors() * 10]; // we multiply it to have enough...
             for (int i = 0; i < dirtyLocks.length; i++) {
                 dirtyLocks[i] = new Object();
             }
@@ -1016,7 +1038,6 @@ public class InternalEngine extends Engine {
             iwc.setMergePolicy(mergePolicy);
             iwc.setSimilarity(engineConfig.getSimilarity());
             iwc.setRAMBufferSizeMB(engineConfig.getIndexingBufferSize().mbFrac());
-            iwc.setMaxThreadStates(engineConfig.getIndexConcurrency());
             iwc.setCodec(engineConfig.getCodec());
             /* We set this timeout to a highish value to work around
              * the default poll interval in the Lucene lock that is
@@ -1085,7 +1106,7 @@ public class InternalEngine extends Engine {
                         newSearcher = searcher;
                     } else {
                         // figure out the newSearcher, with only the new readers that are relevant for us
-                        List<IndexReader> readers = Lists.newArrayList();
+                        List<IndexReader> readers = new ArrayList<>();
                         for (LeafReaderContext newReaderContext : reader.leaves()) {
                             if (isMergedSegment(newReaderContext.reader())) {
                                 // merged segments are already handled by IndexWriterConfig.setMergedSegmentWarmer

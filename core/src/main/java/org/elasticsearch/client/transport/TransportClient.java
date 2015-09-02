@@ -46,6 +46,7 @@ import org.elasticsearch.env.EnvironmentModule;
 import org.elasticsearch.indices.breaker.CircuitBreakerModule;
 import org.elasticsearch.monitor.MonitorService;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsModule;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.search.SearchModule;
@@ -55,6 +56,7 @@ import org.elasticsearch.transport.TransportModule;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.netty.NettyTransport;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
@@ -82,6 +84,7 @@ public class TransportClient extends AbstractClient {
     public static class Builder {
 
         private Settings settings = Settings.EMPTY;
+        private List<Class<? extends Plugin>> pluginClasses = new ArrayList<>();
         private boolean loadConfigSettings = true;
 
         /**
@@ -109,6 +112,14 @@ public class TransportClient extends AbstractClient {
         }
 
         /**
+         * Add the given plugin to the client when it is created.
+         */
+        public Builder addPlugin(Class<? extends Plugin> pluginClass) {
+            pluginClasses.add(pluginClass);
+            return this;
+        }
+
+        /**
          * Builds a new instance of the transport client.
          */
         public TransportClient build() {
@@ -122,7 +133,7 @@ public class TransportClient extends AbstractClient {
                     .build();
             Environment environment = tuple.v2();
 
-            PluginsService pluginsService = new PluginsService(settings, tuple.v2());
+            PluginsService pluginsService = new PluginsService(settings, tuple.v2(), pluginClasses);
             this.settings = pluginsService.updatedSettings();
 
             Version version = Version.CURRENT;
@@ -133,6 +144,10 @@ public class TransportClient extends AbstractClient {
             try {
                 ModulesBuilder modules = new ModulesBuilder();
                 modules.add(new Version.Module(version));
+                // plugin modules must be added here, before others or we can get crazy injection errors...
+                for (Module pluginModule : pluginsService.nodeModules()) {
+                    modules.add(pluginModule);
+                }
                 modules.add(new PluginsModule(pluginsService));
                 modules.add(new EnvironmentModule(environment));
                 modules.add(new SettingsModule(this.settings));
@@ -150,9 +165,6 @@ public class TransportClient extends AbstractClient {
                 modules.add(new ClientTransportModule());
                 modules.add(new CircuitBreakerModule(this.settings));
 
-                for (Module pluginModule : pluginsService.nodeModules()) {
-                    modules.add(pluginModule);
-                }
                 pluginsService.processModules(modules);
 
                 Injector injector = modules.createInjector();

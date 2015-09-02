@@ -17,8 +17,12 @@
 package org.elasticsearch.common.inject.internal;
 
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Lists;
-import org.elasticsearch.common.inject.*;
+import org.elasticsearch.common.inject.Binder;
+import org.elasticsearch.common.inject.Key;
+import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.inject.Provider;
+import org.elasticsearch.common.inject.Provides;
+import org.elasticsearch.common.inject.TypeLiteral;
 import org.elasticsearch.common.inject.spi.Dependency;
 import org.elasticsearch.common.inject.spi.Message;
 import org.elasticsearch.common.inject.util.Modules;
@@ -26,6 +30,7 @@ import org.elasticsearch.common.inject.util.Modules;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Member;
 import java.lang.reflect.Method;
+import java.util.ArrayList;
 import java.util.List;
 
 import static com.google.common.base.Preconditions.checkNotNull;
@@ -74,7 +79,7 @@ public final class ProviderMethodsModule implements Module {
     }
 
     public List<ProviderMethod<?>> getProviderMethods(Binder binder) {
-        List<ProviderMethod<?>> result = Lists.newArrayList();
+        List<ProviderMethod<?>> result = new ArrayList<>();
         for (Class<?> c = delegate.getClass(); c != Object.class; c = c.getSuperclass()) {
             for (Method method : c.getDeclaredMethods()) {
                 if (method.getAnnotation(Provides.class) != null) {
@@ -90,8 +95,8 @@ public final class ProviderMethodsModule implements Module {
         Errors errors = new Errors(method);
 
         // prepare the parameter providers
-        List<Dependency<?>> dependencies = Lists.newArrayList();
-        List<Provider<?>> parameterProviders = Lists.newArrayList();
+        List<Dependency<?>> dependencies = new ArrayList<>();
+        List<Provider<?>> parameterProviders = new ArrayList<>();
         List<TypeLiteral<?>> parameterTypes = typeLiteral.getParameterTypes(method);
         Annotation[][] parameterAnnotations = method.getParameterAnnotations();
         for (int i = 0; i < parameterTypes.size(); i++) {

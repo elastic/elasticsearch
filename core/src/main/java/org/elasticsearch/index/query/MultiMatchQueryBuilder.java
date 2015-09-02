@@ -20,7 +20,6 @@
 package org.elasticsearch.index.query;
 
 import com.carrotsearch.hppc.ObjectFloatHashMap;
-import com.google.common.collect.Lists;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
@@ -29,6 +28,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.search.MatchQuery;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
@@ -60,8 +60,6 @@ public class MultiMatchQueryBuilder extends QueryBuilder implements BoostableQue
     private Integer maxExpansions;
 
     private String minimumShouldMatch;
-
-    private String rewrite = null;
 
     private String fuzzyRewrite = null;
 
@@ -153,7 +151,7 @@ public class MultiMatchQueryBuilder extends QueryBuilder implements BoostableQue
      * Constructs a new text query.
      */
     public MultiMatchQueryBuilder(Object text, String... fields) {
-        this.fields = Lists.newArrayList();
+        this.fields = new ArrayList<>();
         this.fields.addAll(Arrays.asList(fields));
         this.text = text;
     }
@@ -252,11 +250,6 @@ public class MultiMatchQueryBuilder extends QueryBuilder implements BoostableQue
 
     public MultiMatchQueryBuilder minimumShouldMatch(String minimumShouldMatch) {
         this.minimumShouldMatch = minimumShouldMatch;
-        return this;
-    }
-
-    public MultiMatchQueryBuilder rewrite(String rewrite) {
-        this.rewrite = rewrite;
         return this;
     }
 
@@ -366,9 +359,6 @@ public class MultiMatchQueryBuilder extends QueryBuilder implements BoostableQue
         }
         if (minimumShouldMatch != null) {
             builder.field("minimum_should_match", minimumShouldMatch);
-        }
-        if (rewrite != null) {
-            builder.field("rewrite", rewrite);
         }
         if (fuzzyRewrite != null) {
             builder.field("fuzzy_rewrite", fuzzyRewrite);

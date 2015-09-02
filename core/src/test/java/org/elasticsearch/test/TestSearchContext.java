@@ -36,6 +36,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
@@ -93,7 +94,7 @@ public class TestSearchContext extends SearchContext {
     private final Map<String, FetchSubPhaseContext> subPhaseContexts = new HashMap<>();
 
     public TestSearchContext(ThreadPool threadPool,PageCacheRecycler pageCacheRecycler, BigArrays bigArrays, IndexService indexService) {
-        super(ParseFieldMatcher.STRICT);
+        super(ParseFieldMatcher.STRICT, null);
         this.pageCacheRecycler = pageCacheRecycler;
         this.bigArrays = bigArrays.withCircuitBreaking();
         this.indexService = indexService;
@@ -104,7 +105,7 @@ public class TestSearchContext extends SearchContext {
     }
 
     public TestSearchContext() {
-        super(ParseFieldMatcher.STRICT);
+        super(ParseFieldMatcher.STRICT, null);
         this.pageCacheRecycler = null;
         this.bigArrays = null;
         this.indexService = null;
@@ -284,8 +285,8 @@ public class TestSearchContext extends SearchContext {
         return searcher;
     }
 
-    public void setSearcher(ContextIndexSearcher searcher) {
-        this.searcher = searcher;
+    public void setSearcher(Engine.Searcher searcher) {
+        this.searcher = new ContextIndexSearcher(this, searcher);
     }
 
     @Override

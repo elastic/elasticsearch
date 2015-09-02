@@ -30,66 +30,55 @@
 
 # Load test utilities
 load packaging_test_utils
+load tar
 
-# Cleans everything for the 1st execution
 setup() {
-    if [ "$BATS_TEST_NUMBER" -eq 1 ]; then
-        clean_before_test
-    fi
+    skip_not_tar_gz
 }
 
 ##################################
 # Install TAR GZ package
 ##################################
 @test "[TAR] tar command is available" {
-    skip_not_tar_gz
+    # Cleans everything for the 1st execution
+    clean_before_test
     run tar --version
     [ "$status" -eq 0 ]
 }
 
 @test "[TAR] archive is available" {
-    skip_not_tar_gz
     count=$(find . -type f -name 'elasticsearch*.tar.gz' | wc -l)
     [ "$count" -eq 1 ]
 }
 
 @test "[TAR] archive is not installed" {
-    skip_not_tar_gz
     count=$(find /tmp -type d -name 'elasticsearch*' | wc -l)
     [ "$count" -eq 0 ]
 }
 
 @test "[TAR] install archive" {
-    skip_not_tar_gz
-
     # Install the archive
     install_archive
 
     count=$(find /tmp -type d -name 'elasticsearch*' | wc -l)
     [ "$count" -eq 1 ]
-}
 
-##################################
-# Check that the archive is correctly installed
-##################################
-@test "[TAR] verify archive installation" {
-    skip_not_tar_gz
-
-    verify_archive_installation "/tmp/elasticsearch"
+    # Its simpler to check that the install was correct in this test rather
+    # than in another test because install_archive sets a number of path
+    # variables that verify_archive_installation reads. To separate this into
+    # another test you'd have to recreate the variables.
+    verify_archive_installation
 }
 
 ##################################
 # Check that Elasticsearch is working
 ##################################
 @test "[TAR] test elasticsearch" {
-    skip_not_tar_gz
-
     start_elasticsearch_service
 
     run_elasticsearch_tests
 
     stop_elasticsearch_service
 
-    run rm -rf "/tmp/elasticsearch"
-    [ "$status" -eq 0 ]
+    rm -rf "/tmp/elasticsearch"
 }

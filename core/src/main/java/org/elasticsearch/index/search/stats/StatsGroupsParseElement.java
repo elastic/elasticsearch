@@ -19,12 +19,12 @@
 
 package org.elasticsearch.index.search.stats;
 
-import com.google.common.collect.ImmutableList;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -35,7 +35,7 @@ public class StatsGroupsParseElement implements SearchParseElement {
     public void parse(XContentParser parser, SearchContext context) throws Exception {
         XContentParser.Token token = parser.currentToken();
         if (token.isValue()) {
-            context.groupStats(ImmutableList.of(parser.text()));
+            context.groupStats(Collections.singletonList(parser.text()));
         } else if (token == XContentParser.Token.START_ARRAY) {
             List<String> groupStats = new ArrayList<>(4);
             while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {

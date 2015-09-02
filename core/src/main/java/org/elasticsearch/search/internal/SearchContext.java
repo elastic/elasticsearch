@@ -28,6 +28,7 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.util.Counter;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
+import org.elasticsearch.common.DelegatingHasContextAndHeaders;
 import org.elasticsearch.common.HasContextAndHeaders;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseFieldMatcher;
@@ -46,7 +47,6 @@ import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.dfs.DfsSearchResult;
@@ -69,7 +69,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-public abstract class SearchContext implements Releasable, HasContextAndHeaders {
+public abstract class SearchContext extends DelegatingHasContextAndHeaders implements Releasable {
 
     private static ThreadLocal<SearchContext> current = new ThreadLocal<>();
     public final static int DEFAULT_TERMINATE_AFTER = 0;
@@ -93,7 +93,8 @@ public abstract class SearchContext implements Releasable, HasContextAndHeaders 
 
     protected final ParseFieldMatcher parseFieldMatcher;
 
-    protected SearchContext(ParseFieldMatcher parseFieldMatcher) {
+    protected SearchContext(ParseFieldMatcher parseFieldMatcher, HasContextAndHeaders contextHeaders) {
+        super(contextHeaders);
         this.parseFieldMatcher = parseFieldMatcher;
     }
 

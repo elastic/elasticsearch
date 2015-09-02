@@ -83,7 +83,7 @@ public class MultiDataPathUpgraderTests extends ESTestCase {
                 ShardStateMetaData.FORMAT.write(new ShardStateMetaData(metaStateVersion, true, uuid), metaStateVersion, shardDataPaths);
             }
             final Path path = randomFrom(shardDataPaths);
-            ShardPath targetPath = new ShardPath(path, path, uuid, new ShardId("foo", 0));
+            ShardPath targetPath = new ShardPath(false, path, path, uuid, new ShardId("foo", 0));
             MultiDataPathUpgrader helper = new MultiDataPathUpgrader(nodeEnvironment);
             helper.upgrade(shardId, targetPath);
             assertFalse(helper.needsUpgrading(shardId));
@@ -177,7 +177,7 @@ public class MultiDataPathUpgraderTests extends ESTestCase {
             }
             logger.info("--> injecting index [{}] into multiple data paths", indexName);
             OldIndexBackwardsCompatibilityIT.copyIndex(logger, src, indexName, multiDataPath);
-            final ShardPath shardPath = new ShardPath(nodeEnvironment.availableShardPaths(new ShardId(indexName, 0))[0], nodeEnvironment.availableShardPaths(new ShardId(indexName, 0))[0], IndexMetaData.INDEX_UUID_NA_VALUE, new ShardId(indexName, 0));
+            final ShardPath shardPath = new ShardPath(false, nodeEnvironment.availableShardPaths(new ShardId(indexName, 0))[0], nodeEnvironment.availableShardPaths(new ShardId(indexName, 0))[0], IndexMetaData.INDEX_UUID_NA_VALUE, new ShardId(indexName, 0));
 
             logger.info("{}", FileSystemUtils.files(shardPath.resolveIndex()));
 

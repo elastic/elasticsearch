@@ -58,11 +58,11 @@ public class ScriptedMetricAggregator extends MetricsAggregator {
         this.params = params;
         ScriptService scriptService = context.searchContext().scriptService();
         if (initScript != null) {
-            scriptService.executable(initScript, ScriptContext.Standard.AGGS).run();
+            scriptService.executable(initScript, ScriptContext.Standard.AGGS, context.searchContext()).run();
         }
         this.mapScript = scriptService.search(context.searchContext().lookup(), mapScript, ScriptContext.Standard.AGGS);
         if (combineScript != null) {
-            this.combineScript = scriptService.executable(combineScript, ScriptContext.Standard.AGGS);
+            this.combineScript = scriptService.executable(combineScript, ScriptContext.Standard.AGGS, context.searchContext());
         } else {
             this.combineScript = null;
         }
@@ -159,7 +159,7 @@ public class ScriptedMetricAggregator extends MetricsAggregator {
                 return null;
             }
         }
-        
+
         @SuppressWarnings({ "unchecked" })
         private static <T> T deepCopyParams(T original, SearchContext context) {
             T clone;

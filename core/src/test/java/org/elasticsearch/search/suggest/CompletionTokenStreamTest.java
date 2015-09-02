@@ -54,7 +54,7 @@ public class CompletionTokenStreamTest extends ESTokenStreamTestCase {
         TokenStream suggestTokenStream = new ByteTermAttrToCharTermAttrFilter(new CompletionTokenStream(tokenStream, payload, new CompletionTokenStream.ToFiniteStrings() {
             @Override
             public Set<IntsRef> toFiniteStrings(TokenStream stream) throws IOException {
-                return suggester.toFiniteStrings(suggester.getTokenStreamToAutomaton(), stream);
+                return suggester.toFiniteStrings(stream);
             }
         }));
         assertTokenStreamContents(suggestTokenStream, new String[] {"mykeyword"}, null, null, new String[] {"Surface keyword|friggin payload|10"}, new int[] { 1 }, null, null);
@@ -73,7 +73,7 @@ public class CompletionTokenStreamTest extends ESTokenStreamTestCase {
         TokenStream suggestTokenStream = new ByteTermAttrToCharTermAttrFilter(new CompletionTokenStream(filter, payload, new CompletionTokenStream.ToFiniteStrings() {
             @Override
             public Set<IntsRef> toFiniteStrings(TokenStream stream) throws IOException {
-                return suggester.toFiniteStrings(suggester.getTokenStreamToAutomaton(), stream);
+                return suggester.toFiniteStrings(stream);
             }
         }));
         assertTokenStreamContents(suggestTokenStream, new String[] {"mysynonym", "mykeyword"}, null, null, new String[] {"Surface keyword|friggin payload|10", "Surface keyword|friggin payload|10"}, new int[] { 2, 0 }, null, null);
@@ -97,7 +97,7 @@ public class CompletionTokenStreamTest extends ESTokenStreamTestCase {
         TokenStream suggestTokenStream = new CompletionTokenStream(filter, new BytesRef("Surface keyword|friggin payload|10"), new CompletionTokenStream.ToFiniteStrings() {
             @Override
             public Set<IntsRef> toFiniteStrings(TokenStream stream) throws IOException {
-                Set<IntsRef> finiteStrings = suggester.toFiniteStrings(suggester.getTokenStreamToAutomaton(), stream);
+                Set<IntsRef> finiteStrings = suggester.toFiniteStrings(stream);
                 return finiteStrings;
             }
         });
@@ -137,7 +137,7 @@ public class CompletionTokenStreamTest extends ESTokenStreamTestCase {
         TokenStream suggestTokenStream = new CompletionTokenStream(filter, new BytesRef("Surface keyword|friggin payload|10"), new CompletionTokenStream.ToFiniteStrings() {
             @Override
             public Set<IntsRef> toFiniteStrings(TokenStream stream) throws IOException {
-                Set<IntsRef> finiteStrings = suggester.toFiniteStrings(suggester.getTokenStreamToAutomaton(), stream);
+                Set<IntsRef> finiteStrings = suggester.toFiniteStrings(stream);
                 return finiteStrings;
             }
         });
@@ -156,17 +156,15 @@ public class CompletionTokenStreamTest extends ESTokenStreamTestCase {
         TokenStream suggestTokenStream = new ByteTermAttrToCharTermAttrFilter(new CompletionTokenStream(tokenizer, payload, new CompletionTokenStream.ToFiniteStrings() {
             @Override
             public Set<IntsRef> toFiniteStrings(TokenStream stream) throws IOException {
-                return suggester.toFiniteStrings(suggester.getTokenStreamToAutomaton(), stream);
+                return suggester.toFiniteStrings(stream);
             }
         }));
         TermToBytesRefAttribute termAtt = suggestTokenStream.getAttribute(TermToBytesRefAttribute.class);
-        BytesRef ref = termAtt.getBytesRef();
-        assertNotNull(ref);
+        assertNotNull(termAtt.getBytesRef());
         suggestTokenStream.reset();
 
         while (suggestTokenStream.incrementToken()) {
-            termAtt.fillBytesRef();
-            assertThat(ref.utf8ToString(), equalTo("mykeyword"));
+            assertThat(termAtt.getBytesRef().utf8ToString(), equalTo("mykeyword"));
         }
         suggestTokenStream.end();
         suggestTokenStream.close();

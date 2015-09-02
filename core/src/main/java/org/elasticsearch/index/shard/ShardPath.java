@@ -20,6 +20,7 @@ package org.elasticsearch.index.shard;
 
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
@@ -41,10 +42,18 @@ public final class ShardPath {
     private final String indexUUID;
     private final ShardId shardId;
     private final Path shardStatePath;
+    private final boolean isCustomDataPath;
 
-
-    public ShardPath(Path path, Path shardStatePath, String indexUUID, ShardId shardId) {
-        this.path = path;
+    public ShardPath(boolean isCustomDataPath, Path dataPath, Path shardStatePath, String indexUUID, ShardId shardId) {
+        assert dataPath.getFileName().toString().equals(Integer.toString(shardId.id())) : "dataPath must end with the shard ID but didn't: " + dataPath.toString();
+        assert shardStatePath.getFileName().toString().equals(Integer.toString(shardId.id())) : "shardStatePath must end with the shard ID but didn't: " + dataPath.toString();
+        assert dataPath.getParent().getFileName().toString().equals(shardId.getIndex()) : "dataPath must end with index/shardID but didn't: " + dataPath.toString();
+        assert shardStatePath.getParent().getFileName().toString().equals(shardId.getIndex()) : "shardStatePath must end with index/shardID but didn't: " + dataPath.toString();
+        if (isCustomDataPath && dataPath.equals(shardStatePath)) {
+            throw new IllegalArgumentException("shard state path must be different to the data path when using custom data paths");
+        }
+        this.isCustomDataPath = isCustomDataPath;
+        this.path = dataPath;
         this.indexUUID = indexUUID;
         this.shardId = shardId;
         this.shardStatePath = shardStatePath;
@@ -76,6 +85,30 @@ public final class ShardPath {
 
     public Path getShardStatePath() {
         return shardStatePath;
+    }
+
+    /**
+     * Returns the data-path root for this shard. The root is a parent of {@link #getDataPath()} without the index name
+     * and the shard ID.
+     */
+    public Path getRootDataPath() {
+        Path noIndexShardId = getDataPath().getParent().getParent();
+        return isCustomDataPath ? noIndexShardId : noIndexShardId.getParent(); // also strip the indices folder
+    }
+
+    /**
+     * Returns the state-path root for this shard. The root is a parent of {@link #getRootStatePath()} ()} without the index name
+     * and the shard ID.
+     */
+    public Path getRootStatePath() {
+        return getShardStatePath().getParent().getParent().getParent(); // also strip the indices folder
+    }
+
+    /**
+     * Returns <code>true</code> iff the data location is a custom data location and therefore outside of the nodes configured data paths.
+     */
+    public boolean isCustomDataPath() {
+        return isCustomDataPath;
     }
 
     /**
@@ -113,7 +146,7 @@ public final class ShardPath {
                 dataPath = statePath;
             }
             logger.debug("{} loaded data path [{}], state path [{}]", shardId, dataPath, statePath);
-            return new ShardPath(dataPath, statePath, indexUUID, shardId);
+            return new ShardPath(NodeEnvironment.hasCustomDataPath(indexSettings), dataPath, statePath, indexUUID, shardId);
         }
     }
 
@@ -166,19 +199,27 @@ public final class ShardPath {
     }
 
     public static ShardPath selectNewPathForShard(NodeEnvironment env, ShardId shardId, @IndexSettings Settings indexSettings,
-                                                  long avgShardSizeInBytes, Iterable<IndexShard> shards) throws IOException {
+                                                  long avgShardSizeInBytes, Map<Path,Integer> dataPathToShardCount) throws IOException {
 
         final Path dataPath;
         final Path statePath;
-
-        final String indexUUID = indexSettings.get(IndexMetaData.SETTING_INDEX_UUID, IndexMetaData.INDEX_UUID_NA_VALUE);
 
         if (NodeEnvironment.hasCustomDataPath(indexSettings)) {
             dataPath = env.resolveCustomLocation(indexSettings, shardId);
             statePath = env.nodePaths()[0].resolve(shardId);
         } else {
 
-            Map<Path,Long> estReservedBytes = getEstimatedReservedBytes(env, avgShardSizeInBytes, shards);
+            long totFreeSpace = 0;
+            for (NodeEnvironment.NodePath nodePath : env.nodePaths()) {
+                totFreeSpace += nodePath.fileStore.getUsableSpace();
+            }
+
+            // TODO: this is a hack!!  We should instead keep track of incoming (relocated) shards since we know
+            // how large they will be once they're done copying, instead of a silly guess for such cases:
+
+            // Very rough heurisic of how much disk space we expect the shard will use over its lifetime, the max of current average
+            // shard size across the cluster and 5% of the total available free space on this node:
+            long estShardSizeInBytes = Math.max(avgShardSizeInBytes, (long) (totFreeSpace/20.0));
 
             // TODO - do we need something more extensible? Yet, this does the job for now...
             final NodeEnvironment.NodePath[] paths = env.nodePaths();
@@ -187,10 +228,11 @@ public final class ShardPath {
             for (NodeEnvironment.NodePath nodePath : paths) {
                 FileStore fileStore = nodePath.fileStore;
                 long usableBytes = fileStore.getUsableSpace();
-                Long reservedBytes = estReservedBytes.get(nodePath.path);
-                if (reservedBytes != null) {
-                    // Deduct estimated reserved bytes from usable space:
-                    usableBytes -= reservedBytes;
+
+                // Deduct estimated reserved bytes from usable space:
+                Integer count = dataPathToShardCount.get(nodePath.path);
+                if (count != null) {
+                    usableBytes -= estShardSizeInBytes * count;
                 }
                 if (usableBytes > maxUsableBytes) {
                     maxUsableBytes = usableBytes;
@@ -202,7 +244,9 @@ public final class ShardPath {
             dataPath = statePath;
         }
 
-        return new ShardPath(dataPath, statePath, indexUUID, shardId);
+        final String indexUUID = indexSettings.get(IndexMetaData.SETTING_INDEX_UUID, IndexMetaData.INDEX_UUID_NA_VALUE);
+
+        return new ShardPath(NodeEnvironment.hasCustomDataPath(indexSettings), dataPath, statePath, indexUUID, shardId);
     }
 
     @Override

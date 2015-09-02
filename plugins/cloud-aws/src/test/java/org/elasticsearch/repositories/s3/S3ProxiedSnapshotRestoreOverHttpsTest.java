@@ -27,7 +27,7 @@ import org.junit.Before;
  * cloud.aws.s3.proxy_host: mys3proxy.company.com
  * cloud.aws.s3.proxy_port: 8080
  */
-public class S3ProxiedSnapshotRestoreOverHttpsTest extends AbstractS3SnapshotRestoreTest {
+public class S3ProxiedSnapshotRestoreOverHttpsTest extends AbstractS3SnapshotRestoreTestCase {
 
     private boolean proxySet = false;
 

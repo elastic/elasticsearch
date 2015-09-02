@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.fielddata;
 
-import com.google.common.collect.ImmutableList;
 
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.util.BytesRef;
@@ -30,6 +29,7 @@ import org.joda.time.DateTimeZone;
 import org.joda.time.MutableDateTime;
 
 import java.util.AbstractList;
+import java.util.Collections;
 import java.util.List;
 
 
@@ -85,7 +85,7 @@ public interface ScriptDocValues<T> extends List<T> {
 
         @Override
         public List<String> getValues() {
-            return ImmutableList.copyOf(this);
+            return Collections.unmodifiableList(this);
         }
 
         @Override
@@ -128,7 +128,7 @@ public interface ScriptDocValues<T> extends List<T> {
 
         @Override
         public List<Long> getValues() {
-            return ImmutableList.copyOf(this);
+            return Collections.unmodifiableList(this);
         }
 
         public MutableDateTime getDate() {
@@ -175,7 +175,7 @@ public interface ScriptDocValues<T> extends List<T> {
 
         @Override
         public List<Double> getValues() {
-            return ImmutableList.copyOf(this);
+            return Collections.unmodifiableList(this);
         }
 
         @Override
@@ -238,7 +238,7 @@ public interface ScriptDocValues<T> extends List<T> {
 
         @Override
         public List<GeoPoint> getValues() {
-            return ImmutableList.copyOf(this);
+            return Collections.unmodifiableList(this);
         }
 
         @Override

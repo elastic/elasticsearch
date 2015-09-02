@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.queries.TermsQuery;
@@ -44,7 +43,9 @@ import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
 
@@ -163,7 +164,7 @@ public class MoreLikeThisQueryParser implements QueryParser {
                     }
                     mltQuery.setStopWords(stopWords);
                 } else if ("fields".equals(currentFieldName)) {
-                    moreLikeFields = Lists.newLinkedList();
+                    moreLikeFields = new LinkedList<>();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         String field = parser.text();
                         MappedFieldType fieldType = parseContext.fieldMapper(field);
@@ -222,7 +223,7 @@ public class MoreLikeThisQueryParser implements QueryParser {
         // set like text fields
         boolean useDefaultField = (moreLikeFields == null);
         if (useDefaultField) {
-            moreLikeFields = Lists.newArrayList(parseContext.defaultField());
+            moreLikeFields = Collections.singletonList(parseContext.defaultField());
         }
         // possibly remove unsupported fields
         removeUnsupportedFields(moreLikeFields, analyzer, failOnUnsupportedField);

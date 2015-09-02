@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.xcontent.support;
 
-import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
@@ -40,7 +39,7 @@ public class XContentMapValues {
      * as a single list.
      */
     public static List<Object> extractRawValues(String path, Map<String, Object> map) {
-        List<Object> values = Lists.newArrayList();
+        List<Object> values = new ArrayList<>();
         String[] pathElements = Strings.splitStringToArray(path, '.');
         if (pathElements.length == 0) {
             return values;

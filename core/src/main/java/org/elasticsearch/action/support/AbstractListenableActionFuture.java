@@ -19,13 +19,13 @@
 
 package org.elasticsearch.action.support;
 
-import com.google.common.collect.Lists;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -66,7 +66,7 @@ public abstract class AbstractListenableActionFuture<T, L> extends AdapterAction
                     ((List) this.listeners).add(listener);
                 } else {
                     Object orig = listeners;
-                    listeners = Lists.newArrayListWithCapacity(2);
+                    listeners = new ArrayList<>(2);
                     ((List) listeners).add(orig);
                     ((List) listeners).add(listener);
                 }

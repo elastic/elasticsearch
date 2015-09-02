@@ -220,7 +220,7 @@ public class TermVectorsResponse extends ActionResponse implements ToXContent {
         builder.startObject(spare.toString());
         buildTermStatistics(builder, termIter);
         // finally write the term vectors
-        PostingsEnum posEnum = termIter.postings(null, null, PostingsEnum.ALL);
+        PostingsEnum posEnum = termIter.postings(null, PostingsEnum.ALL);
         int termFreq = posEnum.freq();
         builder.field(FieldStrings.TERM_FREQ, termFreq);
         initMemory(curTerms, termFreq);

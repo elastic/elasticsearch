@@ -46,7 +46,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.fielddata.AbstractFieldDataTests;
+import org.elasticsearch.index.fielddata.AbstractFieldDataTestCase;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource;
@@ -65,7 +65,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
-public class NestedSortingTests extends AbstractFieldDataTests {
+public class NestedSortingTests extends AbstractFieldDataTestCase {
 
     @Override
     protected FieldDataType getFieldDataType() {

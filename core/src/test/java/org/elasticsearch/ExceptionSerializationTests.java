@@ -38,6 +38,7 @@ import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.stream.*;
 import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.CancellableThreadsTests;
 import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.index.AlreadyExpiredException;
@@ -95,7 +96,7 @@ public class ExceptionSerializationTests extends ESTestCase {
                 org.elasticsearch.test.rest.parser.RestTestParseException.class,
                 org.elasticsearch.index.query.TestQueryParsingException.class,
                 org.elasticsearch.test.rest.client.RestException.class,
-                org.elasticsearch.common.util.CancellableThreadsTest.CustomException.class,
+                CancellableThreadsTests.CustomException.class,
                 org.elasticsearch.rest.BytesRestResponseTests.WithHeadersException.class,
                 AbstractClientHeadersTestCase.InternalException.class);
         FileVisitor<Path> visitor = new FileVisitor<Path>() {

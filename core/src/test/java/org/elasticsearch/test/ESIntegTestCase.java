@@ -191,7 +191,7 @@ import static org.hamcrest.Matchers.*;
  * should be used, here is an example:
  * <pre>
  *
- * @ClusterScope(scope=Scope.TEST) public class SomeIntegrationTest extends ESIntegTestCase {
+ * @ClusterScope(scope=Scope.TEST) public class SomeIT extends ESIntegTestCase {
  * @Test public void testMethod() {}
  * }
  * </pre>
@@ -204,7 +204,7 @@ import static org.hamcrest.Matchers.*;
  * <p/>
  *  <pre>
  * @ClusterScope(scope=Scope.SUITE, numDataNodes=3)
- * public class SomeIntegrationTest extends ESIntegTestCase {
+ * public class SomeIT extends ESIntegTestCase {
  * @Test public void testMethod() {}
  * }
  * </pre>

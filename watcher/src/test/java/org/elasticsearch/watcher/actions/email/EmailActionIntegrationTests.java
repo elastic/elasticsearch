@@ -7,11 +7,10 @@ package org.elasticsearch.watcher.actions.email;
 
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.watcher.actions.email.service.EmailTemplate;
 import org.elasticsearch.watcher.actions.email.service.support.EmailServer;
 import org.elasticsearch.watcher.client.WatcherClient;
-import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
+import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.watcher.trigger.schedule.IntervalSchedule;
 import org.junit.After;
 import org.junit.Test;
@@ -34,7 +33,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  *
  */
-public class EmailActionIntegrationTests extends AbstractWatcherIntegrationTests {
+public class EmailActionIntegrationTests extends AbstractWatcherIntegrationTestCase {
 
     static final String USERNAME = "_user";
     static final String PASSWORD = "_passwd";

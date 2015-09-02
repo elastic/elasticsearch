@@ -10,7 +10,7 @@ import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.watcher.execution.ExecutionState;
-import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
+import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.watcher.transport.actions.put.PutWatchResponse;
 import org.junit.Test;
 
@@ -32,7 +32,7 @@ import static org.hamcrest.Matchers.notNullValue;
  * This test makes sure that the http host and path fields in the watch_record action result are
  * not analyzed so they can be used in aggregations
  */
-public class HistoryTemplateTransformMappingsTests extends AbstractWatcherIntegrationTests {
+public class HistoryTemplateTransformMappingsTests extends AbstractWatcherIntegrationTestCase {
 
     @Override
     protected boolean timeWarped() {

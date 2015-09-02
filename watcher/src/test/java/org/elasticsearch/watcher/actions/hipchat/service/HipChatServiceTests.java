@@ -9,7 +9,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.junit.annotations.Network;
 import org.elasticsearch.watcher.actions.hipchat.HipChatAction;
-import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
+import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.watcher.transport.actions.put.PutWatchResponse;
 import org.junit.Test;
 
@@ -28,7 +28,7 @@ import static org.hamcrest.Matchers.*;
  *
  */
 @Network
-public class HipChatServiceTests extends AbstractWatcherIntegrationTests {
+public class HipChatServiceTests extends AbstractWatcherIntegrationTestCase {
 
     @Override
     protected boolean timeWarped() {

@@ -20,7 +20,7 @@ import org.elasticsearch.watcher.execution.TriggeredWatch;
 import org.elasticsearch.watcher.execution.TriggeredWatchStore;
 import org.elasticsearch.watcher.execution.Wid;
 import org.elasticsearch.watcher.history.*;
-import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
+import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.watcher.transport.actions.stats.WatcherStatsResponse;
 import org.elasticsearch.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.elasticsearch.watcher.watch.Watch;
@@ -49,7 +49,7 @@ import static org.hamcrest.core.IsEqual.equalTo;
 /**
  */
 @TestLogging("watcher:TRACE")
-public class BootStrapTests extends AbstractWatcherIntegrationTests {
+public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
 
     @Override
     protected boolean timeWarped() {

@@ -24,7 +24,7 @@ import static org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
 
 @ClusterScope(scope = TEST)
-public class ClusterPrivilegeTests extends AbstractPrivilegeTests {
+public class ClusterPrivilegeTests extends AbstractPrivilegeTestCase {
 
     public static final String ROLES =
                     "role_a:\n" +

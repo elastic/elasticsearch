@@ -17,7 +17,7 @@ import java.util.Locale;
 
 import static org.hamcrest.Matchers.is;
 
-public class IndexPrivilegeTests extends AbstractPrivilegeTests {
+public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
 
     private String jsonDoc = "{ \"name\" : \"elasticsearch\"}";
 

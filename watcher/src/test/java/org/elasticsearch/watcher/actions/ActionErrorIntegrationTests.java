@@ -16,7 +16,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.support.xcontent.XContentSource;
-import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
+import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.watcher.transport.actions.get.GetWatchResponse;
 import org.elasticsearch.watcher.transport.actions.put.PutWatchResponse;
 import org.elasticsearch.watcher.watch.Payload;
@@ -36,7 +36,7 @@ import static org.hamcrest.Matchers.is;
 /**
  *
  */
-public class ActionErrorIntegrationTests extends AbstractWatcherIntegrationTests {
+public class ActionErrorIntegrationTests extends AbstractWatcherIntegrationTestCase {
 
     @Override
     protected boolean timeWarped() {

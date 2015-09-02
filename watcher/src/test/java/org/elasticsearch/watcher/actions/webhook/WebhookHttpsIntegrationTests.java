@@ -23,7 +23,7 @@ import org.elasticsearch.watcher.support.http.Scheme;
 import org.elasticsearch.watcher.support.http.auth.basic.BasicAuth;
 import org.elasticsearch.watcher.support.text.TextTemplate;
 import org.elasticsearch.watcher.support.xcontent.XContentSource;
-import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
+import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -42,7 +42,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class WebhookHttpsIntegrationTests extends AbstractWatcherIntegrationTests {
+public class WebhookHttpsIntegrationTests extends AbstractWatcherIntegrationTestCase {
 
     private int webPort;
     private MockWebServer webServer;

@@ -7,7 +7,7 @@ package org.elasticsearch.watcher.transport.action.delete;
 
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.watcher.support.Script;
-import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
+import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.watcher.transport.actions.delete.DeleteWatchResponse;
 import org.elasticsearch.watcher.transport.actions.put.PutWatchResponse;
 import org.elasticsearch.watcher.transport.actions.service.WatcherServiceResponse;
@@ -23,7 +23,7 @@ import static org.hamcrest.Matchers.is;
 
 /**
  */
-public class ForceDeleteWatchTests extends AbstractWatcherIntegrationTests {
+public class ForceDeleteWatchTests extends AbstractWatcherIntegrationTestCase {
 
     //Disable time warping for the force delete long running watch test
     protected boolean timeWarped() {

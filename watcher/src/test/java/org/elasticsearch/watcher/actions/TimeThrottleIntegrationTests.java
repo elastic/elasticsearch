@@ -13,7 +13,7 @@ import org.elasticsearch.watcher.client.WatcherClient;
 import org.elasticsearch.watcher.execution.ExecutionState;
 import org.elasticsearch.watcher.history.HistoryStore;
 import org.elasticsearch.watcher.history.WatchRecord;
-import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
+import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.watcher.transport.actions.put.PutWatchResponse;
 import org.joda.time.DateTimeZone;
 import org.junit.Test;
@@ -35,7 +35,7 @@ import static org.hamcrest.Matchers.is;
 
 /**
  */
-public class TimeThrottleIntegrationTests extends AbstractWatcherIntegrationTests {
+public class TimeThrottleIntegrationTests extends AbstractWatcherIntegrationTestCase {
 
     private IndexResponse indexTestDoc() {
         createIndex("actions", "events");

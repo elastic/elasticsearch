@@ -27,7 +27,7 @@ import org.elasticsearch.watcher.client.WatchSourceBuilder;
 import org.elasticsearch.watcher.client.WatchSourceBuilders;
 import org.elasticsearch.watcher.condition.ConditionBuilders;
 import org.elasticsearch.watcher.execution.ExecutionService;
-import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
+import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.watcher.test.WatcherTestUtils;
 import org.elasticsearch.watcher.transport.actions.delete.DeleteWatchResponse;
 import org.elasticsearch.watcher.transport.actions.stats.WatcherStatsResponse;
@@ -53,7 +53,7 @@ import static org.hamcrest.core.Is.is;
 @TestLogging("discovery:TRACE,watcher:TRACE")
 @ClusterScope(scope = TEST, numClientNodes = 0, transportClientRatio = 0, randomDynamicTemplates = false, numDataNodes = 0)
 @SuppressLocalMode
-public class NoMasterNodeTests extends AbstractWatcherIntegrationTests {
+public class NoMasterNodeTests extends AbstractWatcherIntegrationTestCase {
 
     private ClusterDiscoveryConfiguration.UnicastZen config;
 

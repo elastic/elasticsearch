@@ -14,7 +14,7 @@ import org.elasticsearch.watcher.condition.ConditionBuilders;
 import org.elasticsearch.watcher.execution.ExecutionPhase;
 import org.elasticsearch.watcher.execution.QueuedWatch;
 import org.elasticsearch.watcher.input.InputBuilders;
-import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
+import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.watcher.transport.actions.stats.WatcherStatsResponse;
 import org.joda.time.DateTime;
 import org.junit.Test;
@@ -33,7 +33,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 @ESIntegTestCase.ClusterScope(scope = TEST, numClientNodes = 0, transportClientRatio = 0, randomDynamicTemplates = false, numDataNodes = 2)
-public class SlowWatchStatsTests extends AbstractWatcherIntegrationTests {
+public class SlowWatchStatsTests extends AbstractWatcherIntegrationTestCase {
 
     @Override
     protected boolean timeWarped() {

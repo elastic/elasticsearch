@@ -27,7 +27,7 @@ import static org.hamcrest.Matchers.*;
 /**
  * a helper class that contains a couple of HTTP helper methods
  */
-public abstract class AbstractPrivilegeTests extends ShieldIntegTestCase {
+public abstract class AbstractPrivilegeTestCase extends ShieldIntegTestCase {
 
     protected static final String USERS_PASSWD_HASHED = new String(Hasher.BCRYPT.hash(new SecuredString("passwd".toCharArray())));
 

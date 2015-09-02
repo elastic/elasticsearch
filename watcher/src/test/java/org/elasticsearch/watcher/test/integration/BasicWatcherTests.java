@@ -23,7 +23,7 @@ import org.elasticsearch.watcher.support.WatcherUtils;
 import org.elasticsearch.watcher.support.clock.SystemClock;
 import org.elasticsearch.watcher.support.text.TextTemplate;
 import org.elasticsearch.watcher.support.xcontent.XContentSource;
-import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
+import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.watcher.transport.actions.delete.DeleteWatchResponse;
 import org.elasticsearch.watcher.transport.actions.get.GetWatchResponse;
 import org.elasticsearch.watcher.transport.actions.put.PutWatchResponse;
@@ -55,7 +55,7 @@ import static org.hamcrest.Matchers.*;
 /**
  */
 @TestLogging("watcher.trigger.schedule:TRACE")
-public class BasicWatcherTests extends AbstractWatcherIntegrationTests {
+public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
 
     @Test
     public void testIndexWatch() throws Exception {

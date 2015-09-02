@@ -17,7 +17,7 @@ import org.elasticsearch.watcher.client.WatcherClient;
 import org.elasticsearch.watcher.execution.ExecutionState;
 import org.elasticsearch.watcher.history.HistoryStore;
 import org.elasticsearch.watcher.history.WatchRecord;
-import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
+import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.watcher.transport.actions.ack.AckWatchRequestBuilder;
 import org.elasticsearch.watcher.transport.actions.ack.AckWatchResponse;
 import org.elasticsearch.watcher.transport.actions.get.GetWatchRequest;
@@ -45,7 +45,7 @@ import static org.hamcrest.core.IsEqual.equalTo;
 
 /**
  */
-public class WatchAckTests extends AbstractWatcherIntegrationTests {
+public class WatchAckTests extends AbstractWatcherIntegrationTestCase {
 
     private IndexResponse indexTestDoc() {
         createIndex("actions", "events");

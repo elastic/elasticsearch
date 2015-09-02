@@ -11,7 +11,7 @@ import org.elasticsearch.watcher.client.WatcherClient;
 import org.elasticsearch.watcher.execution.Wid;
 import org.elasticsearch.watcher.support.WatcherDateTimeUtils;
 import org.elasticsearch.watcher.support.xcontent.XContentSource;
-import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
+import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.watcher.transport.actions.execute.ExecuteWatchResponse;
 import org.elasticsearch.watcher.transport.actions.put.PutWatchResponse;
 import org.junit.Test;
@@ -28,7 +28,7 @@ import static org.hamcrest.Matchers.notNullValue;
 /**
  *
  */
-public class ExecuteWatchWithDateMathTests extends AbstractWatcherIntegrationTests {
+public class ExecuteWatchWithDateMathTests extends AbstractWatcherIntegrationTestCase {
 
     @Override
     protected boolean timeWarped() {

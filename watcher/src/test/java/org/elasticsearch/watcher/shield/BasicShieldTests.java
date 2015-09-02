@@ -6,12 +6,9 @@
 package org.elasticsearch.watcher.shield;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.plugins.PluginsService;
-import org.elasticsearch.shield.ShieldPlugin;
 import org.elasticsearch.shield.authc.support.SecuredString;
-import org.elasticsearch.watcher.WatcherPlugin;
 import org.elasticsearch.watcher.WatcherState;
-import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
+import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.watcher.transport.actions.delete.DeleteWatchResponse;
 import org.elasticsearch.watcher.transport.actions.execute.ExecuteWatchResponse;
 import org.elasticsearch.watcher.transport.actions.get.GetWatchResponse;
@@ -31,7 +28,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.core.Is.is;
 import static org.joda.time.DateTimeZone.UTC;
 
-public class BasicShieldTests extends AbstractWatcherIntegrationTests {
+public class BasicShieldTests extends AbstractWatcherIntegrationTestCase {
 
     @Override
     protected boolean enableShield() {

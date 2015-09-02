@@ -23,7 +23,7 @@ import org.elasticsearch.watcher.support.clock.SystemClock;
 import org.elasticsearch.watcher.support.http.HttpRequestTemplate;
 import org.elasticsearch.watcher.support.text.TextTemplate;
 import org.elasticsearch.watcher.support.xcontent.ObjectPath;
-import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
+import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.watcher.transport.actions.execute.ExecuteWatchResponse;
 import org.elasticsearch.watcher.transport.actions.get.GetWatchRequest;
 import org.elasticsearch.watcher.transport.actions.put.PutWatchRequest;
@@ -50,7 +50,7 @@ import static org.elasticsearch.watcher.trigger.schedule.Schedules.interval;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
-public class ActionThrottleTests extends AbstractWatcherIntegrationTests {
+public class ActionThrottleTests extends AbstractWatcherIntegrationTestCase {
 
     @Test
     public void testSingleActionAckThrottle() throws Exception {

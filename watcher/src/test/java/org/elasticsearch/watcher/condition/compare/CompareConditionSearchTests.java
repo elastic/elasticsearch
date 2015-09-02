@@ -17,7 +17,7 @@ import org.elasticsearch.search.internal.InternalSearchHits;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.support.clock.SystemClock;
-import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
+import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.watcher.watch.Payload;
 import org.junit.Test;
 
@@ -29,7 +29,7 @@ import static org.mockito.Mockito.when;
 
 /**
  */
-public class CompareConditionSearchTests extends AbstractWatcherIntegrationTests {
+public class CompareConditionSearchTests extends AbstractWatcherIntegrationTestCase {
 
     @Test
     public void testExecute_withAggs() throws Exception {

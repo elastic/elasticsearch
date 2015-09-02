@@ -211,7 +211,6 @@ public class ShardIndexingService extends AbstractIndexShardComponent {
             } catch (Exception e) {
                 logger.warn("postDelete listener [{}] failed", e, listener);
             }
-            listener.postDelete(delete);
         }
     }
 

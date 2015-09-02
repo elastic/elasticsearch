@@ -141,7 +141,7 @@ public class HipChatMessageTests extends ESTestCase {
                         randomFrom(HipChatMessage.Format.values()) :
                         randomBoolean() ?
                                 null :
-                                randomFrom(HipChatMessage.Format.values(), format);
+                                    randomFromWithExcludes(HipChatMessage.Format.values(), format);
             }
             if (rarely()) {
                 equals = false;
@@ -149,7 +149,7 @@ public class HipChatMessageTests extends ESTestCase {
                         randomFrom(HipChatMessage.Color.values()) :
                         randomBoolean() ?
                                 null :
-                                randomFrom(HipChatMessage.Color.values(), color);
+                                    randomFromWithExcludes(HipChatMessage.Color.values(), color);
             }
             if (rarely()) {
                 equals = false;
@@ -277,7 +277,7 @@ public class HipChatMessageTests extends ESTestCase {
 
     }
 
-    static <E extends Enum> E randomFrom(E[] values, E... exclude) {
+    static <E extends Enum> E randomFromWithExcludes(E[] values, E... exclude) {
         List<E> excludes = Arrays.asList(exclude);
         List<E> includes = new ArrayList<>();
         for (E value : values) {

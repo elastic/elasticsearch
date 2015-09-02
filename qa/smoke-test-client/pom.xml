@@ -21,7 +21,6 @@
     <artifactId>smoke-test-client</artifactId>
     <name>QA: Smoke Test Client</name>
     <description>Test the Java Client against a running cluster</description>
-    <packaging>pom</packaging>
 
     <properties>
         <skip.unit.tests>true</skip.unit.tests>

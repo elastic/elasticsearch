@@ -48,7 +48,7 @@ public class NamingConventionTests extends ESTestCase {
 
     // see https://github.com/elasticsearch/elasticsearch/issues/9945
     public void testNamingConventions()
-        throws ClassNotFoundException, IOException, URISyntaxException {
+            throws ClassNotFoundException, IOException, URISyntaxException {
         final Set<Class> notImplementing = new HashSet<>();
         final Set<Class> pureUnitTest = new HashSet<>();
         final Set<Class> missingSuffix = new HashSet<>();
@@ -78,7 +78,6 @@ public class NamingConventionTests extends ESTestCase {
                         String filename = file.getFileName().toString();
                         if (filename.endsWith(".class")) {
                             Class<?> clazz = loadClass(filename);
-                            //if (Modifier.isAbstract(clazz.getModifiers()) == false && Modifier.isInterface(clazz.getModifiers()) == false) {
                             if (clazz.getName().endsWith("Tests") ||
                                 clazz.getName().endsWith("Test")) { // don't worry about the ones that match the pattern
 
@@ -104,8 +103,6 @@ public class NamingConventionTests extends ESTestCase {
                                     pureUnitTest.add(clazz);
                                 }
                             }
-                            //}
-
                         }
                     } catch (ClassNotFoundException e) {
                         throw new RuntimeException(e);
@@ -165,25 +162,18 @@ public class NamingConventionTests extends ESTestCase {
             ESTokenStreamTestCase.class.getSimpleName(),
             LuceneTestCase.class.getSimpleName());
         assertTrue("Not all subclasses of " + ESTestCase.class.getSimpleName() +
-                " match the naming convention. Concrete classes must end with [Test|Tests]:\n" + listClasses(missingSuffix),
+                " match the naming convention. Concrete classes must end with [Test|Tests]:\n" + Joiner.on('\n').join(missingSuffix),
             missingSuffix.isEmpty());
-        assertTrue("Classes ending with [Test|Tests] are abstract or interfaces:\n" + listClasses(notRunnable),
+        assertTrue("Classes ending with [Test|Tests] are abstract or interfaces:\n" + Joiner.on('\n').join(notRunnable),
             notRunnable.isEmpty());
-        assertTrue("Found inner classes that are tests, which are excluded from the test runner:\n" + listClasses(innerClasses),
+        assertTrue("Found inner classes that are tests, which are excluded from the test runner:\n" + Joiner.on('\n').join(innerClasses),
             innerClasses.isEmpty());
-        assertTrue("Pure Unit-Test found must subclass one of [" + classesToSubclass +"]:\n" + listClasses(pureUnitTest),
+        assertTrue("Pure Unit-Test found must subclass one of [" + classesToSubclass +"]:\n" + Joiner.on('\n').join(pureUnitTest),
             pureUnitTest.isEmpty());
-        assertTrue("Classes ending with Test|Tests] must subclass [" + classesToSubclass +"]:\n" + listClasses(notImplementing),
+        assertTrue("Classes ending with Test|Tests] must subclass [" + classesToSubclass +"]:\n" + Joiner.on('\n').join(notImplementing),
             notImplementing.isEmpty());
-        assertTrue("Subclasses of ESIntegTestCase should end with IT as they are integration tests:\n" + listClasses(integTestsInDisguise), integTestsInDisguise.isEmpty());
-    }
-
-    static String listClasses(Set<Class> classes) {
-        StringBuilder builder = new StringBuilder();
-        for (Class clazz : classes) {
-            builder.append(clazz.toString() + '\n');
-        }
-        return builder.toString();
+        assertTrue("Subclasses of ESIntegTestCase should end with IT as they are integration tests:\n" + Joiner.on('\n').join(integTestsInDisguise),
+            integTestsInDisguise.isEmpty());
     }
 
     /*

@@ -96,7 +96,11 @@ public class ShardIndexingService extends AbstractIndexShardComponent {
 
     public void postCreateUnderLock(Engine.Create create) {
         for (IndexingOperationListener listener : listeners) {
-            listener.postCreateUnderLock(create);
+            try {
+                listener.postCreateUnderLock(create);
+            } catch (Exception e) {
+                logger.warn("postCreateUnderLock listener [{}] failed", e, listener);
+            }
         }
     }
 

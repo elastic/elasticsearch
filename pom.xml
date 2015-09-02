@@ -719,7 +719,7 @@
                                     <include>**/*Test.class</include>
                                 </includes>
                                 <excludes>
-                                    <exclude>**/Abstract*.class</exclude>
+                                    <exclude>**/*$*.class</exclude>
                                     <exclude>**/*StressTest.class</exclude>
                                 </excludes>
                             </configuration>

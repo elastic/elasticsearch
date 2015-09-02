@@ -40,7 +40,7 @@ import org.apache.lucene.search.join.BitDocIdSetCachingWrapperFilter;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.search.join.ToParentBlockJoinQuery;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.index.fielddata.AbstractFieldDataTests;
+import org.elasticsearch.index.fielddata.AbstractFieldDataTestCase;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
@@ -55,7 +55,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
-public abstract class AbstractNumberNestedSortingTests extends AbstractFieldDataTests {
+public abstract class AbstractNumberNestedSortingTestCase extends AbstractFieldDataTestCase {
 
     @Test
     public void testNestedSorting() throws Exception {

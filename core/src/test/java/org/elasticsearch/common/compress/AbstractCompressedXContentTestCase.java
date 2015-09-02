@@ -35,11 +35,11 @@ import static org.hamcrest.Matchers.not;
 /**
  *
  */
-public abstract class AbstractCompressedXContentTests extends ESTestCase {
+public abstract class AbstractCompressedXContentTestCase extends ESTestCase {
 
     private final Compressor compressor;
 
-    protected AbstractCompressedXContentTests(Compressor compressor) {
+    protected AbstractCompressedXContentTestCase(Compressor compressor) {
         this.compressor = compressor;
     }
 

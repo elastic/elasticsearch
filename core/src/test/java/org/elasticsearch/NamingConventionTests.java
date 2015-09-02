@@ -53,6 +53,8 @@ public class NamingConventionTests extends ESTestCase {
         final Set<Class> pureUnitTest = new HashSet<>();
         final Set<Class> missingSuffix = new HashSet<>();
         final Set<Class> integTestsInDisguise = new HashSet<>();
+        final Set<Class> notRunnable = new HashSet<>();
+        final Set<Class> innerClasses = new HashSet<>();
         String[] packages = {"org.elasticsearch", "org.apache.lucene"};
         for (final String packageName : packages) {
             final String path = "/" + packageName.replace('.', '/');
@@ -76,28 +78,31 @@ public class NamingConventionTests extends ESTestCase {
                         String filename = file.getFileName().toString();
                         if (filename.endsWith(".class")) {
                             Class<?> clazz = loadClass(filename);
-                            if (Modifier.isAbstract(clazz.getModifiers()) == false && Modifier.isInterface(clazz.getModifiers()) == false) {
-                                if (clazz.getName().endsWith("Tests") || 
-                                    clazz.getName().endsWith("Test")) { // don't worry about the ones that match the pattern
+                            if (clazz.getName().endsWith("Tests") ||
+                                clazz.getName().endsWith("Test")) { // don't worry about the ones that match the pattern
 
-                                    if (ESIntegTestCase.class.isAssignableFrom(clazz)) {
-                                        integTestsInDisguise.add(clazz);
-                                    }
-                                    if (isTestCase(clazz) == false) {
-                                        notImplementing.add(clazz);
-                                    }
-                                } else if (clazz.getName().endsWith("IT")) {
-                                    if (isTestCase(clazz) == false) {
-                                        notImplementing.add(clazz);
-                                    }
-                                    // otherwise fine
-                                } else if (isTestCase(clazz)) {
+                                if (ESIntegTestCase.class.isAssignableFrom(clazz)) {
+                                    integTestsInDisguise.add(clazz);
+                                }
+                                if (Modifier.isAbstract(clazz.getModifiers()) || Modifier.isInterface(clazz.getModifiers())) {
+                                    notRunnable.add(clazz);
+                                } else if (isTestCase(clazz) == false) {
+                                    notImplementing.add(clazz);
+                                } else if (Modifier.isStatic(clazz.getModifiers())) {
+                                    innerClasses.add(clazz);
+                                }
+                            } else if (clazz.getName().endsWith("IT")) {
+                                if (isTestCase(clazz) == false) {
+                                    notImplementing.add(clazz);
+                                }
+                                // otherwise fine
+                            } else if (Modifier.isAbstract(clazz.getModifiers()) == false && Modifier.isInterface(clazz.getModifiers()) == false) {
+                                if (isTestCase(clazz)) {
                                     missingSuffix.add(clazz);
                                 } else if (junit.framework.Test.class.isAssignableFrom(clazz) || hasTestAnnotation(clazz)) {
                                     pureUnitTest.add(clazz);
                                 }
                             }
-
                         }
                     } catch (ClassNotFoundException e) {
                         throw new RuntimeException(e);
@@ -143,38 +148,49 @@ public class NamingConventionTests extends ESTestCase {
         }
         assertTrue(missingSuffix.remove(WrongName.class));
         assertTrue(missingSuffix.remove(WrongNameTheSecond.class));
+        assertTrue(notRunnable.remove(DummyAbstractTests.class));
+        assertTrue(notRunnable.remove(DummyInterfaceTests.class));
+        assertTrue(innerClasses.remove(InnerTests.class));
         assertTrue(notImplementing.remove(NotImplementingTests.class));
         assertTrue(notImplementing.remove(NotImplementingTest.class));
         assertTrue(pureUnitTest.remove(PlainUnit.class));
         assertTrue(pureUnitTest.remove(PlainUnitTheSecond.class));
 
         String classesToSubclass = Joiner.on(',').join(
-                ESTestCase.class.getSimpleName(),
-                ESTestCase.class.getSimpleName(),
-                ESTokenStreamTestCase.class.getSimpleName(),
-                LuceneTestCase.class.getSimpleName());
+            ESTestCase.class.getSimpleName(),
+            ESTestCase.class.getSimpleName(),
+            ESTokenStreamTestCase.class.getSimpleName(),
+            LuceneTestCase.class.getSimpleName());
         assertTrue("Not all subclasses of " + ESTestCase.class.getSimpleName() +
-                        " match the naming convention. Concrete classes must end with [Test|Tests]: " + missingSuffix.toString(),
-                missingSuffix.isEmpty());
-        assertTrue("Pure Unit-Test found must subclass one of [" + classesToSubclass +"] " + pureUnitTest.toString(),
-                pureUnitTest.isEmpty());
-        assertTrue("Classes ending with Test|Tests] must subclass [" + classesToSubclass +"] " + notImplementing.toString(),
-                notImplementing.isEmpty());
-        assertTrue("Subclasses of ESIntegTestCase should end with IT as they are integration tests: " + integTestsInDisguise, integTestsInDisguise.isEmpty());
+                " match the naming convention. Concrete classes must end with [Test|Tests]:\n" + Joiner.on('\n').join(missingSuffix),
+            missingSuffix.isEmpty());
+        assertTrue("Classes ending with [Test|Tests] are abstract or interfaces:\n" + Joiner.on('\n').join(notRunnable),
+            notRunnable.isEmpty());
+        assertTrue("Found inner classes that are tests, which are excluded from the test runner:\n" + Joiner.on('\n').join(innerClasses),
+            innerClasses.isEmpty());
+        assertTrue("Pure Unit-Test found must subclass one of [" + classesToSubclass +"]:\n" + Joiner.on('\n').join(pureUnitTest),
+            pureUnitTest.isEmpty());
+        assertTrue("Classes ending with Test|Tests] must subclass [" + classesToSubclass +"]:\n" + Joiner.on('\n').join(notImplementing),
+            notImplementing.isEmpty());
+        assertTrue("Subclasses of ESIntegTestCase should end with IT as they are integration tests:\n" + Joiner.on('\n').join(integTestsInDisguise),
+            integTestsInDisguise.isEmpty());
     }
 
     /*
      * Some test the test classes
      */
 
-    @SuppressForbidden(reason = "Ignoring test the tester")
-    @Ignore
     public static final class NotImplementingTests {}
-    @SuppressForbidden(reason = "Ignoring test the tester")
-    @Ignore
+
     public static final class NotImplementingTest {}
 
     public static final class WrongName extends ESTestCase {}
+
+    public static abstract class DummyAbstractTests extends ESTestCase {}
+
+    public interface DummyInterfaceTests {}
+
+    public static final class InnerTests extends ESTestCase {}
 
     public static final class WrongNameTheSecond extends ESTestCase {}
 

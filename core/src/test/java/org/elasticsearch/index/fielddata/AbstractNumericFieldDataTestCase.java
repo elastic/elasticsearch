@@ -35,7 +35,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
-public abstract class AbstractNumericFieldDataTests extends AbstractFieldDataImplTests {
+public abstract class AbstractNumericFieldDataTestCase extends AbstractFieldDataImplTestCase {
 
     @Override
     protected abstract FieldDataType getFieldDataType();

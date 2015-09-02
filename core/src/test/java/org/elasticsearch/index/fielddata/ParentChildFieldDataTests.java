@@ -30,7 +30,6 @@ import org.apache.lucene.search.*;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource;
 import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
@@ -49,7 +48,7 @@ import static org.hamcrest.Matchers.nullValue;
 
 /**
  */
-public class ParentChildFieldDataTests extends AbstractFieldDataTests {
+public class ParentChildFieldDataTests extends AbstractFieldDataTestCase {
 
     private final String parentType = "parent";
     private final String childType = "child";

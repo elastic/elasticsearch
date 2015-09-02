@@ -30,7 +30,7 @@ import org.elasticsearch.search.MultiValueMode;
 
 /**
  */
-public class LongNestedSortingTests extends AbstractNumberNestedSortingTests {
+public class LongNestedSortingTests extends AbstractNumberNestedSortingTestCase {
 
     @Override
     protected FieldDataType getFieldDataType() {

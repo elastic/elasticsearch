@@ -45,7 +45,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 
-public abstract class AbstractFieldDataTests extends ESSingleNodeTestCase {
+public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
 
     protected IndexService indexService;
     protected IndexFieldDataService ifdService;

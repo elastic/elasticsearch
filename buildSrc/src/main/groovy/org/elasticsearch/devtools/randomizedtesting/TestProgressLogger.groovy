@@ -32,7 +32,7 @@ import java.util.concurrent.atomic.AtomicInteger
 
 import static com.carrotsearch.ant.tasks.junit4.FormattingUtils.formatDurationInSeconds
 
-class JUnit4ProgressLogger implements AggregatedEventListener {
+class TestProgressLogger implements AggregatedEventListener {
 
     /** Factory to build a progress logger when testing starts */
     ProgressLoggerFactory factory
@@ -46,7 +46,7 @@ class JUnit4ProgressLogger implements AggregatedEventListener {
     @Subscribe
     public void onStart(AggregatedStartEvent e) throws IOException {
         totalSuites = e.getSuiteCount();
-        progressLogger = factory.newOperation(JUnit4ProgressLogger)
+        progressLogger = factory.newOperation(TestProgressLogger)
         progressLogger.setDescription('Randomized test runner')
         progressLogger.started()
         progressLogger.progress('Starting JUnit4 with ' + e.getSlaveCount() + ' jvms')

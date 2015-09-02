@@ -37,9 +37,26 @@ setup() {
     skip_not_dpkg_or_rpm
 }
 
+@test "[INIT.D] remove any leftover configuration to start elasticsearch on restart" {
+    # This configuration can be added with a command like:
+    # $ sudo update-rc.d elasticsearch defaults 95 10
+    # but we want to test that the RPM _doesn't_ add it on its own.
+    # Note that it'd be incorrect to use:
+    # $ sudo update-rc.d elasticsearch disable
+    # here because that'd prevent elasticsearch from installing the symlinks
+    # that cause it to be started on restart.
+    sudo update-rc.d -f elasticsearch remove
+}
+
 @test "[INIT.D] install elasticsearch" {
     clean_before_test
     install_package
+}
+
+@test "[INIT.D] daemon isn't enabled on restart" {
+    # Rather than restart the VM which would be slow we check for the symlinks
+    # that init.d uses to restart the application on startup.
+    ! find /etc/rc[0123456].d | grep elasticsearch
 }
 
 @test "[INIT.D] start" {

@@ -53,7 +53,6 @@ setup() {
     if [ $BATS_TEST_NUMBER == 1 ] ||
             [[ $BATS_TEST_NAME =~ install_jvm.*example ]] ||
             [ ! -d "$ESHOME" ]; then
-        echo "cleaning" >> /tmp/ss
         clean_before_test
         install
     fi
@@ -69,14 +68,13 @@ if [[ "$BATS_TEST_FILENAME" =~ 25_tar_plugins.bats$ ]]; then
     export ESHOME=/tmp/elasticsearch
     export_elasticsearch_paths
 else
+    load os_package
     if is_rpm; then
         GROUP='RPM PLUGINS'
     elif is_dpkg; then
         GROUP='DEB PLUGINS'
     fi
-    export ESHOME="/usr/share/elasticsearch"
-    export ESPLUGINS="$ESHOME/plugins"
-    export ESCONFIG="/etc/elasticsearch"
+    export_elasticsearch_paths
     install() {
         install_package
         verify_package_installation

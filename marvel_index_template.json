@@ -207,8 +207,19 @@
     },
     "marvel_shards": {
       "properties": {
+        "state_uuid": {
+          "type": "string",
+          "index": "not_analyzed"
+        },
         "shard": {
-          "type": "object"
+          "properties": {
+            "state": { "type": "string", "index": "not_analyzed" },
+            "primary": { "type": "boolean" },
+            "index": { "type": "string", "index": "not_analyzed" },
+            "relocating_node": { "type": "string", "index": "not_analyzed" },
+            "shard": { "type": "long" },
+            "node": { "type": "string", "index": "not_analyzed" }
+          }
         }
       }
     },

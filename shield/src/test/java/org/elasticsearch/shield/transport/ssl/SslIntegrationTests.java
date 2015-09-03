@@ -63,11 +63,11 @@ public class SslIntegrationTests extends ShieldIntegTestCase {
                 .put(transportClientSettings())
                 .put("path.home", createTempDir())
                 .put("name", "programmatic_transport_client")
-                .put("cluster.name", internalTestCluster().getClusterName())
+                .put("cluster.name", internalCluster().getClusterName())
                 .putArray("shield.ssl.ciphers", new String[]{"TLS_ECDH_anon_WITH_RC4_128_SHA", "SSL_RSA_WITH_3DES_EDE_CBC_SHA"})
                 .build()).build()) {
 
-            TransportAddress transportAddress = internalTestCluster().getInstance(Transport.class).boundAddress().boundAddress();
+            TransportAddress transportAddress = internalCluster().getInstance(Transport.class).boundAddress().boundAddress();
             transportClient.addTransportAddress(transportAddress);
 
             transportClient.admin().cluster().prepareHealth().get();
@@ -81,11 +81,11 @@ public class SslIntegrationTests extends ShieldIntegTestCase {
                 .put(transportClientSettings())
                 .put("path.home", createTempDir())
                 .put("name", "programmatic_transport_client")
-                .put("cluster.name", internalTestCluster().getClusterName())
+                .put("cluster.name", internalCluster().getClusterName())
                 .putArray("shield.ssl.supported_protocols", new String[]{"SSLv3"})
                 .build()).build()) {
 
-            TransportAddress transportAddress = internalTestCluster().getInstance(Transport.class).boundAddress().boundAddress();
+            TransportAddress transportAddress = internalCluster().getInstance(Transport.class).boundAddress().boundAddress();
             transportClient.addTransportAddress(transportAddress);
 
             transportClient.admin().cluster().prepareHealth().get();
@@ -125,7 +125,7 @@ public class SslIntegrationTests extends ShieldIntegTestCase {
     }
 
     private String getNodeUrl() {
-        TransportAddress transportAddress = internalTestCluster().getInstance(HttpServerTransport.class).boundAddress().boundAddress();
+        TransportAddress transportAddress = internalCluster().getInstance(HttpServerTransport.class).boundAddress().boundAddress();
         assertThat(transportAddress, is(instanceOf(InetSocketTransportAddress.class)));
         InetSocketTransportAddress inetSocketTransportAddress = (InetSocketTransportAddress) transportAddress;
         return String.format(Locale.ROOT, "https://%s:%s/", "localhost", inetSocketTransportAddress.address().getPort());

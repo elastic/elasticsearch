@@ -71,7 +71,7 @@ public class AnonymousUserTests extends ShieldIntegTestCase {
     }
 
     private String getNodeUrl() {
-        TransportAddress transportAddress = internalTestCluster().getInstance(HttpServerTransport.class).boundAddress().boundAddress();
+        TransportAddress transportAddress = internalCluster().getInstance(HttpServerTransport.class).boundAddress().boundAddress();
         assertThat(transportAddress, is(instanceOf(InetSocketTransportAddress.class)));
         InetSocketTransportAddress inetSocketTransportAddress = (InetSocketTransportAddress) transportAddress;
         return String.format(Locale.ROOT, "http://%s:%s/", "localhost", inetSocketTransportAddress.address().getPort());

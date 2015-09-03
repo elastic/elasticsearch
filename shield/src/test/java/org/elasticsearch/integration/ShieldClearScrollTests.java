@@ -88,7 +88,7 @@ public class ShieldClearScrollTests extends ShieldIntegTestCase {
     public void testThatClearingAllScrollIdsWorks() throws Exception {
         String shieldUser = "allowed_user:change_me";
         String basicAuth = basicAuthHeaderValue("allowed_user", new SecuredString("change_me".toCharArray()));
-        ClearScrollResponse clearScrollResponse = internalTestCluster().transportClient().prepareClearScroll()
+        ClearScrollResponse clearScrollResponse = internalCluster().transportClient().prepareClearScroll()
             .putHeader("shield.user", shieldUser)
             .putHeader("Authorization", basicAuth)
             .addScrollId("_all").get();
@@ -102,7 +102,7 @@ public class ShieldClearScrollTests extends ShieldIntegTestCase {
         String shieldUser = "denied_user:change_me";
         String basicAuth = basicAuthHeaderValue("denied_user", new SecuredString("change_me".toCharArray()));
 
-        assertThrows(internalTestCluster().transportClient().prepareClearScroll()
+        assertThrows(internalCluster().transportClient().prepareClearScroll()
                 .putHeader("shield.user", shieldUser)
                 .putHeader("Authorization", basicAuth)
                 .addScrollId("_all"), ElasticsearchSecurityException.class, "action [cluster:admin/indices/scroll/clear_all] is unauthorized for user [denied_user]");

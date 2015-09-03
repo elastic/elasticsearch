@@ -67,7 +67,7 @@ public abstract class AbstractPrivilegeTestCase extends ShieldIntegTestCase {
     }
 
     protected HttpResponse executeRequest(String user, String method, String uri, String body, Map<String, String> params) throws IOException {
-        HttpServerTransport httpServerTransport = internalTestCluster().getDataNodeInstance(HttpServerTransport.class);
+        HttpServerTransport httpServerTransport = internalCluster().getDataNodeInstance(HttpServerTransport.class);
 
         HttpRequestBuilder requestBuilder = new HttpRequestBuilder(httpClient).httpTransport(httpServerTransport);
         requestBuilder.path(uri);

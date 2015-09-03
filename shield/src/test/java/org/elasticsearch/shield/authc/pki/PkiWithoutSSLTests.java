@@ -42,13 +42,13 @@ public class PkiWithoutSSLTests extends ShieldIntegTestCase {
 
     @Test
     public void testThatTransportClientWorks() {
-        Client client = internalTestCluster().transportClient();
+        Client client = internalCluster().transportClient();
         assertGreenClusterState(client);
     }
 
     @Test
     public void testThatHttpWorks() throws Exception {
-        HttpServerTransport httpServerTransport = internalTestCluster().getDataNodeInstance(HttpServerTransport.class);
+        HttpServerTransport httpServerTransport = internalCluster().getDataNodeInstance(HttpServerTransport.class);
         try (CloseableHttpClient httpClient = HttpClients.createDefault()) {
             HttpRequestBuilder requestBuilder = new HttpRequestBuilder(httpClient)
                     .httpTransport(httpServerTransport)

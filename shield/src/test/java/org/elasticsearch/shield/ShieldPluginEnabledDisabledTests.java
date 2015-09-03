@@ -85,14 +85,14 @@ public class ShieldPluginEnabledDisabledTests extends ShieldIntegTestCase {
 
     @Test
     public void testTransportEnabledDisabled() throws Exception {
-        for (TransportService service : internalTestCluster().getInstances(TransportService.class)) {
+        for (TransportService service : internalCluster().getInstances(TransportService.class)) {
             Matcher<TransportService> matcher = instanceOf(ShieldServerTransportService.class);
             if (!enabled) {
                 matcher = not(matcher);
             }
             assertThat(service, matcher);
         }
-        for (Transport transport : internalTestCluster().getInstances(Transport.class)) {
+        for (Transport transport : internalCluster().getInstances(Transport.class)) {
             Matcher<Transport> matcher = instanceOf(ShieldNettyTransport.class);
             if (!enabled) {
                 matcher = not(matcher);
@@ -103,7 +103,7 @@ public class ShieldPluginEnabledDisabledTests extends ShieldIntegTestCase {
 
     @Test
     public void testShieldInfoStatus() throws IOException {
-        HttpServerTransport httpServerTransport = internalTestCluster().getDataNodeInstance(HttpServerTransport.class);
+        HttpServerTransport httpServerTransport = internalCluster().getDataNodeInstance(HttpServerTransport.class);
         try (CloseableHttpClient httpClient = HttpClients.createDefault()) {
             HttpResponse response = new HttpRequestBuilder(httpClient).httpTransport(httpServerTransport).method("GET").path("/_shield").addHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
                     basicAuthHeaderValue(ShieldSettingsSource.DEFAULT_USER_NAME, new SecuredString(ShieldSettingsSource.DEFAULT_PASSWORD.toCharArray()))).execute();

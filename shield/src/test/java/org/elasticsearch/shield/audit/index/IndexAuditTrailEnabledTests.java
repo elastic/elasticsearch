@@ -6,6 +6,7 @@
 package org.elasticsearch.shield.audit.index;
 
 import com.google.common.base.Predicate;
+import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateResponse;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.exists.ExistsResponse;
 import org.elasticsearch.common.settings.Settings;
@@ -54,6 +55,29 @@ public class IndexAuditTrailEnabledTests extends ShieldIntegTestCase {
 
         // Wait for the index to be created since we have our own startup
         awaitIndexCreation();
+    }
+
+    @Test
+    public void testAuditTrailTemplateIsRecreatedAfterDelete() throws Exception {
+        // this is already "tested" by the test framework since we wipe the templates before and after, but lets be explicit about the behavior
+        GetIndexTemplatesResponse response = client().admin().indices().prepareGetTemplates(IndexAuditTrail.INDEX_TEMPLATE_NAME).execute().actionGet();
+        assertThat(response.getIndexTemplates().size(), is(1));
+        assertThat(response.getIndexTemplates().get(0).name(), is(IndexAuditTrail.INDEX_TEMPLATE_NAME));
+
+        // delete the template
+        DeleteIndexTemplateResponse deleteResponse = client().admin().indices().prepareDeleteTemplate(IndexAuditTrail.INDEX_TEMPLATE_NAME).execute().actionGet();
+        assertThat(deleteResponse.isAcknowledged(), is(true));
+        boolean templateReplaced = awaitBusy(new Predicate<Void>() {
+            @Override
+            public boolean apply(Void aVoid) {
+                GetIndexTemplatesResponse response = client().admin().indices().prepareGetTemplates(IndexAuditTrail.INDEX_TEMPLATE_NAME).execute().actionGet();
+                if (response.getIndexTemplates().size() > 0) {
+                    return response.getIndexTemplates().get(0).name().equals(IndexAuditTrail.INDEX_TEMPLATE_NAME);
+                }
+                return false;
+            }
+        });
+        assertThat(templateReplaced, is(true));
     }
 
     void awaitIndexCreation() throws Exception {

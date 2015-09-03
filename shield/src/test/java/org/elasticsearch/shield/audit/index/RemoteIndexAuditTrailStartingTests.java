@@ -53,6 +53,17 @@ public class RemoteIndexAuditTrailStartingTests extends ShieldIntegTestCase {
                 .build();
     }
 
+    @Override
+    public void beforeIndexDeletion() {
+        if (outputs.contains("index")) {
+            // For this test, this is a NO-OP because the index audit trail will continue to capture events and index after
+            // the tests have completed. The default implementation of this method expects that nothing is performing operations
+            // after the test has completed
+            return;
+        }
+        super.beforeIndexDeletion();
+    }
+
     @Before
     public void startRemoteCluster() throws IOException {
         final List<String> addresses = new ArrayList<>();
@@ -117,5 +128,4 @@ public class RemoteIndexAuditTrailStartingTests extends ShieldIntegTestCase {
             assertThat(auditTrail.state(), is(IndexAuditTrail.State.STARTED));
         }
     }
-
 }

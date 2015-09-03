@@ -25,7 +25,7 @@ public class ShieldServerTransportServiceTests extends ShieldIntegTestCase {
     }
 
     public void testShieldServerTransportServiceWrapsAllHandlers() {
-        for (TransportService transportService : internalTestCluster().getInstances(TransportService.class)) {
+        for (TransportService transportService : internalCluster().getInstances(TransportService.class)) {
             assertThat(transportService, instanceOf(ShieldServerTransportService.class));
             for (Map.Entry<String, RequestHandlerRegistry> entry : transportService.requestHandlers.entrySet()) {
                 assertThat(

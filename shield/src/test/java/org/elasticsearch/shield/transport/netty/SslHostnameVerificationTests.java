@@ -68,7 +68,7 @@ public class SslHostnameVerificationTests extends ShieldIntegTestCase {
 
     @Test(expected = NoNodeAvailableException.class)
     public void testThatHostnameMismatchDeniesTransportClientConnection() throws Exception {
-        Transport transport = internalTestCluster().getDataNodeInstance(Transport.class);
+        Transport transport = internalCluster().getDataNodeInstance(Transport.class);
         TransportAddress transportAddress = transport.boundAddress().publishAddress();
         assertThat(transportAddress, instanceOf(InetSocketTransportAddress.class));
         InetSocketAddress inetSocketAddress = ((InetSocketTransportAddress) transportAddress).address();
@@ -86,7 +86,7 @@ public class SslHostnameVerificationTests extends ShieldIntegTestCase {
 
     @Test
     public void testTransportClientConnectionIgnoringHostnameVerification() throws Exception {
-        Client client = internalTestCluster().transportClient();
+        Client client = internalCluster().transportClient();
         assertGreenClusterState(client);
     }
 }

@@ -13,6 +13,7 @@ import org.elasticsearch.action.exists.ExistsResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
@@ -35,6 +36,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.ShieldIntegTestCase;
 import org.elasticsearch.test.ShieldSettingsSource;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInfo;
 import org.elasticsearch.transport.TransportMessage;
@@ -79,6 +81,7 @@ public class IndexAuditTrailTests extends ShieldIntegTestCase {
     private Client remoteClient;
     private int numShards;
     private int numReplicas;
+    private ThreadPool threadPool;
 
     private Settings commonSettings(IndexNameResolver.Rollover rollover) {
         return Settings.builder()
@@ -188,12 +191,16 @@ public class IndexAuditTrailTests extends ShieldIntegTestCase {
         when(transport.boundAddress()).thenReturn(new BoundTransportAddress(DummyTransportAddress.INSTANCE, DummyTransportAddress.INSTANCE));
 
         Environment env = new Environment(settings);
-        auditor = new IndexAuditTrail(settings, user, env, authService, transport, Providers.of(client()));
+        threadPool = new ThreadPool("index audit trail tests");
+        auditor = new IndexAuditTrail(settings, user, env, authService, transport, Providers.of(client()), threadPool, mock(ClusterService.class));
         auditor.start(true);
     }
 
     @After
     public void afterTest() {
+        if (threadPool != null) {
+            threadPool.shutdown();
+        }
         if (auditor != null) {
             auditor.close();
         }

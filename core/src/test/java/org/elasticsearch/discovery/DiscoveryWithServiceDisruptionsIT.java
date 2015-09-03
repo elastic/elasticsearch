@@ -983,6 +983,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
      * successful.
      */
     @Test
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/13316")
     public void testReadOnPostRecoveryShards() throws Exception {
         List<BlockClusterStateProcessing> clusterStateBlocks = new ArrayList<>();
         try {

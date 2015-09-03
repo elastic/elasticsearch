@@ -344,8 +344,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
 
     // used for testing
-    public boolean hasPendingClusterStates() {
-        return publishClusterState.pendingStatesQueue().isEmpty() == false;
+    public ClusterState[] pendingClusterStates() {
+        return publishClusterState.pendingStatesQueue().pendingClusterStates();
     }
 
     /**

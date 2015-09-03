@@ -215,9 +215,13 @@ public class PendingClusterStatesQueue {
         return stateToProcess.state;
     }
 
-    /** returns true if there are no pending states, committed or not */
-    public synchronized boolean isEmpty() {
-        return pendingStates.isEmpty();
+    /** returns all pending states, committed or not */
+    public synchronized ClusterState[] pendingClusterStates() {
+        ArrayList<ClusterState> states = new ArrayList<>();
+        for (ClusterStateContext context : pendingStates) {
+            states.add(context.state);
+        }
+        return states.toArray(new ClusterState[states.size()]);
     }
 
     static class ClusterStateContext {

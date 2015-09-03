@@ -968,7 +968,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
     public void assertNoPendingClusterStates() throws Exception {
         clearDisruptionScheme();
         for (Discovery discovery : internalCluster().getInstances(Discovery.class)) {
-            assertThat(((ZenDiscovery) discovery).hasPendingClusterStates(), equalTo(false));
+            assertThat(((ZenDiscovery) discovery).pendingClusterStates(), emptyArray());
         }
     }
 

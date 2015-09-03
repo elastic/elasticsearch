@@ -22,12 +22,13 @@ package org.elasticsearch.common.network;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 
 import java.io.IOException;
 import java.net.InetAddress;
+import java.net.InterfaceAddress;
+import java.net.NetworkInterface;
 import java.net.UnknownHostException;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -110,7 +111,26 @@ public class NetworkService extends AbstractComponent {
         if (bindHost == null) {
             bindHost = DEFAULT_NETWORK_HOST;
         }
-        return resolveInetAddress(bindHost);
+        InetAddress addresses[] = resolveInetAddress(bindHost);
+
+        // try to deal with some (mis)configuration
+        if (addresses != null) {
+            for (InetAddress address : addresses) {
+                // check if its multicast: flat out mistake
+                if (address.isMulticastAddress()) {
+                    throw new IllegalArgumentException("bind address: {" + NetworkAddress.format(address) + "} is invalid: multicast address");
+                }
+                // check if its broadcast: flat out mistake
+                for (NetworkInterface nic : NetworkUtils.getInterfaces()) {
+                    for (InterfaceAddress intf : nic.getInterfaceAddresses()) {
+                        if (address.equals(intf.getBroadcast())) {
+                            throw new IllegalArgumentException("bind address: {" + NetworkAddress.format(address) + "} is invalid: broadcast address");
+                        }
+                    }
+                }
+            }
+        }
+        return addresses;
     }
 
     // TODO: needs to be InetAddress[]
@@ -133,7 +153,31 @@ public class NetworkService extends AbstractComponent {
             publishHost = DEFAULT_NETWORK_HOST;
         }
         // TODO: allow publishing multiple addresses
-        return resolveInetAddress(publishHost)[0];
+        InetAddress address = resolveInetAddress(publishHost)[0];
+
+        // try to deal with some (mis)configuration
+        if (address != null) {
+            // check if its multicast: flat out mistake
+            if (address.isMulticastAddress()) {
+                throw new IllegalArgumentException("publish address: {" + NetworkAddress.format(address) + "} is invalid: multicast address");
+            }
+            // check if its broadcast: flat out mistake
+            for (NetworkInterface nic : NetworkUtils.getInterfaces()) {
+                for (InterfaceAddress intf : nic.getInterfaceAddresses()) {
+                    if (address.equals(intf.getBroadcast())) {
+                        throw new IllegalArgumentException("publish address: {" + NetworkAddress.format(address) + "} is invalid: broadcast address");
+                    }
+                }
+            }
+            // wildcard address, probably set by network.host
+            if (address.isAnyLocalAddress()) {
+                InetAddress old = address;
+                address = NetworkUtils.getFirstNonLoopbackAddresses()[0];
+                logger.warn("publish address: {{}} is a wildcard address, falling back to first non-loopback: {{}}", 
+                            NetworkAddress.format(old), NetworkAddress.format(address));
+            }
+        }
+        return address;
     }
 
     private InetAddress[] resolveInetAddress(String host) throws UnknownHostException, IOException {

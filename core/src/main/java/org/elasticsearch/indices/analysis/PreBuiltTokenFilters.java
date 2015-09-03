@@ -26,6 +26,7 @@ import org.apache.lucene.analysis.cjk.CJKBigramFilter;
 import org.apache.lucene.analysis.cjk.CJKWidthFilter;
 import org.apache.lucene.analysis.ckb.SoraniNormalizationFilter;
 import org.apache.lucene.analysis.commongrams.CommonGramsFilter;
+import org.apache.lucene.analysis.core.DecimalDigitFilter;
 import org.apache.lucene.analysis.core.LowerCaseFilter;
 import org.apache.lucene.analysis.core.Lucene43StopFilter;
 import org.apache.lucene.analysis.core.StopAnalyzer;
@@ -393,6 +394,13 @@ public enum PreBuiltTokenFilters {
         @Override
         public TokenStream create(TokenStream tokenStream, Version version) {
             return new CJKWidthFilter(tokenStream);
+        }
+    },
+    
+    DECIMAL_DIGIT(CachingStrategy.ONE) {
+        @Override
+        public TokenStream create(TokenStream tokenStream, Version version) {
+            return new DecimalDigitFilter(tokenStream);
         }
     },
 

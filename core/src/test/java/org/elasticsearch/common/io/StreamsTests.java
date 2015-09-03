@@ -94,4 +94,11 @@ public class StreamsTests extends ESTestCase {
         input.close();
     }
 
+    public void testToByteArray() throws IOException {
+        byte[] input = new byte[] { 0, 1, 2, 3 };
+        ByteArrayInputStream in = new ByteArrayInputStream(input);
+        byte[] output = Streams.toByteArray(in);
+        assertThat(output, equalTo(input));
+    }
+
 }

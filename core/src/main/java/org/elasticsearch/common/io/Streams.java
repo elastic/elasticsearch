@@ -21,9 +21,11 @@ package org.elasticsearch.common.io;
 
 import com.google.common.base.Charsets;
 import com.google.common.base.Preconditions;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.util.Callback;
 
 import java.io.BufferedReader;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -240,5 +242,22 @@ public abstract class Streams {
                 callback.handle(line);
             }
         }
+    }
+
+    public static byte[] toByteArray(InputStream in) throws IOException {
+        Preconditions.checkNotNull(in, "No InputStream specified");
+
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        // Does not close or flush either stream.
+        byte[] buf = new byte[BUFFER_SIZE];
+        while (true) {
+            int r = in.read(buf);
+            if (r == -1) {
+                break;
+            }
+            out.write(buf, 0, r);
+        }
+
+        return out.toByteArray();
     }
 }

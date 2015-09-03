@@ -18,10 +18,10 @@
  */
 package org.elasticsearch.repositories.blobstore;
 
-import com.google.common.io.ByteStreams;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.xcontent.FromXContentBuilder;
 import org.elasticsearch.common.xcontent.ToXContent;
 
@@ -53,7 +53,7 @@ public class LegacyBlobStoreFormat<T extends ToXContent> extends BlobStoreFormat
      */
     public T readBlob(BlobContainer blobContainer, String blobName) throws IOException {
         try (InputStream inputStream = blobContainer.openInput(blobName)) {
-            return read(new BytesArray(ByteStreams.toByteArray(inputStream)));
+            return read(new BytesArray(Streams.toByteArray(inputStream)));
         }
     }
 }

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.repositories.blobstore;
 
-import com.google.common.io.ByteStreams;
 import org.apache.lucene.store.RateLimiter;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
@@ -36,6 +35,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.compress.NotXContentException;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -592,7 +592,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
      */
     protected List<SnapshotId> readSnapshotList() throws IOException {
         try (InputStream blob = snapshotsBlobContainer.openInput(SNAPSHOTS_FILE)) {
-            final byte[] data = ByteStreams.toByteArray(blob);
+            final byte[] data = Streams.toByteArray(blob);
             ArrayList<SnapshotId> snapshots = new ArrayList<>();
             try (XContentParser parser = XContentHelper.createParser(new BytesArray(data))) {
                 if (parser.nextToken() == XContentParser.Token.START_OBJECT) {

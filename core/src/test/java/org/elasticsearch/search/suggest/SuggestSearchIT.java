@@ -37,7 +37,10 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.junit.Test;
 
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 
@@ -1279,5 +1282,19 @@ public class SuggestSearchIT extends ESIntegTestCase {
             }
             return actionGet.getSuggest();
         }
+    }
+
+    private List <String> readLines(String path) throws IOException {
+        final List<String> result = new ArrayList<>();
+
+        final InputStream resourceAsStream =   SuggestSearchIT.class.getResourceAsStream(path);
+        BufferedReader in = new BufferedReader(new InputStreamReader(resourceAsStream, Charsets.UTF_8));
+        String line = null;
+
+        while((line = in.readLine()) != null){
+            result.add(line);
+        }
+
+        return result;
     }
 }

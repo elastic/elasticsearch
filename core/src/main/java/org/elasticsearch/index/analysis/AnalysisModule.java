@@ -453,8 +453,7 @@ public class AnalysisModule extends AbstractModule {
             
             tokenFiltersBindings.processTokenFilter("apostrophe", ApostropheFilterFactory.class);
             tokenFiltersBindings.processTokenFilter("classic", ClassicFilterFactory.class);
-
-
+            tokenFiltersBindings.processTokenFilter("decimal_digit", DecimalDigitFilterFactory.class);
         }
 
         @Override

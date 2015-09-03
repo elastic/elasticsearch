@@ -112,6 +112,18 @@ public class QueryPhase implements SearchPhase {
         aggregationPhase.execute(searchContext);
     }
 
+    private static boolean returnsDocsInOrder(Query query, Sort sort) {
+        if (sort == null || Sort.RELEVANCE.equals(sort)) {
+            // sort by score
+            // queries that return constant scores will return docs in index
+            // order since Lucene tie-breaks on the doc id
+            return query.getClass() == ConstantScoreQuery.class
+                    || query.getClass() == MatchAllDocsQuery.class;
+        } else {
+            return Sort.INDEXORDER.equals(sort);
+        }
+    }
+
     /**
      * In a package-private method so that it can be tested without having to
      * wire everything (mapperService, etc.)
@@ -165,7 +177,7 @@ public class QueryPhase implements SearchPhase {
                     numDocs = Math.min(searchContext.size(), totalNumDocs);
                     lastEmittedDoc = scrollContext.lastEmittedDoc;
 
-                    if (Sort.INDEXORDER.equals(searchContext.sort())) {
+                    if (returnsDocsInOrder(query, searchContext.sort())) {
                         if (scrollContext.totalHits == -1) {
                             // first round
                             assert scrollContext.lastEmittedDoc == null;

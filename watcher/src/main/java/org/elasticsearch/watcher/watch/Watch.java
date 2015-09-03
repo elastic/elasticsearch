@@ -32,9 +32,10 @@ import org.elasticsearch.watcher.input.InputRegistry;
 import org.elasticsearch.watcher.input.none.ExecutableNoneInput;
 import org.elasticsearch.watcher.support.WatcherDateTimeUtils;
 import org.elasticsearch.watcher.support.clock.Clock;
+import org.elasticsearch.watcher.support.clock.HaltedClock;
 import org.elasticsearch.watcher.support.secret.SecretService;
-import org.elasticsearch.watcher.support.secret.SensitiveXContentParser;
 import org.elasticsearch.watcher.support.xcontent.WatcherParams;
+import org.elasticsearch.watcher.support.xcontent.WatcherXContentParser;
 import org.elasticsearch.watcher.transform.ExecutableTransform;
 import org.elasticsearch.watcher.transform.TransformRegistry;
 import org.elasticsearch.watcher.trigger.Trigger;
@@ -124,6 +125,15 @@ public class Watch implements TriggerEngine.Job, ToXContent {
 
     public void version(long version) {
         this.version = version;
+    }
+
+    /**
+     * Sets the state of this watch to in/active
+     *
+     * @return  {@code true} if the status of this watch changed, {@code false} otherwise.
+     */
+    public boolean setState(boolean active, DateTime now) {
+        return status.setActive(active, now);
     }
 
     /**
@@ -223,7 +233,18 @@ public class Watch implements TriggerEngine.Job, ToXContent {
         }
 
         public Watch parse(String name, boolean includeStatus, BytesReference source) throws IOException {
-            return parse(name, includeStatus, false, source);
+            return parse(name, includeStatus, false, source, clock.nowUTC());
+        }
+
+        public Watch parse(String name, boolean includeStatus, BytesReference source, DateTime now) throws IOException {
+            return parse(name, includeStatus, false, source, now);
+        }
+
+        /**
+         * @see #parseWithSecrets(String, boolean, BytesReference, DateTime)
+         */
+        public Watch parseWithSecrets(String id, boolean includeStatus, BytesReference source) throws IOException {
+            return parse(id, includeStatus, true, source, clock.nowUTC());
         }
 
         /**
@@ -238,22 +259,19 @@ public class Watch implements TriggerEngine.Job, ToXContent {
          * This method is only called once - when the user adds a new watch. From that moment on, all representations
          * of the watch in the system will be use secrets for sensitive data.
          *
-         * @see org.elasticsearch.watcher.WatcherService#putWatch(String, BytesReference, TimeValue)
+         * @see org.elasticsearch.watcher.WatcherService#putWatch(String, BytesReference, TimeValue, boolean)
          */
-        public Watch parseWithSecrets(String id, boolean includeStatus, BytesReference source) throws IOException {
-            return parse(id, includeStatus, true, source);
+        public Watch parseWithSecrets(String id, boolean includeStatus, BytesReference source, DateTime now) throws IOException {
+            return parse(id, includeStatus, true, source, now);
         }
 
-        private Watch parse(String id, boolean includeStatus, boolean withSecrets, BytesReference source) throws IOException {
+        private Watch parse(String id, boolean includeStatus, boolean withSecrets, BytesReference source, DateTime now) throws IOException {
             if (logger.isTraceEnabled()) {
                 logger.trace("parsing watch [{}] ", source.toUtf8());
             }
             XContentParser parser = null;
             try {
-                parser = XContentHelper.createParser(source);
-                if (withSecrets) {
-                    parser = new SensitiveXContentParser(parser, secretService);
-                }
+                parser = new WatcherXContentParser(XContentHelper.createParser(source), new HaltedClock(now), withSecrets ? secretService : null);
                 parser.nextToken();
                 return parse(id, includeStatus, parser);
             } catch (IOException ioe) {
@@ -326,11 +344,11 @@ public class Watch implements TriggerEngine.Job, ToXContent {
             } else {
                 // we need to create the initial statuses for the actions
                 ImmutableMap.Builder<String, ActionStatus> actionsStatuses = ImmutableMap.builder();
-                DateTime now = clock.now(DateTimeZone.UTC);
+                DateTime now = WatcherXContentParser.clock(parser).nowUTC();
                 for (ActionWrapper action : actions) {
                     actionsStatuses.put(action.id(), new ActionStatus(now));
                 }
-                status = new WatchStatus(actionsStatuses.build());
+                status = new WatchStatus(WatcherXContentParser.clock(parser).nowUTC(), actionsStatuses.build());
             }
 
             return new Watch(id, trigger, input, condition, transform, throttlePeriod, actions, metatdata, status);

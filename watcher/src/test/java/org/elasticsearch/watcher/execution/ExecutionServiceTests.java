@@ -127,7 +127,7 @@ public class ExecutionServiceTests extends ESTestCase {
         ActionWrapper actionWrapper = new ActionWrapper("_action", throttler, actionTransform, action);
         ExecutableActions actions = new ExecutableActions(Arrays.asList(actionWrapper));
 
-        WatchStatus watchStatus = new WatchStatus(ImmutableMap.of("_action", new ActionStatus(clock.nowUTC())));
+        WatchStatus watchStatus = new WatchStatus(clock.nowUTC(), ImmutableMap.of("_action", new ActionStatus(clock.nowUTC())));
 
         when(watch.input()).thenReturn(input);
         when(watch.condition()).thenReturn(condition);
@@ -201,7 +201,7 @@ public class ExecutionServiceTests extends ESTestCase {
         ActionWrapper actionWrapper = new ActionWrapper("_action", throttler, actionTransform, action);
         ExecutableActions actions = new ExecutableActions(Arrays.asList(actionWrapper));
 
-        WatchStatus watchStatus = new WatchStatus(ImmutableMap.of("_action", new ActionStatus(clock.nowUTC())));
+        WatchStatus watchStatus = new WatchStatus(clock.nowUTC(), ImmutableMap.of("_action", new ActionStatus(clock.nowUTC())));
 
         when(watch.input()).thenReturn(input);
         when(watch.condition()).thenReturn(condition);
@@ -270,7 +270,7 @@ public class ExecutionServiceTests extends ESTestCase {
         ActionWrapper actionWrapper = new ActionWrapper("_action", throttler, actionTransform, action);
         ExecutableActions actions = new ExecutableActions(Arrays.asList(actionWrapper));
 
-        WatchStatus watchStatus = new WatchStatus(ImmutableMap.of("_action", new ActionStatus(clock.nowUTC())));
+        WatchStatus watchStatus = new WatchStatus(clock.nowUTC(), ImmutableMap.of("_action", new ActionStatus(clock.nowUTC())));
 
         when(watch.input()).thenReturn(input);
         when(watch.condition()).thenReturn(condition);
@@ -338,7 +338,7 @@ public class ExecutionServiceTests extends ESTestCase {
         ActionWrapper actionWrapper = new ActionWrapper("_action", throttler, actionTransform, action);
         ExecutableActions actions = new ExecutableActions(Arrays.asList(actionWrapper));
 
-        WatchStatus watchStatus = new WatchStatus(ImmutableMap.of("_action", new ActionStatus(clock.nowUTC())));
+        WatchStatus watchStatus = new WatchStatus(clock.nowUTC(), ImmutableMap.of("_action", new ActionStatus(clock.nowUTC())));
 
         when(watch.input()).thenReturn(input);
         when(watch.condition()).thenReturn(condition);
@@ -408,7 +408,7 @@ public class ExecutionServiceTests extends ESTestCase {
         ActionWrapper actionWrapper = new ActionWrapper("_action", throttler, actionTransform, action);
         ExecutableActions actions = new ExecutableActions(Arrays.asList(actionWrapper));
 
-        WatchStatus watchStatus = new WatchStatus(ImmutableMap.of("_action", new ActionStatus(clock.nowUTC())));
+        WatchStatus watchStatus = new WatchStatus(clock.nowUTC(), ImmutableMap.of("_action", new ActionStatus(clock.nowUTC())));
 
         when(watch.input()).thenReturn(input);
         when(watch.condition()).thenReturn(condition);
@@ -473,7 +473,7 @@ public class ExecutionServiceTests extends ESTestCase {
         ActionWrapper actionWrapper = new ActionWrapper("_action", throttler, actionTransform, action);
         ExecutableActions actions = new ExecutableActions(Arrays.asList(actionWrapper));
 
-        WatchStatus watchStatus = new WatchStatus(ImmutableMap.of("_action", new ActionStatus(now)));
+        WatchStatus watchStatus = new WatchStatus(clock.nowUTC(), ImmutableMap.of("_action", new ActionStatus(now)));
 
         when(watch.input()).thenReturn(input);
         when(watch.condition()).thenReturn(condition);
@@ -519,7 +519,7 @@ public class ExecutionServiceTests extends ESTestCase {
         ActionWrapper actionWrapper = new ActionWrapper("_action", throttler, transform, action);
         ExecutableActions actions = new ExecutableActions(Arrays.asList(actionWrapper));
 
-        WatchStatus watchStatus = new WatchStatus(ImmutableMap.of("_action", new ActionStatus(now)));
+        WatchStatus watchStatus = new WatchStatus(clock.nowUTC(), ImmutableMap.of("_action", new ActionStatus(now)));
 
         when(watch.input()).thenReturn(input);
         when(watch.condition()).thenReturn(condition);
@@ -565,7 +565,7 @@ public class ExecutionServiceTests extends ESTestCase {
         ActionWrapper actionWrapper = new ActionWrapper("_action", throttler, actionTransform, action);
         ExecutableActions actions = new ExecutableActions(Arrays.asList(actionWrapper));
 
-        WatchStatus watchStatus = new WatchStatus(ImmutableMap.of("_action", new ActionStatus(now)));
+        WatchStatus watchStatus = new WatchStatus(clock.nowUTC(), ImmutableMap.of("_action", new ActionStatus(now)));
 
         when(watch.input()).thenReturn(input);
         when(watch.condition()).thenReturn(condition);

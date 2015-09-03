@@ -170,7 +170,7 @@ public class WatchTests extends ESTestCase {
         for (ActionWrapper action : actions) {
             actionsStatuses.put(action.id(), new ActionStatus(now));
         }
-        WatchStatus watchStatus = new WatchStatus(actionsStatuses.build());
+        WatchStatus watchStatus = new WatchStatus(clock.nowUTC(), actionsStatuses.build());
 
         TimeValue throttlePeriod = randomBoolean() ? null : TimeValue.timeValueSeconds(randomIntBetween(5, 10));
 

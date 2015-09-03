@@ -168,6 +168,30 @@ acknowledgment is cleared and Watcher resumes executing the watch's actions norm
 
 For more information, see <<actions-ack-throttle, action throttling>>.
 
+[[watch-active-state]]
+=== Watch Active State
+
+By default, when you add a watch it is immediately set to the active state. An active watch is
+registered with the relevant trigger engine and executed according to its configured trigger.
+For example, if a watch has a <<trigger-schedule, `schedule`>> trigger, it is executed according
+to its schedule.
+
+A watch can also be set to the inactive state. An inactive watch is still registered with Watcher,
+but it is not registered with a trigger engine and can never be triggered. When you add a watch,
+you can use the <<api-rest-put-watch-active-state, `active`>> parameter to set its initial state
+to inactive. You can deactivate an existing watch with the <<api-rest-deactivate-watch, Deactivate Watch API>>.
+To reactivate a watch, you use the <<api-rest-activate-watch, Activate Watch API>>.
+
+NOTE:   You can still use the <<api-rest-execute-watch, Execute Watch API>> to force the execution
+        of an inactive watch.
+
+Deactivating watches is useful in a variety of situations. For example, if you have a watch that
+monitors an external system and need to take the system down for maintenance, you can deactivate
+the watch so doesn't unnecessarily report a bunch of execution failures during the maintenance
+window. You might also want to deactivate a watch rather than deleting it entirely in case you
+might want to use it at some point in the future.
+
+
 [[scripts-templates]]
 === Scripts and Templates
 

@@ -34,6 +34,9 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
 
 import java.io.IOException;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -182,8 +185,22 @@ public class WatchStore extends AbstractComponent {
         return new WatchDelete(response);
     }
 
-    public ConcurrentMap<String, Watch> watches() {
+    public Collection<Watch> watches() {
+        return watches.values();
+    }
+
+    public Collection<Watch> activeWatches() {
+        Set<Watch> watches = new HashSet<>();
+        for (Watch watch : watches()) {
+            if (watch.status().state().isActive()) {
+                watches.add(watch);
+            }
+        }
         return watches;
+    }
+
+    public int watchCount() {
+        return watches.size();
     }
 
     IndexRequest createIndexRequest(String id, BytesReference source, long version) {

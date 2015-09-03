@@ -93,6 +93,10 @@ include::java/execute-watch.asciidoc[]
 
 include::java/ack-watch.asciidoc[]
 
+include::java/activate-watch.asciidoc[]
+
+include::java/deactivate-watch.asciidoc[]
+
 include::java/stats.asciidoc[]
 
 include::java/service.asciidoc[]

@@ -1,4 +1,4 @@
-[[array-condition-compare]]
+[[condition-array-compare]]
 ==== Array Compare Condition
 
 A watch <<condition, condition>> that compares an array of values in the <<watch-execution-context, Watch Execution Context Model>>
@@ -51,7 +51,8 @@ The array path is a "dot-notation" expression that can reference the following v
 
 This array path must resolve to an array.
 
-The comparison operator can be any one of the operators from [[condition-compare]].
+The comparison operator can be any one of the operators supported by the
+<<condition-compare-operators, Compare Condition>>.
 
 The quantifier operator can be any one of the following:
 
@@ -65,4 +66,4 @@ The quantifier operator can be any one of the following:
 NOTE: If the array is empty, `all` causes the comparison operator to evaluate to `true` and `some` causes the comparison
 operator to evaluate to `false`.
 
-NOTE: It is also possible to use date math expressions and values in the context model as in [[condition-compare]].
+NOTE: It is also possible to use date math expressions and values in the context model as in the <<condition-compare, Compare Condition>>.

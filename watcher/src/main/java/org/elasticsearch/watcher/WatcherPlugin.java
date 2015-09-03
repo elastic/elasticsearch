@@ -46,6 +46,8 @@ import org.elasticsearch.watcher.support.validation.WatcherSettingsValidation;
 import org.elasticsearch.watcher.transform.TransformModule;
 import org.elasticsearch.watcher.transport.actions.ack.AckWatchAction;
 import org.elasticsearch.watcher.transport.actions.ack.TransportAckWatchAction;
+import org.elasticsearch.watcher.transport.actions.activate.ActivateWatchAction;
+import org.elasticsearch.watcher.transport.actions.activate.TransportActivateWatchAction;
 import org.elasticsearch.watcher.transport.actions.delete.DeleteWatchAction;
 import org.elasticsearch.watcher.transport.actions.delete.TransportDeleteWatchAction;
 import org.elasticsearch.watcher.transport.actions.execute.ExecuteWatchAction;
@@ -62,7 +64,6 @@ import org.elasticsearch.watcher.trigger.TriggerModule;
 import org.elasticsearch.watcher.trigger.schedule.ScheduleModule;
 import org.elasticsearch.watcher.watch.WatchModule;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -98,10 +99,10 @@ public class WatcherPlugin extends Plugin {
 
     @Override
     public Collection<Module> nodeModules() {
-        if (enabled == false) {
+        if (!enabled || transportClient) {
             return Collections.emptyList();
-        } else if (transportClient == false){
-            return Arrays.<Module>asList(
+        }
+        return Arrays.<Module>asList(
                 new WatcherModule(settings),
                 new InitializingModule(),
                 new LicenseModule(),
@@ -120,14 +121,12 @@ public class WatcherPlugin extends Plugin {
                 new ExecutionModule(),
                 new WatcherShieldModule(settings),
                 new SecretModule(settings));
-        }
-        return Collections.emptyList();
     }
 
     @Override
     public Collection<Class<? extends LifecycleComponent>> nodeServices() {
         if (!enabled || transportClient) {
-            return Collections.EMPTY_SET;
+            return Collections.emptyList();
         }
         return Arrays.<Class<? extends LifecycleComponent>>asList(
             // the initialization service must be first in the list
@@ -156,7 +155,7 @@ public class WatcherPlugin extends Plugin {
 
     public void onModule(ScriptModule module) {
         module.registerScriptContext(ScriptServiceProxy.INSTANCE);
-        if (enabled && transportClient == false) {
+        if (enabled && !transportClient) {
             module.addScriptEngine(XMustacheScriptEngineService.class);
         }
     }
@@ -168,7 +167,7 @@ public class WatcherPlugin extends Plugin {
     }
 
     public void onModule(RestModule module) {
-        if (enabled && transportClient == false) {
+        if (enabled && !transportClient) {
             module.addRestAction(RestPutWatchAction.class);
             module.addRestAction(RestDeleteWatchAction.class);
             module.addRestAction(RestWatcherStatsAction.class);
@@ -176,6 +175,7 @@ public class WatcherPlugin extends Plugin {
             module.addRestAction(RestGetWatchAction.class);
             module.addRestAction(RestWatchServiceAction.class);
             module.addRestAction(RestAckWatchAction.class);
+            module.addRestAction(RestActivateWatchAction.class);
             module.addRestAction(RestExecuteWatchAction.class);
             module.addRestAction(RestHijackOperationAction.class);
         }
@@ -188,6 +188,7 @@ public class WatcherPlugin extends Plugin {
             module.registerAction(GetWatchAction.INSTANCE, TransportGetWatchAction.class);
             module.registerAction(WatcherStatsAction.INSTANCE, TransportWatcherStatsAction.class);
             module.registerAction(AckWatchAction.INSTANCE, TransportAckWatchAction.class);
+            module.registerAction(ActivateWatchAction.INSTANCE, TransportActivateWatchAction.class);
             module.registerAction(WatcherServiceAction.INSTANCE, TransportWatcherServiceAction.class);
             module.registerAction(ExecuteWatchAction.INSTANCE, TransportExecuteWatchAction.class);
         }

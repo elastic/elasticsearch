@@ -499,6 +499,7 @@ public class SearchTransformTests extends ESIntegTestCase {
     }
 
     private WatchExecutionContext createContext() {
+
         return new TriggeredExecutionContext(
                 new Watch("test-watch",
                         new ScheduleTrigger(new IntervalSchedule(new IntervalSchedule.Interval(1, IntervalSchedule.Interval.Unit.MINUTES))),
@@ -508,7 +509,7 @@ public class SearchTransformTests extends ESIntegTestCase {
                         null,
                         new ExecutableActions(new ArrayList<ActionWrapper>()),
                         null,
-                        new WatchStatus(ImmutableMap.<String, ActionStatus>of())),
+                        new WatchStatus( new DateTime(40000, UTC), ImmutableMap.<String, ActionStatus>of())),
                 new DateTime(60000, UTC),
                 new ScheduleTriggerEvent("test-watch", new DateTime(60000, UTC), new DateTime(60000, UTC)),
                 timeValueSeconds(5));

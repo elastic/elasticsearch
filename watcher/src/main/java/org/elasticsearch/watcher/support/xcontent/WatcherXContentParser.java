@@ -3,28 +3,41 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.watcher.support.secret;
+package org.elasticsearch.watcher.support.xcontent;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.watcher.support.clock.Clock;
+import org.elasticsearch.watcher.support.clock.SystemClock;
+import org.elasticsearch.watcher.support.secret.Secret;
+import org.elasticsearch.watcher.support.secret.SecretService;
 
+import javax.annotation.Nullable;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
 /**
- *
+ * A xcontent parser that is used by watcher. This is a special parser that is
+ * aware of watcher services. In particular, it's aware of the used {@link Clock}
+ * and the {@link SecretService}. The former (clock) may be used when the current time
+ * is required during the parse phase of construct. The latter (secret service) is used
+ * to convert secret values (e.g. passwords, security tokens, etc..) to {@link Secret}s.
+ * {@link Secret}s are encrypted values that are stored in memory and are decrypted
+ * on demand when needed.
  */
-public class SensitiveXContentParser implements XContentParser {
+public class WatcherXContentParser implements XContentParser {
 
     public static Secret secret(XContentParser parser) throws IOException {
         char[] chars = parser.text().toCharArray();
-        if (parser instanceof SensitiveXContentParser) {
-            chars = ((SensitiveXContentParser) parser).secretService.encrypt(chars);
-            return new Secret(chars);
+        if (parser instanceof WatcherXContentParser) {
+            WatcherXContentParser watcherParser = (WatcherXContentParser) parser;
+            if (watcherParser.secretService != null) {
+                chars = watcherParser.secretService.encrypt(chars);
+            }
         }
         return new Secret(chars);
     }
@@ -35,17 +48,29 @@ public class SensitiveXContentParser implements XContentParser {
             return null;
         }
         char[] chars = parser.text().toCharArray();
-        if (parser instanceof SensitiveXContentParser) {
-            chars = ((SensitiveXContentParser) parser).secretService.encrypt(text.toCharArray());
+        if (parser instanceof WatcherXContentParser) {
+            WatcherXContentParser watcherParser = (WatcherXContentParser) parser;
+            if (watcherParser.secretService != null) {
+                chars = watcherParser.secretService.encrypt(text.toCharArray());
+            }
             return new Secret(chars);
         }
         return new Secret(chars);
     }
 
-    private final XContentParser parser;
-    private final SecretService secretService;
+    public static Clock clock(XContentParser parser) {
+        if (parser instanceof WatcherXContentParser) {
+            return ((WatcherXContentParser) parser).clock;
+        }
+        return SystemClock.INSTANCE;
+    }
 
-    public SensitiveXContentParser(XContentParser parser, SecretService secretService) {
+    private final Clock clock;
+    private final XContentParser parser;
+    private final @Nullable SecretService secretService;
+
+    public WatcherXContentParser(XContentParser parser, Clock clock, @Nullable SecretService secretService) {
+        this.clock = clock;
         this.parser = parser;
         this.secretService = secretService;
     }

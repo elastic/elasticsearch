@@ -11,7 +11,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.watcher.support.http.auth.HttpAuth;
 import org.elasticsearch.watcher.support.secret.Secret;
-import org.elasticsearch.watcher.support.secret.SensitiveXContentParser;
+import org.elasticsearch.watcher.support.xcontent.WatcherXContentParser;
 import org.elasticsearch.watcher.support.xcontent.WatcherParams;
 
 import java.io.IOException;
@@ -85,7 +85,7 @@ public class BasicAuth implements HttpAuth {
                 if (Field.USERNAME.getPreferredName().equals(fieldName)) {
                     username = parser.text();
                 } else if (Field.PASSWORD.getPreferredName().equals(fieldName)) {
-                    password = SensitiveXContentParser.secret(parser);
+                    password = WatcherXContentParser.secret(parser);
                 } else {
                     throw new ElasticsearchParseException("unsupported field [" + fieldName + "]");
                 }

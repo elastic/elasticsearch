@@ -8,14 +8,13 @@ package org.elasticsearch.watcher.transport.actions.put;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
-import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.watcher.client.WatchSourceBuilder;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.watcher.client.WatchSourceBuilder;
 import org.elasticsearch.watcher.support.validation.Validation;
 
 import java.io.IOException;
@@ -30,6 +29,7 @@ public class PutWatchRequest extends MasterNodeRequest<PutWatchRequest> {
 
     private String id;
     private BytesReference source;
+    private boolean active = true;
 
     PutWatchRequest() {
     }
@@ -77,6 +77,20 @@ public class PutWatchRequest extends MasterNodeRequest<PutWatchRequest> {
      */
     public void setSource(BytesReference source) {
         this.source = source;
+    }
+
+    /**
+     * @return The initial active state of the watch (defaults to {@code true}, e.g. "active")
+     */
+    public boolean isActive() {
+        return active;
+    }
+
+    /**
+     * @return Sets the initial active state of the watch
+     */
+    public void setActive(boolean active) {
+        this.active = active;
     }
 
     @Override

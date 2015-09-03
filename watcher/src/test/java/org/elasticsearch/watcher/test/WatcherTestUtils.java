@@ -227,7 +227,7 @@ public final class WatcherTestUtils {
                 new TimeValue(0),
                 new ExecutableActions(actions),
                 metadata,
-                new WatchStatus(ImmutableMap.<String, ActionStatus>builder()
+                new WatchStatus(now, ImmutableMap.<String, ActionStatus>builder()
                         .put("_webhook", new ActionStatus(now))
                         .put("_email", new ActionStatus(now))
                         .build()));

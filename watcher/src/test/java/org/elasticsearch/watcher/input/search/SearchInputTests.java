@@ -124,7 +124,7 @@ public class SearchInputTests extends ESIntegTestCase {
                         null,
                         new ExecutableActions(new ArrayList<ActionWrapper>()),
                         null,
-                        new WatchStatus(ImmutableMap.<String, ActionStatus>of())),
+                        new WatchStatus(new DateTime(0, UTC), ImmutableMap.<String, ActionStatus>of())),
                 new DateTime(0, UTC),
                 new ScheduleTriggerEvent("test-watch", new DateTime(0, UTC), new DateTime(0, UTC)),
                 timeValueSeconds(5));
@@ -231,7 +231,7 @@ public class SearchInputTests extends ESIntegTestCase {
                         null,
                         new ExecutableActions(new ArrayList<ActionWrapper>()),
                         null,
-                        new WatchStatus(ImmutableMap.<String, ActionStatus>of())),
+                        new WatchStatus(new DateTime(0, UTC), ImmutableMap.<String, ActionStatus>of())),
                 new DateTime(0, UTC),
                 new ScheduleTriggerEvent("test-watch", new DateTime(0, UTC), new DateTime(0, UTC)),
                 timeValueSeconds(5));
@@ -343,7 +343,7 @@ public class SearchInputTests extends ESIntegTestCase {
                         null,
                         new ExecutableActions(new ArrayList<ActionWrapper>()),
                         null,
-                        new WatchStatus(ImmutableMap.<String, ActionStatus>of())),
+                        new WatchStatus(new DateTime(50000, UTC), ImmutableMap.<String, ActionStatus>of())),
                 new DateTime(60000, UTC),
                 new ScheduleTriggerEvent("test-watch", new DateTime(60000, UTC), new DateTime(60000, UTC)),
                 timeValueSeconds(5));

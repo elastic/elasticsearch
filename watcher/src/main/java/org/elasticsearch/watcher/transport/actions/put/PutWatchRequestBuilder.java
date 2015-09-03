@@ -5,12 +5,10 @@
  */
 package org.elasticsearch.watcher.transport.actions.put;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.watcher.client.WatchSourceBuilder;
-import org.elasticsearch.watcher.client.WatcherClient;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.watcher.client.WatchSourceBuilder;
 
 public class PutWatchRequestBuilder extends MasterNodeOperationRequestBuilder<PutWatchRequest, PutWatchResponse, PutWatchRequestBuilder> {
 
@@ -44,6 +42,14 @@ public class PutWatchRequestBuilder extends MasterNodeOperationRequestBuilder<Pu
      */
     public PutWatchRequestBuilder setSource(WatchSourceBuilder source) {
         request.setSource(source);
+        return this;
+    }
+
+    /**
+     * @param active Sets whether the watcher is in/active by default
+     */
+    public PutWatchRequestBuilder setActive(boolean active) {
+        request.setActive(active);
         return this;
     }
 }

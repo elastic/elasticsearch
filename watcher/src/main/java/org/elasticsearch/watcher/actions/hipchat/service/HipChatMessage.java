@@ -319,7 +319,7 @@ public class HipChatMessage implements ToXContent {
                         throw new ElasticsearchParseException("failed to parse hipchat message. failed to parse [{}] field", ilae, Field.FORMAT.getPreferredName());
                     }
                 } else {
-                    throw new ElasticsearchParseException("failed to parse hipchat message. unexpected token [{}]", token);
+                    throw new ElasticsearchParseException("failed to parse hipchat message. unexpected field [{}]", currentFieldName);
                 }
             }
 

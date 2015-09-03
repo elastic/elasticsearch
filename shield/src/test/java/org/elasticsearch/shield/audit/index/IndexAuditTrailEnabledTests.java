@@ -9,6 +9,7 @@ import com.google.common.base.Predicate;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateResponse;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.exists.ExistsResponse;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.audit.logfile.LoggingAuditTrail;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
@@ -49,9 +50,7 @@ public class IndexAuditTrailEnabledTests extends ShieldIntegTestCase {
 
     @Test
     public void testAuditTrailIndexAndTemplateExists() throws Exception {
-        GetIndexTemplatesResponse response = client().admin().indices().prepareGetTemplates(IndexAuditTrail.INDEX_TEMPLATE_NAME).execute().actionGet();
-        assertThat(response.getIndexTemplates().size(), is(1));
-        assertThat(response.getIndexTemplates().get(0).name(), is(IndexAuditTrail.INDEX_TEMPLATE_NAME));
+        awaitIndexTemplateCreation();
 
         // Wait for the index to be created since we have our own startup
         awaitIndexCreation();
@@ -60,24 +59,12 @@ public class IndexAuditTrailEnabledTests extends ShieldIntegTestCase {
     @Test
     public void testAuditTrailTemplateIsRecreatedAfterDelete() throws Exception {
         // this is already "tested" by the test framework since we wipe the templates before and after, but lets be explicit about the behavior
-        GetIndexTemplatesResponse response = client().admin().indices().prepareGetTemplates(IndexAuditTrail.INDEX_TEMPLATE_NAME).execute().actionGet();
-        assertThat(response.getIndexTemplates().size(), is(1));
-        assertThat(response.getIndexTemplates().get(0).name(), is(IndexAuditTrail.INDEX_TEMPLATE_NAME));
+        awaitIndexTemplateCreation();
 
         // delete the template
         DeleteIndexTemplateResponse deleteResponse = client().admin().indices().prepareDeleteTemplate(IndexAuditTrail.INDEX_TEMPLATE_NAME).execute().actionGet();
         assertThat(deleteResponse.isAcknowledged(), is(true));
-        boolean templateReplaced = awaitBusy(new Predicate<Void>() {
-            @Override
-            public boolean apply(Void aVoid) {
-                GetIndexTemplatesResponse response = client().admin().indices().prepareGetTemplates(IndexAuditTrail.INDEX_TEMPLATE_NAME).execute().actionGet();
-                if (response.getIndexTemplates().size() > 0) {
-                    return response.getIndexTemplates().get(0).name().equals(IndexAuditTrail.INDEX_TEMPLATE_NAME);
-                }
-                return false;
-            }
-        });
-        assertThat(templateReplaced, is(true));
+        awaitIndexTemplateCreation();
     }
 
     void awaitIndexCreation() throws Exception {
@@ -97,6 +84,27 @@ public class IndexAuditTrailEnabledTests extends ShieldIntegTestCase {
 
         if (!success) {
             fail("index [" + indexName + "] was not created");
+        }
+    }
+
+    void awaitIndexTemplateCreation() throws InterruptedException {
+        boolean found = awaitBusy(new Predicate<Void>() {
+            @Override
+            public boolean apply(Void aVoid) {
+                GetIndexTemplatesResponse response = client().admin().indices().prepareGetTemplates(IndexAuditTrail.INDEX_TEMPLATE_NAME).execute().actionGet();
+                if (response.getIndexTemplates().size() > 0) {
+                    for (IndexTemplateMetaData indexTemplateMetaData : response.getIndexTemplates()) {
+                        if (IndexAuditTrail.INDEX_TEMPLATE_NAME.equals(indexTemplateMetaData.name())) {
+                            return true;
+                        }
+                    }
+                }
+                return false;
+            }
+        });
+
+        if (!found) {
+            fail("index template [" + IndexAuditTrail.INDEX_TEMPLATE_NAME + "] was not created");
         }
     }
 }

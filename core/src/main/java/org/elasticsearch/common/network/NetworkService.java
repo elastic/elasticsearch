@@ -27,8 +27,6 @@ import org.elasticsearch.common.unit.TimeValue;
 
 import java.io.IOException;
 import java.net.InetAddress;
-import java.net.InterfaceAddress;
-import java.net.NetworkInterface;
 import java.net.UnknownHostException;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -120,14 +118,6 @@ public class NetworkService extends AbstractComponent {
                 if (address.isMulticastAddress()) {
                     throw new IllegalArgumentException("bind address: {" + NetworkAddress.format(address) + "} is invalid: multicast address");
                 }
-                // check if its broadcast: flat out mistake
-                for (NetworkInterface nic : NetworkUtils.getInterfaces()) {
-                    for (InterfaceAddress intf : nic.getInterfaceAddresses()) {
-                        if (address.equals(intf.getBroadcast())) {
-                            throw new IllegalArgumentException("bind address: {" + NetworkAddress.format(address) + "} is invalid: broadcast address");
-                        }
-                    }
-                }
             }
         }
         return addresses;
@@ -160,14 +150,6 @@ public class NetworkService extends AbstractComponent {
             // check if its multicast: flat out mistake
             if (address.isMulticastAddress()) {
                 throw new IllegalArgumentException("publish address: {" + NetworkAddress.format(address) + "} is invalid: multicast address");
-            }
-            // check if its broadcast: flat out mistake
-            for (NetworkInterface nic : NetworkUtils.getInterfaces()) {
-                for (InterfaceAddress intf : nic.getInterfaceAddresses()) {
-                    if (address.equals(intf.getBroadcast())) {
-                        throw new IllegalArgumentException("publish address: {" + NetworkAddress.format(address) + "} is invalid: broadcast address");
-                    }
-                }
             }
             // wildcard address, probably set by network.host
             if (address.isAnyLocalAddress()) {

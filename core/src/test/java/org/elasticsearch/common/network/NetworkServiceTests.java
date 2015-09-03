@@ -23,11 +23,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
 import java.net.InetAddress;
-import java.net.InterfaceAddress;
-import java.net.NetworkInterface;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
 
 /**
  * Tests for network service... try to keep them safe depending upon configuration
@@ -84,41 +79,6 @@ public class NetworkServiceTests extends ESTestCase {
             fail("should have hit exception");
         } catch (IllegalArgumentException e) {
             assertTrue(e.getMessage().contains("invalid: multicast"));
-        }
-    }
-
-    /** 
-     * ensure exception if we bind/publish to broadcast address 
-     */
-    public void testBindPublishBroadcast() throws Exception {
-        NetworkService service = new NetworkService(Settings.EMPTY);
-        // collect any broadcast addresses on the system
-        List<InetAddress> addresses = new ArrayList<>();
-        for (NetworkInterface nic : Collections.list(NetworkInterface.getNetworkInterfaces())) {
-            for (InterfaceAddress intf : nic.getInterfaceAddresses()) {
-                InetAddress address = intf.getBroadcast();
-                if (address != null) {
-                    addresses.add(address);
-                }
-            }
-        }
-        // can easily happen (ipv6-only, localhost-only, ...)
-        assumeTrue("test requires broadcast addresses configured", addresses.size() > 0);
-        // make sure we fail on each one
-        for (InetAddress address : addresses) {
-            try {
-                service.resolveBindHostAddress(NetworkAddress.formatAddress(address));
-                fail("should have hit exception for broadcast address: " + address);
-            } catch (IllegalArgumentException e) {
-                assertTrue(e.getMessage().contains("invalid: broadcast"));
-            }
-            
-            try {
-                service.resolvePublishHostAddress(NetworkAddress.formatAddress(address));
-                fail("should have hit exception for broadcast address: " + address);
-            } catch (IllegalArgumentException e) {
-                assertTrue(e.getMessage().contains("invalid: broadcast"));
-            }
         }
     }
 

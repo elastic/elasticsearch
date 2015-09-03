@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.innerhits;
 
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -47,11 +46,8 @@ import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.*;
 
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
-
 /**
  */
-@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/13315")
 public class InnerHitsIT extends ESIntegTestCase {
 
     @Test
@@ -737,7 +733,7 @@ public class InnerHitsIT extends ESIntegTestCase {
         assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).getNestedIdentity().getField().string(), equalTo("comments"));
         assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).getNestedIdentity().getOffset(), equalTo(0));
         assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).getNestedIdentity().getChild(), nullValue());
-        assertThat(String.valueOf(response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).fields().get("comments.message").getValue()), equalTo("fox eat quick"));
+        assertThat(String.valueOf((Object)response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).fields().get("comments.message").getValue()), equalTo("fox eat quick"));
     }
 
     @Test
@@ -814,7 +810,7 @@ public class InnerHitsIT extends ESIntegTestCase {
         assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).getNestedIdentity().getField().string(), equalTo("comments"));
         assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).getNestedIdentity().getOffset(), equalTo(0));
         assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).getNestedIdentity().getChild(), nullValue());
-        assertThat(String.valueOf(response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).fields().get("comments.message").getValue()), equalTo("fox eat quick"));
+        assertThat(String.valueOf((Object)response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).fields().get("comments.message").getValue()), equalTo("fox eat quick"));
     }
 
     @Test

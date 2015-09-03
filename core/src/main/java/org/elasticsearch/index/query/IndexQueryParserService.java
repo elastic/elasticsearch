@@ -43,6 +43,7 @@ import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
+import org.elasticsearch.index.query.support.InnerHitsQueryParserHelper;
 import org.elasticsearch.index.search.termslookup.TermsLookupFetchService;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.similarity.SimilarityService;
@@ -59,6 +60,7 @@ public class IndexQueryParserService extends AbstractIndexComponent {
     public static final String QUERY_STRING_LENIENT = "index.query_string.lenient";
     public static final String PARSE_STRICT = "index.query.parse.strict";
     public static final String ALLOW_UNMAPPED = "index.query.parse.allow_unmapped_fields";
+    private final InnerHitsQueryParserHelper innerHitsQueryParserHelper;
 
     private CloseableThreadLocal<QueryShardContext> cache = new CloseableThreadLocal<QueryShardContext>() {
         @Override
@@ -101,7 +103,8 @@ public class IndexQueryParserService extends AbstractIndexComponent {
                                    MapperService mapperService, IndexCache indexCache, IndexFieldDataService fieldDataService,
                                    BitsetFilterCache bitsetFilterCache,
                                    @Nullable SimilarityService similarityService, ClusterService clusterService,
-                                   IndexNameExpressionResolver indexNameExpressionResolver) {
+                                   IndexNameExpressionResolver indexNameExpressionResolver,
+                                   InnerHitsQueryParserHelper innerHitsQueryParserHelper) {
         super(index, indexSettings);
         this.scriptService = scriptService;
         this.analysisService = analysisService;
@@ -118,6 +121,7 @@ public class IndexQueryParserService extends AbstractIndexComponent {
         this.parseFieldMatcher = new ParseFieldMatcher(indexSettings);
         this.defaultAllowUnmappedFields = indexSettings.getAsBoolean(ALLOW_UNMAPPED, true);
         this.indicesQueriesRegistry = indicesQueriesRegistry;
+        this.innerHitsQueryParserHelper = innerHitsQueryParserHelper;
     }
 
     @Inject(optional=true)
@@ -346,5 +350,9 @@ public class IndexQueryParserService extends AbstractIndexComponent {
 
     public List<Object> handleTermsLookup(TermsLookup termsLookup) {
         return this.termsLookupFetchService.fetch(termsLookup);
+    }
+
+    public InnerHitsQueryParserHelper getInnerHitsQueryParserHelper() {
+        return innerHitsQueryParserHelper;
     }
 }

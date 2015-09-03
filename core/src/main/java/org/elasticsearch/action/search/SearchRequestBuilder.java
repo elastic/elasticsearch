@@ -715,8 +715,13 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
         return this;
     }
 
-    public SearchRequestBuilder addInnerHit(String name, InnerHitsBuilder.InnerHit innerHit) {
-        innerHitsBuilder().addInnerHit(name, innerHit);
+    public SearchRequestBuilder addParentChildInnerHits(String name, String type,  InnerHitsBuilder.InnerHit innerHit) {
+        innerHitsBuilder().addParentChildInnerHits(name, type, innerHit);
+        return this;
+    }
+
+    public SearchRequestBuilder addNestedInnerHits(String name, String path,  InnerHitsBuilder.InnerHit innerHit) {
+        innerHitsBuilder().addNestedInnerHits(name, path, innerHit);
         return this;
     }
 

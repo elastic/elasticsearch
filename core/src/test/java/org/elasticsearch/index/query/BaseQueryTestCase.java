@@ -118,7 +118,8 @@ public abstract class BaseQueryTestCase<QB extends AbstractQueryBuilder<QB>> ext
      */
     @BeforeClass
     public static void init() throws IOException {
-        Version version = VersionUtils.randomVersionBetween(random(), Version.V_1_0_0, Version.CURRENT);
+        // we have to prefer CURRENT since with the range of versions we support it's rather unlikely to get the current actually.
+        Version version = randomBoolean() ? Version.CURRENT : VersionUtils.randomVersionBetween(random(), Version.V_1_0_0, Version.CURRENT);
         Settings settings = Settings.settingsBuilder()
                 .put("name", BaseQueryTestCase.class.toString())
                 .put("path.home", createTempDir())
@@ -146,7 +147,7 @@ public abstract class BaseQueryTestCase<QB extends AbstractQueryBuilder<QB>> ext
                 new AnalysisModule(indexSettings, new IndicesAnalysisService(indexSettings)),
                 new SimilarityModule(indexSettings),
                 new IndexNameModule(index),
-                new AbstractModule() {
+        new AbstractModule() {
                     @Override
                     protected void configure() {
                         Multibinder.newSetBinder(binder(), ScoreFunctionParser.class);
@@ -197,10 +198,14 @@ public abstract class BaseQueryTestCase<QB extends AbstractQueryBuilder<QB>> ext
         if (randomBoolean()) {
             QueryShardContext.setTypes(types);
         } else {
-            TestSearchContext testSearchContext = new TestSearchContext();
-            testSearchContext.setTypes(types);
-            SearchContext.setCurrent(testSearchContext);
+           setSearchContext(types); // TODO should this be set after we parsed and before we build the query? it makes more sense?
         }
+    }
+
+    protected void setSearchContext(String[] types) {
+        TestSearchContext testSearchContext = new TestSearchContext();
+        testSearchContext.setTypes(types);
+        SearchContext.setCurrent(testSearchContext);
     }
 
     @After
@@ -388,7 +393,7 @@ public abstract class BaseQueryTestCase<QB extends AbstractQueryBuilder<QB>> ext
     }
 
     //we use the streaming infra to create a copy of the query provided as argument
-    private QB copyQuery(QB query) throws IOException {
+    protected QB copyQuery(QB query) throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             query.writeTo(output);
             try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {

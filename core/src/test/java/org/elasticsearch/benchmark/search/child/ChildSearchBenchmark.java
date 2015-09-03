@@ -26,6 +26,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.search.child.ScoreType;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -285,12 +286,12 @@ public class ChildSearchBenchmark {
         System.out.println("--> Running has_child query with score type");
         // run parent child score query
         for (int j = 0; j < QUERY_WARMUP; j++) {
-            client.prepareSearch(indexName).setQuery(hasChildQuery("child", termQuery("field2", parentChildIndexGenerator.getQueryValue())).scoreType("max")).execute().actionGet();
+            client.prepareSearch(indexName).setQuery(hasChildQuery("child", termQuery("field2", parentChildIndexGenerator.getQueryValue())).scoreType(ScoreType.MAX)).execute().actionGet();
         }
 
         totalQueryTime = 0;
         for (int j = 0; j < QUERY_COUNT; j++) {
-            SearchResponse searchResponse = client.prepareSearch(indexName).setQuery(hasChildQuery("child", termQuery("field2", parentChildIndexGenerator.getQueryValue())).scoreType("max")).execute().actionGet();
+            SearchResponse searchResponse = client.prepareSearch(indexName).setQuery(hasChildQuery("child", termQuery("field2", parentChildIndexGenerator.getQueryValue())).scoreType(ScoreType.MAX)).execute().actionGet();
             if (j % 10 == 0) {
                 System.out.println("--> hits [" + j + "], got [" + searchResponse.getHits().totalHits() + "]");
             }
@@ -300,7 +301,7 @@ public class ChildSearchBenchmark {
         
         totalQueryTime = 0;
         for (int j = 0; j < QUERY_COUNT; j++) {
-            SearchResponse searchResponse = client.prepareSearch(indexName).setQuery(hasChildQuery("child", matchAllQuery()).scoreType("max")).execute().actionGet();
+            SearchResponse searchResponse = client.prepareSearch(indexName).setQuery(hasChildQuery("child", matchAllQuery()).scoreType(ScoreType.MAX)).execute().actionGet();
             if (j % 10 == 0) {
                 System.out.println("--> hits [" + j + "], got [" + searchResponse.getHits().totalHits() + "]");
             }

@@ -20,7 +20,7 @@
 package org.elasticsearch.index.query;
 
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.support.QueryInnerHitBuilder;
+import org.elasticsearch.index.query.support.QueryInnerHits;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -35,7 +35,7 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
 
     private String scoreMode;
 
-    private QueryInnerHitBuilder innerHit;
+    private QueryInnerHits innerHit;
 
     static final NestedQueryBuilder PROTOTYPE = new NestedQueryBuilder();
 
@@ -63,7 +63,7 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
     /**
      * Sets inner hit definition in the scope of this nested query and reusing the defined path and query.
      */
-    public NestedQueryBuilder innerHit(QueryInnerHitBuilder innerHit) {
+    public NestedQueryBuilder innerHit(QueryInnerHits innerHit) {
         this.innerHit = innerHit;
         return this;
     }
@@ -79,9 +79,7 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
         }
         printBoostAndQueryName(builder);
         if (innerHit != null) {
-            builder.startObject("inner_hits");
-            builder.value(innerHit);
-            builder.endObject();
+            innerHit.toXContent(builder, params);
         }
         builder.endObject();
     }

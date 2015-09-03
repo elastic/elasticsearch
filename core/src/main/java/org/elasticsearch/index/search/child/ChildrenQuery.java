@@ -721,4 +721,20 @@ public final class ChildrenQuery extends IndexCacheableQuery {
         }
     }
 
+    public int getMinChildren() {
+        return minChildren;
+    }
+
+    public int getShortCircuitParentDocSet() {
+        return shortCircuitParentDocSet;
+    }
+
+    public int getMaxChildren() {
+        return maxChildren;
+    }
+
+    public ScoreType getScoreType() {
+        return scoreType;
+    }
+
 }

@@ -19,6 +19,7 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.*;
+import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
@@ -40,7 +41,6 @@ import java.io.IOException;
 import java.util.HashSet;
 import java.util.Set;
 
-import static org.elasticsearch.index.query.HasChildQueryParser.joinUtilHelper;
 
 public class HasParentQueryParser extends BaseQueryParserTemp {
 
@@ -85,7 +85,7 @@ public class HasParentQueryParser extends BaseQueryParserTemp {
                     iq = new XContentStructure.InnerQuery(parseContext, parentType == null ? null : new String[] {parentType});
                     queryFound = true;
                 } else if ("inner_hits".equals(currentFieldName)) {
-                    innerHits = innerHitsQueryParserHelper.parse(parseContext);
+                    innerHits = innerHitsQueryParserHelper.parse(parser);
                 } else {
                     throw new QueryParsingException(parseContext, "[has_parent] query does not support [" + currentFieldName + "]");
                 }
@@ -198,8 +198,8 @@ public class HasParentQueryParser extends BaseQueryParserTemp {
         innerQuery = Queries.filtered(innerQuery, parentDocMapper.typeFilter());
         Filter childrenFilter = new QueryWrapperFilter(Queries.not(parentFilter));
         if (context.indexVersionCreated().onOrAfter(Version.V_2_0_0_beta1)) {
-            ScoreType scoreMode = score ? ScoreType.MAX : ScoreType.NONE;
-            return joinUtilHelper(parentType, parentChildIndexFieldData, childrenFilter, scoreMode, innerQuery, 0, Integer.MAX_VALUE);
+            ScoreMode scoreMode = score ? ScoreMode.Max : ScoreMode.None;
+            return new HasChildQueryBuilder.LateParsingQuery(childrenFilter, innerQuery, HasChildQueryBuilder.DEFAULT_MIN_CHILDREN, HasChildQueryBuilder.DEFAULT_MAX_CHILDREN, parentType, scoreMode, parentChildIndexFieldData);
         } else {
             if (score) {
                 return new ParentQuery(parentChildIndexFieldData, innerQuery, parentDocMapper.type(), childrenFilter);

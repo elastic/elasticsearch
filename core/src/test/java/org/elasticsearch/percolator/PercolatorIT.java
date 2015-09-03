@@ -41,12 +41,11 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.percolator.PercolatorException;
-import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.functionscore.factor.FactorBuilder;
-import org.elasticsearch.index.query.support.QueryInnerHitBuilder;
+import org.elasticsearch.index.query.support.QueryInnerHits;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.highlight.HighlightBuilder;
@@ -2013,7 +2012,7 @@ public class PercolatorIT extends ESIntegTestCase {
         assertAcked(prepareCreate("index").addMapping("mapping", mapping));
         try {
             client().prepareIndex("index", PercolatorService.TYPE_NAME, "1")
-                    .setSource(jsonBuilder().startObject().field("query", nestedQuery("nested", matchQuery("nested.name", "value")).innerHit(new QueryInnerHitBuilder())).endObject())
+                    .setSource(jsonBuilder().startObject().field("query", nestedQuery("nested", matchQuery("nested.name", "value")).innerHit(new QueryInnerHits())).endObject())
                     .execute().actionGet();
             fail("Expected a parse error, because inner_hits isn't supported in the percolate api");
         } catch (Exception e) {

@@ -72,3 +72,10 @@ Support for `queryName` and `boost` has been streamlined to all of the queries. 
 a breaking change till queries get sent over the network as serialized json rather
 than in `Streamable` format. In fact whenever additional fields are added to the json
 representation of the query, older nodes might throw error when they find unknown fields.
+
+==== InnerHitsBuilder
+
+InnerHitsBuilder now has a dedicated addParentChildInnerHits and addNestedInnerHits methods
+to differentiate between inner hits for nested vs. parent / child documents. This change
+makes the type / path parameter mandatory.
+

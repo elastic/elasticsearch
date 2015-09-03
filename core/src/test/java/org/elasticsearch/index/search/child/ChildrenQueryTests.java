@@ -204,10 +204,10 @@ public class ChildrenQueryTests extends AbstractChildTestCase {
             int maxChildren = random().nextInt(2) * scaledRandomIntBetween(minChildren, 110);
 
             QueryBuilder queryBuilder = hasChildQuery("child", constantScoreQuery(termQuery("field1", childValue)))
-                    .scoreType(scoreType.name().toLowerCase(Locale.ENGLISH))
+                    .scoreType(scoreType)
                     .minChildren(minChildren)
                     .maxChildren(maxChildren)
-                    .setShortCircuitCutoff(shortCircuitParentDocSet);
+                    .shortCircuitCutoff(shortCircuitParentDocSet);
             // Using a FQ, will invoke / test the Scorer#advance(..) and also let the Weight#scorer not get live docs as acceptedDocs
             queryBuilder = filteredQuery(queryBuilder, notQuery(termQuery("filter", "me")));
             Query query = parseQuery(queryBuilder);
@@ -365,8 +365,8 @@ public class ChildrenQueryTests extends AbstractChildTestCase {
         // child query that returns the score as the value of "childScore" for each child document, with the parent's score determined by the score type
         QueryBuilder childQueryBuilder = functionScoreQuery(typeQuery("child")).add(new FieldValueFactorFunctionBuilder(CHILD_SCORE_NAME));
         QueryBuilder queryBuilder = hasChildQuery("child", childQueryBuilder)
-                .scoreType(scoreType.name().toLowerCase(Locale.ENGLISH))
-                .setShortCircuitCutoff(parentDocs);
+                .scoreType(scoreType)
+                .shortCircuitCutoff(parentDocs);
 
         // Perform the search for the documents using the selected score type
         Query query = parseQuery(queryBuilder);

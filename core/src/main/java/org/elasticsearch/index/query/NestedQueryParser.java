@@ -73,7 +73,7 @@ public class NestedQueryParser extends BaseQueryParserTemp {
                 } else if (parseContext.parseFieldMatcher().match(currentFieldName, FILTER_FIELD)) {
                     builder.filter();
                 } else if ("inner_hits".equals(currentFieldName)) {
-                    builder.setInnerHits(innerHitsQueryParserHelper.parse(parseContext));
+                    builder.setInnerHits(innerHitsQueryParserHelper.parse(parser));
                 } else {
                     throw new QueryParsingException(parseContext, "[nested] query does not support [" + currentFieldName + "]");
                 }

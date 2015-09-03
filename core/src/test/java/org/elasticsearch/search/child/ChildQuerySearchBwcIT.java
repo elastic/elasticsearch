@@ -27,6 +27,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.search.child.ScoreType;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.junit.Test;
@@ -86,7 +87,7 @@ public class ChildQuerySearchBwcIT extends ChildQuerySearchIT {
         assertSearchHits(searchResponse, parentId);
 
         searchResponse = client().prepareSearch("test")
-                .setQuery(hasChildQuery("child", termQuery("c_field", "1")).scoreType("max"))
+                .setQuery(hasChildQuery("child", termQuery("c_field", "1")).scoreType(ScoreType.MAX))
                 .get();
         assertHitCount(searchResponse, 1l);
         assertSearchHits(searchResponse, parentId);
@@ -125,7 +126,7 @@ public class ChildQuerySearchBwcIT extends ChildQuerySearchIT {
 
         SearchResponse searchResponse = client().prepareSearch("test")
                 .setExplain(true)
-                .setQuery(hasChildQuery("child", termQuery("c_field", "1")).scoreType("max"))
+                .setQuery(hasChildQuery("child", termQuery("c_field", "1")).scoreType(ScoreType.MAX))
                 .get();
         assertHitCount(searchResponse, 1l);
         assertThat(searchResponse.getHits().getAt(0).explanation().getDescription(), equalTo("not implemented yet..."));
@@ -138,7 +139,7 @@ public class ChildQuerySearchBwcIT extends ChildQuerySearchIT {
         assertThat(searchResponse.getHits().getAt(0).explanation().getDescription(), equalTo("not implemented yet..."));
 
         ExplainResponse explainResponse = client().prepareExplain("test", "parent", parentId)
-                .setQuery(hasChildQuery("child", termQuery("c_field", "1")).scoreType("max"))
+                .setQuery(hasChildQuery("child", termQuery("c_field", "1")).scoreType(ScoreType.MAX))
                 .get();
         assertThat(explainResponse.isExists(), equalTo(true));
         // TODO: improve test once explanations are actually implemented

@@ -30,6 +30,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.search.child.ScoreType;
 import org.elasticsearch.node.Node;
 
 import java.io.IOException;
@@ -178,7 +179,7 @@ public class ChildSearchShortCircuitBenchmark {
         for (int i = 1; i < PARENT_COUNT; i *= 2) {
             for (int j = 0; j < QUERY_COUNT; j++) {
                 SearchResponse searchResponse = client.prepareSearch(indexName)
-                        .setQuery(hasChildQuery("child", matchQuery("field2", i)).scoreType("max"))
+                        .setQuery(hasChildQuery("child", matchQuery("field2", i)).scoreType(ScoreType.MAX))
                         .execute().actionGet();
                 if (searchResponse.getHits().totalHits() != i) {
                     System.err.println("--> mismatch on hits");

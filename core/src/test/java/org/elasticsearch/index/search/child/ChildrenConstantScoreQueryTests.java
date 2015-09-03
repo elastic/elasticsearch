@@ -243,11 +243,11 @@ public class ChildrenConstantScoreQueryTests extends AbstractChildTestCase {
             QueryBuilder queryBuilder;
             if (random().nextBoolean()) {
                 queryBuilder = hasChildQuery("child", termQuery("field1", childValue))
-                        .setShortCircuitCutoff(shortCircuitParentDocSet);
+                        .shortCircuitCutoff(shortCircuitParentDocSet);
             } else {
                 queryBuilder = constantScoreQuery(
                         hasChildQuery("child", termQuery("field1", childValue))
-                                .setShortCircuitCutoff(shortCircuitParentDocSet)
+                                .shortCircuitCutoff(shortCircuitParentDocSet)
                 );
             }
             // Using a FQ, will invoke / test the Scorer#advance(..) and also let the Weight#scorer not get live docs as acceptedDocs

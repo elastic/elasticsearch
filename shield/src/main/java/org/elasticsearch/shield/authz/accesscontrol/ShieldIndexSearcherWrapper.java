@@ -6,10 +6,7 @@
 package org.elasticsearch.shield.authz.accesscontrol;
 
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchNoDocsQuery;
-import org.apache.lucene.search.Query;
+import org.apache.lucene.search.*;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
@@ -212,12 +209,13 @@ public final class ShieldIndexSearcherWrapper extends AbstractIndexShardComponen
             return "ShieldIndexSearcher(" + super.toString() + ")";
         }
 
-        private Query wrap(Query original) {
+        private Query wrap(Query original) throws IOException {
             // If already wrapped, don't wrap twice:
             if (original instanceof BooleanQuery) {
                 BooleanQuery bq = (BooleanQuery) original;
                 if (bq.clauses().size() == 2) {
-                    if (roleQuery.equals(bq.clauses().get(1).getQuery())) {
+                    Query rewrittenRoleQuery = rewrite(roleQuery);
+                    if (rewrittenRoleQuery.equals(bq.clauses().get(1).getQuery())) {
                         return original;
                     }
                 }

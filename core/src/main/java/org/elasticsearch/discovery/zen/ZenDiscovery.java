@@ -342,6 +342,12 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         return joinThreadControl.joinThreadActive();
     }
 
+
+    // used for testing
+    public boolean hasPendingClusterStates() {
+        return publishClusterState.pendingStatesQueue().isEmpty() == false;
+    }
+
     /**
      * the main function of a join thread. This function is guaranteed to join the cluster
      * or spawn a new join thread upon failure to do so.

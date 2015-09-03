@@ -187,6 +187,10 @@ public class PendingClusterStatesQueue {
         return stateToProcess.state;
     }
 
+    public synchronized boolean isEmpty() {
+        return pendingStates.isEmpty();
+    }
+
     static class ClusterStateContext {
         final ClusterState state;
         StateProcessedListener listener;

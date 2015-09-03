@@ -337,8 +337,6 @@ Allow to sort based on custom scripts, here is an example:
 }
 --------------------------------------------------
 
-Note, it is recommended, for single custom based script based sorting,
-to use `function_score` query instead as sorting based on score is faster.
 
 ==== Track Scores
 

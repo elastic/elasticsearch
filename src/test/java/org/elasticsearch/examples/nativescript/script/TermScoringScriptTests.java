@@ -43,7 +43,7 @@ import org.junit.Test;
  * document as would be expected if each document in the index contains only one
  * and always the same term.
  */
-public class TermScoringScriptTests extends AbstractSearchScriptTests {
+public class TermScoringScriptTests extends AbstractSearchScriptTestCase {
 
     final static String[] searchTerms = {"foo", "bar"};
     final static String field = "field";

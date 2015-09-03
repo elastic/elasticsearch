@@ -32,7 +32,7 @@ import org.junit.Test;
 
 /**
  */
-public class RandomSortScriptTests extends AbstractSearchScriptTests {
+public class RandomSortScriptTests extends AbstractSearchScriptTestCase {
     @Test
     public void testPseudoRandomScript() throws Exception {
       

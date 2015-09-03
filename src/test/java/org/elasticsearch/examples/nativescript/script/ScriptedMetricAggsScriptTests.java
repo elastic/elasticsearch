@@ -31,7 +31,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
-public class ScriptedMetricAggsScriptTests extends AbstractSearchScriptTests {
+public class ScriptedMetricAggsScriptTests extends AbstractSearchScriptTestCase {
 
     @SuppressWarnings("unchecked")
     @Test

@@ -34,7 +34,7 @@ import org.junit.Test;
 
 /**
  */
-public class LookupScriptTests extends AbstractSearchScriptTests {
+public class LookupScriptTests extends AbstractSearchScriptTestCase {
 
     @SuppressWarnings("unchecked")
     @Test

@@ -33,7 +33,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
-public class IsPrimeSearchScriptTests extends AbstractSearchScriptTests {
+public class IsPrimeSearchScriptTests extends AbstractSearchScriptTestCase {
 
     public static int[] PRIMES_10 = new int[] { 2, 3, 5, 7, 11, 13, 17, 19, 23, 29 };
 

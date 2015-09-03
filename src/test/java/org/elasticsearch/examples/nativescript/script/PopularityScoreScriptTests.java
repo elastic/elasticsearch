@@ -38,7 +38,7 @@ import org.junit.Test;
 
 /**
  */
-public class PopularityScoreScriptTests extends AbstractSearchScriptTests {
+public class PopularityScoreScriptTests extends AbstractSearchScriptTestCase {
 
     @Test
     public void testPopularityScoring() throws Exception {

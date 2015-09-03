@@ -290,14 +290,14 @@ public class MoreLikeThisQueryParser implements QueryParser {
                 }
             }
 
-            BooleanQuery boolQuery = new BooleanQuery();
+            BooleanQuery.Builder boolQuery = new BooleanQuery.Builder();
             boolQuery.add(mltQuery, BooleanClause.Occur.SHOULD);
 
             // exclude the items from the search
             if (!include) {
                 handleExclude(boolQuery, likeItems);
             }
-            return boolQuery;
+            return boolQuery.build();
         }
 
         return mltQuery;
@@ -342,7 +342,7 @@ public class MoreLikeThisQueryParser implements QueryParser {
         return moreLikeFields;
     }
 
-    private void handleExclude(BooleanQuery boolQuery, MultiTermVectorsRequest likeItems) {
+    private void handleExclude(BooleanQuery.Builder boolQuery, MultiTermVectorsRequest likeItems) {
         // artificial docs get assigned a random id and should be disregarded
         List<BytesRef> uids = new ArrayList<>();
         for (TermVectorsRequest item : likeItems) {

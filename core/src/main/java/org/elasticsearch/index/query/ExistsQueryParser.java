@@ -95,7 +95,7 @@ public class ExistsQueryParser implements QueryParser {
             return Queries.newMatchNoDocsQuery();
         }
 
-        BooleanQuery boolFilter = new BooleanQuery();
+        BooleanQuery.Builder boolFilterBuilder = new BooleanQuery.Builder();
         for (String field : fields) {
             MappedFieldType fieldType = parseContext.fieldMapper(field);
             Query filter = null;
@@ -115,9 +115,10 @@ public class ExistsQueryParser implements QueryParser {
             if (filter == null) {
                 filter = new TermRangeQuery(field, null, null, true, true);
             }
-            boolFilter.add(filter, BooleanClause.Occur.SHOULD);
+            boolFilterBuilder.add(filter, BooleanClause.Occur.SHOULD);
         }
 
+        BooleanQuery boolFilter = boolFilterBuilder.build();
         if (queryName != null) {
             parseContext.addNamedQuery(queryName, boolFilter);
         }

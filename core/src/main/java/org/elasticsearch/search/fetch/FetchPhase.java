@@ -25,7 +25,6 @@ import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Filter;
-import org.apache.lucene.util.BitDocIdSet;
 import org.apache.lucene.util.BitSet;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -192,8 +191,7 @@ public class FetchPhase implements SearchPhase {
 
     private int findRootDocumentIfNested(SearchContext context, LeafReaderContext subReaderContext, int subDocId) throws IOException {
         if (context.mapperService().hasNested()) {
-            BitDocIdSet nonNested = context.bitsetFilterCache().getBitDocIdSetFilter(Queries.newNonNestedFilter()).getDocIdSet(subReaderContext);
-            BitSet bits = nonNested.bits();
+            BitSet bits = context.bitsetFilterCache().getBitSetProducer(Queries.newNonNestedFilter()).getBitSet(subReaderContext);
             if (!bits.get(subDocId)) {
                 return bits.nextSetBit(subDocId);
             }
@@ -384,8 +382,7 @@ public class FetchPhase implements SearchPhase {
                 continue;
             }
 
-            BitDocIdSet parentBitSet = context.bitsetFilterCache().getBitDocIdSetFilter(parentFilter).getDocIdSet(subReaderContext);
-            BitSet parentBits = parentBitSet.bits();
+            BitSet parentBits = context.bitsetFilterCache().getBitSetProducer(parentFilter).getBitSet(subReaderContext);
 
             int offset = 0;
             int nextParent = parentBits.nextSetBit(currentParent);

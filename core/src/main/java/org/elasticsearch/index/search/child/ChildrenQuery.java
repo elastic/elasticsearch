@@ -34,8 +34,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.XFilteredDocIdSetIterator;
-import org.apache.lucene.search.join.BitDocIdSetFilter;
-import org.apache.lucene.util.Bits;
+import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.util.ToStringUtils;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
@@ -74,9 +73,9 @@ public final class ChildrenQuery extends IndexCacheableQuery {
     protected final int minChildren;
     protected final int maxChildren;
     protected final int shortCircuitParentDocSet;
-    protected final BitDocIdSetFilter nonNestedDocsFilter;
+    protected final BitSetProducer nonNestedDocsFilter;
 
-    public ChildrenQuery(ParentChildIndexFieldData ifd, String parentType, String childType, Filter parentFilter, Query childQuery, ScoreType scoreType, int minChildren, int maxChildren, int shortCircuitParentDocSet, BitDocIdSetFilter nonNestedDocsFilter) {
+    public ChildrenQuery(ParentChildIndexFieldData ifd, String parentType, String childType, Filter parentFilter, Query childQuery, ScoreType scoreType, int minChildren, int maxChildren, int shortCircuitParentDocSet, BitSetProducer nonNestedDocsFilter) {
         this.ifd = ifd;
         this.parentType = parentType;
         this.childType = childType;
@@ -150,7 +149,7 @@ public final class ChildrenQuery extends IndexCacheableQuery {
         IndexParentChildFieldData globalIfd = ifd.loadGlobal(searcher.getIndexReader());
         if (globalIfd == null) {
             // No docs of the specified type exist on this shard
-            return new BooleanQuery().createWeight(searcher, needsScores);
+            return new BooleanQuery.Builder().build().createWeight(searcher, needsScores);
         }
 
         boolean abort = true;
@@ -193,7 +192,7 @@ public final class ChildrenQuery extends IndexCacheableQuery {
             searcher.search(childQuery, collector);
             numFoundParents = collector.foundParents();
             if (numFoundParents == 0) {
-                return new BooleanQuery().createWeight(searcher, needsScores);
+                return new BooleanQuery.Builder().build().createWeight(searcher, needsScores);
             }
             abort = false;
         } finally {

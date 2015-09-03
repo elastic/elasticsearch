@@ -81,7 +81,7 @@ public class ParentConstantScoreQuery extends IndexCacheableQuery {
         final long maxOrd;
         List<LeafReaderContext> leaves = searcher.getIndexReader().leaves();
         if (globalIfd == null || leaves.isEmpty()) {
-            return new BooleanQuery().createWeight(searcher, needsScores);
+            return new BooleanQuery.Builder().build().createWeight(searcher, needsScores);
         } else {
             AtomicParentChildFieldData afd = globalIfd.load(leaves.get(0));
             SortedDocValues globalValues = afd.getOrdinalsValues(parentType);
@@ -89,14 +89,14 @@ public class ParentConstantScoreQuery extends IndexCacheableQuery {
         }
 
         if (maxOrd == 0) {
-            return new BooleanQuery().createWeight(searcher, needsScores);
+            return new BooleanQuery.Builder().build().createWeight(searcher, needsScores);
         }
 
         ParentOrdsCollector collector = new ParentOrdsCollector(globalIfd, maxOrd, parentType);
         searcher.search(parentQuery, collector);
 
         if (collector.parentCount() == 0) {
-            return new BooleanQuery().createWeight(searcher, needsScores);
+            return new BooleanQuery.Builder().build().createWeight(searcher, needsScores);
         }
 
         return new ChildrenWeight(this, childrenFilter, collector, globalIfd);

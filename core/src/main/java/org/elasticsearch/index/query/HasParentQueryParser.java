@@ -180,14 +180,14 @@ public class HasParentQueryParser implements QueryParser {
                 parentFilter = documentMapper.typeFilter();
             }
         } else {
-            BooleanQuery parentsFilter = new BooleanQuery();
+            BooleanQuery.Builder parentsFilter = new BooleanQuery.Builder();
             for (String parentTypeStr : parentTypes) {
                 DocumentMapper documentMapper = parseContext.mapperService().documentMapper(parentTypeStr);
                 if (documentMapper != null) {
                     parentsFilter.add(documentMapper.typeFilter(), BooleanClause.Occur.SHOULD);
                 }
             }
-            parentFilter = parentsFilter;
+            parentFilter = parentsFilter.build();
         }
 
         if (parentFilter == null) {

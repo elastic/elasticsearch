@@ -119,7 +119,7 @@ public class SearchQueryIT extends ESIntegTestCase {
         client().prepareIndex("test", "type1", "1").setSource("field1", "value1").get();
         client().prepareIndex("test", "type1", "2").setSource("field1", "value2").get();
         client().prepareIndex("test", "type1", "3").setSource("field1", "value3").get();
-
+        ensureGreen();
         waitForRelocation();
         optimize();
         refresh();

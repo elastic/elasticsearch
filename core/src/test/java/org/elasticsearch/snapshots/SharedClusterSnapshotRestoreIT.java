@@ -669,6 +669,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
         CountResponse countResponse = client.prepareCount("test-idx").get();
         assertThat(countResponse.getCount(), equalTo(100L));
+        logger.info("--> total number of simulated failures during restore: [{}]", getFailureCount("test-repo"));
     }
 
 

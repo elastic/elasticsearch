@@ -191,7 +191,7 @@ import static org.hamcrest.Matchers.*;
  * should be used, here is an example:
  * <pre>
  *
- * @ClusterScope(scope=Scope.TEST) public class SomeIntegrationTest extends ESIntegTestCase {
+ * @ClusterScope(scope=Scope.TEST) public class SomeIT extends ESIntegTestCase {
  * @Test public void testMethod() {}
  * }
  * </pre>
@@ -204,7 +204,7 @@ import static org.hamcrest.Matchers.*;
  * <p/>
  *  <pre>
  * @ClusterScope(scope=Scope.SUITE, numDataNodes=3)
- * public class SomeIntegrationTest extends ESIntegTestCase {
+ * public class SomeIT extends ESIntegTestCase {
  * @Test public void testMethod() {}
  * }
  * </pre>
@@ -344,7 +344,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
             cluster().beforeTest(getRandom(), getPerTestTransportClientRatio());
             cluster().wipe();
             randomIndexTemplate();
-            printTestMessage("before");
         } catch (OutOfMemoryError e) {
             if (e.getMessage().contains("unable to create new native thread")) {
                 ESTestCase.printStackDump(logger);
@@ -354,7 +353,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     private void printTestMessage(String message) {
-        if (isSuiteScopedTest(getClass())) {
+        if (isSuiteScopedTest(getClass()) && (getTestName().equals("<unknown>"))) {
             logger.info("[{}]: {} suite", getTestClass().getSimpleName(), message);
         } else {
             logger.info("[{}#{}]: {} test", getTestClass().getSimpleName(), getTestName(), message);
@@ -593,7 +592,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
         boolean success = false;
         try {
             final Scope currentClusterScope = getCurrentClusterScope();
-            printTestMessage("cleaning up after");
             clearDisruptionScheme();
             try {
                 if (cluster() != null) {
@@ -618,7 +616,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
                     clearClusters(); // it is ok to leave persistent / transient cluster state behind if scope is TEST
                 }
             }
-            printTestMessage("cleaned up after");
             success = true;
         } finally {
             if (!success) {
@@ -1953,20 +1950,26 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
     @Before
     public final void before() throws Exception {
+
         if (runTestScopeLifecycle()) {
+            printTestMessage("setup");
             beforeInternal();
         }
+        printTestMessage("starting");
     }
 
 
     @After
     public final void after() throws Exception {
+        printTestMessage("finished");
         // Deleting indices is going to clear search contexts implicitely so we
         // need to check that there are no more in-flight search contexts before
         // we remove indices
         super.ensureAllSearchContextsReleased();
         if (runTestScopeLifecycle()) {
+            printTestMessage("cleaning up after");
             afterInternal(false);
+            printTestMessage("cleaned up after");
         }
     }
 
@@ -1974,6 +1977,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
     public static void afterClass() throws Exception {
         if (!runTestScopeLifecycle()) {
             try {
+                INSTANCE.printTestMessage("cleaning up after");
                 INSTANCE.afterInternal(true);
             } finally {
                 INSTANCE = null;
@@ -1999,6 +2003,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             INSTANCE = (ESIntegTestCase) targetClass.newInstance();
             boolean success = false;
             try {
+                INSTANCE.printTestMessage("setup");
                 INSTANCE.beforeInternal();
                 INSTANCE.setupSuiteScopeCluster();
                 success = true;

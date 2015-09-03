@@ -7,7 +7,7 @@
 
     <groupId>org.elasticsearch.plugin</groupId>
     <artifactId>plugins</artifactId>
-    <version>2.1.0-SNAPSHOT</version>
+    <version>3.0.0-SNAPSHOT</version>
     <packaging>pom</packaging>
     <name>Plugin: Parent POM</name>
     <inceptionYear>2009</inceptionYear>
@@ -16,7 +16,7 @@
     <parent>
         <groupId>org.elasticsearch</groupId>
         <artifactId>parent</artifactId>
-        <version>2.1.0-SNAPSHOT</version>
+        <version>3.0.0-SNAPSHOT</version>
     </parent>
 
     <properties>
@@ -425,20 +425,23 @@
     </build>
 
     <modules>
+        <module>analysis-icu</module>
         <module>analysis-kuromoji</module>
+        <module>analysis-phonetic</module>
         <module>analysis-smartcn</module>
         <module>analysis-stempel</module>
-        <module>analysis-phonetic</module>
-        <module>analysis-icu</module>
-        <module>cloud-gce</module>
         <module>cloud-azure</module>
-        <module>cloud-aws</module>
+        <module>cloud-gce</module>
         <module>delete-by-query</module>
+        <module>discovery-ec2</module>
         <module>discovery-multicast</module>
-        <module>lang-python</module>
         <module>lang-javascript</module>
+        <module>lang-python</module>
         <module>mapper-murmur3</module>
         <module>mapper-size</module>
+        <module>repository-s3</module>
+
+        <!-- Internal plugins for test only -->
         <module>jvm-example</module>
         <module>site-example</module>
     </modules>

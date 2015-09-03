@@ -19,9 +19,9 @@
 
 package org.elasticsearch.common.compress.deflate;
 
-import org.elasticsearch.common.compress.AbstractCompressedXContentTests;
+import org.elasticsearch.common.compress.AbstractCompressedXContentTestCase;
 
-public class DeflateXContentTests extends AbstractCompressedXContentTests {
+public class DeflateXContentTests extends AbstractCompressedXContentTestCase {
 
     public DeflateXContentTests() {
         super(new DeflateCompressor());

@@ -19,9 +19,9 @@
 
 package org.elasticsearch.common.compress.lzf;
 
-import org.elasticsearch.common.compress.AbstractCompressedStreamTests;
+import org.elasticsearch.common.compress.AbstractCompressedStreamTestCase;
 
-public class LZFCompressedStreamTests extends AbstractCompressedStreamTests {
+public class LZFCompressedStreamTests extends AbstractCompressedStreamTestCase {
 
     public LZFCompressedStreamTests() {
         super(new LZFTestCompressor());

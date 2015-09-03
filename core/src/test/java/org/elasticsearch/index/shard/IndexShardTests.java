@@ -18,7 +18,10 @@
  */
 package org.elasticsearch.index.shard;
 
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.CorruptIndexException;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.IOUtils;
@@ -38,6 +41,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.ESLogger;
@@ -49,6 +53,12 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.indexing.IndexingOperationListener;
+import org.elasticsearch.index.indexing.ShardIndexingService;
+import org.elasticsearch.index.mapper.Mapping;
+import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.store.Store;
@@ -64,9 +74,12 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.EMPTY_PARAMS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
@@ -582,6 +595,95 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         expectedSubSequence.append("\",\"is_custom_data_path\":").append(shard.shardPath().isCustomDataPath()).append("}");
         assumeFalse("Some path weirdness on windows", Constants.WINDOWS);
         assertTrue(xContent.contains(expectedSubSequence));
+    }
+
+    private ParsedDocument testParsedDocument(String uid, String id, String type, String routing, long timestamp, long ttl, ParseContext.Document document, BytesReference source, Mapping mappingUpdate) {
+        Field uidField = new Field("_uid", uid, UidFieldMapper.Defaults.FIELD_TYPE);
+        Field versionField = new NumericDocValuesField("_version", 0);
+        document.add(uidField);
+        document.add(versionField);
+        return new ParsedDocument(uidField, versionField, id, type, routing, timestamp, ttl, Arrays.asList(document), source, mappingUpdate);
+    }
+
+    public void testPreIndex() throws IOException {
+        createIndex("testpreindex");
+        ensureGreen();
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        IndexService test = indicesService.indexService("testpreindex");
+        IndexShard shard = test.shard(0);
+        ShardIndexingService shardIndexingService = shard.indexingService();
+        final AtomicBoolean preIndexCalled = new AtomicBoolean(false);
+
+        shardIndexingService.addListener(new IndexingOperationListener() {
+            @Override
+            public Engine.Index preIndex(Engine.Index index) {
+                preIndexCalled.set(true);
+                return super.preIndex(index);
+            }
+        });
+
+        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, new ParseContext.Document(), new BytesArray(new byte[]{1}), null);
+        Engine.Index index = new Engine.Index(new Term("_uid", "1"), doc);
+        shard.index(index);
+        assertTrue(preIndexCalled.get());
+    }
+
+    public void testPostIndex() throws IOException {
+        createIndex("testpostindex");
+        ensureGreen();
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        IndexService test = indicesService.indexService("testpostindex");
+        IndexShard shard = test.shard(0);
+        ShardIndexingService shardIndexingService = shard.indexingService();
+        final AtomicBoolean postIndexCalled = new AtomicBoolean(false);
+
+        shardIndexingService.addListener(new IndexingOperationListener() {
+            @Override
+            public void postIndex(Engine.Index index) {
+                postIndexCalled.set(true);
+                super.postIndex(index);
+            }
+        });
+
+        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, new ParseContext.Document(), new BytesArray(new byte[]{1}), null);
+        Engine.Index index = new Engine.Index(new Term("_uid", "1"), doc);
+        shard.index(index);
+        assertTrue(postIndexCalled.get());
+    }
+
+    public void testPostIndexWithException() throws IOException {
+        createIndex("testpostindexwithexception");
+        ensureGreen();
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        IndexService test = indicesService.indexService("testpostindexwithexception");
+        IndexShard shard = test.shard(0);
+        ShardIndexingService shardIndexingService = shard.indexingService();
+
+        shard.close("Unexpected close", true);
+        shard.state = IndexShardState.STARTED; // It will generate exception
+
+        final AtomicBoolean postIndexWithExceptionCalled = new AtomicBoolean(false);
+
+        shardIndexingService.addListener(new IndexingOperationListener() {
+            @Override
+            public void postIndex(Engine.Index index, Throwable ex) {
+                assertNotNull(ex);
+                postIndexWithExceptionCalled.set(true);
+                super.postIndex(index, ex);
+            }
+        });
+
+        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, new ParseContext.Document(), new BytesArray(new byte[]{1}), null);
+        Engine.Index index = new Engine.Index(new Term("_uid", "1"), doc);
+
+        try {
+            shard.index(index);
+            fail();
+        }catch (IllegalIndexShardStateException e){
+
+        }
+
+        assertTrue(postIndexWithExceptionCalled.get());
     }
 
 }

@@ -18,25 +18,25 @@
  */
 package org.elasticsearch;
 
-import com.google.common.base.Joiner;
-import com.google.common.collect.Sets;
-
 import junit.framework.TestCase;
 
+import com.google.common.base.Joiner;
+
 import org.apache.lucene.util.LuceneTestCase;
-import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ESTokenStreamTestCase;
-import org.junit.Ignore;
 import org.junit.Test;
 
 import java.io.IOException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.net.URISyntaxException;
-import java.nio.file.*;
+import java.nio.file.FileVisitResult;
+import java.nio.file.FileVisitor;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.HashSet;
 import java.util.Set;
@@ -155,15 +155,15 @@ public class NamingConventionTests extends ESTestCase {
             ESTokenStreamTestCase.class.getSimpleName(),
             LuceneTestCase.class.getSimpleName());
         assertTrue("Not all subclasses of " + ESTestCase.class.getSimpleName() +
-                " match the naming convention. Concrete classes must end with [Test|Tests]:\n" + Joiner.on('\n').join(missingSuffix),
+ " match the naming convention. Concrete classes must end with [Tests]:\n" + Joiner.on('\n').join(missingSuffix),
             missingSuffix.isEmpty());
-        assertTrue("Classes ending with [Test|Tests] are abstract or interfaces:\n" + Joiner.on('\n').join(notRunnable),
+        assertTrue("Classes ending with [Tests] are abstract or interfaces:\n" + Joiner.on('\n').join(notRunnable),
             notRunnable.isEmpty());
         assertTrue("Found inner classes that are tests, which are excluded from the test runner:\n" + Joiner.on('\n').join(innerClasses),
             innerClasses.isEmpty());
         assertTrue("Pure Unit-Test found must subclass one of [" + classesToSubclass +"]:\n" + Joiner.on('\n').join(pureUnitTest),
             pureUnitTest.isEmpty());
-        assertTrue("Classes ending with [Test|Tests] must subclass [" + classesToSubclass +"]:\n" + Joiner.on('\n').join(notImplementing),
+        assertTrue("Classes ending with [Tests] must subclass [" + classesToSubclass + "]:\n" + Joiner.on('\n').join(notImplementing),
             notImplementing.isEmpty());
         assertTrue("Subclasses of ESIntegTestCase should end with IT as they are integration tests:\n" + Joiner.on('\n').join(integTestsInDisguise),
             integTestsInDisguise.isEmpty());

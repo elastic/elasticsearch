@@ -37,8 +37,8 @@
         <!-- elasticsearch stack -->
         <elasticsearch.version>${project.version}</elasticsearch.version>
         <jvm.executable>${java.home}${file.separator}bin${file.separator}java</jvm.executable>
-        <maven.compiler.source>1.7</maven.compiler.source>
-        <maven.compiler.target>1.7</maven.compiler.target>
+        <maven.compiler.source>1.8</maven.compiler.source>
+        <maven.compiler.target>1.8</maven.compiler.target>
 
         <!-- libraries -->
         <lucene.version>5.3.0</lucene.version>
@@ -169,12 +169,6 @@
                 <groupId>com.google.jimfs</groupId>
                 <artifactId>jimfs</artifactId>
                 <version>1.0</version>
-            </dependency>
-
-            <dependency>
-                <groupId>com.twitter</groupId>
-                <artifactId>jsr166e</artifactId>
-                <version>1.1.0</version>
             </dependency>
 
             <dependency>
@@ -605,7 +599,6 @@
                         <jvmArgs>
                             <param>-Xmx${tests.heap.size}</param>
                             <param>-Xms${tests.heap.size}</param>
-                            <param>${java.permGenSpace}</param>
                             <param>-XX:MaxDirectMemorySize=512m</param>
                             <param>-Des.logger.prefix=</param>
                             <param>-XX:+HeapDumpOnOutOfMemoryError</param>
@@ -1016,8 +1009,8 @@ org.eclipse.jdt.core.compiler.annotation.inheritNullAnnotations=enabled
 org.eclipse.jdt.core.compiler.annotation.missingNonNullByDefaultAnnotation=ignore
 org.eclipse.jdt.core.compiler.annotation.nullable=org.elasticsearch.common.Nullable
 org.eclipse.jdt.core.compiler.annotation.nullanalysis=enabled
-org.eclipse.jdt.core.compiler.codegen.targetPlatform=1.7
-org.eclipse.jdt.core.compiler.compliance=1.7
+org.eclipse.jdt.core.compiler.codegen.targetPlatform=1.8
+org.eclipse.jdt.core.compiler.compliance=1.8
 org.eclipse.jdt.core.compiler.problem.forbiddenReference=warning
 org.eclipse.jdt.core.compiler.problem.nonnullParameterAnnotationDropped=warning
 org.eclipse.jdt.core.compiler.problem.nullAnnotationInferenceConflict=warning
@@ -1025,7 +1018,7 @@ org.eclipse.jdt.core.compiler.problem.nullReference=warning
 org.eclipse.jdt.core.compiler.problem.nullSpecViolation=warning
 org.eclipse.jdt.core.compiler.problem.nullUncheckedConversion=warning
 org.eclipse.jdt.core.compiler.problem.potentialNullReference=warning
-org.eclipse.jdt.core.compiler.source=1.7
+org.eclipse.jdt.core.compiler.source=1.8
 org.eclipse.jdt.core.formatter.lineSplit=140
 org.eclipse.jdt.core.formatter.tabulation.char=space
 org.eclipse.jdt.core.formatter.tabulation.size=4
@@ -1108,22 +1101,6 @@ org.eclipse.jdt.ui.text.custom_code_templates=<?xml version\="1.0" encoding\="UT
                     <artifactId>maven-antrun-plugin</artifactId>
                     <version>1.8</version>
                     <executions>
-                        <execution>
-                            <id>set-permgen</id>
-                            <phase>validate</phase>
-                            <goals>
-                                <goal>run</goal>
-                            </goals>
-                            <configuration>
-                                <target>
-                                    <!-- if we are on java 1.7.* we set perm gen space since some tests need it otherwise we just inject a dummy value -->
-                                    <condition property="java.permGenSpace" value="-XX:MaxPermSize=128m" else="-Dsome.dummy.value=" >
-                                        <matches pattern="1\.7\..+$" string="${java.runtime.version}" />
-                                    </condition>
-                                </target>
-                                <exportAntProperties>true</exportAntProperties>
-                            </configuration>
-                        </execution>
                         <execution>
                             <id>check-invalid-patterns</id>
                             <phase>validate</phase>

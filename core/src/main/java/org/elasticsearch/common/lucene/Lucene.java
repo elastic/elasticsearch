@@ -107,7 +107,7 @@ public class Lucene {
         for (SegmentCommitInfo info : infos) {
             list.add(info.files());
         }
-        return Iterables.concat(list.toArray(new Collection[0]));
+        return Iterables.concat(list);
     }
 
     /**

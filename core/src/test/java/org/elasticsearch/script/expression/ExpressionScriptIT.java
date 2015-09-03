@@ -85,7 +85,7 @@ public class ExpressionScriptIT extends ESIntegTestCase {
         client().prepareIndex("test", "doc", "1").setSource("foo", 4).setRefresh(true).get();
         SearchResponse rsp = buildRequest("doc['foo'] + 1").get();
         assertEquals(1, rsp.getHits().getTotalHits());
-        assertEquals(5.0, rsp.getHits().getAt(0).field("foo").getValue());
+        assertEquals(5.0, rsp.getHits().getAt(0).field("foo").getValue(), 0.0D);
     }
 
     public void testBasicUsingDotValue() throws Exception {
@@ -94,7 +94,7 @@ public class ExpressionScriptIT extends ESIntegTestCase {
         client().prepareIndex("test", "doc", "1").setSource("foo", 4).setRefresh(true).get();
         SearchResponse rsp = buildRequest("doc['foo'].value + 1").get();
         assertEquals(1, rsp.getHits().getTotalHits());
-        assertEquals(5.0, rsp.getHits().getAt(0).field("foo").getValue());
+        assertEquals(5.0, rsp.getHits().getAt(0).field("foo").getValue(), 0.0D);
     }
 
     public void testScore() throws Exception {
@@ -126,23 +126,23 @@ public class ExpressionScriptIT extends ESIntegTestCase {
         SearchResponse rsp = buildRequest("doc['date0'].getSeconds() - doc['date0'].getMinutes()").get();
         assertEquals(2, rsp.getHits().getTotalHits());
         SearchHits hits = rsp.getHits();
-        assertEquals(5.0, hits.getAt(0).field("foo").getValue());
-        assertEquals(-11.0, hits.getAt(1).field("foo").getValue());
+        assertEquals(5.0, hits.getAt(0).field("foo").getValue(), 0.0D);
+        assertEquals(-11.0, hits.getAt(1).field("foo").getValue(), 0.0D);
         rsp = buildRequest("doc['date0'].getHourOfDay() + doc['date1'].getDayOfMonth()").get();
         assertEquals(2, rsp.getHits().getTotalHits());
         hits = rsp.getHits();
-        assertEquals(5.0, hits.getAt(0).field("foo").getValue());
-        assertEquals(24.0, hits.getAt(1).field("foo").getValue());
+        assertEquals(5.0, hits.getAt(0).field("foo").getValue(), 0.0D);
+        assertEquals(24.0, hits.getAt(1).field("foo").getValue(), 0.0D);
         rsp = buildRequest("doc['date1'].getMonth() + 1").get();
         assertEquals(2, rsp.getHits().getTotalHits());
         hits = rsp.getHits();
-        assertEquals(9.0, hits.getAt(0).field("foo").getValue());
-        assertEquals(10.0, hits.getAt(1).field("foo").getValue());
+        assertEquals(9.0, hits.getAt(0).field("foo").getValue(), 0.0D);
+        assertEquals(10.0, hits.getAt(1).field("foo").getValue(), 0.0D);
         rsp = buildRequest("doc['date1'].getYear()").get();
         assertEquals(2, rsp.getHits().getTotalHits());
         hits = rsp.getHits();
-        assertEquals(1985.0, hits.getAt(0).field("foo").getValue());
-        assertEquals(1983.0, hits.getAt(1).field("foo").getValue());
+        assertEquals(1985.0, hits.getAt(0).field("foo").getValue(), 0.0D);
+        assertEquals(1983.0, hits.getAt(1).field("foo").getValue(), 0.0D);
     }
 
     public void testMultiValueMethods() throws Exception {
@@ -158,57 +158,57 @@ public class ExpressionScriptIT extends ESIntegTestCase {
         assertSearchResponse(rsp);
         SearchHits hits = rsp.getHits();
         assertEquals(3, hits.getTotalHits());
-        assertEquals(5.0, hits.getAt(0).field("foo").getValue());
-        assertEquals(2.0, hits.getAt(1).field("foo").getValue());
-        assertEquals(5.0, hits.getAt(2).field("foo").getValue());
+        assertEquals(5.0, hits.getAt(0).field("foo").getValue(), 0.0D);
+        assertEquals(2.0, hits.getAt(1).field("foo").getValue(), 0.0D);
+        assertEquals(5.0, hits.getAt(2).field("foo").getValue(), 0.0D);
 
         rsp = buildRequest("doc['double0'].sum()").get();
         assertSearchResponse(rsp);
         hits = rsp.getHits();
         assertEquals(3, hits.getTotalHits());
-        assertEquals(7.5, hits.getAt(0).field("foo").getValue());
-        assertEquals(5.0, hits.getAt(1).field("foo").getValue());
-        assertEquals(6.0, hits.getAt(2).field("foo").getValue());
+        assertEquals(7.5, hits.getAt(0).field("foo").getValue(), 0.0D);
+        assertEquals(5.0, hits.getAt(1).field("foo").getValue(), 0.0D);
+        assertEquals(6.0, hits.getAt(2).field("foo").getValue(), 0.0D);
 
         rsp = buildRequest("doc['double0'].avg() + doc['double1'].avg()").get();
         assertSearchResponse(rsp);
         hits = rsp.getHits();
         assertEquals(3, hits.getTotalHits());
-        assertEquals(4.3, hits.getAt(0).field("foo").getValue());
-        assertEquals(8.0, hits.getAt(1).field("foo").getValue());
-        assertEquals(5.5, hits.getAt(2).field("foo").getValue());
+        assertEquals(4.3, hits.getAt(0).field("foo").getValue(), 0.0D);
+        assertEquals(8.0, hits.getAt(1).field("foo").getValue(), 0.0D);
+        assertEquals(5.5, hits.getAt(2).field("foo").getValue(), 0.0D);
 
         rsp = buildRequest("doc['double0'].median()").get();
         assertSearchResponse(rsp);
         hits = rsp.getHits();
         assertEquals(3, hits.getTotalHits());
-        assertEquals(1.5, hits.getAt(0).field("foo").getValue());
-        assertEquals(5.0, hits.getAt(1).field("foo").getValue());
-        assertEquals(1.25, hits.getAt(2).field("foo").getValue());
+        assertEquals(1.5, hits.getAt(0).field("foo").getValue(), 0.0D);
+        assertEquals(5.0, hits.getAt(1).field("foo").getValue(), 0.0D);
+        assertEquals(1.25, hits.getAt(2).field("foo").getValue(), 0.0D);
 
         rsp = buildRequest("doc['double0'].min()").get();
         assertSearchResponse(rsp);
         hits = rsp.getHits();
         assertEquals(3, hits.getTotalHits());
-        assertEquals(1.0, hits.getAt(0).field("foo").getValue());
-        assertEquals(5.0, hits.getAt(1).field("foo").getValue());
-        assertEquals(-1.5, hits.getAt(2).field("foo").getValue());
+        assertEquals(1.0, hits.getAt(0).field("foo").getValue(), 0.0D);
+        assertEquals(5.0, hits.getAt(1).field("foo").getValue(), 0.0D);
+        assertEquals(-1.5, hits.getAt(2).field("foo").getValue(), 0.0D);
 
         rsp = buildRequest("doc['double0'].max()").get();
         assertSearchResponse(rsp);
         hits = rsp.getHits();
         assertEquals(3, hits.getTotalHits());
-        assertEquals(5.0, hits.getAt(0).field("foo").getValue());
-        assertEquals(5.0, hits.getAt(1).field("foo").getValue());
-        assertEquals(5.0, hits.getAt(2).field("foo").getValue());
+        assertEquals(5.0, hits.getAt(0).field("foo").getValue(), 0.0D);
+        assertEquals(5.0, hits.getAt(1).field("foo").getValue(), 0.0D);
+        assertEquals(5.0, hits.getAt(2).field("foo").getValue(), 0.0D);
 
         rsp = buildRequest("doc['double0'].sum()/doc['double0'].count()").get();
         assertSearchResponse(rsp);
         hits = rsp.getHits();
         assertEquals(3, hits.getTotalHits());
-        assertEquals(2.5, hits.getAt(0).field("foo").getValue());
-        assertEquals(5.0, hits.getAt(1).field("foo").getValue());
-        assertEquals(1.5, hits.getAt(2).field("foo").getValue());
+        assertEquals(2.5, hits.getAt(0).field("foo").getValue(), 0.0D);
+        assertEquals(5.0, hits.getAt(1).field("foo").getValue(), 0.0D);
+        assertEquals(1.5, hits.getAt(2).field("foo").getValue(), 0.0D);
     }
 
     public void testInvalidDateMethodCall() throws Exception {
@@ -236,8 +236,8 @@ public class ExpressionScriptIT extends ESIntegTestCase {
         ElasticsearchAssertions.assertSearchResponse(rsp);
         SearchHits hits = rsp.getHits();
         assertEquals(2, rsp.getHits().getTotalHits());
-        assertEquals(5.0, hits.getAt(0).field("foo").getValue());
-        assertEquals(1.0, hits.getAt(1).field("foo").getValue());
+        assertEquals(5.0, hits.getAt(0).field("foo").getValue(), 0.0D);
+        assertEquals(1.0, hits.getAt(1).field("foo").getValue(), 0.0D);
     }
 
     public void testMissingField() throws Exception {
@@ -267,9 +267,9 @@ public class ExpressionScriptIT extends ESIntegTestCase {
         SearchResponse rsp = buildRequest(script, "a", 2, "b", 3.5, "c", 5000000000L).get();
         SearchHits hits = rsp.getHits();
         assertEquals(3, hits.getTotalHits());
-        assertEquals(24.5, hits.getAt(0).field("foo").getValue());
-        assertEquals(9.5, hits.getAt(1).field("foo").getValue());
-        assertEquals(13.5, hits.getAt(2).field("foo").getValue());
+        assertEquals(24.5, hits.getAt(0).field("foo").getValue(), 0.0D);
+        assertEquals(9.5, hits.getAt(1).field("foo").getValue(), 0.0D);
+        assertEquals(13.5, hits.getAt(2).field("foo").getValue(), 0.0D);
     }
 
     public void testCompileFailure() {

@@ -191,13 +191,6 @@
             <optional>true</optional>
         </dependency>
 
-        <!-- remove this for java 8 -->
-        <dependency>
-            <groupId>com.twitter</groupId>
-            <artifactId>jsr166e</artifactId>
-            <version>1.1.0</version>
-        </dependency>
-
     </dependencies>
 
     <build>

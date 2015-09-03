@@ -1,5 +1,6 @@
 <component>
     <dependencySets>
+        <!-- TODO: wtf is this file doing, is it still used? must we list all deps here? -->
         <dependencySet>
             <outputDirectory>/lib</outputDirectory>
             <useTransitiveFiltering>true</useTransitiveFiltering>
@@ -24,7 +25,6 @@
                 <include>com.github.spullara.mustache.java:compiler</include>
                 <include>com.tdunning:t-digest</include>
                 <include>commons-cli:commons-cli</include>
-                <include>com.twitter:jsr166e</include>
                 <include>org.hdrhistogram:HdrHistogram</include>
             </includes>
         </dependencySet>

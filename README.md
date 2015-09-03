@@ -1,9 +1,12 @@
 Mapper Attachments Type for Elasticsearch
 =========================================
 
-The mapper attachments plugin adds the `attachment` type to Elasticsearch using [Apache Tika](http://lucene.apache.org/tika/).
-The `attachment` type allows to index different "attachment" type field (encoded as `base64`), for example,
-microsoft office formats, open document formats, ePub, HTML, and so on (full list can be found [here](http://tika.apache.org/1.10/formats.html)).
+The mapper attachments plugin lets Elasticsearch index file attachments in over a thousand formats (such as PPT, XLS, PDF) using the Apache text extraction library [Tika](http://lucene.apache.org/tika/).
+
+In practice, the plugin adds the `attachment` type when mapping properties so that documents can be populated with file attachment contents (encoded as `base64`).
+
+Installation
+------------
 
 In order to install the plugin, run:
 
@@ -35,7 +38,44 @@ plugin --install mapper-attachments \
        --url file:target/releases/elasticsearch-mapper-attachments-X.X.X-SNAPSHOT.zip
 ```
 
-Using mapper attachments
+Hello, world
+------------
+
+Create a property mapping using the new type `attachment`:
+
+```javascript
+POST /trying-out-mapper-attachments
+{
+  "mappings": {
+    "person": {
+      "properties": {
+        "cv": { "type": "attachment" }
+}}}}
+```
+
+Index a new document populated with a `base64`-encoded attachment:
+
+```javascript
+POST /trying-out-mapper-attachments/person/1
+{
+  "cv": "e1xydGYxXGFuc2kNCkxvcmVtIGlwc3VtIGRvbG9yIHNpdCBhbWV0DQpccGFyIH0="
+}
+```
+
+Search for the document using words in the attachment:
+
+```javascript
+POST /trying-out-mapper-attachments/person/_search
+{
+  "query": {
+    "query_string": {
+      "query": "ipsum"
+}}}
+```
+
+If you get a hit for your indexed document, the plugin should be installed and working.
+
+Usage
 ------------------------
 
 Using the attachment type is simple, in your mapping JSON, simply set a certain JSON element as attachment, for example:

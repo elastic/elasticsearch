@@ -470,7 +470,7 @@ public class InternalSearchHit implements SearchHit {
             builder.field(Fields._SCORE, score);
         }
         for (SearchHitField field : metaFields) {
-            builder.field(field.name(), field.value());
+            builder.field(field.name(), (Object) field.value());
         }
         if (source != null) {
             XContentHelper.writeRawField("_source", source, builder, params);

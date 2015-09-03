@@ -88,5 +88,4 @@ public class FilteredQueryParser extends BaseQueryParser<FilteredQueryBuilder> {
     public FilteredQueryBuilder getBuilderPrototype() {
         return FilteredQueryBuilder.PROTOTYPE;
     }
-
 }

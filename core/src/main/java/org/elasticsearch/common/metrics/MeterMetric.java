@@ -19,9 +19,9 @@
 
 package org.elasticsearch.common.metrics;
 
-import com.twitter.jsr166e.LongAdder;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 
+import java.util.concurrent.atomic.LongAdder;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;

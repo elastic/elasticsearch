@@ -21,6 +21,7 @@ package org.elasticsearch.discovery;
 
 import com.google.common.base.Predicate;
 import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
@@ -983,6 +984,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
      * successful.
      */
     @Test
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/13316")
     public void testReadOnPostRecoveryShards() throws Exception {
         List<BlockClusterStateProcessing> clusterStateBlocks = new ArrayList<>();
         try {

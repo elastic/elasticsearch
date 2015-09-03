@@ -23,13 +23,12 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.*;
-import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.*;
 import org.apache.lucene.store.RAMDirectory;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
 public class MultiPhrasePrefixQueryTests extends ESTestCase {
@@ -62,5 +61,22 @@ public class MultiPhrasePrefixQueryTests extends ESTestCase {
         query.setSlop(1);
         query.add(new Term("field", "xxx"));
         assertThat(Lucene.count(searcher, query), equalTo(0l));
+    }
+
+    @Test
+    public void testBoost() throws Exception {
+        IndexWriter writer = new IndexWriter(new RAMDirectory(), new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
+        Document doc = new Document();
+        doc.add(new Field("field", "aaa bbb", TextField.TYPE_NOT_STORED));
+        writer.addDocument(doc);
+        doc = new Document();
+        doc.add(new Field("field", "ccc ddd", TextField.TYPE_NOT_STORED));
+        writer.addDocument(doc);
+        IndexReader reader = DirectoryReader.open(writer, true);
+        MultiPhrasePrefixQuery multiPhrasePrefixQuery = new MultiPhrasePrefixQuery();
+        multiPhrasePrefixQuery.add(new Term[]{new Term("field", "aaa"), new Term("field", "bb")});
+        multiPhrasePrefixQuery.setBoost(randomFloat());
+        Query query = multiPhrasePrefixQuery.rewrite(reader);
+        assertThat(query.getBoost(), equalTo(multiPhrasePrefixQuery.getBoost()));
     }
 }

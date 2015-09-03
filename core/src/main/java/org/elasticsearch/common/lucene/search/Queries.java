@@ -20,15 +20,8 @@
 package org.elasticsearch.common.lucene.search;
 
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.*;
 import org.apache.lucene.search.BooleanClause.Occur;
-import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.PrefixQuery;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.QueryWrapperFilter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
@@ -58,11 +51,15 @@ public class Queries {
         return new QueryWrapperFilter(not(newNestedFilter()));
     }
 
-    public static BooleanQuery filtered(Query query, Query filter) {
-        BooleanQuery bq = new BooleanQuery();
-        bq.add(query, Occur.MUST);
-        bq.add(filter, Occur.FILTER);
-        return bq;
+    public static BooleanQuery filtered(@Nullable Query query, @Nullable Query filter) {
+        BooleanQuery.Builder builder = new BooleanQuery.Builder();
+        if (query != null) {
+            builder.add(new BooleanClause(query, Occur.MUST));
+        }
+        if (filter != null) {
+            builder.add(new BooleanClause(filter, Occur.FILTER));
+        }
+        return builder.build();
     }
 
     /** Return a query that matches all documents but those that match the given query. */

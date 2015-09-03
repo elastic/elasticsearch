@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -103,14 +102,6 @@ public class FilteredQueryBuilder extends AbstractQueryBuilder<FilteredQueryBuil
             // Most likely this query was generated from the JSON query DSL - it parsed to an EmptyQueryBuilder so we ignore
             // the whole filtered query as there is nothing to filter on. See FilteredQueryParser for an example.
             return null;
-        }
-
-        if (filter == null || Queries.isConstantMatchAllQuery(filter)) {
-            // no filter, or match all filter
-            return query;
-        } else if (Queries.isConstantMatchAllQuery(query)) {
-            // if its a match_all query, use constant_score
-            return new ConstantScoreQuery(filter);
         }
 
         // use a BooleanQuery

@@ -8,8 +8,8 @@ Watcher supports four condition types: <<condition-always, `always`>>, <<conditi
 NOTE: If you omit the condition definition from a watch, the condition defaults to `always`. 
 
 When a condition is evaluated, it has full access to the watch execution context, including the watch payload (`ctx.payload.*`). 
-The <<condition-script, script>> and <<condition-compare, compare>> conditions can use the data in 
-the payload to determine whether or not  the necessary conditions have been met. 
+The <<condition-script, script>>, <<condition-compare, compare>>  and <<condition-array-compare, array-compare>>
+conditions can use the data in the payload to determine whether or not the necessary conditions have been met.
 
 include::condition/always.asciidoc[]
 
@@ -18,3 +18,5 @@ include::condition/never.asciidoc[]
 include::condition/script.asciidoc[]
 
 include::condition/compare.asciidoc[]
+
+include::condition/array-compare.asciidoc[]

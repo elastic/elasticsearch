@@ -18,20 +18,20 @@
  */
 package org.elasticsearch.discovery.zen.publish;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.transport.DummyTransportAddress;
+import org.elasticsearch.discovery.zen.publish.PendingClusterStatesQueue.ClusterStateContext;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
 
-import static org.hamcrest.Matchers.nullValue;
-import static org.hamcrest.Matchers.sameInstance;
+import static org.hamcrest.Matchers.*;
 
 public class PendingClusterStatesQueueTests extends ESTestCase {
 
@@ -41,68 +41,141 @@ public class PendingClusterStatesQueueTests extends ESTestCase {
     }
 
     public void testSimpleQueueSameMaster() {
-        ClusterName clusterName = new ClusterName("abc");
-        DiscoveryNode master = new DiscoveryNode("master", DummyTransportAddress.INSTANCE, Version.CURRENT);
-        DiscoveryNodes nodes = DiscoveryNodes.builder().put(master).masterNodeId(master.id()).localNodeId(master.id()).build();
-
-        int numUpdates = scaledRandomIntBetween(50, 100);
-        PendingClusterStatesQueue queue = new PendingClusterStatesQueue(logger);
-        List<ClusterState> states = new ArrayList<>();
-        for (int i = 0; i < numUpdates; i++) {
-            ClusterState state = ClusterState.builder(clusterName).version(i).nodes(nodes).build();
-            queue.addPending(state);
-            states.add(state);
-        }
+        final int numUpdates = scaledRandomIntBetween(50, 100);
+        List<ClusterState> states = randomStates(numUpdates, "master");
+        Collections.shuffle(states, random());
+        PendingClusterStatesQueue queue;
+        queue = createQueueWithStates(states);
 
         // no state is committed yet
         assertThat(queue.getNextClusterStateToProcess(), nullValue());
 
-        ClusterState highestComitted = null;
-        for (int iter = randomInt(10); iter >= 0; iter--) {
-            ClusterState state = queue.markAsCommitted(randomFrom(states).stateUUID(), new MockListener());
-            if (state != null) {
-                if (highestComitted == null || state.supersedes(highestComitted)) {
-                    highestComitted = state;
-                }
+        ClusterState highestCommitted = null;
+        for (ClusterStateContext context : randomCommitStates(queue)) {
+            if (highestCommitted == null || context.state.supersedes(highestCommitted)) {
+                highestCommitted = context.state;
             }
         }
 
-        assertThat(queue.getNextClusterStateToProcess(), sameInstance(highestComitted));
+        assertThat(queue.getNextClusterStateToProcess(), sameInstance(highestCommitted));
 
-        queue.markAsProcessed(highestComitted);
+        queue.markAsProcessed(highestCommitted);
 
         // now there is nothing more to process
         assertThat(queue.getNextClusterStateToProcess(), nullValue());
     }
 
-//    public void testSelectNextStateToProcess_differentMasters() {
-//        ClusterName clusterName = new ClusterName("abc");
-//        DiscoveryNodes nodesA = DiscoveryNodes.builder().masterNodeId("a").build();
-//        DiscoveryNodes nodesB = DiscoveryNodes.builder().masterNodeId("b").build();
-//
-//        PendingClusterStatesQueue queue = new PendingClusterStatesQueue(logger);
-//        ClusterState thirdMostRecent = ClusterState.builder(clusterName).version(1).nodes(nodesA).build();
-//        queue.addPending(thirdMostRecent);
-//        MockListener thirdMostRecentListener = new MockListener();
-//        queue.markAsCommitted(thirdMostRecent.stateUUID(), thirdMostRecentListener);
-//        ClusterState secondMostRecent = ClusterState.builder(clusterName).version(2).nodes(nodesA).build();
-//        queue.addPending(secondMostRecent);
-//        ClusterState mostRecent = ClusterState.builder(clusterName).version(3).nodes(nodesA).build();
-//        queue.addPending(mostRecent);
-//
-//        queue.addPending(ClusterState.builder(clusterName).version(4).nodes(nodesB).build());
-//        queue.addPending(ClusterState.builder(clusterName).version(5).nodes(nodesA).build());
-//
-//
-//        assertThat(ZenDiscovery.selectNextStateToProcess(queue), sameInstance(mostRecent.clusterState));
-//        assertThat(thirdMostRecent.processed, is(true));
-//        assertThat(secondMostRecent.processed, is(true));
-//        assertThat(mostRecent.processed, is(true));
-//        assertThat(queue.size(), equalTo(2));
-//        assertThat(queue.get(0).processed, is(false));
-//        assertThat(queue.get(1).processed, is(false));
-//    }
+    public void testProcessedStateCleansStatesFromOtherMasters() {
+        List<ClusterState> states = randomStates(scaledRandomIntBetween(10, 300), "master1", "master2", "master3", "master4");
+        PendingClusterStatesQueue queue = createQueueWithStates(states);
+        List<ClusterStateContext> committedContexts = randomCommitStates(queue);
+        ClusterState randomCommitted = randomFrom(committedContexts).state;
+        queue.markAsProcessed(randomCommitted);
+        final String processedMaster = randomCommitted.nodes().masterNodeId();
 
+        // now check that queue doesn't contain anything pending from another master
+        for (ClusterStateContext context : queue.pendingStates) {
+            final String pendingMaster = context.state.nodes().masterNodeId();
+            assertThat("found a cluster state from [" + pendingMaster
+                            + "], after a state from [" + processedMaster + "] was proccessed",
+                    pendingMaster, equalTo(processedMaster));
+        }
+        // and check all committed contexts from another master were failed
+        for (ClusterStateContext context : committedContexts) {
+            if (context.state.nodes().masterNodeId().equals(processedMaster) == false) {
+                assertThat(((MockListener) context.listener).failure, notNullValue());
+            }
+        }
+    }
+
+    public void testFailedStateCleansSupersededStatesOnly() {
+        List<ClusterState> states = randomStates(scaledRandomIntBetween(10, 50), "master1", "master2", "master3", "master4");
+        PendingClusterStatesQueue queue = createQueueWithStates(states);
+        List<ClusterStateContext> committedContexts = randomCommitStates(queue);
+        ClusterState toFail = randomFrom(committedContexts).state;
+        queue.markAsFailed(toFail, new ElasticsearchException("boo!"));
+        final Map<String, ClusterStateContext> committedContextsById = new HashMap<>();
+        for (ClusterStateContext context : committedContexts) {
+            committedContextsById.put(context.stateUUID(), context);
+        }
+
+        // now check that queue doesn't contain superseded states
+        for (ClusterStateContext context : queue.pendingStates) {
+            if (context.committed()) {
+                assertFalse("found a committed cluster state, which is superseded by a failed state.\nFound:" + context.state + "\nfailed:" + toFail,
+                        toFail.supersedes(context.state));
+            }
+        }
+        // check no state has been erroneously removed
+        for (ClusterState state : states) {
+            int index = queue.findState(state.stateUUID());
+            if (index >= 0) {
+                continue;
+            }
+            if (state.equals(toFail)) {
+                continue;
+            }
+            assertThat("non-committed states should never be removed", committedContextsById, hasKey(state.stateUUID()));
+            final ClusterStateContext context = committedContextsById.get(state.stateUUID());
+            assertThat("removed state is not superseded by failed state. \nRemoved state:" + context + "\nfailed: " + toFail,
+                    toFail.supersedes(context.state), equalTo(true));
+            assertThat("removed state was failed with wrong exception", ((MockListener) context.listener).failure, notNullValue());
+            assertThat("removed state was failed with wrong exception", ((MockListener) context.listener).failure.getMessage(), containsString("boo"));
+        }
+    }
+
+    public void testFailAllAndClear() {
+        List<ClusterState> states = randomStates(scaledRandomIntBetween(10, 50), "master1", "master2", "master3", "master4");
+        PendingClusterStatesQueue queue = createQueueWithStates(states);
+        List<ClusterStateContext> committedContexts = randomCommitStates(queue);
+        queue.failAllStatesAndClear(new ElasticsearchException("boo!"));
+        assertThat(queue.pendingStates, empty());
+        assertThat(queue.getNextClusterStateToProcess(), nullValue());
+        for (ClusterStateContext context : committedContexts) {
+            assertThat("state was failed with wrong exception", ((MockListener) context.listener).failure, notNullValue());
+            assertThat("state was failed with wrong exception", ((MockListener) context.listener).failure.getMessage(), containsString("boo"));
+        }
+    }
+
+    protected List<ClusterStateContext> randomCommitStates(PendingClusterStatesQueue queue) {
+        List<ClusterStateContext> committedContexts = new ArrayList<>();
+        for (int iter = randomInt(queue.pendingStates.size() - 1); iter >= 0; iter--) {
+            ClusterState state = queue.markAsCommitted(randomFrom(queue.pendingStates).stateUUID(), new MockListener());
+            if (state != null) {
+                // null cluster state means we committed twice
+                committedContexts.add(queue.pendingStates.get(queue.findState(state.stateUUID())));
+            }
+        }
+        return committedContexts;
+    }
+
+    PendingClusterStatesQueue createQueueWithStates(List<ClusterState> states) {
+        PendingClusterStatesQueue queue;
+        queue = new PendingClusterStatesQueue(logger);
+        for (ClusterState state : states) {
+            queue.addPending(state);
+        }
+        return queue;
+    }
+
+    List<ClusterState> randomStates(int count, String... masters) {
+        ArrayList<ClusterState> states = new ArrayList<>(count);
+        ClusterState[] lastClusterStatePerMaster = new ClusterState[masters.length];
+        for (; count > 0; count--) {
+            int masterIndex = randomInt(masters.length - 1);
+            ClusterState state = lastClusterStatePerMaster[masterIndex];
+            if (state == null) {
+                state = ClusterState.builder(ClusterName.DEFAULT).nodes(DiscoveryNodes.builder()
+                                .put(new DiscoveryNode(masters[masterIndex], DummyTransportAddress.INSTANCE, Version.CURRENT)).masterNodeId(masters[masterIndex]).build()
+                ).build();
+            } else {
+                state = ClusterState.builder(state).incrementVersion().build();
+            }
+            states.add(state);
+            lastClusterStatePerMaster[masterIndex] = state;
+        }
+        return states;
+    }
 
     static class MockListener implements PendingClusterStatesQueue.StateProcessedListener {
         volatile boolean processed;

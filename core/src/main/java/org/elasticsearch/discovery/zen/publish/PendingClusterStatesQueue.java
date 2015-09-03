@@ -57,7 +57,7 @@ public class PendingClusterStatesQueue {
             return null;
         }
         context.markAsCommitted(listener);
-        return context.clusterState;
+        return context.state;
     }
 
     public synchronized void markAsFailed(ClusterState state, Throwable reason) {
@@ -65,7 +65,8 @@ public class PendingClusterStatesQueue {
         if (failedIndex < 0) {
             throw new IllegalStateException("can't resolve failed cluster state with uuid [" + state.stateUUID() + "], version [" + state.version() + "]");
         }
-        assert pendingStates.get(failedIndex).committed() : "failed cluster state is not committed " + state;
+        final ClusterStateContext failedContext = pendingStates.get(failedIndex);
+        assert failedContext.committed() : "failed cluster state is not committed " + state;
 
         // fail all committed states which are batch together with the failed state
         ArrayList<ClusterStateContext> statesToRemove = new ArrayList<>();
@@ -74,15 +75,13 @@ public class PendingClusterStatesQueue {
             if (pendingContext.committed() == false) {
                 continue;
             }
-            final ClusterState pendingState = pendingContext.clusterState;
-            if (pendingState.equals(state)) {
+            final ClusterState pendingState = pendingContext.state;
+            if (pendingContext.equals(failedContext)) {
                 statesToRemove.add(pendingContext);
                 pendingContext.listener.onNewClusterStateFailed(reason);
             } else if (state.supersedes(pendingState)) {
                 statesToRemove.add(pendingContext);
-                logger.debug("failing committed state uuid[{}]/v[{}] together with state uuid[{}]/v[{}]",
-                        pendingState.stateUUID(), pendingState.version(), state.stateUUID(), state.version()
-                );
+                logger.debug("failing committed state {} together with state {}", pendingContext, failedContext);
                 pendingContext.listener.onNewClusterStateFailed(reason);
             }
         }
@@ -103,7 +102,7 @@ public class PendingClusterStatesQueue {
         ArrayList<ClusterStateContext> contextsToRemove = new ArrayList<>();
         for (int index = 0; index < pendingStates.size(); index++) {
             final ClusterStateContext pendingContext = pendingStates.get(index);
-            final ClusterState pendingState = pendingContext.clusterState;
+            final ClusterState pendingState = pendingContext.state;
             final DiscoveryNode pendingMasterNode = pendingState.nodes().masterNode();
             if (Objects.equals(currentMaster, pendingMasterNode) == false) {
                 contextsToRemove.add(pendingContext);
@@ -139,9 +138,9 @@ public class PendingClusterStatesQueue {
 
     }
 
-    private int findState(String stateUUID) {
+    int findState(String stateUUID) {
         for (int i = 0; i < pendingStates.size(); i++) {
-            if (pendingStates.get(i).clusterState.stateUUID().equals(stateUUID)) {
+            if (pendingStates.get(i).stateUUID().equals(stateUUID)) {
                 return i;
             }
         }
@@ -179,30 +178,39 @@ public class PendingClusterStatesQueue {
         for (; index < pendingStates.size(); index++) {
             ClusterStateContext potentialState = pendingStates.get(index);
 
-            if (potentialState.clusterState.supersedes(stateToProcess.clusterState) && potentialState.committed()) {
+            if (potentialState.state.supersedes(stateToProcess.state) && potentialState.committed()) {
                 // we found a new one
                 stateToProcess = potentialState;
             }
         }
-        assert stateToProcess.committed() : "should only return committed cluster state. found " + stateToProcess.clusterState;
-        return stateToProcess.clusterState;
+        assert stateToProcess.committed() : "should only return committed cluster state. found " + stateToProcess.state;
+        return stateToProcess.state;
     }
 
     static class ClusterStateContext {
-        final ClusterState clusterState;
+        final ClusterState state;
         StateProcessedListener listener;
 
         ClusterStateContext(ClusterState clusterState) {
-            this.clusterState = clusterState;
+            this.state = clusterState;
         }
 
         void markAsCommitted(StateProcessedListener listener) {
-            assert this.listener == null : "double committing of " + clusterState;
+            assert this.listener == null : "double committing of " + state;
             this.listener = listener;
         }
 
         boolean committed() {
             return listener != null;
+        }
+
+        public String stateUUID() {
+            return state.stateUUID();
+        }
+
+        @Override
+        public String toString() {
+            return "[uuid[" + stateUUID() + "], v[" + state.version() + "], m[" + state.nodes().masterNodeId() + "]]";
         }
     }
 

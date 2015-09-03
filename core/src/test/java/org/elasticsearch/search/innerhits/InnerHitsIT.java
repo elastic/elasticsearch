@@ -47,8 +47,11 @@ import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.*;
 
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
+
 /**
  */
+@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/13315")
 public class InnerHitsIT extends ESIntegTestCase {
 
     @Test

@@ -1,14 +1,15 @@
 [[actions-slack]]
 ==== Slack Action
 
-A watch <<actions, action>> that can connect to a https://slack.com/[Slack] server and send
-messages to users and/or channels of a specific team.
-
+A watch <<actions, action>> that sends messages to a https://slack.com/[Slack] team's channels or
+users. To use the Slack action, you need to configure at least one 
+Slack account in Watcher. For information about configuring accounts, see <<configuring-slack, 
+Configuring Watcher to Send Notifications to Slack>>.
 
 [[configuring-slack-actions]]
 ===== Configuring Slack Actions
 
-You configure slack actions in a watch's `actions` array. Action-specific attributes are
+You configure Slack actions in a watch's `actions` array. Action-specific attributes are
 specified using the `slack` keyword.
 
 The following snippet shows a simple slack action definition:
@@ -16,74 +17,32 @@ The following snippet shows a simple slack action definition:
 [source,json]
 --------------------------------------------------
 "actions" : {
-  "notify-slack" : { <1>
-    "transform" : { ... }, <2>
-    "throttle_period" : "5m", <3>
+  "notify-slack" : { 
+    "transform" : { ... }, 
+    "throttle_period" : "5m", 
     "slack" : {
-      "to" : [ "#admins", "@chief-admin" ], <4>
+      "to" : [ "#admins", "@chief-admin" ], <1>
       "message" : {
-        "text" : "Encountered  {{ctx.payload.hits.total}} errors in the last 5 minutes (facepalm)" <5>
+        "text" : "Encountered  {{ctx.payload.hits.total}} errors in the last 5 minutes (facepalm)" <2>
       }
     }
   }
 }
 --------------------------------------------------
 
-<1> The id of the action
-<2> An optional <<transform, transform>> to transform the payload before executing the `webhook` action
-<3> An optional <<actions-ack-throttle, throttle period>> for the action (5 minutes in this example)
-<4> The users and/or channels where the message is sent to
-<5> The content of the message.
+<1> The channels and users you want to send the message to.
+<2> The content of the message.
 
-Before using the `slack` action in a watch, Watcher's internal Slack service needs to be configured. This
-Service enable the configuration of multiple slack accounts. A Slack Account defines the following:
 
-* `name` -              (required) uniquely identifies the account. Slack actions may specify the name of the account with which
-                        the messages should be sent.
-* `url` -               (required) the incoming webhook URL provided by slack
-* `message_defaults` -  (optional) a set of settings to define the default settings of the messages that are sent via this account
+[[formatting-slack-messages]]
+===== Using Attachments to Format Slack Messages
 
-Here's an example settings for Slack service:
+In addition to sending simple text-based messages, you can use the Slack 
+https://api.slack.com/docs/attachments[attachment] mechanism to send formatted messages. 
+Watcher leverages Slack attachments to enable you to dynamically populate templated messages 
+from the watch payload. 
 
-[source,yaml]
---------------------------------------------------
-watcher.actions.slack.service:
-  default_account: team1
-  account:
-    team1:
-      url: https://hooks.slack.com/services/XXXXXXX/XXXXXXXX/XXXXXXXXXXXXXXXXXXXXXXX
-      message_default:
-        from: watcher
-    team2:
-      url: https://hooks.slack.com/services/YYYYYYY/YYYYYYYY/YYYYYYYYYYYYYYYYYYYYYYY
-      message_default:
-        from: watcher
---------------------------------------------------
-
-[[configuring-slack-messages]]
-===== Configuring Slack Messages
-
-Slack provides powerful notification API that enables sending reach messages to the users and channels. The
-following table describes the different attributes that can be used when configuring the messages in the action.
-
-[[slack-message-attributes]]
-.Slack Message Attributes
-[options="header"]
-|======
-| Name                    |Required   | Default         | Description
-| `from`                  | no        | the watch id    | The name that will appear as the sender of the notification
-| `to`                    | yes       | -               | The channels/s and/or user/s that the notification should go to.
-                                                          Channel names must start with a `#` and user names must start with `@`.
-| `icon`                  | no        | -               | An icon can be associated with the message (accepts publicly available URL to the icon)
-| `text`                  | yes       | -               | The main text/content of the message.
-| `attachments`           | no        | -               | Enables creating rich formatted sections in the message. The syntax for attachments
-                                                          follows the syntax as defined by the slack APIs. You can read more about attachments
-                                                          and their definition syntax https://api.slack.com/docs/attachments[here].
-| `dynamic_attachments`   | no        | -               | define an attachment template that enables adding attachments dynamically based
-                                                          on the current payload (see bellow).
-|======
-
-Here is an example for how it looks like as part of the action definition:
+The following snippet shows a standard message attachment.
 
 [source,json]
 --------------------------------------------------
@@ -110,14 +69,18 @@ Here is an example for how it looks like as part of the action definition:
 --------------------------------------------------
 
 [[slack-dynamic-attachment]]
-.Dynamic Attachments
 
-As shown in the previous section, the "attachments" array in the slack message enables sending rich formatted messages
-to channels and users. Each attachment has its own formatting, and multiple of those can belong to a single message.
+To define an attachment template that is dynamically populated from the watch payload, you specify
+ `dynamic_attachments` in the watch action. For example, a dynamic attachment could reference 
+ histogram buckets in the payload and build an attachment per bucket. 
 
-Dynamic attachments enables creating these message attachments dynamically based on the current watch payload. For example,
-if the watch input executes a search with date histogram aggregation, dynamic attachments can reference the histogram
-buckets in the payload and build and attachment per bucket. For example,
+In the following example, the watch input executes a search with a date histogram aggregation 
+and the Slack action:
+
+ . Transforms the payload to a list where each item in the list holds the month, the user count 
+ for that month, and the color that represents the sentiment associated with that count 
+ (good or danger).
+ . Defines an attachment template that references items in the list generated by the transform.
 
 [source,json]
 --------------------------------------------------
@@ -141,7 +104,7 @@ buckets in the payload and build and attachment per bucket. For example,
 "actions" : {
   "notify-slack" : {
     "throttle_period" : "5m",
-    "transform" : { <1>
+    "transform" : { 
       "script" : "return [ items : ctx.payload.hits.aggs.users_per_month.buckets.collect { [ month : it.key_as_string, count : it.doc_count, color : it.doc_count < 100 ? 'danger' : 'good' ] }]"
     },
     "slack" : {
@@ -151,8 +114,8 @@ buckets in the payload and build and attachment per bucket. For example,
         "to" : [ "#admins", "@chief-admin" ],
         "text" : "System X Monitoring",
         "dynamic_attachments" : {
-          "list_path" : "ctx.payload.items"
-          "attachement_template" : {
+          "list_path" : "ctx.payload.items" <1>
+          "attachment_template" : {
             "title" : "{{month}}", <2>
             "text" : "Users Count: {{count}}",
             "color" : "{{color}}"
@@ -163,7 +126,36 @@ buckets in the payload and build and attachment per bucket. For example,
   }
 }
 --------------------------------------------------
+<1> The list generated by the action's transform.
+<2> The parameter placeholders refer to attributes in each item of the list generated by the transform.
 
-<1> Transforms the payload to a list where each item in the list holds the month, user count for that month, and the color
-    representing the sentiment with that count (good or bad/danger)
-<2> The parameter place holders refer to attributes in each item of the list above.
+[[slack-action-attributes]]
+===== Slack Action Attributes
+[options="header"]
+|======
+| Name                    |Required   | Description
+| `from`                  | no        | The sender name to display in the 
+                                        Slack message. Overrides the incoming 
+                                        webhook's configured name.
+| `to`                    | yes       | The channels and users you want to send
+                                        the message to. Channel names must start  
+                                        with `#` and user names must start with `@`.
+                                        Accepts a string value or an array of string 
+                                        values. 
+| `icon`                  | no        | The icon to display in the Slack messages. 
+                                        Overrides the incoming webhook's configured
+                                        icon. Accepts a public URL to an image.
+| `text`                  | yes       | The message content. 
+| `attachments`           | no        | Slack message attachments. Message 
+                                        attachments enable you to create more
+                                        richly-formatted messages. Specified as
+                                        as array as defined in the 
+                                        https://api.slack.com/docs/attachments[Slack 
+                                        attachments documentation].
+| `dynamic_attachments`   | no        | Slack message attachments that can be
+                                        populated dynamically based on the current 
+                                        watch payload. For more information, see
+                                        <<slack-dynamic-attachment, Using Attachments to 
+                                        Format Slack Messages>>.
+
+|======

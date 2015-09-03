@@ -90,7 +90,6 @@ import static org.hamcrest.Matchers.*;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0, transportClientRatio = 0)
 @ESIntegTestCase.SuppressLocalMode
-@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/13316")
 public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
 
     private static final TimeValue DISRUPTION_HEALING_OVERHEAD = TimeValue.timeValueSeconds(40); // we use 30s as timeout in many places.

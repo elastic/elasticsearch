@@ -59,6 +59,7 @@ public class PublishClusterStateAction extends AbstractComponent {
 
     public interface NewPendingClusterStateListener {
 
+        /** a new cluster state has been committed and is ready to process via {@link #pendingStatesQueue()} */
         void onNewClusterState(String reason);
     }
 

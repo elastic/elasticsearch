@@ -25,6 +25,11 @@ import org.elasticsearch.common.logging.ESLogger;
 import java.util.ArrayList;
 import java.util.Objects;
 
+/**
+ * A queue that holds all "in-flight" incoming cluster states from the master. Once a master commits a cluster
+ * state, it is made available via {@link #getNextClusterStateToProcess()}. The class also takes care of batching
+ * cluster states for processing and failures
+ */
 public class PendingClusterStatesQueue {
 
     interface StateProcessedListener {
@@ -41,10 +46,15 @@ public class PendingClusterStatesQueue {
         this.logger = logger;
     }
 
+    /** Add an incoming, not yet committed cluster state */
     public synchronized void addPending(ClusterState state) {
         pendingStates.add(new ClusterStateContext(state));
     }
 
+    /**
+     * Mark a previously added cluster state as committed. This will make it available via {@link #getNextClusterStateToProcess()}
+     * When the cluster state is processed (or failed), the supplied listener will be called
+     **/
     public synchronized ClusterState markAsCommitted(String stateUUID, StateProcessedListener listener) {
         final int stateIndex = findState(stateUUID);
         if (stateIndex < 0) {
@@ -60,6 +70,10 @@ public class PendingClusterStatesQueue {
         return context.state;
     }
 
+    /**
+     * mark that the processing of the given state has failed. All committed states that are {@link ClusterState#supersedes(ClusterState)}-ed
+     * by this failed state, will be failed as well
+     */
     public synchronized void markAsFailed(ClusterState state, Throwable reason) {
         final int failedIndex = findState(state.stateUUID());
         if (failedIndex < 0) {
@@ -89,6 +103,13 @@ public class PendingClusterStatesQueue {
         assert findState(state.stateUUID()) == -1 : "state was marked as processed but can still be found in pending list " + state;
     }
 
+    /**
+     * indicates that a cluster state was successfully processed. Any committed state that is {@link ClusterState#supersedes(ClusterState)}-ed
+     * by the processed state will be marked as processed as well.
+     * <p/>
+     * NOTE: successfully processing a state indicates we are following the master it came from. Any committed state from another master will
+     * be failed by this method
+     */
     public synchronized void markAsProcessed(ClusterState state) {
         final int processedIndex = findState(state.stateUUID());
         if (processedIndex < 0) {
@@ -121,9 +142,9 @@ public class PendingClusterStatesQueue {
                     );
                 }
             } else if (state.supersedes(pendingState) && pendingContext.committed()) {
-                    logger.trace("processing pending state uuid[{}]/v[{}] together with state uuid[{}]/v[{}]",
-                            pendingState.stateUUID(), pendingState.version(), state.stateUUID(), state.version()
-                    );
+                logger.trace("processing pending state uuid[{}]/v[{}] together with state uuid[{}]/v[{}]",
+                        pendingState.stateUUID(), pendingState.version(), state.stateUUID(), state.version()
+                );
                 contextsToRemove.add(pendingContext);
                 pendingContext.listener.onNewClusterStateProcessed();
             } else if (pendingState.equals(state)) {
@@ -147,6 +168,7 @@ public class PendingClusterStatesQueue {
         return -1;
     }
 
+    /** clear the incoming queue. any committed state will be failed */
     public synchronized void failAllStatesAndClear(Throwable reason) {
         for (ClusterStateContext pendingState : pendingStates) {
             if (pendingState.committed()) {
@@ -156,6 +178,12 @@ public class PendingClusterStatesQueue {
         pendingStates.clear();
     }
 
+    /**
+     * Gets the next committed state to process.
+     * <p/>
+     * The method tries to batch operation by getting the cluster state the highest possible committed states
+     * which succeeds the first committed state in queue (i.e., it comes from the same master).
+     */
     public synchronized ClusterState getNextClusterStateToProcess() {
         if (pendingStates.isEmpty()) {
             return null;
@@ -187,6 +215,7 @@ public class PendingClusterStatesQueue {
         return stateToProcess.state;
     }
 
+    /** returns true if there are no pending states, committed or not */
     public synchronized boolean isEmpty() {
         return pendingStates.isEmpty();
     }

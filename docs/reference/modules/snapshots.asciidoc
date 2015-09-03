@@ -150,7 +150,7 @@ shared file system repository.
 
 Other repository backends are available in these official plugins:
 
-* {plugins}/repository.html#repository-s3[repository-s3] for S3 repository support
+* {plugins}/repository-s3.html[repository-s3] for S3 repository support
 * https://github.com/elasticsearch/elasticsearch-hadoop/tree/master/repository-hdfs[HDFS Plugin] for Hadoop environments
 * https://github.com/elasticsearch/elasticsearch-cloud-azure#azure-repository[Azure Cloud Plugin] for Azure storage repositories
 

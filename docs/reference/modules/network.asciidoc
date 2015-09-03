@@ -51,7 +51,7 @@ provided network interface. For example `_en0:ipv4_`.
 provided network interface. For example `_en0:ipv6_`.
 |=======================================================================
 
-When the `cloud-aws` plugin is installed, the following are also allowed
+When the `discovery-ec2` plugin is installed, the following are also allowed
 as valid network host settings:
 
 [cols="<,<",options="header",]

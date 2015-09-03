@@ -215,6 +215,15 @@ public final class ShieldIndexSearcherWrapper extends AbstractIndexShardComponen
         }
 
         private Query wrap(Query original) {
+            // If already wrapped, don't wrap twice:
+            if (original instanceof BooleanQuery) {
+                BooleanQuery bq = (BooleanQuery) original;
+                if (bq.clauses().size() == 2) {
+                    if (roleQuery.equals(bq.clauses().get(1).getQuery())) {
+                        return original;
+                    }
+                }
+            }
             BooleanQuery bq = new BooleanQuery();
             bq.add(original, MUST);
             bq.add(roleQuery, FILTER);

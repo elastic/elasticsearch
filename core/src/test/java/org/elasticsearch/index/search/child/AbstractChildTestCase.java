@@ -19,14 +19,19 @@
 
 package org.elasticsearch.index.search.child;
 
-import org.apache.lucene.search.*;
-import org.apache.lucene.search.join.BitDocIdSetFilter;
+import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.util.BitDocIdSet;
 import org.apache.lucene.util.BitSet;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
-import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -130,8 +135,8 @@ public abstract class AbstractChildTestCase extends ESSingleNodeTestCase {
         }
     }
 
-    static BitDocIdSetFilter wrapWithBitSetFilter(Filter filter) {
-        return SearchContext.current().bitsetFilterCache().getBitDocIdSetFilter(filter);
+    static BitSetProducer wrapWithBitSetFilter(Filter filter) {
+        return SearchContext.current().bitsetFilterCache().getBitSetProducer(filter);
     }
 
     static Query parseQuery(QueryBuilder queryBuilder) throws IOException {

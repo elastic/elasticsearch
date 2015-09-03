@@ -187,9 +187,10 @@ public class QueryPhase implements SearchPhase {
                             // now this gets interesting: since we sort in index-order, we can directly
                             // skip to the desired doc and stop collecting after ${size} matches
                             if (scrollContext.lastEmittedDoc != null) {
-                                BooleanQuery bq = new BooleanQuery();
-                                bq.add(query, BooleanClause.Occur.MUST);
-                                bq.add(new MinDocQuery(lastEmittedDoc.doc + 1), BooleanClause.Occur.FILTER);
+                                BooleanQuery bq = new BooleanQuery.Builder()
+                                    .add(query, BooleanClause.Occur.MUST)
+                                    .add(new MinDocQuery(lastEmittedDoc.doc + 1), BooleanClause.Occur.FILTER)
+                                    .build();
                                 query = bq;
                             }
                             searchContext.terminateAfter(numDocs);

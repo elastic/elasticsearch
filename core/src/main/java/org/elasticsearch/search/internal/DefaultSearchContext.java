@@ -197,9 +197,10 @@ public class DefaultSearchContext extends SearchContext {
                 q.setBoost(query().getBoost());
                 parsedQuery(new ParsedQuery(q, parsedQuery()));
             } else {
-                BooleanQuery filtered = new BooleanQuery();
-                filtered.add(query(), Occur.MUST);
-                filtered.add(searchFilter, Occur.FILTER);
+                BooleanQuery filtered = new BooleanQuery.Builder()
+                    .add(query(), Occur.MUST)
+                    .add(searchFilter, Occur.FILTER)
+                    .build();
                 parsedQuery(new ParsedQuery(filtered, parsedQuery()));
             }
         }
@@ -216,14 +217,14 @@ public class DefaultSearchContext extends SearchContext {
         if (filter == null && aliasFilter == null) {
             return null;
         }
-        BooleanQuery bq = new BooleanQuery();
+        BooleanQuery.Builder bq = new BooleanQuery.Builder();
         if (filter != null) {
             bq.add(filter, Occur.MUST);
         }
         if (aliasFilter != null) {
             bq.add(aliasFilter, Occur.MUST);
         }
-        return new ConstantScoreQuery(bq);
+        return new ConstantScoreQuery(bq.build());
     }
 
     @Override

@@ -94,7 +94,7 @@ public class BytesRefFieldComparatorSource extends IndexFieldData.XFieldComparat
                     if (nested == null) {
                         selectedValues = sortMode.select(values);
                     } else {
-                        final BitSet rootDocs = nested.rootDocs(context).bits();
+                        final BitSet rootDocs = nested.rootDocs(context);
                         final DocIdSet innerDocs = nested.innerDocs(context);
                         selectedValues = sortMode.select(values, rootDocs, innerDocs);
                     }
@@ -124,7 +124,7 @@ public class BytesRefFieldComparatorSource extends IndexFieldData.XFieldComparat
                 if (nested == null) {
                     selectedValues = sortMode.select(values, nonNullMissingBytes);
                 } else {
-                    final BitSet rootDocs = nested.rootDocs(context).bits();
+                    final BitSet rootDocs = nested.rootDocs(context);
                     final DocIdSet innerDocs = nested.innerDocs(context);
                     selectedValues = sortMode.select(values, nonNullMissingBytes, rootDocs, innerDocs, context.reader().maxDoc());
                 }

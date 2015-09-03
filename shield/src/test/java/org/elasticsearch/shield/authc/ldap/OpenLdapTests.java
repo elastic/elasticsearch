@@ -48,7 +48,8 @@ public class OpenLdapTests extends ESTestCase {
         clientSSLService = new ClientSSLService(Settings.builder()
                 .put("shield.ssl.keystore.path", keystore)
                 .put("shield.ssl.keystore.password", "changeit")
-                .build(), env);
+                .build());
+        clientSSLService.setEnvironment(env);
         globalSettings = Settings.builder().put("path.home", createTempDir()).build();
     }
 

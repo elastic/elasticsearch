@@ -49,7 +49,8 @@ public class ShieldNettyTransportTests extends ESTestCase {
         Environment env = new Environment(settingsBuilder().put("path.home", createTempDir()).build());
         settingsFilter = new ShieldSettingsFilter(settings, new SettingsFilter(settings));
         serverSSLService = new ServerSSLService(settings, settingsFilter, env);
-        clientSSLService = new ClientSSLService(settings, env);
+        clientSSLService = new ClientSSLService(settings);
+        clientSSLService.setEnvironment(env);
     }
 
     @Test

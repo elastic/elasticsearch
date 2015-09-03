@@ -13,7 +13,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.shield.ShieldPlugin;
@@ -73,8 +72,7 @@ public class SslClientAuthTests extends ShieldIntegTestCase {
     @Test
     public void testThatHttpWorksWithSslClientAuth() throws IOException {
         Settings settings = settingsBuilder().put(ShieldSettingsSource.getSSLSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testclient.jks", "testclient")).build();
-        Environment env = new Environment(settingsBuilder().put("path.home", createTempDir()).build());
-        ClientSSLService sslService = new ClientSSLService(settings, env);
+        ClientSSLService sslService = new ClientSSLService(settings);
 
         SSLConnectionSocketFactory socketFactory = new SSLConnectionSocketFactory(
                 sslService.sslContext(),

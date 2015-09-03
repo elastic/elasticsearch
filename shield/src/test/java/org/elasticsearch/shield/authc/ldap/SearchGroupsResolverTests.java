@@ -43,7 +43,8 @@ public class SearchGroupsResolverTests extends ESTestCase {
         ClientSSLService clientSSLService = new ClientSSLService(Settings.builder()
                 .put("shield.ssl.keystore.path", keystore)
                 .put("shield.ssl.keystore.password", "changeit")
-                .build(), env);
+                .build());
+        clientSSLService.setEnvironment(env);
 
         LDAPURL ldapurl = new LDAPURL(OpenLdapTests.OPEN_LDAP_URL);
         LDAPConnectionOptions options = new LDAPConnectionOptions();

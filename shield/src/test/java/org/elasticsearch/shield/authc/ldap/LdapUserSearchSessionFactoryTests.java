@@ -63,7 +63,8 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
         clientSSLService = new ClientSSLService(settingsBuilder()
                 .put("shield.ssl.keystore.path", keystore)
                 .put("shield.ssl.keystore.password", "changeit")
-                .build(), env);
+                .build());
+        clientSSLService.setEnvironment(env);
 
         globalSettings = settingsBuilder().put("path.home", createTempDir()).build();
     }

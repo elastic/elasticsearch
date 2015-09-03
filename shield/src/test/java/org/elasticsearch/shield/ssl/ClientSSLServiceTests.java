@@ -34,7 +34,7 @@ public class ClientSSLServiceTests extends ESTestCase {
     @Before
     public void setup() throws Exception {
         testclientStore = getDataPath("/org/elasticsearch/shield/transport/ssl/certs/simple/testclient.jks");
-        env = new Environment(settingsBuilder().put("path.home", createTempDir()).build());
+        env = randomBoolean() ? new Environment(settingsBuilder().put("path.home", createTempDir()).build()) : null;
     }
 
     @Test
@@ -46,7 +46,7 @@ public class ClientSSLServiceTests extends ESTestCase {
                     .put("shield.ssl.keystore.password", "testclient")
                     .put("shield.ssl.truststore.path", testclientStore)
                     .put("shield.ssl.truststore.password", "testclient")
-                    .build(), env).createSSLEngine();
+                    .build()).createSSLEngine();
             fail("expected an exception");
         } catch (ElasticsearchException e) {
             assertThat(e.getMessage(), containsString("failed to initialize the SSLContext"));
@@ -57,10 +57,10 @@ public class ClientSSLServiceTests extends ESTestCase {
     public void testThatCustomTruststoreCanBeSpecified() throws Exception {
         Path testnodeStore = getDataPath("/org/elasticsearch/shield/transport/ssl/certs/simple/testnode.jks");
 
-        ClientSSLService sslService = new ClientSSLService(settingsBuilder()
+        ClientSSLService sslService = createClientSSLService(settingsBuilder()
                 .put("shield.ssl.keystore.path", testclientStore)
                 .put("shield.ssl.keystore.password", "testclient")
-                .build(), env);
+                .build());
 
         Settings.Builder settingsBuilder = settingsBuilder()
                 .put("truststore.path", testnodeStore)
@@ -75,10 +75,10 @@ public class ClientSSLServiceTests extends ESTestCase {
 
     @Test
     public void testThatSslContextCachingWorks() throws Exception {
-        ClientSSLService sslService = new ClientSSLService(settingsBuilder()
+        ClientSSLService sslService = createClientSSLService(settingsBuilder()
                 .put("shield.ssl.keystore.path", testclientStore)
                 .put("shield.ssl.keystore.password", "testclient")
-                .build(), env);
+                .build());
 
         SSLContext sslContext = sslService.sslContext();
         SSLContext cachedSslContext = sslService.sslContext();
@@ -89,21 +89,21 @@ public class ClientSSLServiceTests extends ESTestCase {
     @Test
     public void testThatKeyStoreAndKeyCanHaveDifferentPasswords() throws Exception {
         Path differentPasswordsStore = getDataPath("/org/elasticsearch/shield/transport/ssl/certs/simple/testnode-different-passwords.jks");
-        new ClientSSLService(settingsBuilder()
+        createClientSSLService(settingsBuilder()
                 .put("shield.ssl.keystore.path", differentPasswordsStore)
                 .put("shield.ssl.keystore.password", "testnode")
                 .put("shield.ssl.keystore.key_password", "testnode1")
-                .build(), env).createSSLEngine();
+                .build()).createSSLEngine();
     }
 
     @Test
     public void testIncorrectKeyPasswordThrowsException() throws Exception {
         Path differentPasswordsStore = getDataPath("/org/elasticsearch/shield/transport/ssl/certs/simple/testnode-different-passwords.jks");
         try {
-            new ClientSSLService(settingsBuilder()
+            createClientSSLService(settingsBuilder()
                     .put("shield.ssl.keystore.path", differentPasswordsStore)
                     .put("shield.ssl.keystore.password", "testnode")
-                    .build(), env).createSSLEngine();
+                    .build()).createSSLEngine();
             fail("expected an exception");
         } catch (ElasticsearchException e) {
             assertThat(e.getMessage(), containsString("failed to initialize a KeyManagerFactory"));
@@ -112,20 +112,20 @@ public class ClientSSLServiceTests extends ESTestCase {
 
     @Test
     public void testThatSSLv3IsNotEnabled() throws Exception {
-        ClientSSLService sslService = new ClientSSLService(settingsBuilder()
+        ClientSSLService sslService = createClientSSLService(settingsBuilder()
                 .put("shield.ssl.keystore.path", testclientStore)
                 .put("shield.ssl.keystore.password", "testclient")
-                .build(), env);
+                .build());
         SSLEngine engine = sslService.createSSLEngine();
         assertThat(Arrays.asList(engine.getEnabledProtocols()), not(hasItem("SSLv3")));
     }
 
     @Test
     public void testThatSSLSessionCacheHasDefaultLimits() throws Exception {
-        ClientSSLService sslService = new ClientSSLService(settingsBuilder()
+        ClientSSLService sslService = createClientSSLService(settingsBuilder()
                 .put("shield.ssl.keystore.path", testclientStore)
                 .put("shield.ssl.keystore.password", "testclient")
-                .build(), env);
+                .build());
         SSLSessionContext context = sslService.sslContext().getServerSessionContext();
         assertThat(context.getSessionCacheSize(), equalTo(1000));
         assertThat(context.getSessionTimeout(), equalTo((int) TimeValue.timeValueHours(24).seconds()));
@@ -133,12 +133,12 @@ public class ClientSSLServiceTests extends ESTestCase {
 
     @Test
     public void testThatSettingSSLSessionCacheLimitsWorks() throws Exception {
-        ClientSSLService sslService = new ClientSSLService(settingsBuilder()
+        ClientSSLService sslService = createClientSSLService(settingsBuilder()
                 .put("shield.ssl.keystore.path", testclientStore)
                 .put("shield.ssl.keystore.password", "testclient")
                 .put("shield.ssl.session.cache_size", "300")
                 .put("shield.ssl.session.cache_timeout", "600s")
-                .build(), env);
+                .build());
         SSLSessionContext context = sslService.sslContext().getServerSessionContext();
         assertThat(context.getSessionCacheSize(), equalTo(300));
         assertThat(context.getSessionTimeout(), equalTo(600));
@@ -146,27 +146,27 @@ public class ClientSSLServiceTests extends ESTestCase {
 
     @Test
     public void testThatCreateClientSSLEngineWithoutAnySettingsWorks() throws Exception {
-        ClientSSLService sslService = new ClientSSLService(Settings.EMPTY, env);
+        ClientSSLService sslService = createClientSSLService(Settings.EMPTY);
         SSLEngine sslEngine = sslService.createSSLEngine();
         assertThat(sslEngine, notNullValue());
     }
 
     @Test
     public void testThatCreateSSLEngineWithOnlyTruststoreWorks() throws Exception {
-        ClientSSLService sslService = new ClientSSLService(settingsBuilder()
+        ClientSSLService sslService = createClientSSLService(settingsBuilder()
                 .put("shield.ssl.truststore.path", testclientStore)
                 .put("shield.ssl.truststore.password", "testclient")
-                .build(), env);
+                .build());
         SSLEngine sslEngine = sslService.createSSLEngine();
         assertThat(sslEngine, notNullValue());
     }
 
     @Test
     public void testThatCreateSSLEngineWithOnlyKeystoreWorks() throws Exception {
-        ClientSSLService sslService = new ClientSSLService(settingsBuilder()
+        ClientSSLService sslService = createClientSSLService(settingsBuilder()
                 .put("shield.ssl.keystore.path", testclientStore)
                 .put("shield.ssl.keystore.password", "testclient")
-                .build(), env);
+                .build());
         SSLEngine sslEngine = sslService.createSSLEngine();
         assertThat(sslEngine, notNullValue());
     }
@@ -174,7 +174,7 @@ public class ClientSSLServiceTests extends ESTestCase {
     @Test
     @Network
     public void testThatSSLContextWithoutSettingsWorks() throws Exception {
-        ClientSSLService sslService = new ClientSSLService(Settings.EMPTY, env);
+        ClientSSLService sslService = createClientSSLService(Settings.EMPTY);
         SSLContext sslContext = sslService.sslContext();
         try (CloseableHttpClient client = HttpClients.custom().setSslcontext(sslContext).build()) {
             // Execute a GET on a site known to have a valid certificate signed by a trusted public CA
@@ -187,10 +187,10 @@ public class ClientSSLServiceTests extends ESTestCase {
     @Test
     @Network
     public void testThatSSLContextWithKeystoreDoesNotTrustAllPublicCAs() throws Exception {
-        ClientSSLService sslService = new ClientSSLService(settingsBuilder()
+        ClientSSLService sslService = createClientSSLService(settingsBuilder()
                 .put("shield.ssl.keystore.path", testclientStore)
                 .put("shield.ssl.keystore.password", "testclient")
-                .build(), env);
+                .build());
         SSLContext sslContext = sslService.sslContext();
         try (CloseableHttpClient client = HttpClients.custom().setSslcontext(sslContext).build()) {
             // Execute a GET on a site known to have a valid certificate signed by a trusted public CA
@@ -205,17 +205,17 @@ public class ClientSSLServiceTests extends ESTestCase {
 
     @Test(expected = IllegalArgumentException.class)
     public void testThatTruststorePasswordIsRequired() throws Exception {
-        ClientSSLService sslService = new ClientSSLService(settingsBuilder()
+        ClientSSLService sslService = createClientSSLService(settingsBuilder()
                 .put("shield.ssl.truststore.path", testclientStore)
-                .build(), env);
+                .build());
         sslService.sslContext();
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void testThatKeystorePasswordIsRequired() throws Exception {
-        ClientSSLService sslService = new ClientSSLService(settingsBuilder()
+        ClientSSLService sslService = createClientSSLService(settingsBuilder()
                 .put("shield.ssl.keystore.path", testclientStore)
-                .build(), env);
+                .build());
         sslService.sslContext();
     }
 
@@ -224,9 +224,9 @@ public class ClientSSLServiceTests extends ESTestCase {
         List<String> ciphers = new ArrayList<>(Arrays.asList(AbstractSSLService.DEFAULT_CIPHERS));
         ciphers.add("foo");
         ciphers.add("bar");
-        ClientSSLService sslService = new ClientSSLService(settingsBuilder()
+        ClientSSLService sslService = createClientSSLService(settingsBuilder()
                 .putArray("shield.ssl.ciphers", ciphers.toArray(new String[ciphers.size()]))
-                .build(), env);
+                .build());
         SSLEngine engine = sslService.createSSLEngine();
         assertThat(engine, is(notNullValue()));
         String[] enabledCiphers = engine.getEnabledCipherSuites();
@@ -235,18 +235,18 @@ public class ClientSSLServiceTests extends ESTestCase {
 
     @Test(expected = IllegalArgumentException.class)
     public void invalidCiphersOnlyThrowsException() throws Exception {
-        ClientSSLService sslService = new ClientSSLService(settingsBuilder()
+        ClientSSLService sslService = createClientSSLService(settingsBuilder()
                 .putArray("shield.ssl.ciphers", new String[] { "foo", "bar" })
-                .build(), env);
+                .build());
         sslService.createSSLEngine();
     }
 
     @Test
     public void testThatSSLSocketFactoryHasProperCiphersAndProtocols() throws Exception {
-        ClientSSLService sslService = new ClientSSLService(settingsBuilder()
+        ClientSSLService sslService = createClientSSLService(settingsBuilder()
                 .put("shield.ssl.keystore.path", testclientStore)
                 .put("shield.ssl.keystore.password", "testclient")
-                .build(), env);
+                .build());
         SSLSocketFactory factory = sslService.sslSocketFactory();
         assertThat(factory.getDefaultCipherSuites(), is(sslService.ciphers()));
 
@@ -254,5 +254,11 @@ public class ClientSSLServiceTests extends ESTestCase {
             assertThat(socket.getEnabledCipherSuites(), is(sslService.ciphers()));
             assertThat(socket.getEnabledProtocols(), is(sslService.supportedProtocols()));
         }
+    }
+
+    ClientSSLService createClientSSLService(Settings settings) {
+        ClientSSLService clientSSLService = new ClientSSLService(settings);
+        clientSSLService.setEnvironment(env);
+        return clientSSLService;
     }
 }

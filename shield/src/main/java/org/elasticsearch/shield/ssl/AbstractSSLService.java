@@ -24,6 +24,7 @@ import java.io.InputStream;
 import java.net.InetAddress;
 import java.net.Socket;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.security.KeyStore;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -46,8 +47,8 @@ public abstract class AbstractSSLService extends AbstractComponent {
     static final int DEFAULT_SESSION_CACHE_SIZE = 1000;
     static final String DEFAULT_PROTOCOL = "TLSv1.2";
 
-    protected final Environment env;
     protected final LoadingCache<SSLSettings, SSLContext> sslContexts = CacheBuilder.newBuilder().build(new SSLContextCacheLoader());
+    protected Environment env;
 
     public AbstractSSLService(Settings settings, Environment environment) {
         super(settings);
@@ -174,6 +175,10 @@ public abstract class AbstractSSLService extends AbstractComponent {
         return requestedCiphersList.toArray(new String[requestedCiphersList.size()]);
     }
 
+    protected Path resolvePath(String location) {
+        return env.configFile().resolve(location);
+    }
+
     private class SSLContextCacheLoader extends CacheLoader<SSLSettings, SSLContext> {
 
         @Override
@@ -238,7 +243,7 @@ public abstract class AbstractSSLService extends AbstractComponent {
         }
 
         private KeyStore readKeystore(String path, String password) throws Exception {
-            try (InputStream in = Files.newInputStream(env.binFile().getParent().resolve(path))) {
+            try (InputStream in = Files.newInputStream(resolvePath(path))) {
                 // Load TrustStore
                 KeyStore ks = KeyStore.getInstance("jks");
                 assert password != null;

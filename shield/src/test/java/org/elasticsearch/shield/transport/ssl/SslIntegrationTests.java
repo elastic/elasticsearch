@@ -21,7 +21,6 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.shield.ssl.ClientSSLService;
@@ -95,8 +94,7 @@ public class SslIntegrationTests extends ShieldIntegTestCase {
     @Test
     public void testThatConnectionToHTTPWorks() throws Exception {
         Settings settings = ShieldSettingsSource.getSSLSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testclient.jks", "testclient");
-        Environment env = new Environment(settingsBuilder().put("path.home", createTempDir()).build());
-        ClientSSLService service = new ClientSSLService(settings, env);
+        ClientSSLService service = new ClientSSLService(settings);
 
         CredentialsProvider provider = new BasicCredentialsProvider();
         provider.setCredentials(AuthScope.ANY, new UsernamePasswordCredentials(nodeClientUsername(), new String(nodeClientPassword().internalChars())));

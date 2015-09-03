@@ -21,7 +21,7 @@ package org.elasticsearch.discovery.ec2;
 
 
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
-import org.elasticsearch.cloud.aws.AbstractAwsTest;
+import org.elasticsearch.cloud.aws.AbstractAwsTestCase;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugin.discovery.ec2.Ec2DiscoveryPlugin;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
@@ -37,7 +37,7 @@ import static org.hamcrest.CoreMatchers.is;
  * This test requires AWS to run.
  */
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0, numClientNodes = 0, transportClientRatio = 0.0)
-public class Ec2DiscoveryUpdateSettingsITest extends AbstractAwsTest {
+public class Ec2DiscoveryUpdateSettingsTests extends AbstractAwsTestCase {
 
     @Test
     public void testMinimumMasterNodesStart() {

@@ -32,7 +32,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  * Unit test for {@link S3OutputStream}.
  */
-public class S3OutputStreamTest extends ESTestCase {
+public class S3OutputStreamTests extends ESTestCase {
 
     private static final int BUFFER_SIZE = S3BlobStore.MIN_BUFFER_SIZE.bytesAsInt();
 

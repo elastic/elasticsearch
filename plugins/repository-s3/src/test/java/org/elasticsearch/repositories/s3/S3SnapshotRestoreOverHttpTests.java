@@ -20,28 +20,15 @@
 package org.elasticsearch.repositories.s3;
 
 import org.elasticsearch.common.settings.Settings;
-import org.junit.Before;
 
 /**
- * This will only run if you define in your `elasticsearch.yml` file a s3 specific proxy
- * cloud.aws.s3.proxy_host: mys3proxy.company.com
- * cloud.aws.s3.proxy_port: 8080
  */
-public class S3ProxiedSnapshotRestoreOverHttpsTest extends AbstractS3SnapshotRestoreTest {
-
-    private boolean proxySet = false;
-
+public class S3SnapshotRestoreOverHttpTests extends AbstractS3SnapshotRestoreTest {
     @Override
     public Settings nodeSettings(int nodeOrdinal) {
-        Settings settings = super.nodeSettings(nodeOrdinal);
-        String proxyHost = settings.get("cloud.aws.s3.proxy_host");
-        proxySet = proxyHost != null;
-        return settings;
+        Settings.Builder settings = Settings.builder()
+                .put(super.nodeSettings(nodeOrdinal))
+                .put("cloud.aws.s3.protocol", "http");
+        return settings.build();
     }
-
-    @Before
-    public void checkProxySettings() {
-        assumeTrue("we are expecting proxy settings in elasticsearch.yml file", proxySet);
-    }
-
 }

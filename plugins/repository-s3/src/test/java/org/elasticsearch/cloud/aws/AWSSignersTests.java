@@ -25,7 +25,7 @@ import org.junit.Test;
 
 import static org.hamcrest.CoreMatchers.is;
 
-public class AWSSignersTest extends ESTestCase {
+public class AWSSignersTests extends ESTestCase {
 
     @Test
     public void testSigners() {

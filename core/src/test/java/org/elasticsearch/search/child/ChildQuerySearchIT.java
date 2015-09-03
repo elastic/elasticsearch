@@ -1439,7 +1439,6 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
                     .setSize(1)
                     .addField("_id")
                     .setQuery(query)
-                    .setSearchType("scan")
                     .execute()
                     .actionGet();
 
@@ -1447,12 +1446,13 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
             assertThat(scrollResponse.getHits().totalHits(), equalTo(10l));
             int scannedDocs = 0;
             do {
+                assertThat(scrollResponse.getHits().totalHits(), equalTo(10l));
+                scannedDocs += scrollResponse.getHits().getHits().length;
                 scrollResponse = client()
                         .prepareSearchScroll(scrollResponse.getScrollId())
                         .setScroll(TimeValue.timeValueSeconds(30)).get();
-                assertThat(scrollResponse.getHits().totalHits(), equalTo(10l));
-                scannedDocs += scrollResponse.getHits().getHits().length;
             } while (scrollResponse.getHits().getHits().length > 0);
+            clearScroll(scrollResponse.getScrollId());
             assertThat(scannedDocs, equalTo(10));
         }
     }

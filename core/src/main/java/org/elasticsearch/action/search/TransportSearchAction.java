@@ -48,8 +48,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     private final TransportSearchQueryThenFetchAction queryThenFetchAction;
     private final TransportSearchDfsQueryAndFetchAction dfsQueryAndFetchAction;
     private final TransportSearchQueryAndFetchAction queryAndFetchAction;
-    private final TransportSearchScanAction scanAction;
-    private final TransportSearchCountAction countAction;
     private final boolean optimizeSingleShard;
 
     @Inject
@@ -59,8 +57,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                                  TransportSearchQueryThenFetchAction queryThenFetchAction,
                                  TransportSearchDfsQueryAndFetchAction dfsQueryAndFetchAction,
                                  TransportSearchQueryAndFetchAction queryAndFetchAction,
-                                 TransportSearchScanAction scanAction,
-                                 TransportSearchCountAction countAction,
                                  ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
         super(settings, SearchAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, SearchRequest.class);
         this.clusterService = clusterService;
@@ -68,15 +64,13 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         this.queryThenFetchAction = queryThenFetchAction;
         this.dfsQueryAndFetchAction = dfsQueryAndFetchAction;
         this.queryAndFetchAction = queryAndFetchAction;
-        this.scanAction = scanAction;
-        this.countAction = countAction;
         this.optimizeSingleShard = this.settings.getAsBoolean("action.search.optimize_single_shard", true);
     }
 
     @Override
     protected void doExecute(SearchRequest searchRequest, ActionListener<SearchResponse> listener) {
         // optimize search type for cases where there is only one shard group to search on
-        if (optimizeSingleShard && searchRequest.searchType() != SCAN && searchRequest.searchType() != COUNT) {
+        if (optimizeSingleShard) {
             try {
                 ClusterState clusterState = clusterService.state();
                 String[] concreteIndices = indexNameExpressionResolver.concreteIndices(clusterState, searchRequest);
@@ -101,10 +95,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             dfsQueryAndFetchAction.execute(searchRequest, listener);
         } else if (searchRequest.searchType() == SearchType.QUERY_AND_FETCH) {
             queryAndFetchAction.execute(searchRequest, listener);
-        } else if (searchRequest.searchType() == SearchType.SCAN) {
-            scanAction.execute(searchRequest, listener);
-        } else if (searchRequest.searchType() == SearchType.COUNT) {
-            countAction.execute(searchRequest, listener);
         } else {
             throw new IllegalStateException("Unknown search type: [" + searchRequest.searchType() + "]");
         }

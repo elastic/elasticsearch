@@ -63,7 +63,6 @@ import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rescore.RescoreSearchContext;
-import org.elasticsearch.search.scan.ScanContext;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -552,11 +551,6 @@ public class TestSearchContext extends SearchContext {
 
     @Override
     public FetchSearchResult fetchResult() {
-        return null;
-    }
-
-    @Override
-    public ScanContext scanContext() {
         return null;
     }
 

@@ -171,10 +171,8 @@ import org.elasticsearch.action.search.type.TransportSearchDfsQueryAndFetchActio
 import org.elasticsearch.action.search.type.TransportSearchDfsQueryThenFetchAction;
 import org.elasticsearch.action.search.type.TransportSearchQueryAndFetchAction;
 import org.elasticsearch.action.search.type.TransportSearchQueryThenFetchAction;
-import org.elasticsearch.action.search.type.TransportSearchScanAction;
 import org.elasticsearch.action.search.type.TransportSearchScrollQueryAndFetchAction;
 import org.elasticsearch.action.search.type.TransportSearchScrollQueryThenFetchAction;
-import org.elasticsearch.action.search.type.TransportSearchScrollScanAction;
 import org.elasticsearch.action.suggest.SuggestAction;
 import org.elasticsearch.action.suggest.TransportSuggestAction;
 import org.elasticsearch.action.support.ActionFilter;
@@ -327,11 +325,9 @@ public class ActionModule extends AbstractModule {
                 TransportSearchDfsQueryThenFetchAction.class,
                 TransportSearchQueryThenFetchAction.class,
                 TransportSearchDfsQueryAndFetchAction.class,
-                TransportSearchQueryAndFetchAction.class,
-                TransportSearchScanAction.class
+                TransportSearchQueryAndFetchAction.class
         );
         registerAction(SearchScrollAction.INSTANCE, TransportSearchScrollAction.class,
-                TransportSearchScrollScanAction.class,
                 TransportSearchScrollQueryThenFetchAction.class,
                 TransportSearchScrollQueryAndFetchAction.class
         );

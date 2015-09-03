@@ -16,7 +16,6 @@
   - do:
       search:
         index: test_scroll
-        search_type: scan
         scroll: 1m
         body:
           query:
@@ -56,7 +55,6 @@
   - do:
       search:
         index: test_scroll
-        search_type: scan
         scroll: 1m
         body:
           query:

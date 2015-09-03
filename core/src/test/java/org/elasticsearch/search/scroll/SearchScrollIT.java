@@ -424,7 +424,7 @@ public class SearchScrollIT extends ESIntegTestCase {
                     .setQuery(QueryBuilders.matchAllQuery())
                     .setSize(Integer.MAX_VALUE);
 
-            if (searchType == SearchType.SCAN || searchType != SearchType.COUNT && randomBoolean()) {
+            if (randomBoolean()) {
                 builder.setScroll("1m");
             }
 

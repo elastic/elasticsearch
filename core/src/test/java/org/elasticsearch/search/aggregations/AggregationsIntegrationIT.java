@@ -20,9 +20,7 @@
 package org.elasticsearch.search.aggregations;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -50,15 +48,6 @@ public class AggregationsIntegrationIT extends ESIntegTestCase {
             docs.add(client().prepareIndex("index", "type").setSource("f", Integer.toString(i / 3)));
         }
         indexRandom(true, docs);
-    }
-
-    public void testScan() {
-        try {
-            client().prepareSearch("index").setSearchType(SearchType.SCAN).setScroll(new TimeValue(500)).addAggregation(terms("f").field("f")).get();
-            fail();
-        } catch (SearchPhaseExecutionException e) {
-            assertTrue(e.toString(), e.toString().contains("aggregations are not supported with search_type=scan"));
-        }
     }
 
     public void testScroll() {

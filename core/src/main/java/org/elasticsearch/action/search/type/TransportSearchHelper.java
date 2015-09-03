@@ -56,8 +56,6 @@ public abstract class TransportSearchHelper {
             return buildScrollId(ParsedScrollId.QUERY_THEN_FETCH_TYPE, searchPhaseResults, attributes);
         } else if (searchType == SearchType.QUERY_AND_FETCH || searchType == SearchType.DFS_QUERY_AND_FETCH) {
             return buildScrollId(ParsedScrollId.QUERY_AND_FETCH_TYPE, searchPhaseResults, attributes);
-        } else if (searchType == SearchType.SCAN) {
-            return buildScrollId(ParsedScrollId.SCAN, searchPhaseResults, attributes);
         } else {
             throw new IllegalStateException("search_type [" + searchType + "] not supported");
         }

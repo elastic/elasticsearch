@@ -196,12 +196,19 @@ public final class ShieldIndexSearcherWrapper extends AbstractIndexShardComponen
             setSimilarity(in.getSimilarity(true));
             setQueryCache(engineConfig.getQueryCache());
             setQueryCachingPolicy(engineConfig.getQueryCachingPolicy());
-            this.roleQuery = roleQuery;
+            try {
+                this.roleQuery = super.rewrite(roleQuery);
+            } catch (IOException e) {
+                throw new IllegalStateException("Could not rewrite role query", e);
+            }
         }
 
         @Override
-        public Query rewrite(Query original) throws IOException {
-            return super.rewrite(wrap(original));
+        public Query rewrite(Query query) throws IOException {
+            query = super.rewrite(query);
+            query = wrap(query);
+            query = super.rewrite(query);
+            return query;
         }
 
         @Override
@@ -209,21 +216,37 @@ public final class ShieldIndexSearcherWrapper extends AbstractIndexShardComponen
             return "ShieldIndexSearcher(" + super.toString() + ")";
         }
 
-        private Query wrap(Query original) throws IOException {
-            // If already wrapped, don't wrap twice:
-            if (original instanceof BooleanQuery) {
-                BooleanQuery bq = (BooleanQuery) original;
-                if (bq.clauses().size() == 2) {
-                    Query rewrittenRoleQuery = rewrite(roleQuery);
-                    if (rewrittenRoleQuery.equals(bq.clauses().get(1).getQuery())) {
-                        return original;
+        private boolean isFilteredBy(Query query, Query filter) {
+            if (query instanceof ConstantScoreQuery) {
+                return isFilteredBy(((ConstantScoreQuery) query).getQuery(), filter);
+            } else if (query instanceof BooleanQuery) {
+                BooleanQuery bq = (BooleanQuery) query;
+                for (BooleanClause clause : bq) {
+                    if (clause.isRequired() && isFilteredBy(clause.getQuery(), filter)) {
+                        return true;
                     }
                 }
+                return false;
+            } else {
+                Query queryClone = query.clone();
+                queryClone.setBoost(1);
+                Query filterClone = filter.clone();
+                filterClone.setBoost(1f);
+                return queryClone.equals(filterClone);
             }
-            BooleanQuery bq = new BooleanQuery();
-            bq.add(original, MUST);
-            bq.add(roleQuery, FILTER);
-            return bq;
+        }
+
+        private Query wrap(Query original) throws IOException {
+            if (isFilteredBy(original, roleQuery)) {
+                // this is necessary in order to make rewrite "stable",
+                // ie calling it several times on the same query keeps
+                // on returning the same query instance
+                return original;
+            }
+            return new BooleanQuery.Builder()
+                .add(original, MUST)
+                .add(roleQuery, FILTER)
+                .build();
         }
     }
 

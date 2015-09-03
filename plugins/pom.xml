@@ -396,16 +396,18 @@
         <module>analysis-phonetic</module>
         <module>analysis-smartcn</module>
         <module>analysis-stempel</module>
-        <module>cloud-azure</module>
         <module>cloud-gce</module>
         <module>delete-by-query</module>
+        <module>discovery-azure</module>
         <module>discovery-ec2</module>
         <module>discovery-multicast</module>
         <module>lang-javascript</module>
         <module>lang-python</module>
         <module>mapper-murmur3</module>
         <module>mapper-size</module>
+        <module>repository-azure</module>
         <module>repository-s3</module>
+        <module>store-smb</module>
 
         <!-- Internal plugins for test only -->
         <module>jvm-example</module>

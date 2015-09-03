@@ -143,13 +143,13 @@
                                 </artifactItem>
                                 <artifactItem>
                                     <groupId>org.elasticsearch.plugin</groupId>
-                                    <artifactId>cloud-aws</artifactId>
+                                    <artifactId>discovery-azure</artifactId>
                                     <version>${elasticsearch.version}</version>
                                     <type>zip</type>
                                 </artifactItem>
                                 <artifactItem>
                                     <groupId>org.elasticsearch.plugin</groupId>
-                                    <artifactId>cloud-azure</artifactId>
+                                    <artifactId>discovery-ec2</artifactId>
                                     <version>${elasticsearch.version}</version>
                                     <type>zip</type>
                                 </artifactItem>
@@ -204,6 +204,24 @@
                                 <artifactItem>
                                     <groupId>org.elasticsearch.plugin</groupId>
                                     <artifactId>repository-s3</artifactId>
+                                    <version>${elasticsearch.version}</version>
+                                    <type>zip</type>
+                                </artifactItem>
+                                <artifactItem>
+                                    <groupId>org.elasticsearch.plugin</groupId>
+                                    <artifactId>repository-azure</artifactId>
+                                    <version>${elasticsearch.version}</version>
+                                    <type>zip</type>
+                                </artifactItem>
+                                <artifactItem>
+                                    <groupId>org.elasticsearch.plugin</groupId>
+                                    <artifactId>repository-s3</artifactId>
+                                    <version>${elasticsearch.version}</version>
+                                    <type>zip</type>
+                                </artifactItem>
+                                <artifactItem>
+                                    <groupId>org.elasticsearch.plugin</groupId>
+                                    <artifactId>store-smb</artifactId>
                                     <version>${elasticsearch.version}</version>
                                     <type>zip</type>
                                 </artifactItem>

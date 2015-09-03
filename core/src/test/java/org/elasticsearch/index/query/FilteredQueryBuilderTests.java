@@ -21,9 +21,7 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.lucene.search.Queries;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -48,17 +46,14 @@ public class FilteredQueryBuilderTests extends BaseQueryTestCase<FilteredQueryBu
         if (innerQuery == null) {
             assertThat(query, nullValue());
         } else {
+            assertThat(query, instanceOf(BooleanQuery.class));
+            BooleanQuery booleanQuery = (BooleanQuery) query;
             Query innerFilter = queryBuilder.innerFilter().toQuery(context);
-            if (innerFilter == null || Queries.isConstantMatchAllQuery(innerFilter)) {
-                innerQuery.setBoost(queryBuilder.boost());
-                assertThat(query, equalTo(innerQuery));
-            } else if (Queries.isConstantMatchAllQuery(innerQuery)) {
-                assertThat(query, instanceOf(ConstantScoreQuery.class));
-                assertThat(((ConstantScoreQuery)query).getQuery(), equalTo(innerFilter));
+            if (innerFilter == null) {
+                assertThat(booleanQuery.clauses().size(), equalTo(1));
+                assertThat(booleanQuery.clauses().get(0).getOccur(), equalTo(BooleanClause.Occur.MUST));
+                assertThat(booleanQuery.clauses().get(0).getQuery(), equalTo(innerQuery));
             } else {
-                assertThat(query, instanceOf(BooleanQuery.class));
-                BooleanQuery booleanQuery = (BooleanQuery) query;
-                assertThat(booleanQuery.clauses().size(), equalTo(2));
                 assertThat(booleanQuery.clauses().get(0).getOccur(), equalTo(BooleanClause.Occur.MUST));
                 assertThat(booleanQuery.clauses().get(0).getQuery(), equalTo(innerQuery));
                 assertThat(booleanQuery.clauses().get(1).getOccur(), equalTo(BooleanClause.Occur.FILTER));

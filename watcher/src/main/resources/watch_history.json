@@ -185,6 +185,10 @@
                   "type" : "object",
                   "enabled" : false
                 },
+                "array_compare" : {
+                  "type" : "object",
+                  "enabled" : false
+                },
                 "script" : {
                   "type" : "object",
                   "enabled" : false

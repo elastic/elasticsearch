@@ -42,6 +42,9 @@ import org.elasticsearch.watcher.condition.compare.CompareCondition;
 import org.elasticsearch.watcher.condition.compare.CompareCondition.Op;
 import org.elasticsearch.watcher.condition.compare.CompareConditionFactory;
 import org.elasticsearch.watcher.condition.compare.ExecutableCompareCondition;
+import org.elasticsearch.watcher.condition.compare.array.ArrayCompareCondition;
+import org.elasticsearch.watcher.condition.compare.array.ArrayCompareConditionFactory;
+import org.elasticsearch.watcher.condition.compare.array.ExecutableArrayCompareCondition;
 import org.elasticsearch.watcher.condition.script.ExecutableScriptCondition;
 import org.elasticsearch.watcher.condition.script.ScriptCondition;
 import org.elasticsearch.watcher.condition.script.ScriptConditionFactory;
@@ -328,12 +331,14 @@ public class WatchTests extends ESTestCase {
     }
 
     private ExecutableCondition randomCondition() {
-        String type = randomFrom(ScriptCondition.TYPE, AlwaysCondition.TYPE, CompareCondition.TYPE);
+        String type = randomFrom(ScriptCondition.TYPE, AlwaysCondition.TYPE, CompareCondition.TYPE, ArrayCompareCondition.TYPE);
         switch (type) {
             case ScriptCondition.TYPE:
                 return new ExecutableScriptCondition(new ScriptCondition(Script.inline("_script").build()), logger, scriptService);
             case CompareCondition.TYPE:
                 return new ExecutableCompareCondition(new CompareCondition("_path", randomFrom(Op.values()), randomFrom(5, "3")), logger, SystemClock.INSTANCE);
+            case ArrayCompareCondition.TYPE:
+                return new ExecutableArrayCompareCondition(new ArrayCompareCondition("_array_path", "_path", randomFrom(ArrayCompareCondition.Op.values()), randomFrom(5, "3"), ArrayCompareCondition.Quantifier.SOME), logger, SystemClock.INSTANCE);
             default:
                 return new ExecutableAlwaysCondition(logger);
         }
@@ -347,6 +352,9 @@ public class WatchTests extends ESTestCase {
                 return new ConditionRegistry(parsers.build());
             case CompareCondition.TYPE:
                 parsers.put(CompareCondition.TYPE, new CompareConditionFactory(settings, SystemClock.INSTANCE));
+                return new ConditionRegistry(parsers.build());
+            case ArrayCompareCondition.TYPE:
+                parsers.put(ArrayCompareCondition.TYPE, new ArrayCompareConditionFactory(settings, SystemClock.INSTANCE));
                 return new ConditionRegistry(parsers.build());
             default:
                 parsers.put(AlwaysCondition.TYPE, new AlwaysConditionFactory(settings));

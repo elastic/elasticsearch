@@ -113,6 +113,14 @@ public class RemoteIndexAuditTrailStartingTests extends ShieldIntegTestCase {
             }
             remoteCluster.close();
         }
+
+        // stop the index audit trail so that the shards aren't locked causing the test to fail
+        if (outputs.contains("index")) {
+            Iterable<IndexAuditTrail> auditTrails = internalCluster().getInstances(IndexAuditTrail.class);
+            for (IndexAuditTrail auditTrail : auditTrails) {
+                auditTrail.close();
+            }
+        }
     }
 
     @Test

@@ -39,11 +39,11 @@ public class RandomQueryBuilder {
     public static QueryBuilder createQuery(Random r) {
         switch (RandomInts.randomIntBetween(r, 0, 4)) {
             case 0:
-                return new MatchAllQueryBuilderTest().createTestQueryBuilder();
+                return new MatchAllQueryBuilderTests().createTestQueryBuilder();
             case 1:
-                return new TermQueryBuilderTest().createTestQueryBuilder();
+                return new TermQueryBuilderTests().createTestQueryBuilder();
             case 2:
-                return new IdsQueryBuilderTest().createTestQueryBuilder();
+                return new IdsQueryBuilderTests().createTestQueryBuilder();
             case 3:
                 return createMultiTermQuery(r);
             case 4:

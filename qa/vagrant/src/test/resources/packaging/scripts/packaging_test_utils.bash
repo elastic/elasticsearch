@@ -232,7 +232,9 @@ verify_package_installation() {
     fi
 }
 
-# Install the rpm or deb package
+# Install the rpm or deb package.
+# -u upgrade rather than install. This only matters for rpm.
+# -v the version to upgrade to. Defaults to the version under test.
 install_package() {
     if is_rpm; then
         rpm -i elasticsearch*.rpm
@@ -317,6 +319,8 @@ clean_before_test() {
     done
 }
 
+# Start elasticsearch and wait for it to come up with a status.
+# $1 - expected status - defaults to green
 start_elasticsearch_service() {
     if [ -f "/tmp/elasticsearch/bin/elasticsearch" ]; then
         # su and the Elasticsearch init script work together to break bats.
@@ -387,7 +391,8 @@ stop_elasticsearch_service() {
     fi
 }
 
-# Waits for Elasticsearch to reach a given status (defaults to "green")
+# Waits for Elasticsearch to reach some status.
+# $1 - expected status - defaults to green
 wait_for_elasticsearch_status() {
     local desired_status="green"
     if [ "x$1" != "x" ]; then

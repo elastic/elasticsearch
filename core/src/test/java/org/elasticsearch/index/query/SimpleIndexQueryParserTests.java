@@ -1410,12 +1410,22 @@ public class SimpleIndexQueryParserTests extends ESSingleNodeTestCase {
     @Test
     public void testSpanWithinQueryBuilder() throws IOException {
         IndexQueryParserService queryParser = queryParser();
-        Query expectedQuery = new SpanWithinQuery(new SpanTermQuery(new Term("age", longToPrefixCoded(34, 0))),
-                                                  new SpanTermQuery(new Term("age", longToPrefixCoded(35, 0))));
-        Query actualQuery = queryParser.parse(spanWithinQuery()
-                                              .big(spanTermQuery("age", 34))
-                                              .little(spanTermQuery("age", 35)))
-                                              .query();
+        SpanTermQuery big = new SpanTermQuery(new Term("age", longToPrefixCoded(34, 0)));
+        big.setBoost(2);
+        SpanTermQuery little = new SpanTermQuery(new Term("age", longToPrefixCoded(35, 0)));
+        little.setBoost(3);
+        Query expectedQuery = new SpanWithinQuery(big, little);
+
+        SpanWithinQueryBuilder spanWithinQueryBuilder = spanWithinQuery()
+                .big(spanTermQuery("age", 34).boost(2))
+                .little(spanTermQuery("age", 35).boost(3));
+        Query actualQuery = queryParser.parse(spanWithinQueryBuilder).query();
+        assertEquals(expectedQuery, actualQuery);
+
+        float boost = randomFloat();
+        expectedQuery.setBoost(boost);
+        spanWithinQueryBuilder.boost(boost);
+        actualQuery = queryParser.parse(spanWithinQueryBuilder).query();
         assertEquals(expectedQuery, actualQuery);
     }
 
@@ -1432,12 +1442,22 @@ public class SimpleIndexQueryParserTests extends ESSingleNodeTestCase {
     @Test
     public void testSpanContainingQueryBuilder() throws IOException {
         IndexQueryParserService queryParser = queryParser();
-        Query expectedQuery = new SpanContainingQuery(new SpanTermQuery(new Term("age", longToPrefixCoded(34, 0))),
-                                                      new SpanTermQuery(new Term("age", longToPrefixCoded(35, 0))));
-        Query actualQuery = queryParser.parse(spanContainingQuery()
-                                              .big(spanTermQuery("age", 34))
-                                              .little(spanTermQuery("age", 35)))
-                                              .query();
+        SpanTermQuery big = new SpanTermQuery(new Term("age", longToPrefixCoded(34, 0)));
+        big.setBoost(2);
+        SpanTermQuery little = new SpanTermQuery(new Term("age", longToPrefixCoded(35, 0)));
+        little.setBoost(3);
+        Query expectedQuery = new SpanContainingQuery(big, little);
+
+        SpanContainingQueryBuilder spanContainingQueryBuilder = spanContainingQuery()
+                .big(spanTermQuery("age", 34).boost(2))
+                .little(spanTermQuery("age", 35).boost(3));
+        Query actualQuery = queryParser.parse(spanContainingQueryBuilder).query();
+        assertEquals(expectedQuery, actualQuery);
+
+        float boost = randomFloat();
+        expectedQuery.setBoost(boost);
+        spanContainingQueryBuilder.boost(boost);
+        actualQuery = queryParser.parse(spanContainingQueryBuilder).query();
         assertEquals(expectedQuery, actualQuery);
     }
 

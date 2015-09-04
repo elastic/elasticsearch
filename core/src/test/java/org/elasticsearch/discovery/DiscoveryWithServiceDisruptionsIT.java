@@ -944,18 +944,21 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
     }
 
     /*
-     * Tests a visibility issue if a shard is in POST_RECOVERY
+     * Tests that shards do not miss refresh requests when relocating
      *
-     * When a user indexes a document, then refreshes and then a executes a search and all are successful and no timeouts etc then
-     * the document must be visible for the search.
+     * After a shard relocated there is no guarantee that a node that sends a refresh actually knows that the shard has
+     * relocated. This test tests that shards don't miss refreshes in case the coordinating node for the refresh lags
+     * behind with cluster state processing.
+     *
+     * Detailed description:
      *
      * When a primary is relocating from node_1 to node_2, there can be a short time where both old and new primary
-     * are started and accept indexing and read requests. However, the new primary might not be visible to nodes
-     * that lag behind one cluster state. If such a node then sends a refresh to the index, this refresh request
-     * must reach the new primary on node_2 too. Otherwise a different node that searches on the new primary might not
-     * find the indexed document although a refresh was executed before.
+     * are started and accept indexing and read requests. While the shard is in POST_RECOVERY on node_2 it must not
+     * miss any refresh, otherwise documents that were indexed in this time will not be visible if a search is executed
+     * on this shard.
      *
-     * In detail:
+     * The test replays this course of events:
+     *
      * Cluster state 0:
      * node_1: [index][0] STARTED   (ShardRoutingState)
      * node_2: no shard
@@ -973,7 +976,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
      * 2. any node receives an index request which is then executed on node_1 and node_2
      *
      * 3. node_3 sends a refresh but it is a little behind with cluster state processing and still on cluster state 0.
-     * If refresh was a broadcast operation it send it to node_1 only because it does not know node_2 has a shard too
+     * So it sends it to node_1 instead
      *
      * 4. node_3 catches up with the cluster state and acks it to master which now can process the shard started message
      *  from node_2 before and updates cluster state to:
@@ -990,8 +993,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
      * successful.
      */
     @Test
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/13316")
-    public void testReadOnPostRecoveryShards() throws Exception {
+    public void testRefreshDoesNotMissShards() throws Exception {
         List<BlockClusterStateProcessing> clusterStateBlocks = new ArrayList<>();
         try {
             configureUnicastCluster(5, null, 1);
@@ -1035,7 +1037,11 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
             MockTransportService transportServiceNode2 = (MockTransportService) internalCluster().getInstance(TransportService.class, node_2);
             CountDownLatch beginRelocationLatchNode2 = new CountDownLatch(1);
             CountDownLatch endRelocationLatchNode2 = new CountDownLatch(1);
-            transportServiceNode2.addTracer(new StartRecoveryToShardStaredTracer(logger, beginRelocationLatchNode2, endRelocationLatchNode2));
+            transportServiceNode2.addTracer(new StartRecoveryOnTargetToShardStartedTracer(logger, beginRelocationLatchNode2, endRelocationLatchNode2));
+
+            MockTransportService transportServiceNode1 = (MockTransportService) internalCluster().getInstance(TransportService.class, node_1);
+            CountDownLatch beginRelocationLatchNode1 = new CountDownLatch(1);
+            transportServiceNode1.addTracer(new StartRecoveryOnSourceTracer(logger, beginRelocationLatchNode1));
 
             // block cluster state updates on node_1 and node_2 so that we end up with two primaries
             BlockClusterStateProcessing disruptionNode2 = new BlockClusterStateProcessing(node_2, getRandom());
@@ -1050,12 +1056,17 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
             Future<ClusterRerouteResponse> rerouteFuture = internalCluster().client().admin().cluster().prepareReroute().add(new MoveAllocationCommand(new ShardId("test", 0), node_1, node_2)).setTimeout(new TimeValue(1000, TimeUnit.MILLISECONDS)).execute();
 
             logger.info("--> wait for relocation to start");
-            // wait for relocation to start
-            beginRelocationLatchNode2.await();
+
             // start to block cluster state updates on node_1 and node_2 so that we end up with two primaries
             // one STARTED on node_1 and one in POST_RECOVERY on node_2
-            disruptionNode1.startDisrupting();
+            // wait for relocation to start on node_2
+            beginRelocationLatchNode2.await();
             disruptionNode2.startDisrupting();
+
+            // wait until node_1 actually acknowledges that relocation starts
+            beginRelocationLatchNode1.await();
+            disruptionNode1.startDisrupting();
+
             endRelocationLatchNode2.await();
             final Client node3Client = internalCluster().client(node_3);
             final Client node2Client = internalCluster().client(node_2);
@@ -1138,12 +1149,12 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
     /**
      * This Tracer can be used to signal start of a recovery and shard started event after translog was copied
      */
-    public static class StartRecoveryToShardStaredTracer extends MockTransportService.Tracer {
+    public static class StartRecoveryOnTargetToShardStartedTracer extends MockTransportService.Tracer {
         private final ESLogger logger;
         private final CountDownLatch beginRelocationLatch;
         private final CountDownLatch sentShardStartedLatch;
 
-        public StartRecoveryToShardStaredTracer(ESLogger logger, CountDownLatch beginRelocationLatch, CountDownLatch sentShardStartedLatch) {
+        public StartRecoveryOnTargetToShardStartedTracer(ESLogger logger, CountDownLatch beginRelocationLatch, CountDownLatch sentShardStartedLatch) {
             this.logger = logger;
             this.beginRelocationLatch = beginRelocationLatch;
             this.sentShardStartedLatch = sentShardStartedLatch;
@@ -1152,15 +1163,37 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         @Override
         public void requestSent(DiscoveryNode node, long requestId, String action, TransportRequestOptions options) {
             if (action.equals(RecoverySource.Actions.START_RECOVERY)) {
-                logger.info("sent: {}, relocation starts", action);
+                logger.info("sent request: {}, relocation starts on target", action);
                 beginRelocationLatch.countDown();
             }
             if (action.equals(ShardStateAction.SHARD_STARTED_ACTION_NAME)) {
-                logger.info("sent: {}, shard started", action);
+                logger.info("sent request: {}, shard started on target", action);
                 sentShardStartedLatch.countDown();
             }
         }
     }
+
+    /**
+     * This Tracer can be used to signal that a recovery source has acknowledged the start of recovery
+     */
+    public static class StartRecoveryOnSourceTracer extends MockTransportService.Tracer {
+        private final ESLogger logger;
+        private final CountDownLatch beginRelocationLatch;
+
+        public StartRecoveryOnSourceTracer(ESLogger logger, CountDownLatch beginRelocationLatch) {
+            this.logger = logger;
+            this.beginRelocationLatch = beginRelocationLatch;
+        }
+
+        @Override
+        public void responseSent(long requestId, String action) {
+            if (action.equals("internal:index/shard/recovery/start_recovery")) {
+                beginRelocationLatch.countDown();
+                logger.info("sent response: {}, relocation starts on source", action);
+            }
+        }
+    }
+
 
     private void logLocalClusterStates(Client... clients) {
         int counter = 1;

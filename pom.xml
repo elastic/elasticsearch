@@ -72,7 +72,7 @@
         <tests.timezone>random</tests.timezone>
         <es.logger.level>ERROR</es.logger.level>
         <tests.heap.size>512m</tests.heap.size>
-        <tests.heapdump.path>${basedir}/logs/</tests.heapdump.path>
+        <tests.heapdump.path>${project.build.directory}/heapdump/</tests.heapdump.path>
         <tests.topn>5</tests.topn>
         <execution.hint.file>.local-${elasticsearch.version}-execution-hints.log</execution.hint.file>
         <execution.hint.integ.file>.local-${elasticsearch.version}-integ-execution-hints.log</execution.hint.integ.file>

@@ -564,6 +564,7 @@ public class PluginManagerIT extends ESIntegTestCase {
         PluginManager.checkForOfficialPlugins("mapper-size");
         PluginManager.checkForOfficialPlugins("discovery-multicast");
         PluginManager.checkForOfficialPlugins("discovery-ec2");
+        PluginManager.checkForOfficialPlugins("repository-hdfs");
         PluginManager.checkForOfficialPlugins("repository-s3");
 
         try {

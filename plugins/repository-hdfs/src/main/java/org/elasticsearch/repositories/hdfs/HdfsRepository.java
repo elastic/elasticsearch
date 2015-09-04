@@ -18,14 +18,6 @@
  */
 package org.elasticsearch.repositories.hdfs;
 
-import java.io.File;
-import java.io.IOException;
-import java.net.MalformedURLException;
-import java.net.URI;
-import java.net.URL;
-import java.util.Map;
-import java.util.Map.Entry;
-
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -38,12 +30,22 @@ import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.hadoop.hdfs.blobstore.HdfsBlobStore;
 import org.elasticsearch.index.snapshots.IndexShardRepository;
 import org.elasticsearch.repositories.RepositoryName;
 import org.elasticsearch.repositories.RepositorySettings;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.threadpool.ThreadPool;
+
+import java.io.IOException;
+import java.net.MalformedURLException;
+import java.net.URI;
+import java.net.URL;
+import java.nio.file.Files;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Map.Entry;
 
 public class HdfsRepository extends BlobStoreRepository implements FileSystemFactory {
 
@@ -54,15 +56,19 @@ public class HdfsRepository extends BlobStoreRepository implements FileSystemFac
     private final ByteSizeValue chunkSize;
     private final boolean compress;
     private final RepositorySettings repositorySettings;
+    private final Environment environment;
     private FileSystem fs;
 
     @Inject
-    public HdfsRepository(RepositoryName name, RepositorySettings repositorySettings, IndexShardRepository indexShardRepository, ThreadPool threadPool) throws IOException {
+    public HdfsRepository(RepositoryName name, RepositorySettings repositorySettings,
+                          IndexShardRepository indexShardRepository, ThreadPool threadPool,
+                          Environment environment) throws IOException {
         super(name.getName(), repositorySettings, indexShardRepository);
 
         this.repositorySettings = repositorySettings;
+        this.environment = environment;
 
-        String path = repositorySettings.settings().get("path", settings.get("path"));
+        String path = repositorySettings.settings().get("path", settings.get("repositories.hdfs.path"));
         if (path == null) {
             throw new IllegalArgumentException("no 'path' defined for hdfs snapshot/restore");
         }
@@ -74,8 +80,8 @@ public class HdfsRepository extends BlobStoreRepository implements FileSystemFac
 
         logger.debug("Using file-system [{}] for URI [{}], path [{}]", fs, fs.getUri(), hdfsPath);
         blobStore = new HdfsBlobStore(settings, this, hdfsPath, threadPool);
-        this.chunkSize = repositorySettings.settings().getAsBytesSize("chunk_size", settings.getAsBytesSize("chunk_size", null));
-        this.compress = repositorySettings.settings().getAsBoolean("compress", settings.getAsBoolean("compress", false));
+        this.chunkSize = repositorySettings.settings().getAsBytesSize("chunk_size", settings.getAsBytesSize("repositories.hdfs.chunk_size", null));
+        this.compress = repositorySettings.settings().getAsBoolean("compress", settings.getAsBoolean("repositories.hdfs.compress", false));
     }
 
     // as the FileSystem is long-lived and might go away, make sure to check it before it's being used.
@@ -102,33 +108,33 @@ public class HdfsRepository extends BlobStoreRepository implements FileSystemFac
     }
 
     private FileSystem initFileSystem(RepositorySettings repositorySettings) throws IOException {
-        Configuration cfg = new Configuration(repositorySettings.settings().getAsBoolean("load_defaults", settings.getAsBoolean("load_defaults", true)));
+        Configuration cfg = new Configuration(repositorySettings.settings().getAsBoolean("load_defaults", settings.getAsBoolean("repositories.hdfs.load_defaults", true)));
 
-        String confLocation = repositorySettings.settings().get("conf_location", settings.get("conf_location"));
+        String confLocation = repositorySettings.settings().get("conf_location", settings.get("repositories.hdfs.conf_location"));
         if (Strings.hasText(confLocation)) {
             for (String entry : Strings.commaDelimitedListToStringArray(confLocation)) {
                 addConfigLocation(cfg, entry.trim());
             }
         }
 
-        Map<String, String> map = settings.getByPrefix("conf.").getAsMap();
+        Map<String, String> map = settings.getByPrefix("repositories.hdfs.conf.").getAsMap();
         for (Entry<String, String> entry : map.entrySet()) {
             cfg.set(entry.getKey(), entry.getValue());
         }
 
         UserGroupInformation.setConfiguration(cfg);
 
-        String uri = repositorySettings.settings().get("uri", settings.get("uri"));
+        String uri = repositorySettings.settings().get("uri", settings.get("repositories.hdfs.uri"));
         URI actualUri = (uri != null ? URI.create(uri) : FileSystem.getDefaultUri(cfg));
-        String user = repositorySettings.settings().get("user", settings.get("user"));
+        String user = repositorySettings.settings().get("user", settings.get("repositories.hdfs.user"));
 
         try {
             // disable FS cache
-            String disableFsCache = String.format("fs.%s.impl.disable.cache", actualUri.getScheme());
+            String disableFsCache = String.format(Locale.ROOT, "fs.%s.impl.disable.cache", actualUri.getScheme());
             cfg.setBoolean(disableFsCache, true);
             return (user != null ? FileSystem.get(actualUri, cfg, user) : FileSystem.get(actualUri, cfg));
         } catch (Exception ex) {
-            throw new ElasticsearchGenerationException(String.format("Cannot create Hdfs file-system for uri [%s]", actualUri), ex);
+            throw new ElasticsearchGenerationException(String.format(Locale.ROOT, "Cannot create Hdfs file-system for uri [%s]", actualUri), ex);
         }
     }
 
@@ -140,14 +146,14 @@ public class HdfsRepository extends BlobStoreRepository implements FileSystemFac
 
             // fall back to file
             if (cfgURL == null) {
-                File file = new File(confLocation);
-                if (!file.canRead()) {
+                java.nio.file.Path path = environment.tmpFile().resolve(confLocation);
+                if (Files.isReadable(path) == false) {
                     throw new IllegalArgumentException(
-                            String.format(
+                            String.format(Locale.ROOT,
                                     "Cannot find classpath resource or file 'conf_location' [%s] defined for hdfs snapshot/restore",
                                     confLocation));
                 }
-                String fileLocation = file.toURI().toString();
+                String fileLocation = path.toString();
                 logger.debug("Adding path [{}] as file [{}]", confLocation, fileLocation);
                 confLocation = fileLocation;
             }
@@ -163,7 +169,7 @@ public class HdfsRepository extends BlobStoreRepository implements FileSystemFac
             try {
                 cfgURL = new URL(confLocation);
             } catch (MalformedURLException ex) {
-                throw new IllegalArgumentException(String.format(
+                throw new IllegalArgumentException(String.format(Locale.ROOT,
                         "Invalid 'conf_location' URL [%s] defined for hdfs snapshot/restore", confLocation), ex);
             }
         }

@@ -47,6 +47,7 @@ OFFICIAL PLUGINS
     - lang-python
     - mapper-murmur3
     - mapper-size
+    - repository-hdfs
     - repository-s3
 
 

@@ -89,6 +89,7 @@ public class PluginManager {
                     "lang-python",
                     "mapper-murmur3",
                     "mapper-size",
+                    "repository-hdfs",
                     "repository-s3"
             ).build();
 

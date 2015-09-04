@@ -439,6 +439,7 @@
         <module>lang-python</module>
         <module>mapper-murmur3</module>
         <module>mapper-size</module>
+        <module>repository-hdfs</module>
         <module>repository-s3</module>
 
         <!-- Internal plugins for test only -->

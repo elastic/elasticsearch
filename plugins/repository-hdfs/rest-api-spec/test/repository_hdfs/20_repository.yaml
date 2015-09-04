@@ -1,0 +1,19 @@
+# Integration tests for Repository HDFS component
+# TODO Fix path if possible or remove this test
+"HDFS repository can be registered":
+    - do:
+        snapshot.create_repository:
+          repository: test_repo_hdfs_1
+          verify: false
+          body:
+            type: hdfs
+            settings:
+              path: "/tmp/hdfs"
+
+    # Get repository
+    - do:
+        snapshot.get_repository:
+          repository: test_repo_hdfs_1
+
+    - is_true: test_repo_hdfs_1
+    - is_true: test_repo_hdfs_1.settings.path

@@ -18,19 +18,18 @@
  */
 package org.elasticsearch.repositories.hdfs;
 
-import java.io.IOException;
-
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.LocalFileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.plugin.hadoop.hdfs.HdfsPlugin;
+import org.elasticsearch.plugin.repository.hdfs.HdfsPlugin;
 import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.repositories.RepositoryVerificationException;
 import org.elasticsearch.snapshots.SnapshotState;
@@ -40,14 +39,16 @@ import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.store.MockFSDirectoryService;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 
-import static org.hamcrest.Matchers.*;
+import java.io.IOException;
+
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 2)
-@Ignore("Guava classpath madness")
-public class HdfsSnapshotRestoreTest extends ESIntegTestCase {
+@AwaitsFix(bugUrl = "Guava classpath madness")
+public class HdfsSnapshotRestoreTests extends ESIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int ordinal) {
@@ -158,7 +159,6 @@ public class HdfsSnapshotRestoreTest extends ESIntegTestCase {
     }
 
     @Test(expected = RepositoryVerificationException.class)
-    @Ignore
     public void testWrongPath() {
         Client client = client();
         logger.info("-->  creating hdfs repository with path [{}]", path);

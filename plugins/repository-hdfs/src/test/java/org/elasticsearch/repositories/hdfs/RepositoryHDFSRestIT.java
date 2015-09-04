@@ -16,28 +16,26 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.plugin.hadoop.hdfs;
 
-import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardRepository;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.repositories.RepositoriesModule;
-import org.elasticsearch.repositories.hdfs.HdfsRepository;
+package org.elasticsearch.repositories.hdfs;
 
-public class HdfsPlugin extends Plugin {
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.test.rest.RestTestCandidate;
+import org.elasticsearch.test.rest.parser.RestTestParseException;
 
-    @Override
-    public String name() {
-        return "repository-hdfs";
+import java.io.IOException;
+
+public class RepositoryHDFSRestIT extends ESRestTestCase {
+
+    public RepositoryHDFSRestIT(@Name("yaml") RestTestCandidate testCandidate) {
+        super(testCandidate);
     }
 
-    @Override
-    public String description() {
-        return "HDFS Snapshot/Restore Plugin";
-    }
-
-    public void onModule(RepositoriesModule repositoriesModule) {
-        //if (settings.getAsBoolean("hdfs.enabled", true)) {
-        repositoriesModule.registerRepository(HdfsRepository.TYPE, HdfsRepository.class, BlobStoreIndexShardRepository.class);
-        //}
+    @ParametersFactory
+    public static Iterable<Object[]> parameters() throws IOException, RestTestParseException {
+        return ESRestTestCase.createParameters(0, 1);
     }
 }
+

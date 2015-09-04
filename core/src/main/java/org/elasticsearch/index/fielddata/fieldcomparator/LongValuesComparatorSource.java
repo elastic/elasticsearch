@@ -69,7 +69,7 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
                 if (nested == null) {
                     selectedValues = sortMode.select(values, dMissingValue);
                 } else {
-                    final BitSet rootDocs = nested.rootDocs(context).bits();
+                    final BitSet rootDocs = nested.rootDocs(context);
                     final DocIdSet innerDocs = nested.innerDocs(context);
                     selectedValues = sortMode.select(values, dMissingValue, rootDocs, innerDocs, context.reader().maxDoc());
                 }

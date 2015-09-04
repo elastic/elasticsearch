@@ -193,7 +193,8 @@ public class TermsQueryParser implements QueryParser {
                 query = new TermsQuery(fieldName, filterValues);
             }
         } else {
-            BooleanQuery bq = new BooleanQuery(disableCoord);
+            BooleanQuery.Builder bq = new BooleanQuery.Builder();
+            bq.setDisableCoord(disableCoord);
             for (Object term : terms) {
                 if (fieldType != null) {
                     bq.add(fieldType.termQuery(term, parseContext), Occur.SHOULD);
@@ -201,7 +202,7 @@ public class TermsQueryParser implements QueryParser {
                     bq.add(new TermQuery(new Term(fieldName, BytesRefs.toBytesRef(term))), Occur.SHOULD);
                 }
             }
-            query = Queries.applyMinimumShouldMatch(bq, minShouldMatch);
+            query = Queries.applyMinimumShouldMatch(bq.build(), minShouldMatch);
         }
         query.setBoost(boost);
 

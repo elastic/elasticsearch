@@ -96,9 +96,10 @@ public class QueryPhaseTests extends ESTestCase {
         Query matchAllCsq = new ConstantScoreQuery(matchAll);
         Query tq = new TermQuery(new Term("foo", "bar"));
         Query tCsq = new ConstantScoreQuery(tq);
-        BooleanQuery bq = new BooleanQuery();
-        bq.add(matchAll, Occur.SHOULD);
-        bq.add(tq, Occur.MUST);
+        BooleanQuery bq = new BooleanQuery.Builder()
+            .add(matchAll, Occur.SHOULD)
+            .add(tq, Occur.MUST)
+            .build();
 
         countTestCase(matchAll, reader, false);
         countTestCase(matchAllCsq, reader, false);

@@ -35,10 +35,6 @@ public class QueryWrappingQueryBuilder extends AbstractQueryBuilder<QueryWrappin
 
     public QueryWrappingQueryBuilder(Query query) {
         this.query = query;
-        //hack to make sure that the boost from the wrapped query is used, otherwise it gets overwritten.
-        if (query != null) {
-            this.boost = query.getBoost();
-        }
     }
 
     @Override
@@ -55,5 +51,10 @@ public class QueryWrappingQueryBuilder extends AbstractQueryBuilder<QueryWrappin
     public String getWriteableName() {
         // this should not be called since we overwrite BaseQueryBuilder#toQuery() in this class
         throw new UnsupportedOperationException();
+    }
+
+    @Override
+    protected void setFinalBoost(Query query) {
+        //no-op the wrapper lucene query has already its boost set
     }
 }

@@ -2546,31 +2546,6 @@ public class SimpleIndexQueryParserTests extends ESSingleNodeTestCase {
     }
 
     @Test
-    public void testSimpleQueryString() throws Exception {
-        IndexQueryParserService queryParser = queryParser();
-        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/simple-query-string.json");
-        Query parsedQuery = queryParser.parse(query).query();
-        assertThat(parsedQuery, instanceOf(BooleanQuery.class));
-    }
-
-    @Test
-    public void testSimpleQueryStringBoost() throws Exception {
-        IndexQueryParserService queryParser = queryParser();
-        SimpleQueryStringBuilder simpleQueryStringBuilder = new SimpleQueryStringBuilder("test");
-        simpleQueryStringBuilder.field("body", 5);
-        Query parsedQuery = queryParser.parse(simpleQueryStringBuilder.toString()).query();
-        assertThat(parsedQuery, instanceOf(TermQuery.class));
-        assertThat(parsedQuery.getBoost(), equalTo(5f));
-
-        simpleQueryStringBuilder = new SimpleQueryStringBuilder("test");
-        simpleQueryStringBuilder.field("body", 5);
-        simpleQueryStringBuilder.boost(2);
-        parsedQuery = queryParser.parse(simpleQueryStringBuilder.toString()).query();
-        assertThat(parsedQuery, instanceOf(TermQuery.class));
-        assertThat(parsedQuery.getBoost(), equalTo(10f));
-    }
-
-    @Test
     public void testMatchWithFuzzyTranspositions() throws Exception {
         IndexQueryParserService queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/match-with-fuzzy-transpositions.json");

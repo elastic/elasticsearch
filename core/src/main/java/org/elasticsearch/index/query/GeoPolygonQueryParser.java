@@ -70,7 +70,7 @@ public class GeoPolygonQueryParser implements QueryParser {
 
         List<GeoPoint> shell = Lists.newArrayList();
 
-        final boolean indexCreatedBeforeV2_0 = parseContext.indexVersionCreated().before(Version.V_2_0_0);
+        final boolean indexCreatedBeforeV2_0 = parseContext.indexVersionCreated().before(Version.V_2_0_0_beta1);
         boolean coerce = false;
         boolean ignoreMalformed = false;
         String queryName = null;

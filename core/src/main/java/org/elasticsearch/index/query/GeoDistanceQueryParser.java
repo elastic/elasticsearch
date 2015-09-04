@@ -71,7 +71,7 @@ public class GeoDistanceQueryParser implements QueryParser {
         DistanceUnit unit = DistanceUnit.DEFAULT;
         GeoDistance geoDistance = GeoDistance.DEFAULT;
         String optimizeBbox = "memory";
-        final boolean indexCreatedBeforeV2_0 = parseContext.indexVersionCreated().before(Version.V_2_0_0);
+        final boolean indexCreatedBeforeV2_0 = parseContext.indexVersionCreated().before(Version.V_2_0_0_beta1);
         boolean coerce = false;
         boolean ignoreMalformed = false;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {

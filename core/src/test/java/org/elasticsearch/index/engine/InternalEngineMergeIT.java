@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.index.engine;
 
-import com.google.common.base.Predicate;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -65,15 +64,12 @@ public class InternalEngineMergeIT extends ESIntegTestCase {
             logger.info("index round [{}] - segments {}, total merges {}, current merge {}", i, stats.getPrimaries().getSegments().getCount(), stats.getPrimaries().getMerge().getTotal(), stats.getPrimaries().getMerge().getCurrent());
         }
         final long upperNumberSegments = 2 * numOfShards * 10;
-        awaitBusy(new Predicate<Object>() {
-            @Override
-            public boolean apply(Object input) {
-                IndicesStatsResponse stats = client().admin().indices().prepareStats().setSegments(true).setMerge(true).get();
-                logger.info("numshards {}, segments {}, total merges {}, current merge {}", numOfShards, stats.getPrimaries().getSegments().getCount(), stats.getPrimaries().getMerge().getTotal(), stats.getPrimaries().getMerge().getCurrent());
-                long current = stats.getPrimaries().getMerge().getCurrent();
-                long count = stats.getPrimaries().getSegments().getCount();
-                return count < upperNumberSegments && current == 0;
-            }
+        awaitBusy(() -> {
+            IndicesStatsResponse stats = client().admin().indices().prepareStats().setSegments(true).setMerge(true).get();
+            logger.info("numshards {}, segments {}, total merges {}, current merge {}", numOfShards, stats.getPrimaries().getSegments().getCount(), stats.getPrimaries().getMerge().getTotal(), stats.getPrimaries().getMerge().getCurrent());
+            long current = stats.getPrimaries().getMerge().getCurrent();
+            long count = stats.getPrimaries().getSegments().getCount();
+            return count < upperNumberSegments && current == 0;
         });
         IndicesStatsResponse stats = client().admin().indices().prepareStats().setSegments(true).setMerge(true).get();
         logger.info("numshards {}, segments {}, total merges {}, current merge {}", numOfShards, stats.getPrimaries().getSegments().getCount(), stats.getPrimaries().getMerge().getTotal(), stats.getPrimaries().getMerge().getCurrent());

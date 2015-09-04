@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.deletebyquery;
 
-import com.google.common.base.Predicate;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
@@ -164,13 +163,8 @@ public class TransportDeleteByQueryActionTests extends ESSingleNodeTestCase {
         TestActionListener listener = new TestActionListener();
 
         final TransportDeleteByQueryAction.AsyncDeleteByQueryAction async = newAsyncAction(delete, listener);
-        awaitBusy(new Predicate<Object>() {
-            @Override
-            public boolean apply(Object input) {
-                // Wait until the action timed out
-                return async.hasTimedOut();
-            }
-        });
+        // Wait until the action timed out
+        awaitBusy(() -> async.hasTimedOut());
 
         async.executeScroll(searchResponse.getScrollId());
         waitForCompletion("scroll request returns zero documents on expired scroll id", listener);
@@ -419,12 +413,7 @@ public class TransportDeleteByQueryActionTests extends ESSingleNodeTestCase {
     private void waitForCompletion(String testName, final TestActionListener listener) {
         logger.info(" --> waiting for delete-by-query [{}] to complete", testName);
         try {
-            awaitBusy(new Predicate<Object>() {
-                @Override
-                public boolean apply(Object input) {
-                    return listener.isTerminated();
-                }
-            });
+            awaitBusy(() -> listener.isTerminated());
         } catch (InterruptedException e) {
             fail("exception when waiting for delete-by-query [" + testName + "] to complete: " + e.getMessage());
             logger.error("exception when waiting for delete-by-query [{}] to complete", e, testName);

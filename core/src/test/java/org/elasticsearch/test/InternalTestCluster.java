@@ -24,12 +24,7 @@ import com.carrotsearch.randomizedtesting.SysGlobals;
 import com.carrotsearch.randomizedtesting.generators.RandomInts;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
-import com.google.common.base.Predicate;
-import com.google.common.base.Predicates;
-import com.google.common.collect.Collections2;
-import com.google.common.collect.Iterables;
 import com.google.common.collect.Iterators;
-import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
@@ -127,13 +122,20 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static junit.framework.Assert.fail;
-import static org.apache.lucene.util.LuceneTestCase.*;
+import static org.apache.lucene.util.LuceneTestCase.TEST_NIGHTLY;
+import static org.apache.lucene.util.LuceneTestCase.rarely;
+import static org.apache.lucene.util.LuceneTestCase.usually;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.ESTestCase.assertBusy;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.junit.Assert.assertThat;
 
 /**
@@ -532,14 +534,13 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     private synchronized NodeAndClient getRandomNodeAndClient() {
-        Predicate<NodeAndClient> all = Predicates.alwaysTrue();
-        return getRandomNodeAndClient(all);
+        return getRandomNodeAndClient(nc -> true);
     }
 
 
     private synchronized NodeAndClient getRandomNodeAndClient(Predicate<NodeAndClient> predicate) {
         ensureOpen();
-        Collection<NodeAndClient> values = Collections2.filter(nodes.values(), predicate);
+        Collection<NodeAndClient> values = nodes.values().stream().filter(predicate).collect(Collectors.toCollection(ArrayList::new));
         if (!values.isEmpty()) {
             int whichOne = random.nextInt(values.size());
             for (NodeAndClient nodeAndClient : values) {
@@ -588,8 +589,9 @@ public final class InternalTestCluster extends TestCluster {
             return;
         }
         // prevent killing the master if possible and client nodes
-        final Iterator<NodeAndClient> values = n == 0 ? nodes.values().iterator() : Iterators.filter(nodes.values().iterator(),
-                Predicates.and(new DataNodePredicate(), Predicates.not(new MasterNodePredicate(getMasterName()))));
+        final Stream<NodeAndClient> collection =
+                n == 0 ? nodes.values().stream() : nodes.values().stream().filter(new DataNodePredicate().and(new MasterNodePredicate(getMasterName()).negate()));
+        final Iterator<NodeAndClient> values = collection.iterator();
 
         final Iterator<NodeAndClient> limit = Iterators.limit(values, size - n);
         logger.info("changing cluster size from {} to {}, {} data nodes", size(), n + numSharedClientNodes, n);
@@ -682,7 +684,7 @@ public final class InternalTestCluster extends TestCluster {
      */
     public synchronized Client nonMasterClient() {
         ensureOpen();
-        NodeAndClient randomNodeAndClient = getRandomNodeAndClient(Predicates.not(new MasterNodePredicate(getMasterName())));
+        NodeAndClient randomNodeAndClient = getRandomNodeAndClient(new MasterNodePredicate(getMasterName()).negate());
         if (randomNodeAndClient != null) {
             return randomNodeAndClient.nodeClient(); // ensure node client non-master is requested
         }
@@ -758,12 +760,7 @@ public final class InternalTestCluster extends TestCluster {
      */
     public synchronized Client client(final Predicate<Settings> filterPredicate) {
         ensureOpen();
-        final NodeAndClient randomNodeAndClient = getRandomNodeAndClient(new Predicate<NodeAndClient>() {
-            @Override
-            public boolean apply(NodeAndClient nodeAndClient) {
-                return filterPredicate.apply(nodeAndClient.node.settings());
-            }
-        });
+        final NodeAndClient randomNodeAndClient = getRandomNodeAndClient(nodeAndClient -> filterPredicate.test(nodeAndClient.node.settings()));
         if (randomNodeAndClient != null) {
             return randomNodeAndClient.client(random);
         }
@@ -1145,7 +1142,7 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     private synchronized <T> Iterable<T> getInstances(Class<T> clazz, Predicate<NodeAndClient> predicate) {
-        Iterable<NodeAndClient> filteredNodes = Iterables.filter(nodes.values(), predicate);
+        Iterable<NodeAndClient> filteredNodes = nodes.values().stream().filter(predicate)::iterator;
         List<T> instances = new ArrayList<>();
         for (NodeAndClient nodeAndClient : filteredNodes) {
             instances.add(getInstanceFromNode(clazz, nodeAndClient.node));
@@ -1157,18 +1154,7 @@ public final class InternalTestCluster extends TestCluster {
      * Returns a reference to the given nodes instances of the given class &gt;T&lt;
      */
     public synchronized <T> T getInstance(Class<T> clazz, final String node) {
-        final Predicate<InternalTestCluster.NodeAndClient> predicate;
-        if (node != null) {
-            predicate = new Predicate<InternalTestCluster.NodeAndClient>() {
-                @Override
-                public boolean apply(NodeAndClient nodeAndClient) {
-                    return node.equals(nodeAndClient.name);
-                }
-            };
-        } else {
-            predicate = Predicates.alwaysTrue();
-        }
-        return getInstance(clazz, predicate);
+        return getInstance(clazz, nc -> node == null || node.equals(nc.name));
     }
 
     public synchronized <T> T getDataNodeInstance(Class<T> clazz) {
@@ -1185,7 +1171,7 @@ public final class InternalTestCluster extends TestCluster {
      * Returns a reference to a random nodes instances of the given class &gt;T&lt;
      */
     public synchronized <T> T getInstance(Class<T> clazz) {
-        return getInstance(clazz, Predicates.<NodeAndClient>alwaysTrue());
+        return getInstance(clazz, nc -> true);
     }
 
     private synchronized <T> T getInstanceFromNode(Class<T> clazz, Node node) {
@@ -1228,12 +1214,7 @@ public final class InternalTestCluster extends TestCluster {
      */
     public synchronized void stopRandomNode(final Predicate<Settings> filter) throws IOException {
         ensureOpen();
-        NodeAndClient nodeAndClient = getRandomNodeAndClient(new Predicate<InternalTestCluster.NodeAndClient>() {
-            @Override
-            public boolean apply(NodeAndClient nodeAndClient) {
-                return filter.apply(nodeAndClient.node.settings());
-            }
-        });
+        NodeAndClient nodeAndClient = getRandomNodeAndClient(nc -> filter.test(nc.node.settings()));
         if (nodeAndClient != null) {
             logger.info("Closing filtered random node [{}] ", nodeAndClient.name);
             removeDisruptionSchemeFromNode(nodeAndClient);
@@ -1260,7 +1241,7 @@ public final class InternalTestCluster extends TestCluster {
      * Stops the any of the current nodes but not the master node.
      */
     public void stopRandomNonMasterNode() throws IOException {
-        NodeAndClient nodeAndClient = getRandomNodeAndClient(Predicates.not(new MasterNodePredicate(getMasterName())));
+        NodeAndClient nodeAndClient = getRandomNodeAndClient(new MasterNodePredicate(getMasterName()).negate());
         if (nodeAndClient != null) {
             logger.info("Closing random non master node [{}] current master [{}] ", nodeAndClient.name, getMasterName());
             removeDisruptionSchemeFromNode(nodeAndClient);
@@ -1280,7 +1261,7 @@ public final class InternalTestCluster extends TestCluster {
      * Restarts a random node in the cluster and calls the callback during restart.
      */
     public void restartRandomNode(RestartCallback callback) throws Exception {
-        restartRandomNode(Predicates.<NodeAndClient>alwaysTrue(), callback);
+        restartRandomNode(nc -> true, callback);
     }
 
     /**
@@ -1442,7 +1423,12 @@ public final class InternalTestCluster extends TestCluster {
 
     private synchronized Set<String> nRandomDataNodes(int numNodes) {
         assert size() >= numNodes;
-        NavigableMap<String, NodeAndClient> dataNodes = Maps.filterEntries(nodes, new EntryNodePredicate(new DataNodePredicate()));
+        Map<String, NodeAndClient> dataNodes =
+                nodes
+                        .entrySet()
+                        .stream()
+                        .filter(new EntryNodePredicate(new DataNodePredicate()))
+                        .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
         return Sets.newHashSet(Iterators.limit(dataNodes.keySet().iterator(), numNodes));
     }
 
@@ -1676,23 +1662,31 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     private synchronized Collection<NodeAndClient> dataNodeAndClients() {
-        return Collections2.filter(nodes.values(), new DataNodePredicate());
+        return filterNodes(nodes, new DataNodePredicate());
     }
 
     private synchronized Collection<NodeAndClient> dataAndMasterNodes() {
-        return Collections2.filter(nodes.values(), new DataOrMasterNodePredicate());
+        return filterNodes(nodes, new DataOrMasterNodePredicate());
+    }
+
+    private synchronized Collection<NodeAndClient> filterNodes(Map<String, InternalTestCluster.NodeAndClient> map, Predicate<NodeAndClient> predicate) {
+        return map
+                .values()
+                .stream()
+                .filter(predicate)
+                .collect(Collectors.toCollection(ArrayList::new));
     }
 
     private static final class DataNodePredicate implements Predicate<NodeAndClient> {
         @Override
-        public boolean apply(NodeAndClient nodeAndClient) {
+        public boolean test(NodeAndClient nodeAndClient) {
             return DiscoveryNode.dataNode(nodeAndClient.node.settings());
         }
     }
 
     private static final class DataOrMasterNodePredicate implements Predicate<NodeAndClient> {
         @Override
-        public boolean apply(NodeAndClient nodeAndClient) {
+        public boolean test(NodeAndClient nodeAndClient) {
             return DiscoveryNode.dataNode(nodeAndClient.node.settings()) ||
                     DiscoveryNode.masterNode(nodeAndClient.node.settings());
         }
@@ -1706,14 +1700,14 @@ public final class InternalTestCluster extends TestCluster {
         }
 
         @Override
-        public boolean apply(NodeAndClient nodeAndClient) {
+        public boolean test(NodeAndClient nodeAndClient) {
             return masterNodeName.equals(nodeAndClient.name);
         }
     }
 
     private static final class ClientNodePredicate implements Predicate<NodeAndClient> {
         @Override
-        public boolean apply(NodeAndClient nodeAndClient) {
+        public boolean test(NodeAndClient nodeAndClient) {
             return DiscoveryNode.clientNode(nodeAndClient.node.settings());
         }
     }
@@ -1726,8 +1720,8 @@ public final class InternalTestCluster extends TestCluster {
         }
 
         @Override
-        public boolean apply(Map.Entry<String, NodeAndClient> entry) {
-            return delegateNodePredicate.apply(entry.getValue());
+        public boolean test(Map.Entry<String, NodeAndClient> entry) {
+            return delegateNodePredicate.test(entry.getValue());
         }
     }
 
@@ -1795,7 +1789,7 @@ public final class InternalTestCluster extends TestCluster {
         }
 
         @Override
-        public boolean apply(Settings settings) {
+        public boolean test(Settings settings) {
             return nodeNames.contains(settings.get("name"));
 
         }

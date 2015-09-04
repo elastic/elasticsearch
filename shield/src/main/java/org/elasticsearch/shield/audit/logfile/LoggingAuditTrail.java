@@ -168,7 +168,7 @@ public class LoggingAuditTrail implements AuditTrail {
         String indices = indicesString(message);
 
         // special treatment for internal system actions - only log on trace
-        if (user.isSystem() && Privilege.SYSTEM.predicate().apply(action)) {
+        if (user.isSystem() && Privilege.SYSTEM.predicate().test(action)) {
             if (logger.isTraceEnabled()) {
                 if (indices != null) {
                     logger.trace("{}[transport] [access_granted]\t{}, principal=[{}], action=[{}], indices=[{}], request=[{}]", prefix, originAttributes(message, transport), user.principal(), action, indices, message.getClass().getSimpleName());

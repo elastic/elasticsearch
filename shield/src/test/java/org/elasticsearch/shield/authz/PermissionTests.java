@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.shield.authz;
 
-import com.google.common.base.Predicate;
 import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
@@ -14,9 +13,16 @@ import org.junit.Test;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
+import java.util.function.Predicate;
 
-import static org.elasticsearch.shield.authz.Privilege.Index.*;
-import static org.hamcrest.Matchers.*;
+import static org.elasticsearch.shield.authz.Privilege.Index.Cluster;
+import static org.elasticsearch.shield.authz.Privilege.Index.MONITOR;
+import static org.elasticsearch.shield.authz.Privilege.Index.READ;
+import static org.elasticsearch.shield.authz.Privilege.Index.SEARCH;
+import static org.elasticsearch.shield.authz.Privilege.Index.union;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  *
@@ -72,11 +78,11 @@ public class PermissionTests extends ESTestCase {
 
     // "baz_*foo", "/fool.*bar/"
     private void testAllowedIndicesMatcher(Predicate<String> indicesMatcher) {
-        assertThat(indicesMatcher.apply("foobar"), is(false));
-        assertThat(indicesMatcher.apply("fool"), is(false));
-        assertThat(indicesMatcher.apply("fool2bar"), is(true));
-        assertThat(indicesMatcher.apply("baz_foo"), is(true));
-        assertThat(indicesMatcher.apply("barbapapa"), is(false));
+        assertThat(indicesMatcher.test("foobar"), is(false));
+        assertThat(indicesMatcher.test("fool"), is(false));
+        assertThat(indicesMatcher.test("fool2bar"), is(true));
+        assertThat(indicesMatcher.test("baz_foo"), is(true));
+        assertThat(indicesMatcher.test("barbapapa"), is(false));
     }
 
 

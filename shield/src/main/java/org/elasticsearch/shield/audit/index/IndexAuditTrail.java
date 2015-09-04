@@ -400,7 +400,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
     public void accessGranted(User user, String action, TransportMessage<?> message) {
         if (!principalIsAuditor(user.principal())) {
             // special treatment for internal system actions - only log if explicitly told to
-            if (user.isSystem() && Privilege.SYSTEM.predicate().apply(action)) {
+            if (user.isSystem() && Privilege.SYSTEM.predicate().test(action)) {
                 if (events.contains(SYSTEM_ACCESS_GRANTED)) {
                     try {
                         enqueue(message("access_granted", action, user.principal(), null, indices(message), message), "access_granted");

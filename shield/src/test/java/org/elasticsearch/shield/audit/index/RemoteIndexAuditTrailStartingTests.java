@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.shield.audit.index;
 
-import com.google.common.base.Predicate;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.common.settings.Settings;
@@ -127,12 +126,7 @@ public class RemoteIndexAuditTrailStartingTests extends ShieldIntegTestCase {
     public void testThatRemoteAuditInstancesAreStarted() throws Exception {
         Iterable<IndexAuditTrail> auditTrails = remoteCluster.getInstances(IndexAuditTrail.class);
         for (final IndexAuditTrail auditTrail : auditTrails) {
-            awaitBusy(new Predicate<Void>() {
-                @Override
-                public boolean apply(Void aVoid) {
-                    return auditTrail.state() == IndexAuditTrail.State.STARTED;
-                }
-            }, 2L, TimeUnit.SECONDS);
+            awaitBusy(() -> auditTrail.state() == IndexAuditTrail.State.STARTED, 2L, TimeUnit.SECONDS);
             assertThat(auditTrail.state(), is(IndexAuditTrail.State.STARTED));
         }
     }

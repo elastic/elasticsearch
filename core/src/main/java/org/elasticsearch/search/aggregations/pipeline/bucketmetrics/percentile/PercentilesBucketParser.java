@@ -19,17 +19,14 @@
 
 package org.elasticsearch.search.aggregations.pipeline.bucketmetrics.percentile;
 
-import com.google.common.primitives.Doubles;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorFactory;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.BucketMetricsParser;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
-import org.elasticsearch.search.internal.SearchContext;
 
-import java.io.IOException;
-import java.util.ArrayList;
+import java.text.ParseException;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 
@@ -37,7 +34,6 @@ import static org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPo
 public class PercentilesBucketParser extends BucketMetricsParser {
 
     public static final ParseField PERCENTS = new ParseField("percents");
-    double[] percents = new double[] { 1.0, 5.0, 25.0, 50.0, 75.0, 95.0, 99.0 };
 
     @Override
     public String type() {
@@ -46,22 +42,31 @@ public class PercentilesBucketParser extends BucketMetricsParser {
 
     @Override
     protected PipelineAggregatorFactory buildFactory(String pipelineAggregatorName, String[] bucketsPaths, GapPolicy gapPolicy,
-                                                     ValueFormatter formatter) {
-        return new PercentilesBucketPipelineAggregator.Factory(pipelineAggregatorName, bucketsPaths, gapPolicy, formatter, percents);
-    }
+                                                     ValueFormatter formatter, Map<String, Object> unparsedParams) throws ParseException {
 
-    @Override
-    protected boolean doParse(String pipelineAggregatorName, String currentFieldName,
-                              XContentParser.Token token, XContentParser parser, SearchContext context) throws IOException {
-        if (context.parseFieldMatcher().match(currentFieldName, PERCENTS)) {
+        double[] percents = new double[] { 1.0, 5.0, 25.0, 50.0, 75.0, 95.0, 99.0 };
+        int counter = 0;
+        Object percentParam = unparsedParams.get(PERCENTS.getPreferredName());
 
-            List<Double> parsedPercents = new ArrayList<>();
-            while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                parsedPercents.add(parser.doubleValue());
+        if (percentParam != null) {
+            if (percentParam instanceof List) {
+                percents = new double[((List) percentParam).size()];
+                for (Object p : (List) percentParam) {
+                    if (p instanceof Double) {
+                        percents[counter] = (Double) p;
+                        counter += 1;
+                    } else {
+                        throw new ParseException("Parameter [" + PERCENTS.getPreferredName() + "] must be an array of doubles, type `"
+                                + percentParam.getClass().getSimpleName() + "` provided instead", 0);
+                    }
+                }
+                unparsedParams.remove(PERCENTS.getPreferredName());
+            } else {
+                throw new ParseException("Parameter [" + PERCENTS.getPreferredName() + "] must be an array of doubles, type `"
+                        + percentParam.getClass().getSimpleName() + "` provided instead", 0);
             }
-            percents = Doubles.toArray(parsedPercents);
-            return true;
         }
-        return false;
+
+        return new PercentilesBucketPipelineAggregator.Factory(pipelineAggregatorName, bucketsPaths, gapPolicy, formatter, percents);
     }
 }

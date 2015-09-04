@@ -489,7 +489,6 @@ public class PercentilesBucketIT extends ESIntegTestCase {
     }
 
     @Test
-    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/13337")
     public void testNested() throws Exception {
         SearchResponse response = client()
                 .prepareSearch("idx")

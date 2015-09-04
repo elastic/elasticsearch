@@ -22,6 +22,7 @@ import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequest;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequestBuilder;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeResponse;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.rest.action.admin.indices.analyze.RestAnalyzeAction;
@@ -217,10 +218,9 @@ public class AnalyzeActionIT extends ESIntegTestCase {
     @Test
     public void testParseXContentForAnalyzeRequestWithInvalidJsonThrowsException() throws Exception {
         AnalyzeRequest analyzeRequest = new AnalyzeRequest("for test");
-        BytesReference invalidContent =  XContentFactory.jsonBuilder().startObject().value("invalid_json").endObject().bytes();
 
         try {
-            RestAnalyzeAction.buildFromContent(invalidContent, analyzeRequest);
+            RestAnalyzeAction.buildFromContent(new BytesArray("{invalid_json}"), analyzeRequest);
             fail("shouldn't get here");
         } catch (Exception e) {
             assertThat(e, instanceOf(IllegalArgumentException.class));

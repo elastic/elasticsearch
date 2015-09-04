@@ -105,7 +105,8 @@ public abstract class BucketMetricsParser implements PipelineAggregator.Parser {
     protected abstract PipelineAggregatorFactory buildFactory(String pipelineAggregatorName, String[] bucketsPaths, GapPolicy gapPolicy,
             ValueFormatter formatter);
 
-    protected boolean doParse(String pipelineAggregatorName, String currentFieldName, Token token, XContentParser parser, SearchContext context) {
+    protected boolean doParse(String pipelineAggregatorName, String currentFieldName, Token token,
+                              XContentParser parser, SearchContext context) throws IOException {
         return false;
     }
 

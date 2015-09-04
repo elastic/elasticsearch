@@ -24,6 +24,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
 import org.elasticsearch.search.profile.InternalProfileBreakdown;
 import org.elasticsearch.search.profile.InternalProfiler;
+import org.elasticsearch.search.profile.ProfileBreakdown;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -48,24 +49,24 @@ public abstract class ProfileQuery {
     public static class ProfileWeight extends Weight {
 
         private final Weight subQueryWeight;
-        private final InternalProfiler profiler;
+        private final ProfileBreakdown profile;
 
-        public ProfileWeight(Query query, Weight subQueryWeight, InternalProfiler profiler) throws IOException {
+        public ProfileWeight(Query query, Weight subQueryWeight, ProfileBreakdown profile) throws IOException {
             super(query);
             this.subQueryWeight = subQueryWeight;
-            this.profiler = profiler;
+            this.profile = profile;
         }
 
         @Override
         public Scorer scorer(LeafReaderContext context) throws IOException {
-            profiler.startTime(getQuery(), InternalProfileBreakdown.TimingType.BUILD_SCORER);
+            profile.startTime(InternalProfileBreakdown.TimingType.BUILD_SCORER);
             Scorer subQueryScorer = subQueryWeight.scorer(context);
-            profiler.stopAndRecordTime(getQuery(), InternalProfileBreakdown.TimingType.BUILD_SCORER);
+            profile.stopAndRecordTime(InternalProfileBreakdown.TimingType.BUILD_SCORER);
             if (subQueryScorer == null) {
                 return null;
             }
 
-            return new ProfileScorer(this, subQueryScorer, profiler, getQuery());
+            return new ProfileScorer(this, subQueryScorer, profile);
         }
 
         @Override
@@ -114,15 +115,13 @@ public abstract class ProfileQuery {
 
         private final Scorer scorer;
         private ProfileWeight profileWeight;
-        private final InternalProfiler profiler;
-        private final Query query;
+        private final ProfileBreakdown profile;
 
-        private ProfileScorer(ProfileWeight w, Scorer scorer, InternalProfiler profiler, Query query) throws IOException {
+        private ProfileScorer(ProfileWeight w, Scorer scorer, ProfileBreakdown profile) throws IOException {
             super(w);
             this.scorer = scorer;
             this.profileWeight = w;
-            this.profiler = profiler;
-            this.query = query;
+            this.profile = profile;
         }
 
         @Override
@@ -132,31 +131,31 @@ public abstract class ProfileQuery {
 
         @Override
         public int advance(int target) throws IOException {
-            profiler.startTime(query, InternalProfileBreakdown.TimingType.ADVANCE);
+            profile.startTime(InternalProfileBreakdown.TimingType.ADVANCE);
             try {
                 return scorer.advance(target);
             } finally {
-                profiler.stopAndRecordTime(query, InternalProfileBreakdown.TimingType.ADVANCE);
+                profile.stopAndRecordTime(InternalProfileBreakdown.TimingType.ADVANCE);
             }
         }
 
         @Override
         public int nextDoc() throws IOException {
-            profiler.startTime(query, InternalProfileBreakdown.TimingType.NEXT_DOC);
+            profile.startTime(InternalProfileBreakdown.TimingType.NEXT_DOC);
             try {
                 return scorer.nextDoc();
             } finally {
-                profiler.stopAndRecordTime(query, InternalProfileBreakdown.TimingType.NEXT_DOC);
+                profile.stopAndRecordTime(InternalProfileBreakdown.TimingType.NEXT_DOC);
             }
         }
 
         @Override
         public float score() throws IOException {
-            profiler.startTime(query, InternalProfileBreakdown.TimingType.SCORE);
+            profile.startTime(InternalProfileBreakdown.TimingType.SCORE);
             try {
                 return scorer.score();
             } finally {
-                profiler.stopAndRecordTime(query, InternalProfileBreakdown.TimingType.SCORE);
+                profile.stopAndRecordTime(InternalProfileBreakdown.TimingType.SCORE);
             }
         }
 
@@ -191,21 +190,21 @@ public abstract class ProfileQuery {
 
                 @Override
                 public int advance(int target) throws IOException {
-                    profiler.startTime(query, InternalProfileBreakdown.TimingType.ADVANCE);
+                    profile.startTime(InternalProfileBreakdown.TimingType.ADVANCE);
                     try {
                         return scorer.advance(target);
                     } finally {
-                        profiler.stopAndRecordTime(query, InternalProfileBreakdown.TimingType.ADVANCE);
+                        profile.stopAndRecordTime(InternalProfileBreakdown.TimingType.ADVANCE);
                     }
                 }
 
                 @Override
                 public int nextDoc() throws IOException {
-                    profiler.startTime(query, InternalProfileBreakdown.TimingType.NEXT_DOC);
+                    profile.startTime(InternalProfileBreakdown.TimingType.NEXT_DOC);
                     try {
                         return scorer.nextDoc();
                     } finally {
-                        profiler.stopAndRecordTime(query, InternalProfileBreakdown.TimingType.NEXT_DOC);
+                        profile.stopAndRecordTime(InternalProfileBreakdown.TimingType.NEXT_DOC);
                     }
                 }
 
@@ -222,11 +221,11 @@ public abstract class ProfileQuery {
             return new TwoPhaseIterator(approximation) {
                 @Override
                 public boolean matches() throws IOException {
-                    profiler.startTime(query, InternalProfileBreakdown.TimingType.MATCH);
+                    profile.startTime(InternalProfileBreakdown.TimingType.MATCH);
                     try {
                         return in.matches();
                     } finally {
-                        profiler.stopAndRecordTime(query, InternalProfileBreakdown.TimingType.MATCH);
+                        profile.stopAndRecordTime(InternalProfileBreakdown.TimingType.MATCH);
                     }
                 }
             };

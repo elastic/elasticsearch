@@ -27,6 +27,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.common.lucene.search.ProfileQuery;
 import org.elasticsearch.search.profile.InternalProfileBreakdown;
+import org.elasticsearch.search.profile.ProfileBreakdown;
 
 import java.io.IOException;
 
@@ -63,8 +64,10 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     @Override
     public Query rewrite(Query original) throws IOException {
+        ProfileBreakdown profile = null;
         if (searchContext.profile()) {
-            searchContext.queryProfiler().startTime(original, InternalProfileBreakdown.TimingType.REWRITE);
+            profile = searchContext.queryProfiler().getProfileBreakDown(original);
+            profile.startTime(InternalProfileBreakdown.TimingType.REWRITE);
         }
 
         Query rewritten = null;
@@ -72,7 +75,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             return rewritten = in.rewrite(original);
         } finally {
             if (searchContext.profile()) {
-                searchContext.queryProfiler().stopAndRecordTime(original, InternalProfileBreakdown.TimingType.REWRITE);
+                profile.stopAndRecordTime(InternalProfileBreakdown.TimingType.REWRITE);
                 if (rewritten != null) {
                     searchContext.queryProfiler().reconcileRewrite(original, rewritten);
                 }
@@ -102,12 +105,13 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             // each invocation so that it can build an internal representation of the query
             // tree
             searchContext.queryProfiler().pushQuery(query);
-            searchContext.queryProfiler().startTime(query, InternalProfileBreakdown.TimingType.WEIGHT);
+            ProfileBreakdown profile = searchContext.queryProfiler().getProfileBreakDown(query);
+            profile.startTime(InternalProfileBreakdown.TimingType.WEIGHT);
             // nocommit: is it ok to not delegate to in?
             Weight weight = super.createWeight(query, needsScores);
-            searchContext.queryProfiler().stopAndRecordTime(query, InternalProfileBreakdown.TimingType.WEIGHT);
+            profile.stopAndRecordTime(InternalProfileBreakdown.TimingType.WEIGHT);
             searchContext.queryProfiler().pollLast();
-            return new ProfileQuery.ProfileWeight(query, weight, searchContext.queryProfiler());
+            return new ProfileQuery.ProfileWeight(query, weight, profile);
         } else {
             return in.createWeight(query, needsScores);
         }

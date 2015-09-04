@@ -68,31 +68,14 @@ public class InternalProfiler {
         tree = new HashMap<>(10);
     }
 
-    /**
-     * Start timing a query for a specific Timing context
-     * @param query     The query to start profiling
-     * @param timing    The Timing context to time
-     */
-    public void startTime(Query query, ProfileBreakdown.TimingType timing) {
+    /** Get the {@link ProfileBreakdown} for the given query, potentially creating it if it did not exist. */
+    public ProfileBreakdown getProfileBreakDown(Query query) {
         InternalProfileBreakdown queryTimings = timings.get(query);
-
         if (queryTimings == null) {
             queryTimings = new InternalProfileBreakdown();
+            timings.put(query, queryTimings);
         }
-
-        queryTimings.startTime(timing);
-        timings.put(query, queryTimings);
-    }
-
-    /**
-     * Stop and save the elapsed time for this query for a specific Timing context
-     * @param query     The query to stop profiling
-     * @param timing    The Timing context to time
-     */
-    public void stopAndRecordTime(Query query, ProfileBreakdown.TimingType timing) {
-        InternalProfileBreakdown queryTimings = timings.get(query);
-        queryTimings.stopAndRecordTime(timing);
-        timings.put(query, queryTimings);
+        return queryTimings;
     }
 
     /**

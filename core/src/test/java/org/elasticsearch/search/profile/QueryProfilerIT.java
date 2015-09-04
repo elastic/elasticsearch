@@ -149,7 +149,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
                         nearlyEqual(vanillaMaxScore, profileMaxScore, 0.001));
             }
 
-            assertThat("Profile totalHits of [" + profileResponse.getHits().totalHits() + "] is not close to Vanilla totalHist [" + vanillaResponse.getHits().totalHits() + "]",
+            assertThat("Profile totalHits of [" + profileResponse.getHits().totalHits() + "] is not close to Vanilla totalHits [" + vanillaResponse.getHits().totalHits() + "]",
                     vanillaResponse.getHits().getTotalHits(), equalTo(profileResponse.getHits().getTotalHits()));
 
             SearchHit[] vanillaHits = vanillaResponse.getHits().getHits();

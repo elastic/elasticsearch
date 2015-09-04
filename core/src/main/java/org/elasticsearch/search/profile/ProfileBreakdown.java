@@ -41,5 +41,25 @@ public interface ProfileBreakdown {
         }
     }
 
+    /**
+     * Get accumulated time spent in the given {@link TimingType}.
+     */
     long getTime(TimingType type);
+
+    /**
+     * Begin timing a query for a specific Timing context
+     * @param timing    The timing context being profiled
+     */
+    void startTime(TimingType timing);
+
+    /**
+     * Halt the timing process and save the elapsed time.
+     * startTime() must be called for a particular context prior to calling
+     * stopAndRecordTime(), otherwise the elapsed time will be negative and
+     * nonsensical
+     *
+     * @param timing    The timing context being profiled
+     * @return          The elapsed time
+     */
+    long stopAndRecordTime(TimingType timing);
 }

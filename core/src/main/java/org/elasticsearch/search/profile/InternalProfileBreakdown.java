@@ -57,28 +57,15 @@ public class InternalProfileBreakdown implements ProfileBreakdown, Streamable, T
         scratch = new long[TimingType.values().length];
     }
 
-    /**
-     * Begin timing a query for a specific Timing context
-     * @param timing    The timing context being profiled
-     */
+    @Override
     public void startTime(TimingType timing) {
+        assert scratch[timing.ordinal()] == 0;
         scratch[timing.ordinal()] = System.nanoTime();
     }
 
-    /**
-     * Halt the timing process and save the elapsed time.
-     * startTime() must be called for a particular context prior to calling
-     * stopAndRecordTime(), otherwise the elapsed time will be negative and
-     * nonsensical
-     *
-     * @param timing    The timing context being profiled
-     * @return          The elapsed time
-     */
+    @Override
     public long stopAndRecordTime(TimingType timing) {
-        long time = System.nanoTime();
-
-        time = time - scratch[timing.ordinal()];
-
+        long time = System.nanoTime() - scratch[timing.ordinal()];
         timings[timing.ordinal()] += time;
         scratch[timing.ordinal()] = 0L;
         return time;

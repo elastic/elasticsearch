@@ -1,0 +1,17 @@
+repositories:
+    hdfs:
+        uri: "file://./"
+        # the path is loaded from higher up (the repository settings)
+        path: "tmp/test/snapshot"
+        load_defaults: "true"
+        conf_location: "additional-cfg.xml, conf-2.xml"
+        conf.foo: "bar"
+        conf.colossal: "rains"
+        concurrent_streams: "2"
+        compress: "true"
+        chunk_size: "1mb"
+        conf.kerberos_config: "/etc/krb5.conf"
+        conf.hdfs_config: "/etc/hadoop/hdfs-site.xml"
+        conf.hadoop_config: "/etc/hadoop/core-site.xml"
+
+

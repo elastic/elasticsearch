@@ -21,7 +21,6 @@
     </properties>
 
     <build>
-
         <filters>
             <filter>${project.basedir}/src/main/packaging/packaging.properties</filter>
         </filters>
@@ -105,6 +104,12 @@
                     <needarch>noarch</needarch>
                     <targetOS>linux</targetOS>
                     <changelogFile>src/changelog</changelogFile>
+                    <group>Application/Internet</group>
+                    <keyname>${gpg.key}</keyname>
+                    <keypath>${gpg.keypath}</keypath>
+                    <keyPassphrase>
+                        <passphrase>${gpg.passphrase}</passphrase>
+                    </keyPassphrase>
                     <defineStatements>
                         <defineStatement>_unpackaged_files_terminate_build 0</defineStatement>
                         <defineStatement>_binaries_in_noarch_packages_terminate_build 0</defineStatement>
@@ -363,32 +368,4 @@
             </plugin>
         </plugins>
     </build>
-
-    <profiles>
-        <profile>
-            <id>sign-rpm</id>
-            <activation>
-                <property>
-                    <name>rpm.sign</name>
-                    <value>true</value>
-                </property>
-            </activation>
-            <build>
-                <plugins>
-                    <plugin>
-                        <groupId>org.codehaus.mojo</groupId>
-                        <artifactId>rpm-maven-plugin</artifactId>
-                        <configuration>
-                            <group>Application/Internet</group>
-                            <keyname>${gpg.key}</keyname>
-                            <keypath>${gpg.keyring}</keypath>
-                            <keyPassphrase>
-                                <passphrase>${gpg.passphrase}</passphrase>
-                            </keyPassphrase>
-                        </configuration>
-                    </plugin>
-                </plugins>
-            </build>
-        </profile>
-    </profiles>
 </project>

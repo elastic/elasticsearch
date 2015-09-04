@@ -104,3 +104,39 @@ mvn clean test -Dtests.slow=true
 ```
 
 Source: [Contributing to elasticsearch](https://www.elastic.co/contributing-to-elasticsearch/)
+
+Building the rpm
+----------------
+Right now the zip, tar, and deb distributions are built with dependencies fetched by maven and should work on any systems.
+The rpm requires that you have some dependencies installed and it's skipped if you don't have them. Building the rpm is
+optional during development but if you want or need to build it then you'll need to install som dependencies:
+
+For CentOS/RHEL/Fedora:
+```shell
+sudo yum install rpm-build expect gpg2
+```
+
+For Debian/Ubuntu:
+```shell
+sudo apt-get install rpm gnupg2 expect
+```
+
+For OSX:
+```shell
+brew install rpm gpg2
+```
+
+The RPMs that you build will be signed by a dummy certificate and can be tested by the Vagrant/bats
+tests. See TESTING.asciidoc's "Testing scripts" section for more.
+
+Right now rpm-maven-plugin doesn't properly sign the rpm on OSX so that process isn't tested on OSX. Even if the
+rpm-maven-plugin mere fixed, OSX has problems and needs some macro fixes:
+```shell
+cat - > ~/.rpmmacros
+%__gpg_check_password_cmd       %{__gpg} \
+        gpg --homedir %{_gpg_path} --batch --no-verbose --passphrase-fd 3 -u %{_gpg_name} -so -
+%__gpg_sign_cmd                 %{__gpg} \
+        gpg --homedir %{_gpg_path} --batch --no-verbose --no-armor --passphrase-fd 3 --no-secmem-warning \
+        -u %{_gpg_name} -sbo %{__signature_filename} %{__plaintext_filename}
+^D
+```

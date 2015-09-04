@@ -134,12 +134,15 @@ def deb_common(config, add_openjdk_repository_command, openjdk_list, extra: '')
     update_tracking_file: "/var/cache/apt/archives/last_update",
     install_command: "apt-get install -y",
     java_package: "openjdk-8-jdk",
+    install_signature_command: "gpg --import",
+    install_signature_privileged: false,
     extra: <<-SHELL
       export DEBIAN_FRONTEND=noninteractive
       ls /etc/apt/sources.list.d/#{openjdk_list}.list > /dev/null 2>&1 ||
         (echo "Importing java-8 ppa" &&
           #{add_openjdk_repository_command} &&
           apt-get update)
+      ensure dpkg-sig
       #{extra}
 SHELL
   )
@@ -150,7 +153,8 @@ def rpm_common(config)
     update_command: "yum check-update",
     update_tracking_file: "/var/cache/yum/last_update",
     install_command: "yum install -y",
-    java_package: "java-1.8.0-openjdk-devel")
+    java_package: "java-1.8.0-openjdk-devel",
+    install_signature_command: "rpm --import")
 end
 
 def dnf_common(config)
@@ -158,7 +162,8 @@ def dnf_common(config)
     update_command: "dnf check-update",
     update_tracking_file: "/var/cache/dnf/last_update",
     install_command: "dnf install -y",
-    java_package: "java-1.8.0-openjdk-devel")
+    java_package: "java-1.8.0-openjdk-devel",
+    install_signature_command: "rpm --import")
   if Vagrant.has_plugin?("vagrant-cachier")
     # Autodetect doesn't work....
     config.cache.auto_detect = false
@@ -198,9 +203,13 @@ end
 # @param update_tracking_file [String] The location of the file tracking the
 #   last time the update command was run. Required. Should be in a place that
 #   is cached by vagrant-cachier.
-# @param install_command [String] The command used to install a package.
+# @param install_command [String] Command used to install a package.
 #   Required. Think `apt-get install #{package}`.
 # @param java_package [String] The name of the java package. Required.
+# @param install_signature_command [String] Command used to install a
+#   signature.
+# @param install_signature_privileged [boolean] Install the signature using a
+#   privileged script? Deb doesn't want one. RPM does.
 # @param extra [String] Extra provisioning commands run before anything else.
 #   Optional. Used for things like setting up the ppa for Java 8.
 def provision(config,
@@ -208,12 +217,15 @@ def provision(config,
     update_tracking_file: 'required',
     install_command: 'required',
     java_package: 'required',
+    install_signature_command: 'required',
+    install_signature_privileged: true,
     extra: '')
   # Vagrant run ruby 2.0.0 which doesn't have required named parameters....
   raise ArgumentError.new('update_command is required') if update_command == 'required'
   raise ArgumentError.new('update_tracking_file is required') if update_tracking_file == 'required'
   raise ArgumentError.new('install_command is required') if install_command == 'required'
   raise ArgumentError.new('java_package is required') if java_package == 'required'
+  raise ArgumentError.new('install_signature_command is required') if install_signature_command == 'required'
   config.vm.provision "bats dependencies", type: "shell", inline: <<-SHELL
     set -e
     set -o pipefail
@@ -255,5 +267,11 @@ export DEB=/elasticsearch/distribution/deb/target/releases
 export TESTROOT=/elasticsearch/qa/vagrant/target/testroot
 export BATS=/elasticsearch/qa/vagrant/src/test/resources/packaging/scripts
 VARS
+    # Create a file with the host OS because bats won't read exports....
+    echo #{RbConfig::CONFIG['host_os'].downcase} > /elasticsearch/qa/vagrant/target/testroot/hostOS
   SHELL
+  config.vm.provision "install_package_signature", type: "shell" do |s|
+      s.privileged = install_signature_privileged
+      s.inline = "#{install_signature_command} /elasticsearch/distribution/src/test/resources/dummyGpg/GPG-KEY-dummy"
+  end
 end

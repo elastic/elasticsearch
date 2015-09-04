@@ -82,7 +82,7 @@ To smoke-test the release please run:
 
  python3 -B ./dev-tools/smoke_test_rc.py --version %(version)s --hash %(hash)s --plugins license,shield,watcher
 
-NOTE: this script requires JAVA_HOME to point to a Java 7 Runtime 
+NOTE: this script requires JAVA_HOME to point to a Java 7 Runtime
 
 [1] https://github.com/elastic/elasticsearch/commit/%(hash)s
 [2] http://%(bucket)s/elasticsearch/staging/%(version)s-%(hash)s/org/elasticsearch/distribution/zip/elasticsearch/%(version)s/elasticsearch-%(version)s.zip
@@ -326,7 +326,7 @@ if __name__ == "__main__":
 
   mvn_target = 'deploy' if deploy_sonatype else 'install'
   tests = '-DskipTests' if skip_tests else '-Dskip.integ.tests=true'
-  install_command = 'mvn clean %s -Prelease %s -Dgpg.key="%s" -Dpackaging.rpm.rpmbuild=/usr/bin/rpmbuild -Drpm.sign=true -Dmaven.repo.local=%s -Dno.commit.pattern="\\bno(n|)commit\\b" -Dforbidden.test.signatures=""' % (mvn_target, tests, gpg_key, localRepo)
+  install_command = 'mvn clean %s -Prelease %s -Dgpg.key="%s" -Dgpg.keypath="~/.gnupg" -Dpackaging.rpm.rpmbuild=/usr/bin/rpmbuild -Drpm.sign=true -Dmaven.repo.local=%s -Dno.commit.pattern="\\bno(n|)commit\\b" -Dforbidden.test.signatures=""' % (mvn_target, tests, gpg_key, localRepo)
   clean_repo_command = 'find %s -name _remote.repositories -exec rm {} \;' % (localRepoElasticsearch)
 
   if not run_mvn_install:
@@ -411,5 +411,3 @@ if __name__ == "__main__":
   print('Now go ahead and tag the release:')
   print('   git tag -a v%(version)s %(hash)s'  % string_format_dict)
   print('   git push origin v%(version)s' % string_format_dict )
-
-

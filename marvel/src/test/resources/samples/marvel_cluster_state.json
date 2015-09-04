@@ -13,44 +13,6 @@
           "local": "true"
         }
       }
-    },
-    "shards": [
-      {
-        "state": "STARTED",
-        "primary": true,
-        "node": "__node_id__",
-        "relocating_node": null,
-        "shard": 0,
-        "index": "my-index",
-        "version": 2,
-        "allocation_id": {
-          "id": "p6c9fBsNSc6SBTq0E0jLZw"
-        }
-      },
-      {
-        "state": "STARTED",
-        "primary": true,
-        "node": "__node_id__",
-        "relocating_node": null,
-        "shard": 1,
-        "index": "my-index",
-        "version": 2,
-        "allocation_id": {
-          "id": "KBOkx9UmRNmlZ6LGsnqxJw"
-        }
-      },
-      {
-        "state": "STARTED",
-        "primary": true,
-        "node": "__node_id__",
-        "relocating_node": null,
-        "shard": 2,
-        "index": "my-index",
-        "version": 2,
-        "allocation_id": {
-          "id": "aHXocqcnRme-y6OJIZX-CQ"
-        }
-      }
-    ]
+    }
   }
 }

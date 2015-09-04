@@ -33,11 +33,11 @@ public class ClusterInfoIT extends AbstractRendererTestCase {
     }
 
     @Test
-    public void testLicenses() throws Exception {
+    public void testClusterInfo() throws Exception {
         final String clusterUUID = client().admin().cluster().prepareState().setMetaData(true).get().getState().metaData().clusterUUID();
         assertTrue(Strings.hasText(clusterUUID));
 
-        logger.debug("--> waiting for licenses collector to collect data (ie, the trial marvel license)");
+        logger.debug("--> waiting for cluster info collector to collect data (ie, the trial marvel license)");
         GetResponse response = assertBusy(new Callable<GetResponse>() {
             @Override
             public GetResponse call() throws Exception {

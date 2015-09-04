@@ -76,8 +76,8 @@ public abstract class AbstractRendererTestCase extends ESIntegTestCase {
      * it recurses to check if 'bar' exists in the sub-map.
      */
     protected void assertContains(String field, Map<String, Object> values) {
-        assertNotNull(field);
-        assertNotNull(values);
+        assertNotNull("field name should not be null", field);
+        assertNotNull("values map should not be null", values);
 
         int point = field.indexOf('.');
         if (point > -1) {
@@ -98,7 +98,7 @@ public abstract class AbstractRendererTestCase extends ESIntegTestCase {
                 assertFalse(value instanceof Map);
             }
         } else {
-            assertNotNull(values.get(field));
+            assertTrue("expecting field [" + field + "] to be present in marvel document", values.containsKey(field));
         }
     }
 

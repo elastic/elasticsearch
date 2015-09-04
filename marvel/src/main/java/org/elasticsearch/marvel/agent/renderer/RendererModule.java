@@ -14,6 +14,7 @@ import org.elasticsearch.marvel.agent.collector.indices.IndexRecoveryCollector;
 import org.elasticsearch.marvel.agent.collector.indices.IndexStatsCollector;
 import org.elasticsearch.marvel.agent.collector.indices.IndicesStatsCollector;
 import org.elasticsearch.marvel.agent.collector.node.NodeStatsCollector;
+import org.elasticsearch.marvel.agent.collector.shards.ShardsCollector;
 import org.elasticsearch.marvel.agent.renderer.cluster.ClusterInfoRenderer;
 import org.elasticsearch.marvel.agent.renderer.cluster.ClusterStateRenderer;
 import org.elasticsearch.marvel.agent.renderer.cluster.ClusterStatsRenderer;
@@ -21,6 +22,7 @@ import org.elasticsearch.marvel.agent.renderer.indices.IndexRecoveryRenderer;
 import org.elasticsearch.marvel.agent.renderer.indices.IndexStatsRenderer;
 import org.elasticsearch.marvel.agent.renderer.indices.IndicesStatsRenderer;
 import org.elasticsearch.marvel.agent.renderer.node.NodeStatsRenderer;
+import org.elasticsearch.marvel.agent.renderer.shards.ShardsRenderer;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -52,6 +54,9 @@ public class RendererModule extends AbstractModule {
 
         bind(ClusterStateRenderer.class).asEagerSingleton();
         mbinder.addBinding(ClusterStateCollector.TYPE).to(ClusterStateRenderer.class);
+
+        bind(ShardsRenderer.class).asEagerSingleton();
+        mbinder.addBinding(ShardsCollector.TYPE).to(ShardsRenderer.class);
 
         bind(NodeStatsRenderer.class).asEagerSingleton();
         mbinder.addBinding(NodeStatsCollector.TYPE).to(NodeStatsRenderer.class);

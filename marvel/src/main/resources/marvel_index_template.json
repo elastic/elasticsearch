@@ -177,9 +177,6 @@
             },
             "nodes": {
               "type": "object"
-            },
-            "shards": {
-              "type": "object"
             }
           }
         }
@@ -230,6 +227,17 @@
     "marvel_index_recovery": {
       "properties": {
         "shards": {
+          "type": "object"
+        }
+      }
+    },
+    "marvel_shards": {
+      "properties": {
+        "state_uuid": {
+          "type": "string",
+          "index": "not_analyzed"
+        },
+        "shard": {
           "type": "object"
         }
       }

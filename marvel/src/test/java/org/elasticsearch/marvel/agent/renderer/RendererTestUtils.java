@@ -42,10 +42,10 @@ public class RendererTestUtils {
         assertNotNull(result);
         assertNotNull(expected);
 
-        try {
+        try (
             XContentParser resultParser = XContentFactory.xContent(result).createParser(result);
             XContentParser expectedParser = XContentFactory.xContent(expected).createParser(expected);
-
+        ) {
             while (true) {
                 XContentParser.Token token1 = resultParser.nextToken();
                 XContentParser.Token token2 = expectedParser.nextToken();

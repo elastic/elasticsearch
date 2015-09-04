@@ -49,7 +49,8 @@ public class RandomQueryGenerator {
             case 2:
                 return randomBoolQuery(stringFields, numericFields, numDocs, depth);
             case 3:
-                return randomBoostingQuery(stringFields, numericFields, numDocs, depth);
+                // disabled for now because of https://issues.apache.org/jira/browse/LUCENE-6781
+                //return randomBoostingQuery(stringFields, numericFields, numDocs, depth);
             case 4:
                 return randomConstantScoreQuery(stringFields, numericFields, numDocs, depth);
             case 5:

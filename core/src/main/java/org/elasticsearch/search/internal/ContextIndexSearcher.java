@@ -99,14 +99,14 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             // tree
             searchContext.queryProfiler().pushQuery(query);
             searchContext.queryProfiler().startTime(query, InternalProfileBreakdown.TimingType.WEIGHT);
-        }
-        Weight weight = in.createWeight(query, needsScores);
-        if (searchContext.profile()) {
+            // nocommit: is it ok to not delegate to in?
+            Weight weight = super.createWeight(query, needsScores);
             searchContext.queryProfiler().stopAndRecordTime(query, InternalProfileBreakdown.TimingType.WEIGHT);
             searchContext.queryProfiler().pollLast();
-            weight = new ProfileQuery.ProfileWeight(query, weight, searchContext.queryProfiler());
+            return new ProfileQuery.ProfileWeight(query, weight, searchContext.queryProfiler());
+        } else {
+            return in.createWeight(query, needsScores);
         }
-        return weight;
     }
 
     @Override

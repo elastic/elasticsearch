@@ -38,7 +38,7 @@ import static org.elasticsearch.search.profile.RandomQueryGenerator.randomQueryB
 import static org.elasticsearch.test.hamcrest.DoubleMatcher.nearlyEqual;
 import static org.hamcrest.Matchers.*;
 
-public class QueryProfilerTests extends ESIntegTestCase {
+public class QueryProfilerIT extends ESIntegTestCase {
 
     /**
      * This test simply checks to make sure nothing crashes.  Test indexes 100-150 documents,
@@ -225,7 +225,7 @@ public class QueryProfilerTests extends ESIntegTestCase {
         QueryBuilder q = QueryBuilders.boolQuery().must(QueryBuilders.matchQuery("field1", "one")).must(QueryBuilders.matchQuery("field1", "two"));
 
         SearchResponse resp = client().prepareSearch().setQuery(q).setProfile(true).execute().actionGet();
-
+System.out.println(resp);
         ProfileResults p = resp.getProfileResults();
         assertNotNull(p);
 

@@ -80,6 +80,7 @@ import java.nio.file.Path;
 import java.util.*;
 
 import static com.google.common.base.Predicates.isNull;
+import static com.google.common.base.Predicates.notNull;
 import static org.elasticsearch.test.ESTestCase.*;
 import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -755,8 +756,8 @@ public class ElasticsearchAssertions {
 
         FluentIterable<String> jvmUrls = FluentIterable.from(plugins.getInfos())
                 .filter(Predicates.and(jvmPluginPredicate, Predicates.not(sitePluginPredicate)))
-                .filter(isNull())
-                .transform(urlFunction);
+                .transform(urlFunction)
+                .filter(notNull());
         Assert.assertThat(Iterables.size(jvmUrls), is(0));
 
         List<String> sitePluginNames = FluentIterable.from(plugins.getInfos()).filter(sitePluginPredicate).transform(nameFunction).toList();

@@ -52,6 +52,12 @@ setup() {
     [ "$count" -eq 1 ]
 }
 
+@test "[RPM] rpm is signed by our dummy key" {
+    [[ "$(cat hostOS)" =~ darwin ]] && skip "OSX can't sign the rpm"
+    rpm --checksig elasticsearch*.rpm | grep 'rsa' | grep 'OK' | grep -v 'NOT'
+    rpm --checksig elasticsearch*.rpm | grep 'rsa' | grep 'OK' | grep -v 'MISSING'
+}
+
 @test "[RPM] package is not installed" {
     run rpm -qe 'elasticsearch'
     [ "$status" -eq 1 ]

@@ -20,7 +20,6 @@
     <description>The Debian distribution of Elasticsearch</description>
 
     <properties>
-        <deb.sign>false</deb.sign>
         <deb.sign.method>dpkg-sig</deb.sign.method>
     </properties>
 
@@ -101,7 +100,7 @@
                             <goal>jdeb</goal>
                         </goals>
                         <configuration>
-                            <signPackage>${deb.sign}</signPackage>
+                            <signPackage>true</signPackage>
                             <keyring>${gpg.keyring}</keyring>
                             <key>${gpg.key}</key>
                             <passphrase>${gpg.passphrase}</passphrase>

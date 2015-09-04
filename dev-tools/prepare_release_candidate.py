@@ -327,7 +327,7 @@ if __name__ == "__main__":
 
   mvn_target = 'deploy' if deploy_sonatype else 'install'
   tests = '-DskipTests' if skip_tests else '-Dskip.integ.tests=true'
-  install_command = 'mvn clean %s -Prelease %s -Dgpg.key="%s" -Dpackaging.rpm.rpmbuild=/usr/bin/rpmbuild -Drpm.sign=true -Dmaven.repo.local=%s -Dno.commit.pattern="\\bno(n|)commit\\b" -Dforbidden.test.signatures=""' % (mvn_target, tests, gpg_key, localRepo)
+  install_command = 'mvn clean %s -Prelease %s -Dgpg.key="%s" -Dgpg.keypath="~/.gnupg" -Dpackaging.rpm.rpmbuild=/usr/bin/rpmbuild -Drpm.sign=true -Dmaven.repo.local=%s -Dno.commit.pattern="\\bno(n|)commit\\b" -Dforbidden.test.signatures=""' % (mvn_target, tests, gpg_key, localRepo)
   clean_repo_command = 'find %s -name _remote.repositories -exec rm {} \;' % (localRepoElasticsearch)
 
   if not run_mvn_install:
@@ -412,5 +412,3 @@ if __name__ == "__main__":
   print('Now go ahead and tag the release:')
   print('   git tag -a v%(version)s %(hash)s'  % string_format_dict)
   print('   git push origin v%(version)s' % string_format_dict )
-
-

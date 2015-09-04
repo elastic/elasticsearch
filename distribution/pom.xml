@@ -35,6 +35,13 @@
 
         <!-- we expect packaging formats to have integration tests, but not unit tests -->
         <skip.unit.tests>true</skip.unit.tests>
+
+        <!-- By default we sign RPMs and DEBs using a dummy gpg directory that we check into
+             source control. Releases will override this with the real information. -->
+        <gpg.key>16E55242</gpg.key>
+        <gpg.keypath>${project.parent.basedir}/src/test/resources/dummyGpg</gpg.keypath>
+        <gpg.keyring>${gpg.keypath}/secring.gpg</gpg.keyring>
+        <gpg.passphrase>dummy</gpg.passphrase>
     </properties>
 
     <!-- PUT TEST ONLY DEPS HERE. Let individual distributions figure out what they want -->

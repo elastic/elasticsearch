@@ -1327,7 +1327,7 @@ org.eclipse.jdt.ui.text.custom_code_templates=<?xml version\="1.0" encoding\="UT
                                     <goal>sign</goal>
                                 </goals>
                                 <configuration>
-                                    <keyname>${gpg.keyname}</keyname>
+                                    <keyname>${gpg.key}</keyname>
                                     <passphrase>${gpg.passphrase}</passphrase>
                                     <defaultKeyring>${gpg.keyring}</defaultKeyring>
                                 </configuration>

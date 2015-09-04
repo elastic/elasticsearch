@@ -144,7 +144,7 @@ public class MissingQueryBuilder extends AbstractQueryBuilder<MissingQueryBuilde
         Query nullFilter = null;
 
         if (existence) {
-            BooleanQuery boolFilter = new BooleanQuery();
+            BooleanQuery.Builder boolFilter = new BooleanQuery.Builder();
             for (String field : fields) {
                 MappedFieldType fieldType = context.fieldMapper(field);
                 Query filter = null;
@@ -167,7 +167,7 @@ public class MissingQueryBuilder extends AbstractQueryBuilder<MissingQueryBuilde
                 boolFilter.add(filter, BooleanClause.Occur.SHOULD);
             }
 
-            existenceFilter = boolFilter;
+            existenceFilter = boolFilter.build();
             existenceFilter = Queries.not(existenceFilter);;
         }
 
@@ -183,11 +183,10 @@ public class MissingQueryBuilder extends AbstractQueryBuilder<MissingQueryBuilde
         Query filter;
         if (nullFilter != null) {
             if (existenceFilter != null) {
-                BooleanQuery combined = new BooleanQuery();
-                combined.add(existenceFilter, BooleanClause.Occur.SHOULD);
-                combined.add(nullFilter, BooleanClause.Occur.SHOULD);
-                // cache the not filter as well, so it will be faster
-                filter = combined;
+                filter = new BooleanQuery.Builder()
+                        .add(existenceFilter, BooleanClause.Occur.SHOULD)
+                        .add(nullFilter, BooleanClause.Occur.SHOULD)
+                        .build();
             } else {
                 filter = nullFilter;
             }

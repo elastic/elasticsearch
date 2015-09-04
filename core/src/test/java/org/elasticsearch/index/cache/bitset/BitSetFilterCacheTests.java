@@ -27,25 +27,36 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.LogByteSizeMergePolicy;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.QueryWrapperFilter;
 import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.search.TopDocs;
-import org.apache.lucene.search.join.BitDocIdSetFilter;
+import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.store.RAMDirectory;
+import org.apache.lucene.util.BitSet;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
+import java.io.IOException;
+
 import static org.hamcrest.Matchers.equalTo;
 
-/**
- */
 public class BitSetFilterCacheTests extends ESTestCase {
+
+    private static int matchCount(BitSetProducer producer, IndexReader reader) throws IOException {
+        int count = 0;
+        for (LeafReaderContext ctx : reader.leaves()) {
+            final BitSet bitSet = producer.getBitSet(ctx);
+            if (bitSet != null) {
+                count += bitSet.cardinality();
+            }
+        }
+        return count;
+    }
 
     @Test
     public void testInvalidateEntries() throws Exception {
@@ -72,13 +83,11 @@ public class BitSetFilterCacheTests extends ESTestCase {
         IndexSearcher searcher = new IndexSearcher(reader);
 
         BitsetFilterCache cache = new BitsetFilterCache(new Index("test"), Settings.EMPTY);
-        BitDocIdSetFilter filter = cache.getBitDocIdSetFilter(new QueryWrapperFilter(new TermQuery(new Term("field", "value"))));
-        TopDocs docs = searcher.search(new ConstantScoreQuery(filter), 1);
-        assertThat(docs.totalHits, equalTo(3));
+        BitSetProducer filter = cache.getBitSetProducer(new QueryWrapperFilter(new TermQuery(new Term("field", "value"))));
+        assertThat(matchCount(filter, reader), equalTo(3));
 
         // now cached
-        docs = searcher.search(new ConstantScoreQuery(filter), 1);
-        assertThat(docs.totalHits, equalTo(3));
+        assertThat(matchCount(filter, reader), equalTo(3));
         // There are 3 segments
         assertThat(cache.getLoadedFilters().size(), equalTo(3l));
 
@@ -87,12 +96,10 @@ public class BitSetFilterCacheTests extends ESTestCase {
         reader = DirectoryReader.open(writer, false);
         searcher = new IndexSearcher(reader);
 
-        docs = searcher.search(new ConstantScoreQuery(filter), 1);
-        assertThat(docs.totalHits, equalTo(3));
+        assertThat(matchCount(filter, reader), equalTo(3));
 
         // now cached
-        docs = searcher.search(new ConstantScoreQuery(filter), 1);
-        assertThat(docs.totalHits, equalTo(3));
+        assertThat(matchCount(filter, reader), equalTo(3));
         // Only one segment now, so the size must be 1
         assertThat(cache.getLoadedFilters().size(), equalTo(1l));
 

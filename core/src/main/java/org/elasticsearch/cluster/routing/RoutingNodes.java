@@ -630,7 +630,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
 
             /**
              * Unsupported operation, just there for the interface. Use {@link #removeAndIgnore()} or
-             * {@link #initialize(String)}.
+             * {@link #initialize(String, long, long)}.
              */
             @Override
             public void remove() {

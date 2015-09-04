@@ -638,10 +638,10 @@ public class InternalEngine extends Engine {
         try {
             Query query = delete.query();
             if (delete.aliasFilter() != null) {
-                BooleanQuery boolQuery = new BooleanQuery();
-                boolQuery.add(query, Occur.MUST);
-                boolQuery.add(delete.aliasFilter(), Occur.FILTER);
-                query = boolQuery;
+                query = new BooleanQuery.Builder()
+                    .add(query, Occur.MUST)
+                    .add(delete.aliasFilter(), Occur.FILTER)
+                    .build();
             }
             if (delete.nested()) {
                 query = new IncludeNestedDocsQuery(query, delete.parentFilter());

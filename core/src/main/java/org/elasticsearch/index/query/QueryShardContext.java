@@ -26,7 +26,7 @@ import org.apache.lucene.queryparser.classic.MapperQueryParser;
 import org.apache.lucene.queryparser.classic.QueryParserSettings;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.join.BitDocIdSetFilter;
+import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.similarities.Similarity;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -163,8 +163,8 @@ public class QueryShardContext {
         return queryParser;
     }
 
-    public BitDocIdSetFilter bitsetFilter(Filter filter) {
-        return indexQueryParser.bitsetFilterCache.getBitDocIdSetFilter(filter);
+    public BitSetProducer bitsetFilter(Filter filter) {
+        return indexQueryParser.bitsetFilterCache.getBitSetProducer(filter);
     }
 
     public <IFD extends IndexFieldData<?>> IFD getForField(MappedFieldType mapper) {

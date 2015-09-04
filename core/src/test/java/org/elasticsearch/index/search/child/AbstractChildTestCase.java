@@ -25,7 +25,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
-import org.apache.lucene.search.join.BitDocIdSetFilter;
+import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.util.BitDocIdSet;
 import org.apache.lucene.util.BitSet;
 import org.elasticsearch.Version;
@@ -135,8 +135,8 @@ public abstract class AbstractChildTestCase extends ESSingleNodeTestCase {
         }
     }
 
-    static BitDocIdSetFilter wrapWithBitSetFilter(Filter filter) {
-        return SearchContext.current().bitsetFilterCache().getBitDocIdSetFilter(filter);
+    static BitSetProducer wrapWithBitSetFilter(Filter filter) {
+        return SearchContext.current().bitsetFilterCache().getBitSetProducer(filter);
     }
 
     static Query parseQuery(QueryBuilder queryBuilder) throws IOException {

@@ -92,7 +92,7 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
             return Queries.newMatchNoDocsQuery();
         }
 
-        BooleanQuery boolFilter = new BooleanQuery();
+        BooleanQuery.Builder boolFilterBuilder = new BooleanQuery.Builder();
         for (String field : fields) {
             MappedFieldType fieldType = context.fieldMapper(field);
             Query filter = null;
@@ -112,9 +112,9 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
             if (filter == null) {
                 filter = new TermRangeQuery(field, null, null, true, true);
             }
-            boolFilter.add(filter, BooleanClause.Occur.SHOULD);
+            boolFilterBuilder.add(filter, BooleanClause.Occur.SHOULD);
         }
-        return new ConstantScoreQuery(boolFilter);
+        return new ConstantScoreQuery(boolFilterBuilder.build());
     }
 
     @Override

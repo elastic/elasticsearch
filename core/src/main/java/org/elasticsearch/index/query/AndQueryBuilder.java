@@ -19,8 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import com.google.common.collect.Lists;
-
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
@@ -89,14 +87,15 @@ public class AndQueryBuilder extends AbstractQueryBuilder<AndQueryBuilder> {
             return null;
         }
 
-        BooleanQuery query = new BooleanQuery();
+        BooleanQuery.Builder queryBuilder = new BooleanQuery.Builder();
         for (QueryBuilder f : filters) {
             Query innerQuery = f.toFilter(context);
             // ignore queries that are null
             if (innerQuery != null) {
-                query.add(innerQuery, Occur.MUST);
+                queryBuilder.add(innerQuery, Occur.MUST);
             }
         }
+        BooleanQuery query = queryBuilder.build();
         if (query.clauses().isEmpty()) {
             // no inner lucene query exists, ignore upstream
             return null;

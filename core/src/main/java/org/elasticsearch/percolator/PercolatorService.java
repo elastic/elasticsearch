@@ -805,10 +805,10 @@ public class PercolatorService extends AbstractComponent {
 
         final Query filter;
         if (context.aliasFilter() != null) {
-            BooleanQuery booleanFilter = new BooleanQuery();
+            BooleanQuery.Builder booleanFilter = new BooleanQuery.Builder();
             booleanFilter.add(context.aliasFilter(), BooleanClause.Occur.MUST);
             booleanFilter.add(percolatorTypeFilter, BooleanClause.Occur.MUST);
-            filter = booleanFilter;
+            filter = booleanFilter.build();
         } else {
             filter = percolatorTypeFilter;
         }

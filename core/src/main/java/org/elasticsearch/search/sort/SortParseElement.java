@@ -20,11 +20,12 @@
 package org.elasticsearch.search.sort;
 
 import com.google.common.collect.ImmutableMap;
+
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.QueryWrapperFilter;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
-import org.apache.lucene.search.join.BitDocIdSetFilter;
+import org.apache.lucene.search.join.BitSetProducer;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -251,7 +252,7 @@ public class SortParseElement implements SearchParseElement {
             }
             final Nested nested;
             if (nestedHelper != null && nestedHelper.getPath() != null) {
-                BitDocIdSetFilter rootDocumentsFilter = context.bitsetFilterCache().getBitDocIdSetFilter(Queries.newNonNestedFilter());
+                BitSetProducer rootDocumentsFilter = context.bitsetFilterCache().getBitSetProducer(Queries.newNonNestedFilter());
                 Filter innerDocumentsFilter;
                 if (nestedHelper.filterFound()) {
                     // TODO: use queries instead

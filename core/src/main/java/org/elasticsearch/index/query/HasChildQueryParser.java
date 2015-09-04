@@ -25,7 +25,7 @@ import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryWrapperFilter;
-import org.apache.lucene.search.join.BitDocIdSetFilter;
+import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.JoinUtil;
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.Version;
@@ -167,7 +167,7 @@ public class HasChildQueryParser extends BaseQueryParserTemp {
             throw new QueryParsingException(parseContext, "[has_child] 'max_children' is less than 'min_children'");
         }
 
-        BitDocIdSetFilter nonNestedDocsFilter = null;
+        BitSetProducer nonNestedDocsFilter = null;
         if (parentDocMapper.hasNestedObjects()) {
             nonNestedDocsFilter = context.bitsetFilter(Queries.newNonNestedFilter());
         }

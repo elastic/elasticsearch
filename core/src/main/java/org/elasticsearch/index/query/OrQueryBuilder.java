@@ -83,20 +83,20 @@ public class OrQueryBuilder extends AbstractQueryBuilder<OrQueryBuilder> {
             // no filters provided, this should be ignored upstream
             return null;
         }
-
-        BooleanQuery query = new BooleanQuery();
+        BooleanQuery.Builder queryBuilder = new BooleanQuery.Builder();
         for (QueryBuilder f : filters) {
             Query innerQuery = f.toFilter(context);
             // ignore queries that are null
             if (innerQuery != null) {
-                query.add(innerQuery, Occur.SHOULD);
+                queryBuilder.add(innerQuery, Occur.SHOULD);
             }
         }
-        if (query.clauses().isEmpty()) {
+        BooleanQuery booleanQuery = queryBuilder.build();
+        if (booleanQuery.clauses().isEmpty()) {
             // no inner lucene query exists, ignore upstream
             return null;
         }
-        return query;
+        return booleanQuery;
     }
 
     @Override

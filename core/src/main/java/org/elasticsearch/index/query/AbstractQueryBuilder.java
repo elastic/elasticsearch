@@ -71,12 +71,26 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder> exte
     public final Query toQuery(QueryShardContext context) throws IOException {
         Query query = doToQuery(context);
         if (query != null) {
-            query.setBoost(boost);
+            setFinalBoost(query);
             if (queryName != null) {
                 context.addNamedQuery(queryName, query);
             }
         }
         return query;
+    }
+
+    /**
+     * Sets the main boost to the query obtained by converting the current query into a lucene query.
+     * The default behaviour is to set the main boost, after verifying that we are not overriding any non default boost
+     * value that was previously set to the lucene query. That case would require some manual decision on how to combine
+     * the main boost with the boost coming from lucene by overriding this method.
+     * @throws IllegalStateException if the lucene query boost has already been set
+     */
+    protected void setFinalBoost(Query query) {
+        if (query.getBoost() != AbstractQueryBuilder.DEFAULT_BOOST) {
+            throw new IllegalStateException("lucene query boost is already set, override setFinalBoost to define how to combine lucene boost with main boost");
+        }
+        query.setBoost(boost);
     }
 
     @Override

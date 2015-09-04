@@ -44,7 +44,11 @@ import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ReceiveTimeoutTransportException;
 
-import java.util.*;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -77,7 +81,7 @@ public class InternalClusterInfoService extends AbstractComponent implements Clu
     private final TransportIndicesStatsAction transportIndicesStatsAction;
     private final ClusterService clusterService;
     private final ThreadPool threadPool;
-    private final Set<Listener> listeners = Collections.synchronizedSet(new HashSet<Listener>());
+    private final List<Listener> listeners = new CopyOnWriteArrayList<>();
 
     @Inject
     public InternalClusterInfoService(Settings settings, NodeSettingsService nodeSettingsService,

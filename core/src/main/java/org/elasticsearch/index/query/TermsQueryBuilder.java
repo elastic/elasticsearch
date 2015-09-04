@@ -356,7 +356,8 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
                 query = new TermsQuery(indexFieldName, filterValues);
             }
         } else {
-            BooleanQuery bq = new BooleanQuery(disableCoord);
+            BooleanQuery.Builder bq = new BooleanQuery.Builder();
+            bq.setDisableCoord(disableCoord);
             for (Object term : terms) {
                 if (fieldType != null) {
                     bq.add(fieldType.termQuery(term, context), BooleanClause.Occur.SHOULD);
@@ -364,8 +365,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
                     bq.add(new TermQuery(new Term(indexFieldName, BytesRefs.toBytesRef(term))), BooleanClause.Occur.SHOULD);
                 }
             }
-            bq = Queries.applyMinimumShouldMatch(bq, minimumShouldMatch);
-            query = bq;
+            query = Queries.applyMinimumShouldMatch(bq.build(), minimumShouldMatch);
         }
         return query;
     }

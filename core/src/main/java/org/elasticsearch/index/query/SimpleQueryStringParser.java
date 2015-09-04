@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.BooleanQuery;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -164,7 +165,6 @@ public class SimpleQueryStringParser extends BaseQueryParser<SimpleQueryStringBu
         qb.boost(boost).fields(fieldsAndWeights).analyzer(analyzerName).queryName(queryName).minimumShouldMatch(minimumShouldMatch);
         qb.flags(flags).defaultOperator(defaultOperator).locale(locale).lowercaseExpandedTerms(lowercaseExpandedTerms);
         qb.lenient(lenient).analyzeWildcard(analyzeWildcard).boost(boost);
-
         return qb;
     }
 

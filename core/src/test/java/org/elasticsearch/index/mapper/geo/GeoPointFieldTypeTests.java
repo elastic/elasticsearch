@@ -44,19 +44,5 @@ public class GeoPointFieldTypeTests extends FieldTypeTestCase {
                 ((GeoPointFieldMapper.GeoPointFieldType)ft).setLatLonEnabled(new DoubleFieldMapper.DoubleFieldType(), new DoubleFieldMapper.DoubleFieldType());
             }
         });
-        addModifier(new Modifier("ignore_malformed", false, true) {
-            @Override
-            public void modify(MappedFieldType ft) {
-                GeoPointFieldMapper.GeoPointFieldType gft = (GeoPointFieldMapper.GeoPointFieldType)ft;
-                gft.setIgnoreMalformed(!gft.ignoreMalformed());
-            }
-        });
-        addModifier(new Modifier("coerce", false, true) {
-            @Override
-            public void modify(MappedFieldType ft) {
-                GeoPointFieldMapper.GeoPointFieldType gft = (GeoPointFieldMapper.GeoPointFieldType)ft;
-                gft.setCoerce(!gft.coerce());
-            }
-        });
     }
 }

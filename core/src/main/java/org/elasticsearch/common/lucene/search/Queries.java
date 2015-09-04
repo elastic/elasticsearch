@@ -40,7 +40,7 @@ public class Queries {
 
     /** Return a query that matches no document. */
     public static Query newMatchNoDocsQuery() {
-        return new BooleanQuery();
+        return new BooleanQuery.Builder().build();
     }
 
     public static Filter newNestedFilter() {
@@ -64,10 +64,10 @@ public class Queries {
 
     /** Return a query that matches all documents but those that match the given query. */
     public static Query not(Query q) {
-        BooleanQuery bq = new BooleanQuery();
-        bq.add(new MatchAllDocsQuery(), Occur.MUST);
-        bq.add(q, Occur.MUST_NOT);
-        return bq;
+        return new BooleanQuery.Builder()
+            .add(new MatchAllDocsQuery(), Occur.MUST)
+            .add(q, Occur.MUST_NOT)
+            .build();
     }
 
     public static boolean isNegativeQuery(Query q) {
@@ -86,9 +86,14 @@ public class Queries {
 
     public static Query fixNegativeQueryIfNeeded(Query q) {
         if (isNegativeQuery(q)) {
-            BooleanQuery newBq = (BooleanQuery) q.clone();
-            newBq.add(newMatchAllQuery(), BooleanClause.Occur.MUST);
-            return newBq;
+            BooleanQuery bq = (BooleanQuery) q;
+            BooleanQuery.Builder builder = new BooleanQuery.Builder();
+            builder.setDisableCoord(bq.isCoordDisabled());
+            for (BooleanClause clause : bq) {
+                builder.add(clause);
+            }
+            builder.add(newMatchAllQuery(), BooleanClause.Occur.MUST);
+            return builder.build();
         }
         return q;
     }

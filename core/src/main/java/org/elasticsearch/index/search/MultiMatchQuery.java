@@ -132,11 +132,11 @@ public class MultiMatchQuery extends MatchQuery {
                 }
                 return disMaxQuery;
             } else {
-                final BooleanQuery booleanQuery = new BooleanQuery();
+                final BooleanQuery.Builder booleanQuery = new BooleanQuery.Builder();
                 for (Query query : groupQuery) {
                     booleanQuery.add(query, BooleanClause.Occur.SHOULD);
                 }
-                return booleanQuery;
+                return booleanQuery.build();
             }
         }
 

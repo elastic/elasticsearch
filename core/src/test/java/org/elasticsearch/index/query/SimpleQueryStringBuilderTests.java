@@ -135,7 +135,7 @@ public class SimpleQueryStringBuilderTests extends BaseQueryTestCase<SimpleQuery
     @Test
     public void testDefaultEmptyComplainFlags() {
         SimpleQueryStringBuilder qb = new SimpleQueryStringBuilder("The quick brown fox.");
-        qb.flags(new SimpleQueryStringFlag[] {});
+        qb.flags(new SimpleQueryStringFlag[]{});
         assertEquals("Setting flags to empty should result in returning to default value.", SimpleQueryStringBuilder.DEFAULT_FLAGS,
                 qb.flags());
     }
@@ -311,6 +311,13 @@ public class SimpleQueryStringBuilderTests extends BaseQueryTestCase<SimpleQuery
         }
     }
 
+    @Override
+    protected void assertBoost(SimpleQueryStringBuilder queryBuilder, Query query) throws IOException {
+        //boost may get parsed from the random query, we then combine the main boost with that one coming from lucene
+        //instead of trying to reparse the query and guess what the boost should be, we delegate boost checks to specific boost tests below
+    }
+
+
     private int shouldClauses(BooleanQuery query) {
         int result = 0;
         for (BooleanClause c : query.clauses()) {
@@ -319,5 +326,23 @@ public class SimpleQueryStringBuilderTests extends BaseQueryTestCase<SimpleQuery
             }
         }
         return result;
+    }
+
+    @Test
+    public void testToQueryBoost() throws IOException {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        QueryShardContext shardContext = createShardContext();
+        SimpleQueryStringBuilder simpleQueryStringBuilder = new SimpleQueryStringBuilder("test");
+        simpleQueryStringBuilder.field(STRING_FIELD_NAME, 5);
+        Query query = simpleQueryStringBuilder.toQuery(shardContext);
+        assertThat(query, instanceOf(TermQuery.class));
+        assertThat(query.getBoost(), equalTo(5f));
+
+        simpleQueryStringBuilder = new SimpleQueryStringBuilder("test");
+        simpleQueryStringBuilder.field(STRING_FIELD_NAME, 5);
+        simpleQueryStringBuilder.boost(2);
+        query = simpleQueryStringBuilder.toQuery(shardContext);
+        assertThat(query, instanceOf(TermQuery.class));
+        assertThat(query.getBoost(), equalTo(10f));
     }
 }

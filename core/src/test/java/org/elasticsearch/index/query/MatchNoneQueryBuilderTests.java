@@ -19,15 +19,18 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.lucene.search.Queries;
 
 import java.io.IOException;
+
+import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.instanceOf;
 
 public class MatchNoneQueryBuilderTests extends BaseQueryTestCase {
 
     @Override
-    protected boolean supportsBoostAndQueryName() {
+    protected boolean supportsBoostAndQueryNameParsing() {
         return false;
     }
 
@@ -38,6 +41,8 @@ public class MatchNoneQueryBuilderTests extends BaseQueryTestCase {
 
     @Override
     protected void doAssertLuceneQuery(AbstractQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
-        assertEquals(query, Queries.newMatchNoDocsQuery());
+        assertThat(query, instanceOf(BooleanQuery.class));
+        BooleanQuery booleanQuery = (BooleanQuery) query;
+        assertThat(booleanQuery.clauses().size(), equalTo(0));
     }
 }

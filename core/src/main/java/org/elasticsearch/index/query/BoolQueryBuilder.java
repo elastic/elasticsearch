@@ -250,16 +250,16 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
-        BooleanQuery booleanQuery = new BooleanQuery(disableCoord);
-        addBooleanClauses(context, booleanQuery, mustClauses, BooleanClause.Occur.MUST);
-        addBooleanClauses(context, booleanQuery, mustNotClauses, BooleanClause.Occur.MUST_NOT);
-        addBooleanClauses(context, booleanQuery, shouldClauses, BooleanClause.Occur.SHOULD);
-        addBooleanClauses(context, booleanQuery, filterClauses, BooleanClause.Occur.FILTER);
-
+        BooleanQuery.Builder booleanQueryBuilder = new BooleanQuery.Builder();
+        booleanQueryBuilder.setDisableCoord(disableCoord);
+        addBooleanClauses(context, booleanQueryBuilder, mustClauses, BooleanClause.Occur.MUST);
+        addBooleanClauses(context, booleanQueryBuilder, mustNotClauses, BooleanClause.Occur.MUST_NOT);
+        addBooleanClauses(context, booleanQueryBuilder, shouldClauses, BooleanClause.Occur.SHOULD);
+        addBooleanClauses(context, booleanQueryBuilder, filterClauses, BooleanClause.Occur.FILTER);
+        BooleanQuery booleanQuery = booleanQueryBuilder.build();
         if (booleanQuery.clauses().isEmpty()) {
             return new MatchAllDocsQuery();
         }
-
         booleanQuery = Queries.applyMinimumShouldMatch(booleanQuery, minimumShouldMatch);
         return adjustPureNegative ? fixNegativeQueryIfNeeded(booleanQuery) : booleanQuery;
     }
@@ -274,7 +274,7 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
         return validationException;
     }
 
-    private void addBooleanClauses(QueryShardContext context, BooleanQuery booleanQuery, List<QueryBuilder> clauses, Occur occurs) throws IOException {
+    private void addBooleanClauses(QueryShardContext context, BooleanQuery.Builder booleanQueryBuilder, List<QueryBuilder> clauses, Occur occurs) throws IOException {
         for (QueryBuilder query : clauses) {
             Query luceneQuery = null;
             switch (occurs) {
@@ -292,7 +292,7 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
                 luceneQuery = query.toQuery(context);
             }
             if (luceneQuery != null) {
-                booleanQuery.add(new BooleanClause(luceneQuery, occurs));
+                booleanQueryBuilder.add(new BooleanClause(luceneQuery, occurs));
             }
         }
     }

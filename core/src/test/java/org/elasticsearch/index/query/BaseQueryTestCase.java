@@ -211,13 +211,11 @@ public abstract class BaseQueryTestCase<QB extends AbstractQueryBuilder<QB>> ext
 
     protected final QB createTestQueryBuilder() {
         QB query = doCreateTestQueryBuilder();
-        if (supportsBoostAndQueryName()) {
-            if (randomBoolean()) {
-                query.boost(2.0f / randomIntBetween(1, 20));
-            }
-            if (randomBoolean()) {
-                query.queryName(randomAsciiOfLengthBetween(1, 10));
-            }
+        if (randomBoolean()) {
+            query.boost(2.0f / randomIntBetween(1, 20));
+        }
+        if (randomBoolean()) {
+            query.queryName(randomAsciiOfLengthBetween(1, 10));
         }
         return query;
     }
@@ -234,6 +232,11 @@ public abstract class BaseQueryTestCase<QB extends AbstractQueryBuilder<QB>> ext
     @Test
     public void testFromXContent() throws IOException {
         QB testQuery = createTestQueryBuilder();
+        //we should not set boost and query name for queries that don't parse it, so we simply reset them to their default values
+        if (supportsBoostAndQueryNameParsing() == false) {
+            testQuery.boost(AbstractQueryBuilder.DEFAULT_BOOST);
+            testQuery.queryName(null);
+        }
         assertParsedQuery(testQuery.toString(), testQuery);
         for (Map.Entry<String, QB> alternateVersion : getAlternateVersions().entrySet()) {
             assertParsedQuery(alternateVersion.getKey(), alternateVersion.getValue());
@@ -288,9 +291,7 @@ public abstract class BaseQueryTestCase<QB extends AbstractQueryBuilder<QB>> ext
         assertThat("two equivalent query builders lead to different lucene queries", secondLuceneQuery, equalTo(firstLuceneQuery));
 
         //if the initial lucene query is null, changing its boost won't have any effect, we shouldn't test that
-        //few queries also don't support boost e.g. wrapper query and filter query
-        //otherwise makes sure that boost is taken into account in toQuery
-        if (firstLuceneQuery != null && supportsBoostAndQueryName()) {
+        if (firstLuceneQuery != null) {
             secondQuery.boost(firstQuery.boost() + 1f + randomFloat());
             Query thirdLuceneQuery = secondQuery.toQuery(context);
             assertThat("modifying the boost doesn't affect the corresponding lucene query", firstLuceneQuery, not(equalTo(thirdLuceneQuery)));
@@ -298,11 +299,11 @@ public abstract class BaseQueryTestCase<QB extends AbstractQueryBuilder<QB>> ext
     }
 
     /**
-     * Few queries allow you to set the boost and queryName but don't do anything with it. This method allows
-     * to disable boost and queryName related tests for those queries. Those queries are easy to identify: their parsers
-     * don't parse `boost` and `_name` as they don't apply to the specific query e.g. filter query or wrapper query
+     * Few queries allow you to set the boost and queryName on the java api, although the corresponding parser doesn't parse them as they are not supported.
+     * This method allows to disable boost and queryName related tests for those queries. Those queries are easy to identify: their parsers
+     * don't parse `boost` and `_name` as they don't apply to the specific query: filter query, wrapper query and match_none
      */
-    protected boolean supportsBoostAndQueryName() {
+    protected boolean supportsBoostAndQueryNameParsing() {
         return true;
     }
 
@@ -317,9 +318,13 @@ public abstract class BaseQueryTestCase<QB extends AbstractQueryBuilder<QB>> ext
             assertThat(namedQuery, equalTo(query));
         }
         if (query != null) {
-            assertThat(query.getBoost(), equalTo(queryBuilder.boost()));
+            assertBoost(queryBuilder, query);
         }
         doAssertLuceneQuery(queryBuilder, query, context);
+    }
+
+    protected void assertBoost(QB queryBuilder, Query query) throws IOException {
+        assertThat(query.getBoost(), equalTo(queryBuilder.boost()));
     }
 
     /**

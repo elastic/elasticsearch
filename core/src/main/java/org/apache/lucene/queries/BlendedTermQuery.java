@@ -27,6 +27,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermContext;
 import org.apache.lucene.index.TermState;
 import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.Query;
@@ -299,7 +300,8 @@ public abstract class BlendedTermQuery extends Query {
         return new BlendedTermQuery(terms, boosts) {
             @Override
             protected Query topLevelQuery(Term[] terms, TermContext[] ctx, int[] docFreqs, int maxDoc) {
-                BooleanQuery query = new BooleanQuery(disableCoord);
+                BooleanQuery.Builder query = new BooleanQuery.Builder();
+                query.setDisableCoord(disableCoord);
                 for (int i = 0; i < terms.length; i++) {
                     TermQuery termQuery = new TermQuery(terms[i], ctx[i]);
                     if (boosts != null) {
@@ -307,7 +309,7 @@ public abstract class BlendedTermQuery extends Query {
                     }
                     query.add(termQuery, BooleanClause.Occur.SHOULD);
                 }
-                return query;
+                return query.build();
             }
         };
     }
@@ -316,9 +318,10 @@ public abstract class BlendedTermQuery extends Query {
         return new BlendedTermQuery(terms, boosts) {
             @Override
             protected Query topLevelQuery(Term[] terms, TermContext[] ctx, int[] docFreqs, int maxDoc) {
-                BooleanQuery query = new BooleanQuery(true);
-                BooleanQuery high = new BooleanQuery(disableCoord);
-                BooleanQuery low = new BooleanQuery(disableCoord);
+                BooleanQuery.Builder highBuilder = new BooleanQuery.Builder();
+                highBuilder.setDisableCoord(disableCoord);
+                BooleanQuery.Builder lowBuilder = new BooleanQuery.Builder();
+                lowBuilder.setDisableCoord(disableCoord);
                 for (int i = 0; i < terms.length; i++) {
                     TermQuery termQuery = new TermQuery(terms[i], ctx[i]);
                     if (boosts != null) {
@@ -327,22 +330,28 @@ public abstract class BlendedTermQuery extends Query {
                     if ((maxTermFrequency >= 1f && docFreqs[i] > maxTermFrequency)
                             || (docFreqs[i] > (int) Math.ceil(maxTermFrequency
                             * (float) maxDoc))) {
-                        high.add(termQuery, BooleanClause.Occur.SHOULD);
+                        highBuilder.add(termQuery, BooleanClause.Occur.SHOULD);
                     } else {
-                        low.add(termQuery, BooleanClause.Occur.SHOULD);
+                        lowBuilder.add(termQuery, BooleanClause.Occur.SHOULD);
                     }
                 }
+                BooleanQuery high = highBuilder.build();
+                BooleanQuery low = lowBuilder.build();
                 if (low.clauses().isEmpty()) {
+                    BooleanQuery.Builder queryBuilder = new BooleanQuery.Builder();
+                    queryBuilder.setDisableCoord(disableCoord);
                     for (BooleanClause booleanClause : high) {
-                        booleanClause.setOccur(BooleanClause.Occur.MUST);
+                        queryBuilder.add(booleanClause.getQuery(), Occur.MUST);
                     }
-                    return high;
+                    return queryBuilder.build();
                 } else if (high.clauses().isEmpty()) {
                     return low;
                 } else {
-                    query.add(high, BooleanClause.Occur.SHOULD);
-                    query.add(low, BooleanClause.Occur.MUST);
-                    return query;
+                    return new BooleanQuery.Builder()
+                        .setDisableCoord(true)
+                        .add(high, BooleanClause.Occur.SHOULD)
+                        .add(low, BooleanClause.Occur.MUST)
+                        .build();
                 }
             }
         };

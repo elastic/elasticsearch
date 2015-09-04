@@ -105,6 +105,14 @@ public class WrapperQueryBuilder extends AbstractQueryBuilder<WrapperQueryBuilde
     }
 
     @Override
+    protected void setFinalBoost(Query query) {
+        if (boost != DEFAULT_BOOST) {
+            //if both the wrapped query and the wrapper hold a boost, the main one coming from the wrapper takes precedence
+            query.setBoost(boost);
+        }
+    }
+
+    @Override
     public QueryValidationException validate() {
         QueryValidationException validationException = null;
         if (this.source == null || this.source.length == 0) {

@@ -125,14 +125,14 @@ public class ParentQuery extends IndexCacheableQuery {
         IndexParentChildFieldData globalIfd = parentChildIndexFieldData.loadGlobal(searcher.getIndexReader());
         if (globalIfd == null) {
             // No docs of the specified type don't exist on this shard
-            return new BooleanQuery().createWeight(searcher, needsScores);
+            return new BooleanQuery.Builder().build().createWeight(searcher, needsScores);
         }
 
         try {
             collector = new ParentOrdAndScoreCollector(sc, globalIfd, parentType);
             searcher.search(parentQuery, collector);
             if (collector.parentCount() == 0) {
-                return new BooleanQuery().createWeight(searcher, needsScores);
+                return new BooleanQuery.Builder().build().createWeight(searcher, needsScores);
             }
             childWeight = new ChildWeight(this, parentQuery.createWeight(searcher, needsScores), childrenFilter, collector, globalIfd);
             releaseCollectorResource = false;

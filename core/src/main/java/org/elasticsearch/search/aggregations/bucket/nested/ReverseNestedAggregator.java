@@ -22,13 +22,10 @@ import com.carrotsearch.hppc.LongIntHashMap;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.join.BitDocIdSetFilter;
-import org.apache.lucene.util.BitDocIdSet;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.util.BitSet;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
@@ -52,30 +49,28 @@ import java.util.Map;
  */
 public class ReverseNestedAggregator extends SingleBucketAggregator {
 
-    private final BitDocIdSetFilter parentFilter;
+    private final Query parentFilter;
+    private final BitSetProducer parentBitsetProducer;
 
     public ReverseNestedAggregator(String name, AggregatorFactories factories, ObjectMapper objectMapper,
             AggregationContext aggregationContext, Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
             throws IOException {
         super(name, factories, aggregationContext, parent, pipelineAggregators, metaData);
         if (objectMapper == null) {
-            parentFilter = context.searchContext().bitsetFilterCache().getBitDocIdSetFilter(Queries.newNonNestedFilter());
+            parentFilter = Queries.newNonNestedFilter();
         } else {
-            parentFilter = context.searchContext().bitsetFilterCache().getBitDocIdSetFilter(objectMapper.nestedTypeFilter());
+            parentFilter = objectMapper.nestedTypeFilter();
         }
-
+        parentBitsetProducer = context.searchContext().bitsetFilterCache().getBitSetProducer(parentFilter);
     }
 
     @Override
     protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
         // In ES if parent is deleted, then also the children are deleted, so the child docs this agg receives
         // must belong to parent docs that is alive. For this reason acceptedDocs can be null here.
-        BitDocIdSet docIdSet = parentFilter.getDocIdSet(ctx);
-        final BitSet parentDocs;
-        if (Lucene.isEmpty(docIdSet)) {
+        final BitSet parentDocs = parentBitsetProducer.getBitSet(ctx);
+        if (parentDocs == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
-        } else {
-            parentDocs = docIdSet.bits();
         }
         final LongIntHashMap bucketOrdToLastCollectedParentDoc = new LongIntHashMap(32);
         return new LeafBucketCollectorBase(sub, null) {
@@ -120,7 +115,7 @@ public class ReverseNestedAggregator extends SingleBucketAggregator {
         return new InternalReverseNested(name, 0, buildEmptySubAggregations(), pipelineAggregators(), metaData());
     }
 
-    Filter getParentFilter() {
+    Query getParentFilter() {
         return parentFilter;
     }
 

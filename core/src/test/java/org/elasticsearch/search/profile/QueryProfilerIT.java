@@ -225,7 +225,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
         QueryBuilder q = QueryBuilders.boolQuery().must(QueryBuilders.matchQuery("field1", "one")).must(QueryBuilders.matchQuery("field1", "two"));
 
         SearchResponse resp = client().prepareSearch().setQuery(q).setProfile(true).execute().actionGet();
-System.out.println(resp);
+
         ProfileResults p = resp.getProfileResults();
         assertNotNull(p);
 

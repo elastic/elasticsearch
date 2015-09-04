@@ -154,7 +154,8 @@ public class BitsetFilterCache extends AbstractIndexComponent implements LeafRea
                 if (shardId != null) {
                     IndexShard shard = indexService.shard(shardId.id());
                     if (shard != null) {
-                        shard.shardBitsetFilterCache().onCached(value.bitset.ramBytesUsed());
+                        long ramBytesUsed = value.bitset != null ? value.bitset.ramBytesUsed() : 0l;
+                        shard.shardBitsetFilterCache().onCached(ramBytesUsed);
                     }
                 }
                 return value;

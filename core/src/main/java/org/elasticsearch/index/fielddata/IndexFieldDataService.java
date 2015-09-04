@@ -245,16 +245,6 @@ public class IndexFieldDataService extends AbstractIndexComponent {
                 }
                 fieldDataCaches.put(fieldNames.indexName(), cache);
             }
-
-            // Remove this in 3.0
-            final boolean isOldParentField = ParentFieldMapper.NAME.equals(fieldNames.indexName())
-                    && Version.indexCreated(indexSettings).before(Version.V_2_0_0_beta1);
-            if (isOldParentField) {
-                if (parentIndexFieldData == null) {
-                    parentIndexFieldData = builder.build(index, indexSettings, fieldType, cache, circuitBreakerService, mapperService);
-                }
-                return (IFD) parentIndexFieldData;
-            }
         }
 
         return (IFD) builder.build(index, indexSettings, fieldType, cache, circuitBreakerService, mapperService);

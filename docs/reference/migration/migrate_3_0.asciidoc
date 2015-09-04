@@ -63,3 +63,12 @@ Scroll requests sorted by `_doc` have been optimized to more efficiently resume
 from where the previous request stopped, so this will have the same performance
 characteristics as the former `scan` search type.
 
+=== Parent/Child changes
+
+The `children` aggregation, parent child inner hits and `has_child` and `has_parent` queries will not work on indices
+with `_parent` field mapping created before version `2.0.0`. The data of these indices need to be re-indexed into a new index.
+
+The format of the join between parent and child documents have changed with the `2.0.0` release. The old
+format can't read from version `3.0.0` and onwards. The new format allows for a much more efficient and
+scalable join between parent and child documents and the join data structures are stored on on disk
+data structures as opposed as before the join data structures were stored in the jvm heap space.

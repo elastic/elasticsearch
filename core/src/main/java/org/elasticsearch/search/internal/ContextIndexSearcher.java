@@ -25,12 +25,10 @@ import org.apache.lucene.search.*;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.search.dfs.AggregatedDfs;
-import org.elasticsearch.search.internal.SearchContext.Lifetime;
 import org.elasticsearch.common.lucene.search.ProfileQuery;
 import org.elasticsearch.search.profile.InternalProfileBreakdown;
 
 import java.io.IOException;
-import java.util.*;
 
 /**
  * Context-aware extension of {@link IndexSearcher}.
@@ -44,10 +42,11 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     private AggregatedDfs aggregatedDfs;
 
-    private boolean profile = false;
+    private final SearchContext searchContext;
 
     public ContextIndexSearcher(SearchContext searchContext, Engine.Searcher searcher) {
         super(searcher.reader());
+        this.searchContext = searchContext;
         in = searcher.searcher();
         setSimilarity(searcher.searcher().getSimilarity(true));
         setQueryCache(searchContext.indexShard().indexService().cache().query());
@@ -64,17 +63,18 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     @Override
     public Query rewrite(Query original) throws IOException {
-        if (profile) {
-            searchContext.queryProfiler().startTime(original, TimingWrapper.TimingType.REWRITE);
-            Query rewritten = in.rewrite(original);      // nocommit Had to use super!  kosher?
-            searchContext.queryProfiler().stopAndRecordTime(original, TimingWrapper.TimingType.REWRITE);
-
-            searchContext.queryProfiler().reconcileRewrite(original, rewritten);
-
-            return rewritten;
+        if (searchContext.profile()) {
+            searchContext.queryProfiler().startTime(original, InternalProfileBreakdown.TimingType.REWRITE);
         }
 
-        return in.rewrite(original);
+        Query rewritten = in.rewrite(original);
+
+        if (searchContext.profile()) {
+            searchContext.queryProfiler().stopAndRecordTime(original, InternalProfileBreakdown.TimingType.REWRITE);
+            searchContext.queryProfiler().reconcileRewrite(original, rewritten);
+        }
+
+        return rewritten;
     }
 
     @Override
@@ -83,63 +83,35 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         // it is hacky, because if we perform a dfs search, we don't use the wrapped IndexSearcher...
         if (aggregatedDfs != null && needsScores) {
             // if scores are needed and we have dfs data then use it
-            if (dfSource != null && needsScores) {
-                return doCreateNormalizedWeight(query, needsScores, true);
-            }
-            return  doCreateNormalizedWeight(query, needsScores, false);   // nocommit Had to use super!  kosher?
-        } catch (Throwable t) {
-            searchContext.clearReleasables(Lifetime.COLLECTION);
-            throw ExceptionsHelper.convertToElastic(t);
+            return super.createNormalizedWeight(query, needsScores);
+        } else if (searchContext.profile()) {
+            // we need to use the createWeight method to insert the wrappers
+            return super.createNormalizedWeight(query, needsScores);
         }
         return in.createNormalizedWeight(query, needsScores);
     }
 
-    /**
-     * Profiling-aware wrapper of createNormalizedWeight().  If profiling is enabled,
-     * the queryProfiler inside the searchContext is start/stop after the normalization operation
-     *
-     * Note: if profiling is enabled, DFS is not used due to limitations of wrapping the
-     * IndexSearcher
-     *
-     * @param query         Query to build weight for
-     * @param needsScores   If this weight needs scores or not
-     * @param useDFS        If this query should use precomputed DFS tf/df
-     * @return              The normalized weight
-     *
-     * @throws IOException
-     */
-    private Weight doCreateNormalizedWeight(Query query, boolean needsScores, boolean useDFS) throws IOException {
-
-        // NOTE: DFS won't work!
-        if (profile) {
-            return super.createNormalizedWeight(query, needsScores);    // nocommit Had to use super!  kosher?
-        }
-
-        return useDFS ? dfSource.createNormalizedWeight(query, needsScores) : in.createNormalizedWeight(query, needsScores);
-    }
-
     @Override
     public Weight createWeight(Query query, boolean needsScores) throws IOException {
-        if (profile) {
+        if (searchContext.profile()) {
             // createWeight() is called for each query in the tree, so we tell the queryProfiler
             // each invocation so that it can build an internal representation of the query
             // tree
             searchContext.queryProfiler().pushQuery(query);
-
             searchContext.queryProfiler().startTime(query, InternalProfileBreakdown.TimingType.WEIGHT);
-            Weight weight = super.createWeight(query, needsScores);
-            searchContext.queryProfiler().stopAndRecordTime(query, InternalProfileBreakdown.TimingType.WEIGHT);
-
-            searchContext.queryProfiler().pollLast();
-
-            return new ProfileQuery.ProfileWeight(query, weight, searchContext.queryProfiler());
         }
-
-        return super.createWeight(query, needsScores);
+        Weight weight = in.createWeight(query, needsScores);
+        if (searchContext.profile()) {
+            searchContext.queryProfiler().stopAndRecordTime(query, InternalProfileBreakdown.TimingType.WEIGHT);
+            searchContext.queryProfiler().pollLast();
+            weight = new ProfileQuery.ProfileWeight(query, weight, searchContext.queryProfiler());
+        }
+        return weight;
     }
 
     @Override
     public Explanation explain(Query query, int doc) throws IOException {
+        // TODO: add timings for explain?
         return in.explain(query, doc);
     }
 
@@ -171,19 +143,4 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         return collectionStatistics;
     }
 
-    /**
-     * Return if this query is being profiled or not
-     */
-    public boolean profile() {
-        return profile;
-    }
-
-    /**
-     * Sets if this query should be profiled or not
-     *
-     * @param profile True if this query should be profiled
-     */
-    public void profile(boolean profile) {
-        this.profile = profile;
-    }
 }

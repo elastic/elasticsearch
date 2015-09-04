@@ -731,7 +731,7 @@ public class DefaultSearchContext extends SearchContext {
      */
     @Override
     public boolean profile() {
-        return searcher.profile();
+        return internalProfiler != null;
     }
 
     /**
@@ -746,16 +746,16 @@ public class DefaultSearchContext extends SearchContext {
      */
     @Override
     public void profile(boolean profile) {
-        searcher.profile(profile);
-
         if (profile) {
             internalProfiler = new InternalProfiler();
+        } else {
+            internalProfiler = null;
         }
     }
 
     /**
      * Returns the query profiler, which is used to store timings across the
-     * search context
+     * search context. This should only be used if {@link #profile()} returns true.
      *
      * @return The query Profiler
      */

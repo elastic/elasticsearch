@@ -58,9 +58,9 @@ public abstract class ProfileQuery {
         }
 
         @Override
-        public Scorer scorer(LeafReaderContext context, Bits acceptDocs) throws IOException {
+        public Scorer scorer(LeafReaderContext context) throws IOException {
             profiler.startTime(getQuery(), InternalProfileBreakdown.TimingType.BUILD_SCORER);
-            Scorer subQueryScorer = subQueryWeight.scorer(context, acceptDocs);
+            Scorer subQueryScorer = subQueryWeight.scorer(context);
             profiler.stopAndRecordTime(getQuery(), InternalProfileBreakdown.TimingType.BUILD_SCORER);
             if (subQueryScorer == null) {
                 return null;
@@ -70,9 +70,9 @@ public abstract class ProfileQuery {
         }
 
         @Override
-        public BulkScorer bulkScorer(LeafReaderContext context, Bits acceptDocs) throws IOException {
+        public BulkScorer bulkScorer(LeafReaderContext context) throws IOException {
             profiler.startTime(getQuery(), InternalProfileBreakdown.TimingType.BUILD_SCORER);
-            BulkScorer bScorer = subQueryWeight.bulkScorer(context, acceptDocs);
+            BulkScorer bScorer = subQueryWeight.bulkScorer(context);
             profiler.stopAndRecordTime(getQuery(), InternalProfileBreakdown.TimingType.BUILD_SCORER);
 
             if (bScorer == null) {
@@ -198,16 +198,16 @@ public abstract class ProfileQuery {
         }
 
         @Override
-        public void score(LeafCollector collector) throws IOException {
+        public void score(LeafCollector collector, Bits liveDocs) throws IOException {
             profiler.startTime(query, InternalProfileBreakdown.TimingType.SCORE);
-            bulkScorer.score(collector);
+            bulkScorer.score(collector, liveDocs);
             profiler.stopAndRecordTime(query, InternalProfileBreakdown.TimingType.SCORE);
         }
 
         @Override
-        public int score(LeafCollector collector, int min, int max) throws IOException {
+        public int score(LeafCollector collector, Bits liveDocs, int min, int max) throws IOException {
             profiler.startTime(query, InternalProfileBreakdown.TimingType.SCORE);
-            int score = bulkScorer.score(collector, min, max);
+            int score = bulkScorer.score(collector, liveDocs, min, max);
             profiler.stopAndRecordTime(query, InternalProfileBreakdown.TimingType.SCORE);
             return score;
         }

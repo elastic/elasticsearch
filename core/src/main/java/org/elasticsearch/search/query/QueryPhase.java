@@ -118,7 +118,7 @@ public class QueryPhase implements SearchPhase {
         suggestPhase.execute(searchContext);
         aggregationPhase.execute(searchContext);
 
-        if (profiler != null) {
+        if (searchContext.profile()) {
             InternalProfileResult result = searchContext.queryProfiler().finalizeProfileResults();
             searchContext.queryResult().profileResult(result);
         }

@@ -111,6 +111,10 @@ import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.min.MinBucke
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.min.MinBucketPipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.percentile.PercentilesBucketParser;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.percentile.PercentilesBucketPipelineAggregator;
+import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.stats.StatsBucketParser;
+import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.stats.StatsBucketPipelineAggregator;
+import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.stats.extended.ExtendedStatsBucketParser;
+import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.stats.extended.ExtendedStatsBucketPipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.sum.SumBucketParser;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.sum.SumBucketPipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.bucketscript.BucketScriptParser;
@@ -300,6 +304,8 @@ public class SearchModule extends AbstractModule {
         multibinderPipelineAggParser.addBinding().to(MinBucketParser.class);
         multibinderPipelineAggParser.addBinding().to(AvgBucketParser.class);
         multibinderPipelineAggParser.addBinding().to(SumBucketParser.class);
+        multibinderPipelineAggParser.addBinding().to(StatsBucketParser.class);
+        multibinderPipelineAggParser.addBinding().to(ExtendedStatsBucketParser.class);
         multibinderPipelineAggParser.addBinding().to(PercentilesBucketParser.class);
         multibinderPipelineAggParser.addBinding().to(MovAvgParser.class);
         multibinderPipelineAggParser.addBinding().to(CumulativeSumParser.class);
@@ -393,7 +399,9 @@ public class SearchModule extends AbstractModule {
         MinBucketPipelineAggregator.registerStreams();
         AvgBucketPipelineAggregator.registerStreams();
         SumBucketPipelineAggregator.registerStreams();
-        PercentilesBucketPipelineAggregator.registerStreams();
+        StatsBucketPipelineAggregator.registerStreams();
+        ExtendedStatsBucketPipelineAggregator.registerStreams();
+        PercentilesBucketPipelineAggregator.registerStreams();        
         MovAvgPipelineAggregator.registerStreams();
         CumulativeSumPipelineAggregator.registerStreams();
         BucketScriptPipelineAggregator.registerStreams();

@@ -39,7 +39,6 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.profile.CollectorResult.CollectorReason;
 import org.elasticsearch.search.profile.InternalProfileResult;
 import org.elasticsearch.search.profile.InternalProfiler;
-import org.elasticsearch.search.profile.InternalProfileCollector;
 import org.elasticsearch.search.rescore.RescorePhase;
 import org.elasticsearch.search.rescore.RescoreSearchContext;
 import org.elasticsearch.search.scan.ScanContext.ScanCollector;
@@ -60,8 +59,6 @@ public class QueryPhase implements SearchPhase {
     private final AggregationPhase aggregationPhase;
     private final SuggestPhase suggestPhase;
     private RescorePhase rescorePhase;
-
-    private InternalProfileCollector last;
 
     @Inject
     public QueryPhase(AggregationPhase aggregationPhase, SuggestPhase suggestPhase, RescorePhase rescorePhase) {

@@ -53,8 +53,8 @@ public class InternalProfileBreakdown implements ProfileBreakdown, Streamable, T
     private long[] scratch;
 
     public InternalProfileBreakdown() {
-        timings = new long[6];
-        scratch = new long[6];
+        timings = new long[TimingType.values().length];
+        scratch = new long[TimingType.values().length];
     }
 
     /**
@@ -62,7 +62,7 @@ public class InternalProfileBreakdown implements ProfileBreakdown, Streamable, T
      * @param timing    The timing context being profiled
      */
     public void startTime(TimingType timing) {
-        scratch[timing.getType()] = System.nanoTime();
+        scratch[timing.ordinal()] = System.nanoTime();
     }
 
     /**
@@ -77,10 +77,10 @@ public class InternalProfileBreakdown implements ProfileBreakdown, Streamable, T
     public long stopAndRecordTime(TimingType timing) {
         long time = System.nanoTime();
 
-        time = time - scratch[timing.getType()];
+        time = time - scratch[timing.ordinal()];
 
-        timings[timing.getType()] += time;
-        scratch[timing.getType()] = 0L;
+        timings[timing.ordinal()] += time;
+        scratch[timing.ordinal()] = 0L;
         return time;
     }
 
@@ -91,7 +91,7 @@ public class InternalProfileBreakdown implements ProfileBreakdown, Streamable, T
      * @param time  The accumulated time to overwrite with
      */
     public void setTime(TimingType type, long time) {
-        timings[type.getType()] = time;
+        timings[type.ordinal()] = time;
     }
 
     /**
@@ -100,7 +100,7 @@ public class InternalProfileBreakdown implements ProfileBreakdown, Streamable, T
      * @return      The accumulated time
      */
     public long getTime(TimingType type) {
-        return timings[type.getType()];
+        return timings[type.ordinal()];
     }
 
     /**
@@ -112,7 +112,7 @@ public class InternalProfileBreakdown implements ProfileBreakdown, Streamable, T
     public long getTotalTime() {
         long time = 0;
         for (TimingType type : TimingType.values()) {
-            time += timings[type.getType()];
+            time += timings[type.ordinal()];
         }
         return time;
     }
@@ -130,7 +130,7 @@ public class InternalProfileBreakdown implements ProfileBreakdown, Streamable, T
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         for (TimingType type : TimingType.values()) {
-            builder = builder.field(type.toString(), timings[type.getType()]);
+            builder = builder.field(type.toString(), timings[type.ordinal()]);
         }
         return builder;
     }

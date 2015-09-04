@@ -27,22 +27,13 @@ package org.elasticsearch.search.profile;
 public interface ProfileBreakdown {
 
     enum TimingType {
-        REWRITE(0),
-        WEIGHT(1),
-        BUILD_SCORER(2),
-        NEXT_DOC(3),
-        ADVANCE(4),
-        SCORE(5);
-
-        private int type;
-
-        TimingType(int type) {
-            this.type = type;
-        }
-
-        public int getType() {
-            return type;
-        }
+        REWRITE,
+        WEIGHT,
+        BUILD_SCORER,
+        NEXT_DOC,
+        ADVANCE,
+        MATCH,
+        SCORE;
 
         @Override
         public String toString() {

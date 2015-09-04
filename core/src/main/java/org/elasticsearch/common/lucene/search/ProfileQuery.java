@@ -182,7 +182,54 @@ public abstract class ProfileQuery {
 
         @Override
         public TwoPhaseIterator asTwoPhaseIterator() {
-            return scorer.asTwoPhaseIterator();
+            final TwoPhaseIterator in = scorer.asTwoPhaseIterator();
+            if (in == null) {
+                return null;
+            }
+            final DocIdSetIterator inApproximation = in.approximation();
+            final DocIdSetIterator approximation = new DocIdSetIterator() {
+
+                @Override
+                public int advance(int target) throws IOException {
+                    profiler.startTime(query, InternalProfileBreakdown.TimingType.ADVANCE);
+                    try {
+                        return scorer.advance(target);
+                    } finally {
+                        profiler.stopAndRecordTime(query, InternalProfileBreakdown.TimingType.ADVANCE);
+                    }
+                }
+
+                @Override
+                public int nextDoc() throws IOException {
+                    profiler.startTime(query, InternalProfileBreakdown.TimingType.NEXT_DOC);
+                    try {
+                        return scorer.nextDoc();
+                    } finally {
+                        profiler.stopAndRecordTime(query, InternalProfileBreakdown.TimingType.NEXT_DOC);
+                    }
+                }
+
+                @Override
+                public int docID() {
+                    return inApproximation.docID();
+                }
+
+                @Override
+                public long cost() {
+                    return inApproximation.cost();
+                }
+            };
+            return new TwoPhaseIterator(approximation) {
+                @Override
+                public boolean matches() throws IOException {
+                    profiler.startTime(query, InternalProfileBreakdown.TimingType.MATCH);
+                    try {
+                        return in.matches();
+                    } finally {
+                        profiler.stopAndRecordTime(query, InternalProfileBreakdown.TimingType.MATCH);
+                    }
+                }
+            };
         }
     }
 

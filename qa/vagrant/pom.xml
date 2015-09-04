@@ -35,6 +35,9 @@
       <!-- rpmbuild location : default to /usr/bin/rpmbuild -->
       <packaging.rpm.rpmbuild>/usr/bin/rpmbuild</packaging.rpm.rpmbuild>
 
+      <!-- This version is consistently available in maven central so its useful
+           for now but it doesn't have any guarantee of compatibility so it
+           should be switched out with 2.0.0 once that is released. -->
       <upgrade.from.version>2.0.0-beta1</upgrade.from.version>
     </properties>
 

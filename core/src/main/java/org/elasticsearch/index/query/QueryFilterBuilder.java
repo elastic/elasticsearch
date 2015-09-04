@@ -28,12 +28,11 @@ import java.io.IOException;
  * @deprecated Useless now that queries and filters are merged: pass the
  *             query as a filter directly.
  */
+//TODO: remove when https://github.com/elastic/elasticsearch/issues/13326 is fixed
 @Deprecated
 public class QueryFilterBuilder extends QueryBuilder {
 
     private final QueryBuilder queryBuilder;
-
-    private String queryName;
 
     /**
      * A filter that simply wraps a query.
@@ -44,27 +43,9 @@ public class QueryFilterBuilder extends QueryBuilder {
         this.queryBuilder = queryBuilder;
     }
 
-    /**
-     * Sets the query name for the filter that can be used when searching for matched_filters per hit.
-     */
-    public QueryFilterBuilder queryName(String queryName) {
-        this.queryName = queryName;
-        return this;
-    }
-
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
-        if (queryName == null) {
-            builder.field(QueryFilterParser.NAME);
-            queryBuilder.toXContent(builder, params);
-        } else {
-            builder.startObject(FQueryFilterParser.NAME);
-            builder.field("query");
-            queryBuilder.toXContent(builder, params);
-            if (queryName != null) {
-                builder.field("_name", queryName);
-            }
-            builder.endObject();
-        }
+        builder.field(QueryFilterParser.NAME);
+        queryBuilder.toXContent(builder, params);
     }
 }

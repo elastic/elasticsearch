@@ -34,7 +34,6 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.QueryBuilders.filteredQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.scriptQuery;
 import static org.hamcrest.Matchers.equalTo;
@@ -72,7 +71,7 @@ public class ScriptQuerySearchIT extends ESIntegTestCase {
 
         logger.info("running doc['num1'].value > 1");
         SearchResponse response = client().prepareSearch()
-                .setQuery(filteredQuery(matchAllQuery(), scriptQuery(new Script("doc['num1'].value > 1")))).addSort("num1", SortOrder.ASC)
+                .setQuery(scriptQuery(new Script("doc['num1'].value > 1"))).addSort("num1", SortOrder.ASC)
                 .addScriptField("sNum1", new Script("doc['num1'].value")).execute().actionGet();
 
         assertThat(response.getHits().totalHits(), equalTo(2l));
@@ -100,8 +99,7 @@ public class ScriptQuerySearchIT extends ESIntegTestCase {
         response = client()
                 .prepareSearch()
                 .setQuery(
-                        filteredQuery(matchAllQuery(),
-                                scriptQuery(new Script("doc['num1'].value > param1", ScriptType.INLINE, null, params))))
+                        scriptQuery(new Script("doc['num1'].value > param1", ScriptType.INLINE, null, params)))
                 .addSort("num1", SortOrder.ASC).addScriptField("sNum1", new Script("doc['num1'].value")).execute().actionGet();
 
         assertThat(response.getHits().totalHits(), equalTo(3l));

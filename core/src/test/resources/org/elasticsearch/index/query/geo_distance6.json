@@ -1,9 +1,4 @@
 {
-    "filtered":{
-        "query":{
-            "match_all":{}
-        },
-        "filter":{
             "geo_distance":{
                 "distance":"12",
                 "unit":"mi",
@@ -12,6 +7,4 @@
                     "lon":-70
                 }
             }
-        }
-    }
 }

@@ -667,16 +667,17 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                 context.size(10);
             }
 
+            // Since we find out about profiling after building the IndexSearcher, we have to
+            // go back and inform it that profiling is required
+            // Must happen before queryPhase.preProcess, since that calls rewrite()
+            if (context.request().profile()) {
+                context.profile(true);
+            }
+
             // pre process
             dfsPhase.preProcess(context);
             queryPhase.preProcess(context);
             fetchPhase.preProcess(context);
-
-            // Since we find out about profiling after building the IndexSearcher, we have to
-            // go back and inform it that profiling is required
-            if (context.request().profile()) {
-                context.profile(true);
-            }
 
             // compute the context keep alive
             long keepAlive = defaultKeepAlive;

@@ -245,7 +245,10 @@ public abstract class Streams {
     }
 
     public static byte[] toByteArray(InputStream in) throws IOException {
-        Preconditions.checkNotNull(in, "No InputStream specified");
+
+        if (in == null) {
+            throw new NullPointerException("No InputStream specified");
+        }
 
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         // Does not close or flush either stream.

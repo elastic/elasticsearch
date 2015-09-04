@@ -27,7 +27,12 @@ package org.elasticsearch.search.profile;
 public interface ProfileBreakdown {
 
     enum TimingType {
-        REWRITE(0), WEIGHT(1), SCORE(2), COST(3), NORMALIZE(4), BUILD_SCORER(5);
+        REWRITE(0),
+        WEIGHT(1),
+        BUILD_SCORER(2),
+        NEXT_DOC(3),
+        ADVANCE(4),
+        SCORE(5);
 
         private int type;
 

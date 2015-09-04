@@ -67,14 +67,17 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             searchContext.queryProfiler().startTime(original, InternalProfileBreakdown.TimingType.REWRITE);
         }
 
-        Query rewritten = in.rewrite(original);
-
-        if (searchContext.profile()) {
-            searchContext.queryProfiler().stopAndRecordTime(original, InternalProfileBreakdown.TimingType.REWRITE);
-            searchContext.queryProfiler().reconcileRewrite(original, rewritten);
+        Query rewritten = null;
+        try {
+            return rewritten = in.rewrite(original);
+        } finally {
+            if (searchContext.profile()) {
+                searchContext.queryProfiler().stopAndRecordTime(original, InternalProfileBreakdown.TimingType.REWRITE);
+                if (rewritten != null) {
+                    searchContext.queryProfiler().reconcileRewrite(original, rewritten);
+                }
+            }
         }
-
-        return rewritten;
     }
 
     @Override
@@ -87,8 +90,9 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         } else if (searchContext.profile()) {
             // we need to use the createWeight method to insert the wrappers
             return super.createNormalizedWeight(query, needsScores);
+        } else {
+            return in.createNormalizedWeight(query, needsScores);
         }
-        return in.createNormalizedWeight(query, needsScores);
     }
 
     @Override

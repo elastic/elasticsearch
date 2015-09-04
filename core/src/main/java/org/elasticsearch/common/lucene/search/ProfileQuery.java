@@ -22,7 +22,6 @@ package org.elasticsearch.common.lucene.search;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
-import org.apache.lucene.util.Bits;
 import org.elasticsearch.search.profile.InternalProfileBreakdown;
 import org.elasticsearch.search.profile.InternalProfiler;
 
@@ -48,7 +47,7 @@ public abstract class ProfileQuery {
      */
     public static class ProfileWeight extends Weight {
 
-        final Weight subQueryWeight;
+        private final Weight subQueryWeight;
         private final InternalProfiler profiler;
 
         public ProfileWeight(Query query, Weight subQueryWeight, InternalProfiler profiler) throws IOException {
@@ -71,15 +70,14 @@ public abstract class ProfileQuery {
 
         @Override
         public BulkScorer bulkScorer(LeafReaderContext context) throws IOException {
-            profiler.startTime(getQuery(), InternalProfileBreakdown.TimingType.BUILD_SCORER);
-            BulkScorer bScorer = subQueryWeight.bulkScorer(context);
-            profiler.stopAndRecordTime(getQuery(), InternalProfileBreakdown.TimingType.BUILD_SCORER);
-
-            if (bScorer == null) {
-                return null;
-            }
-
-            return new ProfileBulkScorer(bScorer, profiler, getQuery());
+            // We use the default bulk scorer instead of the specialized one. The reason
+            // is that Lucene's BulkScorers do everything at once: finding matches,
+            // scoring them and calling the collector, so they make it impossible to
+            // see where time is spent, which is the purpose of query profiling.
+            // The default bulk scorer will pull a scorer and iterate over matches,
+            // this might be a significantly different execution path for some queries
+            // like disjunctions, but in general this is what is done anyway
+            return super.bulkScorer(context);
         }
 
         @Override
@@ -94,9 +92,7 @@ public abstract class ProfileQuery {
 
         @Override
         public void normalize(float norm, float topLevelBoost) {
-            profiler.startTime(getQuery(), InternalProfileBreakdown.TimingType.NORMALIZE);
             subQueryWeight.normalize(norm, topLevelBoost);
-            profiler.stopAndRecordTime(getQuery(), InternalProfileBreakdown.TimingType.NORMALIZE);
         }
 
         @Override
@@ -136,21 +132,32 @@ public abstract class ProfileQuery {
 
         @Override
         public int advance(int target) throws IOException {
-            return scorer.advance(target);
+            profiler.startTime(query, InternalProfileBreakdown.TimingType.ADVANCE);
+            try {
+                return scorer.advance(target);
+            } finally {
+                profiler.stopAndRecordTime(query, InternalProfileBreakdown.TimingType.ADVANCE);
+            }
         }
 
         @Override
         public int nextDoc() throws IOException {
-            return scorer.nextDoc();
+            profiler.startTime(query, InternalProfileBreakdown.TimingType.NEXT_DOC);
+            try {
+                return scorer.nextDoc();
+            } finally {
+                profiler.stopAndRecordTime(query, InternalProfileBreakdown.TimingType.NEXT_DOC);
+            }
         }
 
         @Override
         public float score() throws IOException {
             profiler.startTime(query, InternalProfileBreakdown.TimingType.SCORE);
-            float score = scorer.score();
-            profiler.stopAndRecordTime(query, InternalProfileBreakdown.TimingType.SCORE);
-
-            return score;
+            try {
+                return scorer.score();
+            } finally {
+                profiler.stopAndRecordTime(query, InternalProfileBreakdown.TimingType.SCORE);
+            }
         }
 
         @Override
@@ -179,45 +186,4 @@ public abstract class ProfileQuery {
         }
     }
 
-    /**
-     * ProfileBulkScorer wraps the query's bulk scorer and performs timing on:
-     *  - score()
-     *  - cost()
-     */
-    static class ProfileBulkScorer extends BulkScorer {
-
-        private final InternalProfiler profiler;
-        private final Query query;
-        private final BulkScorer bulkScorer;
-
-        public ProfileBulkScorer(BulkScorer bulkScorer, InternalProfiler profiler, Query query) {
-            super();
-            this.bulkScorer = bulkScorer;
-            this.profiler = profiler;
-            this.query = query;
-        }
-
-        @Override
-        public void score(LeafCollector collector, Bits liveDocs) throws IOException {
-            profiler.startTime(query, InternalProfileBreakdown.TimingType.SCORE);
-            bulkScorer.score(collector, liveDocs);
-            profiler.stopAndRecordTime(query, InternalProfileBreakdown.TimingType.SCORE);
-        }
-
-        @Override
-        public int score(LeafCollector collector, Bits liveDocs, int min, int max) throws IOException {
-            profiler.startTime(query, InternalProfileBreakdown.TimingType.SCORE);
-            int score = bulkScorer.score(collector, liveDocs, min, max);
-            profiler.stopAndRecordTime(query, InternalProfileBreakdown.TimingType.SCORE);
-            return score;
-        }
-
-        @Override
-        public long cost() {
-            profiler.startTime(query, InternalProfileBreakdown.TimingType.COST);
-            long cost = bulkScorer.cost();
-            profiler.stopAndRecordTime(query, InternalProfileBreakdown.TimingType.COST);
-            return cost;
-        }
-    }
 }

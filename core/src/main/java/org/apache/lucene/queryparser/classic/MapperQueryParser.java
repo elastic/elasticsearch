@@ -42,13 +42,13 @@ import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.support.QueryParsers;
 
-import com.google.common.base.Objects;
 import com.google.common.collect.ImmutableMap;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Objects;
 
 import static org.elasticsearch.common.lucene.search.Queries.fixNegativeQueryIfNeeded;
 
@@ -572,7 +572,7 @@ public class MapperQueryParser extends QueryParser {
     protected Query getWildcardQuery(String field, String termStr) throws ParseException {
         if (termStr.equals("*")) {
             // we want to optimize for match all query for the "*:*", and "*" cases
-            if ("*".equals(field) || Objects.equal(field, this.field)) {
+            if ("*".equals(field) || Objects.equals(field, this.field)) {
                 String actualField = field;
                 if (actualField == null) {
                     actualField = this.field;

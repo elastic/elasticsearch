@@ -16,7 +16,6 @@
 
 package org.elasticsearch.common.inject.spi;
 
-import com.google.common.base.Objects;
 import org.elasticsearch.common.inject.Binder;
 import org.elasticsearch.common.inject.internal.Errors;
 import org.elasticsearch.common.inject.internal.SourceProvider;
@@ -26,6 +25,7 @@ import java.io.Serializable;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 
@@ -119,7 +119,7 @@ public final class Message implements Serializable, Element {
             return false;
         }
         Message e = (Message) o;
-        return message.equals(e.message) && Objects.equal(cause, e.cause) && sources.equals(e.sources);
+        return message.equals(e.message) && Objects.equals(cause, e.cause) && sources.equals(e.sources);
     }
 
     /**

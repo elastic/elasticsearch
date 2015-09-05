@@ -20,9 +20,7 @@
 package org.elasticsearch.common.xcontent;
 
 import com.google.common.base.Charsets;
-import com.google.common.base.Objects;
 import com.google.common.collect.Maps;
-
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -39,6 +37,7 @@ import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ToXContent.EMPTY_PARAMS;
 
@@ -225,7 +224,7 @@ public class XContentHelper {
                 modified = true;
                 continue;
             }
-            modified = !Objects.equal(old, changesEntry.getValue());
+            modified = !Objects.equals(old, changesEntry.getValue());
         }
         return modified;
     }

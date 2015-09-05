@@ -813,6 +813,10 @@
                             <shadedPattern>org.elasticsearch.common.joda.time</shadedPattern>
                         </relocation>
                         <relocation>
+                            <pattern>org.joda.convert</pattern>
+                            <shadedPattern>org.elasticsearch.common.joda.convert</shadedPattern>
+                        </relocation>
+                        <relocation>
                             <pattern>org.jboss.netty</pattern>
                             <shadedPattern>org.elasticsearch.common.netty</shadedPattern>
                         </relocation>

@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.common.inject;
 
-import com.google.common.base.Predicate;
 import org.elasticsearch.common.inject.spi.Element;
 import org.elasticsearch.common.inject.spi.Elements;
 import org.elasticsearch.common.inject.spi.InstanceBinding;
@@ -34,6 +33,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
 
 /**
  * Base testcase for testing {@link Module} implementations.
@@ -160,7 +160,7 @@ public abstract class ModuleTestCase extends ESTestCase {
                 InstanceBinding binding = (InstanceBinding) element;
                 if (to.equals(binding.getKey().getTypeLiteral().getType())) {
                     if (annotation == null || annotation.equals(binding.getKey().getAnnotationType())) {
-                        assertTrue(tester.apply(to.cast(binding.getInstance())));
+                        assertTrue(tester.test(to.cast(binding.getInstance())));
                         return;
                     }
                 }

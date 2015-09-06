@@ -19,7 +19,6 @@
 
 package org.elasticsearch.cluster;
 
-import com.google.common.base.Predicate;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.elasticsearch.cluster.metadata.IndexTemplateFilter;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
@@ -85,12 +84,7 @@ public class ClusterModuleTests extends ModuleTestCase {
     public void testRegisterClusterDynamicSetting() {
         ClusterModule module = new ClusterModule(Settings.EMPTY);
         module.registerClusterDynamicSetting("foo.bar", Validator.EMPTY);
-        assertInstanceBindingWithAnnotation(module, DynamicSettings.class, new Predicate<DynamicSettings>() {
-            @Override
-            public boolean apply(DynamicSettings dynamicSettings) {
-                return dynamicSettings.hasDynamicSetting("foo.bar");
-            }
-        }, ClusterDynamicSettings.class);
+        assertInstanceBindingWithAnnotation(module, DynamicSettings.class, dynamicSettings -> dynamicSettings.hasDynamicSetting("foo.bar"), ClusterDynamicSettings.class);
     }
 
     public void testRegisterIndexDynamicSettingDuplicate() {
@@ -105,12 +99,7 @@ public class ClusterModuleTests extends ModuleTestCase {
     public void testRegisterIndexDynamicSetting() {
         ClusterModule module = new ClusterModule(Settings.EMPTY);
         module.registerIndexDynamicSetting("foo.bar", Validator.EMPTY);
-        assertInstanceBindingWithAnnotation(module, DynamicSettings.class, new Predicate<DynamicSettings>() {
-            @Override
-            public boolean apply(DynamicSettings dynamicSettings) {
-                return dynamicSettings.hasDynamicSetting("foo.bar");
-            }
-        }, IndexDynamicSettings.class);
+        assertInstanceBindingWithAnnotation(module, DynamicSettings.class, dynamicSettings -> dynamicSettings.hasDynamicSetting("foo.bar"), IndexDynamicSettings.class);
     }
 
     public void testRegisterAllocationDeciderDuplicate() {

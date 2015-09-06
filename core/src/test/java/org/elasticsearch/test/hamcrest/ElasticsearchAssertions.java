@@ -18,11 +18,6 @@
  */
 package org.elasticsearch.test.hamcrest;
 
-import com.google.common.base.Function;
-import com.google.common.base.Predicate;
-import com.google.common.base.Predicates;
-import com.google.common.collect.FluentIterable;
-import com.google.common.collect.Iterables;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchException;
@@ -35,7 +30,6 @@ import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
-import org.elasticsearch.plugins.PluginInfo;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsInfo;
 import org.elasticsearch.action.admin.indices.alias.exists.AliasesExistResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequestBuilder;
@@ -62,6 +56,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.plugins.PluginInfo;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.suggest.Suggest;
@@ -77,16 +72,36 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
-import static com.google.common.base.Predicates.isNull;
-import static com.google.common.base.Predicates.notNull;
-import static org.elasticsearch.test.ESTestCase.*;
+import static org.elasticsearch.test.ESTestCase.assertArrayEquals;
+import static org.elasticsearch.test.ESTestCase.assertEquals;
+import static org.elasticsearch.test.ESTestCase.assertFalse;
+import static org.elasticsearch.test.ESTestCase.assertNotNull;
+import static org.elasticsearch.test.ESTestCase.assertTrue;
+import static org.elasticsearch.test.ESTestCase.fail;
+import static org.elasticsearch.test.ESTestCase.random;
 import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  *
@@ -739,91 +754,68 @@ public class ElasticsearchAssertions {
         PluginsInfo plugins = response.getNodesMap().get(nodeId).getPlugins();
         Assert.assertThat(plugins, notNullValue());
 
-        List<String> pluginNames = FluentIterable.from(plugins.getInfos()).filter(jvmPluginPredicate).transform(nameFunction).toList();
+        List<String> pluginNames = filterAndMap(plugins, jvmPluginPredicate, nameFunction);
         for (String expectedJvmPluginName : expectedJvmPluginNames) {
             Assert.assertThat(pluginNames, hasItem(expectedJvmPluginName));
         }
 
-        List<String> pluginDescriptions = FluentIterable.from(plugins.getInfos()).filter(jvmPluginPredicate).transform(descriptionFunction).toList();
+        List<String> pluginDescriptions = filterAndMap(plugins, jvmPluginPredicate, descriptionFunction);
         for (String expectedJvmPluginDescription : expectedJvmPluginDescriptions) {
             Assert.assertThat(pluginDescriptions, hasItem(expectedJvmPluginDescription));
         }
 
-        List<String> jvmPluginVersions = FluentIterable.from(plugins.getInfos()).filter(jvmPluginPredicate).transform(versionFunction).toList();
+        List<String> jvmPluginVersions = filterAndMap(plugins, jvmPluginPredicate, versionFunction);
         for (String pluginVersion : expectedJvmVersions) {
             Assert.assertThat(jvmPluginVersions, hasItem(pluginVersion));
         }
 
-        FluentIterable<String> jvmUrls = FluentIterable.from(plugins.getInfos())
-                .filter(Predicates.and(jvmPluginPredicate, Predicates.not(sitePluginPredicate)))
-                .transform(urlFunction)
-                .filter(notNull());
-        Assert.assertThat(Iterables.size(jvmUrls), is(0));
+        boolean anyHaveUrls =
+                plugins
+                        .getInfos()
+                        .stream()
+                        .filter(jvmPluginPredicate.and(sitePluginPredicate.negate()))
+                        .map(urlFunction)
+                        .anyMatch(p -> p != null);
+        assertFalse(anyHaveUrls);
 
-        List<String> sitePluginNames = FluentIterable.from(plugins.getInfos()).filter(sitePluginPredicate).transform(nameFunction).toList();
+        List<String> sitePluginNames = filterAndMap(plugins, sitePluginPredicate, nameFunction);
+
         Assert.assertThat(sitePluginNames.isEmpty(), is(expectedSitePluginNames.isEmpty()));
         for (String expectedSitePluginName : expectedSitePluginNames) {
             Assert.assertThat(sitePluginNames, hasItem(expectedSitePluginName));
         }
 
-        List<String> sitePluginDescriptions = FluentIterable.from(plugins.getInfos()).filter(sitePluginPredicate).transform(descriptionFunction).toList();
+        List<String> sitePluginDescriptions = filterAndMap(plugins, sitePluginPredicate, descriptionFunction);
         Assert.assertThat(sitePluginDescriptions.isEmpty(), is(expectedSitePluginDescriptions.isEmpty()));
         for (String sitePluginDescription : expectedSitePluginDescriptions) {
             Assert.assertThat(sitePluginDescriptions, hasItem(sitePluginDescription));
         }
 
-        List<String> sitePluginUrls = FluentIterable.from(plugins.getInfos()).filter(sitePluginPredicate).transform(urlFunction).toList();
+        List<String> sitePluginUrls = filterAndMap(plugins, sitePluginPredicate, urlFunction);
         Assert.assertThat(sitePluginUrls, not(contains(nullValue())));
 
-
-        List<String> sitePluginVersions = FluentIterable.from(plugins.getInfos()).filter(sitePluginPredicate).transform(versionFunction).toList();
+        List<String> sitePluginVersions = filterAndMap(plugins, sitePluginPredicate, versionFunction);
         Assert.assertThat(sitePluginVersions.isEmpty(), is(expectedSiteVersions.isEmpty()));
         for (String pluginVersion : expectedSiteVersions) {
             Assert.assertThat(sitePluginVersions, hasItem(pluginVersion));
         }
     }
 
-    private static Predicate<PluginInfo> jvmPluginPredicate = new Predicate<PluginInfo>() {
-        @Override
-        public boolean apply(PluginInfo pluginInfo) {
-            return pluginInfo.isJvm();
-        }
-    };
+    private static List<String> filterAndMap(PluginsInfo pluginsInfo, Predicate<PluginInfo> predicate, Function<PluginInfo, String> function) {
+        return pluginsInfo.getInfos().stream().filter(predicate).map(function).collect(Collectors.toList());
+    }
 
-    private static Predicate<PluginInfo> sitePluginPredicate = new Predicate<PluginInfo>() {
-        @Override
-        public boolean apply(PluginInfo pluginInfo) {
-            return pluginInfo.isSite();
-        }
-    };
+    private static Predicate<PluginInfo> jvmPluginPredicate = p -> p.isJvm();
 
-    private static Function<PluginInfo, String> nameFunction = new Function<PluginInfo, String>() {
-        @Override
-        public String apply(PluginInfo pluginInfo) {
-            return pluginInfo.getName();
-        }
-    };
+    private static Predicate<PluginInfo> sitePluginPredicate = p -> p.isSite();
 
-    private static Function<PluginInfo, String> descriptionFunction = new Function<PluginInfo, String>() {
-        @Override
-        public String apply(PluginInfo pluginInfo) {
-            return pluginInfo.getDescription();
-        }
-    };
+    private static Function<PluginInfo, String> nameFunction = p -> p.getName();
 
-    private static Function<PluginInfo, String> urlFunction = new Function<PluginInfo, String>() {
-        @Override
-        public String apply(PluginInfo pluginInfo) {
-            return pluginInfo.getUrl();
-        }
-    };
+    private static Function<PluginInfo, String> descriptionFunction = p -> p.getDescription();
 
-    private static Function<PluginInfo, String> versionFunction = new Function<PluginInfo, String>() {
-        @Override
-        public String apply(PluginInfo pluginInfo) {
-            return pluginInfo.getVersion();
-        }
-    };
+    private static Function<PluginInfo, String> urlFunction = p -> p.getUrl();
+
+    private static Function<PluginInfo, String> versionFunction = p -> p.getVersion();
 
     /**
      * Check if a file exists

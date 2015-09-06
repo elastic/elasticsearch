@@ -19,7 +19,6 @@
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
-import com.google.common.base.Predicate;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.IntroSorter;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -40,6 +39,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.settings.NodeSettingsService;
 
 import java.util.*;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 
@@ -226,13 +226,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
         private final float threshold;
         private final MetaData metaData;
 
-        private final Predicate<ShardRouting> assignedFilter = new Predicate<ShardRouting>() {
-            @Override
-            public boolean apply(ShardRouting input) {
-                return input.assignedToNode();
-            }
-        };
-
+        private final Predicate<ShardRouting> assignedFilter = shard -> shard.assignedToNode();
 
         public Balancer(ESLogger logger, RoutingAllocation allocation, WeightFunction weight, float threshold) {
             this.logger = logger;

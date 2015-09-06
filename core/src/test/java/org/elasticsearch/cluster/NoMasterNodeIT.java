@@ -19,8 +19,6 @@
 
 package org.elasticsearch.cluster;
 
-import com.google.common.base.Predicate;
-
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
@@ -244,14 +242,11 @@ public class NoMasterNodeIT extends ESIntegTestCase {
         logger.info("Cluster state:\n" + clusterState.getState().prettyPrint());
 
         internalCluster().stopRandomDataNode();
-        assertThat(awaitBusy(new Predicate<Object>() {
-            @Override
-            public boolean apply(Object o) {
-                ClusterState state = client().admin().cluster().prepareState().setLocal(true).get().getState();
-                return state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID);
-            }
-        }), equalTo(true));
-
+        assertTrue(awaitBusy(() -> {
+                    ClusterState state = client().admin().cluster().prepareState().setLocal(true).get().getState();
+                    return state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID);
+                }
+        ));
 
         GetResponse getResponse = client().prepareGet("test1", "type1", "1").get();
         assertExists(getResponse);

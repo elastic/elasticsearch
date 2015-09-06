@@ -88,3 +88,5 @@ org.elasticsearch.common.io.PathUtils#get(java.net.URI)
 com.google.common.collect.Lists
 com.google.common.collect.ImmutableList
 com.google.common.base.Objects
+com.google.common.base.Predicate
+com.google.common.base.Predicates

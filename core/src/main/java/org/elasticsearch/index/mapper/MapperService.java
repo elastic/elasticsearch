@@ -21,7 +21,6 @@ package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.hppc.ObjectHashSet;
 import com.google.common.base.Function;
-import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterators;
@@ -71,6 +70,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.common.collect.MapBuilder.newMapBuilder;
 
@@ -202,19 +202,12 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                 if (includingDefaultMapping) {
                     iterator = mappers.values().iterator();
                 } else {
-                    iterator = Iterators.filter(mappers.values().iterator(), NOT_A_DEFAULT_DOC_MAPPER);
+                    iterator = mappers.values().stream().filter(mapper -> !DEFAULT_MAPPING.equals(mapper.type())).iterator();
                 }
                 return Iterators.unmodifiableIterator(iterator);
             }
         };
     }
-
-    private static final Predicate<DocumentMapper> NOT_A_DEFAULT_DOC_MAPPER = new Predicate<DocumentMapper>() {
-        @Override
-        public boolean apply(DocumentMapper input) {
-            return !DEFAULT_MAPPING.equals(input.type());
-        }
-    };
 
     public AnalysisService analysisService() {
         return this.analysisService;

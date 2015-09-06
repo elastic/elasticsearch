@@ -19,22 +19,21 @@
 
 package org.elasticsearch.index.codec.postingformat;
 
-import com.google.common.base.Predicates;
 import com.google.common.collect.Iterators;
-
 import org.apache.lucene.codecs.FieldsConsumer;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.SegmentWriteState;
 import org.elasticsearch.common.util.BloomFilter;
-import org.elasticsearch.index.codec.postingsformat.BloomFilterPostingsFormat.BloomFilteredFieldsConsumer;
 import org.elasticsearch.index.codec.postingsformat.BloomFilterPostingsFormat;
+import org.elasticsearch.index.codec.postingsformat.BloomFilterPostingsFormat.BloomFilteredFieldsConsumer;
 import org.elasticsearch.index.codec.postingsformat.Elasticsearch090PostingsFormat;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 
 import java.io.IOException;
 import java.util.Iterator;
+import java.util.stream.StreamSupport;
 
 /** read-write version with blooms for testing */
 public class Elasticsearch090RWPostingsFormat extends Elasticsearch090PostingsFormat {
@@ -55,7 +54,7 @@ public class Elasticsearch090RWPostingsFormat extends Elasticsearch090PostingsFo
                 Fields maskedFields = new FilterLeafReader.FilterFields(fields) {
                     @Override
                     public Iterator<String> iterator() {
-                        return Iterators.filter(this.in.iterator(), Predicates.not(UID_FIELD_FILTER));
+                        return StreamSupport.stream(this.in.spliterator(), false).filter(UID_FIELD_FILTER.negate()).iterator();
                     }
                 };
                 fieldsConsumer.getDelegate().write(maskedFields);

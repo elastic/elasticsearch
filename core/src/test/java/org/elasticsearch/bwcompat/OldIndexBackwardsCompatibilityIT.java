@@ -19,7 +19,6 @@
 
 package org.elasticsearch.bwcompat;
 
-import com.google.common.base.Predicate;
 import com.google.common.util.concurrent.ListenableFuture;
 
 import org.apache.lucene.index.IndexWriter;
@@ -292,13 +291,12 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
      * Waits for the index to show up in the cluster state in closed state
      */
     void ensureClosed(final String index) throws InterruptedException {
-        assertTrue(awaitBusy(new Predicate<Object>() {
-            @Override
-            public boolean apply(Object o) {
-                ClusterState state = client().admin().cluster().prepareState().get().getState();
-                return state.metaData().hasIndex(index) && state.metaData().index(index).getState() == IndexMetaData.State.CLOSE;
-            }
-        }));
+        assertTrue(awaitBusy(() -> {
+                            ClusterState state = client().admin().cluster().prepareState().get().getState();
+                            return state.metaData().hasIndex(index) && state.metaData().index(index).getState() == IndexMetaData.State.CLOSE;
+                        }
+                )
+        );
     }
 
     /**

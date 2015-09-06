@@ -21,22 +21,17 @@ package org.elasticsearch.cloud.aws;
 
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.auth.SignerFactory;
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.Loggers;
 
 public class AwsSigner {
 
-    private AwsSigner() {
+    private static final ESLogger logger = Loggers.getLogger(AwsSigner.class);
 
+    private AwsSigner() {
     }
 
-    /**
-     * Add a AWS API Signer.
-     * @param signer Signer to use
-     * @param configuration AWS Client configuration
-     * @throws IllegalArgumentException if signer does not exist
-     */
-    public static void configureSigner(String signer, ClientConfiguration configuration)
-        throws IllegalArgumentException {
-
+    protected static void validateSignerType(String signer) {
         if (signer == null) {
             throw new IllegalArgumentException("[null] signer set");
         }
@@ -45,9 +40,23 @@ public class AwsSigner {
             // We check this signer actually exists in AWS SDK
             // It throws a IllegalArgumentException if not found
             SignerFactory.getSignerByTypeAndService(signer, null);
-            configuration.setSignerOverride(signer);
         } catch (IllegalArgumentException e) {
-            throw new IllegalArgumentException("wrong signer set [" + signer + "]");
+            throw new IllegalArgumentException("[" + signer + "] may not be supported");
         }
+    }
+
+    /**
+     * Add a AWS API Signer.
+     * @param signer Signer to use
+     * @param configuration AWS Client configuration
+     */
+    public static void configureSigner(String signer, ClientConfiguration configuration) {
+
+        try {
+            validateSignerType(signer);
+        } catch  (IllegalArgumentException e) {
+            logger.warn(e.getMessage());
+        }
+        configuration.setSignerOverride(signer);
     }
 }

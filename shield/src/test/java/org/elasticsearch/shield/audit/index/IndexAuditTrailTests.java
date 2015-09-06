@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.shield.audit.index;
 
-import com.google.common.base.Predicate;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
@@ -54,7 +53,10 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-import static org.elasticsearch.shield.audit.index.IndexNameResolver.Rollover.*;
+import static org.elasticsearch.shield.audit.index.IndexNameResolver.Rollover.DAILY;
+import static org.elasticsearch.shield.audit.index.IndexNameResolver.Rollover.HOURLY;
+import static org.elasticsearch.shield.audit.index.IndexNameResolver.Rollover.MONTHLY;
+import static org.elasticsearch.shield.audit.index.IndexNameResolver.Rollover.WEEKLY;
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.elasticsearch.test.InternalTestCluster.clusterName;
 import static org.hamcrest.Matchers.contains;
@@ -62,7 +64,11 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  *
@@ -704,16 +710,13 @@ public class IndexAuditTrailTests extends ShieldIntegTestCase {
     }
 
     private void awaitIndexCreation(final String indexName) throws InterruptedException {
-        boolean found = awaitBusy(new Predicate<Void>() {
-            @Override
-            public boolean apply(Void o) {
-                try {
-                    ExistsResponse response =
-                            getClient().prepareExists(indexName).execute().actionGet();
-                    return response.exists();
-                } catch (Exception e) {
-                    return false;
-                }
+        boolean found = awaitBusy(() -> {
+            try {
+                ExistsResponse response =
+                        getClient().prepareExists(indexName).execute().actionGet();
+                return response.exists();
+            } catch (Exception e) {
+                return false;
             }
         });
         assertThat("[" + indexName + "] does not exist!", found, is(true));

@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.shield.action;
 
-import com.google.common.base.Predicate;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -29,7 +28,10 @@ import org.elasticsearch.shield.license.LicenseEventsNotifier;
 import org.elasticsearch.shield.license.LicenseService;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.shield.support.Exceptions.authorizationError;
 
@@ -79,7 +81,7 @@ public class ShieldActionFilter extends AbstractComponent implements ActionFilte
             A functional requirement - when the license of shield is disabled (invalid/expires), shield will continue
             to operate normally, except all read operations will be blocked.
          */
-        if (!licenseEnabled && LICENSE_EXPIRATION_ACTION_MATCHER.apply(action)) {
+        if (!licenseEnabled && LICENSE_EXPIRATION_ACTION_MATCHER.test(action)) {
             logger.error("blocking [{}] operation due to expired license. Cluster health, cluster stats and indices stats \n" +
                     "operations are blocked on shield license expiration. All data operations (read and write) continue to work. \n" +
                     "If you have a new license, please update it. Otherwise, please reach out to your support contact.", action);

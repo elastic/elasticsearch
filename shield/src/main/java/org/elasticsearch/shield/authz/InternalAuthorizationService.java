@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.shield.authz;
 
-import com.google.common.base.Predicate;
-import com.google.common.base.Predicates;
 import com.google.common.collect.Sets;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.CompositeIndicesRequest;
@@ -33,7 +31,12 @@ import org.elasticsearch.shield.authz.indicesresolver.IndicesAndAliasesResolver;
 import org.elasticsearch.shield.authz.store.RolesStore;
 import org.elasticsearch.transport.TransportRequest;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.shield.support.Exceptions.authorizationError;
 
@@ -80,12 +83,12 @@ public class InternalAuthorizationService extends AbstractComponent implements A
         }
 
         List<String> indicesAndAliases = new ArrayList<>();
-        Predicate<String> predicate = Predicates.or(predicates);
+        Predicate<String> predicate = predicates.stream().reduce(s -> false, (p1, p2) -> p1.or(p2));
         MetaData metaData = clusterService.state().metaData();
         // TODO: can this be done smarter? I think there are usually more indices/aliases in the cluster then indices defined a roles?
         for (Map.Entry<String, AliasOrIndex> entry : metaData.getAliasAndIndexLookup().entrySet()) {
             String aliasOrIndex = entry.getKey();
-            if (predicate.apply(aliasOrIndex)) {
+            if (predicate.test(aliasOrIndex)) {
                 indicesAndAliases.add(aliasOrIndex);
             }
         }
@@ -115,7 +118,7 @@ public class InternalAuthorizationService extends AbstractComponent implements A
 
         // first, we'll check if the action is a cluster action. If it is, we'll only check it
         // against the cluster permissions
-        if (Privilege.Cluster.ACTION_MATCHER.apply(action)) {
+        if (Privilege.Cluster.ACTION_MATCHER.test(action)) {
             Permission.Cluster cluster = permission.cluster();
             if (cluster != null && cluster.check(action)) {
                 request.putInContext(INDICES_PERMISSIONS_KEY, IndicesAccessControl.ALLOW_ALL);
@@ -126,7 +129,7 @@ public class InternalAuthorizationService extends AbstractComponent implements A
         }
 
         // ok... this is not a cluster action, let's verify it's an indices action
-        if (!Privilege.Index.ACTION_MATCHER.apply(action)) {
+        if (!Privilege.Index.ACTION_MATCHER.test(action)) {
             throw denial(user, action, request);
         }
 
@@ -164,7 +167,7 @@ public class InternalAuthorizationService extends AbstractComponent implements A
         }
 
         //if we are creating an index we need to authorize potential aliases created at the same time
-        if (Privilege.Index.CREATE_INDEX_MATCHER.apply(action)) {
+        if (Privilege.Index.CREATE_INDEX_MATCHER.test(action)) {
             assert request instanceof CreateIndexRequest;
             Set<Alias> aliases = ((CreateIndexRequest) request).aliases();
             if (!aliases.isEmpty()) {

@@ -19,7 +19,6 @@ import org.elasticsearch.shield.authc.support.SecuredString;
 
 import java.util.regex.Pattern;
 
-import static com.google.common.base.Predicates.contains;
 import static com.google.common.collect.Iterables.all;
 import static java.util.Arrays.asList;
 
@@ -129,8 +128,8 @@ public abstract class SessionFactory {
                 return true;
             }
 
-            boolean allSecure = all(asList(ldapUrls), contains(STARTS_WITH_LDAPS));
-            boolean allClear = all(asList(ldapUrls), contains(STARTS_WITH_LDAP));
+            boolean allSecure = all(asList(ldapUrls), s -> STARTS_WITH_LDAPS.matcher(s).find());
+            boolean allClear = all(asList(ldapUrls), s -> STARTS_WITH_LDAP.matcher(s).find());
 
             if (!allSecure && !allClear) {
                 //No mixing is allowed because we use the same socketfactory

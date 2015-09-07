@@ -28,7 +28,6 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.search.TopDocs;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.search.SearchType;
@@ -270,83 +269,6 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             return context.dfsResult();
         } catch (Throwable e) {
             logger.trace("Dfs phase failed", e);
-            processFailure(context, e);
-            throw ExceptionsHelper.convertToRuntime(e);
-        } finally {
-            cleanContext(context);
-        }
-    }
-
-    @Deprecated // remove in 3.0
-    public QuerySearchResult executeScan(ShardSearchRequest request) {
-        final SearchContext context = createAndPutContext(request);
-        final int originalSize = context.size();
-        try {
-            if (context.aggregations() != null) {
-                throw new IllegalArgumentException("aggregations are not supported with search_type=scan");
-            }
-
-            if (context.scrollContext() == null || context.scrollContext().scroll == null) {
-                throw new ElasticsearchException("Scroll must be provided when scanning...");
-            }
-
-            assert context.searchType() == SearchType.SCAN;
-            context.searchType(SearchType.QUERY_THEN_FETCH); // move to QUERY_THEN_FETCH, and then, when scrolling, move to SCAN
-            context.size(0); // set size to 0 so that we only count matches
-            assert context.searchType() == SearchType.QUERY_THEN_FETCH;
-
-            contextProcessing(context);
-            queryPhase.execute(context);
-            contextProcessedSuccessfully(context);
-            return context.queryResult();
-        } catch (Throwable e) {
-            logger.trace("Scan phase failed", e);
-            processFailure(context, e);
-            throw ExceptionsHelper.convertToRuntime(e);
-        } finally {
-            context.size(originalSize);
-            cleanContext(context);
-        }
-    }
-
-    public ScrollQueryFetchSearchResult executeScan(InternalScrollSearchRequest request) {
-        final SearchContext context = findContext(request.id());
-        ShardSearchStats shardSearchStats = context.indexShard().searchService();
-        contextProcessing(context);
-        try {
-            processScroll(request, context);
-            shardSearchStats.onPreQueryPhase(context);
-            long time = System.nanoTime();
-            try {
-                if (context.searchType() == SearchType.QUERY_THEN_FETCH) {
-                    // first scanning, reset the from to 0
-                    context.searchType(SearchType.SCAN);
-                    context.from(0);
-                }
-                queryPhase.execute(context);
-            } catch (Throwable e) {
-                shardSearchStats.onFailedQueryPhase(context);
-                throw ExceptionsHelper.convertToRuntime(e);
-            }
-            long queryFinishTime = System.nanoTime();
-            shardSearchStats.onQueryPhase(context, queryFinishTime - time);
-            shardSearchStats.onPreFetchPhase(context);
-            try {
-                shortcutDocIdsToLoadForScanning(context);
-                fetchPhase.execute(context);
-                if (context.scrollContext() == null || context.fetchResult().hits().hits().length < context.size()) {
-                    freeContext(request.id());
-                } else {
-                    contextProcessedSuccessfully(context);
-                }
-            } catch (Throwable e) {
-                shardSearchStats.onFailedFetchPhase(context);
-                throw ExceptionsHelper.convertToRuntime(e);
-            }
-            shardSearchStats.onFetchPhase(context, System.nanoTime() - queryFinishTime);
-            return new ScrollQueryFetchSearchResult(new QueryFetchSearchResult(context.queryResult(), context.fetchResult()), context.shardTarget());
-        } catch (Throwable e) {
-            logger.trace("Scan phase failed", e);
             processFailure(context, e);
             throw ExceptionsHelper.convertToRuntime(e);
         } finally {
@@ -658,12 +580,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             if (context.from() == -1) {
                 context.from(0);
             }
-            if (context.searchType() == SearchType.COUNT) {
-                // so that the optimizations we apply to size=0 also apply to search_type=COUNT
-                // and that we close contexts when done with the query phase
-                context.searchType(SearchType.QUERY_THEN_FETCH);
-                context.size(0);
-            } else if (context.size() == -1) {
+            if (context.size() == -1) {
                 context.size(10);
             }
 

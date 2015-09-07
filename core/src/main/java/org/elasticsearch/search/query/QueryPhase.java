@@ -38,7 +38,6 @@ import org.elasticsearch.search.internal.ScrollContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.rescore.RescorePhase;
 import org.elasticsearch.search.rescore.RescoreSearchContext;
-import org.elasticsearch.search.scan.ScanContext.ScanCollector;
 import org.elasticsearch.search.sort.SortParseElement;
 import org.elasticsearch.search.sort.TrackScoresParseElement;
 import org.elasticsearch.search.suggest.SuggestPhase;
@@ -155,16 +154,6 @@ public class QueryPhase implements SearchPhase {
                     @Override
                     public TopDocs call() throws Exception {
                         return new TopDocs(totalHitCountCollector.getTotalHits(), Lucene.EMPTY_SCORE_DOCS, 0);
-                    }
-                };
-            } else if (searchType == SearchType.SCAN) {
-                query = searchContext.scanContext().wrapQuery(query);
-                final ScanCollector scanCollector = searchContext.scanContext().collector(searchContext);
-                collector = scanCollector;
-                topDocsCallable = new Callable<TopDocs>() {
-                    @Override
-                    public TopDocs call() throws Exception {
-                        return scanCollector.topDocs();
                     }
                 };
             } else {

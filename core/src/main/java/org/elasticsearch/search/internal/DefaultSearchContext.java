@@ -64,7 +64,6 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.query.QueryPhaseExecutionException;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rescore.RescoreSearchContext;
-import org.elasticsearch.search.scan.ScanContext;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 
 import java.io.IOException;
@@ -94,8 +93,6 @@ public class DefaultSearchContext extends SearchContext {
     private final DfsSearchResult dfsResult;
     private final QuerySearchResult queryResult;
     private final FetchSearchResult fetchResult;
-    // lazy initialized only if needed
-    private ScanContext scanContext;
     private float queryBoost = 1.0f;
     // timeout in millis
     private long timeoutInMillis;
@@ -162,7 +159,6 @@ public class DefaultSearchContext extends SearchContext {
 
     @Override
     public void doClose() {
-        scanContext = null;
         // clear and scope phase we  have
         Releasables.close(searcher, engineSearcher);
     }
@@ -679,14 +675,6 @@ public class DefaultSearchContext extends SearchContext {
     @Override
     public FetchSearchResult fetchResult() {
         return fetchResult;
-    }
-
-    @Override
-    public ScanContext scanContext() {
-        if (scanContext == null) {
-            scanContext = new ScanContext();
-        }
-        return scanContext;
     }
 
     @Override

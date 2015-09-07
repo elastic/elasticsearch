@@ -23,7 +23,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.type.ParsedScrollId;
 import org.elasticsearch.action.search.type.TransportSearchScrollQueryAndFetchAction;
 import org.elasticsearch.action.search.type.TransportSearchScrollQueryThenFetchAction;
-import org.elasticsearch.action.search.type.TransportSearchScrollScanAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -42,18 +41,16 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
 
     private final TransportSearchScrollQueryThenFetchAction queryThenFetchAction;
     private final TransportSearchScrollQueryAndFetchAction queryAndFetchAction;
-    private final TransportSearchScrollScanAction scanAction;
 
     @Inject
     public TransportSearchScrollAction(Settings settings, ThreadPool threadPool, TransportService transportService,
                                        TransportSearchScrollQueryThenFetchAction queryThenFetchAction,
                                        TransportSearchScrollQueryAndFetchAction queryAndFetchAction,
-                                       TransportSearchScrollScanAction scanAction, ActionFilters actionFilters,
+                                       ActionFilters actionFilters,
                                        IndexNameExpressionResolver indexNameExpressionResolver) {
         super(settings, SearchScrollAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, SearchScrollRequest.class);
         this.queryThenFetchAction = queryThenFetchAction;
         this.queryAndFetchAction = queryAndFetchAction;
-        this.scanAction = scanAction;
     }
 
     @Override
@@ -64,8 +61,6 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
                 queryThenFetchAction.execute(request, scrollId, listener);
             } else if (scrollId.getType().equals(QUERY_AND_FETCH_TYPE)) {
                 queryAndFetchAction.execute(request, scrollId, listener);
-            } else if (scrollId.getType().equals(SCAN)) {
-                scanAction.execute(request, scrollId, listener);
             } else {
                 throw new IllegalArgumentException("Scroll id type [" + scrollId.getType() + "] unrecognized");
             }

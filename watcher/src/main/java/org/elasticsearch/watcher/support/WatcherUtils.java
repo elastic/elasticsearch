@@ -231,9 +231,6 @@ public final class WatcherUtils {
                     searchRequest.types(Strings.delimitedListToStringArray(typesStr, ",", " \t"));
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, SEARCH_TYPE_FIELD)) {
                     searchType = SearchType.fromString(parser.text().toLowerCase(Locale.ROOT), ParseFieldMatcher.EMPTY);
-                    if (searchType == SearchType.SCAN){
-                        throw new ElasticsearchParseException("could not read search request. value [" + searchType.name() + "] is not supported for field [" + SEARCH_TYPE_FIELD.getPreferredName() + "]" );
-                    }
                 } else {
                     throw new ElasticsearchParseException("could not read search request. unexpected string field [" + currentFieldName + "]");
                 }

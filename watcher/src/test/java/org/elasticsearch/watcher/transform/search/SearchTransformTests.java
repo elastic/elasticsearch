@@ -6,7 +6,6 @@
 package org.elasticsearch.watcher.transform.search;
 
 import com.google.common.collect.ImmutableMap;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -362,27 +361,6 @@ public class SearchTransformTests extends ESIntegTestCase {
         }
         assertThat(names, arrayContaining("idx", "idx-" + DateTimeFormat.forPattern(dateFormat).print(now.minusDays(3))));
     }
-
-    @Test(expected = ElasticsearchParseException.class)
-    public void testParser_ScanNotSupported() throws Exception {
-        SearchRequest request = client().prepareSearch()
-                .setSearchType(SearchType.SCAN)
-                .request()
-                .source(searchSource()
-                        .query(filteredQuery(matchQuery("event_type", "a"), rangeQuery("_timestamp").from("{{ctx.trigger.scheduled_time}}||-30s").to("{{ctx.trigger.triggered_time}}"))));
-
-        SearchTransform searchTransform = TransformBuilders.searchTransform(request).build();
-        XContentBuilder builder = jsonBuilder().value(searchTransform);
-        XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
-        parser.nextToken();
-
-        DynamicIndexName.Parser indexNamesParser = new DynamicIndexName.Parser();
-        SearchTransformFactory factory = new SearchTransformFactory(Settings.EMPTY, ClientProxy.of(client()));
-
-        factory.parseTransform("_id", parser);
-        fail("expected a SearchTransformException as search type SCAN should not be supported");
-    }
-
 
     @Test
     public void testSearch_InlineTemplate() throws Exception {

@@ -175,9 +175,6 @@ public class InternalAuthorizationServiceTests extends ESTestCase {
         internalAuthorizationService.authorize(user, SearchServiceTransportAction.CLEAR_SCROLL_CONTEXTS_ACTION_NAME, request);
         verify(auditTrail).accessGranted(user, SearchServiceTransportAction.CLEAR_SCROLL_CONTEXTS_ACTION_NAME, request);
 
-        internalAuthorizationService.authorize(user, SearchServiceTransportAction.SCAN_SCROLL_ACTION_NAME, request);
-        verify(auditTrail).accessGranted(user, SearchServiceTransportAction.SCAN_SCROLL_ACTION_NAME, request);
-
         internalAuthorizationService.authorize(user, SearchServiceTransportAction.FETCH_ID_SCROLL_ACTION_NAME, request);
         verify(auditTrail).accessGranted(user, SearchServiceTransportAction.FETCH_ID_SCROLL_ACTION_NAME, request);
 

@@ -223,7 +223,6 @@ public class InternalAuthorizationService extends AbstractComponent implements A
 
     private static boolean isScrollRelatedAction(String action) {
         return action.equals(SearchScrollAction.NAME) ||
-                action.equals(SearchServiceTransportAction.SCAN_SCROLL_ACTION_NAME) ||
                 action.equals(SearchServiceTransportAction.FETCH_ID_SCROLL_ACTION_NAME) ||
                 action.equals(SearchServiceTransportAction.QUERY_FETCH_SCROLL_ACTION_NAME) ||
                 action.equals(SearchServiceTransportAction.QUERY_SCROLL_ACTION_NAME) ||

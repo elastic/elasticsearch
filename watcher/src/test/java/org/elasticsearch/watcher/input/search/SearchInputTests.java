@@ -6,6 +6,7 @@
 package org.elasticsearch.watcher.input.search;
 
 import com.google.common.collect.ImmutableMap;
+
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptRequest;
 import org.elasticsearch.action.search.SearchRequest;
@@ -19,6 +20,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.watcher.actions.ActionStatus;
@@ -313,24 +315,6 @@ public class SearchInputTests extends ESIntegTestCase {
             now = now.withZone(timeZone);
         }
         assertThat(names, arrayContaining("test", "test-" + DateTimeFormat.forPattern(dateFormat).print(now.minusDays(1))));
-    }
-
-    @Test(expected = ElasticsearchParseException.class)
-    public void testParser_ScanNotSupported() throws Exception {
-        SearchRequest request = client().prepareSearch()
-                .setSearchType(SearchType.SCAN)
-                .request()
-                .source(searchSource()
-                        .query(filteredQuery(matchQuery("event_type", "a"), rangeQuery("_timestamp").from("{{ctx.trigger.scheduled_time}}||-30s").to("{{ctx.trigger.triggered_time}}"))));
-
-        XContentBuilder builder = jsonBuilder().value(new SearchInput(request, null, null, null));
-        XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
-        parser.nextToken();
-
-        SearchInputFactory factory = new SearchInputFactory(Settings.EMPTY, ClientProxy.of(client()));
-
-        factory.parseInput("_id", parser);
-        fail("expected a SearchInputException as search type SCAN should not be supported");
     }
 
     private WatchExecutionContext createContext() {

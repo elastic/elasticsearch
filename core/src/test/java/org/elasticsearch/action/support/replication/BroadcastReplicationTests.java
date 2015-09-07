@@ -21,6 +21,7 @@ package org.elasticsearch.action.support.replication;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionWriteResponse;
+import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
@@ -94,13 +95,16 @@ public class BroadcastReplicationTests extends ESTestCase {
     @Test
     public void testNotStartedPrimary() throws InterruptedException, ExecutionException, IOException {
         final String index = "test";
-        final ShardId shardId = new ShardId(index, 0);
         clusterService.setState(state(index, randomBoolean(),
                 randomBoolean() ? ShardRoutingState.INITIALIZING : ShardRoutingState.UNASSIGNED, ShardRoutingState.UNASSIGNED));
         logger.debug("--> using initial state:\n{}", clusterService.state().prettyPrint());
         Future<BroadcastResponse> response = (broadcastReplicationAction.execute(new BroadcastRequest().indices(index)));
         for (Tuple<ShardId, ActionListener<ActionWriteResponse>> shardRequests : broadcastReplicationAction.capturedShardRequests) {
-            shardRequests.v2().onFailure(new UnavailableShardsException(shardId, "test exception expected"));
+            if (randomBoolean()) {
+                shardRequests.v2().onFailure(new NoShardAvailableActionException(shardRequests.v1()));
+            } else {
+                shardRequests.v2().onFailure(new UnavailableShardsException(shardRequests.v1(), "test exception"));
+            }
         }
         response.get();
         logger.info("total shards: {}, ", response.get().getTotalShards());

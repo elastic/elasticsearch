@@ -19,8 +19,8 @@
 
 package org.elasticsearch.index.fielddata;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
@@ -273,5 +273,4 @@ public abstract class AbstractFieldDataImplTestCase extends AbstractFieldDataTes
     }
 
     protected abstract void fillExtendedMvSet() throws Exception;
-
 }

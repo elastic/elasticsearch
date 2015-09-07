@@ -10,10 +10,10 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.marvel.agent.collector.AbstractCollectorTestCase;
-import org.elasticsearch.marvel.agent.collector.cluster.ClusterStatsCollector;
 import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
 import org.elasticsearch.marvel.agent.settings.MarvelSettings;
 import org.elasticsearch.marvel.license.LicenseService;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
 import java.util.Collection;
@@ -24,6 +24,7 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.*;
 
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, randomDynamicTemplates = false, transportClientRatio = 0.0, numDataNodes = 1, numClientNodes = 0)
 public class IndexStatsCollectorTests extends AbstractCollectorTestCase {
 
     @Test
@@ -35,7 +36,6 @@ public class IndexStatsCollectorTests extends AbstractCollectorTestCase {
     }
 
     @Test
-    @AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/pull/538")
     public void testIndexStatsCollectorOneIndex() throws Exception {
         waitForNoBlocksOnNodes();
 
@@ -46,8 +46,9 @@ public class IndexStatsCollectorTests extends AbstractCollectorTestCase {
             client().prepareIndex(indexName, "test").setSource("num", i).get();
         }
 
-        refresh();
         waitForRelocation();
+        ensureGreen(indexName);
+        refresh();
 
         assertHitCount(client().prepareCount().get(), nbDocs);
 
@@ -92,7 +93,6 @@ public class IndexStatsCollectorTests extends AbstractCollectorTestCase {
     }
 
     @Test
-    @AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/pull/538")
     public void testIndexStatsCollectorMultipleIndices() throws Exception {
         waitForNoBlocksOnNodes();
 
@@ -113,8 +113,9 @@ public class IndexStatsCollectorTests extends AbstractCollectorTestCase {
             assertHitCount(client().prepareCount(indexPrefix + i).get(), docsPerIndex[i]);
         }
 
-        refresh();
         waitForRelocation();
+        ensureGreen();
+        refresh();
 
         logger.debug("--> wait for index stats to report data about indices");
         assertBusy(new Runnable() {

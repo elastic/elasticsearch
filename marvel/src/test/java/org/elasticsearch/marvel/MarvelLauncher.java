@@ -7,6 +7,7 @@ package org.elasticsearch.marvel;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.license.plugin.LicensePlugin;
 import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;
@@ -16,9 +17,11 @@ import java.util.concurrent.CountDownLatch;
 
 /**
  * Main class to easily run Marvel from a IDE.
- * <p/>
+ * <p>
  * In order to run this class set configure the following:
  * 1) Set `-Des.path.home=` to a directory containing an ES config directory
+ *
+ * It accepts collectors names as program arguments.
  */
 public class MarvelLauncher {
 
@@ -28,6 +31,10 @@ public class MarvelLauncher {
         settings.put("security.manager.enabled", "false");
         settings.put("plugins.load_classpath_plugins", "false");
         settings.put("cluster.name", MarvelLauncher.class.getSimpleName());
+        settings.put("marvel.agent.interval", "5s");
+        if (!CollectionUtils.isEmpty(args)) {
+            settings.putArray("marvel.agent.collectors", args);
+        }
 
         final CountDownLatch latch = new CountDownLatch(1);
         final Node node = new MockNode(settings.build(), Version.CURRENT, Arrays.asList(MarvelPlugin.class, LicensePlugin.class));

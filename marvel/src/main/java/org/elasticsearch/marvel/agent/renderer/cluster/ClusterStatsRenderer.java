@@ -27,6 +27,8 @@ public class ClusterStatsRenderer extends AbstractRenderer<ClusterStatsMarvelDoc
             "cluster_stats.nodes.fs.free_in_bytes",
             "cluster_stats.nodes.fs.available_in_bytes",
             "cluster_stats.nodes.jvm.max_uptime_in_millis",
+            "cluster_stats.nodes.jvm.mem.heap_max_in_bytes",
+            "cluster_stats.nodes.jvm.mem.heap_used_in_bytes",
             "cluster_stats.nodes.versions",
     };
 

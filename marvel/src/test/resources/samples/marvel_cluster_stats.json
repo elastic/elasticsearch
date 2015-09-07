@@ -27,7 +27,11 @@
         "2.0.0-SNAPSHOT"
       ],
       "jvm": {
-        "max_uptime_in_millis": 75191
+        "max_uptime_in_millis": 75191,
+        "mem" : {
+          "heap_used_in_bytes" : 113643072,
+          "heap_max_in_bytes" : 3717201920
+        }
       },
       "fs": {
         "total_in_bytes": 486599139328,

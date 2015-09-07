@@ -20,12 +20,12 @@
 package org.elasticsearch.common.http.client;
 
 import com.google.common.base.Charsets;
-import com.google.common.base.Strings;
 import com.google.common.hash.Hashing;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.*;
 import org.elasticsearch.common.Base64;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.TimeValue;
 
 import java.io.*;

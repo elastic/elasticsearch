@@ -90,3 +90,4 @@ com.google.common.collect.ImmutableList
 com.google.common.base.Objects
 com.google.common.base.Predicate
 com.google.common.base.Predicates
+com.google.common.base.Strings

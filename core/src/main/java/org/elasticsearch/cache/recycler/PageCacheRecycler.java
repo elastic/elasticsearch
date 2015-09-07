@@ -19,7 +19,7 @@
 
 package org.elasticsearch.cache.recycler;
 
-import com.google.common.base.Strings;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.recycler.AbstractRecyclerC;

@@ -33,6 +33,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.join.BitSetProducer;
+import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BitDocIdSet;
 import org.apache.lucene.util.BitSet;
 import org.elasticsearch.ExceptionsHelper;
@@ -43,7 +44,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
@@ -61,10 +61,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.Callable;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executor;
+import java.util.concurrent.*;
 
 /**
  * This is a cache for {@link BitDocIdSet} based filters and is unbounded by size or time.
@@ -76,12 +73,21 @@ import java.util.concurrent.Executor;
 public class BitsetFilterCache extends AbstractIndexComponent implements LeafReader.CoreClosedListener, RemovalListener<Object, Cache<Query, BitsetFilterCache.Value>>, Closeable {
 
     public static final String LOAD_RANDOM_ACCESS_FILTERS_EAGERLY = "index.load_fixed_bitset_filters_eagerly";
+    private static final Listener DEFAULT_NOOP_LISTENER =  new Listener() {
+        @Override
+        public void onCache(ShardId shardId, Accountable accountable) {
+        }
+
+        @Override
+        public void onRemoval(ShardId shardId, Accountable accountable) {
+        }
+    };
 
     private final boolean loadRandomAccessFiltersEagerly;
     private final Cache<Object, Cache<Query, Value>> loadedFilters;
+    private volatile Listener listener = DEFAULT_NOOP_LISTENER;
     private final BitSetProducerWarmer warmer;
 
-    private IndexService indexService;
     private IndicesWarmer indicesWarmer;
 
     @Inject
@@ -95,15 +101,23 @@ public class BitsetFilterCache extends AbstractIndexComponent implements LeafRea
     @Inject(optional = true)
     public void setIndicesWarmer(IndicesWarmer indicesWarmer) {
         this.indicesWarmer = indicesWarmer;
-    }
-
-    public void setIndexService(IndexService indexService) {
-        this.indexService = indexService;
-        // First the indicesWarmer is set and then the indexService is set, because of this there is a small window of
-        // time where indexService is null. This is why the warmer should only registered after indexService has been set.
-        // Otherwise there is a small chance of the warmer running into a NPE, since it uses the indexService
         indicesWarmer.addListener(warmer);
     }
+
+    /**
+     * Sets a listener that is invoked for all subsequent cache and removal events.
+     * @throws IllegalStateException if the listener is set more than once
+     */
+    public void setListener(Listener listener) {
+        if (listener == null) {
+            throw new IllegalArgumentException("listener must not be null");
+        }
+        if (this.listener != DEFAULT_NOOP_LISTENER) {
+            throw new IllegalStateException("can't set listener more than once");
+        }
+        this.listener = listener;
+    }
+
 
     public BitSetProducer getBitSetProducer(Query query) {
         return new QueryWrapperBitSetProducer(query);
@@ -116,7 +130,9 @@ public class BitsetFilterCache extends AbstractIndexComponent implements LeafRea
 
     @Override
     public void close() {
-        indicesWarmer.removeListener(warmer);
+        if (indicesWarmer != null) {
+            indicesWarmer.removeListener(warmer);
+        }
         clear("close");
     }
 
@@ -135,31 +151,22 @@ public class BitsetFilterCache extends AbstractIndexComponent implements LeafRea
                 return CacheBuilder.newBuilder().build();
             }
         });
-        return filterToFbs.get(query, new Callable<Value>() {
-            @Override
-            public Value call() throws Exception {
-                final IndexReaderContext topLevelContext = ReaderUtil.getTopLevelContext(context);
-                final IndexSearcher searcher = new IndexSearcher(topLevelContext);
-                searcher.setQueryCache(null);
-                final Weight weight = searcher.createNormalizedWeight(query, false);
-                final DocIdSetIterator it = weight.scorer(context);
-                final BitSet bitSet;
-                if (it == null) {
-                    bitSet = null;
-                } else {
-                    bitSet = BitSet.of(it, context.reader().maxDoc());
-                }
-
-                Value value = new Value(bitSet, shardId);
-                if (shardId != null) {
-                    IndexShard shard = indexService.shard(shardId.id());
-                    if (shard != null) {
-                        long ramBytesUsed = value.bitset != null ? value.bitset.ramBytesUsed() : 0l;
-                        shard.shardBitsetFilterCache().onCached(ramBytesUsed);
-                    }
-                }
-                return value;
+        return filterToFbs.get(query, () -> {
+            final IndexReaderContext topLevelContext = ReaderUtil.getTopLevelContext(context);
+            final IndexSearcher searcher = new IndexSearcher(topLevelContext);
+            searcher.setQueryCache(null);
+            final Weight weight = searcher.createNormalizedWeight(query, false);
+            final DocIdSetIterator it = weight.scorer(context);
+            final BitSet bitSet;
+            if (it == null) {
+                bitSet = null;
+            } else {
+                bitSet = BitSet.of(it, context.reader().maxDoc());
             }
+
+            Value value = new Value(bitSet, shardId);
+            listener.onCache(shardId, value.bitset);
+            return value;
         }).bitset;
     }
 
@@ -170,20 +177,13 @@ public class BitsetFilterCache extends AbstractIndexComponent implements LeafRea
             return;
         }
 
-        Cache<Query, Value> value = notification.getValue();
-        if (value == null) {
+        Cache<Query, Value> valueCache = notification.getValue();
+        if (valueCache == null) {
             return;
         }
 
-        for (Map.Entry<Query, Value> entry : value.asMap().entrySet()) {
-            if (entry.getValue().shardId == null) {
-                continue;
-            }
-            IndexShard shard = indexService.shard(entry.getValue().shardId.id());
-            if (shard != null) {
-                ShardBitsetFilterCache shardBitsetFilterCache = shard.shardBitsetFilterCache();
-                shardBitsetFilterCache.onRemoval(entry.getValue().bitset.ramBytesUsed());
-            }
+        for (Value value : valueCache.asMap().values()) {
+            listener.onRemoval(value.shardId, value.bitset);
             // if null then this means the shard has already been removed and the stats are 0 anyway for the shard this key belongs to
         }
     }
@@ -266,32 +266,22 @@ public class BitsetFilterCache extends AbstractIndexComponent implements LeafRea
             final CountDownLatch latch = new CountDownLatch(context.searcher().reader().leaves().size() * warmUp.size());
             for (final LeafReaderContext ctx : context.searcher().reader().leaves()) {
                 for (final Query filterToWarm : warmUp) {
-                    executor.execute(new Runnable() {
-
-                        @Override
-                        public void run() {
-                            try {
-                                final long start = System.nanoTime();
-                                getAndLoadIfNotPresent(filterToWarm, ctx);
-                                if (indexShard.warmerService().logger().isTraceEnabled()) {
-                                    indexShard.warmerService().logger().trace("warmed bitset for [{}], took [{}]", filterToWarm, TimeValue.timeValueNanos(System.nanoTime() - start));
-                                }
-                            } catch (Throwable t) {
-                                indexShard.warmerService().logger().warn("failed to load bitset for [{}]", t, filterToWarm);
-                            } finally {
-                                latch.countDown();
+                    executor.execute(() -> {
+                        try {
+                            final long start = System.nanoTime();
+                            getAndLoadIfNotPresent(filterToWarm, ctx);
+                            if (indexShard.warmerService().logger().isTraceEnabled()) {
+                                indexShard.warmerService().logger().trace("warmed bitset for [{}], took [{}]", filterToWarm, TimeValue.timeValueNanos(System.nanoTime() - start));
                             }
+                        } catch (Throwable t) {
+                            indexShard.warmerService().logger().warn("failed to load bitset for [{}]", t, filterToWarm);
+                        } finally {
+                            latch.countDown();
                         }
-
                     });
                 }
             }
-            return new TerminationHandle() {
-                @Override
-                public void awaitTermination() throws InterruptedException {
-                    latch.await();
-                }
-            };
+            return () -> latch.await();
         }
 
         @Override
@@ -304,4 +294,25 @@ public class BitsetFilterCache extends AbstractIndexComponent implements LeafRea
     Cache<Object, Cache<Query, Value>> getLoadedFilters() {
         return loadedFilters;
     }
+
+
+    /**
+     *  A listener interface that is executed for each onCache / onRemoval event
+     */
+    public interface Listener {
+        /**
+         * Called for each cached bitset on the cache event.
+         * @param shardId the shard id the bitset was cached for. This can be <code>null</code>
+         * @param accountable the bitsets ram representation
+         */
+        void onCache(ShardId shardId, Accountable accountable);
+        /**
+         * Called for each cached bitset on the removal event.
+         * @param shardId the shard id the bitset was cached for. This can be <code>null</code>
+         * @param accountable the bitsets ram representation
+         */
+        void onRemoval(ShardId shardId, Accountable accountable);
+    }
+
+
 }

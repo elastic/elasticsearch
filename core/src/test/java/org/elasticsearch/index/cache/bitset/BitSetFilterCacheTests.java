@@ -34,14 +34,21 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.QueryWrapperFilter;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.join.BitSetProducer;
+import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
+import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BitSet;
+import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -107,6 +114,93 @@ public class BitSetFilterCacheTests extends ESTestCase {
         writer.close();
         // There is no reference from readers and writer to any segment in the test index, so the size in the fbs cache must be 0
         assertThat(cache.getLoadedFilters().size(), equalTo(0l));
+    }
+
+    public void testListener() throws IOException {
+        IndexWriter writer = new IndexWriter(
+                new RAMDirectory(),
+                new IndexWriterConfig(new StandardAnalyzer()).setMergePolicy(new LogByteSizeMergePolicy())
+        );
+        Document document = new Document();
+        document.add(new StringField("field", "value", Field.Store.NO));
+        writer.addDocument(document);
+        writer.commit();
+        final DirectoryReader writerReader = DirectoryReader.open(writer, false);
+        final IndexReader reader = randomBoolean() ? writerReader : ElasticsearchDirectoryReader.wrap(writerReader, new ShardId("test", 0));
+
+        final AtomicLong stats = new AtomicLong();
+        final AtomicInteger onCacheCalls = new AtomicInteger();
+        final AtomicInteger onRemoveCalls = new AtomicInteger();
+
+        final BitsetFilterCache cache = new BitsetFilterCache(new Index("test"), Settings.EMPTY);
+        cache.setListener(new BitsetFilterCache.Listener() {
+            @Override
+            public void onCache(ShardId shardId, Accountable accountable) {
+                onCacheCalls.incrementAndGet();
+                stats.addAndGet(accountable.ramBytesUsed());
+                if (writerReader != reader) {
+                    assertNotNull(shardId);
+                    assertEquals("test", shardId.index().name());
+                    assertEquals(0, shardId.id());
+                } else {
+                    assertNull(shardId);
+                }
+            }
+
+            @Override
+            public void onRemoval(ShardId shardId, Accountable accountable) {
+                onRemoveCalls.incrementAndGet();
+                stats.addAndGet(-accountable.ramBytesUsed());
+                if (writerReader != reader) {
+                    assertNotNull(shardId);
+                    assertEquals("test", shardId.index().name());
+                    assertEquals(0, shardId.id());
+                } else {
+                    assertNull(shardId);
+                }
+            }
+        });
+        BitSetProducer filter = cache.getBitSetProducer(new QueryWrapperFilter(new TermQuery(new Term("field", "value"))));
+        assertThat(matchCount(filter, reader), equalTo(1));
+        assertTrue(stats.get() > 0);
+        assertEquals(1, onCacheCalls.get());
+        assertEquals(0, onRemoveCalls.get());
+        IOUtils.close(reader, writer);
+        assertEquals(1, onRemoveCalls.get());
+        assertEquals(0, stats.get());
+    }
+
+    public void testSetListenerTwice() {
+        final BitsetFilterCache cache = new BitsetFilterCache(new Index("test"), Settings.EMPTY);
+        cache.setListener(new BitsetFilterCache.Listener() {
+
+            @Override
+            public void onCache(ShardId shardId, Accountable accountable) {
+
+            }
+
+            @Override
+            public void onRemoval(ShardId shardId, Accountable accountable) {
+
+            }
+        });
+        try {
+            cache.setListener(new BitsetFilterCache.Listener() {
+
+                @Override
+                public void onCache(ShardId shardId, Accountable accountable) {
+
+                }
+
+                @Override
+                public void onRemoval(ShardId shardId, Accountable accountable) {
+
+                }
+            });
+            fail("can't set it twice");
+        } catch (IllegalStateException ex) {
+            // all is well
+        }
     }
 
 }

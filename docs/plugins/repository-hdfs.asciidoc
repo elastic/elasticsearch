@@ -13,6 +13,8 @@ This plugin can be installed using the plugin manager:
 [source,sh]
 ----------------------------------------------------------------
 sudo bin/plugin install repository-hdfs
+sudo bin/plugin install repository-hdfs-hadoop2
+sudo bin/plugin install repository-hdfs-light
 ----------------------------------------------------------------
 
 The plugin must be installed on every node in the cluster, and each node must
@@ -27,14 +29,14 @@ The plugin can be removed with the following command:
 [source,sh]
 ----------------------------------------------------------------
 sudo bin/plugin remove repository-hdfs
+sudo bin/plugin remove repository-hdfs-hadoop2
+sudo bin/plugin remove repository-hdfs-light
 ----------------------------------------------------------------
 
 The node must be stopped before removing the plugin.
 
 [[repository-hdfs-usage]]
 ==== Getting started with HDFS
-
-TODO: check if this is needed
 
 The HDFS snapshot/restore plugin comes in three flavors:
 
@@ -49,7 +51,7 @@ The `light` version contains just the plugin jar, without any Hadoop dependencie
 
 It depends on whether you have Hadoop installed on your nodes or not. If you do, then we recommend exposing Hadoop to
 the Elasticsearch classpath (typically through an environment variable such as +ES_CLASSPATH+ - see the
-Elasticsearch https://www.elastic.co/guide/en/elasticsearch/reference/2.0/setup-configuration.html[reference] for
+Elasticsearch {ref}/setup-configuration.html[reference] for
 more info) and using the `light` version.
 
 This guarantees the existing libraries and configuration are being picked up by the plugin.
@@ -60,7 +62,7 @@ using Hadoop 2, the `hadoop2` version.
 ===== Configuration Properties
 
 Once installed, define the configuration for the `hdfs` repository through `elasticsearch.yml` or the
-http://www.elastic.co/guide/en/elasticsearch/reference/current/modules-snapshots.html[REST API]:
+{ref}/modules-snapshots.html[REST API]:
 
 [source]
 ----

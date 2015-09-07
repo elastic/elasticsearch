@@ -1,0 +1,28 @@
+<?xml version="1.0"?>
+<assembly>
+    <id>hadoop1</id>
+    <formats>
+        <format>zip</format>
+    </formats>
+    <includeBaseDirectory>false</includeBaseDirectory>
+    <files>
+        <file>
+            <source>${project.basedir}/src/assembly/hadoop2/plugin-descriptor.properties</source>
+            <outputDirectory></outputDirectory>
+            <filtered>true</filtered>
+        </file>
+    </files>
+    <dependencySets>
+        <dependencySet>
+            <outputDirectory>/</outputDirectory>
+            <useProjectArtifact>true</useProjectArtifact>
+            <useTransitiveFiltering>true</useTransitiveFiltering>
+            <useTransitiveDependencies>true</useTransitiveDependencies>
+            <excludes>
+                <exclude>org.elasticsearch:elasticsearch</exclude>
+                <!-- We exclude Hadoop1 -->
+                <exclude>org.apache.hadoop:hadoop-core</exclude>
+            </excludes>
+        </dependencySet>
+    </dependencySets>
+</assembly>

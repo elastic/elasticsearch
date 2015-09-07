@@ -20,11 +20,12 @@
 package org.elasticsearch.search.morelikethis;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.query.morelikethis.Item;
+import org.elasticsearch.index.query.MoreLikeThisQueryBuilder.Item;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
@@ -52,7 +53,7 @@ public class ItemSerializationTests extends ESTestCase {
             Item item1 = generateRandomItem(maxArraySize, maxStringSize);
             String json = item1.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS).string();
             XContentParser parser = XContentFactory.xContent(json).createParser(json);
-            Item item2 = Item.parse(parser, new Item());
+            Item item2 = Item.parse(parser, ParseFieldMatcher.STRICT, new Item());
             assertEquals(item1, item2);
         }
     }

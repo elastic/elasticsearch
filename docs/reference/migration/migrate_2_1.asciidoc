@@ -45,9 +45,6 @@ For indices that have this setting configured, this config will be ignored.
 
 === More Like This
 
-The MoreLikeThis builders have been moved to their own org.elasticsearch.index.query.morelikethis
-package. MoreLikeThisQueryBuilder.Item has been moved to its own class.
-
 The MoreLikeThisQueryBuilder#ignoreLike methods have been deprecating in favor
 to using the unlike methods.
 

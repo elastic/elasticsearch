@@ -49,6 +49,10 @@ public class TimeThrottleIntegrationTests extends AbstractWatcherIntegrationTest
         return eventIndexResponse;
     }
 
+    @Override
+    protected boolean enableShield() {
+        return false;
+    }
 
     @Test
 

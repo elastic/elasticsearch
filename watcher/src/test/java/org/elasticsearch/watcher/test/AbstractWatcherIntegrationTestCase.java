@@ -255,11 +255,11 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
     }
 
     protected long docCount(String index, String type, SearchSourceBuilder source) {
-        SearchRequestBuilder builder = client().prepareSearch(index).setSize(0);
+        SearchRequestBuilder builder = client().prepareSearch(index)
+                .internalBuilder(source).setSize(0);
         if (type != null) {
             builder.setTypes(type);
         }
-        builder.setSource(source.buildAsBytes());
         return builder.get().getHits().getTotalHits();
     }
 

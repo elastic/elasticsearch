@@ -274,8 +274,14 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         when(clientProxy.search(any(SearchRequest.class), any(TimeValue.class))).thenReturn(searchResponse1);
 
         // First return a scroll response with a single hit and then with no hits
-        SearchResponse searchResponse2 = new SearchResponse(InternalSearchResponse.empty(), "_scrollId", 1, 1, 1, null);
-        when(clientProxy.searchScroll(eq("_scrollId"), any(TimeValue.class))).thenReturn(searchResponse1).thenReturn(searchResponse2);
+        hit = new InternalSearchHit(0, "_id", new StringText("_type"), null);
+        hit.version(1l);
+        hit.shard(new SearchShardTarget("_node_id", indexName, 0));
+        hit.sourceRef(new BytesArray("{}"));
+        hits = new InternalSearchHits(new InternalSearchHit[]{hit}, 1, 1.0f);
+        SearchResponse searchResponse2 = new SearchResponse(new InternalSearchResponse(hits, null, null, false, null), "_scrollId", 1, 1, 1, null);
+        SearchResponse searchResponse3 = new SearchResponse(InternalSearchResponse.empty(), "_scrollId", 1, 1, 1, null);
+        when(clientProxy.searchScroll(eq("_scrollId"), any(TimeValue.class))).thenReturn(searchResponse2, searchResponse3);
 
 
         TriggeredWatch triggeredWatch = mock(TriggeredWatch.class);
@@ -286,7 +292,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         assertThat(triggeredWatchStore.validate(cs), is(true));
         Collection<TriggeredWatch> triggeredWatches = triggeredWatchStore.loadTriggeredWatches(cs);
         assertThat(triggeredWatches, notNullValue());
-        assertThat(triggeredWatches, hasSize(1));
+        assertThat(triggeredWatches, hasSize(2));
 
         verify(clientProxy, times(1)).refresh(any(RefreshRequest.class));
         verify(clientProxy, times(1)).search(any(SearchRequest.class), any(TimeValue.class));

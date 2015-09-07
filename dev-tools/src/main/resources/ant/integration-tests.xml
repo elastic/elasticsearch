@@ -370,7 +370,7 @@
       <local name="rpm.file"/>
       <local name="rpm.database"/>
       <local name="rpm.extracted"/>
-      <property name="rpm.file" location="${project.build.directory}/releases/${project.artifactId}-${project.version}.rpm"/>
+      <property name="rpm.file" location="${project.build.directory}/releases/${project.artifactId}-${project.version}.noarch.rpm"/>
       <property name="rpm.database" location="${integ.scratch}/rpm-database"/>
       <property name="rpm.extracted" location="${integ.scratch}/rpm-extracted"/>
       <mkdir dir="${rpm.database}"/>

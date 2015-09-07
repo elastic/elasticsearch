@@ -269,7 +269,7 @@ if __name__ == "__main__":
     'org/elasticsearch/distribution/tar/elasticsearch/%(version)s/elasticsearch-%(version)s.tar.gz',
     'org/elasticsearch/distribution/zip/elasticsearch/%(version)s/elasticsearch-%(version)s.zip',
     'org/elasticsearch/distribution/deb/elasticsearch/%(version)s/elasticsearch-%(version)s.deb',
-    'org/elasticsearch/distribution/rpm/elasticsearch/%(version)s/elasticsearch-%(version)s.rpm'
+    'org/elasticsearch/distribution/rpm/elasticsearch/%(version)s/elasticsearch-%(version)s.noarch.rpm'
   ]]
   verify_java_version('1.7')
   if url:

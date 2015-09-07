@@ -319,6 +319,7 @@
                                     <type>${project.packaging}</type>
                                     <overWrite>true</overWrite>
                                     <outputDirectory>${rpm.outputDirectory}</outputDirectory>
+                                    <destFileName>${project.artifactId}-${project.version}.noarch.${project.packaging}</destFileName>
                                 </artifactItem>
                             </artifactItems>
                         </configuration>

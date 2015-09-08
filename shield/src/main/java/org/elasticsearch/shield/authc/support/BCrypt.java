@@ -685,8 +685,15 @@ public class BCrypt {
 
          */
 
-        // the next line is the SecuredString replacement for the above commented-out section
-        passwordb = ( minor >= 'a' ? password.concat("\000"): password ).utf8Bytes();
+        // the next lines are the SecuredString replacement for the above commented-out section
+        if (minor >= 'a') {
+            SecuredString securedString = password.concat("\000");
+            passwordb = securedString.utf8Bytes();
+            // clear here since this is a new object and we don't need to reuse it
+            securedString.clear();
+        } else {
+            passwordb = password.utf8Bytes();
+        }
         /*************************** ES CHANGE END *************************/
 
         saltb = decode_base64(real_salt, BCRYPT_SALT_LEN);

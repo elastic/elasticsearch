@@ -24,8 +24,7 @@ public class SecuredString implements CharSequence {
     private boolean cleared = false;
 
     /**
-     * Note: the passed in chars are not duplicated, but used directly for performance/optimization.  DO NOT
-     * modify or clear the chars after it has been passed into this constructor.
+     * Note: the passed in chars are duplicated
      */
     public SecuredString(char[] chars) {
         this.chars = new char[chars.length];
@@ -33,8 +32,7 @@ public class SecuredString implements CharSequence {
     }
 
     /**
-     * This constructor is used internally for the concatenate method.  It DOES duplicate the passed in array, unlike
-     * the public constructor
+     * This constructor is used internally for the concatenate method.
      */
     private SecuredString(char[] chars, int start, int end) {
         this.chars = new char[end - start];
@@ -89,7 +87,7 @@ public class SecuredString implements CharSequence {
     }
 
     /**
-     * @return  A copy of the internal charachters. May be usd for caching.
+     * @return  A copy of the internal characters. May be used for caching.
      */
     public char[] copyChars() {
         return Arrays.copyOf(chars, chars.length);
@@ -127,12 +125,6 @@ public class SecuredString implements CharSequence {
     public void clear() {
         cleared = true;
         Arrays.fill(chars, (char) 0);
-    }
-
-    @Override
-    public void finalize() throws Throwable {
-        clear();
-        super.finalize();
     }
 
     /**

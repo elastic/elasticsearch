@@ -41,6 +41,7 @@ import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.bwcompat.OldIndexBackwardsCompatibilityIT;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Base64;
@@ -94,6 +95,7 @@ import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Pattern;
 
 import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
@@ -1000,8 +1002,7 @@ public class InternalEngineTests extends ESTestCase {
                                 indexed.countDown();
                                 try {
                                     engine.forceMerge(randomBoolean(), 1, false, randomBoolean(), randomBoolean());
-                                } catch (ForceMergeFailedEngineException ex) {
-                                    // ok
+                                } catch (IOException e) {
                                     return;
                                 }
                             }
@@ -2018,5 +2019,43 @@ public class InternalEngineTests extends ESTestCase {
             TopDocs topDocs = searcher.searcher().search(new MatchAllDocsQuery(), randomIntBetween(numDocs, numDocs + 10));
             assertThat(topDocs.totalHits, equalTo(numDocs));
         }
+    }
+
+    public void testShardNotAvailableExceptionWhenEngineClosedConcurrently() throws IOException, InterruptedException {
+        AtomicReference<Throwable> throwable = new AtomicReference<>();
+        String operation = randomFrom("optimize", "refresh", "flush");
+        Thread mergeThread = new Thread() {
+            @Override
+            public void run() {
+                boolean stop = false;
+                logger.info("try with {}", operation);
+                while (stop == false) {
+                    try {
+                        switch (operation) {
+                            case "optimize": {
+                                engine.forceMerge(true, 1, false, false, false);
+                                break;
+                            }
+                            case "refresh": {
+                                engine.refresh("test refresh");
+                                break;
+                            }
+                            case "flush": {
+                                engine.flush(true, false);
+                                break;
+                            }
+                        }
+                    } catch (Throwable t) {
+                        throwable.set(t);
+                        stop = true;
+                    }
+                }
+            }
+        };
+        mergeThread.start();
+        engine.close();
+        mergeThread.join();
+        logger.info("exception caught: ", throwable.get());
+        assertTrue("expected an Exception that signals shard is not available", TransportActions.isShardNotAvailableException(throwable.get()));
     }
 }

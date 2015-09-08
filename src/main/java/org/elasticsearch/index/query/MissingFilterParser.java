@@ -98,7 +98,7 @@ public class MissingFilterParser implements FilterParser {
         }
 
         final FieldMappers fieldNamesMappers = parseContext.mapperService().fullName(FieldNamesFieldMapper.NAME);
-        final FieldNamesFieldMapper fieldNamesMapper = (FieldNamesFieldMapper)fieldNamesMappers.mapper();
+        final FieldNamesFieldMapper fieldNamesMapper = fieldNamesMappers == null ? null : (FieldNamesFieldMapper)fieldNamesMappers.mapper();
         MapperService.SmartNameObjectMapper smartNameObjectMapper = parseContext.smartObjectMapper(fieldPattern);
         if (smartNameObjectMapper != null && smartNameObjectMapper.hasMapper()) {
             // automatic make the object mapper pattern

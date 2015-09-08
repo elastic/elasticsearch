@@ -84,7 +84,7 @@ public class ExistsFilterParser implements FilterParser {
 
     public static Filter newFilter(QueryParseContext parseContext, String fieldPattern, String filterName) {
         final FieldMappers fieldNamesMappers = parseContext.mapperService().indexName(FieldNamesFieldMapper.NAME);
-        final FieldNamesFieldMapper fieldNamesMapper = (FieldNamesFieldMapper)fieldNamesMappers.mapper();
+        final FieldNamesFieldMapper fieldNamesMapper = fieldNamesMappers == null ? null : (FieldNamesFieldMapper)fieldNamesMappers.mapper();
 
         MapperService.SmartNameObjectMapper smartNameObjectMapper = parseContext.smartObjectMapper(fieldPattern);
         if (smartNameObjectMapper != null && smartNameObjectMapper.hasMapper()) {

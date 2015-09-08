@@ -62,25 +62,16 @@ setup() {
     rpm -qe 'elasticsearch'
 }
 
-##################################
-# Check that the package is correctly installed
-##################################
 @test "[RPM] verify package installation" {
     verify_package_installation
 }
 
-##################################
-# Check that Elasticsearch is working
-##################################
 @test "[RPM] test elasticsearch" {
     start_elasticsearch_service
 
     run_elasticsearch_tests
 }
 
-##################################
-# Uninstall RPM package
-##################################
 @test "[RPM] remove package" {
     rpm -e 'elasticsearch'
 }
@@ -116,4 +107,26 @@ setup() {
     assert_file_not_exist "/usr/lib/systemd/system/elasticsearch.service"
 
     assert_file_not_exist "/etc/sysconfig/elasticsearch"
+}
+
+
+@test "[RPM] reinstall package" {
+    rpm -i elasticsearch-$(cat version).rpm
+}
+
+@test "[RPM] package is installed by reinstall" {
+    rpm -qe 'elasticsearch'
+}
+
+@test "[RPM] verify package reinstallation" {
+    verify_package_installation
+}
+
+@test "[RPM] reremove package" {
+    rpm -e 'elasticsearch'
+}
+
+@test "[RPM] package has been removed again" {
+    run rpm -qe 'elasticsearch'
+    [ "$status" -eq 1 ]
 }

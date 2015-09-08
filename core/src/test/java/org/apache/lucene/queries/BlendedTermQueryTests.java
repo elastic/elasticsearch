@@ -97,10 +97,11 @@ public class BlendedTermQueryTests extends ESTestCase {
             assertEquals(Integer.toString(0), reader.document(scoreDocs[0].doc).getField("id").stringValue());
         }
         {
-            BooleanQuery query = new BooleanQuery(false);
+            BooleanQuery.Builder query = new BooleanQuery.Builder();
+            query.setDisableCoord(true);
             query.add(new TermQuery(new Term("firstname", "simon")), BooleanClause.Occur.SHOULD);
             query.add(new TermQuery(new Term("surname", "simon")), BooleanClause.Occur.SHOULD);
-            TopDocs search = searcher.search(query, 1);
+            TopDocs search = searcher.search(query.build(), 1);
             ScoreDoc[] scoreDocs = search.scoreDocs;
             assertEquals(Integer.toString(1), reader.document(scoreDocs[0].doc).getField("id").stringValue());
 
@@ -150,16 +151,18 @@ public class BlendedTermQueryTests extends ESTestCase {
         IndexSearcher searcher = setSimilarity(newSearcher(reader));
         {
             String[] fields = new String[]{"username", "song"};
-            BooleanQuery query = new BooleanQuery(false);
+            BooleanQuery.Builder query = new BooleanQuery.Builder();
+            query.setDisableCoord(true);
             query.add(BlendedTermQuery.dismaxBlendedQuery(toTerms(fields, "foo"), 0.1f), BooleanClause.Occur.SHOULD);
             query.add(BlendedTermQuery.dismaxBlendedQuery(toTerms(fields, "fighters"), 0.1f), BooleanClause.Occur.SHOULD);
             query.add(BlendedTermQuery.dismaxBlendedQuery(toTerms(fields, "generator"), 0.1f), BooleanClause.Occur.SHOULD);
-            TopDocs search = searcher.search(query, 10);
+            TopDocs search = searcher.search(query.build(), 10);
             ScoreDoc[] scoreDocs = search.scoreDocs;
             assertEquals(Integer.toString(0), reader.document(scoreDocs[0].doc).getField("id").stringValue());
         }
         {
-            BooleanQuery query = new BooleanQuery(false);
+            BooleanQuery.Builder query = new BooleanQuery.Builder();
+            query.setDisableCoord(true);
             DisjunctionMaxQuery uname = new DisjunctionMaxQuery(0.0f);
             uname.add(new TermQuery(new Term("username", "foo")));
             uname.add(new TermQuery(new Term("song", "foo")));
@@ -173,7 +176,7 @@ public class BlendedTermQueryTests extends ESTestCase {
             query.add(uname, BooleanClause.Occur.SHOULD);
             query.add(s, BooleanClause.Occur.SHOULD);
             query.add(gen, BooleanClause.Occur.SHOULD);
-            TopDocs search = searcher.search(query, 4);
+            TopDocs search = searcher.search(query.build(), 4);
             ScoreDoc[] scoreDocs = search.scoreDocs;
             assertEquals(Integer.toString(1), reader.document(scoreDocs[0].doc).getField("id").stringValue());
 

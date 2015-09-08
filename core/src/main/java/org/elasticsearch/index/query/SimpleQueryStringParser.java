@@ -219,7 +219,7 @@ public class SimpleQueryStringParser implements QueryParser {
         }
 
         if (query != null) {
-            query.setBoost(boost);
+            query.setBoost(boost * query.getBoost());
         }
 
         return query;

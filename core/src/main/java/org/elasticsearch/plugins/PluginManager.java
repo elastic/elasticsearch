@@ -19,7 +19,6 @@
 
 package org.elasticsearch.plugins;
 
-import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterators;
 import org.apache.lucene.util.IOUtils;
@@ -29,6 +28,7 @@ import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.JarHell;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.cli.Terminal;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.http.client.HttpDownloadHelper;
@@ -80,15 +80,16 @@ public class PluginManager {
                     "analysis-phonetic",
                     "analysis-smartcn",
                     "analysis-stempel",
-                    "cloud-aws",
                     "cloud-azure",
                     "cloud-gce",
                     "delete-by-query",
+                    "discovery-ec2",
                     "discovery-multicast",
                     "lang-javascript",
                     "lang-python",
                     "mapper-murmur3",
-                    "mapper-size"
+                    "mapper-size",
+                    "repository-s3"
             ).build();
 
     private final Environment environment;

@@ -24,6 +24,8 @@ import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.BucketMetricsParser;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
+import java.util.Map;
+
 public class MaxBucketParser extends BucketMetricsParser {
 
     @Override
@@ -32,7 +34,8 @@ public class MaxBucketParser extends BucketMetricsParser {
     }
 
     @Override
-    protected PipelineAggregatorFactory buildFactory(String pipelineAggregatorName, String[] bucketsPaths, GapPolicy gapPolicy, ValueFormatter formatter) {
+    protected PipelineAggregatorFactory buildFactory(String pipelineAggregatorName, String[] bucketsPaths, GapPolicy gapPolicy,
+                                                     ValueFormatter formatter, Map<String, Object> unparsedParams) {
         return new MaxBucketPipelineAggregator.Factory(pipelineAggregatorName, bucketsPaths, gapPolicy, formatter);
     }
 

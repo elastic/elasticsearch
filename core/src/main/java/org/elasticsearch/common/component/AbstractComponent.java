@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.component;
 
-import com.google.common.base.Strings;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;

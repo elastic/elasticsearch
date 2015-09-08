@@ -35,8 +35,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.XFilteredDocIdSetIterator;
-import org.apache.lucene.search.join.BitDocIdSetFilter;
-import org.apache.lucene.util.Bits;
+import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.util.LongBitSet;
 import org.elasticsearch.common.lucene.IndexCacheableQuery;
 import org.elasticsearch.common.lucene.Lucene;
@@ -61,9 +60,9 @@ public class ChildrenConstantScoreQuery extends IndexCacheableQuery {
     private final String childType;
     private final Filter parentFilter;
     private final int shortCircuitParentDocSet;
-    private final BitDocIdSetFilter nonNestedDocsFilter;
+    private final BitSetProducer nonNestedDocsFilter;
 
-    public ChildrenConstantScoreQuery(IndexParentChildFieldData parentChildIndexFieldData, Query childQuery, String parentType, String childType, Filter parentFilter, int shortCircuitParentDocSet, BitDocIdSetFilter nonNestedDocsFilter) {
+    public ChildrenConstantScoreQuery(IndexParentChildFieldData parentChildIndexFieldData, Query childQuery, String parentType, String childType, Filter parentFilter, int shortCircuitParentDocSet, BitSetProducer nonNestedDocsFilter) {
         this.parentChildIndexFieldData = parentChildIndexFieldData;
         this.parentFilter = parentFilter;
         this.parentType = parentType;
@@ -92,7 +91,7 @@ public class ChildrenConstantScoreQuery extends IndexCacheableQuery {
         final long valueCount;
         List<LeafReaderContext> leaves = searcher.getIndexReader().leaves();
         if (globalIfd == null || leaves.isEmpty()) {
-            return new BooleanQuery().createWeight(searcher, needsScores);
+            return new BooleanQuery.Builder().build().createWeight(searcher, needsScores);
         } else {
             AtomicParentChildFieldData afd = globalIfd.load(leaves.get(0));
             SortedDocValues globalValues = afd.getOrdinalsValues(parentType);
@@ -100,7 +99,7 @@ public class ChildrenConstantScoreQuery extends IndexCacheableQuery {
         }
 
         if (valueCount == 0) {
-            return new BooleanQuery().createWeight(searcher, needsScores);
+            return new BooleanQuery.Builder().build().createWeight(searcher, needsScores);
         }
 
         ParentOrdCollector collector = new ParentOrdCollector(globalIfd, valueCount, parentType);
@@ -108,7 +107,7 @@ public class ChildrenConstantScoreQuery extends IndexCacheableQuery {
 
         final long remaining = collector.foundParents();
         if (remaining == 0) {
-            return new BooleanQuery().createWeight(searcher, needsScores);
+            return new BooleanQuery.Builder().build().createWeight(searcher, needsScores);
         }
 
         Filter shortCircuitFilter = null;

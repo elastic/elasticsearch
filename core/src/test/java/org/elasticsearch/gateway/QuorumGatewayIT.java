@@ -19,7 +19,6 @@
 
 package org.elasticsearch.gateway;
 
-import com.google.common.base.Predicate;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
@@ -36,10 +35,12 @@ import static org.elasticsearch.client.Requests.clusterHealthRequest;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.test.ESIntegTestCase.*;
+import static org.elasticsearch.test.ESIntegTestCase.Scope;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  *
@@ -92,12 +93,10 @@ public class QuorumGatewayIT extends ESIntegTestCase {
         ClusterHealthResponse clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForNodes("1")).actionGet();
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.RED));  // nothing allocated yet
-        assertThat(awaitBusy(new Predicate<Object>() {
-            @Override
-            public boolean apply(Object input) {
-                ClusterStateResponse clusterStateResponse = internalCluster().smartClient().admin().cluster().prepareState().setMasterNodeTimeout("500ms").get();
-                return clusterStateResponse.getState() != null && clusterStateResponse.getState().routingTable().index("test") != null;
-            }}), equalTo(true)); // wait until we get a cluster state - could be null if we quick enough.
+        assertTrue(awaitBusy(() -> {
+            ClusterStateResponse clusterStateResponse = internalCluster().smartClient().admin().cluster().prepareState().setMasterNodeTimeout("500ms").get();
+            return clusterStateResponse.getState() != null && clusterStateResponse.getState().routingTable().index("test") != null;
+        })); // wait until we get a cluster state - could be null if we quick enough.
         final ClusterStateResponse clusterStateResponse = internalCluster().smartClient().admin().cluster().prepareState().setMasterNodeTimeout("500ms").get();
         assertThat(clusterStateResponse.getState(), notNullValue());
         assertThat(clusterStateResponse.getState().routingTable().index("test"), notNullValue());
@@ -149,15 +148,12 @@ public class QuorumGatewayIT extends ESIntegTestCase {
             @Override
             public void doAfterNodes(int numNodes, final Client activeClient) throws Exception {
                 if (numNodes == 1) {
-                    assertThat(awaitBusy(new Predicate<Object>() {
-                        @Override
-                        public boolean apply(Object input) {
-                            logger.info("--> running cluster_health (wait for the shards to startup)");
-                            ClusterHealthResponse clusterHealth = activeClient.admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForNodes("2").waitForActiveShards(test.numPrimaries * 2)).actionGet();
-                            logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
-                            return (!clusterHealth.isTimedOut()) && clusterHealth.getStatus() == ClusterHealthStatus.YELLOW;
-                        }
-                    }, 30, TimeUnit.SECONDS), equalTo(true));
+                    assertTrue(awaitBusy(() -> {
+                        logger.info("--> running cluster_health (wait for the shards to startup)");
+                        ClusterHealthResponse clusterHealth = activeClient.admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForNodes("2").waitForActiveShards(test.numPrimaries * 2)).actionGet();
+                        logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
+                        return (!clusterHealth.isTimedOut()) && clusterHealth.getStatus() == ClusterHealthStatus.YELLOW;
+                    }, 30, TimeUnit.SECONDS));
                     logger.info("--> one node is closed -- index 1 document into the remaining nodes");
                     activeClient.prepareIndex("test", "type1", "3").setSource(jsonBuilder().startObject().field("field", "value3").endObject()).get();
                     assertNoFailures(activeClient.admin().indices().prepareRefresh().get());

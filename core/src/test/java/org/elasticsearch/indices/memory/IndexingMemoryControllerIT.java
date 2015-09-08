@@ -19,7 +19,6 @@
 
 package org.elasticsearch.indices.memory;
 
-import com.google.common.base.Predicate;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
@@ -54,13 +53,9 @@ public class IndexingMemoryControllerIT extends ESIntegTestCase {
         final long expected1ShardSize = internalCluster().getInstance(IndexingMemoryController.class).indexingBufferSize().bytes();
         final long expected2ShardsSize = expected1ShardSize / 2;
 
-        boolean success = awaitBusy(new Predicate<Object>() {
-            @Override
-            public boolean apply(Object input) {
-                return shard1.engine().config().getIndexingBufferSize().bytes() <= expected2ShardsSize &&
-                        shard2.engine().config().getIndexingBufferSize().bytes() <= expected2ShardsSize;
-            }
-        });
+        boolean success = awaitBusy(() -> shard1.engine().config().getIndexingBufferSize().bytes() <= expected2ShardsSize &&
+                        shard2.engine().config().getIndexingBufferSize().bytes() <= expected2ShardsSize
+        );
 
         if (!success) {
             fail("failed to update shard indexing buffer size. expected [" + expected2ShardsSize + "] shard1 [" +
@@ -70,12 +65,7 @@ public class IndexingMemoryControllerIT extends ESIntegTestCase {
         }
 
         client().admin().indices().prepareDelete("test2").get();
-        success = awaitBusy(new Predicate<Object>() {
-            @Override
-            public boolean apply(Object input) {
-                return  shard1.engine().config().getIndexingBufferSize().bytes() >= expected1ShardSize;
-            }
-        });
+        success = awaitBusy(() -> shard1.engine().config().getIndexingBufferSize().bytes() >= expected1ShardSize);
 
         if (!success) {
             fail("failed to update shard indexing buffer size after deleting shards. expected [" + expected1ShardSize + "] got [" +
@@ -95,12 +85,7 @@ public class IndexingMemoryControllerIT extends ESIntegTestCase {
         ensureGreen();
 
         final IndexShard shard1 = internalCluster().getInstance(IndicesService.class).indexService("test1").shard(0);
-        boolean success = awaitBusy(new Predicate<Object>() {
-            @Override
-            public boolean apply(Object input) {
-                return shard1.engine().config().getIndexingBufferSize().bytes() == EngineConfig.INACTIVE_SHARD_INDEXING_BUFFER.bytes();
-            }
-        });
+        boolean success = awaitBusy(() -> shard1.engine().config().getIndexingBufferSize().bytes() == EngineConfig.INACTIVE_SHARD_INDEXING_BUFFER.bytes());
         if (!success) {
             fail("failed to update shard indexing buffer size due to inactive state. expected [" + EngineConfig.INACTIVE_SHARD_INDEXING_BUFFER + "] got [" +
                             shard1.engine().config().getIndexingBufferSize().bytes() + "]"
@@ -109,12 +94,7 @@ public class IndexingMemoryControllerIT extends ESIntegTestCase {
 
         index("test1", "type", "1", "f", 1);
 
-        success = awaitBusy(new Predicate<Object>() {
-            @Override
-            public boolean apply(Object input) {
-                return shard1.engine().config().getIndexingBufferSize().bytes() > EngineConfig.INACTIVE_SHARD_INDEXING_BUFFER.bytes();
-            }
-        });
+        success = awaitBusy(() -> shard1.engine().config().getIndexingBufferSize().bytes() > EngineConfig.INACTIVE_SHARD_INDEXING_BUFFER.bytes());
         if (!success) {
             fail("failed to update shard indexing buffer size due to inactive state. expected something larger then [" + EngineConfig.INACTIVE_SHARD_INDEXING_BUFFER + "] got [" +
                             shard1.engine().config().getIndexingBufferSize().bytes() + "]"
@@ -123,12 +103,7 @@ public class IndexingMemoryControllerIT extends ESIntegTestCase {
 
         flush(); // clean translogs
 
-        success = awaitBusy(new Predicate<Object>() {
-            @Override
-            public boolean apply(Object input) {
-                return shard1.engine().config().getIndexingBufferSize().bytes() == EngineConfig.INACTIVE_SHARD_INDEXING_BUFFER.bytes();
-            }
-        });
+        success = awaitBusy(() -> shard1.engine().config().getIndexingBufferSize().bytes() == EngineConfig.INACTIVE_SHARD_INDEXING_BUFFER.bytes());
         if (!success) {
             fail("failed to update shard indexing buffer size due to inactive state. expected [" + EngineConfig.INACTIVE_SHARD_INDEXING_BUFFER + "] got [" +
                             shard1.engine().config().getIndexingBufferSize().bytes() + "]"

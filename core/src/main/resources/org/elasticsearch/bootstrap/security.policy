@@ -36,12 +36,6 @@ grant codeBase "${es.security.jar.lucene.core}" {
   permission java.lang.RuntimePermission "accessClassInPackage.sun.misc";
 };
 
-grant codeBase "${es.security.jar.twitter.jsr166e}" {
-  // needed for LongAdder etc
-  // TODO: remove this in java 8!
-  permission java.lang.RuntimePermission "accessClassInPackage.sun.misc";
-};
-
 grant codeBase "${es.security.jar.elasticsearch.securemock}" {
   // needed to support creation of mocks
   permission java.lang.RuntimePermission "reflectionFactoryAccess";

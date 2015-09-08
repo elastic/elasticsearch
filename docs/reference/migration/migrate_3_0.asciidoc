@@ -1,0 +1,65 @@
+[[breaking-changes-3.0]]
+== Breaking changes in 3.0
+
+This section discusses the changes that you need to be aware of when migrating
+your application to Elasticsearch 3.0.
+
+=== Search changes
+
+==== `search_type=count` removed
+
+The `count` search type was deprecated since version 2.0.0 and is now removed.
+In order to get the same benefits, you just need to set the value of the `size`
+parameter to `0`.
+
+For instance, the following request:
+[source,sh]
+---------------
+GET /my_index/_search?search_type=count
+{
+  "aggs": {
+    "my_terms": {
+       "terms": {
+         "field": "foo"
+       }
+     }
+  }
+}
+---------------
+
+can be replaced with:
+[source,sh]
+---------------
+GET /my_index/_search
+{
+  "size": 0,
+  "aggs": {
+    "my_terms": {
+       "terms": {
+         "field": "foo"
+       }
+     }
+  }
+}
+---------------
+
+==== `search_type=scan` removed
+
+The `scan` search type was deprecated since version 2.1.0 and is now removed.
+All benefits from this search type can now be achieved by doing a scroll
+request that sorts documents in `_doc` order, for instance:
+
+[source,sh]
+---------------
+GET /my_index/_search?scroll=2m
+{
+  "sort": [
+    "_doc"
+  ]
+}
+---------------
+
+Scroll requests sorted by `_doc` have been optimized to more efficiently resume
+from where the previous request stopped, so this will have the same performance
+characteristics as the former `scan` search type.
+

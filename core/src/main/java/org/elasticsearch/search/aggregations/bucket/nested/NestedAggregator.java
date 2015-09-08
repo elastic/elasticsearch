@@ -18,16 +18,16 @@
  */
 package org.elasticsearch.search.aggregations.bucket.nested;
 
+import org.apache.lucene.index.IndexReaderContext;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.DocIdSet;
+import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.join.BitDocIdSetFilter;
-import org.apache.lucene.util.BitDocIdSet;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.Weight;
+import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.util.BitSet;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -50,8 +50,8 @@ import java.util.Map;
  */
 public class NestedAggregator extends SingleBucketAggregator {
 
-    private BitDocIdSetFilter parentFilter;
-    private final Filter childFilter;
+    private BitSetProducer parentFilter;
+    private final Query childFilter;
 
     private DocIdSetIterator childDocs;
     private BitSet parentDocs;
@@ -65,13 +65,11 @@ public class NestedAggregator extends SingleBucketAggregator {
     public LeafBucketCollector getLeafCollector(final LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
         // Reset parentFilter, so we resolve the parentDocs for each new segment being searched
         this.parentFilter = null;
-        // In ES if parent is deleted, then also the children are deleted. Therefore acceptedDocs can also null here.
-        DocIdSet childDocIdSet = childFilter.getDocIdSet(ctx, null);
-        if (Lucene.isEmpty(childDocIdSet)) {
-            childDocs = null;
-        } else {
-            childDocs = childDocIdSet.iterator();
-        }
+        final IndexReaderContext topLevelContext = ReaderUtil.getTopLevelContext(ctx);
+        final IndexSearcher searcher = new IndexSearcher(topLevelContext);
+        searcher.setQueryCache(null);
+        final Weight weight = searcher.createNormalizedWeight(childFilter, false);
+        childDocs = weight.scorer(ctx);
 
         return new LeafBucketCollectorBase(sub, null) {
             @Override
@@ -91,18 +89,16 @@ public class NestedAggregator extends SingleBucketAggregator {
                     // Additional NOTE: Before this logic was performed in the setNextReader(...) method, but the the assumption
                     // that aggs instances are constructed in reverse doesn't hold when buckets are constructed lazily during
                     // aggs execution
-                    Filter parentFilterNotCached = findClosestNestedPath(parent());
+                    Query parentFilterNotCached = findClosestNestedPath(parent());
                     if (parentFilterNotCached == null) {
                         parentFilterNotCached = Queries.newNonNestedFilter();
                     }
-                    parentFilter = context.searchContext().bitsetFilterCache().getBitDocIdSetFilter(parentFilterNotCached);
-                    BitDocIdSet parentSet = parentFilter.getDocIdSet(ctx);
-                    if (Lucene.isEmpty(parentSet)) {
+                    parentFilter = context.searchContext().bitsetFilterCache().getBitSetProducer(parentFilterNotCached);
+                    parentDocs = parentFilter.getBitSet(ctx);
+                    if (parentDocs == null) {
                         // There are no parentDocs in the segment, so return and set childDocs to null, so we exit early for future invocations.
                         childDocs = null;
                         return;
-                    } else {
-                        parentDocs = parentSet.bits();
                     }
                 }
 
@@ -130,7 +126,7 @@ public class NestedAggregator extends SingleBucketAggregator {
         return new InternalNested(name, 0, buildEmptySubAggregations(), pipelineAggregators(), metaData());
     }
 
-    private static Filter findClosestNestedPath(Aggregator parent) {
+    private static Query findClosestNestedPath(Aggregator parent) {
         for (; parent != null; parent = parent.parent()) {
             if (parent instanceof NestedAggregator) {
                 return ((NestedAggregator) parent).childFilter;

@@ -21,17 +21,12 @@ package org.elasticsearch.index.search.child;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.SortedDocValues;
-import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
-import org.apache.lucene.search.BooleanClause.Occur;
-import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.QueryWrapperFilter;
-import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.search.join.BitDocIdSetFilter;
+import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.util.BitDocIdSet;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.Bits;
@@ -57,75 +52,51 @@ import java.io.IOException;
  */
 final class ParentIdsFilter extends Filter {
 
-    static Filter createShortCircuitFilter(BitDocIdSetFilter nonNestedDocsFilter, SearchContext searchContext,
+    static Filter createShortCircuitFilter(BitSetProducer nonNestedDocsFilter, SearchContext searchContext,
                                            String parentType, SortedDocValues globalValues,
                                            LongBitSet parentOrds, long numFoundParents) {
-        if (numFoundParents == 1) {
-            BytesRef id = globalValues.lookupOrd((int) parentOrds.nextSetBit(0));
-            if (nonNestedDocsFilter != null) {
-                BooleanQuery bq = new BooleanQuery();
-                bq.add(new TermQuery(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(parentType, id))), Occur.MUST);
-                bq.add(nonNestedDocsFilter, Occur.MUST);
-                return new QueryWrapperFilter(bq);
-            } else {
-                return new QueryWrapperFilter(new TermQuery(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(parentType, id))));
+        BytesRefHash parentIds= null;
+        boolean constructed = false;
+        try {
+            parentIds = new BytesRefHash(numFoundParents, searchContext.bigArrays());
+            for (long parentOrd = parentOrds.nextSetBit(0); parentOrd != -1; parentOrd = parentOrds.nextSetBit(parentOrd + 1)) {
+                parentIds.add(globalValues.lookupOrd((int) parentOrd));
             }
-        } else {
-            BytesRefHash parentIds= null;
-            boolean constructed = false;
-            try {
-                parentIds = new BytesRefHash(numFoundParents, searchContext.bigArrays());
-                for (long parentOrd = parentOrds.nextSetBit(0); parentOrd != -1; parentOrd = parentOrds.nextSetBit(parentOrd + 1)) {
-                    parentIds.add(globalValues.lookupOrd((int) parentOrd));
-                }
-                constructed = true;
-            } finally {
-                if (!constructed) {
-                    Releasables.close(parentIds);
-                }
+            constructed = true;
+        } finally {
+            if (!constructed) {
+                Releasables.close(parentIds);
             }
-            searchContext.addReleasable(parentIds, SearchContext.Lifetime.COLLECTION);
-            return new ParentIdsFilter(parentType, nonNestedDocsFilter, parentIds);
         }
+        searchContext.addReleasable(parentIds, SearchContext.Lifetime.COLLECTION);
+        return new ParentIdsFilter(parentType, nonNestedDocsFilter, parentIds);
     }
 
-    static Filter createShortCircuitFilter(BitDocIdSetFilter nonNestedDocsFilter, SearchContext searchContext,
+    static Filter createShortCircuitFilter(BitSetProducer nonNestedDocsFilter, SearchContext searchContext,
                                            String parentType, SortedDocValues globalValues,
                                            LongHash parentIdxs, long numFoundParents) {
-        if (numFoundParents == 1) {
-            BytesRef id = globalValues.lookupOrd((int) parentIdxs.get(0));
-            if (nonNestedDocsFilter != null) {
-                BooleanQuery bq = new BooleanQuery();
-                bq.add(new TermQuery(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(parentType, id))), Occur.MUST);
-                bq.add(nonNestedDocsFilter, Occur.MUST);
-                return new QueryWrapperFilter(bq);
-            } else {
-                return new QueryWrapperFilter(new TermQuery(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(parentType, id))));
+        BytesRefHash parentIds = null;
+        boolean constructed = false;
+        try {
+            parentIds = new BytesRefHash(numFoundParents, searchContext.bigArrays());
+            for (int id = 0; id < parentIdxs.size(); id++) {
+                parentIds.add(globalValues.lookupOrd((int) parentIdxs.get(id)));
             }
-        } else {
-            BytesRefHash parentIds = null;
-            boolean constructed = false;
-            try {
-                parentIds = new BytesRefHash(numFoundParents, searchContext.bigArrays());
-                for (int id = 0; id < parentIdxs.size(); id++) {
-                    parentIds.add(globalValues.lookupOrd((int) parentIdxs.get(id)));
-                }
-                constructed = true;
-            } finally {
-                if (!constructed) {
-                    Releasables.close(parentIds);
-                }
+            constructed = true;
+        } finally {
+            if (!constructed) {
+                Releasables.close(parentIds);
             }
-            searchContext.addReleasable(parentIds, SearchContext.Lifetime.COLLECTION);
-            return new ParentIdsFilter(parentType, nonNestedDocsFilter, parentIds);
         }
+        searchContext.addReleasable(parentIds, SearchContext.Lifetime.COLLECTION);
+        return new ParentIdsFilter(parentType, nonNestedDocsFilter, parentIds);
     }
 
     private final BytesRef parentTypeBr;
-    private final BitDocIdSetFilter nonNestedDocsFilter;
+    private final BitSetProducer nonNestedDocsFilter;
     private final BytesRefHash parentIds;
 
-    private ParentIdsFilter(String parentType, BitDocIdSetFilter nonNestedDocsFilter, BytesRefHash parentIds) {
+    private ParentIdsFilter(String parentType, BitSetProducer nonNestedDocsFilter, BytesRefHash parentIds) {
         this.nonNestedDocsFilter = nonNestedDocsFilter;
         this.parentTypeBr = new BytesRef(parentType);
         this.parentIds = parentIds;
@@ -148,7 +119,7 @@ final class ParentIdsFilter extends Filter {
 
         BitSet nonNestedDocs = null;
         if (nonNestedDocsFilter != null) {
-            nonNestedDocs = nonNestedDocsFilter.getDocIdSet(context).bits();
+            nonNestedDocs = nonNestedDocsFilter.getBitSet(context);
         }
 
         PostingsEnum docsEnum = null;

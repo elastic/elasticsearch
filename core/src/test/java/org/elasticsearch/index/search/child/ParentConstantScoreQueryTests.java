@@ -20,13 +20,13 @@ package org.elasticsearch.index.search.child;
 
 import com.carrotsearch.hppc.IntIntHashMap;
 import com.carrotsearch.hppc.ObjectObjectHashMap;
+
 import org.apache.lucene.analysis.MockAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.*;
 import org.apache.lucene.search.*;
-import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
@@ -73,7 +73,7 @@ public class ParentConstantScoreQueryTests extends AbstractChildTestCase {
         Query parentQuery = new TermQuery(new Term("field", "value"));
         ParentFieldMapper parentFieldMapper = SearchContext.current().mapperService().documentMapper("child").parentFieldMapper();
         ParentChildIndexFieldData parentChildIndexFieldData = SearchContext.current().fieldData().getForField(parentFieldMapper.fieldType());
-        BitDocIdSetFilter childrenFilter = wrapWithBitSetFilter(new QueryWrapperFilter(new TermQuery(new Term(TypeFieldMapper.NAME, "child"))));
+        Filter childrenFilter = new QueryWrapperFilter(new TermQuery(new Term(TypeFieldMapper.NAME, "child")));
         Query query = new ParentConstantScoreQuery(parentChildIndexFieldData, parentQuery, "parent", childrenFilter);
         QueryUtils.check(query);
     }

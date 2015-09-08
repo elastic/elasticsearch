@@ -19,8 +19,6 @@
 
 package org.elasticsearch.percolator;
 
-import com.google.common.base.Predicate;
-
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.percolate.PercolateResponse;
@@ -42,7 +40,9 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.percolator.PercolatorIT.convertFromTextArray;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertMatchCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.emptyArray;
+import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
@@ -136,14 +136,11 @@ public class TTLPercolatorIT extends ESIntegTestCase {
 
         // See comment in SimpleTTLTests
         logger.info("Checking if the ttl purger has run");
-        assertThat(awaitBusy(new Predicate<Object>() {
-            @Override
-            public boolean apply(Object input) {
-                IndicesStatsResponse indicesStatsResponse = client.admin().indices().prepareStats("test").clear().setIndexing(true).get();
-                // TTL deletes one doc, but it is indexed in the primary shard and replica shards
-                return indicesStatsResponse.getIndices().get("test").getTotal().getIndexing().getTotal().getDeleteCount() == test.dataCopies;
-            }
-        }, 5, TimeUnit.SECONDS), equalTo(true));
+        assertTrue(awaitBusy(() -> {
+            IndicesStatsResponse indicesStatsResponse = client.admin().indices().prepareStats("test").clear().setIndexing(true).get();
+            // TTL deletes one doc, but it is indexed in the primary shard and replica shards
+            return indicesStatsResponse.getIndices().get("test").getTotal().getIndexing().getTotal().getDeleteCount() == test.dataCopies;
+        }, 5, TimeUnit.SECONDS));
 
         percolateResponse = client.preparePercolate()
                 .setIndices("test").setDocumentType("type1")
@@ -200,15 +197,12 @@ public class TTLPercolatorIT extends ESIntegTestCase {
 
         }
         refresh();
-        assertThat(awaitBusy(new Predicate<Object>() {
-            @Override
-            public boolean apply(Object input) {
-                IndicesStatsResponse indicesStatsResponse = client().admin().indices().prepareStats("test").clear().setIndexing(true).get();
-                logger.debug("delete count [{}]", indicesStatsResponse.getIndices().get("test").getTotal().getIndexing().getTotal().getDeleteCount());
-                // TTL deletes one doc, but it is indexed in the primary shard and replica shards
-                return indicesStatsResponse.getIndices().get("test").getTotal().getIndexing().getTotal().getDeleteCount() != 0;
-            }
-        }, 5, TimeUnit.SECONDS), equalTo(true));
+        assertTrue(awaitBusy(() -> {
+            IndicesStatsResponse indicesStatsResponse = client().admin().indices().prepareStats("test").clear().setIndexing(true).get();
+            logger.debug("delete count [{}]", indicesStatsResponse.getIndices().get("test").getTotal().getIndexing().getTotal().getDeleteCount());
+            // TTL deletes one doc, but it is indexed in the primary shard and replica shards
+            return indicesStatsResponse.getIndices().get("test").getTotal().getIndexing().getTotal().getDeleteCount() != 0;
+        }, 5, TimeUnit.SECONDS));
         internalCluster().wipeIndices("test");
         client().admin().indices().prepareCreate("test")
                 .addMapping("type1", typeMapping)

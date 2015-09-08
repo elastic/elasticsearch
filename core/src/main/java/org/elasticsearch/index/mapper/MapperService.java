@@ -21,7 +21,6 @@ package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.hppc.ObjectHashSet;
 import com.google.common.base.Function;
-import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterators;
@@ -71,6 +70,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.common.collect.MapBuilder.newMapBuilder;
 
@@ -202,19 +202,12 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                 if (includingDefaultMapping) {
                     iterator = mappers.values().iterator();
                 } else {
-                    iterator = Iterators.filter(mappers.values().iterator(), NOT_A_DEFAULT_DOC_MAPPER);
+                    iterator = mappers.values().stream().filter(mapper -> !DEFAULT_MAPPING.equals(mapper.type())).iterator();
                 }
                 return Iterators.unmodifiableIterator(iterator);
             }
         };
     }
-
-    private static final Predicate<DocumentMapper> NOT_A_DEFAULT_DOC_MAPPER = new Predicate<DocumentMapper>() {
-        @Override
-        public boolean apply(DocumentMapper input) {
-            return !DEFAULT_MAPPING.equals(input.type());
-        }
-    };
 
     public AnalysisService analysisService() {
         return this.analysisService;
@@ -426,10 +419,10 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
         if (types == null || types.length == 0) {
             if (hasNested && filterPercolateType) {
-                BooleanQuery bq = new BooleanQuery();
+                BooleanQuery.Builder bq = new BooleanQuery.Builder();
                 bq.add(percolatorType, Occur.MUST_NOT);
                 bq.add(Queries.newNonNestedFilter(), Occur.MUST);
-                return new ConstantScoreQuery(bq);
+                return new ConstantScoreQuery(bq.build());
             } else if (hasNested) {
                 return Queries.newNonNestedFilter();
             } else if (filterPercolateType) {
@@ -444,10 +437,10 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             DocumentMapper docMapper = documentMapper(types[0]);
             Query filter = docMapper != null ? docMapper.typeFilter() : new TermQuery(new Term(TypeFieldMapper.NAME, types[0]));
             if (filterPercolateType) {
-                BooleanQuery bq = new BooleanQuery();
+                BooleanQuery.Builder bq = new BooleanQuery.Builder();
                 bq.add(percolatorType, Occur.MUST_NOT);
                 bq.add(filter, Occur.MUST);
-                return new ConstantScoreQuery(bq);
+                return new ConstantScoreQuery(bq.build());
             } else {
                 return filter;
             }
@@ -474,16 +467,16 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             }
             TermsQuery termsFilter = new TermsQuery(TypeFieldMapper.NAME, typesBytes);
             if (filterPercolateType) {
-                BooleanQuery bq = new BooleanQuery();
+                BooleanQuery.Builder bq = new BooleanQuery.Builder();
                 bq.add(percolatorType, Occur.MUST_NOT);
                 bq.add(termsFilter, Occur.MUST);
-                return new ConstantScoreQuery(bq);
+                return new ConstantScoreQuery(bq.build());
             } else {
                 return termsFilter;
             }
         } else {
             // Current bool filter requires that at least one should clause matches, even with a must clause.
-            BooleanQuery bool = new BooleanQuery();
+            BooleanQuery.Builder bool = new BooleanQuery.Builder();
             for (String type : types) {
                 DocumentMapper docMapper = documentMapper(type);
                 if (docMapper == null) {
@@ -499,7 +492,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                 bool.add(Queries.newNonNestedFilter(), BooleanClause.Occur.MUST);
             }
 
-            return new ConstantScoreQuery(bool);
+            return new ConstantScoreQuery(bool.build());
         }
     }
 

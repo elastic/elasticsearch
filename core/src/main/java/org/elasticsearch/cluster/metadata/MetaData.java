@@ -22,8 +22,6 @@ package org.elasticsearch.cluster.metadata;
 import com.carrotsearch.hppc.ObjectHashSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import com.google.common.base.Predicate;
-import com.google.common.collect.Collections2;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.UnmodifiableIterator;
 import org.apache.lucene.util.CollectionUtil;
@@ -74,8 +72,11 @@ import java.util.Map;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import java.util.stream.Collectors;
 
-import static org.elasticsearch.common.settings.Settings.*;
+import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
+import static org.elasticsearch.common.settings.Settings.settingsBuilder;
+import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
 
 public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, FromXContentBuilder<MetaData>, ToXContent {
 
@@ -382,22 +383,23 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
             }
 
             // TODO: make this a List so we don't have to copy below
-            Collection<IndexWarmersMetaData.Entry> filteredWarmers = Collections2.filter(indexWarmersMetaData.entries(), new Predicate<IndexWarmersMetaData.Entry>() {
+            Collection<IndexWarmersMetaData.Entry> filteredWarmers =
+                    indexWarmersMetaData
+                            .entries()
+                            .stream()
+                            .filter(warmer -> {
+                                if (warmers.length != 0 && types.length != 0) {
+                                    return Regex.simpleMatch(warmers, warmer.name()) && Regex.simpleMatch(types, warmer.types());
+                                } else if (warmers.length != 0) {
+                                    return Regex.simpleMatch(warmers, warmer.name());
+                                } else if (types.length != 0) {
+                                    return Regex.simpleMatch(types, warmer.types());
+                                } else {
+                                    return true;
+                                }
+                            })
+                            .collect(Collectors.toCollection(ArrayList::new));
 
-                @Override
-                public boolean apply(IndexWarmersMetaData.Entry warmer) {
-                    if (warmers.length != 0 && types.length != 0) {
-                        return Regex.simpleMatch(warmers, warmer.name()) && Regex.simpleMatch(types, warmer.types());
-                    } else if (warmers.length != 0) {
-                        return Regex.simpleMatch(warmers, warmer.name());
-                    } else if (types.length != 0) {
-                        return Regex.simpleMatch(types, warmer.types());
-                    } else {
-                        return true;
-                    }
-                }
-
-            });
             if (!filteredWarmers.isEmpty()) {
                 mapBuilder.put(index, Collections.unmodifiableList(new ArrayList<>(filteredWarmers)));
             }

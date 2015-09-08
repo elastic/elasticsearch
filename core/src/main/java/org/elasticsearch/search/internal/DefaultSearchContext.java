@@ -64,7 +64,6 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.query.QueryPhaseExecutionException;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rescore.RescoreSearchContext;
-import org.elasticsearch.search.scan.ScanContext;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 
 import java.io.IOException;
@@ -94,8 +93,6 @@ public class DefaultSearchContext extends SearchContext {
     private final DfsSearchResult dfsResult;
     private final QuerySearchResult queryResult;
     private final FetchSearchResult fetchResult;
-    // lazy initialized only if needed
-    private ScanContext scanContext;
     private float queryBoost = 1.0f;
     // timeout in millis
     private long timeoutInMillis;
@@ -162,7 +159,6 @@ public class DefaultSearchContext extends SearchContext {
 
     @Override
     public void doClose() {
-        scanContext = null;
         // clear and scope phase we  have
         Releasables.close(searcher, engineSearcher);
     }
@@ -197,9 +193,10 @@ public class DefaultSearchContext extends SearchContext {
                 q.setBoost(query().getBoost());
                 parsedQuery(new ParsedQuery(q, parsedQuery()));
             } else {
-                BooleanQuery filtered = new BooleanQuery();
-                filtered.add(query(), Occur.MUST);
-                filtered.add(searchFilter, Occur.FILTER);
+                BooleanQuery filtered = new BooleanQuery.Builder()
+                    .add(query(), Occur.MUST)
+                    .add(searchFilter, Occur.FILTER)
+                    .build();
                 parsedQuery(new ParsedQuery(filtered, parsedQuery()));
             }
         }
@@ -216,14 +213,14 @@ public class DefaultSearchContext extends SearchContext {
         if (filter == null && aliasFilter == null) {
             return null;
         }
-        BooleanQuery bq = new BooleanQuery();
+        BooleanQuery.Builder bq = new BooleanQuery.Builder();
         if (filter != null) {
             bq.add(filter, Occur.MUST);
         }
         if (aliasFilter != null) {
             bq.add(aliasFilter, Occur.MUST);
         }
-        return new ConstantScoreQuery(bq);
+        return new ConstantScoreQuery(bq.build());
     }
 
     @Override
@@ -678,14 +675,6 @@ public class DefaultSearchContext extends SearchContext {
     @Override
     public FetchSearchResult fetchResult() {
         return fetchResult;
-    }
-
-    @Override
-    public ScanContext scanContext() {
-        if (scanContext == null) {
-            scanContext = new ScanContext();
-        }
-        return scanContext;
     }
 
     @Override

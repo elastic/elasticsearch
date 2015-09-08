@@ -19,7 +19,6 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import com.google.common.base.Predicate;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -50,8 +49,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Callable;
+import java.util.stream.Collectors;
 
-import static com.google.common.collect.Maps.filterEntries;
 import static com.google.common.collect.Maps.newHashMap;
 
 public class IndexNameExpressionResolver extends AbstractComponent {
@@ -600,12 +599,11 @@ public class IndexNameExpressionResolver extends AbstractComponent {
                 } else {
                     // Other wildcard expressions:
                     final String pattern = expression;
-                    matches = filterEntries(metaData.getAliasAndIndexLookup(), new Predicate<Map.Entry<String, AliasOrIndex>>() {
-                        @Override
-                        public boolean apply(@Nullable Map.Entry<String, AliasOrIndex> input) {
-                            return Regex.simpleMatch(pattern, input.getKey());
-                        }
-                    });
+                    matches = metaData.getAliasAndIndexLookup()
+                            .entrySet()
+                            .stream()
+                            .filter(e -> Regex.simpleMatch(pattern, e.getKey()))
+                            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
                 }
                 for (Map.Entry<String, AliasOrIndex> entry : matches.entrySet()) {
                     AliasOrIndex aliasOrIndex = entry.getValue();

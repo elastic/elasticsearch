@@ -108,6 +108,8 @@ public class MockRepository extends FsRepository {
 
     private final double randomDataFileIOExceptionRate;
 
+    private final long maximumNumberOfFailures;
+
     private final long waitAfterUnblock;
 
     private final MockBlobStore mockBlobStore;
@@ -127,6 +129,7 @@ public class MockRepository extends FsRepository {
         super(name, overrideSettings(repositorySettings, clusterService), indexShardRepository, environment);
         randomControlIOExceptionRate = repositorySettings.settings().getAsDouble("random_control_io_exception_rate", 0.0);
         randomDataFileIOExceptionRate = repositorySettings.settings().getAsDouble("random_data_file_io_exception_rate", 0.0);
+        maximumNumberOfFailures = repositorySettings.settings().getAsLong("max_failure_number", 100L);
         blockOnControlFiles = repositorySettings.settings().getAsBoolean("block_on_control", false);
         blockOnDataFiles = repositorySettings.settings().getAsBoolean("block_on_data", false);
         blockOnInitialization = repositorySettings.settings().getAsBoolean("block_on_init", false);
@@ -160,8 +163,8 @@ public class MockRepository extends FsRepository {
         return settingsBuilder().put(settings).put("location", location.toAbsolutePath()).build();
     }
 
-    private void addFailure() {
-        failureCounter.incrementAndGet();
+    private long incrementAndGetFailureCount() {
+        return failureCounter.incrementAndGet();
     }
 
     @Override
@@ -269,9 +272,8 @@ public class MockRepository extends FsRepository {
 
             private void maybeIOExceptionOrBlock(String blobName) throws IOException {
                 if (blobName.startsWith("__")) {
-                    if (shouldFail(blobName, randomDataFileIOExceptionRate)) {
+                    if (shouldFail(blobName, randomDataFileIOExceptionRate) && (incrementAndGetFailureCount() < maximumNumberOfFailures)) {
                         logger.info("throwing random IOException for file [{}] at path [{}]", blobName, path());
-                        addFailure();
                         throw new IOException("Random IOException");
                     } else if (blockOnDataFiles) {
                         logger.info("blocking I/O operation for file [{}] at path [{}]", blobName, path());
@@ -286,9 +288,8 @@ public class MockRepository extends FsRepository {
                         }
                     }
                 } else {
-                    if (shouldFail(blobName, randomControlIOExceptionRate)) {
+                    if (shouldFail(blobName, randomControlIOExceptionRate) && (incrementAndGetFailureCount() < maximumNumberOfFailures)) {
                         logger.info("throwing random IOException for file [{}] at path [{}]", blobName, path());
-                        addFailure();
                         throw new IOException("Random IOException");
                     } else if (blockOnControlFiles) {
                         logger.info("blocking I/O operation for file [{}] at path [{}]", blobName, path());

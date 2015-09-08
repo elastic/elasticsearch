@@ -19,7 +19,6 @@
 
 package org.elasticsearch.discovery.local;
 
-import com.google.common.base.Objects;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -42,6 +41,7 @@ import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.HashSet;
+import java.util.Objects;
 import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
@@ -357,7 +357,7 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
                     discovery.clusterService.submitStateUpdateTask("local-disco-receive(from master)", new ProcessedClusterStateNonMasterUpdateTask() {
                         @Override
                         public ClusterState execute(ClusterState currentState) {
-                            if (nodeSpecificClusterState.version() < currentState.version() && Objects.equal(nodeSpecificClusterState.nodes().masterNodeId(), currentState.nodes().masterNodeId())) {
+                            if (nodeSpecificClusterState.version() < currentState.version() && Objects.equals(nodeSpecificClusterState.nodes().masterNodeId(), currentState.nodes().masterNodeId())) {
                                 return currentState;
                             }
 

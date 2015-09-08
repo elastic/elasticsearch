@@ -21,7 +21,6 @@ package org.elasticsearch.recovery;
 
 import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.hppc.procedures.IntProcedure;
-import com.google.common.base.Predicate;
 import com.google.common.util.concurrent.ListenableFuture;
 import org.apache.lucene.index.IndexFileNames;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
@@ -416,13 +415,10 @@ public class RelocationIT extends ESIntegTestCase {
 
         // Lets wait a bit and then move again to hopefully trigger recovery cancellations.
         boolean applied = awaitBusy(
-                new Predicate<Object>() {
-                    @Override
-                    public boolean apply(Object input) {
-                        RecoveryResponse recoveryResponse = internalCluster().client(redNodeName).admin().indices().prepareRecoveries(indexName)
-                                .get();
-                        return !recoveryResponse.shardRecoveryStates().get(indexName).isEmpty();
-                    }
+                () -> {
+                    RecoveryResponse recoveryResponse =
+                            internalCluster().client(redNodeName).admin().indices().prepareRecoveries(indexName).get();
+                    return !recoveryResponse.shardRecoveryStates().get(indexName).isEmpty();
                 }
         );
         assertTrue(applied);

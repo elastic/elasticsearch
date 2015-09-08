@@ -131,10 +131,10 @@ public class NestedAggregatorTests extends ESSingleNodeTestCase {
         // A regular search always exclude nested docs, so we use NonNestedDocsFilter.INSTANCE here (otherwise MatchAllDocsQuery would be sufficient)
         // We exclude root doc with uid type#2, this will trigger the bug if we don't reset the root doc when we process a new segment, because
         // root doc type#3 and root doc type#1 have the same segment docid
-        BooleanQuery bq = new BooleanQuery();
+        BooleanQuery.Builder bq = new BooleanQuery.Builder();
         bq.add(Queries.newNonNestedFilter(), Occur.MUST);
         bq.add(new TermQuery(new Term(UidFieldMapper.NAME, "type#2")), Occur.MUST_NOT);
-        searcher.search(new ConstantScoreQuery(bq), collector);
+        searcher.search(new ConstantScoreQuery(bq.build()), collector);
         collector.postCollection();
 
         Nested nested = (Nested) aggs[0].buildAggregation(0);

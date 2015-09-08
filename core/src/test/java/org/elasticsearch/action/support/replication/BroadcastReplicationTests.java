@@ -21,25 +21,17 @@ package org.elasticsearch.action.support.replication;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionWriteResponse;
+import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.admin.indices.flush.TransportFlushAction;
-import org.elasticsearch.action.admin.indices.flush.TransportShardFlushAction;
-import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
-import org.elasticsearch.action.admin.indices.refresh.TransportRefreshAction;
-import org.elasticsearch.action.admin.indices.refresh.TransportShardRefreshAction;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.broadcast.BroadcastRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.block.ClusterBlock;
-import org.elasticsearch.cluster.block.ClusterBlockException;
-import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.collect.Tuple;
@@ -103,13 +95,16 @@ public class BroadcastReplicationTests extends ESTestCase {
     @Test
     public void testNotStartedPrimary() throws InterruptedException, ExecutionException, IOException {
         final String index = "test";
-        final ShardId shardId = new ShardId(index, 0);
         clusterService.setState(state(index, randomBoolean(),
                 randomBoolean() ? ShardRoutingState.INITIALIZING : ShardRoutingState.UNASSIGNED, ShardRoutingState.UNASSIGNED));
         logger.debug("--> using initial state:\n{}", clusterService.state().prettyPrint());
         Future<BroadcastResponse> response = (broadcastReplicationAction.execute(new BroadcastRequest().indices(index)));
         for (Tuple<ShardId, ActionListener<ActionWriteResponse>> shardRequests : broadcastReplicationAction.capturedShardRequests) {
-            shardRequests.v2().onFailure(new UnavailableShardsException(shardId, "test exception expected"));
+            if (randomBoolean()) {
+                shardRequests.v2().onFailure(new NoShardAvailableActionException(shardRequests.v1()));
+            } else {
+                shardRequests.v2().onFailure(new UnavailableShardsException(shardRequests.v1(), "test exception"));
+            }
         }
         response.get();
         logger.info("total shards: {}, ", response.get().getTotalShards());
@@ -212,10 +207,6 @@ public class BroadcastReplicationTests extends ESTestCase {
         protected void shardExecute(BroadcastRequest request, ShardId shardId, ActionListener<ActionWriteResponse> shardActionListener) {
             capturedShardRequests.add(new Tuple<>(shardId, shardActionListener));
         }
-
-        protected void clearCapturedRequests() {
-            capturedShardRequests.clear();
-        }
     }
 
     public FlushResponse assertImmediateResponse(String index, TransportFlushAction flushAction) throws InterruptedException, ExecutionException {
@@ -225,81 +216,6 @@ public class BroadcastReplicationTests extends ESTestCase {
         long maxTime = 500;
         assertThat("this should not take longer than " + maxTime + " ms. The request hangs somewhere", endDate.getTime() - beginDate.getTime(), lessThanOrEqualTo(maxTime));
         return flushResponse;
-    }
-
-    @Test
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/13238")
-    public void testTimeoutFlush() throws ExecutionException, InterruptedException {
-
-        final String index = "test";
-        clusterService.setState(state(index, randomBoolean(),
-                randomBoolean() ? ShardRoutingState.INITIALIZING : ShardRoutingState.UNASSIGNED, ShardRoutingState.UNASSIGNED));
-        logger.debug("--> using initial state:\n{}", clusterService.state().prettyPrint());
-        TransportShardFlushAction shardFlushAction = new TransportShardFlushAction(Settings.EMPTY, transportService, clusterService,
-                null, threadPool, null,
-                null, new ActionFilters(new HashSet<ActionFilter>()), new IndexNameExpressionResolver(Settings.EMPTY));
-        TransportFlushAction flushAction = new TransportFlushAction(Settings.EMPTY, threadPool, clusterService,
-                transportService, new ActionFilters(new HashSet<ActionFilter>()), new IndexNameExpressionResolver(Settings.EMPTY),
-                shardFlushAction);
-        FlushResponse flushResponse = (FlushResponse) executeAndAssertImmediateResponse(flushAction, new FlushRequest(index));
-        logger.info("total shards: {}, ", flushResponse.getTotalShards());
-        assertBroadcastResponse(2, 0, 0, flushResponse, UnavailableShardsException.class);
-
-        ClusterBlocks.Builder block = ClusterBlocks.builder()
-                .addGlobalBlock(new ClusterBlock(1, "non retryable", false, true, RestStatus.SERVICE_UNAVAILABLE, ClusterBlockLevel.ALL));
-        clusterService.setState(ClusterState.builder(clusterService.state()).blocks(block));
-        assertFailure("all shards should fail with cluster block", executeAndAssertImmediateResponse(flushAction, new FlushRequest(index)), ClusterBlockException.class);
-
-        block = ClusterBlocks.builder()
-                .addGlobalBlock(new ClusterBlock(1, "retryable", true, true, RestStatus.SERVICE_UNAVAILABLE, ClusterBlockLevel.ALL));
-        clusterService.setState(ClusterState.builder(clusterService.state()).blocks(block));
-        assertFailure("all shards should fail with cluster block", executeAndAssertImmediateResponse(flushAction, new FlushRequest(index)), ClusterBlockException.class);
-
-        block = ClusterBlocks.builder()
-                .addGlobalBlock(new ClusterBlock(1, "non retryable", false, true, RestStatus.SERVICE_UNAVAILABLE, ClusterBlockLevel.ALL));
-        clusterService.setState(ClusterState.builder(clusterService.state()).blocks(block));
-        assertFailure("all shards should fail with cluster block", executeAndAssertImmediateResponse(flushAction, new FlushRequest(index)), ClusterBlockException.class);
-    }
-
-    void assertFailure(String msg, BroadcastResponse broadcastResponse, Class<?> klass) throws InterruptedException {
-        assertThat(broadcastResponse.getSuccessfulShards(), equalTo(0));
-        assertThat(broadcastResponse.getTotalShards(), equalTo(broadcastResponse.getFailedShards()));
-        for (int i = 0; i < broadcastResponse.getFailedShards(); i++) {
-            assertThat(msg, broadcastResponse.getShardFailures()[i].getCause().getCause(), instanceOf(klass));
-        }
-    }
-
-    @Test
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/13238")
-    public void testTimeoutRefresh() throws ExecutionException, InterruptedException {
-
-        final String index = "test";
-        clusterService.setState(state(index, randomBoolean(),
-                randomBoolean() ? ShardRoutingState.INITIALIZING : ShardRoutingState.UNASSIGNED, ShardRoutingState.UNASSIGNED));
-        logger.debug("--> using initial state:\n{}", clusterService.state().prettyPrint());
-        TransportShardRefreshAction shardrefreshAction = new TransportShardRefreshAction(Settings.EMPTY, transportService, clusterService,
-                null, threadPool, null,
-                null, new ActionFilters(new HashSet<ActionFilter>()), new IndexNameExpressionResolver(Settings.EMPTY));
-        TransportRefreshAction refreshAction = new TransportRefreshAction(Settings.EMPTY, threadPool, clusterService,
-                transportService, new ActionFilters(new HashSet<ActionFilter>()), new IndexNameExpressionResolver(Settings.EMPTY),
-                shardrefreshAction);
-        RefreshResponse refreshResponse = (RefreshResponse) executeAndAssertImmediateResponse(refreshAction, new RefreshRequest(index));
-        assertBroadcastResponse(2, 0, 0, refreshResponse, UnavailableShardsException.class);
-
-        ClusterBlocks.Builder block = ClusterBlocks.builder()
-                .addGlobalBlock(new ClusterBlock(1, "non retryable", false, true, RestStatus.SERVICE_UNAVAILABLE, ClusterBlockLevel.ALL));
-        clusterService.setState(ClusterState.builder(clusterService.state()).blocks(block));
-        assertFailure("all shards should fail with cluster block", executeAndAssertImmediateResponse(refreshAction, new RefreshRequest(index)), ClusterBlockException.class);
-
-        block = ClusterBlocks.builder()
-                .addGlobalBlock(new ClusterBlock(1, "retryable", true, true, RestStatus.SERVICE_UNAVAILABLE, ClusterBlockLevel.ALL));
-        clusterService.setState(ClusterState.builder(clusterService.state()).blocks(block));
-        assertFailure("all shards should fail with cluster block", executeAndAssertImmediateResponse(refreshAction, new RefreshRequest(index)), ClusterBlockException.class);
-
-        block = ClusterBlocks.builder()
-                .addGlobalBlock(new ClusterBlock(1, "non retryable", false, true, RestStatus.SERVICE_UNAVAILABLE, ClusterBlockLevel.ALL));
-        clusterService.setState(ClusterState.builder(clusterService.state()).blocks(block));
-        assertFailure("all shards should fail with cluster block", executeAndAssertImmediateResponse(refreshAction, new RefreshRequest(index)), ClusterBlockException.class);
     }
 
     public BroadcastResponse executeAndAssertImmediateResponse(TransportBroadcastReplicationAction broadcastAction, BroadcastRequest request) throws InterruptedException, ExecutionException {

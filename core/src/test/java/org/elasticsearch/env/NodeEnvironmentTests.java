@@ -208,7 +208,7 @@ public class NodeEnvironmentTests extends ESTestCase {
                 @Override
                 protected void doRun() throws Exception {
                     start.await();
-                    try (ShardLock _ = env.shardLock(new ShardId("foo", 0))) {
+                    try (ShardLock autoCloses = env.shardLock(new ShardId("foo", 0))) {
                         blockLatch.countDown();
                         Thread.sleep(randomIntBetween(1, 10));
                     }
@@ -267,7 +267,7 @@ public class NodeEnvironmentTests extends ESTestCase {
                     for (int i = 0; i < iters; i++) {
                         int shard = randomIntBetween(0, counts.length-1);
                         try {
-                            try (ShardLock _ = env.shardLock(new ShardId("foo", shard), scaledRandomIntBetween(0, 10))) {
+                            try (ShardLock autoCloses = env.shardLock(new ShardId("foo", shard), scaledRandomIntBetween(0, 10))) {
                                 counts[shard].value++;
                                 countsAtomic[shard].incrementAndGet();
                                 assertEquals(flipFlop[shard].incrementAndGet(), 1);

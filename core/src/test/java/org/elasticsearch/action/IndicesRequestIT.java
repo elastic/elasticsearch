@@ -88,7 +88,6 @@ import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
@@ -694,27 +693,6 @@ public class IndicesRequestIT extends ESIntegTestCase {
         assertSameIndices(searchRequest, SearchServiceTransportAction.QUERY_QUERY_FETCH_ACTION_NAME);
         //free context messages are not necessarily sent, but if they are, check their indices
         assertSameIndicesOptionalRequests(searchRequest, SearchServiceTransportAction.FREE_CONTEXT_ACTION_NAME);
-    }
-
-    @Test
-    public void testSearchScan() throws Exception {
-        interceptTransportActions(SearchServiceTransportAction.SCAN_ACTION_NAME);
-
-        String[] randomIndicesOrAliases = randomIndicesOrAliases();
-        for (int i = 0; i < randomIndicesOrAliases.length; i++) {
-            client().prepareIndex(randomIndicesOrAliases[i], "type", "id-" + i).setSource("field", "value").get();
-        }
-        refresh();
-
-        SearchRequest searchRequest = new SearchRequest(randomIndicesOrAliases).searchType(SearchType.SCAN).scroll(new TimeValue(500));
-        SearchResponse searchResponse = internalCluster().clientNodeClient().search(searchRequest).actionGet();
-        assertNoFailures(searchResponse);
-        assertThat(searchResponse.getHits().totalHits(), greaterThan(0l));
-
-        client().prepareClearScroll().addScrollId(searchResponse.getScrollId()).get();
-
-        clearInterceptedActions();
-        assertSameIndices(searchRequest, SearchServiceTransportAction.SCAN_ACTION_NAME);
     }
 
     private static void assertSameIndices(IndicesRequest originalRequest, String... actions) {

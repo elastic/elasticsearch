@@ -18,8 +18,6 @@
  */
 package org.elasticsearch.index.codec.postingsformat;
 
-import com.google.common.base.Predicate;
-import com.google.common.base.Predicates;
 import com.google.common.collect.Iterators;
 import org.apache.lucene.codecs.FieldsConsumer;
 import org.apache.lucene.codecs.FieldsProducer;
@@ -36,6 +34,7 @@ import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 
 import java.io.IOException;
 import java.util.Iterator;
+import java.util.function.Predicate;
 
 /**
  * This is the old default postings format for Elasticsearch that special cases
@@ -60,13 +59,8 @@ public class Elasticsearch090PostingsFormat extends PostingsFormat {
     public PostingsFormat getDefaultWrapped() {
         return bloomPostings.getDelegate();
     }
-    protected static final Predicate<String> UID_FIELD_FILTER = new Predicate<String>() {
 
-        @Override
-        public boolean apply(String s) {
-            return  UidFieldMapper.NAME.equals(s);
-        }
-    };
+    protected static final Predicate<String> UID_FIELD_FILTER = field -> UidFieldMapper.NAME.equals(field);
 
     @Override
     public FieldsConsumer fieldsConsumer(SegmentWriteState state) throws IOException {

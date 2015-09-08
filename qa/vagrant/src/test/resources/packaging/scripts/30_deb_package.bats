@@ -46,7 +46,7 @@ setup() {
 }
 
 @test "[DEB] package is available" {
-    count=$(find . -type f -name 'elastic*.deb' | wc -l)
+    count=$(ls elasticsearch-$(cat version).deb | wc -l)
     [ "$count" -eq 1 ]
 }
 
@@ -56,7 +56,7 @@ setup() {
 }
 
 @test "[DEB] install package" {
-    dpkg -i elasticsearch*.deb
+    dpkg -i elasticsearch-$(cat version).deb
 }
 
 @test "[DEB] package is installed" {

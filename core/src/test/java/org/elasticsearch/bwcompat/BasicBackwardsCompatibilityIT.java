@@ -36,7 +36,6 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.termvectors.TermVectorsResponse;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
@@ -680,21 +679,13 @@ public class BasicBackwardsCompatibilityIT extends ESBackcompatTestCase {
 
         int size = randomIntBetween(1, 10);
         SearchRequestBuilder searchRequestBuilder = client().prepareSearch("test").setScroll("1m").setSize(size);
-        boolean scan = randomBoolean();
-        if (scan) {
-            searchRequestBuilder.setSearchType(SearchType.SCAN);
-        }
 
         SearchResponse searchResponse = searchRequestBuilder.get();
         assertThat(searchResponse.getScrollId(), notNullValue());
         assertHitCount(searchResponse, numDocs);
         int hits = 0;
-        if (scan) {
-            assertThat(searchResponse.getHits().getHits().length, equalTo(0));
-        } else {
-            assertThat(searchResponse.getHits().getHits().length, greaterThan(0));
-            hits += searchResponse.getHits().getHits().length;
-        }
+        assertThat(searchResponse.getHits().getHits().length, greaterThan(0));
+        hits += searchResponse.getHits().getHits().length;
 
         try {
             do {

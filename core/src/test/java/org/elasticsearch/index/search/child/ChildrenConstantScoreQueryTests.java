@@ -20,13 +20,28 @@ package org.elasticsearch.index.search.child;
 
 import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.hppc.ObjectObjectHashMap;
+
 import org.apache.lucene.analysis.MockAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
-import org.apache.lucene.index.*;
-import org.apache.lucene.search.*;
-import org.apache.lucene.search.join.BitDocIdSetFilter;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.PostingsEnum;
+import org.apache.lucene.index.RandomIndexWriter;
+import org.apache.lucene.index.SlowCompositeReaderWrapper;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryUtils;
+import org.apache.lucene.search.QueryWrapperFilter;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
@@ -51,7 +66,11 @@ import java.util.NavigableSet;
 import java.util.Random;
 import java.util.TreeSet;
 
-import static org.elasticsearch.index.query.QueryBuilders.*;
+import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
+import static org.elasticsearch.index.query.QueryBuilders.filteredQuery;
+import static org.elasticsearch.index.query.QueryBuilders.hasChildQuery;
+import static org.elasticsearch.index.query.QueryBuilders.notQuery;
+import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ChildrenConstantScoreQueryTests extends AbstractChildTestCase {
@@ -73,7 +92,7 @@ public class ChildrenConstantScoreQueryTests extends AbstractChildTestCase {
         Query childQuery = new TermQuery(new Term("field", "value"));
         ParentFieldMapper parentFieldMapper = SearchContext.current().mapperService().documentMapper("child").parentFieldMapper();
         ParentChildIndexFieldData parentChildIndexFieldData = SearchContext.current().fieldData().getForField(parentFieldMapper.fieldType());
-        BitDocIdSetFilter parentFilter = wrapWithBitSetFilter(new QueryWrapperFilter(new TermQuery(new Term(TypeFieldMapper.NAME, "parent"))));
+        Filter parentFilter = new QueryWrapperFilter(new TermQuery(new Term(TypeFieldMapper.NAME, "parent")));
         Query query = new ChildrenConstantScoreQuery(parentChildIndexFieldData, childQuery, "parent", "child", parentFilter, 12, wrapWithBitSetFilter(Queries.newNonNestedFilter()));
         QueryUtils.check(query);
     }
@@ -106,7 +125,7 @@ public class ChildrenConstantScoreQueryTests extends AbstractChildTestCase {
         );
 
         TermQuery childQuery = new TermQuery(new Term("field1", "value" + (1 + random().nextInt(3))));
-        BitDocIdSetFilter parentFilter = wrapWithBitSetFilter(new QueryWrapperFilter(new TermQuery(new Term(TypeFieldMapper.NAME, "parent"))));
+        Filter parentFilter = new QueryWrapperFilter(new TermQuery(new Term(TypeFieldMapper.NAME, "parent")));
         int shortCircuitParentDocSet = random().nextInt(5);
         ParentFieldMapper parentFieldMapper = SearchContext.current().mapperService().documentMapper("child").parentFieldMapper();
         ParentChildIndexFieldData parentChildIndexFieldData = SearchContext.current().fieldData().getForField(parentFieldMapper.fieldType());

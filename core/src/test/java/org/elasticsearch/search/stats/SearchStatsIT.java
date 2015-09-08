@@ -23,7 +23,6 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
@@ -185,7 +184,6 @@ public class SearchStatsIT extends ESIntegTestCase {
 
         int size = scaledRandomIntBetween(1, docs);
         SearchResponse searchResponse = client().prepareSearch()
-                .setSearchType(SearchType.SCAN)
                 .setQuery(matchAllQuery())
                 .setSize(size)
                 .setScroll(TimeValue.timeValueMinutes(2))
@@ -200,33 +198,33 @@ public class SearchStatsIT extends ESIntegTestCase {
 
         int hits = 0;
         while (true) {
+            if (searchResponse.getHits().getHits().length == 0) {
+                break;
+            }
             hits += searchResponse.getHits().getHits().length;
             searchResponse = client().prepareSearchScroll(searchResponse.getScrollId())
                     .setScroll(TimeValue.timeValueMinutes(2))
                     .execute().actionGet();
-            if (searchResponse.getHits().getHits().length == 0) {
-                break;
-            }
         }
         long expected = 0;
 
-        // the number of queries executed is equal to the sum of 1 + number of pages in shard over all shards
+        // the number of queries executed is equal to at least the sum of number of pages in shard over all shards
         IndicesStatsResponse r = client().admin().indices().prepareStats(index).execute().actionGet();
         for (int s = 0; s < numAssignedShards(index); s++) {
-            expected += 1 + (long)Math.ceil(r.getShards()[s].getStats().getDocs().getCount() / size);
+            expected += (long)Math.ceil(r.getShards()[s].getStats().getDocs().getCount() / size);
         }
         indicesStats = client().admin().indices().prepareStats().execute().actionGet();
         Stats stats = indicesStats.getTotal().getSearch().getTotal();
         assertEquals(hits, docs * numAssignedShards(index));
-        assertThat(stats.getQueryCount(), equalTo(expected));
-        assertThat(stats.getScrollCount(), equalTo((long)numAssignedShards(index)));
-        assertThat(stats.getScrollTimeInMillis(), greaterThan(0l));
+        assertThat(stats.getQueryCount(), greaterThanOrEqualTo(expected));
 
-        // scroll, but with no timeout (so no context)
-        searchResponse = client().prepareSearchScroll(searchResponse.getScrollId()).execute().actionGet();
+        clearScroll(searchResponse.getScrollId());
 
         indicesStats = client().admin().indices().prepareStats().execute().actionGet();
+        stats = indicesStats.getTotal().getSearch().getTotal();
         assertThat(indicesStats.getTotal().getSearch().getOpenContexts(), equalTo(0l));
+        assertThat(stats.getScrollCount(), equalTo((long)numAssignedShards(index)));
+        assertThat(stats.getScrollTimeInMillis(), greaterThan(0l));
     }
 
     protected int numAssignedShards(String... indices) {

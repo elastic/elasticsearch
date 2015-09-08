@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.gateway;
 
-import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.FailedNodeException;
@@ -286,12 +285,7 @@ public class AsyncShardFetchTests extends ESTestCase {
                             entry = simulations.get(nodeId);
                             if (entry == null) {
                                 // we are simulating a master node switch, wait for it to not be null
-                                awaitBusy(new Predicate<Object>() {
-                                    @Override
-                                    public boolean apply(Object input) {
-                                        return simulations.containsKey(nodeId);
-                                    }
-                                });
+                                awaitBusy(() ->  simulations.containsKey(nodeId));
                             }
                             assert entry != null;
                             entry.executeLatch.await();

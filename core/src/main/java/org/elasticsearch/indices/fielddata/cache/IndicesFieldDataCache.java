@@ -43,6 +43,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.Callable;
 
 /**
  */
@@ -150,21 +151,24 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
             final ShardId shardId = ShardUtils.extractShardId(context.reader());
             final Key key = new Key(this, context.reader().getCoreCacheKey(), shardId);
             //noinspection unchecked
-            final Accountable accountable = cache.get(key, () -> {
-                context.reader().addCoreClosedListener(IndexFieldCache.this);
-                for (Listener listener : this.listeners) {
-                    key.listeners.add(listener);
-                }
-                final AtomicFieldData fieldData = indexFieldData.loadDirect(context);
-                for (Listener listener : key.listeners) {
-                    try {
-                        listener.onCache(shardId, fieldNames, fieldDataType, fieldData);
-                    } catch (Throwable e) {
-                        // load anyway since listeners should not throw exceptions
-                        logger.error("Failed to call listener on atomic field data loading", e);
+            final Accountable accountable = cache.get(key, new Callable<AtomicFieldData>() {
+                @Override
+                public AtomicFieldData call() throws Exception {
+                    context.reader().addCoreClosedListener(IndexFieldCache.this);
+                    for (Listener listener : listeners) {
+                        key.listeners.add(listener);
                     }
+                    final AtomicFieldData fieldData = indexFieldData.loadDirect(context);
+                    for (Listener listener : key.listeners) {
+                        try {
+                            listener.onCache(shardId, fieldNames, fieldDataType, fieldData);
+                        } catch (Throwable e) {
+                            // load anyway since listeners should not throw exceptions
+                            logger.error("Failed to call listener on atomic field data loading", e);
+                        }
+                    }
+                    return fieldData;
                 }
-                return fieldData;
             });
             return (FD) accountable;
         }
@@ -174,21 +178,24 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
             final ShardId shardId = ShardUtils.extractShardId(indexReader);
             final Key key = new Key(this, indexReader.getCoreCacheKey(), shardId);
             //noinspection unchecked
-            final Accountable accountable = cache.get(key, () -> {
-                indexReader.addReaderClosedListener(IndexFieldCache.this);
-                for (Listener listener : this.listeners) {
-                    key.listeners.add(listener);
-                }
-                final Accountable ifd = (Accountable) indexFieldData.localGlobalDirect(indexReader);
-                for (Listener listener : key.listeners) {
-                    try {
-                        listener.onCache(shardId, fieldNames, fieldDataType, ifd);
-                    } catch (Throwable e) {
-                        // load anyway since listeners should not throw exceptions
-                        logger.error("Failed to call listener on global ordinals loading", e);
+            final Accountable accountable = cache.get(key, new Callable<Accountable>() {
+                @Override
+                public Accountable call() throws Exception {
+                    indexReader.addReaderClosedListener(IndexFieldCache.this);
+                    for (Listener listener : listeners) {
+                        key.listeners.add(listener);
                     }
+                    final Accountable ifd = (Accountable) indexFieldData.localGlobalDirect(indexReader);
+                    for (Listener listener : key.listeners) {
+                        try {
+                            listener.onCache(shardId, fieldNames, fieldDataType, ifd);
+                        } catch (Throwable e) {
+                            // load anyway since listeners should not throw exceptions
+                            logger.error("Failed to call listener on global ordinals loading", e);
+                        }
+                    }
+                    return ifd;
                 }
-                return ifd;
             });
             return (IFD) accountable;
         }

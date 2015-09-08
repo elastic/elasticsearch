@@ -151,22 +151,25 @@ public class BitsetFilterCache extends AbstractIndexComponent implements LeafRea
                 return CacheBuilder.newBuilder().build();
             }
         });
-        return filterToFbs.get(query, () -> {
-            final IndexReaderContext topLevelContext = ReaderUtil.getTopLevelContext(context);
-            final IndexSearcher searcher = new IndexSearcher(topLevelContext);
-            searcher.setQueryCache(null);
-            final Weight weight = searcher.createNormalizedWeight(query, false);
-            final DocIdSetIterator it = weight.scorer(context);
-            final BitSet bitSet;
-            if (it == null) {
-                bitSet = null;
-            } else {
-                bitSet = BitSet.of(it, context.reader().maxDoc());
-            }
+        return filterToFbs.get(query,new Callable<Value>() {
+            @Override
+            public Value call() throws Exception {
+                final IndexReaderContext topLevelContext = ReaderUtil.getTopLevelContext(context);
+                final IndexSearcher searcher = new IndexSearcher(topLevelContext);
+                searcher.setQueryCache(null);
+                final Weight weight = searcher.createNormalizedWeight(query, false);
+                final DocIdSetIterator it = weight.scorer(context);
+                final BitSet bitSet;
+                if (it == null) {
+                    bitSet = null;
+                } else {
+                    bitSet = BitSet.of(it, context.reader().maxDoc());
+                }
 
-            Value value = new Value(bitSet, shardId);
-            listener.onCache(shardId, value.bitset);
-            return value;
+                Value value = new Value(bitSet, shardId);
+                listener.onCache(shardId, value.bitset);
+                return value;
+            }
         }).bitset;
     }
 
@@ -266,22 +269,31 @@ public class BitsetFilterCache extends AbstractIndexComponent implements LeafRea
             final CountDownLatch latch = new CountDownLatch(context.searcher().reader().leaves().size() * warmUp.size());
             for (final LeafReaderContext ctx : context.searcher().reader().leaves()) {
                 for (final Query filterToWarm : warmUp) {
-                    executor.execute(() -> {
-                        try {
-                            final long start = System.nanoTime();
-                            getAndLoadIfNotPresent(filterToWarm, ctx);
-                            if (indexShard.warmerService().logger().isTraceEnabled()) {
-                                indexShard.warmerService().logger().trace("warmed bitset for [{}], took [{}]", filterToWarm, TimeValue.timeValueNanos(System.nanoTime() - start));
+                    executor.execute(new Runnable() {
+
+                        @Override
+                        public void run() {
+                            try {
+                                final long start = System.nanoTime();
+                                getAndLoadIfNotPresent(filterToWarm, ctx);
+                                if (indexShard.warmerService().logger().isTraceEnabled()) {
+                                    indexShard.warmerService().logger().trace("warmed bitset for [{}], took [{}]", filterToWarm, TimeValue.timeValueNanos(System.nanoTime() - start));
+                                }
+                            } catch (Throwable t) {
+                                indexShard.warmerService().logger().warn("failed to load bitset for [{}]", t, filterToWarm);
+                            } finally {
+                                latch.countDown();
                             }
-                        } catch (Throwable t) {
-                            indexShard.warmerService().logger().warn("failed to load bitset for [{}]", t, filterToWarm);
-                        } finally {
-                            latch.countDown();
                         }
                     });
                 }
             }
-            return () -> latch.await();
+            return new TerminationHandle() {
+                @Override
+                public void awaitTermination() throws InterruptedException {
+                    latch.await();
+                }
+            };
         }
 
         @Override

@@ -22,6 +22,7 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.support.ToXContentToBytes;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
@@ -42,6 +43,8 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder> exte
 
     /** Default for boost to apply to resulting Lucene query. Defaults to 1.0*/
     public static final float DEFAULT_BOOST = 1.0f;
+    public static final ParseField NAME_FIELD = new ParseField("_name");
+    public static final ParseField BOOST_FIELD = new ParseField("boost");
 
     protected String queryName;
     protected float boost = DEFAULT_BOOST;

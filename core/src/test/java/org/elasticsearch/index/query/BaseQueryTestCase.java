@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.query;
 
+import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
+
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
@@ -70,26 +72,35 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolModule;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
-import org.junit.*;
+import org.junit.After;
+import org.junit.AfterClass;
+import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.Test;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public abstract class BaseQueryTestCase<QB extends AbstractQueryBuilder<QB>> extends ESTestCase { // TODO rename this AbstractQueryTestCase
 
+    private static final GeohashGenerator geohashGenerator = new GeohashGenerator();
     protected static final String STRING_FIELD_NAME = "mapped_string";
     protected static final String INT_FIELD_NAME = "mapped_int";
     protected static final String DOUBLE_FIELD_NAME = "mapped_double";
     protected static final String BOOLEAN_FIELD_NAME = "mapped_boolean";
     protected static final String DATE_FIELD_NAME = "mapped_date";
     protected static final String OBJECT_FIELD_NAME = "mapped_object";
+    protected static final String GEO_FIELD_NAME = "mapped_geo";
     protected static final String[] MAPPED_FIELD_NAMES = new String[] { STRING_FIELD_NAME, INT_FIELD_NAME,
-            DOUBLE_FIELD_NAME, BOOLEAN_FIELD_NAME, DATE_FIELD_NAME, OBJECT_FIELD_NAME };
+            DOUBLE_FIELD_NAME, BOOLEAN_FIELD_NAME, DATE_FIELD_NAME, OBJECT_FIELD_NAME, GEO_FIELD_NAME };
     protected static final String[] MAPPED_LEAF_FIELD_NAMES = new String[] { STRING_FIELD_NAME, INT_FIELD_NAME,
-            DOUBLE_FIELD_NAME, BOOLEAN_FIELD_NAME, DATE_FIELD_NAME };
+            DOUBLE_FIELD_NAME, BOOLEAN_FIELD_NAME, DATE_FIELD_NAME, GEO_FIELD_NAME };
 
     private static Injector injector;
     private static IndexQueryParserService queryParserService;
@@ -169,7 +180,8 @@ public abstract class BaseQueryTestCase<QB extends AbstractQueryBuilder<QB>> ext
                     DOUBLE_FIELD_NAME, "type=double",
                     BOOLEAN_FIELD_NAME, "type=boolean",
                     DATE_FIELD_NAME, "type=date",
-                    OBJECT_FIELD_NAME, "type=object"
+                    OBJECT_FIELD_NAME, "type=object",
+                    GEO_FIELD_NAME, "type=geo_point,lat_lon=true,geohash=true,geohash_prefix=true"
             ).string()), false, false);
             // also add mappings for two inner field in the object field
             mapperService.merge(type, new CompressedXContent("{\"properties\":{\""+OBJECT_FIELD_NAME+"\":{\"type\":\"object\","
@@ -519,6 +531,18 @@ public abstract class BaseQueryTestCase<QB extends AbstractQueryBuilder<QB>> ext
 
     protected String getRandomType() {
         return (currentTypes.length == 0) ? MetaData.ALL : randomFrom(currentTypes);
+    }
+
+    public static String randomGeohash(int minPrecision, int maxPrecision) {
+        return geohashGenerator.ofStringLength(getRandom(), minPrecision, maxPrecision);
+    }
+
+    public static class GeohashGenerator extends CodepointSetGenerator {
+        private final static char[] ASCII_SET = "0123456789bcdefghjkmnpqrstuvwxyz".toCharArray();
+
+        public GeohashGenerator() {
+            super(ASCII_SET);
+        }
     }
 
     protected static Fuzziness randomFuzziness(String fieldName) {

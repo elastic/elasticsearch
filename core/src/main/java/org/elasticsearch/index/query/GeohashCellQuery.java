@@ -22,11 +22,14 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -37,6 +40,7 @@ import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * A geohash cell filter that filters {@link GeoPoint}s by their geohashes. Basically the a
@@ -56,8 +60,9 @@ import java.util.List;
 public class GeohashCellQuery {
 
     public static final String NAME = "geohash_cell";
-    public static final String NEIGHBORS = "neighbors";
-    public static final String PRECISION = "precision";
+    public static final ParseField NEIGHBORS_FIELD = new ParseField("neighbors");
+    public static final ParseField PRECISION_FIELD = new ParseField("precision");
+    public static final boolean DEFAULT_NEIGHBORS = false;
 
     /**
      * Create a new geohash filter for a given set of geohashes. In general this method
@@ -93,10 +98,10 @@ public class GeohashCellQuery {
         // because a transformation from a geohash to a point an back to the
         // geohash will extend the accuracy of the hash to max precision
         // i.e. by filing up with z's.
-        private String field;
+        private String fieldName;
         private String geohash;
-        private int levels = -1;
-        private boolean neighbors;
+        private Integer levels = null;
+        private boolean neighbors = DEFAULT_NEIGHBORS;
         private static final Builder PROTOTYPE = new Builder(null);
 
 
@@ -114,7 +119,7 @@ public class GeohashCellQuery {
 
         public Builder(String field, String geohash, boolean neighbors) {
             super();
-            this.field = field;
+            this.fieldName = field;
             this.geohash = geohash;
             this.neighbors = neighbors;
         }
@@ -134,9 +139,17 @@ public class GeohashCellQuery {
             return this;
         }
 
+        public String geohash() {
+            return geohash;
+        }
+
         public Builder precision(int levels) {
             this.levels = levels;
             return this;
+        }
+
+        public Integer precision() {
+            return levels;
         }
 
         public Builder precision(String precision) {
@@ -149,23 +162,114 @@ public class GeohashCellQuery {
             return this;
         }
 
-        public Builder field(String field) {
-            this.field = field;
+        public boolean neighbors() {
+            return neighbors;
+        }
+
+        public Builder fieldName(String fieldName) {
+            this.fieldName = fieldName;
             return this;
+        }
+
+        public String fieldName() {
+            return fieldName;
+        }
+
+        @Override
+        public QueryValidationException validate() {
+            QueryValidationException errors = null;
+            if (fieldName == null) {
+                errors = QueryValidationException.addValidationError(NAME, "fieldName must not be null", errors);
+            }
+            if (geohash == null) {
+                errors = QueryValidationException.addValidationError(NAME, "geohash or point must be defined", errors);
+            }
+            if (levels != null && levels <= 0) {
+                errors = QueryValidationException.addValidationError(NAME, "precision must be greater than 0. Found [" + levels + "]",
+                        errors);
+            }
+            return errors;
+        }
+
+        @Override
+        protected Query doToQuery(QueryShardContext context) throws IOException {
+            MappedFieldType fieldType = context.fieldMapper(fieldName);
+            if (fieldType == null) {
+                throw new QueryShardException(context, "failed to parse [{}] query. missing [{}] field [{}]", NAME,
+                        GeoPointFieldMapper.CONTENT_TYPE, fieldName);
+            }
+
+            if (!(fieldType instanceof GeoPointFieldMapper.GeoPointFieldType)) {
+                throw new QueryShardException(context, "failed to parse [{}] query. field [{}] is not a geo_point field", NAME, fieldName);
+            }
+
+            GeoPointFieldMapper.GeoPointFieldType geoFieldType = ((GeoPointFieldMapper.GeoPointFieldType) fieldType);
+            if (!geoFieldType.isGeohashPrefixEnabled()) {
+                throw new QueryShardException(context, "failed to parse [{}] query. [geohash_prefix] is not enabled for field [{}]", NAME,
+                        fieldName);
+            }
+
+            if (levels != null) {
+                int len = Math.min(levels, geohash.length());
+                geohash = geohash.substring(0, len);
+            }
+
+            Query query;
+            if (neighbors) {
+                query = create(context, geoFieldType, geohash, GeoHashUtils.addNeighbors(geohash, new ArrayList<CharSequence>(8)));
+            } else {
+                query = create(context, geoFieldType, geohash, null);
+            }
+            return query;
         }
 
         @Override
         protected void doXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject(NAME);
-            if (neighbors) {
-                builder.field(NEIGHBORS, neighbors);
+            builder.field(NEIGHBORS_FIELD.getPreferredName(), neighbors);
+            if (levels != null) {
+                builder.field(PRECISION_FIELD.getPreferredName(), levels);
             }
-            if(levels > 0) {
-                builder.field(PRECISION, levels);
-            }
-            builder.field(field, geohash);
+            builder.field(fieldName, geohash);
             printBoostAndQueryName(builder);
             builder.endObject();
+        }
+
+        @Override
+        protected Builder doReadFrom(StreamInput in) throws IOException {
+            String field = in.readString();
+            String geohash = in.readString();
+            Builder builder = new Builder(field, geohash);
+            if (in.readBoolean()) {
+                builder.precision(in.readVInt());
+            }
+            builder.neighbors(in.readBoolean());
+            return builder;
+        }
+
+        @Override
+        protected void doWriteTo(StreamOutput out) throws IOException {
+            out.writeString(fieldName);
+            out.writeString(geohash);
+            boolean hasLevels = levels != null;
+            out.writeBoolean(hasLevels);
+            if (hasLevels) {
+                out.writeVInt(levels);
+            }
+            out.writeBoolean(neighbors);
+        }
+
+        @Override
+        protected boolean doEquals(Builder other) {
+            return Objects.equals(fieldName, other.fieldName)
+                    && Objects.equals(geohash, other.geohash)
+                    && Objects.equals(levels, other.levels)
+                    && Objects.equals(neighbors, other.neighbors);
+        }
+
+        @Override
+        protected int doHashCode() {
+            return Objects.hash(fieldName, geohash, levels, neighbors);
         }
 
         @Override
@@ -174,7 +278,7 @@ public class GeohashCellQuery {
         }
     }
 
-    public static class Parser extends BaseQueryParserTemp {
+    public static class Parser extends BaseQueryParser<Builder> {
 
         @Inject
         public Parser() {
@@ -186,16 +290,15 @@ public class GeohashCellQuery {
         }
 
         @Override
-        public Query parse(QueryShardContext context) throws IOException, QueryParsingException {
-            QueryParseContext parseContext = context.parseContext();
+        public Builder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
             XContentParser parser = parseContext.parser();
 
             String fieldName = null;
             String geohash = null;
-            int levels = -1;
-            boolean neighbors = false;
+            Integer levels = null;
+            Boolean neighbors = null;
             String queryName = null;
-            float boost = AbstractQueryBuilder.DEFAULT_BOOST;
+            Float boost = null;
 
             XContentParser.Token token;
             if ((token = parser.currentToken()) != Token.START_OBJECT) {
@@ -208,30 +311,31 @@ public class GeohashCellQuery {
 
                     if (parseContext.isDeprecatedSetting(field)) {
                         // skip
-                    } else if (PRECISION.equals(field)) {
+                    } else if (parseContext.parseFieldMatcher().match(field, PRECISION_FIELD)) {
                         token = parser.nextToken();
-                        if(token == Token.VALUE_NUMBER) {
+                        if (token == Token.VALUE_NUMBER) {
                             levels = parser.intValue();
-                        } else if(token == Token.VALUE_STRING) {
+                        } else if (token == Token.VALUE_STRING) {
                             double meters = DistanceUnit.parse(parser.text(), DistanceUnit.DEFAULT, DistanceUnit.METERS);
                             levels = GeoUtils.geoHashLevelsForPrecision(meters);
                         }
-                    } else if (NEIGHBORS.equals(field)) {
+                    } else if (parseContext.parseFieldMatcher().match(field, NEIGHBORS_FIELD)) {
                         parser.nextToken();
                         neighbors = parser.booleanValue();
-                    } else if ("_name".equals(field)) {
+                    } else if (parseContext.parseFieldMatcher().match(field, AbstractQueryBuilder.NAME_FIELD)) {
                         parser.nextToken();
                         queryName = parser.text();
-                    } else if ("boost".equals(field)) {
+                    } else if (parseContext.parseFieldMatcher().match(field, AbstractQueryBuilder.BOOST_FIELD)) {
                         parser.nextToken();
                         boost = parser.floatValue();
                     } else {
                         fieldName = field;
                         token = parser.nextToken();
-                        if(token == Token.VALUE_STRING) {
-                            // A string indicates either a geohash or a lat/lon string
+                        if (token == Token.VALUE_STRING) {
+                            // A string indicates either a geohash or a lat/lon
+                            // string
                             String location = parser.text();
-                            if(location.indexOf(",")>0) {
+                            if (location.indexOf(",") > 0) {
                                 geohash = GeoUtils.parseGeoPoint(parser).geohash();
                             } else {
                                 geohash = location;
@@ -244,43 +348,21 @@ public class GeohashCellQuery {
                     throw new ElasticsearchParseException("failed to parse [{}] query. unexpected token [{}]", NAME, token);
                 }
             }
-
-            if (geohash == null) {
-                throw new QueryParsingException(parseContext, "failed to parse [{}] query. missing geohash value", NAME);
+            Builder builder = new Builder(fieldName);
+            builder.geohash(geohash);
+            if (levels != null) {
+                builder.precision(levels);
             }
-
-            MappedFieldType fieldType = context.fieldMapper(fieldName);
-            if (fieldType == null) {
-                throw new QueryParsingException(parseContext, "failed to parse [{}] query. missing [{}] field [{}]", NAME, GeoPointFieldMapper.CONTENT_TYPE, fieldName);
-            }
-
-            if (!(fieldType instanceof GeoPointFieldMapper.GeoPointFieldType)) {
-                throw new QueryParsingException(parseContext, "failed to parse [{}] query. field [{}] is not a geo_point field", NAME, fieldName);
-            }
-
-            GeoPointFieldMapper.GeoPointFieldType geoFieldType = ((GeoPointFieldMapper.GeoPointFieldType) fieldType);
-            if (!geoFieldType.isGeohashPrefixEnabled()) {
-                throw new QueryParsingException(parseContext, "failed to parse [{}] query. [geohash_prefix] is not enabled for field [{}]", NAME, fieldName);
-            }
-
-            if(levels > 0) {
-                int len = Math.min(levels, geohash.length());
-                geohash = geohash.substring(0, len);
-            }
-
-            Query filter;
-            if (neighbors) {
-                filter = create(context, geoFieldType, geohash, GeoHashUtils.addNeighbors(geohash, new ArrayList<CharSequence>(8)));
-            } else {
-                filter = create(context, geoFieldType, geohash, null);
+            if (neighbors != null) {
+                builder.neighbors(neighbors);
             }
             if (queryName != null) {
-                context.addNamedQuery(queryName, filter);
+                builder.queryName(queryName);
             }
-            if (filter != null) {
-                filter.setBoost(boost);
+            if (boost != null) {
+                builder.boost(boost);
             }
-            return filter;
+            return builder;
         }
 
         @Override

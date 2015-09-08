@@ -80,7 +80,7 @@ public class InternalSettingsPreparer {
      * @param terminal the Terminal to use for input/output
      * @return the {@link Settings} and {@link Environment} as a {@link Tuple}
      */
-    public static Tuple<Settings, Environment> prepareSettingsAndEnvironment(Settings input, Terminal terminal) {
+    public static Environment prepareEnvironment(Settings input, Terminal terminal) {
         // just create enough settings to build the environment
         Settings.Builder output = settingsBuilder();
         initializeSettings(output, input, true);
@@ -134,7 +134,7 @@ public class InternalSettingsPreparer {
         // we put back the path.logs so we can use it in the logging configuration file
         output.put("path.logs", cleanPath(environment.logsFile().toAbsolutePath().toString()));
 
-        return new Tuple<>(output.build(), environment);
+        return new Environment(output.build());
     }
 
     private static boolean useSystemProperties(Settings input) {

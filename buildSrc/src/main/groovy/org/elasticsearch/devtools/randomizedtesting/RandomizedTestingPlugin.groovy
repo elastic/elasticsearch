@@ -1,6 +1,9 @@
 package org.elasticsearch.devtools.randomizedtesting
 
-import org.gradle.api.*
+import com.carrotsearch.ant.tasks.junit4.JUnit4
+import org.gradle.api.AntBuilder
+import org.gradle.api.Plugin
+import org.gradle.api.Project
 import org.gradle.api.tasks.TaskContainer
 
 class RandomizedTestingPlugin implements Plugin<Project> {
@@ -10,6 +13,7 @@ class RandomizedTestingPlugin implements Plugin<Project> {
         project.pluginManager.apply('java')
 
         configureTasks(project.tasks)
+        configureAnt(project.ant)
     }
 
     static void configureTasks(TaskContainer tasks) {
@@ -18,16 +22,21 @@ class RandomizedTestingPlugin implements Plugin<Project> {
         tasks.findByPath('check').dependsOn.remove(oldTestTask)
         tasks.remove(oldTestTask)
 
-        def properties = [
+        Map properties = [
                 name: 'test',
                 type: RandomizedTestingTask,
                 dependsOn: ['classes', 'testClasses'],
                 group: 'Verification',
                 description: 'Runs unit tests with JUnit4'
         ]
-        def newTestTask = tasks.create(properties)
+        RandomizedTestingTask newTestTask = tasks.create(properties)
+        newTestTask.sourceSetName = 'test'
 
         // add back to the check task
         tasks.findByPath('check').dependsOn.add(newTestTask)
+    }
+
+    static void configureAnt(AntBuilder ant) {
+        ant.project.addTaskDefinition('junit4:junit4', JUnit4.class)
     }
 }

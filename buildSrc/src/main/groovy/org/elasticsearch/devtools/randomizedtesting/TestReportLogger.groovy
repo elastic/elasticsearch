@@ -2,6 +2,7 @@ package org.elasticsearch.devtools.randomizedtesting
 
 import com.carrotsearch.ant.tasks.junit4.JUnit4
 import com.carrotsearch.ant.tasks.junit4.Pluralize
+import com.carrotsearch.ant.tasks.junit4.TestsSummaryEventListener
 import com.carrotsearch.ant.tasks.junit4.dependencies.com.google.common.base.Strings
 import com.carrotsearch.ant.tasks.junit4.dependencies.com.google.common.eventbus.Subscribe
 import com.carrotsearch.ant.tasks.junit4.events.*
@@ -9,6 +10,7 @@ import com.carrotsearch.ant.tasks.junit4.events.aggregated.*
 import com.carrotsearch.ant.tasks.junit4.events.mirrors.FailureMirror
 import com.carrotsearch.ant.tasks.junit4.listeners.AggregatedEventListener
 import com.carrotsearch.ant.tasks.junit4.listeners.StackTraceFilter
+import org.apache.tools.ant.filters.TokenFilter
 import org.gradle.api.logging.LogLevel
 import org.gradle.api.logging.Logger
 import org.junit.runner.Description
@@ -17,7 +19,7 @@ import java.util.concurrent.atomic.AtomicInteger
 
 import static com.carrotsearch.ant.tasks.junit4.FormattingUtils.*
 
-class TestReportLogger implements AggregatedEventListener {
+class TestReportLogger extends TestsSummaryEventListener implements AggregatedEventListener {
 
     static final String FAILURE_MARKER = " <<< FAILURES!"
 
@@ -32,7 +34,12 @@ class TestReportLogger implements AggregatedEventListener {
         }
     }
 
+    JUnit4 owner
+
+    /** Logger to write the report to */
     Logger logger
+
+    TestLoggingConfiguration config
 
     /** Forked concurrent JVM count. */
     int forkedJvmCount
@@ -48,7 +55,7 @@ class TestReportLogger implements AggregatedEventListener {
     LoggingOutputStream errStream
 
     /** Display mode for output streams. */
-    public static enum OutputMode {
+    static enum OutputMode {
         /** Always display the output emitted from tests. */
         ALWAYS,
         /**
@@ -59,13 +66,16 @@ class TestReportLogger implements AggregatedEventListener {
         /** Don't display the output, even on test failures. */
         NEVER
     }
-    OutputMode outputMode
+    OutputMode outputMode = OutputMode.ONERROR
 
     /** A list of failed tests, if to be displayed at the end. */
-    private List<Description> failedTests = new ArrayList<>()
+    List<Description> failedTests = new ArrayList<>()
 
     /** Stack trace filters. */
-    private List<StackTraceFilter> stackFilters = new ArrayList<>()
+    StackTraceFilter stackFilter = new StackTraceFilter()
+
+    Map<String, Long> suiteTimes = new HashMap<>()
+    boolean slowTestsFound = false
 
     int totalSuites
     AtomicInteger suitesCompleted = new AtomicInteger()
@@ -73,16 +83,28 @@ class TestReportLogger implements AggregatedEventListener {
     @Subscribe
     void onStart(AggregatedStartEvent e) throws IOException {
         this.totalSuites = e.getSuiteCount();
-        logger.info("Executing " +
-                totalSuites + Pluralize.pluralize(totalSuites, " suite") +
-                " with " +
-                e.getSlaveCount() + Pluralize.pluralize(e.getSlaveCount(), " JVM") + ".\n", false);
+        StringBuilder info = new StringBuilder('==> Test Info: ')
+        info.append('seed=' + owner.getSeed() + '; ')
+        info.append(Pluralize.pluralize(e.getSlaveCount(), 'jvm') + '=' + e.getSlaveCount() + '; ')
+        info.append(Pluralize.pluralize(e.getSuiteCount(), 'suite') + '=' + e.getSuiteCount())
+        logger.lifecycle(info.toString())
 
         forkedJvmCount = e.getSlaveCount();
         jvmIdFormat = " J%-" + (1 + (int) Math.floor(Math.log10(forkedJvmCount))) + "d";
 
         outStream = new LoggingOutputStream(logger: logger, level: LogLevel.ERROR, prefix: "  1> ")
         errStream = new LoggingOutputStream(logger: logger, level: LogLevel.ERROR, prefix: "  2> ")
+
+        for (String contains : config.stackTraceFilters.contains) {
+            TokenFilter.ContainsString containsFilter = new TokenFilter.ContainsString()
+            containsFilter.setContains(contains)
+            stackFilter.addContainsString(containsFilter)
+        }
+        for (String pattern : config.stackTraceFilters.patterns) {
+            TokenFilter.ContainsRegex regexFilter = new TokenFilter.ContainsRegex()
+            regexFilter.setPattern(pattern)
+            stackFilter.addContainsRegex(regexFilter)
+        }
     }
 
     @Subscribe
@@ -95,25 +117,47 @@ class TestReportLogger implements AggregatedEventListener {
         logger.warn("HEARTBEAT J" + e.getSlave().id + " PID(" + e.getSlave().getPidString() + "): " +
                 formatTime(e.getCurrentTime()) + ", stalled for " +
                 formatDurationInSeconds(e.getNoEventDuration()) + " at: " +
-                (e.getDescription() == null ? "<unknown>" : formatDescription(e.getDescription())));
+                (e.getDescription() == null ? "<unknown>" : formatDescription(e.getDescription())))
+        slowTestsFound = true
     }
 
     @Subscribe
     void onQuit(AggregatedQuitEvent e) throws IOException {
         if (showNumFailuresAtEnd > 0 && !failedTests.isEmpty()) {
-            List<Description> sublist = this.failedTests;
-            StringBuilder b = new StringBuilder();
-            b.append("\nTests with failures");
+            List<Description> sublist = this.failedTests
+            StringBuilder b = new StringBuilder()
+            b.append('Tests with failures')
             if (sublist.size() > showNumFailuresAtEnd) {
-                sublist = sublist.subList(0, showNumFailuresAtEnd);
-                b.append(" (first " + showNumFailuresAtEnd + " out of " + failedTests.size() + ")");
+                sublist = sublist.subList(0, showNumFailuresAtEnd)
+                b.append(" (first " + showNumFailuresAtEnd + " out of " + failedTests.size() + ")")
             }
-            b.append(":\n");
+            b.append(':\n')
             for (Description description : sublist) {
-                b.append("  - ").append(formatDescription(description, true)).append("\n");
+                b.append("  - ").append(formatDescription(description, true)).append('\n')
             }
-            b.append("\n");
             logger.warn(b.toString())
+        }
+        if (config.slowTests.summarySize > 0) {
+            List<Map.Entry<String, Long>> sortedSuiteTimes = new ArrayList<>(suiteTimes.entrySet())
+            Collections.sort(sortedSuiteTimes, new Comparator<Map.Entry<String, Long>>() {
+                @Override
+                int compare(Map.Entry<String, Long> o1, Map.Entry<String, Long> o2) {
+                    return o2.value - o1.value // sort descending
+                }
+            })
+            LogLevel level = slowTestsFound ? LogLevel.WARN : LogLevel.INFO
+            int numToLog = Math.min(config.slowTests.summarySize, sortedSuiteTimes.size())
+            logger.log(level, 'Slow Tests Summary:')
+            for (int i = 0; i < numToLog; ++i) {
+                logger.log(level, String.format(Locale.ENGLISH, '%6.2fs | %s',
+                        sortedSuiteTimes.get(i).value / 1000.0,
+                        sortedSuiteTimes.get(i).key));
+            }
+            logger.log(level, '') // extra vertical separation
+        }
+        if (failedTests.isEmpty()) {
+            // summary is already printed for failures
+            logger.lifecycle('==> Test Summary: ' + getResult().toString())
         }
     }
 
@@ -146,10 +190,10 @@ class TestReportLogger implements AggregatedEventListener {
     void onTestResult(AggregatedTestResultEvent e) throws IOException {
         if (isPassthrough() && e.getStatus() != TestStatus.OK) {
             flushOutput();
-            emitStatusLine(level, e, e.getStatus(), e.getExecutionTime());
+            emitStatusLine(LogLevel.ERROR, e, e.getStatus(), e.getExecutionTime());
         }
 
-        if (!e.isSuccessful() && showNumFailuresAtEnd > 0) {
+        if (!e.isSuccessful()) {
             failedTests.add(e.getDescription());
         }
     }
@@ -161,6 +205,9 @@ class TestReportLogger implements AggregatedEventListener {
 
         if (e.isSuccessful() && e.getTests().isEmpty()) {
             return;
+        }
+        if (config.slowTests.summarySize > 0) {
+            suiteTimes.put(e.getDescription().getDisplayName(), e.getExecutionTime())
         }
 
         LogLevel level = e.isSuccessful() ? LogLevel.INFO : LogLevel.ERROR
@@ -175,7 +222,7 @@ class TestReportLogger implements AggregatedEventListener {
             emitStatusLine(level, e, TestStatus.ERROR, 0)
         }
 
-        if (!e.getFailures().isEmpty() && showNumFailuresAtEnd > 0) {
+        if (!e.getFailures().isEmpty()) {
             failedTests.add(e.getDescription())
         }
 
@@ -187,7 +234,7 @@ class TestReportLogger implements AggregatedEventListener {
 
     /** Suite prologue. */
     void emitSuiteStart(LogLevel level, Description description) throws IOException {
-        logger.log(level, "Suite: " + description.getDisplayName());
+        logger.log(level, 'Suite: ' + description.getDisplayName());
     }
 
     void emitBufferedEvents(LogLevel level, AggregatedSuiteResultEvent e) throws IOException {
@@ -234,30 +281,30 @@ class TestReportLogger implements AggregatedEventListener {
     void emitSuiteEnd(LogLevel level, AggregatedSuiteResultEvent e, int suitesCompleted) throws IOException {
 
         final StringBuilder b = new StringBuilder();
-        b.append(String.format(Locale.ENGLISH, "Completed [%d/%d]%s in %.2fs, ",
+        b.append(String.format(Locale.ENGLISH, 'Completed [%d/%d]%s in %.2fs, ',
                 suitesCompleted,
                 totalSuites,
-                e.getSlave().slaves > 1 ? " on J" + e.getSlave().id : "",
+                e.getSlave().slaves > 1 ? ' on J' + e.getSlave().id : '',
                 e.getExecutionTime() / 1000.0d));
-        b.append(e.getTests().size()).append(Pluralize.pluralize(e.getTests().size(), " test"));
+        b.append(e.getTests().size()).append(Pluralize.pluralize(e.getTests().size(), ' test'));
 
         int failures = e.getFailureCount();
         if (failures > 0) {
-            b.append(", ").append(failures).append(Pluralize.pluralize(failures, " failure"));
+            b.append(', ').append(failures).append(Pluralize.pluralize(failures, ' failure'));
         }
 
         int errors = e.getErrorCount();
         if (errors > 0) {
-            b.append(", ").append(errors).append(Pluralize.pluralize(errors, " error"));
+            b.append(', ').append(errors).append(Pluralize.pluralize(errors, ' error'));
         }
 
         int ignored = e.getIgnoredCount();
         if (ignored > 0) {
-            b.append(", ").append(ignored).append(" skipped");
+            b.append(', ').append(ignored).append(' skipped');
         }
 
         if (!e.isSuccessful()) {
-            b.append(" <<< FAILURES!");
+            b.append(' <<< FAILURES!');
         }
 
         b.append('\n')
@@ -273,7 +320,7 @@ class TestReportLogger implements AggregatedEventListener {
         if (forkedJvmCount > 1) {
             line.append(String.format(Locale.ENGLISH, jvmIdFormat, result.getSlave().id))
         }
-        line.append(" | ")
+        line.append(' | ')
 
         line.append(formatDescription(result.getDescription()))
         if (!result.isSuccessful()) {
@@ -281,10 +328,10 @@ class TestReportLogger implements AggregatedEventListener {
         }
         logger.log(level, line.toString())
 
-        PrintWriter writer = new PrintWriter(new LoggingOutputStream(logger: logger, level: level, prefix: "   > "))
+        PrintWriter writer = new PrintWriter(new LoggingOutputStream(logger: logger, level: level, prefix: '   > '))
 
         if (status == TestStatus.IGNORED && result instanceof AggregatedTestResultEvent) {
-            writer.write("Cause: ")
+            writer.write('Cause: ')
             writer.write(((AggregatedTestResultEvent) result).getCauseForIgnored())
             writer.flush()
         }
@@ -296,24 +343,17 @@ class TestReportLogger implements AggregatedEventListener {
                 count++;
                 if (fm.isAssumptionViolation()) {
                     writer.write(String.format(Locale.ENGLISH,
-                            "Assumption #%d: %s",
-                            count, fm.getMessage() == null ? "(no message)" : fm.getMessage()));
+                            'Assumption #%d: %s',
+                            count, fm.getMessage() == null ? '(no message)' : fm.getMessage()));
                 } else {
                     writer.write(String.format(Locale.ENGLISH,
-                            "Throwable #%d: %s",
+                            'Throwable #%d: %s',
                             count,
-                            filterStackTrace(fm.getTrace())));
+                            stackFilter.apply(fm.getTrace())));
                 }
             }
             writer.flush()
         }
-    }
-
-    String filterStackTrace(String trace) {
-        for (StackTraceFilter filter : stackFilters) {
-            trace = filter.apply(trace);
-        }
-        return trace;
     }
 
     void flushOutput() throws IOException {
@@ -327,5 +367,7 @@ class TestReportLogger implements AggregatedEventListener {
     }
 
     @Override
-    void setOuter(JUnit4 task) {/* nothing to do with root task */}
+    void setOuter(JUnit4 task) {
+        owner = task
+    }
 }

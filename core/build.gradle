@@ -1,6 +1,6 @@
 
 apply plugin: 'java'
-apply plugin: 'org.elasticsearch.devtools.randomizedtesting'
+apply plugin: 'org.elasticsearch.devtools.build'
 
 sourceCompatibility = '1.7'
 
@@ -11,21 +11,6 @@ configurations {
 repositories {
   mavenCentral()
 }
-
-buildscript {
-  repositories {
-    mavenCentral()
-  }
-  dependencies {
-    classpath group: 'com.carrotsearch.randomizedtesting', name: 'junit4-ant', version: '2.1.13'
-    classpath(group: 'junit', name: 'junit', version: '4.11') {
-      transitive = false
-    }
-  }
-}
-
-
-//jvmExecutable = "${System.env.JAVA_HOME}" + File.separator + "bin" + File.separator + "java"
 
 def luceneVersion = '5.3.0'
 def jacksonVersion = '2.5.3'
@@ -119,6 +104,12 @@ task sourcesJar(type: Jar, dependsOn: classes) {
     from sourceSets.main.java
 }
 
+forbiddenPatterns {
+  exclude '**/*.json'
+  exclude '**/*.jmx'
+  exclude '**/org/elasticsearch/cluster/routing/shard_routes.txt'
+}
+
 /*
  * A hack because the rest test framework apparently cannot read spec files directly
  * from a jar, but need them to be on the local filesystem.
@@ -141,12 +132,9 @@ task copyRestSpec(type: Copy, dependsOn: configurations.restSpec.buildDependenci
   into sourceSets.test.output.classesDir
 }
 
-test {
-  dependsOn = [copyRestSpec, classes, testClasses]
 
-  outputs.upToDateWhen {
-    false
-  }
+test {
+  dependsOn copyRestSpec
 }
 
 artifacts {

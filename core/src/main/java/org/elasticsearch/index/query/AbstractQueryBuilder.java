@@ -111,15 +111,6 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder> exte
         return context.indexQueryParserService().indicesQueriesRegistry().queryParsers().get(getName()).parse(context);
     }
 
-    /**
-     * Sets the final boost to the generated lucene query. Default behaviour is to simply set the boost instance
-     * member to the lucene query provided as an argument, but can be overridden by subclasses that need some different behaviour,
-     * for instance in case the query boost might get parsed as part of the query itself (e.g. query_string)
-     */
-    protected void setFinalBoost(Query query) {
-        query.setBoost(boost);
-    }
-
     @Override
     public QueryValidationException validate() {
         // default impl does not validate, subclasses should override.

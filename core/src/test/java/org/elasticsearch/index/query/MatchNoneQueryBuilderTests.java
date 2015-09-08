@@ -30,7 +30,7 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 public class MatchNoneQueryBuilderTests extends BaseQueryTestCase {
 
     @Override
-    protected boolean supportsBoostAndQueryNameParsing() {
+    protected boolean supportsBoostAndQueryName() {
         return false;
     }
 

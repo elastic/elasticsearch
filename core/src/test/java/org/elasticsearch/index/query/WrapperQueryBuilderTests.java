@@ -32,7 +32,7 @@ import static org.hamcrest.Matchers.is;
 public class WrapperQueryBuilderTests extends BaseQueryTestCase<WrapperQueryBuilder> {
 
     @Override
-    protected boolean supportsBoostAndQueryNameParsing() {
+    protected boolean supportsBoostAndQueryName() {
         return false;
     }
 
@@ -58,16 +58,8 @@ public class WrapperQueryBuilderTests extends BaseQueryTestCase<WrapperQueryBuil
             contextCopy.reset(qSourceParser);
             QueryBuilder<?> innerQuery = contextCopy.parseContext().parseInnerQueryBuilder();
             Query expected = innerQuery.toQuery(context);
-            if (expected != null && queryBuilder.boost() != AbstractQueryBuilder.DEFAULT_BOOST) {
-                expected.setBoost(queryBuilder.boost());
-            }
             assertThat(query, equalTo(expected));
         }
-    }
-
-    @Override
-    protected void assertBoost(WrapperQueryBuilder queryBuilder, Query query) throws IOException {
-        //nothing to do here, boost check is already included in equality check done as part of doAssertLuceneQuery above
     }
 
     @Test

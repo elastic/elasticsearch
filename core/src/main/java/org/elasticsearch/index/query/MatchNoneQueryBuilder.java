@@ -48,6 +48,11 @@ public class MatchNoneQueryBuilder extends AbstractQueryBuilder<MatchNoneQueryBu
     }
 
     @Override
+    protected void setFinalBoost(Query query) {
+        //no-op this query doesn't support boost
+    }
+
+    @Override
     public QueryValidationException validate() {
         // nothing to validate
         return null;

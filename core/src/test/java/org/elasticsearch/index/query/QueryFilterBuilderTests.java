@@ -49,7 +49,7 @@ public class QueryFilterBuilderTests extends BaseQueryTestCase<QueryFilterBuilde
     }
 
     @Override
-    protected boolean supportsBoostAndQueryNameParsing() {
+    protected boolean supportsBoostAndQueryName() {
         return false;
     }
 

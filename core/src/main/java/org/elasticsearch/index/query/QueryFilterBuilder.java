@@ -75,6 +75,11 @@ public class QueryFilterBuilder extends AbstractQueryBuilder<QueryFilterBuilder>
     }
 
     @Override
+    protected void setFinalBoost(Query query) {
+        //no-op this query doesn't support boost
+    }
+
+    @Override
     public QueryValidationException validate() {
         return validateInnerQuery(queryBuilder, null);
     }

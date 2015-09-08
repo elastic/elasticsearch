@@ -164,7 +164,7 @@ final class Bootstrap {
                 .put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING, true)
                 .build();
 
-        NodeBuilder nodeBuilder = NodeBuilder.nodeBuilder().settings(nodeSettings).loadConfigSettings(false);
+        NodeBuilder nodeBuilder = NodeBuilder.nodeBuilder().settings(nodeSettings);
         node = nodeBuilder.build();
     }
     
@@ -195,9 +195,9 @@ final class Bootstrap {
         }
     }
 
-    private static Tuple<Settings, Environment> initialSettings(boolean foreground) {
+    private static Environment initialSettings(boolean foreground) {
         Terminal terminal = foreground ? Terminal.DEFAULT : null;
-        return InternalSettingsPreparer.prepareSettings(EMPTY_SETTINGS, true, terminal);
+        return InternalSettingsPreparer.prepareEnvironment(EMPTY_SETTINGS, terminal);
     }
 
     private void start() {
@@ -234,9 +234,8 @@ final class Bootstrap {
             foreground = false;
         }
 
-        Tuple<Settings, Environment> tuple = initialSettings(foreground);
-        Settings settings = tuple.v1();
-        Environment environment = tuple.v2();
+        Environment environment = initialSettings(foreground);
+        Settings settings = environment.settings();
 
         if (environment.pidFile() != null) {
             PidFile.create(environment.pidFile(), true);

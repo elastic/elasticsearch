@@ -21,6 +21,17 @@ Settings settings = Settings.settingsBuilder()
 Client client = TransportClient.builder().settings(settings).build();
 --------------------------------------------------
 
+The transport client also no longer supports loading settings from config files.
+If you have have a config file, you can load into settings yourself before
+consturcting the transport client:
+
+[source,java]
+--------------------------------------------------
+Settings settings = Settings.settingsBuilder()
+        .loadFromPath(pathToYourSettingsFile).build();
+Client client = TransportClient.builder().settings(settings).build();
+--------------------------------------------------
+
 ==== Automatically thread client listeners
 
 Previously, the user had to set request listener threads to `true` when on the

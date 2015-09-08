@@ -21,7 +21,6 @@ package org.elasticsearch.plugins;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-
 import org.apache.lucene.analysis.util.CharFilterFactory;
 import org.apache.lucene.analysis.util.TokenFilterFactory;
 import org.apache.lucene.analysis.util.TokenizerFactory;
@@ -41,7 +40,6 @@ import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -88,9 +86,9 @@ public class PluginsService extends AbstractComponent {
     /**
      * Constructs a new PluginService
      * @param settings The settings of the system
-     * @param environment The environment of the system
+     * @param pluginsDirectory The directory plugins exist in, or null if plugins should not be loaded from the filesystem
      */
-    public PluginsService(Settings settings, Environment environment) {
+    public PluginsService(Settings settings, Path pluginsDirectory) {
         super(settings);
 
         ImmutableList.Builder<Tuple<PluginInfo, Plugin>> tupleBuilder = ImmutableList.builder();
@@ -108,11 +106,13 @@ public class PluginsService extends AbstractComponent {
         }
 
         // now, find all the ones that are in plugins/
-        try {
-          List<Bundle> bundles = getPluginBundles(environment);
-          tupleBuilder.addAll(loadBundles(bundles));
-        } catch (IOException ex) {
-          throw new IllegalStateException("Unable to initialize plugins", ex);
+        if (pluginsDirectory != null) {
+            try {
+                List<Bundle> bundles = getPluginBundles(pluginsDirectory);
+                tupleBuilder.addAll(loadBundles(bundles));
+            } catch (IOException ex) {
+                throw new IllegalStateException("Unable to initialize plugins", ex);
+            }
         }
 
         plugins = tupleBuilder.build();
@@ -283,10 +283,9 @@ public class PluginsService extends AbstractComponent {
         List<URL> urls = new ArrayList<>();
     }
 
-    static List<Bundle> getPluginBundles(Environment environment) throws IOException {
+    static List<Bundle> getPluginBundles(Path pluginsDirectory) throws IOException {
         ESLogger logger = Loggers.getLogger(PluginsService.class);
 
-        Path pluginsDirectory = environment.pluginsFile();
         // TODO: remove this leniency, but tests bogusly rely on it
         if (!isAccessibleDirectory(pluginsDirectory, logger)) {
             return Collections.emptyList();

@@ -554,7 +554,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         final ImmutableMap<String, MappedFieldType> unmappedFieldMappers = this.unmappedFieldTypes;
         MappedFieldType fieldType = unmappedFieldMappers.get(type);
         if (fieldType == null) {
-            final Mapper.TypeParser.ParserContext parserContext = documentMapperParser().parserContext();
+            final Mapper.TypeParser.ParserContext parserContext = documentMapperParser().parserContext(type);
             Mapper.TypeParser typeParser = parserContext.typeParser(type);
             if (typeParser == null) {
                 throw new IllegalArgumentException("No mapper found for type [" + type + "]");

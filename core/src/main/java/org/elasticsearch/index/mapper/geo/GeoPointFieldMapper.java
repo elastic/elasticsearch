@@ -605,7 +605,7 @@ public class GeoPointFieldMapper extends FieldMapper implements ArrayValueMapper
         GeoPointFieldMapper gpfmMergeWith = (GeoPointFieldMapper) mergeWith;
         if (gpfmMergeWith.coerce.explicit()) {
             if (coerce.explicit() && coerce.value() != gpfmMergeWith.coerce.value()) {
-                mergeResult.addConflict("mapper [" + fieldType().names().fullName() + "] has different coerce");
+                mergeResult.addConflict("mapper [" + fieldType().names().fullName() + "] has different [coerce]");
             }
         }
 

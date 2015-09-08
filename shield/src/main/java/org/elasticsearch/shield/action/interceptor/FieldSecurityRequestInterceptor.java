@@ -8,6 +8,7 @@ package org.elasticsearch.shield.action.interceptor;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.logging.support.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.authz.accesscontrol.IndicesAccessControl;
@@ -34,7 +35,7 @@ public abstract class FieldSecurityRequestInterceptor<Request> extends AbstractC
         } else if (request instanceof IndicesRequest) {
             indicesRequests = Collections.singletonList((IndicesRequest) request);
         } else {
-            return;
+            throw new IllegalArgumentException(LoggerMessageFormat.format("Expected a request of type [{}] or [{}] but got [{}] instead", CompositeIndicesRequest.class, IndicesRequest.class, request.getClass()));
         }
         IndicesAccessControl indicesAccessControl = ((TransportRequest) request).getFromContext(InternalAuthorizationService.INDICES_PERMISSIONS_KEY);
         for (IndicesRequest indicesRequest : indicesRequests) {

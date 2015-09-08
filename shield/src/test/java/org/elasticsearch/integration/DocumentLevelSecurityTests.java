@@ -5,9 +5,17 @@
  */
 package org.elasticsearch.integration;
 
+import org.apache.lucene.search.TermQuery;
+import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.action.percolate.PercolateSourceBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.QuerySourceBuilder;
+import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
+import org.elasticsearch.action.termvectors.TermVectorsRequest;
+import org.elasticsearch.action.termvectors.TermVectorsResponse;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.children.Children;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
@@ -22,6 +30,7 @@ import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.BASIC
 import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 /**
  */
@@ -75,14 +84,188 @@ public class DocumentLevelSecurityTests extends ShieldIntegTestCase {
 
         SearchResponse response = client().prepareSearch("test")
                 .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD))
+                .setQuery(randomBoolean() ? QueryBuilders.termQuery("field1", "value1") : QueryBuilders.matchAllQuery())
                 .get();
         assertHitCount(response, 1);
         assertSearchHits(response, "1");
         response = client().prepareSearch("test")
                 .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD))
+                .setQuery(randomBoolean() ? QueryBuilders.termQuery("field2", "value2") : QueryBuilders.matchAllQuery())
                 .get();
         assertHitCount(response, 1);
         assertSearchHits(response, "2");
+    }
+
+    public void testGetApi() throws Exception {
+        assertAcked(client().admin().indices().prepareCreate("test")
+                        .addMapping("type1", "field1", "type=string", "field2", "type=string")
+        );
+
+        client().prepareIndex("test", "type1", "1").setSource("field1", "value1")
+                .get();
+        client().prepareIndex("test", "type1", "2").setSource("field2", "value2")
+                .get();
+
+        Boolean realtime = randomFrom(true, false, null);
+        GetResponse response = client().prepareGet("test", "type1", "1")
+                .setRealtime(realtime)
+                .setRefresh(true)
+                .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD))
+                .get();
+        assertThat(response.isExists(), is(true));
+        assertThat(response.getId(), equalTo("1"));
+        response = client().prepareGet("test", "type1", "2")
+                .setRealtime(realtime)
+                .setRefresh(true)
+                .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD))
+                .get();
+        assertThat(response.isExists(), is(true));
+        assertThat(response.getId(), equalTo("2"));
+
+        response = client().prepareGet("test", "type1", "1")
+                .setRealtime(realtime)
+                .setRefresh(true)
+                .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD))
+                .get();
+        assertThat(response.isExists(), is(false));
+        response = client().prepareGet("test", "type1", "2")
+                .setRealtime(realtime)
+                .setRefresh(true)
+                .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD))
+                .get();
+        assertThat(response.isExists(), is(false));
+    }
+
+    public void testMGetApi() throws Exception {
+        assertAcked(client().admin().indices().prepareCreate("test")
+                        .addMapping("type1", "field1", "type=string", "field2", "type=string")
+        );
+
+        client().prepareIndex("test", "type1", "1").setSource("field1", "value1")
+                .get();
+        client().prepareIndex("test", "type1", "2").setSource("field2", "value2")
+                .get();
+
+        Boolean realtime = randomFrom(true, false, null);
+        MultiGetResponse response = client().prepareMultiGet()
+                .add("test", "type1", "1")
+                .setRealtime(realtime)
+                .setRefresh(true)
+                .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD))
+                .get();
+        assertThat(response.getResponses()[0].isFailed(), is(false));
+        assertThat(response.getResponses()[0].getResponse().isExists(), is(true));
+        assertThat(response.getResponses()[0].getResponse().getId(), equalTo("1"));
+
+        response = client().prepareMultiGet()
+                .add("test", "type1", "2")
+                .setRealtime(realtime)
+                .setRefresh(true)
+                .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD))
+                .get();
+        assertThat(response.getResponses()[0].isFailed(), is(false));
+        assertThat(response.getResponses()[0].getResponse().isExists(), is(true));
+        assertThat(response.getResponses()[0].getResponse().getId(), equalTo("2"));
+
+        response = client().prepareMultiGet()
+                .add("test", "type1", "1")
+                .setRealtime(realtime)
+                .setRefresh(true)
+                .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD))
+                .get();
+        assertThat(response.getResponses()[0].isFailed(), is(false));
+        assertThat(response.getResponses()[0].getResponse().isExists(), is(false));
+
+        response = client().prepareMultiGet()
+                .add("test", "type1", "2")
+                .setRealtime(realtime)
+                .setRefresh(true)
+                .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD))
+                .get();
+        assertThat(response.getResponses()[0].isFailed(), is(false));
+        assertThat(response.getResponses()[0].getResponse().isExists(), is(false));
+    }
+
+    public void testTVApi() throws Exception {
+        assertAcked(client().admin().indices().prepareCreate("test")
+                        .addMapping("type1", "field1", "type=string,term_vector=with_positions_offsets_payloads", "field2", "type=string,term_vector=with_positions_offsets_payloads")
+        );
+        client().prepareIndex("test", "type1", "1").setSource("field1", "value1")
+                .setRefresh(true)
+                .get();
+        client().prepareIndex("test", "type1", "2").setSource("field2", "value2")
+                .setRefresh(true)
+                .get();
+
+        Boolean realtime = randomFrom(true, false, null);
+        TermVectorsResponse response = client().prepareTermVectors("test", "type1", "1")
+                .setRealtime(realtime)
+                .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD))
+                .get();
+        assertThat(response.isExists(), is(true));
+        assertThat(response.getId(), is("1"));
+
+        response = client().prepareTermVectors("test", "type1", "2")
+                .setRealtime(realtime)
+                .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD))
+                .get();
+        assertThat(response.isExists(), is(true));
+        assertThat(response.getId(), is("2"));
+
+        response = client().prepareTermVectors("test", "type1", "1")
+                .setRealtime(realtime)
+                .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD))
+                .get();
+        assertThat(response.isExists(), is(false));
+
+        response = client().prepareTermVectors("test", "type1", "2")
+                .setRealtime(realtime)
+                .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD))
+                .get();
+        assertThat(response.isExists(), is(false));
+    }
+
+    public void testMTVApi() throws Exception {
+        assertAcked(client().admin().indices().prepareCreate("test")
+                        .addMapping("type1", "field1", "type=string,term_vector=with_positions_offsets_payloads", "field2", "type=string,term_vector=with_positions_offsets_payloads")
+        );
+        client().prepareIndex("test", "type1", "1").setSource("field1", "value1")
+                .setRefresh(true)
+                .get();
+        client().prepareIndex("test", "type1", "2").setSource("field2", "value2")
+                .setRefresh(true)
+                .get();
+
+        Boolean realtime = randomFrom(true, false, null);
+        MultiTermVectorsResponse response = client().prepareMultiTermVectors()
+                .add(new TermVectorsRequest("test", "type1", "1").realtime(realtime))
+                .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD))
+                .get();
+        assertThat(response.getResponses().length, equalTo(1));
+        assertThat(response.getResponses()[0].getResponse().isExists(), is(true));
+        assertThat(response.getResponses()[0].getResponse().getId(), is("1"));
+
+        response = client().prepareMultiTermVectors()
+                .add(new TermVectorsRequest("test", "type1", "2").realtime(realtime))
+                .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD))
+                .get();
+        assertThat(response.getResponses().length, equalTo(1));
+        assertThat(response.getResponses()[0].getResponse().isExists(), is(true));
+        assertThat(response.getResponses()[0].getResponse().getId(), is("2"));
+
+        response = client().prepareMultiTermVectors()
+                .add(new TermVectorsRequest("test", "type1", "1").realtime(realtime))
+                .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD))
+                .get();
+        assertThat(response.getResponses().length, equalTo(1));
+        assertThat(response.getResponses()[0].getResponse().isExists(), is(false));
+
+        response = client().prepareMultiTermVectors()
+                .add(new TermVectorsRequest("test", "type1", "2").realtime(realtime))
+                .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD))
+                .get();
+        assertThat(response.getResponses().length, equalTo(1));
+        assertThat(response.getResponses()[0].getResponse().isExists(), is(false));
     }
 
     public void testGlobalAggregation() throws Exception {

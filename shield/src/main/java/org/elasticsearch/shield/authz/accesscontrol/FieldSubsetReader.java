@@ -12,6 +12,7 @@ import org.apache.lucene.util.FilterIterator;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.logging.support.LoggerMessageFormat;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -58,6 +59,7 @@ public final class FieldSubsetReader extends FilterLeafReader {
                 }
             });
             this.fieldNames = fieldNames;
+            verifyNoOtherFieldSubsetDirectoryReaderIsWrapped(in);
         }
         
         @Override
@@ -67,6 +69,17 @@ public final class FieldSubsetReader extends FilterLeafReader {
 
         public Set<String> getFieldNames() {
             return fieldNames;
+        }
+
+        private static void verifyNoOtherFieldSubsetDirectoryReaderIsWrapped(DirectoryReader reader) {
+            if (reader instanceof FilterDirectoryReader) {
+                FilterDirectoryReader filterDirectoryReader = (FilterDirectoryReader) reader;
+                if (filterDirectoryReader instanceof FieldSubsetDirectoryReader) {
+                    throw new IllegalArgumentException(LoggerMessageFormat.format("Can't wrap [{}] twice", FieldSubsetDirectoryReader.class));
+                } else {
+                    verifyNoOtherFieldSubsetDirectoryReaderIsWrapped(filterDirectoryReader.getDelegate());
+                }
+            }
         }
     }
     

@@ -6,12 +6,16 @@
 package org.elasticsearch.shield.authz.accesscontrol;
 
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.*;
+import org.apache.lucene.util.*;
+import org.apache.lucene.util.BitSet;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.support.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.IndexSearcherWrapper;
@@ -27,26 +31,23 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardUtils;
 import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.shield.authz.InternalAuthorizationService;
+import org.elasticsearch.shield.authz.accesscontrol.DocumentSubsetReader.DocumentSubsetDirectoryReader;
 import org.elasticsearch.shield.support.Exceptions;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.*;
 
 import static org.apache.lucene.search.BooleanClause.Occur.FILTER;
-import static org.apache.lucene.search.BooleanClause.Occur.MUST;
 
 /**
  * An {@link IndexSearcherWrapper} implementation that is used for field and document level security.
- *
+ * <p/>
  * Based on the {@link RequestContext} this class will enable field and/or document level security.
- *
+ * <p/>
  * Field level security is enabled by wrapping the original {@link DirectoryReader} in a {@link FieldSubsetReader}
  * in the {@link #wrap(DirectoryReader)} method.
- *
- * Document level security is enabled by replacing the original {@link IndexSearcher} with a {@link ShieldIndexSearcherWrapper.ShieldIndexSearcher}
+ * <p/>
+ * Document level security is enabled by wrapping the original {@link DirectoryReader} in a {@link DocumentSubsetReader}
  * instance.
  */
 public final class ShieldIndexSearcherWrapper extends AbstractIndexShardComponent implements IndexSearcherWrapper {
@@ -54,14 +55,16 @@ public final class ShieldIndexSearcherWrapper extends AbstractIndexShardComponen
     private final MapperService mapperService;
     private final Set<String> allowedMetaFields;
     private final IndexQueryParserService parserService;
+    private final BitsetFilterCache bitsetFilterCache;
 
     private volatile boolean shardStarted = false;
 
     @Inject
-    public ShieldIndexSearcherWrapper(ShardId shardId, @IndexSettings Settings indexSettings, IndexQueryParserService parserService, IndicesLifecycle indicesLifecycle, MapperService mapperService) {
+    public ShieldIndexSearcherWrapper(ShardId shardId, @IndexSettings Settings indexSettings, IndexQueryParserService parserService, IndicesLifecycle indicesLifecycle, MapperService mapperService, BitsetFilterCache bitsetFilterCache) {
         super(shardId, indexSettings);
         this.mapperService = mapperService;
         this.parserService = parserService;
+        this.bitsetFilterCache = bitsetFilterCache;
         indicesLifecycle.addListener(new ShardLifecycleListener());
 
         Set<String> allowedMetaFields = new HashSet<>();
@@ -100,18 +103,31 @@ public final class ShieldIndexSearcherWrapper extends AbstractIndexShardComponen
             }
 
             IndicesAccessControl.IndexAccessControl permissions = indicesAccessControl.getIndexPermissions(shardId.getIndex());
-            // Either no permissions have been defined for an index or no fields have been configured for a role permission
-            if (permissions == null || permissions.getFields() == null) {
+            // No permissions have been defined for an index, so don't intercept the index reader for access control
+            if (permissions == null) {
                 return reader;
             }
 
-            // now add the allowed fields based on the current granted permissions and :
-            Set<String> allowedFields = new HashSet<>(allowedMetaFields);
-            for (String field : permissions.getFields()) {
-                allowedFields.addAll(mapperService.simpleMatchToIndexNames(field));
+            if (permissions.getQueries() != null) {
+                BooleanQuery.Builder roleQuery = new BooleanQuery.Builder();
+                for (BytesReference bytesReference : permissions.getQueries()) {
+                    ParsedQuery parsedQuery = parserService.parse(bytesReference);
+                    roleQuery.add(parsedQuery.query(), FILTER);
+                }
+                reader = DocumentSubsetReader.wrap(reader, bitsetFilterCache, roleQuery.build());
             }
-            resolveParentChildJoinFields(allowedFields);
-            return FieldSubsetReader.wrap(reader, allowedFields);
+
+            if (permissions.getFields() != null) {
+                // now add the allowed fields based on the current granted permissions and :
+                Set<String> allowedFields = new HashSet<>(allowedMetaFields);
+                for (String field : permissions.getFields()) {
+                    allowedFields.addAll(mapperService.simpleMatchToIndexNames(field));
+                }
+                resolveParentChildJoinFields(allowedFields);
+                reader = FieldSubsetReader.wrap(reader, allowedFields);
+            }
+
+            return reader;
         } catch (IOException e) {
             logger.error("Unable to apply field level security");
             throw ExceptionsHelper.convertToElastic(e);
@@ -120,53 +136,61 @@ public final class ShieldIndexSearcherWrapper extends AbstractIndexShardComponen
 
     @Override
     public IndexSearcher wrap(EngineConfig engineConfig, IndexSearcher searcher) throws EngineException {
-        RequestContext context = RequestContext.current();
-        if (context == null) {
-            if (shardStarted == false) {
-                // The shard this index searcher wrapper has been created for hasn't started yet,
-                // We may load some initial stuff like for example previous stored percolator queries and recovery,
-                // so for this reason we should provide access to all documents:
-                return searcher;
-            } else {
-                logger.debug("couldn't locate the current request, document level security hides all documents");
-                return new ShieldIndexSearcher(engineConfig, searcher, new MatchNoDocsQuery());
-            }
-        }
+        final DirectoryReader directoryReader = (DirectoryReader) searcher.getIndexReader();
+        if (directoryReader instanceof DocumentSubsetDirectoryReader) {
+            // The reasons why we return a custom searcher:
+            // 1) in the case the role query is sparse then large part of the main query can be skipped
+            // 2) If the role query doesn't match with any docs in a segment, that a segment can be skipped
+            IndexSearcher indexSearcher = new IndexSearcher(directoryReader) {
 
-        ShardId shardId = ShardUtils.extractShardId(searcher.getIndexReader());
-        if (shardId == null) {
-            throw new IllegalStateException(LoggerMessageFormat.format("couldn't extract shardId from reader [{}]", searcher.getIndexReader()));
-        }
-        IndicesAccessControl indicesAccessControl = context.getRequest().getFromContext(InternalAuthorizationService.INDICES_PERMISSIONS_KEY);
-        if (indicesAccessControl == null) {
-            throw Exceptions.authorizationError("no indices permissions found");
-        }
+                @Override
+                protected void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) throws IOException {
+                    for (LeafReaderContext ctx : leaves) { // search each subreader
+                        final LeafCollector leafCollector;
+                        try {
+                            leafCollector = collector.getLeafCollector(ctx);
+                        } catch (CollectionTerminatedException e) {
+                            // there is no doc of interest in this reader context
+                            // continue with the following leaf
+                            continue;
+                        }
+                        // The reader is always of type DocumentSubsetReader when we get here:
+                        DocumentSubsetReader reader = (DocumentSubsetReader) ctx.reader();
 
-        IndicesAccessControl.IndexAccessControl permissions = indicesAccessControl.getIndexPermissions(shardId.getIndex());
-        if (permissions == null) {
-            return searcher;
-        } else if (permissions.getQueries() == null) {
-            return searcher;
-        }
+                        BitSet roleQueryBits = reader.getRoleQueryBits();
+                        if (roleQueryBits == null) {
+                            // nothing matches with the role query, so skip this segment:
+                            continue;
+                        }
 
-        final Query roleQuery;
-        switch (permissions.getQueries().size()) {
-            case 0:
-                roleQuery = new MatchNoDocsQuery();
-                break;
-            case 1:
-                roleQuery = parserService.parse(permissions.getQueries().iterator().next()).query();
-                break;
-            default:
-                BooleanQuery bq = new BooleanQuery();
-                for (BytesReference bytesReference : permissions.getQueries()) {
-                    ParsedQuery parsedQuery = parserService.parse(bytesReference);
-                    bq.add(parsedQuery.query(), MUST);
+                        Scorer scorer = weight.scorer(ctx);
+                        if (scorer != null) {
+                            try {
+                                // if the role query result set is sparse then we should use the SparseFixedBitSet for advancing:
+                                if (roleQueryBits instanceof SparseFixedBitSet) {
+                                    SparseFixedBitSet sparseFixedBitSet = (SparseFixedBitSet) roleQueryBits;
+                                    Bits realLiveDocs = reader.getWrappedLiveDocs();
+                                    intersectScorerAndRoleBits(scorer, sparseFixedBitSet, leafCollector, realLiveDocs);
+                                } else {
+                                    BulkScorer bulkScorer = weight.bulkScorer(ctx);
+                                    Bits liveDocs = reader.getLiveDocs();
+                                    bulkScorer.score(leafCollector, liveDocs);
+                                }
+                            } catch (CollectionTerminatedException e) {
+                                // collection was terminated prematurely
+                                // continue with the following leaf
+                            }
+                        }
+
+                    }
                 }
-                roleQuery = bq;
-                break;
+            };
+            indexSearcher.setQueryCache(engineConfig.getQueryCache());
+            indexSearcher.setQueryCachingPolicy(engineConfig.getQueryCachingPolicy());
+            indexSearcher.setSimilarity(engineConfig.getSimilarity());
+            return indexSearcher;
         }
-        return new ShieldIndexSearcher(engineConfig, searcher, roleQuery);
+        return searcher;
     }
 
     public Set<String> getAllowedMetaFields() {
@@ -183,79 +207,22 @@ public final class ShieldIndexSearcherWrapper extends AbstractIndexShardComponen
         }
     }
 
-    /**
-     * An {@link IndexSearcher} implementation that applies the role query for document level security during the
-     * query rewrite and disabled the query cache if required when field level security is enabled.
-     */
-    static final class ShieldIndexSearcher extends IndexSearcher {
-
-        private final Query roleQuery;
-
-        private ShieldIndexSearcher(EngineConfig engineConfig, IndexSearcher in, Query roleQuery) {
-            super(in.getIndexReader());
-            setSimilarity(in.getSimilarity(true));
-            setQueryCache(engineConfig.getQueryCache());
-            setQueryCachingPolicy(engineConfig.getQueryCachingPolicy());
-            try {
-                this.roleQuery = super.rewrite(roleQuery);
-            } catch (IOException e) {
-                throw new IllegalStateException("Could not rewrite role query", e);
-            }
-        }
-
-        @Override
-        public Query rewrite(Query query) throws IOException {
-            query = super.rewrite(query);
-            query = wrap(query);
-            query = super.rewrite(query);
-            return query;
-        }
-
-        @Override
-        public String toString() {
-            return "ShieldIndexSearcher(" + super.toString() + ")";
-        }
-
-        private boolean isFilteredBy(Query query, Query filter) {
-            if (query instanceof ConstantScoreQuery) {
-                return isFilteredBy(((ConstantScoreQuery) query).getQuery(), filter);
-            } else if (query instanceof BooleanQuery) {
-                BooleanQuery bq = (BooleanQuery) query;
-                for (BooleanClause clause : bq) {
-                    if (clause.isRequired() && isFilteredBy(clause.getQuery(), filter)) {
-                        return true;
-                    }
-                }
-                return false;
-            } else {
-                Query queryClone = query.clone();
-                queryClone.setBoost(1);
-                Query filterClone = filter.clone();
-                filterClone.setBoost(1f);
-                return queryClone.equals(filterClone);
-            }
-        }
-
-        private Query wrap(Query original) throws IOException {
-            if (isFilteredBy(original, roleQuery)) {
-                // this is necessary in order to make rewrite "stable",
-                // ie calling it several times on the same query keeps
-                // on returning the same query instance
-                return original;
-            }
-            return new BooleanQuery.Builder()
-                .add(original, MUST)
-                .add(roleQuery, FILTER)
-                .build();
-        }
-    }
-
     private class ShardLifecycleListener extends IndicesLifecycle.Listener {
 
         @Override
         public void afterIndexShardPostRecovery(IndexShard indexShard) {
             if (shardId.equals(indexShard.shardId())) {
                 shardStarted = true;
+            }
+        }
+    }
+
+    static void intersectScorerAndRoleBits(Scorer scorer, SparseFixedBitSet roleBits, LeafCollector collector, Bits acceptDocs) throws IOException {
+        // ConjunctionDISI uses the DocIdSetIterator#cost() to order the iterators, so if roleBits has the lowest cardinality it should be used first:
+        DocIdSetIterator iterator = ConjunctionDISI.intersect(Arrays.asList(new BitSetIterator(roleBits, roleBits.approximateCardinality()), scorer));
+        for (int docId = iterator.nextDoc(); docId < DocIdSetIterator.NO_MORE_DOCS; docId = iterator.nextDoc()) {
+            if (acceptDocs == null || acceptDocs.get(docId)) {
+                collector.collect(docId);
             }
         }
     }

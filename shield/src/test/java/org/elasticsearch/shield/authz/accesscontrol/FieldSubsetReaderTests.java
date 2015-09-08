@@ -9,18 +9,25 @@ import org.apache.lucene.analysis.MockAnalyzer;
 import org.apache.lucene.document.*;
 import org.apache.lucene.index.*;
 import org.apache.lucene.index.TermsEnum.SeekStatus;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.TestUtil;
+import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.mapper.internal.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.Test;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
+
+import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Mockito.mock;
 
 /** Simple tests for this filterreader */
 public class FieldSubsetReaderTests extends ESTestCase {
@@ -766,5 +773,23 @@ public class FieldSubsetReaderTests extends ESTestCase {
         
         TestUtil.checkReader(ir);
         IOUtils.close(ir, iw, dir);
+    }
+
+    public void testWrapTwice() throws Exception {
+        Directory dir = newDirectory();
+        IndexWriterConfig iwc = new IndexWriterConfig(null);
+        IndexWriter iw = new IndexWriter(dir, iwc);
+        iw.close();
+
+        DirectoryReader directoryReader = DirectoryReader.open(dir);
+        directoryReader = FieldSubsetReader.wrap(directoryReader, Collections.emptySet());
+        try {
+            FieldSubsetReader.wrap(directoryReader, Collections.emptySet());
+            fail("shouldn't be able to wrap FieldSubsetDirectoryReader twice");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), equalTo("Can't wrap [class org.elasticsearch.shield.authz.accesscontrol.FieldSubsetReader$FieldSubsetDirectoryReader] twice"));
+        }
+        directoryReader.close();
+        dir.close();
     }
 }

@@ -61,8 +61,8 @@ public class DocumentAndFieldLevelSecurityTests extends ShieldIntegTestCase {
                 "  indices:\n" +
                 "    '*':\n" +
                 "      privileges: ALL\n" +
-                "      fields: field2\n" +
-                "      query: '{\"term\" : {\"field1\" : \"value1\"}}'\n";
+                "      fields: field1\n" +
+                "      query: '{\"term\" : {\"field2\" : \"value2\"}}'\n";
     }
 
     public void testSimpleQuery() throws Exception {
@@ -98,7 +98,10 @@ public class DocumentAndFieldLevelSecurityTests extends ShieldIntegTestCase {
                         .setSettings(Settings.builder().put(IndexCacheModule.QUERY_CACHE_EVERYTHING, true))
                         .addMapping("type1", "field1", "type=string", "field2", "type=string")
         );
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2")
+        client().prepareIndex("test", "type1", "1").setSource("field1", "value1")
+                .setRefresh(true)
+                .get();
+        client().prepareIndex("test", "type1", "2").setSource("field2", "value2")
                 .setRefresh(true)
                 .get();
 
@@ -109,10 +112,25 @@ public class DocumentAndFieldLevelSecurityTests extends ShieldIntegTestCase {
                     .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD))
                     .get();
             assertHitCount(response, 1);
+            assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
+            assertThat(response.getHits().getAt(0).sourceAsMap().size(), equalTo(1));
+            assertThat(response.getHits().getAt(0).sourceAsMap().get("field1"), equalTo("value1"));
+            response = client().prepareSearch("test")
+                    .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD))
+                    .get();
+            assertHitCount(response, 1);
+            assertThat(response.getHits().getAt(0).getId(), equalTo("2"));
+            assertThat(response.getHits().getAt(0).sourceAsMap().size(), equalTo(1));
+            assertThat(response.getHits().getAt(0).sourceAsMap().get("field2"), equalTo("value2"));
+
+            // this is a bit weird the document level permission (all docs with field2:value2) don't match with the field level permissions (field1),
+            // this results in document 2 being returned but no fields are visible:
             response = client().prepareSearch("test")
                     .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("user3", USERS_PASSWD))
                     .get();
-            assertHitCount(response, 0);
+            assertHitCount(response, 1);
+            assertThat(response.getHits().getAt(0).getId(), equalTo("2"));
+            assertThat(response.getHits().getAt(0).sourceAsMap().size(), equalTo(0));
         }
     }
 

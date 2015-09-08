@@ -113,7 +113,7 @@ When field level security is enabled for an index:
 
 ==== Document Level Security
 
-Enabling document level security restricts which documents can be accessed from any Elasticsearch query API.
+Enabling document level security restricts which documents can be accessed from any document based API.
 To enable document level security, you use a query to specify the documents that each role can access in the `roles.yml` file.
 You specify the document query with the `query` option. The document query is associated with a particular index or index pattern and
 operates in conjunction with the privileges specified for the indices.
@@ -155,5 +155,16 @@ customer_care:
   indices:
     '*':
       privileges: read
-      query: '{"term" : {"field2" : "value2"}}''
+      query: '{"term" : {"department_id" : "12"}}''
 --------------------------------------------------
+
+===== Limitations
+
+When document level security is enabled for an index:
+
+* The get, multi get, termsvector and multi termsvector APIs aren't executed in real time. The realtime option for these APIs is forcefully set to false.
+* Document level security isn't applied for APIs that aren't document based oriented. For example this is the case for the field stats API.
+* Document level security doesn't affect global index statistics that relevancy scoring uses. So this means that scores are computed without taking the role query into account.
+  Note that, documents not matching with the role query are never returned.
+* The `has_child` and `has_parent` queries aren't supported as role query in the `roles.yml` file.
+  The `has_child` and `has_parent` queries can be used in the search API with document level security enabled.

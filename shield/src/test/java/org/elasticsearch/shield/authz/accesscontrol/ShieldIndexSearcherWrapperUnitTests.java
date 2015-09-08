@@ -7,10 +7,16 @@ package org.elasticsearch.shield.authz.accesscontrol;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
-import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.document.Document;
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.StringField;
+import org.apache.lucene.index.*;
+import org.apache.lucene.search.*;
+import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
+import org.apache.lucene.util.SparseFixedBitSet;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -19,6 +25,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.AnalysisService;
+import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
+import org.elasticsearch.index.cache.query.none.NoneQueryCache;
+import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.shard.IndexShard;
@@ -26,20 +35,24 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.similarity.SimilarityLookupService;
 import org.elasticsearch.indices.InternalIndicesLifecycle;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.shield.authz.InternalAuthorizationService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportRequest;
 import org.junit.After;
 import org.junit.Before;
-import org.mockito.Mockito;
+import org.junit.Test;
+
+import java.io.IOException;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
+import static org.elasticsearch.shield.authz.accesscontrol.ShieldIndexSearcherWrapper.intersectScorerAndRoleBits;
+import static org.hamcrest.Matchers.*;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class ShieldIndexSearcherWrapperTests extends ESTestCase {
+public class ShieldIndexSearcherWrapperUnitTests extends ESTestCase {
 
     private ShardId shardId;
     private TransportRequest request;
@@ -58,7 +71,7 @@ public class ShieldIndexSearcherWrapperTests extends ESTestCase {
 
         shardId = new ShardId(index, 0);
         InternalIndicesLifecycle indicesLifecycle = new InternalIndicesLifecycle(settings);
-        shieldIndexSearcherWrapper = new ShieldIndexSearcherWrapper(shardId, settings, null, indicesLifecycle, mapperService);
+        shieldIndexSearcherWrapper = new ShieldIndexSearcherWrapper(shardId, settings, null, indicesLifecycle, mapperService, null);
         IndexShard indexShard = mock(IndexShard.class);
         when(indexShard.shardId()).thenReturn(shardId);
         indicesLifecycle.afterIndexShardPostRecovery(indexShard);
@@ -194,6 +207,105 @@ public class ShieldIndexSearcherWrapperTests extends ESTestCase {
         mapperService.merge("child3", new CompressedXContent(mappingSource.string()), false, false);
 
         assertResolvedFields("field1", "field1", ParentFieldMapper.joinField("parent1"), ParentFieldMapper.joinField("parent2"));
+    }
+
+    public void testDelegateSimilarity() throws Exception {
+        ShardId shardId = new ShardId("_index", 0);
+        EngineConfig engineConfig = new EngineConfig(shardId, null, null, Settings.EMPTY, null, null, null, null, null, null, new BM25Similarity(), null, null, null, new NoneQueryCache(shardId.index(), Settings.EMPTY), QueryCachingPolicy.ALWAYS_CACHE, null, null); // can't mock...
+
+        BitsetFilterCache bitsetFilterCache = mock(BitsetFilterCache.class);
+        DirectoryReader directoryReader = DocumentSubsetReader.wrap(esIn, bitsetFilterCache, new MatchAllDocsQuery());
+        IndexSearcher indexSearcher = new IndexSearcher(directoryReader);
+        IndexSearcher result = shieldIndexSearcherWrapper.wrap(engineConfig, indexSearcher);
+        assertThat(result, not(sameInstance(indexSearcher)));
+        assertThat(result.getSimilarity(true), sameInstance(engineConfig.getSimilarity()));
+    }
+
+    public void testIntersectScorerAndRoleBits() throws Exception {
+        final Directory directory = newDirectory();
+        IndexWriter iw = new IndexWriter(
+                directory,
+                new IndexWriterConfig(new StandardAnalyzer()).setMergePolicy(NoMergePolicy.INSTANCE)
+        );
+
+        Document document = new Document();
+        document.add(new StringField("field1", "value1", Field.Store.NO));
+        document.add(new StringField("field2", "value1", Field.Store.NO));
+        iw.addDocument(document);
+
+        document = new Document();
+        document.add(new StringField("field1", "value2", Field.Store.NO));
+        document.add(new StringField("field2", "value1", Field.Store.NO));
+        iw.addDocument(document);
+
+        document = new Document();
+        document.add(new StringField("field1", "value3", Field.Store.NO));
+        document.add(new StringField("field2", "value1", Field.Store.NO));
+        iw.addDocument(document);
+
+        document = new Document();
+        document.add(new StringField("field1", "value4", Field.Store.NO));
+        document.add(new StringField("field2", "value1", Field.Store.NO));
+        iw.addDocument(document);
+
+        iw.commit();
+        iw.deleteDocuments(new Term("field1", "value3"));
+        iw.close();
+        DirectoryReader directoryReader = DirectoryReader.open(directory);
+        IndexSearcher searcher = new IndexSearcher(directoryReader);
+        Weight weight = searcher.createNormalizedWeight(new TermQuery(new Term("field2", "value1")), false);
+
+        LeafReaderContext leaf = directoryReader.leaves().get(0);
+        Scorer scorer = weight.scorer(leaf);
+
+        SparseFixedBitSet sparseFixedBitSet = query(leaf, "field1", "value1");
+        LeafCollector leafCollector = new LeafBucketCollector() {
+            @Override
+            public void collect(int doc, long bucket) throws IOException {
+                assertThat(doc, equalTo(0));
+            }
+        };
+        intersectScorerAndRoleBits(scorer, sparseFixedBitSet, leafCollector, leaf.reader().getLiveDocs());
+
+        sparseFixedBitSet = query(leaf, "field1", "value2");
+        leafCollector = new LeafBucketCollector() {
+            @Override
+            public void collect(int doc, long bucket) throws IOException {
+                assertThat(doc, equalTo(1));
+            }
+        };
+        intersectScorerAndRoleBits(scorer, sparseFixedBitSet, leafCollector, leaf.reader().getLiveDocs());
+
+
+        sparseFixedBitSet = query(leaf, "field1", "value3");
+        leafCollector = new LeafBucketCollector() {
+            @Override
+            public void collect(int doc, long bucket) throws IOException {
+                fail("docId [" + doc + "] should have been deleted");
+            }
+        };
+        intersectScorerAndRoleBits(scorer, sparseFixedBitSet, leafCollector, leaf.reader().getLiveDocs());
+
+        sparseFixedBitSet = query(leaf, "field1", "value4");
+        leafCollector = new LeafBucketCollector() {
+            @Override
+            public void collect(int doc, long bucket) throws IOException {
+                assertThat(doc, equalTo(3));
+            }
+        };
+        intersectScorerAndRoleBits(scorer, sparseFixedBitSet, leafCollector, leaf.reader().getLiveDocs());
+
+        directoryReader.close();
+        directory.close();
+    }
+
+    private SparseFixedBitSet query(LeafReaderContext leaf, String field, String value) throws IOException {
+        SparseFixedBitSet sparseFixedBitSet = new SparseFixedBitSet(leaf.reader().maxDoc());
+        TermsEnum tenum = leaf.reader().terms(field).iterator();
+        while (tenum.next().utf8ToString().equals(value) == false) {}
+        PostingsEnum penum = tenum.postings(null);
+        sparseFixedBitSet.or(penum);
+        return sparseFixedBitSet;
     }
 
     private void assertResolvedFields(String expression, String... expectedFields) {

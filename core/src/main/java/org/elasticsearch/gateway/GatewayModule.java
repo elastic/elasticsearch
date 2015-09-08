@@ -19,19 +19,53 @@
 
 package org.elasticsearch.gateway;
 
-import org.elasticsearch.common.inject.*;
+import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.settings.Settings;
+
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  *
  */
 public class GatewayModule extends AbstractModule {
 
+    public static final String GATEWAY_TYPE_KEY = "gateway.type";
+
+    private final Map<String, Class<? extends Gateway>> gatewayTypes = new HashMap<>();
+    private final Settings settings;
+
+    public GatewayModule(Settings settings) {
+        this.settings = settings;
+        addGatewayType("default", Gateway.class);
+    }
+
+    /**
+     * Adds a custom Discovery type.
+     */
+    public void addGatewayType(String type, Class<? extends Gateway> clazz) {
+        if (gatewayTypes.containsKey(type)) {
+            throw new IllegalArgumentException("gateway type [" + type + "] is already registered");
+        }
+        gatewayTypes.put(type, clazz);
+    }
+
     @Override
     protected void configure() {
+        String gatewayType = settings.get(GATEWAY_TYPE_KEY, "default");
+        Class<? extends Gateway> gatewayClass = gatewayTypes.get(gatewayType);
+        if (gatewayClass == null) {
+            throw new IllegalArgumentException("Unknown Gateway type [" + gatewayType + "]");
+        }
+
         bind(MetaStateService.class).asEagerSingleton();
         bind(DanglingIndicesState.class).asEagerSingleton();
         bind(GatewayService.class).asEagerSingleton();
-        bind(Gateway.class).asEagerSingleton();
+        if (gatewayClass == Gateway.class) {
+            bind(Gateway.class).asEagerSingleton();
+        } else {
+            bind(Gateway.class).to(gatewayClass).asEagerSingleton();
+        }
         bind(TransportNodesListGatewayMetaState.class).asEagerSingleton();
         bind(GatewayMetaState.class).asEagerSingleton();
         bind(TransportNodesListGatewayStartedShards.class).asEagerSingleton();

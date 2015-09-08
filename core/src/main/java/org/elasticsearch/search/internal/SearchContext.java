@@ -60,7 +60,6 @@ import org.elasticsearch.search.highlight.SearchContextHighlight;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rescore.RescoreSearchContext;
-import org.elasticsearch.search.scan.ScanContext;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 
 import java.util.ArrayList;
@@ -334,8 +333,6 @@ public abstract class SearchContext extends DelegatingHasContextAndHeaders imple
             Releasables.close(Iterables.concat(releasables));
         }
     }
-
-    public abstract ScanContext scanContext();
 
     public abstract MappedFieldType smartNameFieldType(String name);
 

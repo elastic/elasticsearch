@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.warmer;
 
-import com.google.common.base.Objects;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;
@@ -39,6 +38,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  */
@@ -105,7 +105,7 @@ public class IndexWarmersMetaData extends AbstractDiffable<IndexMetaData.Custom>
             if (!name.equals(entry.name)) return false;
             if (!Arrays.equals(types, entry.types)) return false;
             if (!source.equals(entry.source)) return false;
-            return Objects.equal(requestCache, entry.requestCache);
+            return Objects.equals(requestCache, entry.requestCache);
 
         }
 

@@ -20,10 +20,8 @@
 package org.elasticsearch.common.settings;
 
 import com.google.common.base.Charsets;
-import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSortedMap;
-import com.google.common.collect.Iterables;
 import com.google.common.collect.Maps;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Booleans;
@@ -1014,7 +1012,7 @@ public final class Settings implements ToXContent {
                 final Matcher matcher = ARRAY_PATTERN.matcher(entry.getKey());
                 if (matcher.matches()) {
                     prefixesToRemove.add(matcher.group(1));
-                } else if (Iterables.any(map.keySet(), startsWith(entry.getKey() + "."))) {
+                } else if (map.keySet().stream().anyMatch(key -> key.startsWith(entry.getKey() + "."))) {
                     prefixesToRemove.add(entry.getKey());
                 }
             }
@@ -1221,24 +1219,6 @@ public final class Settings implements ToXContent {
          */
         public Settings build() {
             return new Settings(Collections.unmodifiableMap(map));
-        }
-    }
-
-    private static StartsWithPredicate startsWith(String prefix) {
-        return new StartsWithPredicate(prefix);
-    }
-
-    private static final class StartsWithPredicate implements Predicate<String> {
-
-        private String prefix;
-
-        public StartsWithPredicate(String prefix) {
-            this.prefix = prefix;
-        }
-
-        @Override
-        public boolean apply(String input) {
-            return input.startsWith(prefix);
         }
     }
 }

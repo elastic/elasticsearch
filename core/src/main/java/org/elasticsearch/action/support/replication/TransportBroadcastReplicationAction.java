@@ -28,6 +28,7 @@ import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.action.support.broadcast.BroadcastRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
@@ -90,7 +91,7 @@ public abstract class TransportBroadcastReplicationAction<Request extends Broadc
                     int totalNumCopies = clusterState.getMetaData().index(shardId.index().getName()).getNumberOfReplicas() + 1;
                     ShardResponse shardResponse = newShardResponse();
                     ActionWriteResponse.ShardInfo.Failure[] failures;
-                    if (ExceptionsHelper.unwrap(e, UnavailableShardsException.class) != null) {
+                    if (TransportActions.isShardNotAvailableException(e)) {
                         failures = new ActionWriteResponse.ShardInfo.Failure[0];
                     } else {
                         ActionWriteResponse.ShardInfo.Failure failure = new ActionWriteResponse.ShardInfo.Failure(shardId.index().name(), shardId.id(), null, e, ExceptionsHelper.status(e), true);

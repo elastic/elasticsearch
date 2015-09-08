@@ -19,7 +19,6 @@
 
 package org.elasticsearch.indices.store;
 
-import com.google.common.base.Predicate;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
@@ -55,7 +54,6 @@ import org.elasticsearch.test.disruption.BlockClusterStateProcessing;
 import org.elasticsearch.test.disruption.SingleNodeDisruption;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.transport.TransportModule;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.junit.Test;
@@ -400,22 +398,12 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
     }
 
     private boolean waitForShardDeletion(final String server, final String index, final int shard) throws InterruptedException {
-        awaitBusy(new Predicate<Object>() {
-            @Override
-            public boolean apply(Object o) {
-                return !Files.exists(shardDirectory(server, index, shard));
-            }
-        });
+        awaitBusy(() -> !Files.exists(shardDirectory(server, index, shard)));
         return Files.exists(shardDirectory(server, index, shard));
     }
 
     private boolean waitForIndexDeletion(final String server, final String index) throws InterruptedException {
-        awaitBusy(new Predicate<Object>() {
-            @Override
-            public boolean apply(Object o) {
-                return !Files.exists(indexDirectory(server, index));
-            }
-        });
+        awaitBusy(() -> !Files.exists(indexDirectory(server, index)));
         return Files.exists(indexDirectory(server, index));
     }
 

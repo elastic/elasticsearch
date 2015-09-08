@@ -19,7 +19,6 @@
 
 package org.elasticsearch.discovery.zen;
 
-import com.google.common.base.Objects;
 import com.google.common.collect.Sets;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
@@ -75,6 +74,7 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
@@ -822,7 +822,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                 break;
             }
             // if its not from the same master, then bail
-            if (!Objects.equal(stateToProcess.clusterState.nodes().masterNodeId(), potentialState.clusterState.nodes().masterNodeId())) {
+            if (!Objects.equals(stateToProcess.clusterState.nodes().masterNodeId(), potentialState.clusterState.nodes().masterNodeId())) {
                 break;
             }
             // we are going to use it for sure, poll (remove) it
@@ -989,7 +989,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         }
     }
 
-    private ClusterState rejoin(ClusterState clusterState, String reason) {
+    protected ClusterState rejoin(ClusterState clusterState, String reason) {
 
         // *** called from within an cluster state update task *** //
         assert Thread.currentThread().getName().contains(InternalClusterService.UPDATE_THREAD_NAME);

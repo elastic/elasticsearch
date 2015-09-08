@@ -25,11 +25,14 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.Script.ScriptField;
 import org.elasticsearch.script.ScriptParameterParser;
 import org.elasticsearch.script.ScriptParameterParser.ScriptParameterValue;
+import org.elasticsearch.script.SearchScript;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Objects;
 
 import static com.google.common.collect.Maps.newHashMap;
+
 
 /**
  * Parser for script query

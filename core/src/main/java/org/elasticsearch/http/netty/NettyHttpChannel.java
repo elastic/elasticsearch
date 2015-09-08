@@ -19,7 +19,7 @@
 
 package org.elasticsearch.http.netty;
 
-import com.google.common.base.Strings;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;

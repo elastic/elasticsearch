@@ -19,8 +19,6 @@
 
 package org.elasticsearch.ttl;
 
-import com.google.common.base.Predicate;
-
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
@@ -31,7 +29,6 @@ import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.get.GetField;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
@@ -44,7 +41,6 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -170,19 +166,18 @@ public class SimpleTTLIT extends ESIntegTestCase {
         // But we can use index statistics' delete count to be sure that deletes have been executed, that must be incremented before
         // ttl purging has finished.
         logger.info("--> checking purger");
-        assertThat(awaitBusy(new Predicate<Object>() {
-            @Override
-            public boolean apply(Object input) {
-                if (rarely()) {
-                    client().admin().indices().prepareFlush("test").get();
-                } else if (rarely()) {
-                    client().admin().indices().prepareOptimize("test").setMaxNumSegments(1).get();
-                }
-                IndicesStatsResponse response = client().admin().indices().prepareStats("test").clear().setIndexing(true).get();
-                // TTL deletes two docs, but it is indexed in the primary shard and replica shard.
-                return response.getIndices().get("test").getTotal().getIndexing().getTotal().getDeleteCount() == 2L * test.dataCopies;
-            }
-        }, 5, TimeUnit.SECONDS), equalTo(true));
+        assertTrue(awaitBusy(() -> {
+                    if (rarely()) {
+                        client().admin().indices().prepareFlush("test").get();
+                    } else if (rarely()) {
+                        client().admin().indices().prepareOptimize("test").setMaxNumSegments(1).get();
+                    }
+                    IndicesStatsResponse indicesStatsResponse = client().admin().indices().prepareStats("test").clear().setIndexing(true).get();
+                    // TTL deletes two docs, but it is indexed in the primary shard and replica shard.
+                    return indicesStatsResponse.getIndices().get("test").getTotal().getIndexing().getTotal().getDeleteCount() == 2L * test.dataCopies;
+                },
+                5, TimeUnit.SECONDS
+        ));
 
         // realtime get check
         getResponse = client().prepareGet("test", "type1", "1").setFields("_ttl").setRealtime(true).execute().actionGet();

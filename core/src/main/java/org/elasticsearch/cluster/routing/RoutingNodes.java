@@ -21,7 +21,6 @@ package org.elasticsearch.cluster.routing;
 
 import com.carrotsearch.hppc.ObjectIntHashMap;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-import com.google.common.base.Predicate;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Iterators;
 import org.apache.lucene.util.CollectionUtil;
@@ -40,6 +39,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
 
 import static com.google.common.collect.Maps.newHashMap;
 import static com.google.common.collect.Sets.newHashSet;
@@ -294,7 +294,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         List<ShardRouting> shards = new ArrayList<>();
         for (RoutingNode routingNode : this) {
             for (ShardRouting shardRouting : routingNode) {
-                if (predicate.apply(shardRouting)) {
+                if (predicate.test(shardRouting)) {
                     shards.add(shardRouting);
                 }
             }

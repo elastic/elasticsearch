@@ -19,7 +19,6 @@
 
 package org.elasticsearch.client.transport;
 
-import com.google.common.base.Predicate;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.support.PlainListenableActionFuture;
@@ -30,7 +29,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.transport.TransportService;
 import org.junit.Test;
@@ -72,12 +70,7 @@ public class TransportClientRetryIT extends ESIntegTestCase {
             int size = cluster().size();
             //kill all nodes one by one, leaving a single master/data node at the end of the loop
             for (int j = 1; j < size; j++) {
-                internalCluster().stopRandomNode(new Predicate<Settings>() {
-                    @Override
-                    public boolean apply(Settings input) {
-                        return true;
-                    }
-                });
+                internalCluster().stopRandomNode(input -> true);
 
                 ClusterStateRequest clusterStateRequest = Requests.clusterStateRequest().local(true);
                 ClusterState clusterState;

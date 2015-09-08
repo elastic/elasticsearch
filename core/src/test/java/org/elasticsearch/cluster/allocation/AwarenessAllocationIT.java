@@ -20,7 +20,6 @@
 package org.elasticsearch.cluster.allocation;
 
 import com.carrotsearch.hppc.ObjectIntHashMap;
-import com.google.common.base.Predicate;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -78,30 +77,30 @@ public class AwarenessAllocationIT extends ESIntegTestCase {
         final String node3 = internalCluster().startNode(Settings.settingsBuilder().put(commonSettings).put("node.rack_id", "rack_2").build());
 
         // On slow machines the initial relocation might be delayed
-        assertThat(awaitBusy(new Predicate<Object>() {
-            @Override
-            public boolean apply(Object input) {
+        assertThat(awaitBusy(
+                () -> {
+                    logger.info("--> waiting for no relocation");
+                    ClusterHealthResponse clusterHealth = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("3").setWaitForRelocatingShards(0).get();
+                    if (clusterHealth.isTimedOut()) {
+                        return false;
+                    }
 
-                logger.info("--> waiting for no relocation");
-                ClusterHealthResponse clusterHealth = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("3").setWaitForRelocatingShards(0).get();
-                if (clusterHealth.isTimedOut()) {
-                    return false;
-                }
-
-                logger.info("--> checking current state");
-                ClusterState clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
-                // verify that we have all the primaries on node3
-                ObjectIntHashMap<String> counts = new ObjectIntHashMap<>();
-                for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
-                    for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
-                        for (ShardRouting shardRouting : indexShardRoutingTable) {
-                            counts.addTo(clusterState.nodes().get(shardRouting.currentNodeId()).name(), 1);
+                    logger.info("--> checking current state");
+                    ClusterState clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
+                    // verify that we have all the primaries on node3
+                    ObjectIntHashMap<String> counts = new ObjectIntHashMap<>();
+                    for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
+                        for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
+                            for (ShardRouting shardRouting : indexShardRoutingTable) {
+                                counts.addTo(clusterState.nodes().get(shardRouting.currentNodeId()).name(), 1);
+                            }
                         }
                     }
-                }
-                return counts.get(node3) == totalPrimaries;
-            }
-        }, 10, TimeUnit.SECONDS), equalTo(true));
+                    return counts.get(node3) == totalPrimaries;
+                },
+                10,
+                TimeUnit.SECONDS
+        ), equalTo(true));
     }
     
     @Test

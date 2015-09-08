@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.index.mapper.internal;
 
-import com.google.common.base.Objects;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.index.IndexOptions;
@@ -51,6 +50,7 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeMapValue;
@@ -329,7 +329,7 @@ public class ParentFieldMapper extends MetadataFieldMapper {
     public void merge(Mapper mergeWith, MergeResult mergeResult) throws MergeMappingException {
         super.merge(mergeWith, mergeResult);
         ParentFieldMapper fieldMergeWith = (ParentFieldMapper) mergeWith;
-        if (Objects.equal(type, fieldMergeWith.type) == false) {
+        if (Objects.equals(type, fieldMergeWith.type) == false) {
             mergeResult.addConflict("The _parent field's type option can't be changed: [" + type + "]->[" + fieldMergeWith.type + "]");
         }
     }

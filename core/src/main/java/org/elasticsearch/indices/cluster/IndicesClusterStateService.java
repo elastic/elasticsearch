@@ -21,7 +21,6 @@ package org.elasticsearch.indices.cluster;
 
 import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-import com.google.common.base.Predicate;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -524,13 +523,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 } else if (isPeerRecovery(shardRouting)) {
                     final DiscoveryNode sourceNode = findSourceNodeForPeerRecovery(routingTable, nodes, shardRouting);
                     // check if there is an existing recovery going, and if so, and the source node is not the same, cancel the recovery to restart it
-                    final Predicate<RecoveryStatus> shouldCancel = new Predicate<RecoveryStatus>() {
-                        @Override
-                        public boolean apply(@Nullable RecoveryStatus status) {
-                            return status.sourceNode().equals(sourceNode) == false;
-                        }
-                    };
-                    if (recoveryTarget.cancelRecoveriesForShard(indexShard.shardId(), "recovery source node changed", shouldCancel)) {
+                    if (recoveryTarget.cancelRecoveriesForShard(indexShard.shardId(), "recovery source node changed", status -> !status.sourceNode().equals(sourceNode))) {
                         logger.debug("[{}][{}] removing shard (recovery source changed), current [{}], global [{}])", shardRouting.index(), shardRouting.id(), currentRoutingEntry, shardRouting);
                         // closing the shard will also cancel any ongoing recovery.
                         indexService.removeShard(shardRouting.id(), "removing shard (recovery source node changed)");

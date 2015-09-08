@@ -437,7 +437,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
                 final Settings indexSettings = indexService.getIndexSettings();
                 indicesLifecycle.afterIndexDeleted(indexService.index(), indexSettings);
                 // now we are done - try to wipe data on disk if possible
-                deleteIndexStore(reason, indexService.index(), indexSettings);
+                deleteIndexStore(reason, indexService.index(), indexSettings, false);
             }
         } catch (IOException ex) {
             throw new ElasticsearchException("failed to remove index " + index, ex);
@@ -490,7 +490,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
                     final IndexMetaData index = clusterState.metaData().index(indexName);
                     throw new IllegalStateException("Can't delete closed index store for [" + indexName + "] - it's still part of the cluster state [" + index.getIndexUUID() + "] [" + metaData.getIndexUUID() + "]");
                 }
-                deleteIndexStore(reason, metaData, clusterState);
+                deleteIndexStore(reason, metaData, clusterState, true);
             } catch (IOException e) {
                 logger.warn("[{}] failed to delete closed index", e, metaData.index());
             }
@@ -501,7 +501,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
      * Deletes the index store trying to acquire all shards locks for this index.
      * This method will delete the metadata for the index even if the actual shards can't be locked.
      */
-    public void deleteIndexStore(String reason, IndexMetaData metaData, ClusterState clusterState) throws IOException {
+    public void deleteIndexStore(String reason, IndexMetaData metaData, ClusterState clusterState, boolean closed) throws IOException {
         if (nodeEnv.hasNodeFile()) {
             synchronized (this) {
                 String indexName = metaData.index();
@@ -518,18 +518,18 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
             }
             Index index = new Index(metaData.index());
             final Settings indexSettings = buildIndexSettings(metaData);
-            deleteIndexStore(reason, index, indexSettings);
+            deleteIndexStore(reason, index, indexSettings, closed);
         }
     }
 
-    private void deleteIndexStore(String reason, Index index, Settings indexSettings) throws IOException {
+    private void deleteIndexStore(String reason, Index index, Settings indexSettings, boolean closed) throws IOException {
         boolean success = false;
         try {
             // we are trying to delete the index store here - not a big deal if the lock can't be obtained
             // the store metadata gets wiped anyway even without the lock this is just best effort since
             // every shards deletes its content under the shard lock it owns.
             logger.debug("{} deleting index store reason [{}]", index, reason);
-            if (canDeleteIndexContents(index, indexSettings)) {
+            if (canDeleteIndexContents(index, indexSettings, closed)) {
                 nodeEnv.deleteIndexDirectorySafe(index, 0, indexSettings);
             }
             success = true;
@@ -583,11 +583,11 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         logger.debug("{} deleted shard reason [{}]", shardId, reason);
 
         if (clusterState.nodes().localNode().isMasterNode() == false && // master nodes keep the index meta data, even if having no shards..
-                canDeleteIndexContents(shardId.index(), indexSettings)) {
+                canDeleteIndexContents(shardId.index(), indexSettings, false)) {
             if (nodeEnv.findAllShardIds(shardId.index()).isEmpty()) {
                 try {
                     // note that deleteIndexStore have more safety checks and may throw an exception if index was concurrently created.
-                    deleteIndexStore("no longer used", metaData, clusterState);
+                    deleteIndexStore("no longer used", metaData, clusterState, false);
                 } catch (Exception e) {
                     // wrap the exception to indicate we already deleted the shard
                     throw new ElasticsearchException("failed to delete unused index after deleting its last shard (" + shardId + ")", e);
@@ -606,9 +606,11 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
      * @param indexSettings {@code Settings} for the given index
      * @return true if the index can be deleted on this node
      */
-    public boolean canDeleteIndexContents(Index index, Settings indexSettings) {
+    public boolean canDeleteIndexContents(Index index, Settings indexSettings, boolean closed) {
         final IndexServiceInjectorPair indexServiceInjectorPair = this.indices.get(index.name());
-        if (IndexMetaData.isOnSharedFilesystem(indexSettings) == false) {
+        // Closed indices may be deleted, even if they are on a shared
+        // filesystem. Since it is closed we aren't deleting it for relocation
+        if (IndexMetaData.isOnSharedFilesystem(indexSettings) == false || closed) {
             if (indexServiceInjectorPair == null && nodeEnv.hasNodeFile()) {
                 return true;
             }

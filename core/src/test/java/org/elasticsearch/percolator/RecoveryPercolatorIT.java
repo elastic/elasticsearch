@@ -19,7 +19,6 @@
 
 package org.elasticsearch.percolator;
 
-import com.google.common.base.Predicate;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
 import org.elasticsearch.action.count.CountResponse;
@@ -38,17 +37,27 @@ import org.junit.Test;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.action.percolate.PercolateSourceBuilder.docBuilder;
 import static org.elasticsearch.client.Requests.clusterHealthRequest;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.QueryBuilders.*;
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
+import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.percolator.PercolatorIT.convertFromTextArray;
 import static org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import static org.elasticsearch.test.ESIntegTestCase.Scope;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
-import static org.hamcrest.Matchers.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertMatchCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
+import static org.hamcrest.Matchers.arrayWithSize;
+import static org.hamcrest.Matchers.emptyArray;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0, numClientNodes = 0, transportClientRatio = 0)
 public class RecoveryPercolatorIT extends ESIntegTestCase {
@@ -239,12 +248,7 @@ public class RecoveryPercolatorIT extends ESIntegTestCase {
                 .get();
         ensureGreen();
 
-        final Client client = internalCluster().client(new Predicate<Settings>() {
-            @Override
-            public boolean apply(Settings input) {
-                return input.getAsBoolean("node.stay", true);
-            }
-        });
+        final Client client = internalCluster().client(input -> input.getAsBoolean("node.stay", true));
         final int numQueries = randomIntBetween(50, 100);
         logger.info("--> register a queries");
         for (int i = 0; i < numQueries; i++) {
@@ -314,12 +318,7 @@ public class RecoveryPercolatorIT extends ESIntegTestCase {
         };
         Thread t = new Thread(r);
         t.start();
-        Predicate<Settings> nodePredicate = new Predicate<Settings>() {
-            @Override
-            public boolean apply(Settings input) {
-                return !input.getAsBoolean("node.stay", false);
-            }
-        };
+        Predicate<Settings> nodePredicate = input -> !input.getAsBoolean("node.stay", false);
         try {
             // 1 index, 2 primaries, 2 replicas per primary
             for (int i = 0; i < 4; i++) {

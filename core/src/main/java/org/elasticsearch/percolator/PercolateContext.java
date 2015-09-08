@@ -75,7 +75,6 @@ import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rescore.RescoreSearchContext;
-import org.elasticsearch.search.scan.ScanContext;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 
 import java.util.Collections;
@@ -638,11 +637,6 @@ public class PercolateContext extends SearchContext {
 
     @Override
     public FetchSearchResult fetchResult() {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public ScanContext scanContext() {
         throw new UnsupportedOperationException();
     }
 

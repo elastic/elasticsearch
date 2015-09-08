@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.ack;
 
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
@@ -34,8 +35,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.AliasOrIndex;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.common.settings.Settings;
@@ -44,17 +45,19 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.warmer.IndexWarmersMetaData;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import com.google.common.base.Predicate;
 
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.State;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
 
 @ClusterScope(minNumDataNodes = 2)
 public class AckIT extends ESIntegTestCase {
@@ -120,17 +123,14 @@ public class AckIT extends ESIntegTestCase {
         /* Since we don't wait for the ack here we have to wait until the search request has been executed from the master
          * otherwise the test infra might have already deleted the index and the search request fails on all shards causing
          * the test to fail too. We simply wait until the the warmer has been installed and also clean it up afterwards.*/
-        assertTrue(awaitBusy(new Predicate<Object>() {
-            @Override
-            public boolean apply(Object input) {
-                for (Client client : clients()) {
-                    GetWarmersResponse getWarmersResponse = client.admin().indices().prepareGetWarmers().setLocal(true).get();
-                    if (getWarmersResponse.warmers().size() != 1) {
-                        return false;
-                    }
+        assertTrue(awaitBusy(() -> {
+            for (Client client : clients()) {
+                GetWarmersResponse getWarmersResponse = client.admin().indices().prepareGetWarmers().setLocal(true).get();
+                if (getWarmersResponse.warmers().size() != 1) {
+                    return false;
                 }
-                return true;
             }
+            return true;
         }));
         assertAcked(client().admin().indices().prepareDeleteWarmer().setIndices("test").setNames("custom_warmer"));
     }
@@ -161,26 +161,23 @@ public class AckIT extends ESIntegTestCase {
 
         DeleteWarmerResponse deleteWarmerResponse = client().admin().indices().prepareDeleteWarmer().setIndices("test").setNames("custom_warmer").setTimeout("0s").get();
         assertFalse(deleteWarmerResponse.isAcknowledged());
-        assertTrue(awaitBusy(new Predicate<Object>() { // wait until they are all deleted
-            @Override
-            public boolean apply(Object input) {
-                for (Client client : clients()) {
-                    GetWarmersResponse getWarmersResponse = client.admin().indices().prepareGetWarmers().setLocal(true).get();
-                    if (getWarmersResponse.warmers().size() > 0) {
-                        return false;
-                    }
+        assertTrue(awaitBusy(() -> {
+            for (Client client : clients()) {
+                GetWarmersResponse getWarmersResponse = client.admin().indices().prepareGetWarmers().setLocal(true).get();
+                if (getWarmersResponse.warmers().size() > 0) {
+                    return false;
                 }
-                return true;
             }
+            return true;
         }));
     }
 
     @Test
     public void testClusterRerouteAcknowledgement() throws InterruptedException {
         assertAcked(prepareCreate("test").setSettings(Settings.builder()
-                .put(indexSettings())
-                .put(SETTING_NUMBER_OF_SHARDS, between(cluster().numDataNodes(), DEFAULT_MAX_NUM_SHARDS))
-                .put(SETTING_NUMBER_OF_REPLICAS, 0)
+                        .put(indexSettings())
+                        .put(SETTING_NUMBER_OF_SHARDS, between(cluster().numDataNodes(), DEFAULT_MAX_NUM_SHARDS))
+                        .put(SETTING_NUMBER_OF_REPLICAS, 0)
         ));
         ensureGreen();
 

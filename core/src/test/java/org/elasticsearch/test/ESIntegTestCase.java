@@ -25,15 +25,7 @@ import com.carrotsearch.randomizedtesting.annotations.TestGroup;
 import com.carrotsearch.randomizedtesting.generators.RandomInts;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.google.common.base.Joiner;
-import com.google.common.base.Predicate;
 import org.apache.http.impl.client.HttpClients;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.routing.UnassignedInfo;
-import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
-import org.elasticsearch.common.network.NetworkAddress;
-import org.elasticsearch.index.shard.MergeSchedulerConfig;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TestUtil;
@@ -63,6 +55,7 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.ClearScrollResponse;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
@@ -164,6 +157,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BooleanSupplier;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
@@ -172,8 +166,14 @@ import static org.elasticsearch.common.util.CollectionUtils.eagerPartition;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.XContentTestUtils.convertToMap;
 import static org.elasticsearch.test.XContentTestUtils.differenceBetweenMapsIgnoringArrayOrder;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
-import static org.hamcrest.Matchers.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
+import static org.hamcrest.Matchers.emptyIterable;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.startsWith;
 
 /**
  * {@link ESIntegTestCase} is an abstract base class to run integration
@@ -1000,30 +1000,27 @@ public abstract class ESIntegTestCase extends ESTestCase {
             throws InterruptedException {
         final AtomicLong lastKnownCount = new AtomicLong(-1);
         long lastStartCount = -1;
-        Predicate<Object> testDocs = new Predicate<Object>() {
-            @Override
-            public boolean apply(Object o) {
-                if (indexer != null) {
-                    lastKnownCount.set(indexer.totalIndexedDocs());
-                }
-                if (lastKnownCount.get() >= numDocs) {
-                    try {
-                        long count = client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount();
-                        if (count == lastKnownCount.get()) {
-                            // no progress - try to refresh for the next time
-                            client().admin().indices().prepareRefresh().get();
-                        }
-                        lastKnownCount.set(count);
-                    } catch (Throwable e) { // count now acts like search and barfs if all shards failed...
-                        logger.debug("failed to executed count", e);
-                        return false;
-                    }
-                    logger.debug("[{}] docs visible for search. waiting for [{}]", lastKnownCount.get(), numDocs);
-                } else {
-                    logger.debug("[{}] docs indexed. waiting for [{}]", lastKnownCount.get(), numDocs);
-                }
-                return lastKnownCount.get() >= numDocs;
+        BooleanSupplier testDocs = () -> {
+            if (indexer != null) {
+                lastKnownCount.set(indexer.totalIndexedDocs());
             }
+            if (lastKnownCount.get() >= numDocs) {
+                try {
+                    long count = client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount();
+                    if (count == lastKnownCount.get()) {
+                        // no progress - try to refresh for the next time
+                        client().admin().indices().prepareRefresh().get();
+                    }
+                    lastKnownCount.set(count);
+                } catch (Throwable e) { // count now acts like search and barfs if all shards failed...
+                    logger.debug("failed to executed count", e);
+                    return false;
+                }
+                logger.debug("[{}] docs visible for search. waiting for [{}]", lastKnownCount.get(), numDocs);
+            } else {
+                logger.debug("[{}] docs indexed. waiting for [{}]", lastKnownCount.get(), numDocs);
+            }
+            return lastKnownCount.get() >= numDocs;
         };
 
         while (!awaitBusy(testDocs, maxWaitTime, maxWaitTimeUnit)) {

@@ -19,9 +19,9 @@
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
-import com.google.common.base.Predicate;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.IntroSorter;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -37,9 +37,11 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.gateway.PriorityComparator;
 import org.elasticsearch.node.settings.NodeSettingsService;
 
 import java.util.*;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 
@@ -226,13 +228,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
         private final float threshold;
         private final MetaData metaData;
 
-        private final Predicate<ShardRouting> assignedFilter = new Predicate<ShardRouting>() {
-            @Override
-            public boolean apply(ShardRouting input) {
-                return input.assignedToNode();
-            }
-        };
-
+        private final Predicate<ShardRouting> assignedFilter = shard -> shard.assignedToNode();
 
         public Balancer(ESLogger logger, RoutingAllocation allocation, WeightFunction weight, float threshold) {
             this.logger = logger;
@@ -565,6 +561,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
              * use the sorter to save some iterations. 
              */
             final AllocationDeciders deciders = allocation.deciders();
+            final PriorityComparator secondaryComparator = PriorityComparator.getAllocationComparator(allocation);
             final Comparator<ShardRouting> comparator = new Comparator<ShardRouting>() {
                 @Override
                 public int compare(ShardRouting o1,
@@ -576,7 +573,12 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                     if ((indexCmp = o1.index().compareTo(o2.index())) == 0) {
                         return o1.getId() - o2.getId();
                     }
-                    return indexCmp;
+                    // this comparator is more expensive than all the others up there
+                    // that's why it's added last even though it could be easier to read
+                    // if we'd apply it earlier. this comparator will only differentiate across
+                    // indices all shards of the same index is treated equally.
+                    final int secondary = secondaryComparator.compare(o1, o2);
+                    return secondary == 0 ? indexCmp : secondary;
                 }
             };
             /*

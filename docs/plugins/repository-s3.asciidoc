@@ -113,11 +113,14 @@ The available values are:
 * `cn-north` (`cn-north-1`)
 
 [[repository-s3-usage-signer]]
-===== EC2/S3 Signer API
+===== S3 Signer API
 
-If you are using a compatible EC2 or S3 service, they might be using an older API to sign the requests.
-You can set your compatible signer API using `cloud.aws.signer` (or `cloud.aws.ec2.signer` and `cloud.aws.s3.signer`)
-with the right signer to use. Defaults to `AWS4SignerType`.
+If you are using a S3 compatible service, they might be using an older API to sign the requests.
+You can set your compatible signer API using `cloud.aws.signer` (or `cloud.aws.s3.signer`) with the right
+signer to use.
+
+If you are using a compatible S3 service which do not support Version 4 signing process, you may need to
+use `S3SignerType`, which is Signature Version 2.
 
 [[repository-s3-repository]]
 ==== S3 Repository

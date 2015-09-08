@@ -80,7 +80,7 @@ public class BootstrapForTesting {
         }
 
         // install security manager if requested
-        if (systemPropertyAsBoolean("tests.security.manager", false)) {
+        if (systemPropertyAsBoolean("tests.security.manager", true)) {
             try {
                 Security.setCodebaseProperties();
                 // initialize paths the same exact way as bootstrap.

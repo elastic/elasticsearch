@@ -19,17 +19,12 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.Query;
-import org.elasticsearch.Version;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
-import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
-import org.elasticsearch.index.search.geo.GeoPolygonQuery;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -47,9 +42,11 @@ import java.util.List;
  * }
  * </pre>
  */
-public class GeoPolygonQueryParser extends BaseQueryParserTemp {
+public class GeoPolygonQueryParser extends BaseQueryParser<GeoPolygonQueryBuilder> {
 
-    public static final String POINTS = "points";
+    public static final ParseField COERCE_FIELD = new ParseField("coerce", "normalize");
+    public static final ParseField IGNORE_MALFORMED_FIELD = new ParseField("ignore_malformed");
+    public static final ParseField POINTS_FIELD = new ParseField("points");
 
     @Inject
     public GeoPolygonQueryParser() {
@@ -61,18 +58,16 @@ public class GeoPolygonQueryParser extends BaseQueryParserTemp {
     }
 
     @Override
-    public Query parse(QueryShardContext context) throws IOException, QueryParsingException {
-        QueryParseContext parseContext = context.parseContext();
+    public GeoPolygonQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
         String fieldName = null;
 
-        List<GeoPoint> shell = new ArrayList<>();
+        List<GeoPoint> shell = null;
 
-        float boost = AbstractQueryBuilder.DEFAULT_BOOST;
-        final boolean indexCreatedBeforeV2_0 = parseContext.shardContext().indexVersionCreated().before(Version.V_2_0_0);
-        boolean coerce = false;
-        boolean ignoreMalformed = false;
+        Float boost = null;
+        Boolean coerce = null;
+        Boolean ignoreMalformed = null;
         String queryName = null;
         String currentFieldName = null;
         XContentParser.Token token;
@@ -89,12 +84,10 @@ public class GeoPolygonQueryParser extends BaseQueryParserTemp {
                     if (token == XContentParser.Token.FIELD_NAME) {
                         currentFieldName = parser.currentName();
                     } else if (token == XContentParser.Token.START_ARRAY) {
-                        if (POINTS.equals(currentFieldName)) {
+                        if (parseContext.parseFieldMatcher().match(currentFieldName, POINTS_FIELD)) {
+                            shell = new ArrayList<GeoPoint>();
                             while ((token = parser.nextToken()) != Token.END_ARRAY) {
                                 shell.add(GeoUtils.parseGeoPoint(parser));
-                            }
-                            if (!shell.get(shell.size()-1).equals(shell.get(0))) {
-                                shell.add(shell.get(0));
                             }
                         } else {
                             throw new QueryParsingException(parseContext, "[geo_polygon] query does not support [" + currentFieldName
@@ -110,12 +103,12 @@ public class GeoPolygonQueryParser extends BaseQueryParserTemp {
                     queryName = parser.text();
                 } else if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
-                } else if ("coerce".equals(currentFieldName) || (indexCreatedBeforeV2_0 && "normalize".equals(currentFieldName))) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, COERCE_FIELD)) {
                     coerce = parser.booleanValue();
                     if (coerce == true) {
                         ignoreMalformed = true;
                     }
-                } else if ("ignore_malformed".equals(currentFieldName) && coerce == false) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, IGNORE_MALFORMED_FIELD)) {
                     ignoreMalformed = parser.booleanValue();
                 } else {
                     throw new QueryParsingException(parseContext, "[geo_polygon] query does not support [" + currentFieldName + "]");
@@ -124,55 +117,20 @@ public class GeoPolygonQueryParser extends BaseQueryParserTemp {
                 throw new QueryParsingException(parseContext, "[geo_polygon] unexpected token type [" + token.name() + "]");
             }
         }
-
-        if (shell.isEmpty()) {
-            throw new QueryParsingException(parseContext, "no points defined for geo_polygon query");
-        } else {
-            if (shell.size() < 3) {
-                throw new QueryParsingException(parseContext, "too few points defined for geo_polygon query");
-            }
-            GeoPoint start = shell.get(0);
-            if (!start.equals(shell.get(shell.size() - 1))) {
-                shell.add(start);
-            }
-            if (shell.size() < 4) {
-                throw new QueryParsingException(parseContext, "too few points defined for geo_polygon query");
-            }
+        GeoPolygonQueryBuilder builder = new GeoPolygonQueryBuilder(fieldName, shell);
+        if (coerce != null) {
+            builder.coerce(coerce);
         }
-
-        // validation was not available prior to 2.x, so to support bwc percolation queries we only ignore_malformed on 2.x created indexes
-        if (!indexCreatedBeforeV2_0 && !ignoreMalformed) {
-            for (GeoPoint point : shell) {
-                if (point.lat() > 90.0 || point.lat() < -90.0) {
-                    throw new QueryParsingException(parseContext, "illegal latitude value [{}] for [{}]", point.lat(), GeoPolygonQueryBuilder.NAME);
-                }
-                if (point.lon() > 180.0 || point.lon() < -180) {
-                    throw new QueryParsingException(parseContext, "illegal longitude value [{}] for [{}]", point.lon(), GeoPolygonQueryBuilder.NAME);
-                }
-            }
+        if (ignoreMalformed != null) {
+            builder.ignoreMalformed(ignoreMalformed);
         }
-
-        if (coerce) {
-            for (GeoPoint point : shell) {
-                GeoUtils.normalizePoint(point, coerce, coerce);
-            }
-        }
-
-        MappedFieldType fieldType = context.fieldMapper(fieldName);
-        if (fieldType == null) {
-            throw new QueryParsingException(parseContext, "failed to find geo_point field [" + fieldName + "]");
-        }
-        if (!(fieldType instanceof GeoPointFieldMapper.GeoPointFieldType)) {
-            throw new QueryParsingException(parseContext, "field [" + fieldName + "] is not a geo_point field");
-        }
-
-        IndexGeoPointFieldData indexFieldData = context.getForField(fieldType);
-        Query query = new GeoPolygonQuery(indexFieldData, shell.toArray(new GeoPoint[shell.size()]));
         if (queryName != null) {
-            context.addNamedQuery(queryName, query);
+            builder.queryName(queryName);
         }
-        query.setBoost(boost);
-        return query;
+        if (boost != null) {
+            builder.boost(boost);
+        }
+        return builder;
     }
 
     @Override

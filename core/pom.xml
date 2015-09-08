@@ -204,38 +204,21 @@
 
         <resources>
             <resource>
-                <directory>${project.basedir}/src/main/java</directory>
+                <directory>${project.basedir}/src/main/resources</directory>
                 <includes>
-                    <include>**/*.json</include>
-                    <include>**/*.yml</include>
+                    <include>es-build.properties</include>
                 </includes>
+                <filtering>true</filtering>
             </resource>
             <resource>
                 <directory>${project.basedir}/src/main/resources</directory>
                 <includes>
                     <include>**/*.*</include>
                 </includes>
-                <filtering>true</filtering>
             </resource>
         </resources>
 
         <testResources>
-            <testResource>
-                <directory>${project.basedir}/src/test/java</directory>
-                <includes>
-                    <include>**/*.json</include>
-                    <include>**/*.yml</include>
-                    <include>**/*.txt</include>
-                    <include>**/*.properties</include>
-                </includes>
-                <filtering>true</filtering>
-            </testResource>
-            <testResource>
-                <directory>${project.basedir}/src/test/java</directory>
-                <includes>
-                    <include>**/*.gz</include>
-                </includes>
-            </testResource>
             <testResource>
                 <directory>${project.basedir}/src/test/resources</directory>
                 <includes>

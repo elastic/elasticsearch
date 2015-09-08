@@ -112,7 +112,7 @@ public class LogConfigurator {
             }
         }
         // ensure explicit path to logs dir exists
-        props.put("path.logs", cleanPath(environment.logsFile().toAbsolutePath().toString()));
+        props.setProperty("log4j.path.logs", cleanPath(environment.logsFile().toAbsolutePath().toString()));
         PropertyConfigurator.configure(props);
     }
 

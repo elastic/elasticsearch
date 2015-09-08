@@ -107,7 +107,7 @@ final class Bootstrap {
                 public boolean handle(int code) {
                     if (CTRL_CLOSE_EVENT == code) {
                         logger.info("running graceful exit on windows");
-                        Bootstrap.INSTANCE.stop();
+                        Bootstrap.stop();
                         return true;
                     }
                     return false;
@@ -205,11 +205,11 @@ final class Bootstrap {
         keepAliveThread.start();
     }
 
-    private void stop() {
+    static void stop() {
         try {
-            Releasables.close(node);
+            Releasables.close(INSTANCE.node);
         } finally {
-            keepAliveLatch.countDown();
+            INSTANCE.keepAliveLatch.countDown();
         }
     }
 

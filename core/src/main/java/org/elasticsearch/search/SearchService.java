@@ -63,6 +63,7 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.Loading;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.query.TemplateQueryParser;
 import org.elasticsearch.index.search.stats.ShardSearchStats;
 import org.elasticsearch.index.search.stats.StatsGroupsParseElement;
@@ -993,7 +994,22 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             final Map<String, MappedFieldType> warmUp = new HashMap<>();
             for (DocumentMapper docMapper : mapperService.docMappers(false)) {
                 for (FieldMapper fieldMapper : docMapper.mappers()) {
-                    final FieldDataType fieldDataType = fieldMapper.fieldType().fieldDataType();
+                    final FieldDataType fieldDataType;
+                    final String indexName;
+                    if (fieldMapper instanceof ParentFieldMapper) {
+                        MappedFieldType joinFieldType = ((ParentFieldMapper) fieldMapper).getChildJoinFieldType();
+                        if (joinFieldType == null) {
+                            continue;
+                        }
+                        fieldDataType = joinFieldType.fieldDataType();
+                        // TODO: this can be removed in 3.0 when the old parent/child impl is removed:
+                        // related to: https://github.com/elastic/elasticsearch/pull/12418
+                        indexName = fieldMapper.fieldType().names().indexName();
+                    } else {
+                        fieldDataType = fieldMapper.fieldType().fieldDataType();
+                        indexName = fieldMapper.fieldType().names().indexName();
+                    }
+
                     if (fieldDataType == null) {
                         continue;
                     }
@@ -1001,7 +1017,6 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                         continue;
                     }
 
-                    final String indexName = fieldMapper.fieldType().names().indexName();
                     if (warmUp.containsKey(indexName)) {
                         continue;
                     }
@@ -1047,14 +1062,27 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             final Map<String, MappedFieldType> warmUpGlobalOrdinals = new HashMap<>();
             for (DocumentMapper docMapper : mapperService.docMappers(false)) {
                 for (FieldMapper fieldMapper : docMapper.mappers()) {
-                    final FieldDataType fieldDataType = fieldMapper.fieldType().fieldDataType();
+                    final FieldDataType fieldDataType;
+                    final String indexName;
+                    if (fieldMapper instanceof ParentFieldMapper) {
+                        MappedFieldType joinFieldType = ((ParentFieldMapper) fieldMapper).getChildJoinFieldType();
+                        if (joinFieldType == null) {
+                            continue;
+                        }
+                        fieldDataType = joinFieldType.fieldDataType();
+                        // TODO: this can be removed in 3.0 when the old parent/child impl is removed:
+                        // related to: https://github.com/elastic/elasticsearch/pull/12418
+                        indexName = fieldMapper.fieldType().names().indexName();
+                    } else {
+                        fieldDataType = fieldMapper.fieldType().fieldDataType();
+                        indexName = fieldMapper.fieldType().names().indexName();
+                    }
                     if (fieldDataType == null) {
                         continue;
                     }
                     if (fieldDataType.getLoading() != Loading.EAGER_GLOBAL_ORDINALS) {
                         continue;
                     }
-                    final String indexName = fieldMapper.fieldType().names().indexName();
                     if (warmUpGlobalOrdinals.containsKey(indexName)) {
                         continue;
                     }

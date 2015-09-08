@@ -147,8 +147,8 @@ public class DocumentMapperParser {
         }
     }
 
-    public Mapper.TypeParser.ParserContext parserContext() {
-        return new Mapper.TypeParser.ParserContext(analysisService, similarityLookupService, mapperService, typeParsers, indexVersionCreated, parseFieldMatcher);
+    public Mapper.TypeParser.ParserContext parserContext(String type) {
+        return new Mapper.TypeParser.ParserContext(type, analysisService, similarityLookupService, mapperService, typeParsers, indexVersionCreated, parseFieldMatcher);
     }
 
     public DocumentMapper parse(String source) throws MapperParsingException {
@@ -206,7 +206,7 @@ public class DocumentMapperParser {
         }
 
 
-        Mapper.TypeParser.ParserContext parserContext = parserContext();
+        Mapper.TypeParser.ParserContext parserContext = parserContext(type);
         // parse RootObjectMapper
         DocumentMapper.Builder docBuilder = doc(indexSettings, (RootObjectMapper.Builder) rootObjectTypeParser.parse(type, mapping, parserContext), mapperService);
         // Add default mapping for the plugged-in meta mappers

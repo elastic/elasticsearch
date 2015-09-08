@@ -732,7 +732,7 @@ public class IndexShard extends AbstractIndexShardComponent {
 
     }
 
-    public void optimize(OptimizeRequest optimize) {
+    public void optimize(OptimizeRequest optimize) throws IOException {
         verifyStarted();
         if (logger.isTraceEnabled()) {
             logger.trace("optimize with {}", optimize);
@@ -743,7 +743,7 @@ public class IndexShard extends AbstractIndexShardComponent {
     /**
      * Upgrades the shard to the current version of Lucene and returns the minimum segment version
      */
-    public org.apache.lucene.util.Version upgrade(UpgradeRequest upgrade) {
+    public org.apache.lucene.util.Version upgrade(UpgradeRequest upgrade) throws IOException {
         verifyStarted();
         if (logger.isTraceEnabled()) {
             logger.trace("upgrade with {}", upgrade);

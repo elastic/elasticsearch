@@ -40,6 +40,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 
+import static org.elasticsearch.common.Strings.cleanPath;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 
 /**
@@ -110,6 +111,8 @@ public class LogConfigurator {
                 props.setProperty(key, value);
             }
         }
+        // ensure explicit path to logs dir exists
+        props.put("path.logs", cleanPath(environment.logsFile().toAbsolutePath().toString()));
         PropertyConfigurator.configure(props);
     }
 

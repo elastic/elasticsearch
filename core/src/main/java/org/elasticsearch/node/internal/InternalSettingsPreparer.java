@@ -21,7 +21,6 @@ package org.elasticsearch.node.internal;
 
 import com.google.common.base.Charsets;
 import com.google.common.collect.Sets;
-import com.google.common.collect.UnmodifiableIterator;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
@@ -38,14 +37,11 @@ import java.io.InputStreamReader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
 
-import static org.elasticsearch.common.Strings.cleanPath;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 
 /**

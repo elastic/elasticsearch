@@ -1957,7 +1957,7 @@ public class SimpleIndexQueryParserTests extends ESSingleNodeTestCase {
 
     public void testCrossFieldMultiMatchQuery() throws IOException {
         IndexQueryParserService queryParser = queryParser();
-        Query parsedQuery = queryParser.parse(multiMatchQuery("banon", "name.first^2", "name.last^3", "foobar").type(MultiMatchQueryBuilder.Type.CROSS_FIELDS)).query();
+        Query parsedQuery = queryParser.parse(multiMatchQuery("banon").field("name.first", 2).field("name.last", 3).field("foobar").type(MultiMatchQueryBuilder.Type.CROSS_FIELDS)).query();
         try (Engine.Searcher searcher = indexService.shardSafe(0).acquireSearcher("test")) {
             Query rewrittenQuery = searcher.searcher().rewrite(parsedQuery);
 

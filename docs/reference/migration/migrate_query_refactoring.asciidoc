@@ -88,3 +88,11 @@ makes the type / path parameter mandatory.
 
 Moving MatchQueryBuilder.Type and MatchQueryBuilder.ZeroTermsQuery enum to MatchQuery.Type.
 Also reusing new Operator enum.
+
+==== MultiMatchQueryBuilder
+
+Moving MultiMatchQueryBuilder.ZeroTermsQuery enum to MatchQuery..ZeroTermsQuery.
+Also reusing new Operator enum.
+
+Removed ability to pass in boost value using `field(String field)` method in form e.g. `field^2`.
+Use the `field(String, float)` method instead.

@@ -78,7 +78,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.*;
 
-public abstract class BaseQueryTestCase<QB extends AbstractQueryBuilder<QB>> extends ESTestCase {
+public abstract class BaseQueryTestCase<QB extends AbstractQueryBuilder<QB>> extends ESTestCase { // TODO rename this AbstractQueryTestCase
 
     protected static final String STRING_FIELD_NAME = "mapped_string";
     protected static final String INT_FIELD_NAME = "mapped_int";
@@ -268,6 +268,8 @@ public abstract class BaseQueryTestCase<QB extends AbstractQueryBuilder<QB>> ext
         XContentParser parser = XContentFactory.xContent(queryAsString).createParser(queryAsString);
         QueryParseContext context = createParseContext();
         context.reset(parser);
+        // TODO this should set context.parseFieldMatcher(ParseFieldMatcher.STRICT);
+        // all our builders should only create non-deprecated XContent.
         return context.parseInnerQueryBuilder();
     }
 

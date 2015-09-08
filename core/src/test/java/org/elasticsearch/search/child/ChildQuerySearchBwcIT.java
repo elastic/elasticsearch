@@ -106,7 +106,7 @@ public class ChildQuerySearchBwcIT extends ChildQuerySearchIT {
         assertSearchHits(searchResponse, "c1");
 
         searchResponse = client().prepareSearch("test")
-                .setQuery(hasParentQuery("parent", termQuery("p_field", "1")).scoreType("score"))
+                .setQuery(hasParentQuery("parent", termQuery("p_field", "1")).score(true))
                 .get();
         assertHitCount(searchResponse, 1l);
         assertSearchHits(searchResponse, "c1");
@@ -133,7 +133,7 @@ public class ChildQuerySearchBwcIT extends ChildQuerySearchIT {
 
         searchResponse = client().prepareSearch("test")
                 .setExplain(true)
-                .setQuery(hasParentQuery("parent", termQuery("p_field", "1")).scoreType("score"))
+                .setQuery(hasParentQuery("parent", termQuery("p_field", "1")).score(true))
                 .get();
         assertHitCount(searchResponse, 1l);
         assertThat(searchResponse.getHits().getAt(0).explanation().getDescription(), equalTo("not implemented yet..."));

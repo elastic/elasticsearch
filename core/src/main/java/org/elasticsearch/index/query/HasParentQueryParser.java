@@ -30,6 +30,7 @@ import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.query.support.InnerHitsQueryParserHelper;
+import org.elasticsearch.index.query.support.QueryInnerHits;
 import org.elasticsearch.index.query.support.XContentStructure;
 import org.elasticsearch.index.search.child.ParentConstantScoreQuery;
 import org.elasticsearch.index.search.child.ParentQuery;
@@ -42,16 +43,12 @@ import java.util.HashSet;
 import java.util.Set;
 
 
-public class HasParentQueryParser extends BaseQueryParserTemp {
+public class HasParentQueryParser extends BaseQueryParser  {
 
+    private static final HasParentQueryBuilder PROTOTYPE = new HasParentQueryBuilder("", EmptyQueryBuilder.PROTOTYPE);
     private static final ParseField QUERY_FIELD = new ParseField("query", "filter");
-
-    private final InnerHitsQueryParserHelper innerHitsQueryParserHelper;
-
-    @Inject
-    public HasParentQueryParser(InnerHitsQueryParserHelper innerHitsQueryParserHelper) {
-        this.innerHitsQueryParserHelper = innerHitsQueryParserHelper;
-    }
+    private static final ParseField SCORE_FIELD = new ParseField("score_type", "score_mode").withAllDeprecated("score");
+    private static final ParseField TYPE_FIELD = new ParseField("parent_type", "type");
 
     @Override
     public String[] names() {
@@ -59,20 +56,18 @@ public class HasParentQueryParser extends BaseQueryParserTemp {
     }
 
     @Override
-    public Query parse(QueryShardContext context) throws IOException, QueryParsingException {
-        QueryParseContext parseContext = context.parseContext();
+    public QueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
-        boolean queryFound = false;
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         String parentType = null;
         boolean score = false;
         String queryName = null;
-        InnerHitsSubSearchContext innerHits = null;
+        QueryInnerHits innerHits = null;
 
         String currentFieldName = null;
         XContentParser.Token token;
-        XContentStructure.InnerQuery iq = null;
+        QueryBuilder iqb = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
@@ -82,30 +77,25 @@ public class HasParentQueryParser extends BaseQueryParserTemp {
                 // XContentStructure.<type> facade to parse if available,
                 // or delay parsing if not.
                 if (parseContext.parseFieldMatcher().match(currentFieldName, QUERY_FIELD)) {
-                    iq = new XContentStructure.InnerQuery(parseContext, parentType == null ? null : new String[] {parentType});
-                    queryFound = true;
+                    iqb = parseContext.parseInnerQueryBuilder();
                 } else if ("inner_hits".equals(currentFieldName)) {
-                    innerHits = innerHitsQueryParserHelper.parse(parser);
+                    innerHits = new QueryInnerHits(parser);
                 } else {
                     throw new QueryParsingException(parseContext, "[has_parent] query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
-                if ("type".equals(currentFieldName) || "parent_type".equals(currentFieldName) || "parentType".equals(currentFieldName)) {
+                if (parseContext.parseFieldMatcher().match(currentFieldName, TYPE_FIELD)) {
                     parentType = parser.text();
-                } else if ("score_type".equals(currentFieldName) || "scoreType".equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, SCORE_FIELD)) {
+                    // deprecated we use a boolean now
                     String scoreTypeValue = parser.text();
                     if ("score".equals(scoreTypeValue)) {
                         score = true;
                     } else if ("none".equals(scoreTypeValue)) {
                         score = false;
                     }
-                } else if ("score_mode".equals(currentFieldName) || "scoreMode".equals(currentFieldName)) {
-                    String scoreModeValue = parser.text();
-                    if ("score".equals(scoreModeValue)) {
-                        score = true;
-                    } else if ("none".equals(scoreModeValue)) {
-                        score = false;
-                    }
+                } else if ("score".equals(currentFieldName)) {
+                    score = parser.booleanValue();
                 } else if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
                 } else if ("_name".equals(currentFieldName)) {
@@ -115,103 +105,11 @@ public class HasParentQueryParser extends BaseQueryParserTemp {
                 }
             }
         }
-        if (!queryFound) {
-            throw new QueryParsingException(parseContext, "[has_parent] query requires 'query' field");
-        }
-        if (parentType == null) {
-            throw new QueryParsingException(parseContext, "[has_parent] query requires 'parent_type' field");
-        }
-
-        Query innerQuery = iq.asQuery(parentType);
-
-        if (innerQuery == null) {
-            return null;
-        }
-
-        innerQuery.setBoost(boost);
-        Query query = createParentQuery(innerQuery, parentType, score, context, innerHits);
-        if (query == null) {
-            return null;
-        }
-
-        query.setBoost(boost);
-        if (queryName != null) {
-            context.addNamedQuery(queryName, query);
-        }
-        return query;
-    }
-
-    static Query createParentQuery(Query innerQuery, String parentType, boolean score, QueryShardContext context, InnerHitsSubSearchContext innerHits) throws IOException {
-        DocumentMapper parentDocMapper = context.mapperService().documentMapper(parentType);
-        if (parentDocMapper == null) {
-            throw new QueryParsingException(context.parseContext(), "[has_parent] query configured 'parent_type' [" + parentType
-                    + "] is not a valid type");
-        }
-
-        if (innerHits != null) {
-            ParsedQuery parsedQuery = new ParsedQuery(innerQuery, context.copyNamedQueries());
-            InnerHitsContext.ParentChildInnerHits parentChildInnerHits = new InnerHitsContext.ParentChildInnerHits(innerHits.getSubSearchContext(), parsedQuery, null, context.mapperService(), parentDocMapper);
-            String name = innerHits.getName() != null ? innerHits.getName() : parentType;
-            context.addInnerHits(name, parentChildInnerHits);
-        }
-
-        Set<String> parentTypes = new HashSet<>(5);
-        parentTypes.add(parentDocMapper.type());
-        ParentChildIndexFieldData parentChildIndexFieldData = null;
-        for (DocumentMapper documentMapper : context.mapperService().docMappers(false)) {
-            ParentFieldMapper parentFieldMapper = documentMapper.parentFieldMapper();
-            if (parentFieldMapper.active()) {
-                DocumentMapper parentTypeDocumentMapper = context.mapperService().documentMapper(parentFieldMapper.type());
-                parentChildIndexFieldData = context.getForField(parentFieldMapper.fieldType());
-                if (parentTypeDocumentMapper == null) {
-                    // Only add this, if this parentFieldMapper (also a parent)  isn't a child of another parent.
-                    parentTypes.add(parentFieldMapper.type());
-                }
-            }
-        }
-        if (parentChildIndexFieldData == null) {
-            throw new QueryParsingException(context.parseContext(), "[has_parent] no _parent field configured");
-        }
-
-        Query parentFilter = null;
-        if (parentTypes.size() == 1) {
-            DocumentMapper documentMapper = context.mapperService().documentMapper(parentTypes.iterator().next());
-            if (documentMapper != null) {
-                parentFilter = documentMapper.typeFilter();
-            }
-        } else {
-            BooleanQuery.Builder parentsFilter = new BooleanQuery.Builder();
-            for (String parentTypeStr : parentTypes) {
-                DocumentMapper documentMapper = context.mapperService().documentMapper(parentTypeStr);
-                if (documentMapper != null) {
-                    parentsFilter.add(documentMapper.typeFilter(), BooleanClause.Occur.SHOULD);
-                }
-            }
-            parentFilter = parentsFilter.build();
-        }
-
-        if (parentFilter == null) {
-            return null;
-        }
-
-        // wrap the query with type query
-        innerQuery = Queries.filtered(innerQuery, parentDocMapper.typeFilter());
-        Filter childrenFilter = new QueryWrapperFilter(Queries.not(parentFilter));
-        if (context.indexVersionCreated().onOrAfter(Version.V_2_0_0_beta1)) {
-            ScoreMode scoreMode = score ? ScoreMode.Max : ScoreMode.None;
-            return new HasChildQueryBuilder.LateParsingQuery(childrenFilter, innerQuery, HasChildQueryBuilder.DEFAULT_MIN_CHILDREN, HasChildQueryBuilder.DEFAULT_MAX_CHILDREN, parentType, scoreMode, parentChildIndexFieldData);
-        } else {
-            if (score) {
-                return new ParentQuery(parentChildIndexFieldData, innerQuery, parentDocMapper.type(), childrenFilter);
-            } else {
-                return new ParentConstantScoreQuery(parentChildIndexFieldData, innerQuery, parentDocMapper.type(), childrenFilter);
-            }
-        }
+        return new HasParentQueryBuilder(parentType, iqb, score, innerHits).queryName(queryName).boost(boost);
     }
 
     @Override
     public HasParentQueryBuilder getBuilderPrototype() {
-        return HasParentQueryBuilder.PROTOTYPE;
+        return PROTOTYPE;
     }
-
 }

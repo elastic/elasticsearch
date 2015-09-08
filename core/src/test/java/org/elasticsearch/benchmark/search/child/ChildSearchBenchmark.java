@@ -312,12 +312,12 @@ public class ChildSearchBenchmark {
         System.out.println("--> Running has_parent query with score type");
         // run parent child score query
         for (int j = 0; j < QUERY_WARMUP; j++) {
-            client.prepareSearch(indexName).setQuery(hasParentQuery("parent", termQuery("field1", parentChildIndexGenerator.getQueryValue())).scoreType("score")).execute().actionGet();
+            client.prepareSearch(indexName).setQuery(hasParentQuery("parent", termQuery("field1", parentChildIndexGenerator.getQueryValue())).score(true)).execute().actionGet();
         }
 
         totalQueryTime = 0;
         for (int j = 1; j < QUERY_COUNT; j++) {
-            SearchResponse searchResponse = client.prepareSearch(indexName).setQuery(hasParentQuery("parent", termQuery("field1", parentChildIndexGenerator.getQueryValue())).scoreType("score")).execute().actionGet();
+            SearchResponse searchResponse = client.prepareSearch(indexName).setQuery(hasParentQuery("parent", termQuery("field1", parentChildIndexGenerator.getQueryValue())).score(true)).execute().actionGet();
             if (j % 10 == 0) {
                 System.out.println("--> hits [" + j + "], got [" + searchResponse.getHits().totalHits() + "]");
             }
@@ -327,7 +327,7 @@ public class ChildSearchBenchmark {
 
         totalQueryTime = 0;
         for (int j = 1; j < QUERY_COUNT; j++) {
-            SearchResponse searchResponse = client.prepareSearch(indexName).setQuery(hasParentQuery("parent", matchAllQuery()).scoreType("score")).execute().actionGet();
+            SearchResponse searchResponse = client.prepareSearch(indexName).setQuery(hasParentQuery("parent", matchAllQuery()).score(true)).execute().actionGet();
             if (j % 10 == 0) {
                 System.out.println("--> hits [" + j + "], got [" + searchResponse.getHits().totalHits() + "]");
             }

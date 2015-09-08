@@ -43,6 +43,10 @@
             <version>${hadoop1.version}</version>
             <exclusions>
                 <exclusion>
+                    <groupId>asm</groupId>
+                    <artifactId>asm</artifactId>
+                </exclusion>
+                <exclusion>
                     <groupId>*</groupId>
                     <artifactId>commons-cli</artifactId>
                 </exclusion>
@@ -127,16 +131,6 @@
                     <artifactId>javax-servlet</artifactId>
                 </exclusion>
             </exclusions>
-        </dependency>
-
-
-
-        <!-- We need to force here the compile scope as it was defined as test scope in plugins/pom.xml -->
-        <!-- TODO: remove this dependency when we will have a REST Test module -->
-        <dependency>
-            <groupId>org.apache.httpcomponents</groupId>
-            <artifactId>httpclient</artifactId>
-            <scope>compile</scope>
         </dependency>
     </dependencies>
 

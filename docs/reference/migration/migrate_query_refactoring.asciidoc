@@ -104,3 +104,11 @@ The deprecated `docs(Item... docs)`, `ignoreLike(Item... docs)`,
 
 Removing individual setters for lon() and lat() values, both values should be set together
  using point(lon, lat).
+
+==== MultiMatchQueryBuilder
+
+Moving MultiMatchQueryBuilder.ZeroTermsQuery enum to MatchQuery..ZeroTermsQuery.
+Also reusing new Operator enum.
+
+Removed ability to pass in boost value using `field(String field)` method in form e.g. `field^2`.
+Use the `field(String, float)` method instead.

@@ -908,7 +908,7 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertFirstHit(searchResponse, hasId("1"));
 
         refresh();
-        builder = multiMatchQuery("value1", "field1", "field3^1.5")
+        builder = multiMatchQuery("value1", "field1").field("field3", 1.5f)
                 .operator(Operator.AND); // Operator only applies on terms inside a field! Fields are always OR-ed together.
         searchResponse = client().prepareSearch().setQuery(builder).get();
         assertHitCount(searchResponse, 2l);
@@ -1826,15 +1826,15 @@ public class SearchQueryIT extends ESIntegTestCase {
         refresh();
 
         SearchResponse searchResponse = client().prepareSearch("test")
-                .setQuery(multiMatchQuery("value2", "field1^2", "field2").lenient(true).useDisMax(false)).get();
+                .setQuery(multiMatchQuery("value2", "field2").field("field1", 2).lenient(true).useDisMax(false)).get();
         assertHitCount(searchResponse, 1l);
 
         searchResponse = client().prepareSearch("test")
-                .setQuery(multiMatchQuery("value2", "field1^2", "field2").lenient(true).useDisMax(true)).get();
+                .setQuery(multiMatchQuery("value2", "field2").field("field1", 2).lenient(true).useDisMax(true)).get();
         assertHitCount(searchResponse, 1l);
 
         searchResponse = client().prepareSearch("test")
-                .setQuery(multiMatchQuery("value2", "field2^2").lenient(true)).get();
+                .setQuery(multiMatchQuery("value2").field("field2", 2).lenient(true)).get();
         assertHitCount(searchResponse, 1l);
     }
 

@@ -20,10 +20,8 @@
 package org.elasticsearch.index.query;
 
 import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
-
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
@@ -79,11 +77,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolModule;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
-import org.junit.After;
-import org.junit.AfterClass;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.Test;
+import org.junit.*;
 
 import java.io.IOException;
 import java.lang.reflect.InvocationHandler;
@@ -95,10 +89,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.*;
 
 public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>> extends ESTestCase {
 
@@ -518,6 +509,15 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                 value = randomAsciiOfLengthBetween(1, 10);
         }
         return value;
+    }
+
+    protected static String getRandomQueryText() {
+        int terms = randomIntBetween(0, 3);
+        StringBuilder builder = new StringBuilder();
+        for (int i = 0; i < terms; i++) {
+            builder.append(randomAsciiOfLengthBetween(1, 10) + " ");
+        }
+        return builder.toString().trim();
     }
 
     /**

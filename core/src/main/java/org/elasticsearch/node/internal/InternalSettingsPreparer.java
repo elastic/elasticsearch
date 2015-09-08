@@ -53,7 +53,7 @@ import static org.elasticsearch.common.settings.Settings.settingsBuilder;
  */
 public class InternalSettingsPreparer {
 
-    static final String[] ALLOWED_SUFFIXES = {".yml", ".yaml", ".json", ".properties"};
+    private static final String[] ALLOWED_SUFFIXES = {".yml", ".yaml", ".json", ".properties"};
     static final String[] PROPERTY_PREFIXES = {"es.", "elasticsearch."};
     static final String[] PROPERTY_DEFAULTS_PREFIXES = {"es.default.", "elasticsearch.default."};
 

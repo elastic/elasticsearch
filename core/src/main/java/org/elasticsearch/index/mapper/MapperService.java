@@ -70,7 +70,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
-import java.util.function.Predicate;
 
 import static org.elasticsearch.common.collect.MapBuilder.newMapBuilder;
 
@@ -556,7 +555,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         final ImmutableMap<String, MappedFieldType> unmappedFieldMappers = this.unmappedFieldTypes;
         MappedFieldType fieldType = unmappedFieldMappers.get(type);
         if (fieldType == null) {
-            final Mapper.TypeParser.ParserContext parserContext = documentMapperParser().parserContext();
+            final Mapper.TypeParser.ParserContext parserContext = documentMapperParser().parserContext(type);
             Mapper.TypeParser typeParser = parserContext.typeParser(type);
             if (typeParser == null) {
                 throw new IllegalArgumentException("No mapper found for type [" + type + "]");

@@ -117,5 +117,49 @@ The `match` query with type set to `phrase_prefix` (or the
 `match_phrase_prefix` query) is not supported by the postings highlighter. No
 highlighted snippets will be returned.
 
+==== Nested queries need full paths for field names in queries
+
+Nested queries previously did not need the full path defined in the query. 
+For example, for this mapping:
+
+[source,js]
+---------------
+{
+  "doc": {
+    "properties": {
+      "nested_field": {
+        "type": "nested",
+        "properties": {
+          "name": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}
+---------------
+
+
+any query that acesses the nested fields needs the full path `nested_field.name` defined like so:
+
+
+[source,js]
+----------------
+{
+  "query": {
+    "nested": {
+      "path": "nested_field",
+      "query": {
+        "match": {
+          "nested_field.name": "John Doe"
+        }
+      }
+    }
+  }
+}
+----------------
+
+whereas before 2.0 `"name": "John Doe"` was sufficient.
 
 

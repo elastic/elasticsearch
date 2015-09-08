@@ -164,7 +164,7 @@ final class Bootstrap {
                 .put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING, true)
                 .build();
 
-        NodeBuilder nodeBuilder = NodeBuilder.nodeBuilder().settings(nodeSettings).loadConfigSettings(false);
+        NodeBuilder nodeBuilder = NodeBuilder.nodeBuilder().settings(nodeSettings);
         node = nodeBuilder.build();
     }
     

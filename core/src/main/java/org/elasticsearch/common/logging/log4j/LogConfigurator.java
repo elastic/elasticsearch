@@ -87,6 +87,7 @@ public class LogConfigurator {
             return;
         }
         loaded = true;
+        // TODO: this is partly a copy of InternalSettingsPreparer...we should pass in Environment and not do all this...
         Environment environment = new Environment(settings);
         Settings.Builder settingsBuilder = settingsBuilder().put(settings);
         resolveConfig(environment, settingsBuilder);
@@ -116,11 +117,11 @@ public class LogConfigurator {
      * sets the loaded flag to false so that logging configuration can be
      * overridden. Should only be used in tests.
      */
-    public static void reset() {
+    static void reset() {
         loaded = false;
     }
 
-    public static void resolveConfig(Environment env, final Settings.Builder settingsBuilder) {
+    static void resolveConfig(Environment env, final Settings.Builder settingsBuilder) {
 
         try {
             Files.walkFileTree(env.configFile(), EnumSet.of(FileVisitOption.FOLLOW_LINKS), Integer.MAX_VALUE, new SimpleFileVisitor<Path>() {
@@ -143,7 +144,7 @@ public class LogConfigurator {
         }
     }
 
-    public static void loadConfig(Path file, Settings.Builder settingsBuilder) {
+    static void loadConfig(Path file, Settings.Builder settingsBuilder) {
         try {
             settingsBuilder.loadFromPath(file);
         } catch (SettingsException | NoClassDefFoundError e) {

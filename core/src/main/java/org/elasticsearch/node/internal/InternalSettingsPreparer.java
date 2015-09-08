@@ -81,7 +81,7 @@ public class InternalSettingsPreparer {
      * @return the {@link Settings} and {@link Environment} as a {@link Tuple}
      */
     public static Environment prepareEnvironment(Settings input, Terminal terminal) {
-        // just create enough settings to build the environment
+        // just create enough settings to build the environment, to get the config dir
         Settings.Builder output = settingsBuilder();
         initializeSettings(output, input, true);
         Environment environment = new Environment(output.build());
@@ -128,11 +128,6 @@ public class InternalSettingsPreparer {
         // TODO: only re-initialize if a config file was actually loaded
         initializeSettings(output, input, false);
         finalizeSettings(output, terminal, environment.configFile());
-
-        environment = new Environment(output.build());
-
-        // we put back the path.logs so we can use it in the logging configuration file
-        output.put("path.logs", cleanPath(environment.logsFile().toAbsolutePath().toString()));
 
         return new Environment(output.build());
     }

@@ -42,6 +42,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
 
+import static org.elasticsearch.common.Strings.cleanPath;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 
 /**
@@ -124,6 +125,11 @@ public class InternalSettingsPreparer {
         // TODO: only re-initialize if a config file was actually loaded
         initializeSettings(output, input, false);
         finalizeSettings(output, terminal, environment.configFile());
+
+        environment = new Environment(output.build());
+
+        // we put back the path.logs so we can use it in the logging configuration file
+        output.put("path.logs", cleanPath(environment.logsFile().toAbsolutePath().toString()));
 
         return new Environment(output.build());
     }

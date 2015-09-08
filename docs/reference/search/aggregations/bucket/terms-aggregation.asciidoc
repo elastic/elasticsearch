@@ -524,6 +524,29 @@ http://docs.oracle.com/javase/7/docs/api/java/util/regex/Pattern.html#UNICODE_CH
 http://docs.oracle.com/javase/7/docs/api/java/util/regex/Pattern.html#UNIX_LINES[`UNIX_LINES`]
 
 
+For matching based on exact values the `include` and `exclude` parameters can simply take an array of
+strings that represent the terms as they are found in the index:
+
+[source,js]
+--------------------------------------------------
+{
+    "aggs" : {
+        "JapaneseCars" : {
+             "terms" : {
+                 "field" : "make",
+                 "include" : ["mazda", "honda"]
+             }
+         },
+        "ActiveCarManufacturers" : {
+             "terms" : {
+                 "field" : "make",
+                 "exclude" : ["rover", "jensen"]
+             }
+         }
+    }
+}
+--------------------------------------------------
+
 ==== Multi-field terms aggregation
 
 The `terms` aggregation does not support collecting terms from multiple fields

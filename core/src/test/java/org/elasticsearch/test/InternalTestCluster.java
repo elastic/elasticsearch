@@ -631,7 +631,7 @@ public final class InternalTestCluster extends TestCluster {
                 .put("name", name)
                 .put("discovery.id.seed", seed)
                 .build();
-        MockNode node = new MockNode(finalSettings, true, version, plugins);
+        MockNode node = new MockNode(finalSettings, version, plugins);
         return new NodeAndClient(name, node);
     }
 
@@ -884,7 +884,7 @@ public final class InternalTestCluster extends TestCluster {
             Settings finalSettings = Settings.builder().put(node.settings()).put(newSettings).build();
             Collection<Class<? extends Plugin>> plugins = node.getPlugins();
             Version version = node.getVersion();
-            node = new MockNode(finalSettings, true, version, plugins);
+            node = new MockNode(finalSettings, version, plugins);
             node.start();
         }
 

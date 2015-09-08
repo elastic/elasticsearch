@@ -21,6 +21,7 @@ package org.elasticsearch.gateway;
 
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.settings.Settings;
 
 import java.util.Comparator;
@@ -33,7 +34,7 @@ import java.util.Comparator;
  * here the newer indices matter more). If even that is the same, we compare the index name which is useful
  * if the date is baked into the index name. ie logstash-2015.05.03.
  */
-abstract class PriorityComparator implements Comparator<ShardRouting> {
+public abstract class PriorityComparator implements Comparator<ShardRouting> {
 
     @Override
     public final int compare(ShardRouting o1, ShardRouting o2) {
@@ -63,4 +64,17 @@ abstract class PriorityComparator implements Comparator<ShardRouting> {
     }
 
     protected abstract Settings getIndexSettings(String index);
+
+    /**
+     * Returns a PriorityComparator that uses the RoutingAllocation index metadata to access the index setting per index.
+     */
+    public static PriorityComparator getAllocationComparator(final RoutingAllocation allocation) {
+        return new PriorityComparator() {
+            @Override
+            protected Settings getIndexSettings(String index) {
+                IndexMetaData indexMetaData = allocation.metaData().index(index);
+                return indexMetaData.getSettings();
+            }
+        };
+    }
 }

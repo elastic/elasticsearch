@@ -989,7 +989,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         }
     }
 
-    private ClusterState rejoin(ClusterState clusterState, String reason) {
+    protected ClusterState rejoin(ClusterState clusterState, String reason) {
 
         // *** called from within an cluster state update task *** //
         assert Thread.currentThread().getName().contains(InternalClusterService.UPDATE_THREAD_NAME);

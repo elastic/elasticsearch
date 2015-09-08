@@ -38,6 +38,7 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.BucketCollector;
@@ -113,7 +114,7 @@ public class NestedAggregatorTests extends ESSingleNodeTestCase {
         indexWriter.commit();
         indexWriter.close();
 
-        DirectoryReader directoryReader = DirectoryReader.open(directory);
+        DirectoryReader directoryReader =  DirectoryReader.open(directory);
         IndexSearcher searcher = new IndexSearcher(directoryReader);
 
         IndexService indexService = createIndex("test");

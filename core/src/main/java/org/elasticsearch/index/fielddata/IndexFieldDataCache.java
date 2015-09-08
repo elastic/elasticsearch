@@ -24,6 +24,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.shard.ShardId;
 
 /**
  * A simple field data cache abstraction on the *index* level.
@@ -44,13 +45,19 @@ public interface IndexFieldDataCache {
      */
     void clear(String fieldName);
 
-    void clear(Object coreCacheKey);
+    void clear(IndexReader reader);
 
     interface Listener {
 
-        void onLoad(MappedFieldType.Names fieldNames, FieldDataType fieldDataType, Accountable ramUsage);
+        /**
+         * Called after the fielddata is loaded during the cache phase
+         */
+        void onCache(ShardId shardId, MappedFieldType.Names fieldNames, FieldDataType fieldDataType, Accountable ramUsage);
 
-        void onUnload(MappedFieldType.Names fieldNames, FieldDataType fieldDataType, boolean wasEvicted, long sizeInBytes);
+        /**
+         * Called after the fielddata is unloaded
+         */
+        void onRemoval(ShardId shardId, MappedFieldType.Names fieldNames, FieldDataType fieldDataType, boolean wasEvicted, long sizeInBytes);
     }
 
     class None implements IndexFieldDataCache {
@@ -75,8 +82,7 @@ public interface IndexFieldDataCache {
         }
 
         @Override
-        public void clear(Object coreCacheKey) {
-
+        public void clear(IndexReader reader) {
         }
     }
 }

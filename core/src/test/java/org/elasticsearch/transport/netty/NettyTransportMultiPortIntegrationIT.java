@@ -72,7 +72,7 @@ public class NettyTransportMultiPortIntegrationIT extends ESIntegTestCase {
                 .put(TransportModule.TRANSPORT_TYPE_KEY, "netty")
                 .put("path.home", createTempDir().toString())
                 .build();
-        try (TransportClient transportClient = TransportClient.builder().settings(settings).loadConfigSettings(false).build()) {
+        try (TransportClient transportClient = TransportClient.builder().settings(settings).build()) {
             transportClient.addTransportAddress(new InetSocketTransportAddress(InetAddress.getByName("127.0.0.1"), randomPort));
             ClusterHealthResponse response = transportClient.admin().cluster().prepareHealth().get();
             assertThat(response.getStatus(), is(ClusterHealthStatus.GREEN));

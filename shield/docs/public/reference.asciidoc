@@ -57,8 +57,6 @@ Elasticsearch. This only applies to publicly available indices and cluster actio
 [float]
 ===== Cluster actions privileges
 
-* `cluster:admin/nodes/restart`
-* `cluster:admin/nodes/shutdown`
 * `cluster:admin/repository/delete`
 * `cluster:admin/repository/get`
 * `cluster:admin/repository/put`
@@ -73,8 +71,6 @@ Elasticsearch. This only applies to publicly available indices and cluster actio
 * `cluster:admin/plugin/license/get`
 * `cluster:admin/plugin/license/delete`
 * `cluster:admin/plugin/license/put`
-* `cluster:admin/indices/scroll/clear_all`
-* `cluster:admin/analyze`
 * `cluster:admin/shield/realm/cache/clear`
 * `cluster:monitor/health`
 * `cluster:monitor/nodes/hot_threads`
@@ -88,8 +84,7 @@ Elasticsearch. This only applies to publicly available indices and cluster actio
 * `indices:admin/template/put`
 
 NOTE: While indices template actions typically relate to indices, they are categorized under cluster actions to avoid
-      potential security leaks (e.g. having one user define a template that may match another user's index and then be
-      applied).
+      potential security leaks. For example, having one user define a template that matches another user's index.
 
 [[ref-actions-list-indices]]
 
@@ -104,19 +99,23 @@ NOTE: While indices template actions typically relate to indices, they are categ
 * `indices:admin/close`
 * `indices:admin/create`
 * `indices:admin/delete`
+* `indices:admin/get`
 * `indices:admin/exists`
 * `indices:admin/flush`
-* `indices:admin/get`
-* `indices:admin/mapping/delete`
 * `indices:admin/mapping/put`
 * `indices:admin/mappings/fields/get`
 * `indices:admin/mappings/get`
 * `indices:admin/open`
 * `indices:admin/optimize`
 * `indices:admin/refresh`
+* `indices:admin/render/template/search`
 * `indices:admin/settings/update`
 * `indices:admin/shards/search_shards`
+* `indices:admin/template/delete`
+* `indices:admin/template/get`
+* `indices:admin/template/put`
 * `indices:admin/types/exists`
+* `indices:admin/upgrade`
 * `indices:admin/validate/query`
 * `indices:admin/warmers/delete`
 * `indices:admin/warmers/get`
@@ -124,14 +123,15 @@ NOTE: While indices template actions typically relate to indices, they are categ
 * `indices:monitor/recovery`
 * `indices:monitor/segments`
 * `indices:monitor/settings/get`
+* `indices:monitor/shard_stores`
 * `indices:monitor/stats`
-* `indices:monitor/status`
+* `indices:monitor/upgrade`
 * `indices:data/read/count`
 * `indices:data/read/exists`
 * `indices:data/read/explain`
+* `indices:data/read/field_stats`
 * `indices:data/read/get`
 * `indices:data/read/mget`
-* `indices:data/read/mlt`
 * `indices:data/read/mpercolate`
 * `indices:data/read/msearch`
 * `indices:data/read/mtv`
@@ -144,7 +144,6 @@ NOTE: While indices template actions typically relate to indices, they are categ
 * `indices:data/read/tv`
 * `indices:data/write/bulk`
 * `indices:data/write/delete`
-* `indices:data/write/delete/by_query`
 * `indices:data/write/index`
 * `indices:data/write/script/delete`
 * `indices:data/write/script/put`

@@ -22,7 +22,7 @@ public class SessionFactoryTests extends ESTestCase {
     @Test
     public void connectionFactoryReturnsCorrectLDAPConnectionOptionsWithDefaultSettings() {
         SessionFactory factory = createSessionFactory();
-        LDAPConnectionOptions options = factory.connectionOptions(Settings.EMPTY);
+        LDAPConnectionOptions options = SessionFactory.connectionOptions(Settings.EMPTY);
         assertThat(options.followReferrals(), is(equalTo(true)));
         assertThat(options.allowConcurrentSocketFactoryUse(), is(equalTo(true)));
         assertThat(options.getConnectTimeoutMillis(), is(equalTo(5000)));
@@ -39,7 +39,7 @@ public class SessionFactoryTests extends ESTestCase {
                 .put(SessionFactory.FOLLOW_REFERRALS_SETTING, "false")
                 .build();
         SessionFactory factory = createSessionFactory();
-        LDAPConnectionOptions options = factory.connectionOptions(settings);
+        LDAPConnectionOptions options = SessionFactory.connectionOptions(settings);
         assertThat(options.followReferrals(), is(equalTo(false)));
         assertThat(options.allowConcurrentSocketFactoryUse(), is(equalTo(true)));
         assertThat(options.getConnectTimeoutMillis(), is(equalTo(10)));

@@ -37,6 +37,15 @@ bin/plugin remove watcher
 === Change List
 
 [float]
+==== 2.0.0-beta2
+
+.New Features
+* Added new <<actions-hipchat, HipChat Action>>
+* Added new <<actions-slack, Slack Action>>
+* Watches now have an <<watch-active-state, active state>>. In addition, a new API was added to
+  <<api-rest-activate-watch, activate>>/<<api-rest-deactivate-watch, deactivate>> registered watches.
+
+[float]
 ==== 2.0.0-beta1
 
 This release is primarily for compatibility with Elasticsearch 2.0.0-beta1.

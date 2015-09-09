@@ -1365,7 +1365,8 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertHitCount(searchResponse, 1l);
         assertThat(searchResponse.getHits().hits().length, equalTo(1));
 
-        searchResponse = client().prepareSearch().setQuery(constantScoreQuery(idsQuery(null).ids("1"))).get();
+        // TODO: why do we even support passing null??
+        searchResponse = client().prepareSearch().setQuery(constantScoreQuery(idsQuery((String[])null).ids("1"))).get();
         assertHitCount(searchResponse, 1l);
         assertThat(searchResponse.getHits().hits().length, equalTo(1));
 
@@ -1403,7 +1404,7 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertHitCount(searchResponse, 1l);
         assertThat(searchResponse.getHits().hits().length, equalTo(1));
 
-        searchResponse = client().prepareSearch().setQuery(idsQuery(null).ids("1")).get();
+        searchResponse = client().prepareSearch().setQuery(idsQuery((String[])null).ids("1")).get();
         assertHitCount(searchResponse, 1l);
         assertThat(searchResponse.getHits().hits().length, equalTo(1));
 

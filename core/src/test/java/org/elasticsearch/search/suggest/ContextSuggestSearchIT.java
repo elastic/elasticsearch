@@ -170,7 +170,7 @@ public class ContextSuggestSearchIT extends ESIntegTestCase {
                 .startObject("context")
                 .startObject("location")
                 .field("type", "geo")
-                .array("precision", precisions.toArray(new Integer[precisions.size()]))
+                .array("precision", (Object[])precisions.toArray(new Integer[precisions.size()]))
                 .endObject()
                 .endObject().endObject()
                 .endObject().endObject();
@@ -185,7 +185,7 @@ public class ContextSuggestSearchIT extends ESIntegTestCase {
                 .startObject("context")
                 .startObject("location")
                 .field("type", "geo")
-                .array("precision", precisions.toArray(new Integer[precisions.size()]))
+                .array("precision", (Object[])precisions.toArray(new Integer[precisions.size()]))
                 .endObject()
                 .endObject().endObject()
                 .endObject().endObject();

@@ -148,7 +148,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         ensureGreen();
         NodeEnvironment env = getInstanceFromNode(NodeEnvironment.class);
         Path[] shardPaths = env.availableShardPaths(new ShardId("test", 0));
-        logger.info("--> paths: [{}]", shardPaths);
+        logger.info("--> paths: [{}]", (Object)shardPaths);
         // Should not be able to acquire the lock because it's already open
         try {
             NodeEnvironment.acquireFSLockForPaths(Settings.EMPTY, shardPaths);

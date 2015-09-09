@@ -576,6 +576,7 @@
                         <useIncrementalCompilation>false</useIncrementalCompilation>
                         <compilerArgs>
                             <arg>-XDignore.symbol.file</arg>
+                            <arg>-Werror</arg>
                         </compilerArgs>
                     </configuration>
                 </plugin>

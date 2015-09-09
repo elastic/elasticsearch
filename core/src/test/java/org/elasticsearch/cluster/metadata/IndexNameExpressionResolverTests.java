@@ -114,14 +114,14 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         String[] results = indexNameExpressionResolver.concreteIndices(context, Strings.EMPTY_ARRAY);
         assertEquals(3, results.length);
 
-        results = indexNameExpressionResolver.concreteIndices(context, null);
+        results = indexNameExpressionResolver.concreteIndices(context, (String[])null);
         assertEquals(3, results.length);
 
         context = new IndexNameExpressionResolver.Context(state, IndicesOptions.strictExpand());
         results = indexNameExpressionResolver.concreteIndices(context, Strings.EMPTY_ARRAY);
         assertEquals(4, results.length);
 
-        results = indexNameExpressionResolver.concreteIndices(context, null);
+        results = indexNameExpressionResolver.concreteIndices(context, (String[])null);
         assertEquals(4, results.length);
 
         context = new IndexNameExpressionResolver.Context(state, IndicesOptions.strictExpandOpen());
@@ -348,7 +348,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             assertEquals(2, results.length);
             assertThat(results, arrayContainingInAnyOrder("foo", "foobar"));
 
-            results = indexNameExpressionResolver.concreteIndices(context, null);
+            results = indexNameExpressionResolver.concreteIndices(context, (String[])null);
             assertEquals(0, results.length);
 
             results = indexNameExpressionResolver.concreteIndices(context, Strings.EMPTY_ARRAY);

@@ -1661,7 +1661,7 @@ public class SimpleSortIT extends ESIntegTestCase {
         // We sort on nested field
         SearchResponse searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
-                .addSort("nested.foo", SortOrder.DESC)
+                .addSort(SortBuilders.fieldSort("nested.foo").setNestedPath("nested").order(SortOrder.DESC))
                 .execute().actionGet();
         assertNoFailures(searchResponse);
         SearchHit[] hits = searchResponse.getHits().hits();
@@ -1678,7 +1678,7 @@ public class SimpleSortIT extends ESIntegTestCase {
         // We sort on nested sub field
         searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
-                .addSort("nested.foo.sub", SortOrder.DESC)
+                .addSort(SortBuilders.fieldSort("nested.foo.sub").setNestedPath("nested").order(SortOrder.DESC))
                 .execute().actionGet();
         assertNoFailures(searchResponse);
         hits = searchResponse.getHits().hits();

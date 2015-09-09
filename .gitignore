@@ -12,7 +12,6 @@ build/
 docs/html/
 docs/build.log
 /tmp/
-backwards/
 html_docs
 .vagrant/
 

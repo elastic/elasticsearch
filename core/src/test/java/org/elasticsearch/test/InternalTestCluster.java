@@ -34,6 +34,7 @@ import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
+
 import org.apache.lucene.store.StoreRateLimiting;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
@@ -129,11 +130,15 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static junit.framework.Assert.fail;
-import static org.apache.lucene.util.LuceneTestCase.*;
+import static org.apache.lucene.util.LuceneTestCase.TEST_NIGHTLY;
+import static org.apache.lucene.util.LuceneTestCase.rarely;
+import static org.apache.lucene.util.LuceneTestCase.usually;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.ESTestCase.assertBusy;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.junit.Assert.assertThat;
 
 /**
@@ -1904,4 +1909,22 @@ public final class InternalTestCluster extends TestCluster {
         }
     }
 
+    public String unicastHosts() {
+        StringBuilder b = new StringBuilder();
+        boolean first = true;
+        for (NodeAndClient node: nodes.values()) {
+            if (first) {
+                first = false;
+            } else {
+                b.append(',');
+            }
+            b.append("localhost:").append(node.node().injector().getInstance(TransportService.class).boundAddress().publishAddress().getPort());
+        }
+        return b.toString();
+    }
+
+    @Override
+    protected Settings settingsForRandomRepoPath() {
+        return getDefaultSettings();
+    }
 }

@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.gateway;
 
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -38,10 +39,16 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
+/**
+ * It looks like this test asserts that Elasticsearch is able to recover the
+ * files constituting the Lucene index from other Elasticsearch nodes that
+ * share the same disk. This looks to mostly work but some of the files
+ * consistently need to be "recovered" rather than "reused" according to the
+ * stats.
+ */
+@AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/13522")
 @ESIntegTestCase.ClusterScope(numDataNodes = 0, scope = ESIntegTestCase.Scope.TEST, numClientNodes = 0, transportClientRatio = 0.0)
 public class RecoveryBackwardsCompatibilityIT extends ESBackcompatTestCase {
-
-
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
@@ -60,7 +67,6 @@ public class RecoveryBackwardsCompatibilityIT extends ESBackcompatTestCase {
         return 3;
     }
 
-    @Test
     public void testReusePeerRecovery() throws Exception {
         assertAcked(prepareCreate("test").setSettings(Settings.builder().put(indexSettings())
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
@@ -87,6 +93,7 @@ public class RecoveryBackwardsCompatibilityIT extends ESBackcompatTestCase {
         assertHitCount(countResponse, numDocs);
 
         client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.settingsBuilder().put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE, "none")).execute().actionGet();
+
         backwardsCluster().upgradeAllNodes();
         client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.settingsBuilder().put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE, "all")).execute().actionGet();
         ensureGreen();

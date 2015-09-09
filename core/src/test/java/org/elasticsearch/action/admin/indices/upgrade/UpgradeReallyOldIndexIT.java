@@ -26,6 +26,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.indices.IndicesService;
 
+import static org.elasticsearch.action.admin.indices.upgrade.UpgradeAssertions.assertNotUpgraded;
+import static org.elasticsearch.action.admin.indices.upgrade.UpgradeAssertions.assertUpgraded;
+import static org.elasticsearch.action.admin.indices.upgrade.UpgradeAssertions.hasAncientSegments;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.containsString;
 
@@ -36,13 +39,13 @@ public class UpgradeReallyOldIndexIT extends StaticIndexBackwardCompatibilityIT 
 
         loadIndex(indexName);
         assertMinVersion(indexName, org.apache.lucene.util.Version.parse("4.5.1"));
-        UpgradeIT.assertNotUpgraded(client(), indexName);
-        assertTrue(UpgradeIT.hasAncientSegments(client(), indexName));
+        assertNotUpgraded(client(), indexName);
+        assertTrue(hasAncientSegments(client(), indexName));
         assertNoFailures(client().admin().indices().prepareUpgrade(indexName).setUpgradeOnlyAncientSegments(true).get());
 
-        assertFalse(UpgradeIT.hasAncientSegments(client(), indexName));
+        assertFalse(hasAncientSegments(client(), indexName));
         // This index has only ancient segments, so it should now be fully upgraded:
-        UpgradeIT.assertUpgraded(client(), indexName);
+        assertUpgraded(client(), indexName);
         assertEquals(Version.CURRENT.luceneVersion.toString(), client().admin().indices().prepareGetSettings(indexName).get().getSetting(indexName, IndexMetaData.SETTING_VERSION_MINIMUM_COMPATIBLE));
         assertMinVersion(indexName, Version.CURRENT.luceneVersion);
 
@@ -68,7 +71,5 @@ public class UpgradeReallyOldIndexIT extends StaticIndexBackwardCompatibilityIT 
                 assertEquals(version, indexService.shard(0).minimumCompatibleVersion());
             }
         }
-
     }
-
 }

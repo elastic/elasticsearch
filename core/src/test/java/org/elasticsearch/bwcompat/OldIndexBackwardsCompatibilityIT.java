@@ -27,7 +27,6 @@ import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
-import org.elasticsearch.action.admin.indices.upgrade.UpgradeIT;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -74,6 +73,8 @@ import java.util.Map;
 import java.util.SortedSet;
 import java.util.TreeSet;
 
+import static org.elasticsearch.action.admin.indices.upgrade.UpgradeAssertions.assertNotUpgraded;
+import static org.elasticsearch.action.admin.indices.upgrade.UpgradeAssertions.assertUpgraded;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.CoreMatchers.containsString;
@@ -454,10 +455,10 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
 
     void assertUpgradeWorks(String indexName, boolean alreadyLatest) throws Exception {
         if (alreadyLatest == false) {
-            UpgradeIT.assertNotUpgraded(client(), indexName);
+            assertNotUpgraded(client(), indexName);
         }
         assertNoFailures(client().admin().indices().prepareUpgrade(indexName).get());
-        UpgradeIT.assertUpgraded(client(), indexName);
+        assertUpgraded(client(), indexName);
     }
 
 }

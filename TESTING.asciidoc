@@ -74,22 +74,21 @@ mvn test "-Dtests.method=*esi*"
 You can also filter tests by certain annotations ie:
 
   * `@Nightly` - tests that only run in nightly builds (disabled by default)
-  * `@Backwards` - backwards compatibility tests (disabled by default)
   * `@AwaitsFix` - tests that are waiting for a bugfix (disabled by default)
   * `@BadApple` - tests that are known to fail randomly (disabled by default)
 
 Those annotation names can be combined into a filter expression like:
 
 ------------------------------------------------
-mvn test -Dtests.filter="@nightly and not @backwards"
+mvn test -Dtests.filter="@nightly and not @badapple"
 ------------------------------------------------
 
-to run all nightly test but not the ones that are backwards tests. `tests.filter` supports
+to run all nightly test but not the ones that are badapple tests. `tests.filter` supports
 the boolean operators `and, or, not` and grouping ie:
 
 
 ---------------------------------------------------------------
-mvn test -Dtests.filter="@nightly and not(@badapple or @backwards)"
+mvn test -Dtests.filter="@nightly and not(@badapple or @awaitsfix)"
 ---------------------------------------------------------------
 
 === Seed and repetitions.
@@ -217,34 +216,6 @@ Pass arbitrary jvm arguments.
 mvn test -Dtests.jvm.argline="-XX:HeapDumpPath=/path/to/heapdumps"
 ------------------------------
 
-== Backwards Compatibility Tests
-
-Running backwards compatibility tests is disabled by default since it
-requires a release version of elasticsearch to be present on the test system.
-To run backwards compatibilty tests untar or unzip a release and run the tests
-with the following command:
-
----------------------------------------------------------------------------
-mvn test -Dtests.filter="@backwards" -Dtests.bwc.version=x.y.z -Dtests.bwc.path=/path/to/elasticsearch -Dtests.security.manager=false
----------------------------------------------------------------------------
-
-Note that backwards tests must be run with security manager disabled.
-If the elasticsearch release is placed under `./backwards/elasticsearch-x.y.z` the path
-can be omitted:
-
----------------------------------------------------------------------------
-mvn test -Dtests.filter="@backwards" -Dtests.bwc.version=x.y.z -Dtests.security.manager=false
----------------------------------------------------------------------------
-
-To setup the bwc test environment execute the following steps (provided you are
-already in your elasticsearch clone):
-
----------------------------------------------------------------------------
-$ mkdir backwards && cd backwards
-$ curl -O https://download.elasticsearch.org/elasticsearch/elasticsearch/elasticsearch-1.2.1.tar.gz
-$ tar -xzf elasticsearch-1.2.1.tar.gz
----------------------------------------------------------------------------
-
 == Running integration tests
 
 To run the integration tests:
@@ -311,6 +282,27 @@ You can also skip this by using the "dev" profile:
 ---------------------------------------------------------------------------
 mvn test -Pdev
 ---------------------------------------------------------------------------
+
+== Backwards Compatibility Tests
+
+Backwards compatibility tests now run automatically as part of the qa
+submodule, including resolving their dependencies using maven. You can run just
+those tests like so:
+
+---------------------------------------------------------------------------
+mvn verify -pl qa/backwards
+---------------------------------------------------------------------------
+
+Or run the tests against a specific backwards version like so:
+
+---------------------------------------------------------------------------
+mvn verify -pl qa/backwards/2.0.0
+---------------------------------------------------------------------------
+
+When a new version of Elasticsearch is released all versions of Elasticsearch
+that should be backwards compatible with that version should grow a submodule
+of the same name as the version. This should be as simple as copying the 2.0.0
+submodule and changing 2.0.0 to the newly released version.
 
 == Testing scripts
 

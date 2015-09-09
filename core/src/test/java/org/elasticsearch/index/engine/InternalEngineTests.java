@@ -94,6 +94,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Pattern;
@@ -519,6 +520,36 @@ public class InternalEngineTests extends ESTestCase {
         assertThat(counter.get(), equalTo(2));
         searcher.close();
         IOUtils.close(store, engine);
+    }
+
+    @Test
+    /* */
+    public void testConcurrentGetAndFlush() throws Exception {
+        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, null);
+        engine.create(new Engine.Create(newUid("1"), doc));
+        final AtomicReference<Engine.GetResult> latestGetResult = new AtomicReference<>();
+        final AtomicBoolean flushFinished = new AtomicBoolean(false);
+        Thread getThread = new Thread() {
+            @Override
+            public void run() {
+                while (flushFinished.get() == false) {
+                    Engine.GetResult previousGetResult = latestGetResult.get();
+                    if (previousGetResult != null) {
+                        previousGetResult.release();
+                    }
+                    latestGetResult.set(engine.get(new Engine.Get(true, newUid("1"))));
+                    if (latestGetResult.get().exists() == false) {
+                        break;
+                    }
+                }
+            }
+        };
+        getThread.start();
+        engine.flush();
+        flushFinished.set(true);
+        getThread.join();
+        assertTrue(latestGetResult.get().exists());
+        latestGetResult.get().release();
     }
 
     @Test

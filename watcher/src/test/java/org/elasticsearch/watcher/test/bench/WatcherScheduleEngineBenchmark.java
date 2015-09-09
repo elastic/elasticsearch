@@ -135,7 +135,7 @@ public class WatcherScheduleEngineBenchmark {
                     .put("watcher.trigger.schedule.engine", engine)
                     .put("node.data", false)
                     .build();
-            try (Node node = new MockNode(settings, false, Version.CURRENT, Arrays.asList(WatcherPlugin.class, LicensePlugin.class))) {
+            try (Node node = new MockNode(settings, Version.CURRENT, Arrays.asList(WatcherPlugin.class, LicensePlugin.class))) {
                 try (final Client client = node.client()) {
                     client.admin().cluster().prepareHealth().setWaitForNodes("2").get();
                     client.admin().indices().prepareDelete(HistoryStore.INDEX_PREFIX + "*").get();

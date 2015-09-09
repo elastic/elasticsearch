@@ -30,7 +30,7 @@ public class MarvelLauncher {
         settings.put("cluster.name", MarvelLauncher.class.getSimpleName());
 
         final CountDownLatch latch = new CountDownLatch(1);
-        final Node node = new MockNode(settings.build(), false, Version.CURRENT, Arrays.asList(MarvelPlugin.class, LicensePlugin.class));
+        final Node node = new MockNode(settings.build(), Version.CURRENT, Arrays.asList(MarvelPlugin.class, LicensePlugin.class));
         Runtime.getRuntime().addShutdownHook(new Thread() {
 
             @Override

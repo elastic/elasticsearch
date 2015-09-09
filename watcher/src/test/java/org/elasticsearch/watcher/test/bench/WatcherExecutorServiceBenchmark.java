@@ -58,7 +58,7 @@ public class WatcherExecutorServiceBenchmark {
     private static ScheduleTriggerEngineMock scheduler;
 
     protected static void start() throws Exception {
-        Node node = new MockNode(Settings.builder().put(SETTINGS).put("node.data", false).build(), false, Version.CURRENT, Arrays.asList(WatcherBenchmarkPlugin.class, LicensePlugin.class));
+        Node node = new MockNode(Settings.builder().put(SETTINGS).put("node.data", false).build(), Version.CURRENT, Arrays.asList(WatcherBenchmarkPlugin.class, LicensePlugin.class));
         client = node.client();
         client.admin().cluster().prepareHealth("*").setWaitForGreenStatus().get();
         Thread.sleep(5000);

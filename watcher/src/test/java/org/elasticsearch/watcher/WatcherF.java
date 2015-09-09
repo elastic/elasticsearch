@@ -48,7 +48,7 @@ public class WatcherF {
         System.setProperty("es.watcher.actions.slack.service.account.a1.url", "https://hooks.slack.com/services/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");
 
         final CountDownLatch latch = new CountDownLatch(1);
-        final Node node = new MockNode(settings.build(), false, Version.CURRENT, Arrays.asList(WatcherPlugin.class, LicensePlugin.class));
+        final Node node = new MockNode(settings.build(), Version.CURRENT, Arrays.asList(WatcherPlugin.class, LicensePlugin.class));
         Runtime.getRuntime().addShutdownHook(new Thread() {
 
             @Override

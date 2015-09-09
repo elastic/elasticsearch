@@ -412,7 +412,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
         }
         builder.put("path.home", createTempDir());
 
-        try (Node node = new MockNode(builder.build(), false, Version.CURRENT, Arrays.asList(ShieldPlugin.class, LicensePlugin.class))) {
+        try (Node node = new MockNode(builder.build(), Version.CURRENT, Arrays.asList(ShieldPlugin.class, LicensePlugin.class))) {
             node.start();
         }
     }

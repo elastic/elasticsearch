@@ -25,7 +25,7 @@ import org.apache.lucene.index.memory.MemoryIndex;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.termvectors.TermVectorsFilter;
 import org.elasticsearch.action.termvectors.TermVectorsRequest;
-import org.elasticsearch.action.termvectors.TermVectorsResponse;
+import org.elasticsearch.action.termvectors.TermVectorsResult;
 import org.elasticsearch.action.termvectors.dfs.DfsOnlyRequest;
 import org.elasticsearch.action.termvectors.dfs.DfsOnlyResponse;
 import org.elasticsearch.action.termvectors.dfs.TransportDfsOnlyAction;
@@ -75,8 +75,8 @@ public class ShardTermVectorsService extends AbstractIndexShardComponent {
         return this;
     }
 
-    public TermVectorsResponse getTermVectors(TermVectorsRequest request, String concreteIndex) {
-        final TermVectorsResponse termVectorsResponse = new TermVectorsResponse(concreteIndex, request.type(), request.id());
+    public TermVectorsResult getTermVectors(TermVectorsRequest request, String concreteIndex) {
+        final TermVectorsResult termVectorsResult = new TermVectorsResult(concreteIndex, request.type(), request.id());
         final Term uidTerm = new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(request.type(), request.id()));
 
         Engine.GetResult get = indexShard.get(new Engine.Get(request.realtime(), uidTerm).version(request.version()).versionType(request.versionType()));
@@ -89,7 +89,7 @@ public class ShardTermVectorsService extends AbstractIndexShardComponent {
         /* fetched from translog is treated as an artificial document */
         if (docFromTranslog) {
             request.doc(get.source().source, false);
-            termVectorsResponse.setDocVersion(get.version());
+            termVectorsResult.setDocVersion(get.version());
         }
 
         /* handle potential wildcards in fields */
@@ -108,8 +108,8 @@ public class ShardTermVectorsService extends AbstractIndexShardComponent {
                 if (topLevelFields == null) {
                     topLevelFields = termVectorsByField;
                 }
-                termVectorsResponse.setArtificial(!docFromTranslog);
-                termVectorsResponse.setExists(true);
+                termVectorsResult.setArtificial(!docFromTranslog);
+                termVectorsResult.setExists(true);
             }
             /* or from an existing document */
             else if (docIdAndVersion != null) {
@@ -124,12 +124,12 @@ public class ShardTermVectorsService extends AbstractIndexShardComponent {
                 if (selectedFields != null) {
                     termVectorsByField = addGeneratedTermVectors(get, termVectorsByField, request, selectedFields);
                 }
-                termVectorsResponse.setDocVersion(docIdAndVersion.version);
-                termVectorsResponse.setExists(true);
+                termVectorsResult.setDocVersion(docIdAndVersion.version);
+                termVectorsResult.setExists(true);
             }
             /* no term vectors generated or found */
             else {
-                termVectorsResponse.setExists(false);
+                termVectorsResult.setExists(false);
             }
             /* if there are term vectors, optional compute dfs and/or terms filtering */
             if (termVectorsByField != null) {
@@ -147,7 +147,7 @@ public class ShardTermVectorsService extends AbstractIndexShardComponent {
                     }
                 }
                 // write term vectors
-                termVectorsResponse.setFields(termVectorsByField, request.selectedFields(), request.getFlags(), topLevelFields, dfs, termVectorsFilter);
+                termVectorsResult.setFields(termVectorsByField, request.selectedFields(), request.getFlags(), topLevelFields, dfs, termVectorsFilter);
             }
         } catch (Throwable ex) {
             throw new ElasticsearchException("failed to execute term vector request", ex);
@@ -155,7 +155,7 @@ public class ShardTermVectorsService extends AbstractIndexShardComponent {
             searcher.close();
             get.release();
         }
-        return termVectorsResponse;
+        return termVectorsResult;
     }
 
     private void handleFieldWildcards(TermVectorsRequest request) {

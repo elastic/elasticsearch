@@ -143,6 +143,7 @@ import org.elasticsearch.search.fetch.innerhits.InnerHitsFetchSubPhase;
 import org.elasticsearch.search.fetch.matchedqueries.MatchedQueriesFetchSubPhase;
 import org.elasticsearch.search.fetch.script.ScriptFieldsFetchSubPhase;
 import org.elasticsearch.search.fetch.source.FetchSourceSubPhase;
+import org.elasticsearch.search.fetch.termvectors.TermVectorsFetchSubPhase;
 import org.elasticsearch.search.fetch.version.VersionFetchSubPhase;
 import org.elasticsearch.search.highlight.HighlightPhase;
 import org.elasticsearch.search.highlight.Highlighter;
@@ -237,6 +238,7 @@ public class SearchModule extends AbstractModule {
         fetchSubPhaseMultibinder.addBinding().to(FieldDataFieldsFetchSubPhase.class);
         fetchSubPhaseMultibinder.addBinding().to(ScriptFieldsFetchSubPhase.class);
         fetchSubPhaseMultibinder.addBinding().to(FetchSourceSubPhase.class);
+        fetchSubPhaseMultibinder.addBinding().to(TermVectorsFetchSubPhase.class);
         fetchSubPhaseMultibinder.addBinding().to(VersionFetchSubPhase.class);
         fetchSubPhaseMultibinder.addBinding().to(MatchedQueriesFetchSubPhase.class);
         fetchSubPhaseMultibinder.addBinding().to(HighlightPhase.class);

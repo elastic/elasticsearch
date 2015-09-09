@@ -27,6 +27,7 @@ import org.apache.lucene.search.BoostAttribute;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CharsRefBuilder;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.termvectors.TermVectorsRequest.Flag;
 import org.elasticsearch.common.Nullable;
@@ -102,6 +103,26 @@ public class TermVectorsResponse extends ActionResponse implements ToXContent {
     }
 
     TermVectorsResponse() {
+    }
+
+    public TermVectorsResponse(TermVectorsResult result) {
+        this.index = result.getConcreteIndex();
+        this.type = result.getType();
+        this.id = result.getId();
+
+        if (result.getDocVersion() != null) {
+            setDocVersion(result.getDocVersion());
+        }
+        setArtificial(result.getArtificial());
+        setExists(result.getExists());
+        try {
+            if (result.getTermVectorsByField() != null) {
+                setFields(result.getTermVectorsByField(), result.getSelectedFields(), result.getFlags(),
+                        result.getTopLevelFields(), result.getDfs(), result.getTermVectorsFilter());
+            }
+        } catch (Throwable ex) {
+            throw new ElasticsearchException("failed to execute term vector request", ex);
+        }
     }
 
     @Override

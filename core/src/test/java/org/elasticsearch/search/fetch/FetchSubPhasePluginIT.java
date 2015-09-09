@@ -26,6 +26,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.action.termvectors.TermVectorsResponse;
+import org.elasticsearch.action.termvectors.TermVectorsResult;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -165,7 +166,8 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
                 hitField = new InternalSearchHitField(NAMES[0], new ArrayList<>(1));
                 hitContext.hit().fields().put(NAMES[0], hitField);
             }
-            TermVectorsResponse termVector = context.indexShard().termVectorsService().getTermVectors(new TermVectorsRequest(context.indexShard().indexService().index().getName(), hitContext.hit().type(), hitContext.hit().id()), context.indexShard().indexService().index().getName());
+            TermVectorsResult result = context.indexShard().termVectorsService().getTermVectors(new TermVectorsRequest(context.indexShard().indexService().index().getName(), hitContext.hit().type(), hitContext.hit().id()), context.indexShard().indexService().index().getName());
+            TermVectorsResponse termVector = new TermVectorsResponse(result);
             try {
                 Map<String, Integer> tv = new HashMap<>();
                 TermsEnum terms = termVector.getFields().terms(field).iterator();

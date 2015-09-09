@@ -756,9 +756,10 @@ public class InternalEngine extends Engine {
                         logger.trace("starting commit for flush; commitTranslog=true");
                         commitIndexWriter(indexWriter, translog);
                         logger.trace("finished commit for flush");
-                        translog.commit();
                         // we need to refresh in order to clear older version values
                         refresh("version_table_flush");
+                        // after refresh documents can be retrieved from the index so we can now commit the translog
+                        translog.commit();
                     } catch (Throwable e) {
                         throw new FlushFailedEngineException(shardId, e);
                     }

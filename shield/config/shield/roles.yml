@@ -1,19 +1,22 @@
 admin:
   cluster: all
   indices:
-    '*': all
+    '*':
+      privileges: all
 
 # monitoring cluster privileges
 # All operations on all indices
 power_user:
   cluster: monitor
   indices:
-    '*': all
+    '*':
+      privileges: all
 
 # Read-only operations on indices
 user:
   indices:
-    '*': read
+    '*':
+      privileges: read
 
 # Defines the required permissions for transport clients
 transport_client:
@@ -26,8 +29,10 @@ transport_client:
 kibana3:
   cluster: cluster:monitor/nodes/info
   indices:
-    '*': indices:data/read/search, indices:data/read/get, indices:admin/get
-    'kibana-int': indices:data/read/search, indices:data/read/get, indices:data/write/delete, indices:data/write/index, create_index
+    '*':
+      privileges: indices:data/read/search, indices:data/read/get, indices:admin/get
+    'kibana-int':
+      privileges: indices:data/read/search, indices:data/read/get, indices:data/write/delete, indices:data/write/index, create_index
 
 # The required permissions for kibana 4 users.
 kibana4:
@@ -36,24 +41,9 @@ kibana4:
       - cluster:monitor/health 
   indices:
     '*':
-      - indices:admin/mappings/fields/get
-      - indices:admin/validate/query
-      - indices:data/read/search
-      - indices:data/read/msearch
-      - indices:admin/get 
+      privileges: indices:admin/mappings/fields/get, indices:admin/validate/query, indices:data/read/search, indices:data/read/msearch, indices:admin/get
     '.kibana':
-      - indices:admin/exists
-      - indices:admin/mapping/put
-      - indices:admin/mappings/fields/get
-      - indices:admin/refresh
-      - indices:admin/validate/query
-      - indices:data/read/get
-      - indices:data/read/mget
-      - indices:data/read/search
-      - indices:data/write/delete
-      - indices:data/write/index
-      - indices:data/write/update
-      - indices:admin/create
+      privileges: indices:admin/exists, indices:admin/mapping/put, indices:admin/mappings/fields/get, indices:admin/refresh, indices:admin/validate/query, indices:data/read/get, indices:data/read/mget, indices:data/read/search, indices:data/write/delete, indices:data/write/index, indices:data/write/update, indices:admin/create
 
 # The required permissions for the kibana 4 server
 kibana4_server:
@@ -62,33 +52,26 @@ kibana4_server:
       - cluster:monitor/health
   indices:
     '.kibana':
-      - indices:admin/exists
-      - indices:admin/mapping/put
-      - indices:admin/mappings/fields/get
-      - indices:admin/refresh
-      - indices:admin/validate/query
-      - indices:data/read/get
-      - indices:data/read/mget
-      - indices:data/read/search
-      - indices:data/write/delete
-      - indices:data/write/index
-      - indices:data/write/update
+      privileges: indices:admin/exists, indices:admin/mapping/put, indices:admin/mappings/fields/get, indices:admin/refresh, indices:admin/validate/query, indices:data/read/get, indices:data/read/mget, indices:data/read/search, indices:data/write/delete, indices:data/write/index, indices:data/write/update
 
 # The required role for logstash users
 logstash:
   cluster: indices:admin/template/get, indices:admin/template/put
   indices:
-    'logstash-*': indices:data/write/bulk, indices:data/write/delete, indices:data/write/update, indices:data/read/search, indices:data/read/scroll, create_index
+    'logstash-*':
+      privileges: indices:data/write/bulk, indices:data/write/delete, indices:data/write/update, indices:data/read/search, indices:data/read/scroll, create_index
 
 # Marvel role, allowing all operations
 # on the marvel indices
 marvel_user:
   cluster: cluster:monitor/nodes/info, cluster:admin/plugin/license/get
   indices:
-    '.marvel-*': all
+    '.marvel-*':
+      privileges: all
 
 # Marvel Agent users
 marvel_agent:
   cluster: indices:admin/template/get, indices:admin/template/put
   indices:
-    '.marvel-*': indices:data/write/bulk, create_index
+    '.marvel-*':
+      privileges: indices:data/write/bulk, create_index

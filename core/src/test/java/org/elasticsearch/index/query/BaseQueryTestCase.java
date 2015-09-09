@@ -320,7 +320,7 @@ public abstract class BaseQueryTestCase<QB extends AbstractQueryBuilder<QB>> ext
             Query namedQuery = context.copyNamedQueries().get(queryBuilder.queryName());
             assertThat(namedQuery, equalTo(query));
         }
-        if (query != null && supportsBoostAndQueryName()) {
+        if (query != null) {
             assertBoost(queryBuilder, query);
         }
         doAssertLuceneQuery(queryBuilder, query, context);

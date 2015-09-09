@@ -62,6 +62,11 @@ public class WrapperQueryBuilderTests extends BaseQueryTestCase<WrapperQueryBuil
         }
     }
 
+    @Override
+    protected void assertBoost(WrapperQueryBuilder queryBuilder, Query query) throws IOException {
+        //no-op boost is checked already above as part of doAssertLuceneQuery as we rely on lucene equals impl
+    }
+
     @Test
     public void testValidate() {
         WrapperQueryBuilder wrapperQueryBuilder = new WrapperQueryBuilder((byte[]) null);

@@ -18,9 +18,9 @@
  */
 package org.elasticsearch.index.mapper.geo;
 
+import org.apache.lucene.util.XGeoHashUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -78,7 +78,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
 
         assertThat(doc.rootDoc().getField("point.lat"), notNullValue());
         assertThat(doc.rootDoc().getField("point.lon"), notNullValue());
-        assertThat(doc.rootDoc().get("point.geohash"), equalTo(GeoHashUtils.encode(1.2, 1.3)));
+        assertThat(doc.rootDoc().get("point.geohash"), equalTo(XGeoHashUtils.stringEncode(1.3, 1.2)));
     }
 
     @Test
@@ -97,7 +97,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
 
         assertThat(doc.rootDoc().getField("point.lat"), notNullValue());
         assertThat(doc.rootDoc().getField("point.lon"), notNullValue());
-        assertThat(doc.rootDoc().get("point.geohash"), equalTo(GeoHashUtils.encode(1.2, 1.3)));
+        assertThat(doc.rootDoc().get("point.geohash"), equalTo(XGeoHashUtils.stringEncode(1.3, 1.2)));
     }
 
     @Test
@@ -110,13 +110,13 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
 
         ParsedDocument doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
-                .field("point", GeoHashUtils.encode(1.2, 1.3))
+                .field("point", XGeoHashUtils.stringEncode(1.3, 1.2))
                 .endObject()
                 .bytes());
 
         assertThat(doc.rootDoc().getField("point.lat"), notNullValue());
         assertThat(doc.rootDoc().getField("point.lon"), notNullValue());
-        assertThat(doc.rootDoc().get("point.geohash"), equalTo(GeoHashUtils.encode(1.2, 1.3)));
+        assertThat(doc.rootDoc().get("point.geohash"), equalTo(XGeoHashUtils.stringEncode(1.3, 1.2)));
     }
 
     @Test
@@ -129,7 +129,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
 
         ParsedDocument doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
-                .field("point", GeoHashUtils.encode(1.2, 1.3))
+                .field("point", XGeoHashUtils.stringEncode(1.3, 1.2))
                 .endObject()
                 .bytes());
 

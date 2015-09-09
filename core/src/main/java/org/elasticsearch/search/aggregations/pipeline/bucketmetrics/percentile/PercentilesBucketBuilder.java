@@ -40,7 +40,7 @@ public class PercentilesBucketBuilder extends BucketMetricsBuilder<PercentilesBu
     @Override
     protected void doInternalXContent(XContentBuilder builder, Params params) throws IOException {
         if (percents != null) {
-            builder.field(PercentilesBucketParser.PERCENTS.getPreferredName(), percents);
+            builder.field(PercentilesBucketParser.PERCENTS.getPreferredName(), (Object[])percents);
         }
     }
 

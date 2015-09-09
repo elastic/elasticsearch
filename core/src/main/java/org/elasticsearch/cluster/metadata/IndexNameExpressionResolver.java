@@ -668,6 +668,7 @@ public class IndexNameExpressionResolver extends AbstractComponent {
             return result;
         }
 
+        @SuppressWarnings("fallthrough")
         String resolveExpression(String expression, final Context context) {
             if (expression.startsWith(EXPRESSION_LEFT_BOUND) == false || expression.endsWith(EXPRESSION_RIGHT_BOUND) == false) {
                 return expression;

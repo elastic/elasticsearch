@@ -71,7 +71,7 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
         public NodePath(Path path, Environment environment) throws IOException {
             this.path = path;
             this.indicesPath = path.resolve(INDICES_FOLDER);
-            this.fileStore = environment.getFileStore(path);
+            this.fileStore = Environment.getFileStore(path);
             if (fileStore.supportsFileAttributeView("lucene")) {
                 this.spins = (Boolean) fileStore.getAttribute("lucene:spins");
             } else {

@@ -1713,7 +1713,9 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     /** Helper method to create list of plugins without specifying generic types. */
-    protected static Collection<Class<? extends Plugin>> pluginList(Class<? extends Plugin>... plugins) {
+    @SafeVarargs
+    @SuppressWarnings("varargs") // due to type erasure, the varargs type is non-reifiable, which casues this warning
+    protected final Collection<Class<? extends Plugin>> pluginList(Class<? extends Plugin>... plugins) {
         return Arrays.asList(plugins);
     }
 

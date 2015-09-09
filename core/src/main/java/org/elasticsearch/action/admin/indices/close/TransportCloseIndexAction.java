@@ -36,6 +36,8 @@ import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.Arrays;
+
 /**
  * Close index action
  */
@@ -92,7 +94,7 @@ public class TransportCloseIndexAction extends TransportMasterNodeAction<CloseIn
 
             @Override
             public void onFailure(Throwable t) {
-                logger.debug("failed to close indices [{}]", t, concreteIndices);
+                logger.debug("failed to close indices [{}]", t, (Object)concreteIndices);
                 listener.onFailure(t);
             }
         });

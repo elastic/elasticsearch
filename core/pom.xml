@@ -15,6 +15,10 @@
     <name>Elasticsearch: Core</name>
     <description>Elasticsearch - Open Source, Distributed, RESTful Search Engine</description>
 
+    <properties>
+        <xlint.options>-Xlint:-cast,-deprecation,-fallthrough,-overrides,-rawtypes,-serial,-try,-unchecked</xlint.options>
+    </properties>
+
     <dependencies>
         <dependency>
             <groupId>org.hamcrest</groupId>

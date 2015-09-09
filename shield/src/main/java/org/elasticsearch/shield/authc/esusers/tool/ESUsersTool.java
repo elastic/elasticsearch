@@ -389,7 +389,7 @@ public class ESUsersTool extends CliTool {
             roles.addAll(Arrays.asList(addRoles));
             roles.removeAll(Arrays.asList(removeRoles));
 
-            Map<String, String[]> userRolesToWrite = Maps.newHashMapWithExpectedSize(userRoles.size());
+            Map<String, String[]> userRolesToWrite = new HashMap<>(userRoles.size());
             userRolesToWrite.putAll(userRoles);
             if (roles.size() == 0) {
                 userRolesToWrite.remove(username);

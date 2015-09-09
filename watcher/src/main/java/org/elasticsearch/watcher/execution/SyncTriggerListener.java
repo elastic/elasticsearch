@@ -33,7 +33,7 @@ public class SyncTriggerListener implements TriggerEngine.Listener {
         try {
             executionService.processEventsSync(events);
         } catch (Exception e) {
-            logger.error("failed to process triggered events [{}]", e, Iterables.toArray(events, TriggerEvent.class));
+            logger.error("failed to process triggered events [{}]", e, (Object)Iterables.toArray(events, TriggerEvent.class));
         }
     }
 

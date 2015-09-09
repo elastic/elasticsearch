@@ -364,7 +364,7 @@ public class HttpESExporter extends AbstractExporter<HttpESExporter> implements 
                 return null;
             }
             hosts = extractedHosts;
-            logger.trace("auto-resolved hosts to {}", extractedHosts);
+            logger.trace("auto-resolved hosts to {}", (Object)extractedHosts);
             boundToLocalNode = true;
         }
 

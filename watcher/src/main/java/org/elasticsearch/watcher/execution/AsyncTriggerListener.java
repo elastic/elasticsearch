@@ -33,7 +33,7 @@ public class AsyncTriggerListener implements TriggerEngine.Listener {
         try {
             executionService.processEventsAsync(events);
         } catch (Exception e) {
-            logger.error("failed to process triggered events [{}]", e, Iterables.toArray(events, TriggerEvent.class));
+            logger.error("failed to process triggered events [{}]", e, (Object)Iterables.toArray(events, TriggerEvent.class));
         }
 
     }

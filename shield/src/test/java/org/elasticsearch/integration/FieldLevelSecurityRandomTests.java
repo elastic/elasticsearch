@@ -113,7 +113,7 @@ public class FieldLevelSecurityRandomTests extends ShieldIntegTestCase {
             doc.put(field, "value");
         }
         assertAcked(client().admin().indices().prepareCreate("test")
-                        .addMapping("type1", fieldMappers)
+                        .addMapping("type1", (Object[])fieldMappers)
         );
         client().prepareIndex("test", "type1", "1").setSource(doc).setRefresh(true).get();
 

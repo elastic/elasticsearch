@@ -57,6 +57,8 @@ public class PublishClusterStateAction extends AbstractComponent {
     public static final String SEND_ACTION_NAME = "internal:discovery/zen/publish/send";
     public static final String COMMIT_ACTION_NAME = "internal:discovery/zen/publish/commit";
 
+    public static final String SETTINGS_MAX_PENDING_CLUSTER_STATES = "discovery.zen.publish.max_pending_cluster_states";
+
     public interface NewPendingClusterStateListener {
 
         /** a new cluster state has been committed and is ready to process via {@link #pendingStatesQueue()} */
@@ -78,7 +80,7 @@ public class PublishClusterStateAction extends AbstractComponent {
         this.newPendingClusterStatelistener = listener;
         this.discoverySettings = discoverySettings;
         this.clusterName = clusterName;
-        this.pendingStatesQueue = new PendingClusterStatesQueue(logger);
+        this.pendingStatesQueue = new PendingClusterStatesQueue(logger, settings.getAsInt(SETTINGS_MAX_PENDING_CLUSTER_STATES, 100));
         transportService.registerRequestHandler(SEND_ACTION_NAME, BytesTransportRequest.class, ThreadPool.Names.SAME, new SendClusterStateRequestHandler());
         transportService.registerRequestHandler(COMMIT_ACTION_NAME, CommitClusterStateRequest.class, ThreadPool.Names.SAME, new CommitClusterStateRequestHandler());
     }

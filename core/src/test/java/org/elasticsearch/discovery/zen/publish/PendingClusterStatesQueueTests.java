@@ -35,8 +35,34 @@ import static org.hamcrest.Matchers.*;
 public class PendingClusterStatesQueueTests extends ESTestCase {
 
     public void testSelectNextStateToProcess_empty() {
-        PendingClusterStatesQueue queue = new PendingClusterStatesQueue(logger);
+        PendingClusterStatesQueue queue = new PendingClusterStatesQueue(logger, randomIntBetween(1, 200));
         assertThat(queue.getNextClusterStateToProcess(), nullValue());
+    }
+
+    public void testDroppingStatesAtCapacity() {
+        List<ClusterState> states = randomStates(scaledRandomIntBetween(10, 300), "master1", "master2", "master3", "master4");
+        Collections.shuffle(states, random());
+        // insert half of the states
+        final int numberOfStateToDrop = states.size() / 2;
+        List<ClusterState> stateToDrop = states.subList(0, numberOfStateToDrop);
+        final int queueSize = states.size() - numberOfStateToDrop;
+        PendingClusterStatesQueue queue = createQueueWithStates(stateToDrop, queueSize);
+        List<ClusterStateContext> committedContexts = randomCommitStates(queue);
+        for (ClusterState state : states.subList(numberOfStateToDrop, states.size())) {
+            queue.addPending(state);
+        }
+
+        assertThat(queue.pendingClusterStates().length, equalTo(queueSize));
+        // check all committed states got a failure due to the drop
+        for (ClusterStateContext context : committedContexts) {
+            assertThat(((MockListener) context.listener).failure, notNullValue());
+        }
+
+        // all states that should have dropped are
+        for (ClusterState state : stateToDrop) {
+            assertThat(queue.findState(state.stateUUID()), nullValue());
+        }
+
     }
 
     public void testSimpleQueueSameMaster() {
@@ -149,8 +175,12 @@ public class PendingClusterStatesQueueTests extends ESTestCase {
     }
 
     PendingClusterStatesQueue createQueueWithStates(List<ClusterState> states) {
+        return createQueueWithStates(states, states.size() * 2); // we don't care about limits (there are dedicated tests for that)
+    }
+
+    PendingClusterStatesQueue createQueueWithStates(List<ClusterState> states, int maxQueueSize) {
         PendingClusterStatesQueue queue;
-        queue = new PendingClusterStatesQueue(logger);
+        queue = new PendingClusterStatesQueue(logger, maxQueueSize);
         for (ClusterState state : states) {
             queue.addPending(state);
         }

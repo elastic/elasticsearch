@@ -809,7 +809,6 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
 
     /** Test cluster join with issues in cluster state publishing * */
     @Test
-    @AwaitsFix(bugUrl = "because this test swallows commit message we may leak pending cluster states in queue.")
     public void testClusterJoinDespiteOfPublishingIssues() throws Exception {
         List<String> nodes = startCluster(2, 1);
 
@@ -856,6 +855,10 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         nonMasterTransportService.clearRule(discoveryNodes.masterNode());
 
         ensureStableCluster(2);
+
+        // shutting down the nodes, to avoid the leakage check tripping
+        // on the states associated with the commit requests we may have dropped
+        internalCluster().stopRandomNonMasterNode();
     }
 
 

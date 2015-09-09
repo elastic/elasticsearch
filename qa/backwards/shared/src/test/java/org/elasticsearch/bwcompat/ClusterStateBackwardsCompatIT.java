@@ -28,19 +28,19 @@ import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESBackcompatTestCase;
-import org.junit.Test;
 
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_METADATA;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_READ;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_WRITE;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ClusterStateBackwardsCompatIT extends ESBackcompatTestCase {
-
-    @Test
     public void testClusterState() throws Exception {
         createIndex("test");
 
@@ -57,7 +57,6 @@ public class ClusterStateBackwardsCompatIT extends ESBackcompatTestCase {
         }
     }
 
-    @Test
     public void testClusterStateWithBlocks() {
         createIndex("test-blocks");
 
@@ -102,6 +101,7 @@ public class ClusterStateBackwardsCompatIT extends ESBackcompatTestCase {
 
     private TransportClient newTransportClient() {
         Settings settings = Settings.settingsBuilder().put("client.transport.ignore_cluster_name", true)
+                .put("path.home", PathUtils.get(".").toAbsolutePath())
                 .put("node.name", "transport_client_" + getTestName()).build();
         return TransportClient.builder().settings(settings).build();
     }

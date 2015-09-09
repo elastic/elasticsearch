@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <parent>
+        <groupId>org.elasticsearch.qa.backwards</groupId>
+        <artifactId>two-versions-parent</artifactId>
+        <version>2.2.0-SNAPSHOT</version>
+        <relativePath>../two-versions-parent</relativePath>
+    </parent>
+    <modelVersion>4.0.0</modelVersion>
+
+    <artifactId>current</artifactId>
+    <name>QA: BWC: Current</name>
+    <description>Backwards compatibility tests against the current version</description>
+    <!-- This runs the backwards compatibility tests against the version of
+        elasticsearch being built. This certainly should pass but we run it
+        anyway for two reasons:
+        1. To smoke test the backwards compatibility tests. If they don't pass
+        here then you know there is something wrong with them or the current
+        version.
+        2. To keep the backwards compatibility tests alive when there isn't a
+        released version that much be backwards compatible. When 2.0.0 was under
+        development the backwards compatibility tests atrophied because there
+        wasn't a version to run them against. That should not happen with 3.0.0!
+    -->
+
+    <properties>
+        <tests.bwc.version>${project.version}</tests.bwc.version>
+        <skip.integ.tests>${skipTests}</skip.integ.tests>
+    </properties>
+</project>

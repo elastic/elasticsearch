@@ -69,7 +69,14 @@ import java.io.IOException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Formatter;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Random;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -97,6 +104,8 @@ import static org.hamcrest.Matchers.equalTo;
         "LuceneVarGapFixedInterval", "LuceneVarGapDocFreqInterval", "Lucene50"
 })
 @LuceneTestCase.SuppressReproduceLine
+@ReproduceInfoPrinter.Properties({ "es.logger.level", "tests.assertion.disabled", "tests.security.manager", "tests.nightly", "tests.jvms",
+        "tests.client.ratio", "tests.heap.size" })
 public abstract class ESTestCase extends LuceneTestCase {
 
     static {
@@ -211,7 +220,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     // -----------------------------------------------------------------
-    // Test facilities and facades for subclasses. 
+    // Test facilities and facades for subclasses.
     // -----------------------------------------------------------------
 
     // TODO: replaces uses of getRandom() with random()
@@ -457,7 +466,7 @@ public abstract class ESTestCase extends LuceneTestCase {
      */
     @Override
     public Path getDataPath(String relativePath) {
-        // we override LTC behavior here: wrap even resources with mockfilesystems, 
+        // we override LTC behavior here: wrap even resources with mockfilesystems,
         // because some code is buggy when it comes to multiple nio.2 filesystems
         // (e.g. FileSystemUtils, and likely some tests)
         try {
@@ -576,7 +585,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         sb.append("]");
         assertThat(count + " files exist that should have been cleaned:\n" + sb.toString(), count, equalTo(0));
     }
-    
+
     /** Returns the suite failure marker: internal use only! */
     public static TestRuleMarkFailure getSuiteFailureMarker() {
         return suiteFailureMarker;

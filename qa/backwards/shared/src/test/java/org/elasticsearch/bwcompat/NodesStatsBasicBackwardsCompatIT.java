@@ -24,6 +24,7 @@ import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequestBuilder;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.client.transport.TransportClient;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESBackcompatTestCase;
@@ -43,6 +44,7 @@ public class NodesStatsBasicBackwardsCompatIT extends ESBackcompatTestCase {
 
         Settings settings = Settings.settingsBuilder()
                 .put("client.transport.ignore_cluster_name", true)
+                .put("path.home", PathUtils.get(".").toAbsolutePath())
                 .put("node.name", "transport_client_" + getTestName()).build();
 
         // We explicitly connect to each node with a custom TransportClient
@@ -62,6 +64,7 @@ public class NodesStatsBasicBackwardsCompatIT extends ESBackcompatTestCase {
 
         Settings settings = Settings.settingsBuilder()
                 .put("node.name", "transport_client_" + getTestName())
+                .put("path.home", PathUtils.get(".").toAbsolutePath())
                 .put("client.transport.ignore_cluster_name", true).build();
 
         // We explicitly connect to each node with a custom TransportClient

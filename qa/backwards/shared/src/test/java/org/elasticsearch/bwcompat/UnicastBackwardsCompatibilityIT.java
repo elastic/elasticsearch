@@ -20,32 +20,16 @@
 package org.elasticsearch.bwcompat;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESBackcompatTestCase;
 import org.junit.Test;
 
 import static org.hamcrest.Matchers.equalTo;
 
+/**
+ * Tests that nodes of the backwards version can join a cluster with the
+ * current version. This is the most basic possible backwards compatibity test.
+ */
 public class UnicastBackwardsCompatibilityIT extends ESBackcompatTestCase {
-
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal))
-                .put("transport.tcp.port", 9380 + nodeOrdinal)
-                .put("discovery.zen.ping.unicast.hosts", "localhost:9380,localhost:9381,localhost:9390,localhost:9391")
-                .build();
-    }
-
-    @Override
-    protected Settings externalNodeSettings(int nodeOrdinal) {
-        return Settings.settingsBuilder()
-                .put(super.externalNodeSettings(nodeOrdinal))
-                .put("transport.tcp.port", 9390 + nodeOrdinal)
-                .put("discovery.zen.ping.unicast.hosts", "localhost:9380,localhost:9381,localhost:9390,localhost:9391")
-                .build();
-    }
-
     @Test
     public void testUnicastDiscovery() {
         ClusterHealthResponse healthResponse = client().admin().cluster().prepareHealth().get();

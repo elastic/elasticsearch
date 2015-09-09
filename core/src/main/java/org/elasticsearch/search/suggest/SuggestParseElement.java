@@ -29,9 +29,8 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
-
-import static com.google.common.collect.Maps.newHashMap;
 
 /**
  *
@@ -57,7 +56,7 @@ public final class SuggestParseElement implements SearchParseElement {
 
         BytesRef globalText = null;
         String fieldName = null;
-        Map<String, SuggestionContext> suggestionContexts = newHashMap();
+        Map<String, SuggestionContext> suggestionContexts = new HashMap<>();
 
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {

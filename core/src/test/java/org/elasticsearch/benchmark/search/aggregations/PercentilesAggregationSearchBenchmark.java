@@ -19,24 +19,28 @@
 
 package org.elasticsearch.benchmark.search.aggregations;
 
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.search.aggregations.metrics.percentiles.Percentile;
-
-import com.google.common.collect.Maps;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.StopWatch;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.search.aggregations.metrics.percentiles.Percentile;
 import org.elasticsearch.search.aggregations.metrics.percentiles.Percentiles;
 
-import java.util.*;
+import java.util.Arrays;
+import java.util.LinkedHashMap;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Random;
+import java.util.SortedMap;
+import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.client.Requests.createIndexRequest;
@@ -170,7 +174,7 @@ public class PercentilesAggregationSearchBenchmark {
                 throw new Error("Expected " + NUM_DOCS + " documents, got " + (count - 1));
             }
             Map<String, Object> percentilesUnsorted = client.get(getRequest(d.indexName()).type("values").id("percentiles")).actionGet().getSourceAsMap();
-            SortedMap<Double, Double> percentiles = Maps.newTreeMap();
+            SortedMap<Double, Double> percentiles = new TreeMap<>();
             for (Map.Entry<String, Object> entry : percentilesUnsorted.entrySet()) {
                 percentiles.put(Double.parseDouble(entry.getKey()), (Double) entry.getValue());
             }
@@ -178,7 +182,7 @@ public class PercentilesAggregationSearchBenchmark {
             System.out.println();
             SearchResponse resp = client.prepareSearch(d.indexName()).setSize(0).addAggregation(percentiles("pcts").field("v").percentiles(PERCENTILES)).execute().actionGet();
             Percentiles pcts = resp.getAggregations().get("pcts");
-            Map<Double, Double> asMap = Maps.newLinkedHashMap();
+            Map<Double, Double> asMap = new LinkedHashMap<>();
             double sumOfErrorSquares = 0;
             for (Percentile percentile : pcts) {
                 asMap.put(percentile.getPercent(), percentile.getValue());

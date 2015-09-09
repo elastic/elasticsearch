@@ -57,6 +57,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
@@ -66,7 +67,6 @@ import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
-import static com.google.common.collect.Maps.newHashMap;
 import static org.elasticsearch.cluster.SnapshotsInProgress.completed;
 
 /**
@@ -192,7 +192,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent<SnapshotSh
      */
     private void processIndexShardSnapshots(ClusterChangedEvent event) {
         SnapshotsInProgress snapshotsInProgress = event.state().custom(SnapshotsInProgress.TYPE);
-        Map<SnapshotId, SnapshotShards> survivors = newHashMap();
+        Map<SnapshotId, SnapshotShards> survivors = new HashMap<>();
         // First, remove snapshots that are no longer there
         for (Map.Entry<SnapshotId, SnapshotShards> entry : shardSnapshots.entrySet()) {
             if (snapshotsInProgress != null && snapshotsInProgress.snapshot(entry.getKey()) != null) {
@@ -202,13 +202,13 @@ public class SnapshotShardsService extends AbstractLifecycleComponent<SnapshotSh
 
         // For now we will be mostly dealing with a single snapshot at a time but might have multiple simultaneously running
         // snapshots in the future
-        Map<SnapshotId, Map<ShardId, IndexShardSnapshotStatus>> newSnapshots = newHashMap();
+        Map<SnapshotId, Map<ShardId, IndexShardSnapshotStatus>> newSnapshots = new HashMap<>();
         // Now go through all snapshots and update existing or create missing
         final String localNodeId = clusterService.localNode().id();
         if (snapshotsInProgress != null) {
             for (SnapshotsInProgress.Entry entry : snapshotsInProgress.entries()) {
                 if (entry.state() == SnapshotsInProgress.State.STARTED) {
-                    Map<ShardId, IndexShardSnapshotStatus> startedShards = newHashMap();
+                    Map<ShardId, IndexShardSnapshotStatus> startedShards = new HashMap<>();
                     SnapshotShards snapshotShards = shardSnapshots.get(entry.snapshotId());
                     for (Map.Entry<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shard : entry.shards().entrySet()) {
                         // Add all new shards to start processing on
@@ -519,7 +519,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent<SnapshotSh
                     int changedCount = 0;
                     final List<SnapshotsInProgress.Entry> entries = new ArrayList<>();
                     for (SnapshotsInProgress.Entry entry : snapshots.entries()) {
-                        final Map<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shards = newHashMap();
+                        final Map<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shards = new HashMap<>();
                         boolean updated = false;
 
                         for (int i = 0; i < batchSize; i++) {

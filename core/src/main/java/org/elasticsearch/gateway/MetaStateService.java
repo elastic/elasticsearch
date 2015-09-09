@@ -19,7 +19,6 @@
 
 package org.elasticsearch.gateway;
 
-import com.google.common.collect.Maps;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Nullable;
@@ -34,6 +33,7 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
@@ -61,16 +61,16 @@ public class MetaStateService extends AbstractComponent {
         this.nodeEnv = nodeEnv;
         this.format = XContentType.fromRestContentType(settings.get(FORMAT_SETTING, "smile"));
         if (this.format == XContentType.SMILE) {
-            Map<String, String> params = Maps.newHashMap();
+            Map<String, String> params = new HashMap<>();
             params.put("binary", "true");
             formatParams = new ToXContent.MapParams(params);
-            Map<String, String> gatewayModeParams = Maps.newHashMap();
+            Map<String, String> gatewayModeParams = new HashMap<>();
             gatewayModeParams.put("binary", "true");
             gatewayModeParams.put(MetaData.CONTEXT_MODE_PARAM, MetaData.CONTEXT_MODE_GATEWAY);
             gatewayModeFormatParams = new ToXContent.MapParams(gatewayModeParams);
         } else {
             formatParams = ToXContent.EMPTY_PARAMS;
-            Map<String, String> gatewayModeParams = Maps.newHashMap();
+            Map<String, String> gatewayModeParams = new HashMap<>();
             gatewayModeParams.put(MetaData.CONTEXT_MODE_PARAM, MetaData.CONTEXT_MODE_GATEWAY);
             gatewayModeFormatParams = new ToXContent.MapParams(gatewayModeParams);
         }

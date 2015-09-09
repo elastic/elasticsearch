@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.indices;
 
-import com.google.common.collect.Maps;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.cluster.ClusterState;
@@ -40,6 +39,7 @@ import org.junit.Test;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
@@ -234,7 +234,7 @@ public class IndicesLifecycleListenerIT extends ESIntegTestCase {
 
     private static class IndexShardStateChangeListener extends IndicesLifecycle.Listener {
         //we keep track of all the states (ordered) a shard goes through
-        final ConcurrentMap<ShardId, List<IndexShardState>> shardStates = Maps.newConcurrentMap();
+        final ConcurrentMap<ShardId, List<IndexShardState>> shardStates = new ConcurrentHashMap<>();
         Settings creationSettings = Settings.EMPTY;
         Settings afterCloseSettings = Settings.EMPTY;
 

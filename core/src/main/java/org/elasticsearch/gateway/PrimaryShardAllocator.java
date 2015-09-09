@@ -19,7 +19,6 @@
 
 package org.elasticsearch.gateway;
 
-import com.google.common.collect.Maps;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -36,6 +35,7 @@ import org.elasticsearch.index.settings.IndexSettings;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -193,7 +193,7 @@ public abstract class PrimaryShardAllocator extends AbstractComponent {
      */
     NodesAndVersions buildNodesAndVersions(ShardRouting shard, boolean recoveryOnAnyNode, Set<String> ignoreNodes,
                                            AsyncShardFetch.FetchResult<TransportNodesListGatewayStartedShards.NodeGatewayStartedShards> shardState) {
-        final Map<DiscoveryNode, Long> nodesWithVersion = Maps.newHashMap();
+        final Map<DiscoveryNode, Long> nodesWithVersion = new HashMap<>();
         int numberOfAllocationsFound = 0;
         long highestVersion = -1;
         for (TransportNodesListGatewayStartedShards.NodeGatewayStartedShards nodeShardState : shardState.getData().values()) {

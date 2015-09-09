@@ -33,9 +33,9 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.Map;
 
-import static com.google.common.collect.Maps.newHashMap;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.notNullValue;
 
@@ -71,7 +71,7 @@ public class BlobStoreTests extends ESTestCase {
         assertThat(container.listBlobs().size(), equalTo(0));
         int numberOfFooBlobs = randomIntBetween(0, 10);
         int numberOfBarBlobs = randomIntBetween(3, 20);
-        Map<String, Long> generatedBlobs = newHashMap();
+        Map<String, Long> generatedBlobs = new HashMap<>();
         for (int i = 0; i < numberOfFooBlobs; i++) {
             int length = randomIntBetween(10, 100);
             String name = "foo-" + i + "-";

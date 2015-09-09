@@ -22,7 +22,6 @@ package org.elasticsearch.common.settings;
 import com.google.common.base.Charsets;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSortedMap;
-import com.google.common.collect.Maps;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
@@ -118,7 +117,7 @@ public final class Settings implements ToXContent {
      * The settings as a structured {@link java.util.Map}.
      */
     public Map<String, Object> getAsStructuredMap() {
-        Map<String, Object> map = Maps.newHashMapWithExpectedSize(2);
+        Map<String, Object> map = new HashMap<>(2);
         for (Map.Entry<String, String> entry : settings.entrySet()) {
             processSetting(map, "", entry.getKey(), entry.getValue());
         }
@@ -148,7 +147,7 @@ public final class Settings implements ToXContent {
             String rest = setting.substring(prefixLength + 1);
             Object existingValue = map.get(prefix + key);
             if (existingValue == null) {
-                Map<String, Object> newMap = Maps.newHashMapWithExpectedSize(2);
+                Map<String, Object> newMap = new HashMap<>(2);
                 processSetting(newMap, "", rest, value);
                 map.put(key, newMap);
             } else {
@@ -1181,7 +1180,7 @@ public final class Settings implements ToXContent {
                         return true;
                     }
                 };
-            for (Map.Entry<String, String> entry : Maps.newHashMap(map).entrySet()) {
+            for (Map.Entry<String, String> entry : new HashMap<>(map).entrySet()) {
                 String value = propertyPlaceholder.replacePlaceholders(entry.getValue(), placeholderResolver);
                 // if the values exists and has length, we should maintain it  in the map
                 // otherwise, the replace process resolved into removing it
@@ -1200,7 +1199,7 @@ public final class Settings implements ToXContent {
          * If a setting doesn't start with the prefix, the builder appends the prefix to such setting.
          */
         public Builder normalizePrefix(String prefix) {
-            Map<String, String> replacements = Maps.newHashMap();
+            Map<String, String> replacements = new HashMap<>();
             Iterator<Map.Entry<String, String>> iterator = map.entrySet().iterator();
             while(iterator.hasNext()) {
                 Map.Entry<String, String> entry = iterator.next();

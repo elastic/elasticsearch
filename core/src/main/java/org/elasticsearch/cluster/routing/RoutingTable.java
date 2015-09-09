@@ -35,11 +35,10 @@ import org.elasticsearch.index.IndexNotFoundException;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
-
-import static com.google.common.collect.Maps.newHashMap;
 
 /**
  * Represents a global cluster-wide routing table for all indices including the
@@ -345,7 +344,7 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
     public static class Builder {
 
         private long version;
-        private final Map<String, IndexRoutingTable> indicesRouting = newHashMap();
+        private final Map<String, IndexRoutingTable> indicesRouting = new HashMap<>();
 
         public Builder() {
 
@@ -362,7 +361,7 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
             // this is being called without pre initializing the routing table, so we must copy over the version as well
             this.version = routingNodes.routingTable().version();
 
-            Map<String, IndexRoutingTable.Builder> indexRoutingTableBuilders = newHashMap();
+            Map<String, IndexRoutingTable.Builder> indexRoutingTableBuilders = new HashMap<>();
             for (RoutingNode routingNode : routingNodes) {
                 for (ShardRouting shardRoutingEntry : routingNode) {
                     // every relocating shard has a double entry, ignore the target one.

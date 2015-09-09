@@ -20,7 +20,6 @@
 package org.elasticsearch.search.suggest.context;
 
 import com.google.common.collect.Iterables;
-import com.google.common.collect.Maps;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.search.suggest.analyzing.XAnalyzingSuggester;
 import org.apache.lucene.util.automaton.Automata;
@@ -43,6 +42,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.SortedMap;
+import java.util.TreeMap;
 
 /**
  * A {@link ContextMapping} is used t define a context that may used
@@ -57,10 +57,10 @@ public abstract class ContextMapping implements ToXContent {
     public static final char SEPARATOR = '\u001D';
 
     /** Dummy Context Mapping that should be used if no context is used*/
-    public static final SortedMap<String, ContextMapping> EMPTY_MAPPING = Maps.newTreeMap();
+    public static final SortedMap<String, ContextMapping> EMPTY_MAPPING = new TreeMap<>();
 
     /** Dummy Context Config matching the Dummy Mapping by providing an empty context*/
-    public static final SortedMap<String, ContextConfig> EMPTY_CONFIG = Maps.newTreeMap();
+    public static final SortedMap<String, ContextConfig> EMPTY_CONFIG = new TreeMap<>();
     
     /** Dummy Context matching the Dummy Mapping by not wrapping a {@link TokenStream} */
     public static final Context EMPTY_CONTEXT = new Context(EMPTY_CONFIG, null);

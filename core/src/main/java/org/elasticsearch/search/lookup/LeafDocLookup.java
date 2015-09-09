@@ -18,20 +18,18 @@
  */
 package org.elasticsearch.search.lookup;
 
-import com.google.common.collect.Maps;
-
+import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
-import org.apache.lucene.index.LeafReaderContext;
 
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
@@ -40,7 +38,7 @@ import java.util.Set;
  */
 public class LeafDocLookup implements Map {
 
-    private final Map<String, ScriptDocValues> localCacheFieldData = Maps.newHashMapWithExpectedSize(4);
+    private final Map<String, ScriptDocValues> localCacheFieldData = new HashMap<>(4);
 
     private final MapperService mapperService;
     private final IndexFieldDataService fieldDataService;

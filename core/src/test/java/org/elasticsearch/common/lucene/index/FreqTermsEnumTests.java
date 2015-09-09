@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.lucene.index;
 
-import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.document.Document;
@@ -50,6 +49,7 @@ import org.junit.Test;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -79,9 +79,9 @@ public class FreqTermsEnumTests extends ESTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        referenceAll = Maps.newHashMap();
-        referenceNotDeleted = Maps.newHashMap();
-        referenceFilter = Maps.newHashMap();
+        referenceAll = new HashMap<>();
+        referenceNotDeleted = new HashMap<>();
+        referenceFilter = new HashMap<>();
 
         Directory dir = newDirectory();
         IndexWriterConfig conf = newIndexWriterConfig(new KeywordAnalyzer()); // use keyword analyzer we rely on the stored field holding the exact term.

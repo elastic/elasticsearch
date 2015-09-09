@@ -19,7 +19,6 @@
 package org.elasticsearch.cluster.metadata;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
@@ -39,6 +38,7 @@ import org.elasticsearch.indices.IndexTemplateMissingException;
 import org.elasticsearch.indices.InvalidIndexTemplateException;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -239,9 +239,9 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
         int order;
         String template;
         Settings settings = Settings.Builder.EMPTY_SETTINGS;
-        Map<String, String> mappings = Maps.newHashMap();
+        Map<String, String> mappings = new HashMap<>();
         List<Alias> aliases = new ArrayList<>();
-        Map<String, IndexMetaData.Custom> customs = Maps.newHashMap();
+        Map<String, IndexMetaData.Custom> customs = new HashMap<>();
 
         TimeValue masterTimeout = MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT;
 

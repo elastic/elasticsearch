@@ -21,7 +21,6 @@ package org.elasticsearch.cluster.block;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -31,6 +30,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
@@ -272,7 +272,7 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
 
         private Set<ClusterBlock> global = Sets.newHashSet();
 
-        private Map<String, Set<ClusterBlock>> indices = Maps.newHashMap();
+        private Map<String, Set<ClusterBlock>> indices = new HashMap<>();
 
         public Builder() {
         }

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action;
 
-import com.google.common.collect.Maps;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsAction;
@@ -193,6 +192,7 @@ import org.elasticsearch.common.inject.multibindings.MapBinder;
 import org.elasticsearch.common.inject.multibindings.Multibinder;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -201,7 +201,7 @@ import java.util.Map;
  */
 public class ActionModule extends AbstractModule {
 
-    private final Map<String, ActionEntry> actions = Maps.newHashMap();
+    private final Map<String, ActionEntry> actions = new HashMap<>();
     private final List<Class<? extends ActionFilter>> actionFilters = new ArrayList<>();
 
     static class ActionEntry<Request extends ActionRequest, Response extends ActionResponse> {

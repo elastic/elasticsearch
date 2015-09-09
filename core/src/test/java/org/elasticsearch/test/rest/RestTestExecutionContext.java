@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.test.rest;
 
-import com.google.common.collect.Maps;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
@@ -65,7 +64,7 @@ public class RestTestExecutionContext implements Closeable {
      */
     public RestResponse callApi(String apiName, Map<String, String> params, List<Map<String, Object>> bodies) throws IOException, RestException  {
         //makes a copy of the parameters before modifying them for this specific request
-        HashMap<String, String> requestParams = Maps.newHashMap(params);
+        HashMap<String, String> requestParams = new HashMap<>(params);
         for (Map.Entry<String, String> entry : requestParams.entrySet()) {
             if (stash.isStashedValue(entry.getValue())) {
                 entry.setValue(stash.unstashValue(entry.getValue()).toString());

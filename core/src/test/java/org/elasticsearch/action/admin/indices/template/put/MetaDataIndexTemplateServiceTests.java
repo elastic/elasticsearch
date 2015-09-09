@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.indices.template.put;
 
-import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -33,6 +32,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -45,7 +45,7 @@ public class MetaDataIndexTemplateServiceTests extends ESTestCase {
         PutRequest request = new PutRequest("test", "test_shards");
         request.template("test_shards*");
 
-        Map<String, Object> map = Maps.newHashMap();
+        Map<String, Object> map = new HashMap<>();
         map.put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "0");
         request.settings(Settings.settingsBuilder().put(map).build());
 
@@ -60,7 +60,7 @@ public class MetaDataIndexTemplateServiceTests extends ESTestCase {
         PutRequest request = new PutRequest("test", "putTemplate shards");
         request.template("_test_shards*");
 
-        Map<String, Object> map = Maps.newHashMap();
+        Map<String, Object> map = new HashMap<>();
         map.put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "0");
         request.settings(Settings.settingsBuilder().put(map).build());
 

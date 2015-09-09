@@ -19,7 +19,6 @@
 
 package org.elasticsearch.test.rest;
 
-import com.google.common.collect.Maps;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
@@ -27,6 +26,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -40,7 +40,7 @@ public class Stash implements ToXContent {
 
     public static final Stash EMPTY = new Stash();
 
-    private final Map<String, Object> stash = Maps.newHashMap();
+    private final Map<String, Object> stash = new HashMap<>();
 
     /**
      * Allows to saved a specific field in the stash as key-value pair
@@ -90,7 +90,7 @@ public class Stash implements ToXContent {
      * Recursively unstashes map values if needed
      */
     public Map<String, Object> unstashMap(Map<String, Object> map) {
-        Map<String, Object> copy = Maps.newHashMap(map);
+        Map<String, Object> copy = new HashMap<>(map);
         unstashObject(copy);
         return copy;
     }

@@ -308,7 +308,6 @@ public class MinDocCountIT extends AbstractTermsTestCase {
                     logger.error("exception on retry (will re-throw the original in a sec)", secondFailure);
                 }
                 throw ae;
-
             }
         }
 

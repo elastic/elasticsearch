@@ -39,6 +39,9 @@
         <jvm.executable>${java.home}${file.separator}bin${file.separator}java</jvm.executable>
         <maven.compiler.source>1.8</maven.compiler.source>
         <maven.compiler.target>1.8</maven.compiler.target>
+        <!-- Path warnings must be ignored because maven doesnt create the classes output
+             dir when no source files exist (eg for distribution or qa modules) -->
+        <xlint.options>-Xlint:-path</xlint.options>
 
         <!-- libraries -->
         <lucene.version>5.4.0</lucene.version>
@@ -578,14 +581,7 @@
                         <compilerArgs>
                             <arg>-XDignore.symbol.file</arg>
                             <arg>-Xlint:all</arg>
-                            <arg>-Xlint:-cast</arg>
-                            <arg>-Xlint:-deprecation</arg>
-                            <arg>-Xlint:-fallthrough</arg>
-                            <arg>-Xlint:-overrides</arg>
-                            <arg>-Xlint:-rawtypes</arg>
-                            <arg>-Xlint:-serial</arg>
-                            <arg>-Xlint:-try</arg>
-                            <arg>-Xlint:-unchecked</arg>
+                            <arg>${xlint.options}</arg>
                             <arg>-Werror</arg>
                         </compilerArgs>
                     </configuration>

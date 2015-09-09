@@ -113,7 +113,7 @@ public class DeleteByQueryRequest extends ActionRequest<DeleteByQueryRequest> im
     }
 
     @Override
-    public DeleteByQueryRequest indices(String... indices) {
+    public DeleteByQueryRequest indices(String[] indices) {
         this.indices = indices;
         return this;
     }
@@ -149,7 +149,7 @@ public class DeleteByQueryRequest extends ActionRequest<DeleteByQueryRequest> im
         return this;
     }
 
-    public DeleteByQueryRequest source(Map querySource) {
+    public DeleteByQueryRequest source(Map<String,?> querySource) {
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(Requests.CONTENT_TYPE);
             builder.map(querySource);

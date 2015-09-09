@@ -79,7 +79,7 @@ public class AwsEc2UnicastHostsProvider extends AbstractComponent implements Uni
 
         this.tags = settings.getByPrefix("discovery.ec2.tag.").getAsMap();
 
-        Set<String> availabilityZones = new HashSet();
+        Set<String> availabilityZones = new HashSet<>();
         availabilityZones.addAll(Arrays.asList(settings.getAsArray("discovery.ec2.availability_zones")));
         if (settings.get("discovery.ec2.availability_zones") != null) {
             availabilityZones.addAll(Strings.commaDelimitedListToSet(settings.get("discovery.ec2.availability_zones")));

@@ -29,6 +29,7 @@ governing permissions and limitations under the License. -->
         <elasticsearch.plugin.classname>org.elasticsearch.plugin.mapper.MapperMurmur3Plugin</elasticsearch.plugin.classname>
         <tests.rest.suite>mapper_murmur3</tests.rest.suite>
         <tests.rest.load_packaged>false</tests.rest.load_packaged>
+        <xlint.options>-Xlint:-rawtypes</xlint.options>
     </properties>
 
     <build>

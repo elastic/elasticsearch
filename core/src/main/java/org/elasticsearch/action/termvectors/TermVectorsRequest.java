@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.termvectors;
 
-import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
@@ -39,7 +38,13 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.VersionType;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -423,7 +428,7 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
      * Override the analyzer used at each field when generating term vectors.
      */
     public TermVectorsRequest perFieldAnalyzer(Map<String, String> perFieldAnalyzer) {
-        this.perFieldAnalyzer = perFieldAnalyzer != null && perFieldAnalyzer.size() != 0 ? Maps.newHashMap(perFieldAnalyzer) : null;
+        this.perFieldAnalyzer = perFieldAnalyzer != null && perFieldAnalyzer.size() != 0 ? new HashMap<>(perFieldAnalyzer) : null;
         return this;
     }
 

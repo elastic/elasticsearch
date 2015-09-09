@@ -19,8 +19,6 @@
 package org.elasticsearch.search.lookup;
 
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Maps;
-
 import org.apache.lucene.index.LeafReader;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
@@ -31,6 +29,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
@@ -48,7 +47,7 @@ public class LeafFieldsLookup implements Map {
 
     private int docId = -1;
 
-    private final Map<String, FieldLookup> cachedFieldData = Maps.newHashMap();
+    private final Map<String, FieldLookup> cachedFieldData = new HashMap<>();
 
     private final SingleFieldsVisitor fieldVisitor;
 

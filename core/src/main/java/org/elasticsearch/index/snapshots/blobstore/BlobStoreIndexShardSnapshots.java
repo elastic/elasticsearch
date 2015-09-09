@@ -33,11 +33,10 @@ import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.F
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-
-import static com.google.common.collect.Maps.newHashMap;
 
 /**
  * Contains information about all snapshot for the given shard in repository
@@ -56,9 +55,9 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
     public BlobStoreIndexShardSnapshots(List<SnapshotFiles> shardSnapshots) {
         this.shardSnapshots = Collections.unmodifiableList(new ArrayList<>(shardSnapshots));
         // Map between blob names and file info
-        Map<String, FileInfo> newFiles = newHashMap();
+        Map<String, FileInfo> newFiles = new HashMap<>();
         // Map between original physical names and file info
-        Map<String, List<FileInfo>> physicalFiles = newHashMap();
+        Map<String, List<FileInfo>> physicalFiles = new HashMap<>();
         for (SnapshotFiles snapshot : shardSnapshots) {
             // First we build map between filenames in the repo and their original file info
             // this map will be used in the next loop
@@ -89,7 +88,7 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
     private BlobStoreIndexShardSnapshots(ImmutableMap<String, FileInfo> files, List<SnapshotFiles> shardSnapshots) {
         this.shardSnapshots = shardSnapshots;
         this.files = files;
-        Map<String, List<FileInfo>> physicalFiles = newHashMap();
+        Map<String, List<FileInfo>> physicalFiles = new HashMap<>();
         for (SnapshotFiles snapshot : shardSnapshots) {
             for (FileInfo fileInfo : snapshot.indexFiles()) {
                 List<FileInfo> physicalFileList = physicalFiles.get(fileInfo.physicalName());
@@ -237,7 +236,7 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
         if (token == null) { // New parser
             token = parser.nextToken();
         }
-        Map<String, List<String>> snapshotsMap = newHashMap();
+        Map<String, List<String>> snapshotsMap = new HashMap<>();
         ImmutableMap.Builder<String, FileInfo> filesBuilder = ImmutableMap.builder();
         if (token == XContentParser.Token.START_OBJECT) {
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {

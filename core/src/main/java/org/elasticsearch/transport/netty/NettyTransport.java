@@ -20,9 +20,7 @@
 package org.elasticsearch.transport.netty;
 
 import com.google.common.base.Charsets;
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Maps;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -98,6 +96,7 @@ import java.nio.channels.CancelledKeyException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -116,7 +115,18 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import static org.elasticsearch.common.network.NetworkService.TcpSettings.*;
+import static org.elasticsearch.common.network.NetworkService.TcpSettings.TCP_BLOCKING;
+import static org.elasticsearch.common.network.NetworkService.TcpSettings.TCP_BLOCKING_CLIENT;
+import static org.elasticsearch.common.network.NetworkService.TcpSettings.TCP_BLOCKING_SERVER;
+import static org.elasticsearch.common.network.NetworkService.TcpSettings.TCP_CONNECT_TIMEOUT;
+import static org.elasticsearch.common.network.NetworkService.TcpSettings.TCP_DEFAULT_CONNECT_TIMEOUT;
+import static org.elasticsearch.common.network.NetworkService.TcpSettings.TCP_DEFAULT_RECEIVE_BUFFER_SIZE;
+import static org.elasticsearch.common.network.NetworkService.TcpSettings.TCP_DEFAULT_SEND_BUFFER_SIZE;
+import static org.elasticsearch.common.network.NetworkService.TcpSettings.TCP_KEEP_ALIVE;
+import static org.elasticsearch.common.network.NetworkService.TcpSettings.TCP_NO_DELAY;
+import static org.elasticsearch.common.network.NetworkService.TcpSettings.TCP_RECEIVE_BUFFER_SIZE;
+import static org.elasticsearch.common.network.NetworkService.TcpSettings.TCP_REUSE_ADDRESS;
+import static org.elasticsearch.common.network.NetworkService.TcpSettings.TCP_SEND_BUFFER_SIZE;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.transport.NetworkExceptionHelper.isCloseConnectionException;
 import static org.elasticsearch.common.transport.NetworkExceptionHelper.isConnectException;
@@ -282,7 +292,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
                 // extract default profile first and create standard bootstrap
                 Map<String, Settings> profiles = settings.getGroups("transport.profiles", true);
                 if (!profiles.containsKey(DEFAULT_PROFILE)) {
-                    profiles = Maps.newHashMap(profiles);
+                    profiles = new HashMap<>(profiles);
                     profiles.put(DEFAULT_PROFILE, Settings.EMPTY);
                 }
 

@@ -20,8 +20,6 @@
 package org.elasticsearch.index.query;
 
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Maps;
-
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.queryparser.classic.MapperQueryParser;
 import org.apache.lucene.queryparser.classic.QueryParserSettings;
@@ -90,7 +88,7 @@ public class QueryParseContext {
 
     private final IndexQueryParserService indexQueryParser;
 
-    private final Map<String, Query> namedQueries = Maps.newHashMap();
+    private final Map<String, Query> namedQueries = new HashMap<>();
 
     private final MapperQueryParser queryParser = new MapperQueryParser(this);
 

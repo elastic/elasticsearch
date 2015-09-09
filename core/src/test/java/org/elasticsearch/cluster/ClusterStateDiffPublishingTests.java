@@ -50,6 +50,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -57,13 +58,16 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static com.google.common.collect.Maps.newHashMap;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.emptyIterable;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class ClusterStateDiffPublishingTests extends ESTestCase {
 
     protected ThreadPool threadPool;
-    protected Map<String, MockNode> nodes = newHashMap();
+    protected Map<String, MockNode> nodes = new HashMap<>();
 
     public static class MockNode {
         public final DiscoveryNode discoveryNode;

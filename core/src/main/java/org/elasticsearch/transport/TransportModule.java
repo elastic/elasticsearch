@@ -20,7 +20,6 @@
 package org.elasticsearch.transport;
 
 import com.google.common.base.Preconditions;
-import com.google.common.collect.Maps;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -30,6 +29,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.transport.local.LocalTransport;
 import org.elasticsearch.transport.netty.NettyTransport;
 
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -46,8 +46,8 @@ public class TransportModule extends AbstractModule {
     private final ESLogger logger;
     private final Settings settings;
 
-    private final Map<String, Class<? extends TransportService>> transportServices = Maps.newHashMap();
-    private final Map<String, Class<? extends Transport>> transports = Maps.newHashMap();
+    private final Map<String, Class<? extends TransportService>> transportServices = new HashMap<>();
+    private final Map<String, Class<? extends Transport>> transports = new HashMap<>();
     private Class<? extends TransportService> configuredTransportService;
     private Class<? extends Transport> configuredTransport;
     private String configuredTransportServiceSource;

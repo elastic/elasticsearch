@@ -21,7 +21,6 @@
 
 package org.elasticsearch.index.query.functionscore.script;
 
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.function.ScoreFunction;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreFunction;
@@ -37,9 +36,8 @@ import org.elasticsearch.script.ScriptParameterParser.ScriptParameterValue;
 import org.elasticsearch.script.SearchScript;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
-
-import static com.google.common.collect.Maps.newHashMap;
 
 /**
  *
@@ -86,7 +84,7 @@ public class ScriptScoreFunctionParser implements ScoreFunctionParser {
             ScriptParameterValue scriptValue = scriptParameterParser.getDefaultScriptParameterValue();
             if (scriptValue != null) {
                 if (vars == null) {
-                    vars = newHashMap();
+                    vars = new HashMap<>();
                 }
                 script = new Script(scriptValue.script(), scriptValue.scriptType(), scriptParameterParser.lang(), vars);
             }

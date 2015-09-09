@@ -19,7 +19,6 @@
 
 package org.elasticsearch.discovery.zen.publish;
 
-import com.google.common.collect.Maps;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -42,9 +41,17 @@ import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.zen.DiscoveryNodesProvider;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.*;
+import org.elasticsearch.transport.BytesTransportRequest;
+import org.elasticsearch.transport.EmptyTransportResponseHandler;
+import org.elasticsearch.transport.TransportChannel;
+import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportRequestHandler;
+import org.elasticsearch.transport.TransportRequestOptions;
+import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -103,8 +110,8 @@ public class PublishClusterStateAction extends AbstractComponent {
     private void publish(final ClusterChangedEvent clusterChangedEvent, final Set<DiscoveryNode> nodesToPublishTo,
                          final BlockingClusterStatePublishResponseHandler publishResponseHandler) {
 
-        Map<Version, BytesReference> serializedStates = Maps.newHashMap();
-        Map<Version, BytesReference> serializedDiffs = Maps.newHashMap();
+        Map<Version, BytesReference> serializedStates = new HashMap<>();
+        Map<Version, BytesReference> serializedDiffs = new HashMap<>();
 
         final ClusterState clusterState = clusterChangedEvent.state();
         final ClusterState previousState = clusterChangedEvent.previousState();

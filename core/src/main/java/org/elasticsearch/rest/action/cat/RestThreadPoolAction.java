@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest.action.cat;
 
-import com.google.common.collect.Maps;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
@@ -36,14 +35,21 @@ import org.elasticsearch.common.Table;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.support.RestActionListener;
 import org.elasticsearch.rest.action.support.RestResponseListener;
 import org.elasticsearch.rest.action.support.RestTable;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolStats;
 
-import java.util.*;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.LinkedHashSet;
+import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -95,11 +101,11 @@ public class RestThreadPoolAction extends AbstractCatAction {
     private final static Map<String, String> THREAD_POOL_TO_ALIAS;
 
     static {
-        ALIAS_TO_THREAD_POOL = Maps.newHashMapWithExpectedSize(SUPPORTED_NAMES.length);
+        ALIAS_TO_THREAD_POOL = new HashMap<>(SUPPORTED_NAMES.length);
         for (String supportedThreadPool : SUPPORTED_NAMES) {
             ALIAS_TO_THREAD_POOL.put(supportedThreadPool.substring(0, 3), supportedThreadPool);
         }
-        THREAD_POOL_TO_ALIAS = Maps.newHashMapWithExpectedSize(SUPPORTED_NAMES.length);
+        THREAD_POOL_TO_ALIAS = new HashMap<>(SUPPORTED_NAMES.length);
         for (int i = 0; i < SUPPORTED_NAMES.length; i++) {
             THREAD_POOL_TO_ALIAS.put(SUPPORTED_NAMES[i], SUPPORTED_ALIASES[i]);
         }

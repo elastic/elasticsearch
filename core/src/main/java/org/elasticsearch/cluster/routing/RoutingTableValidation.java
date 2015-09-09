@@ -27,10 +27,9 @@ import org.elasticsearch.common.io.stream.Streamable;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
-import static com.google.common.collect.Maps.newHashMap;
 
 /**
  * Encapsulates the result of a routing table validation and provides access to
@@ -100,7 +99,7 @@ public class RoutingTableValidation implements Streamable {
     public void addIndexFailure(String index, String failure) {
         valid = false;
         if (indicesFailures == null) {
-            indicesFailures = newHashMap();
+            indicesFailures = new HashMap<>();
         }
         List<String> indexFailures = indicesFailures.get(index);
         if (indexFailures == null) {
@@ -131,7 +130,7 @@ public class RoutingTableValidation implements Streamable {
         if (size == 0) {
             indicesFailures = ImmutableMap.of();
         } else {
-            indicesFailures = newHashMap();
+            indicesFailures = new HashMap<>();
             for (int i = 0; i < size; i++) {
                 String index = in.readString();
                 int size2 = in.readVInt();

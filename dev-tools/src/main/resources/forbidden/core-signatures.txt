@@ -92,3 +92,4 @@ com.google.common.base.Predicate
 com.google.common.base.Predicates
 com.google.common.base.Strings
 com.google.common.base.Throwables
+com.google.common.collect.Maps

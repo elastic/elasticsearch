@@ -20,7 +20,6 @@
 package org.elasticsearch.action.search.type;
 
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Maps;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CharsRefBuilder;
 import org.elasticsearch.action.search.SearchRequest;
@@ -36,6 +35,7 @@ import org.elasticsearch.search.internal.InternalScrollSearchRequest;
 import org.elasticsearch.search.internal.ShardSearchTransportRequest;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -114,7 +114,7 @@ public abstract class TransportSearchHelper {
         if (attributesSize == 0) {
             attributes = ImmutableMap.of();
         } else {
-            attributes = Maps.newHashMapWithExpectedSize(attributesSize);
+            attributes = new HashMap<>(attributesSize);
             for (int i = 0; i < attributesSize; i++) {
                 String element = elements[index++];
                 int sep = element.indexOf(':');

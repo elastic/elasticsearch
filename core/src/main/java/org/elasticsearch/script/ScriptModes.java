@@ -20,7 +20,6 @@
 package org.elasticsearch.script;
 
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Maps;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.ScriptService.ScriptType;
@@ -44,13 +43,13 @@ public class ScriptModes {
     ScriptModes(Map<String, ScriptEngineService> scriptEngines, ScriptContextRegistry scriptContextRegistry, Settings settings) {
         //filter out the native engine as we don't want to apply fine grained settings to it.
         //native scripts are always on as they are static by definition.
-        Map<String, ScriptEngineService> filteredEngines = Maps.newHashMap(scriptEngines);
+        Map<String, ScriptEngineService> filteredEngines = new HashMap<>(scriptEngines);
         filteredEngines.remove(NativeScriptEngineService.NAME);
         this.scriptModes = buildScriptModeSettingsMap(settings, filteredEngines, scriptContextRegistry);
     }
 
     private static ImmutableMap<String, ScriptMode> buildScriptModeSettingsMap(Settings settings, Map<String, ScriptEngineService> scriptEngines, ScriptContextRegistry scriptContextRegistry) {
-        HashMap<String, ScriptMode> scriptModesMap = Maps.newHashMap();
+        HashMap<String, ScriptMode> scriptModesMap = new HashMap<>();
 
         //file scripts are enabled by default, for any language
         addGlobalScriptTypeModes(scriptEngines.keySet(), scriptContextRegistry, ScriptType.FILE, ScriptMode.ON, scriptModesMap);

@@ -18,10 +18,10 @@
  */
 package org.elasticsearch.test.rest.section;
 
-import com.google.common.collect.Maps;
 import org.elasticsearch.test.rest.RestTestExecutionContext;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -32,7 +32,7 @@ import java.util.Map;
  */
 public class SetSection implements ExecutableSection {
 
-    private Map<String, String> stash = Maps.newHashMap();
+    private Map<String, String> stash = new HashMap<>();
 
     public void addSet(String responseField, String stashedField) {
         stash.put(responseField, stashedField);

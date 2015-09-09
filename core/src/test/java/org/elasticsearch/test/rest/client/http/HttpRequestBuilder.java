@@ -19,8 +19,13 @@
 package org.elasticsearch.test.rest.client.http;
 
 import com.google.common.base.Joiner;
-import com.google.common.collect.Maps;
-import org.apache.http.client.methods.*;
+import org.apache.http.client.methods.CloseableHttpResponse;
+import org.apache.http.client.methods.HttpEntityEnclosingRequestBase;
+import org.apache.http.client.methods.HttpHead;
+import org.apache.http.client.methods.HttpOptions;
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.client.methods.HttpPut;
+import org.apache.http.client.methods.HttpUriRequest;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.elasticsearch.client.support.Headers;
@@ -37,6 +42,7 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URLEncoder;
 import java.nio.charset.Charset;
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -59,9 +65,9 @@ public class HttpRequestBuilder {
 
     private String path = "";
 
-    private final Map<String, String> params = Maps.newHashMap();
+    private final Map<String, String> params = new HashMap<>();
 
-    private final Map<String, String> headers = Maps.newHashMap();
+    private final Map<String, String> headers = new HashMap<>();
 
     private String method = HttpGetWithEntity.METHOD_NAME;
 

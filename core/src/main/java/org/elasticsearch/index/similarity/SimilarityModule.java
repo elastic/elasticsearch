@@ -19,13 +19,13 @@
 
 package org.elasticsearch.index.similarity;
 
-import com.google.common.collect.Maps;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Scopes;
 import org.elasticsearch.common.inject.assistedinject.FactoryProvider;
 import org.elasticsearch.common.inject.multibindings.MapBinder;
 import org.elasticsearch.common.settings.Settings;
 
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -42,7 +42,7 @@ public class SimilarityModule extends AbstractModule {
     public static final String SIMILARITY_SETTINGS_PREFIX = "index.similarity";
 
     private final Settings settings;
-    private final Map<String, Class<? extends SimilarityProvider>> similarities = Maps.newHashMap();
+    private final Map<String, Class<? extends SimilarityProvider>> similarities = new HashMap<>();
 
     public SimilarityModule(Settings settings) {
         this.settings = settings;

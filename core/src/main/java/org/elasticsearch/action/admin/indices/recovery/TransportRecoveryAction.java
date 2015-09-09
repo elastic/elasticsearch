@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.indices.recovery;
 
-import com.google.common.collect.Maps;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.broadcast.node.TransportBroadcastByNodeAction;
@@ -42,6 +41,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -70,7 +70,7 @@ public class TransportRecoveryAction extends TransportBroadcastByNodeAction<Reco
 
     @Override
     protected RecoveryResponse newResponse(RecoveryRequest request, int totalShards, int successfulShards, int failedShards, List<RecoveryState> responses, List<ShardOperationFailedException> shardFailures, ClusterState clusterState) {
-        Map<String, List<RecoveryState>> shardResponses = Maps.newHashMap();
+        Map<String, List<RecoveryState>> shardResponses = new HashMap<>();
         for (RecoveryState recoveryState : responses) {
             if (recoveryState == null) {
                 continue;

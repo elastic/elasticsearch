@@ -19,7 +19,6 @@
 
 package org.elasticsearch.transport;
 
-import com.google.common.collect.Maps;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -30,6 +29,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -85,7 +85,7 @@ public class TransportInfo implements Streamable, ToXContent {
         address = BoundTransportAddress.readBoundTransportAddress(in);
         int size = in.readVInt();
         if (size > 0) {
-            profileAddresses = Maps.newHashMapWithExpectedSize(size);
+            profileAddresses = new HashMap<>(size);
             for (int i = 0; i < size; i++) {
                 String key = in.readString();
                 BoundTransportAddress value = BoundTransportAddress.readBoundTransportAddress(in);

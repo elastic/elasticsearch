@@ -20,19 +20,22 @@
 package org.elasticsearch.cluster.serialization;
 
 import com.google.common.collect.ImmutableMap;
+import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.DiffableUtils.KeyedReader;
-import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.io.stream.*;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.StreamableReader;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 
-import static com.google.common.collect.Maps.newHashMap;
 import static org.hamcrest.CoreMatchers.equalTo;
 
 public class DiffableTests extends ESTestCase {
@@ -44,7 +47,7 @@ public class DiffableTests extends ESTestCase {
         builder.put("bar", new TestDiffable("2"));
         builder.put("baz", new TestDiffable("3"));
         ImmutableMap<String, TestDiffable> before = builder.build();
-        Map<String, TestDiffable> map = newHashMap();
+        Map<String, TestDiffable> map = new HashMap<>();
         map.putAll(before);
         map.remove("bar");
         map.put("baz", new TestDiffable("4"));

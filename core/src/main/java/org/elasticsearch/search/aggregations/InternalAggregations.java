@@ -21,7 +21,6 @@ package org.elasticsearch.search.aggregations;
 import com.google.common.base.Function;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterators;
-import com.google.common.collect.Maps;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -40,7 +39,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import static com.google.common.collect.Maps.newHashMap;
 import static org.elasticsearch.common.util.CollectionUtils.eagerTransform;
 
 /**
@@ -100,13 +98,13 @@ public class InternalAggregations implements Aggregations, ToXContent, Streamabl
     @Override
     public Map<String, Aggregation> getAsMap() {
         if (aggregationsAsMap == null) {
-            Map<String, InternalAggregation> aggregationsAsMap = newHashMap();
+            Map<String, InternalAggregation> aggregationsAsMap = new HashMap<>();
             for (InternalAggregation aggregation : aggregations) {
                 aggregationsAsMap.put(aggregation.getName(), aggregation);
             }
             this.aggregationsAsMap = aggregationsAsMap;
         }
-        return Maps.transformValues(aggregationsAsMap, SUPERTYPE_CAST);
+        return new HashMap<>(aggregationsAsMap);
     }
 
     /**

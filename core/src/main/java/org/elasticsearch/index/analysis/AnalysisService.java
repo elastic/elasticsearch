@@ -34,9 +34,8 @@ import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 
 import java.io.Closeable;
+import java.util.HashMap;
 import java.util.Map;
-
-import static com.google.common.collect.Maps.newHashMap;
 
 /**
  *
@@ -66,7 +65,7 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
                            @Nullable Map<String, TokenFilterFactoryFactory> tokenFilterFactoryFactories) {
         super(index, indexSettings);
         Settings defaultSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.indexCreated(indexSettings)).build();
-        Map<String, TokenizerFactory> tokenizers = newHashMap();
+        Map<String, TokenizerFactory> tokenizers = new HashMap<>();
         if (tokenizerFactoryFactories != null) {
             Map<String, Settings> tokenizersSettings = indexSettings.getGroups("index.analysis.tokenizer");
             for (Map.Entry<String, TokenizerFactoryFactory> entry : tokenizerFactoryFactories.entrySet()) {
@@ -101,7 +100,7 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
 
         this.tokenizers = ImmutableMap.copyOf(tokenizers);
 
-        Map<String, CharFilterFactory> charFilters = newHashMap();
+        Map<String, CharFilterFactory> charFilters = new HashMap<>();
         if (charFilterFactoryFactories != null) {
             Map<String, Settings> charFiltersSettings = indexSettings.getGroups("index.analysis.char_filter");
             for (Map.Entry<String, CharFilterFactoryFactory> entry : charFilterFactoryFactories.entrySet()) {
@@ -136,7 +135,7 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
 
         this.charFilters = ImmutableMap.copyOf(charFilters);
 
-        Map<String, TokenFilterFactory> tokenFilters = newHashMap();
+        Map<String, TokenFilterFactory> tokenFilters = new HashMap<>();
         if (tokenFilterFactoryFactories != null) {
             Map<String, Settings> tokenFiltersSettings = indexSettings.getGroups("index.analysis.filter");
             for (Map.Entry<String, TokenFilterFactoryFactory> entry : tokenFilterFactoryFactories.entrySet()) {
@@ -171,7 +170,7 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
         }
         this.tokenFilters = ImmutableMap.copyOf(tokenFilters);
 
-        Map<String, AnalyzerProvider> analyzerProviders = newHashMap();
+        Map<String, AnalyzerProvider> analyzerProviders = new HashMap<>();
         if (analyzerFactoryFactories != null) {
             Map<String, Settings> analyzersSettings = indexSettings.getGroups("index.analysis.analyzer");
             for (Map.Entry<String, AnalyzerProviderFactory> entry : analyzerFactoryFactories.entrySet()) {
@@ -214,7 +213,7 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
             analyzerProviders.put("default_search_quoted", analyzerProviders.get("default_search"));
         }
 
-        Map<String, NamedAnalyzer> analyzers = newHashMap();
+        Map<String, NamedAnalyzer> analyzers = new HashMap<>();
         for (AnalyzerProvider analyzerFactory : analyzerProviders.values()) {
             /*
              * Lucene defaults positionIncrementGap to 0 in all analyzers but

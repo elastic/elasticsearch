@@ -24,7 +24,6 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Iterators;
-import com.google.common.collect.Maps;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.IOUtils;
@@ -99,7 +98,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
-import static com.google.common.collect.Maps.newHashMap;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.collect.MapBuilder.newMapBuilder;
@@ -246,7 +244,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
             }
         }
 
-        Map<Index, List<IndexShardStats>> statsByShard = Maps.newHashMap();
+        Map<Index, List<IndexShardStats>> statsByShard = new HashMap<>();
         for (IndexServiceInjectorPair value : indices.values()) {
             IndexService indexService = value.getIndexService();
             for (IndexShard indexShard : indexService) {
@@ -395,7 +393,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
                 }
 
                 logger.debug("[{}] closing ... (reason [{}])", index, reason);
-                Map<String, IndexServiceInjectorPair> tmpMap = newHashMap(indices);
+                Map<String, IndexServiceInjectorPair> tmpMap = new HashMap<>(indices);
                 IndexServiceInjectorPair remove = tmpMap.remove(index);
                 indexService = remove.getIndexService();
                 indexInjector = remove.getInjector();

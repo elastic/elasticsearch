@@ -7,7 +7,6 @@ package org.elasticsearch.shield.transport.filter;
 
 import com.carrotsearch.hppc.ObjectObjectHashMap;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Maps;
 import com.google.common.collect.ObjectArrays;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.collect.HppcMaps;
@@ -24,7 +23,6 @@ import org.elasticsearch.shield.audit.AuditTrail;
 import org.elasticsearch.transport.Transport;
 
 import java.net.InetAddress;
-import java.net.UnknownHostException;
 import java.util.*;
 
 public class IPFilter extends AbstractLifecycleComponent<IPFilter> {
@@ -143,7 +141,7 @@ public class IPFilter extends AbstractLifecycleComponent<IPFilter> {
             return Collections.EMPTY_MAP;
         }
 
-        Map<String, ShieldIpFilterRule[]> profileRules = Maps.newHashMap();
+        Map<String, ShieldIpFilterRule[]> profileRules = new HashMap<>();
 
         if (isHttpFilterEnabled && httpServerTransport != null && httpServerTransport.lifecycleState() == Lifecycle.State.STARTED) {
             InetAddress localAddress = ((InetSocketTransportAddress) this.httpServerTransport.boundAddress().boundAddress()).address().getAddress();

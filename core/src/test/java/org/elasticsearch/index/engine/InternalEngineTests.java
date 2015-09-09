@@ -93,7 +93,9 @@ import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
+import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -527,11 +529,19 @@ public class InternalEngineTests extends ESTestCase {
     public void testConcurrentGetAndFlush() throws Exception {
         ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, null);
         engine.create(new Engine.Create(newUid("1"), doc));
+
         final AtomicReference<Engine.GetResult> latestGetResult = new AtomicReference<>();
+        latestGetResult.set(engine.get(new Engine.Get(true, newUid("1"))));
         final AtomicBoolean flushFinished = new AtomicBoolean(false);
+        final CyclicBarrier barrier = new CyclicBarrier(2);
         Thread getThread = new Thread() {
             @Override
             public void run() {
+                try {
+                    barrier.await();
+                } catch (InterruptedException | BrokenBarrierException e) {
+                    throw new RuntimeException(e);
+                }
                 while (flushFinished.get() == false) {
                     Engine.GetResult previousGetResult = latestGetResult.get();
                     if (previousGetResult != null) {
@@ -545,6 +555,7 @@ public class InternalEngineTests extends ESTestCase {
             }
         };
         getThread.start();
+        barrier.await();
         engine.flush();
         flushFinished.set(true);
         getThread.join();

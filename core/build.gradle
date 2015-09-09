@@ -2,20 +2,25 @@
 apply plugin: 'java'
 apply plugin: 'org.elasticsearch.devtools.build'
 
-sourceCompatibility = '1.7'
+sourceCompatibility = '1.8'
 
 configurations {
   restSpec
 }
 
-repositories {
-  mavenCentral()
-}
-
-def luceneVersion = '5.3.0'
+def luceneSnapshot = '1701068'
+def luceneVersion = "5.4.0-snapshot-$luceneSnapshot"
 def jacksonVersion = '2.5.3'
 def log4jVersion = '1.2.17'
 def slf4jVersion = '1.6.2'
+
+repositories {
+  mavenCentral()
+  mavenLocal()
+  maven {
+    url "http://download.elasticsearch.org/lucenesnapshots/$luceneSnapshot"
+  }
+}
 
 dependencies {
 

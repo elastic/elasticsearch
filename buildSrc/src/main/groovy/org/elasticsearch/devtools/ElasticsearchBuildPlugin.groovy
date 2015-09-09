@@ -12,6 +12,8 @@ import org.gradle.api.tasks.TaskContainer
  * Encapsulates adding all build logic and configuration for elasticsearch projects.
  */
 class ElasticsearchBuildPlugin implements Plugin<Project> {
+
+    @Override
     void apply(Project project) {
         // Depends on Java to add
         project.pluginManager.apply('java')
@@ -37,13 +39,13 @@ class ElasticsearchBuildPlugin implements Plugin<Project> {
         /*
          ====== PLAN ======
          - install tasks
-           [] randomized testing (apply plugin)
-           [] create testInteg task
+           [x] randomized testing (apply plugin)
+           [x] create testInteg task
            [] create license checker task
            [x] create forbiddenPatterns task
          - configure tasks
-           [] test and integ test common config
-           [] integ test additional/override (eg include pattern)
+           [x] test and integ test common config
+           [x] integ test additional/override (eg include pattern)
          */
     }
 
@@ -61,8 +63,9 @@ class ElasticsearchBuildPlugin implements Plugin<Project> {
             }
             jvmArg '-XX:MaxDirectMemorySize=512m'
             jvmArg '-XX:+HeapDumpOnOutOfMemoryError'
-            // TODO: need to create this dir?
-            jvmArg '-XX:HeapDumpPath=' + new File(project.buildDir, 'heapdump')
+            File heapdumpDir = new File(project.buildDir, 'heapdump')
+            heapdumpDir.mkdirs()
+            jvmArg '-XX:HeapDumpPath=' + heapdumpDir
 
             // we use './temp' since this is per JVM and tests are forbidden from writing to CWD
             sysProp 'java.io.tmpdir', './temp'
@@ -74,6 +77,12 @@ class ElasticsearchBuildPlugin implements Plugin<Project> {
             sysProp 'es.logger.level', 'ERROR'
             copySysPropPrefix 'tests.'
             copySysPropPrefix 'es.'
+
+            // System assertions (-esa) are disabled for now because of what looks like a
+            // JDK bug triggered by Groovy on JDK7. We should look at re-enabling system
+            // assertions when we upgrade to a new version of Groovy (currently 2.4.4) or
+            // require JDK8. See https://issues.apache.org/jira/browse/GROOVY-7528.
+            enableSystemAssertions false
 
             testLogging {
                 slowTests {
@@ -95,8 +104,7 @@ class ElasticsearchBuildPlugin implements Plugin<Project> {
 
             balancers {
                 def version = project.property('version')
-                def taskName = task.name
-                executionTime cacheFilename: ".local-$version-$taskName-execution-times.log"
+                executionTime cacheFilename: ".local-$version-$name-execution-times.log"
             }
 
             exclude '**/*$*.class'

@@ -91,6 +91,9 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
      * @param fieldName name of indexed geo field to operate distance computation on.
      * */
     public GeoDistanceQueryBuilder(String name) {
+        if (Strings.isEmpty(name)) {
+            throw new IllegalArgumentException("Fieldname must not be null or empty");
+        }
         this.fieldName = name;
     }
 
@@ -268,7 +271,7 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
     public boolean doEquals(GeoDistanceQueryBuilder other) {
         return Objects.equals(this.fieldName, other.fieldName) &&
                 (this.distance == other.distance) &&
-                (this.coerce = other.coerce) &&
+                (this.coerce == other.coerce) &&
                 (this.ignoreMalformed == other.ignoreMalformed) &&
                 Objects.equals(center, other.center) &&
                 Objects.equals(optimizeBbox, other.optimizeBbox) &&

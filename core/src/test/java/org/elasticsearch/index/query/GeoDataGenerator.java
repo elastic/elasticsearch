@@ -21,31 +21,31 @@ package org.elasticsearch.index.query;
 
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ESTestCase;
 
 /** Helper class for generating geo related data. */
 public class GeoDataGenerator {
 
     /** Generate a valid random geo point. */
     public static GeoPoint randomGeoPoint() {
-        double lat = ElasticsearchTestCase.randomDoubleBetween(GeoUtils.MIN_LAT, GeoUtils.MAX_LAT, true);
-        double lon = ElasticsearchTestCase.randomDoubleBetween(GeoUtils.MIN_LON, GeoUtils.MAX_LON, true);
+        double lat = ESTestCase.randomDoubleBetween(GeoUtils.MIN_LAT, GeoUtils.MAX_LAT, true);
+        double lon = ESTestCase.randomDoubleBetween(GeoUtils.MIN_LON, GeoUtils.MAX_LON, true);
         return new GeoPoint(lat, lon);
     }
 
     /** Generate a valid random bounding box. */
     public static BoundingBox randomBoundingBox() {
-        double bottom = ElasticsearchTestCase.randomDoubleBetween(GeoUtils.MIN_LAT, GeoUtils.MAX_LAT, true);
-        double top = ElasticsearchTestCase.randomDoubleBetween(bottom, GeoUtils.MAX_LAT, true);
-        double left = ElasticsearchTestCase.randomDoubleBetween(GeoUtils.MIN_LON, GeoUtils.MAX_LON, true);
-        double right = ElasticsearchTestCase.randomDoubleBetween(left, GeoUtils.MAX_LON, true);
+        double bottom = ESTestCase.randomDoubleBetween(GeoUtils.MIN_LAT, GeoUtils.MAX_LAT, true);
+        double top = ESTestCase.randomDoubleBetween(bottom, GeoUtils.MAX_LAT, true);
+        double left = ESTestCase.randomDoubleBetween(GeoUtils.MIN_LON, GeoUtils.MAX_LON, true);
+        double right = ESTestCase.randomDoubleBetween(left, GeoUtils.MAX_LON, true);
 
-        if (ElasticsearchTestCase.rarely()) {
+        if (ESTestCase.rarely()) {
             // Rarely check everything works as expected also when hitting the lat/lon boundaries
-            if (ElasticsearchTestCase.randomBoolean()) {
+            if (ESTestCase.randomBoolean()) {
                 top = GeoUtils.MAX_LAT;
             }
-            if (ElasticsearchTestCase.randomBoolean()) {
+            if (ESTestCase.randomBoolean()) {
                 right = GeoUtils.MAX_LON;
             }
         }
@@ -58,10 +58,10 @@ public class GeoDataGenerator {
         values[0] = Double.NaN;
         values[1] = Double.POSITIVE_INFINITY;
         values[2] = Double.NEGATIVE_INFINITY;
-        values[3] = ElasticsearchTestCase.randomDoubleBetween(-Double.MAX_VALUE, validStart, true);
-        values[4] = ElasticsearchTestCase.randomDoubleBetween(validEnd, Double.MAX_VALUE, false);
+        values[3] = ESTestCase.randomDoubleBetween(-Double.MAX_VALUE, validStart, true);
+        values[4] = ESTestCase.randomDoubleBetween(validEnd, Double.MAX_VALUE, false);
         values[5] = Double.MAX_VALUE;
-        return ElasticsearchTestCase.randomFrom(values);
+        return ESTestCase.randomFrom(values);
     }
 
     public static class BoundingBox {

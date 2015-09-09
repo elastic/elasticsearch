@@ -57,11 +57,11 @@ public class GeoDistanceQueryBuilderTest extends BaseQueryTestCase<GeoDistanceQu
         qb.point(GeoDataGenerator.randomGeoPoint());
 
         if (randomBoolean()) {
-            qb.normalizeLat(randomBoolean());
+            qb.coerce(randomBoolean());
         }
 
         if (randomBoolean()) {
-            qb.normalizeLon(randomBoolean());
+            qb.ignoreMalformed(randomBoolean());
         }
 
         // TODO not testing memory here as it would need an entire test node pulled up
@@ -71,28 +71,6 @@ public class GeoDistanceQueryBuilderTest extends BaseQueryTestCase<GeoDistanceQu
             qb.geoDistance(randomFrom(GeoDistance.values()));
         }
         return qb;
-    }
-
-    @Override
-    protected Query doCreateExpectedQuery(GeoDistanceQueryBuilder qb, QueryParseContext parseContext) throws IOException {
-        double normDistance = qb.geoDistance().normalize(qb.distance(), DistanceUnit.DEFAULT);
-
-        if (qb.normalizeLat() || qb.normalizeLon()) {
-            GeoUtils.normalizePoint(qb.point(), qb.normalizeLat(), qb.normalizeLon());
-        }
-
-        MappedFieldType fieldType = parseContext.fieldMapper(qb.fieldName());
-        if (fieldType == null) {
-            throw new QueryParsingException(parseContext, "failed to find geo_point field [" + qb.fieldName() + "]");
-        }
-        if (!(fieldType instanceof GeoPointFieldMapper.GeoPointFieldType)) {
-            throw new QueryParsingException(parseContext, "field [" + qb.fieldName() + "] is not a geo_point field");
-        }
-        GeoPointFieldMapper.GeoPointFieldType geoFieldType = ((GeoPointFieldMapper.GeoPointFieldType) fieldType);
-
-        IndexGeoPointFieldData indexFieldData = parseContext.getForField(fieldType);
-        Query query = new GeoDistanceRangeQuery(qb.point(), null, normDistance, true, false, qb.geoDistance(), geoFieldType, indexFieldData, qb.optimizeBbox());
-        return query;
     }
 
     @Test
@@ -108,6 +86,10 @@ public class GeoDistanceQueryBuilderTest extends BaseQueryTestCase<GeoDistanceQu
     @Test(expected = IllegalArgumentException.class)
     public void testSettingFieldToEmptyDisallowed() {
         new GeoDistanceQueryBuilder("");
+    }
+
+    @Override
+    protected void doAssertLuceneQuery(GeoDistanceQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
     }
 
 }

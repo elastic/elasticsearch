@@ -104,7 +104,6 @@ public class PkiOptionalClientAuthTests extends ShieldIntegTestCase {
                 .put("shield.user", DEFAULT_USER_NAME + ":" + DEFAULT_PASSWORD)
                 .put("cluster.name", internalCluster().getClusterName())
                 .put("shield.transport.ssl", true)
-                .put("path.home", createTempDir())
                 .build();
 
 

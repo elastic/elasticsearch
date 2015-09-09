@@ -62,7 +62,6 @@ public class SslHostnameVerificationTests extends ShieldIntegTestCase {
                 .put(ShieldNettyTransport.HOSTNAME_VERIFICATION_SETTING, false)
                 .put("shield.ssl.truststore.path", keystore.toAbsolutePath()) // settings for client truststore
                 .put("shield.ssl.truststore.password", "testnode-no-subjaltname")
-                .put("path.home", createTempDir())
                 .build();
     }
 

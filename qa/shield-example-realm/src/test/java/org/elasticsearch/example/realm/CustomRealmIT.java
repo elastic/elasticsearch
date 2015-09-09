@@ -68,7 +68,6 @@ public class CustomRealmIT extends ESIntegTestCase {
         String clusterName = nodeInfos.getClusterNameAsString();
 
         Settings settings = Settings.builder()
-                .put("path.home", createTempDir())
                 .put("cluster.name", clusterName)
                 .put(Headers.PREFIX + "." + CustomRealm.USER_HEADER, CustomRealm.KNOWN_USER)
                 .put(Headers.PREFIX + "." + CustomRealm.PW_HEADER, CustomRealm.KNOWN_PW)
@@ -89,7 +88,6 @@ public class CustomRealmIT extends ESIntegTestCase {
         String clusterName = nodeInfos.getClusterNameAsString();
 
         Settings settings = Settings.builder()
-                .put("path.home", createTempDir())
                 .put("cluster.name", clusterName)
                 .put(Headers.PREFIX + "." + CustomRealm.USER_HEADER, CustomRealm.KNOWN_USER + randomAsciiOfLength(1))
                 .put(Headers.PREFIX + "." + CustomRealm.PW_HEADER, CustomRealm.KNOWN_PW)

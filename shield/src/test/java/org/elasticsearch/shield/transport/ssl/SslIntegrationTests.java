@@ -60,7 +60,6 @@ public class SslIntegrationTests extends ShieldIntegTestCase {
     public void testThatUnconfiguredCiphersAreRejected() {
         try(TransportClient transportClient = TransportClient.builder().settings(settingsBuilder()
                 .put(transportClientSettings())
-                .put("path.home", createTempDir())
                 .put("name", "programmatic_transport_client")
                 .put("cluster.name", internalCluster().getClusterName())
                 .putArray("shield.ssl.ciphers", new String[]{"TLS_ECDH_anon_WITH_RC4_128_SHA", "SSL_RSA_WITH_3DES_EDE_CBC_SHA"})
@@ -78,7 +77,6 @@ public class SslIntegrationTests extends ShieldIntegTestCase {
     public void testThatTransportClientUsingSSLv3ProtocolIsRejected() {
         try(TransportClient transportClient = TransportClient.builder().settings(settingsBuilder()
                 .put(transportClientSettings())
-                .put("path.home", createTempDir())
                 .put("name", "programmatic_transport_client")
                 .put("cluster.name", internalCluster().getClusterName())
                 .putArray("shield.ssl.supported_protocols", new String[]{"SSLv3"})

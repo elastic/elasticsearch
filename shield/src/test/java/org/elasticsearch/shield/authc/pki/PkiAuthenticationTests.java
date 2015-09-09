@@ -137,7 +137,6 @@ public class PkiAuthenticationTests extends ShieldIntegTestCase {
         Settings.Builder builder = Settings.builder()
                 .put(transportClientSettings())
                 .put(additionalSettings)
-                .put("path.home", createTempDir())
                 .put("cluster.name", internalCluster().getClusterName());
         builder.remove("shield.user");
         builder.remove("request.headers.Authorization");

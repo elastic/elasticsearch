@@ -198,7 +198,6 @@ public class RunAsIntegTests extends ShieldIntegTestCase {
         Settings settings = Settings.builder()
                 .put(extraSettings)
                 .put("cluster.name", clusterName)
-                .put("path.home", createTempDir())
                 .build();
 
         return TransportClient.builder()

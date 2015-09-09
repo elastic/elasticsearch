@@ -520,7 +520,6 @@ public class MapperQueryParser extends QueryParser {
             }
             return getBooleanQuery(clauses, true);
         }
-
     }
 
     @Override

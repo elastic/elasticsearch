@@ -42,6 +42,10 @@ grant codeBase "${es.security.jar.twitter.jsr166e}" {
   permission java.lang.RuntimePermission "accessClassInPackage.sun.misc";
 };
 
+//// test framework permissions.
+//// These are mock objects and test management that we allow test framework libs
+//// to provide on our behalf. But tests themselves cannot do this stuff!
+
 grant codeBase "${es.security.jar.elasticsearch.securemock}" {
   // needed to support creation of mocks
   permission java.lang.RuntimePermission "reflectionFactoryAccess";
@@ -86,8 +90,6 @@ grant {
   permission java.lang.RuntimePermission "getProtectionDomain";
 
   // reflection hacks:
-  // needed for mock filesystems in tests (to capture implCloseChannel)
-  permission java.lang.RuntimePermission "accessClassInPackage.sun.nio.ch";
   // needed by groovy engine
   permission java.lang.RuntimePermission "accessClassInPackage.sun.reflect";
   // needed by aws core sdk (TODO: look into this)

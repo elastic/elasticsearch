@@ -24,8 +24,8 @@ import org.apache.lucene.search.Explanation;
 public enum CombineFunction {
     MULT {
         @Override
-        public float combine(double queryBoost, double queryScore, double funcScore, double maxBoost) {
-            return toFloat(queryBoost * queryScore * Math.min(funcScore, maxBoost));
+        public float combine(double queryScore, double funcScore, double maxBoost) {
+            return toFloat(queryScore * Math.min(funcScore, maxBoost));
         }
 
         @Override
@@ -34,21 +34,20 @@ public enum CombineFunction {
         }
 
         @Override
-        public Explanation explain(float queryBoost, Explanation queryExpl, Explanation funcExpl, float maxBoost) {
-            float score = queryBoost * Math.min(funcExpl.getValue(), maxBoost) * queryExpl.getValue();
+        public Explanation explain(Explanation queryExpl, Explanation funcExpl, float maxBoost) {
             Explanation boostExpl = Explanation.match(maxBoost, "maxBoost");
             Explanation minExpl = Explanation.match(
                     Math.min(funcExpl.getValue(), maxBoost),
                     "min of:",
                     funcExpl, boostExpl);
-            return Explanation.match(score, "function score, product of:",
-                    queryExpl, minExpl, Explanation.match(queryBoost, "queryBoost"));
+            return Explanation.match(queryExpl.getValue() * minExpl.getValue(),
+                    "function score, product of:", queryExpl, minExpl);
         }
     },
     REPLACE {
         @Override
-        public float combine(double queryBoost, double queryScore, double funcScore, double maxBoost) {
-            return toFloat(queryBoost * Math.min(funcScore, maxBoost));
+        public float combine(double queryScore, double funcScore, double maxBoost) {
+            return toFloat(Math.min(funcScore, maxBoost));
         }
 
         @Override
@@ -57,22 +56,19 @@ public enum CombineFunction {
         }
 
         @Override
-        public Explanation explain(float queryBoost, Explanation queryExpl, Explanation funcExpl, float maxBoost) {
-            float score = queryBoost * Math.min(funcExpl.getValue(), maxBoost);
+        public Explanation explain(Explanation queryExpl, Explanation funcExpl, float maxBoost) {
             Explanation boostExpl = Explanation.match(maxBoost, "maxBoost");
-            Explanation minExpl = Explanation.match(
+            return Explanation.match(
                     Math.min(funcExpl.getValue(), maxBoost),
                     "min of:",
                     funcExpl, boostExpl);
-            return Explanation.match(score, "function score, product of:",
-                    minExpl, Explanation.match(queryBoost, "queryBoost"));
         }
 
     },
     SUM {
         @Override
-        public float combine(double queryBoost, double queryScore, double funcScore, double maxBoost) {
-            return toFloat(queryBoost * (queryScore + Math.min(funcScore, maxBoost)));
+        public float combine(double queryScore, double funcScore, double maxBoost) {
+            return toFloat(queryScore + Math.min(funcScore, maxBoost));
         }
 
         @Override
@@ -81,21 +77,18 @@ public enum CombineFunction {
         }
 
         @Override
-        public Explanation explain(float queryBoost, Explanation queryExpl, Explanation funcExpl, float maxBoost) {
-            float score = queryBoost * (Math.min(funcExpl.getValue(), maxBoost) + queryExpl.getValue());
+        public Explanation explain(Explanation queryExpl, Explanation funcExpl, float maxBoost) {
             Explanation minExpl = Explanation.match(Math.min(funcExpl.getValue(), maxBoost), "min of:",
                     funcExpl, Explanation.match(maxBoost, "maxBoost"));
-            Explanation sumExpl = Explanation.match(Math.min(funcExpl.getValue(), maxBoost) + queryExpl.getValue(), "sum of",
+            return Explanation.match(Math.min(funcExpl.getValue(), maxBoost) + queryExpl.getValue(), "sum of",
                     queryExpl, minExpl);
-            return Explanation.match(score, "function score, product of:",
-                    sumExpl, Explanation.match(queryBoost, "queryBoost"));
         }
 
     },
     AVG {
         @Override
-        public float combine(double queryBoost, double queryScore, double funcScore, double maxBoost) {
-            return toFloat((queryBoost * (Math.min(funcScore, maxBoost) + queryScore) / 2.0));
+        public float combine(double queryScore, double funcScore, double maxBoost) {
+            return toFloat((Math.min(funcScore, maxBoost) + queryScore) / 2.0);
         }
 
         @Override
@@ -104,22 +97,19 @@ public enum CombineFunction {
         }
 
         @Override
-        public Explanation explain(float queryBoost, Explanation queryExpl, Explanation funcExpl, float maxBoost) {
-            float score = toFloat(queryBoost * (queryExpl.getValue() + Math.min(funcExpl.getValue(), maxBoost)) / 2.0);
+        public Explanation explain(Explanation queryExpl, Explanation funcExpl, float maxBoost) {
             Explanation minExpl = Explanation.match(Math.min(funcExpl.getValue(), maxBoost), "min of:",
                     funcExpl, Explanation.match(maxBoost, "maxBoost"));
-            Explanation avgExpl = Explanation.match(
+            return Explanation.match(
                     toFloat((Math.min(funcExpl.getValue(), maxBoost) + queryExpl.getValue()) / 2.0), "avg of",
                     queryExpl, minExpl);
-            return Explanation.match(score, "function score, product of:",
-                    avgExpl, Explanation.match(queryBoost, "queryBoost"));
         }
 
     },
     MIN {
         @Override
-        public float combine(double queryBoost, double queryScore, double funcScore, double maxBoost) {
-            return toFloat(queryBoost * Math.min(queryScore, Math.min(funcScore, maxBoost)));
+        public float combine(double queryScore, double funcScore, double maxBoost) {
+            return toFloat(Math.min(queryScore, Math.min(funcScore, maxBoost)));
         }
 
         @Override
@@ -128,23 +118,20 @@ public enum CombineFunction {
         }
 
         @Override
-        public Explanation explain(float queryBoost, Explanation queryExpl, Explanation funcExpl, float maxBoost) {
-            float score = toFloat(queryBoost * Math.min(queryExpl.getValue(), Math.min(funcExpl.getValue(), maxBoost)));
+        public Explanation explain(Explanation queryExpl, Explanation funcExpl, float maxBoost) {
             Explanation innerMinExpl = Explanation.match(
                     Math.min(funcExpl.getValue(), maxBoost), "min of:",
                     funcExpl, Explanation.match(maxBoost, "maxBoost"));
-            Explanation outerMinExpl = Explanation.match(
+            return Explanation.match(
                     Math.min(Math.min(funcExpl.getValue(), maxBoost), queryExpl.getValue()), "min of",
                     queryExpl, innerMinExpl);
-            return Explanation.match(score, "function score, product of:",
-                    outerMinExpl, Explanation.match(queryBoost, "queryBoost"));
         }
 
     },
     MAX {
         @Override
-        public float combine(double queryBoost, double queryScore, double funcScore, double maxBoost) {
-            return toFloat(queryBoost * (Math.max(queryScore, Math.min(funcScore, maxBoost))));
+        public float combine(double queryScore, double funcScore, double maxBoost) {
+            return toFloat(Math.max(queryScore, Math.min(funcScore, maxBoost)));
         }
 
         @Override
@@ -153,21 +140,18 @@ public enum CombineFunction {
         }
 
         @Override
-        public Explanation explain(float queryBoost, Explanation queryExpl, Explanation funcExpl, float maxBoost) {
-            float score = toFloat(queryBoost * Math.max(queryExpl.getValue(), Math.min(funcExpl.getValue(), maxBoost)));
+        public Explanation explain(Explanation queryExpl, Explanation funcExpl, float maxBoost) {
             Explanation innerMinExpl = Explanation.match(
                     Math.min(funcExpl.getValue(), maxBoost), "min of:",
                     funcExpl, Explanation.match(maxBoost, "maxBoost"));
-            Explanation outerMaxExpl = Explanation.match(
+            return Explanation.match(
                     Math.max(Math.min(funcExpl.getValue(), maxBoost), queryExpl.getValue()), "max of:",
                     queryExpl, innerMinExpl);
-            return Explanation.match(score, "function score, product of:",
-                    outerMaxExpl, Explanation.match(queryBoost, "queryBoost"));
         }
 
     };
 
-    public abstract float combine(double queryBoost, double queryScore, double funcScore, double maxBoost);
+    public abstract float combine(double queryScore, double funcScore, double maxBoost);
 
     public abstract String getName();
 
@@ -181,5 +165,5 @@ public enum CombineFunction {
         return Double.compare(floatVersion, input) == 0 || input == 0.0d ? 0 : 1.d - (floatVersion) / input;
     }
 
-    public abstract Explanation explain(float queryBoost, Explanation queryExpl, Explanation funcExpl, float maxBoost);
+    public abstract Explanation explain(Explanation queryExpl, Explanation funcExpl, float maxBoost);
 }

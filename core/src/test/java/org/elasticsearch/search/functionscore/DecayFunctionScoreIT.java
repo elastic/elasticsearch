@@ -53,6 +53,7 @@ import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.*;
 
+
 public class DecayFunctionScoreIT extends ESIntegTestCase {
 
     @Test
@@ -348,7 +349,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
         SearchHits sh = sr.getHits();
         assertThat(sh.getTotalHits(), equalTo((long) (1)));
         assertThat(sh.getAt(0).getId(), equalTo("1"));
-        assertThat((double) sh.getAt(0).score(), closeTo(0.30685282, 1.e-5));
+        assertThat((double) sh.getAt(0).score(), closeTo(0.153426408, 1.e-5));
 
         response = client().search(
                 searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
@@ -359,7 +360,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
         sh = sr.getHits();
         assertThat(sh.getTotalHits(), equalTo((long) (1)));
         assertThat(sh.getAt(0).getId(), equalTo("1"));
-        assertThat((double) sh.getAt(0).score(), closeTo(1.0, 1.e-5));
+        assertThat((double) sh.getAt(0).score(), closeTo(0.5, 1.e-5));
 
         response = client().search(
                 searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
@@ -370,7 +371,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
         sh = sr.getHits();
         assertThat(sh.getTotalHits(), equalTo((long) (1)));
         assertThat(sh.getAt(0).getId(), equalTo("1"));
-        assertThat((double) sh.getAt(0).score(), closeTo(2.0 * (0.30685282 + 0.5), 1.e-5));
+        assertThat((double) sh.getAt(0).score(), closeTo(0.30685282 + 0.5, 1.e-5));
         logger.info("--> Hit[0] {} Explanation:\n {}", sr.getHits().getAt(0).id(), sr.getHits().getAt(0).explanation());
 
         response = client().search(
@@ -382,7 +383,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
         sh = sr.getHits();
         assertThat(sh.getTotalHits(), equalTo((long) (1)));
         assertThat(sh.getAt(0).getId(), equalTo("1"));
-        assertThat((double) sh.getAt(0).score(), closeTo((0.30685282 + 0.5), 1.e-5));
+        assertThat((double) sh.getAt(0).score(), closeTo((0.30685282 + 0.5) / 2, 1.e-5));
 
         response = client().search(
                 searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
@@ -393,7 +394,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
         sh = sr.getHits();
         assertThat(sh.getTotalHits(), equalTo((long) (1)));
         assertThat(sh.getAt(0).getId(), equalTo("1"));
-        assertThat((double) sh.getAt(0).score(), closeTo(2.0 * (0.30685282), 1.e-5));
+        assertThat((double) sh.getAt(0).score(), closeTo(0.30685282, 1.e-5));
 
         response = client().search(
                 searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
@@ -404,7 +405,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
         sh = sr.getHits();
         assertThat(sh.getTotalHits(), equalTo((long) (1)));
         assertThat(sh.getAt(0).getId(), equalTo("1"));
-        assertThat((double) sh.getAt(0).score(), closeTo(1.0, 1.e-5));
+        assertThat((double) sh.getAt(0).score(), closeTo(0.5, 1.e-5));
 
     }
 

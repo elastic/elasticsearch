@@ -64,6 +64,9 @@ public final class AllTermQuery extends Query {
 
     @Override
     public Query rewrite(IndexReader reader) throws IOException {
+        if (getBoost() != 1f) {
+            return super.rewrite(reader);
+        }
         boolean fieldExists = false;
         boolean hasPayloads = false;
         for (LeafReaderContext context : reader.leaves()) {
@@ -98,7 +101,7 @@ public final class AllTermQuery extends Query {
         final CollectionStatistics collectionStats = searcher.collectionStatistics(term.field());
         final TermStatistics termStats = searcher.termStatistics(term, termStates);
         final Similarity similarity = searcher.getSimilarity(needsScores);
-        final SimWeight stats = similarity.computeWeight(getBoost(), collectionStats, termStats);
+        final SimWeight stats = similarity.computeWeight(collectionStats, termStats);
         return new Weight(this) {
 
             @Override

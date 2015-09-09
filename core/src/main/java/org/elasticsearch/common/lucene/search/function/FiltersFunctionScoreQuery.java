@@ -114,6 +114,9 @@ public class FiltersFunctionScoreQuery extends Query {
 
     @Override
     public Query rewrite(IndexReader reader) throws IOException {
+        if (getBoost() != 1.0F) {
+            return super.rewrite(reader);
+        }
         Query newQ = subQuery.rewrite(reader);
         if (newQ == subQuery)
             return this;
@@ -158,14 +161,12 @@ public class FiltersFunctionScoreQuery extends Query {
 
         @Override
         public float getValueForNormalization() throws IOException {
-            float sum = subQueryWeight.getValueForNormalization();
-            sum *= getBoost() * getBoost();
-            return sum;
+            return subQueryWeight.getValueForNormalization();
         }
 
         @Override
-        public void normalize(float norm, float topLevelBoost) {
-            subQueryWeight.normalize(norm, topLevelBoost * getBoost());
+        public void normalize(float norm, float boost) {
+            subQueryWeight.normalize(norm, boost);
         }
 
         @Override
@@ -219,10 +220,7 @@ public class FiltersFunctionScoreQuery extends Query {
                 }
             }
             if (filterExplanations.size() == 0) {
-                float sc = getBoost() * subQueryExpl.getValue();
-                return Explanation.match(sc, "function score, no filter match, product of:",
-                        subQueryExpl,
-                        Explanation.match(getBoost(), "queryBoost"));
+                return subQueryExpl;
             }
 
             // Second: Compute the factor that would have been computed by the
@@ -266,7 +264,7 @@ public class FiltersFunctionScoreQuery extends Query {
                     CombineFunction.toFloat(factor),
                     "function score, score mode [" + scoreMode.toString().toLowerCase(Locale.ROOT) + "]",
                     filterExplanations);
-            return combineFunction.explain(getBoost(), subQueryExpl, factorExplanation, maxBoost);
+            return combineFunction.explain(subQueryExpl, factorExplanation, maxBoost);
         }
     }
 
@@ -348,7 +346,7 @@ public class FiltersFunctionScoreQuery extends Query {
                     }
                 }
             }
-            return scoreCombiner.combine(subQueryBoost, subQueryScore, factor, maxBoost);
+            return scoreCombiner.combine(subQueryScore, factor, maxBoost);
         }
     }
 

@@ -85,7 +85,6 @@ public class TransportClient extends AbstractClient {
 
         private Settings settings = Settings.EMPTY;
         private List<Class<? extends Plugin>> pluginClasses = new ArrayList<>();
-        private boolean loadConfigSettings = true;
 
         /**
          * The settings to configure the transport client with.
@@ -103,15 +102,6 @@ public class TransportClient extends AbstractClient {
         }
 
         /**
-         * Should the transport client load file based configuration automatically or not (and rely
-         * only on the provided settings), defaults to true.
-         */
-        public Builder loadConfigSettings(boolean loadConfigSettings) {
-            this.loadConfigSettings = loadConfigSettings;
-            return this;
-        }
-
-        /**
          * Add the given plugin to the client when it is created.
          */
         public Builder addPlugin(Class<? extends Plugin> pluginClass) {
@@ -123,17 +113,16 @@ public class TransportClient extends AbstractClient {
          * Builds a new instance of the transport client.
          */
         public TransportClient build() {
-            Tuple<Settings, Environment> tuple = InternalSettingsPreparer.prepareSettings(settings, loadConfigSettings);
-            Settings settings = settingsBuilder()
+            Settings settings = InternalSettingsPreparer.prepareSettings(this.settings);
+            settings = settingsBuilder()
                     .put(NettyTransport.PING_SCHEDULE, "5s") // enable by default the transport schedule ping interval
-                    .put(tuple.v1())
+                    .put(settings)
                     .put("network.server", false)
                     .put("node.client", true)
                     .put(CLIENT_TYPE_SETTING, CLIENT_TYPE)
                     .build();
-            Environment environment = tuple.v2();
 
-            PluginsService pluginsService = new PluginsService(settings, tuple.v2(), pluginClasses);
+            PluginsService pluginsService = new PluginsService(settings, null, pluginClasses);
             this.settings = pluginsService.updatedSettings();
 
             Version version = Version.CURRENT;
@@ -149,7 +138,6 @@ public class TransportClient extends AbstractClient {
                     modules.add(pluginModule);
                 }
                 modules.add(new PluginsModule(pluginsService));
-                modules.add(new EnvironmentModule(environment));
                 modules.add(new SettingsModule(this.settings));
                 modules.add(new NetworkModule());
                 modules.add(new ClusterNameModule(this.settings));

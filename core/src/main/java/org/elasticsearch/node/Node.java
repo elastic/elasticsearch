@@ -124,30 +124,28 @@ public class Node implements Releasable {
      * Constructs a node with the given settings.
      *
      * @param preparedSettings Base settings to configure the node with
-     * @param loadConfigSettings true if settings should also be loaded and merged from configuration files
      */
-    public Node(Settings preparedSettings, boolean loadConfigSettings) {
-        this(preparedSettings, loadConfigSettings, Version.CURRENT, Collections.<Class<? extends Plugin>>emptyList());
+    public Node(Settings preparedSettings) {
+        this(preparedSettings, Version.CURRENT, Collections.<Class<? extends Plugin>>emptyList());
     }
 
-    Node(Settings preparedSettings, boolean loadConfigSettings, Version version, Collection<Class<? extends Plugin>> classpathPlugins) {
+    Node(Settings preparedSettings, Version version, Collection<Class<? extends Plugin>> classpathPlugins) {
         final Settings pSettings = settingsBuilder().put(preparedSettings)
                 .put(Client.CLIENT_TYPE_SETTING, CLIENT_TYPE).build();
-        Tuple<Settings, Environment> tuple = InternalSettingsPreparer.prepareSettings(pSettings, loadConfigSettings);
-        tuple = new Tuple<>(TribeService.processSettings(tuple.v1()), tuple.v2());
+        Environment tmpEnv = InternalSettingsPreparer.prepareEnvironment(pSettings, null);
+        Settings tmpSettings = TribeService.processSettings(tmpEnv.settings());
 
-        ESLogger logger = Loggers.getLogger(Node.class, tuple.v1().get("name"));
+        ESLogger logger = Loggers.getLogger(Node.class, tmpSettings.get("name"));
         logger.info("version[{}], pid[{}], build[{}/{}]", version, JvmInfo.jvmInfo().pid(), Build.CURRENT.hashShort(), Build.CURRENT.timestamp());
 
         logger.info("initializing ...");
 
         if (logger.isDebugEnabled()) {
-            Environment env = tuple.v2();
             logger.debug("using config [{}], data [{}], logs [{}], plugins [{}]",
-                    env.configFile(), Arrays.toString(env.dataFiles()), env.logsFile(), env.pluginsFile());
+                tmpEnv.configFile(), Arrays.toString(tmpEnv.dataFiles()), tmpEnv.logsFile(), tmpEnv.pluginsFile());
         }
 
-        this.pluginsService = new PluginsService(tuple.v1(), tuple.v2(), classpathPlugins);
+        this.pluginsService = new PluginsService(tmpSettings, tmpEnv.pluginsFile(), classpathPlugins);
         this.settings = pluginsService.updatedSettings();
         // create the environment based on the finalized (processed) view of the settings
         this.environment = new Environment(this.settings());
@@ -171,17 +169,17 @@ public class Node implements Releasable {
                 modules.add(pluginModule);
             }
             modules.add(new PluginsModule(pluginsService));
-            modules.add(new SettingsModule(settings));
+            modules.add(new SettingsModule(this.settings));
             modules.add(new NodeModule(this));
             modules.add(new NetworkModule());
-            modules.add(new ScriptModule(settings));
+            modules.add(new ScriptModule(this.settings));
             modules.add(new EnvironmentModule(environment));
             modules.add(new NodeEnvironmentModule(nodeEnvironment));
-            modules.add(new ClusterNameModule(settings));
+            modules.add(new ClusterNameModule(this.settings));
             modules.add(new ThreadPoolModule(threadPool));
-            modules.add(new DiscoveryModule(settings));
-            modules.add(new ClusterModule(settings));
-            modules.add(new RestModule(settings));
+            modules.add(new DiscoveryModule(this.settings));
+            modules.add(new ClusterModule(this.settings));
+            modules.add(new RestModule(this.settings));
             modules.add(new TransportModule(settings));
             if (settings.getAsBoolean(HTTP_ENABLED, true)) {
                 modules.add(new HttpServerModule(settings));
@@ -190,7 +188,7 @@ public class Node implements Releasable {
             modules.add(new SearchModule(settings));
             modules.add(new ActionModule(false));
             modules.add(new MonitorModule(settings));
-            modules.add(new GatewayModule());
+            modules.add(new GatewayModule(settings));
             modules.add(new NodeClientModule());
             modules.add(new ShapeModule());
             modules.add(new PercolatorModule());

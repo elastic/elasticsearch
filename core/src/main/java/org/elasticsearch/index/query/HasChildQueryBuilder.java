@@ -37,8 +37,6 @@ public class HasChildQueryBuilder extends QueryBuilder implements BoostableQuery
 
     private Integer maxChildren;
 
-    private Integer shortCircuitCutoff;
-
     private String queryName;
 
     private QueryInnerHitBuilder innerHit = null;
@@ -83,15 +81,6 @@ public class HasChildQueryBuilder extends QueryBuilder implements BoostableQuery
     }
 
     /**
-     * Configures at what cut off point only to evaluate parent documents that contain the matching parent id terms
-     * instead of evaluating all parent docs.
-     */
-    public HasChildQueryBuilder setShortCircuitCutoff(int shortCircuitCutoff) {
-        this.shortCircuitCutoff = shortCircuitCutoff;
-        return this;
-    }
-
-    /**
      * Sets the query name for the filter that can be used when searching for matched_filters per hit.
      */
     public HasChildQueryBuilder queryName(String queryName) {
@@ -124,9 +113,6 @@ public class HasChildQueryBuilder extends QueryBuilder implements BoostableQuery
         }
         if (maxChildren != null) {
             builder.field("max_children", maxChildren);
-        }
-        if (shortCircuitCutoff != null) {
-            builder.field("short_circuit_cutoff", shortCircuitCutoff);
         }
         if (queryName != null) {
             builder.field("_name", queryName);

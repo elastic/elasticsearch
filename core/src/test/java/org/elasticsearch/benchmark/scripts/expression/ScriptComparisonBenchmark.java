@@ -111,7 +111,7 @@ public class ScriptComparisonBenchmark {
         Settings settings = settingsBuilder().put("name", "node1")
                                              .put("cluster.name", clusterName).build();
         Collection<Class<? extends Plugin>> plugins = Collections.<Class<? extends Plugin>>singletonList(NativeScriptPlugin.class);
-        Node node1 = new MockNode(settings, true, Version.CURRENT, plugins);
+        Node node1 = new MockNode(settings, Version.CURRENT, plugins);
         node1.start();
         Client client = node1.client();
         client.admin().cluster().prepareHealth(indexName).setWaitForGreenStatus().setTimeout("10s").execute().actionGet();

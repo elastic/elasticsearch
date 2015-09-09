@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.cache.bitset;
 
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.settings.IndexSettings;
@@ -47,4 +46,5 @@ public class ShardBitsetFilterCache extends AbstractIndexShardComponent {
     public long getMemorySizeInBytes() {
         return totalMetric.count();
     }
+
 }

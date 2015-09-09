@@ -137,7 +137,7 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
             if (sb.get("http.enabled") == null) {
                 sb.put("http.enabled", false);
             }
-            nodes.add(NodeBuilder.nodeBuilder().settings(sb).client(true).loadConfigSettings(false).build());
+            nodes.add(NodeBuilder.nodeBuilder().settings(sb).client(true).build());
         }
 
         String[] blockIndicesWrite = Strings.EMPTY_ARRAY;

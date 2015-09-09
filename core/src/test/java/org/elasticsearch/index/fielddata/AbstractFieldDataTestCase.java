@@ -54,7 +54,6 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
     protected LeafReaderContext readerContext;
     protected IndexReader topLevelReader;
     protected IndicesFieldDataCache indicesFieldDataCache;
-
     protected abstract FieldDataType getFieldDataType();
 
     protected boolean hasDocValues() {
@@ -89,7 +88,7 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
         } else if (type.getType().equals("geo_point")) {
             fieldType = MapperBuilders.geoPointField(fieldName).docValues(docValues).fieldDataSettings(type.getSettings()).build(context).fieldType();
         } else if (type.getType().equals("_parent")) {
-            fieldType = new ParentFieldMapper.Builder().type(fieldName).build(context).fieldType();
+            fieldType = new ParentFieldMapper.Builder("_type").type(fieldName).build(context).fieldType();
         } else if (type.getType().equals("binary")) {
             fieldType = MapperBuilders.binaryField(fieldName).docValues(docValues).fieldDataSettings(type.getSettings()).build(context).fieldType();
         } else {
@@ -109,11 +108,12 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
         writer = new IndexWriter(new RAMDirectory(), new IndexWriterConfig(new StandardAnalyzer()).setMergePolicy(new LogByteSizeMergePolicy()));
     }
 
-    protected LeafReaderContext refreshReader() throws Exception {
+    protected final LeafReaderContext refreshReader() throws Exception {
         if (readerContext != null) {
             readerContext.reader().close();
         }
-        LeafReader reader = SlowCompositeReaderWrapper.wrap(topLevelReader = DirectoryReader.open(writer, true));
+        topLevelReader = DirectoryReader.open(writer, true);
+        LeafReader reader = SlowCompositeReaderWrapper.wrap(topLevelReader);
         readerContext = reader.getContext();
         return readerContext;
     }
@@ -150,8 +150,5 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
             }
             previous = current;
         }
-
-
     }
-
 }

@@ -63,6 +63,14 @@ public class RandomShapeGenerator {
         }
     }
 
+    public static ShapeBuilder createShape(Random r) throws InvalidShapeException {
+        return createShapeNear(r, null);
+    }
+
+    public static ShapeBuilder createShape(Random r, ShapeType st) {
+        return createShapeNear(r, null, st);
+    }
+
     public static ShapeBuilder createShapeNear(Random r, Point nearPoint) throws InvalidShapeException {
         return createShape(r, nearPoint, null, null);
     }
@@ -211,7 +219,8 @@ public class RandomShapeGenerator {
                     try {
                         pgb.build();
                     } catch (InvalidShapeException e) {
-                        return null;
+                        // jts bug rarely results in an invalid shape, if it does happen we try again instead of returning null
+                        return createShape(r, nearPoint, within, st, validate);
                     }
                 }
                 return pgb;

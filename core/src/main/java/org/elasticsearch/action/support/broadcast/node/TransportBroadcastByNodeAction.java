@@ -181,7 +181,7 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
      * @param shardRouting the shard on which to execute the operation
      * @return the result of the shard-level operation for the shard
      */
-    protected abstract ShardOperationResult shardOperation(Request request, ShardRouting shardRouting);
+    protected abstract ShardOperationResult shardOperation(Request request, ShardRouting shardRouting) throws IOException;
 
     /**
      * Determines the shards on which this operation will be executed on. The operation is executed once per shard.

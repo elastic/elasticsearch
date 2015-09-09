@@ -51,7 +51,9 @@ public class MultiPointBuilder extends PointCollection<MultiPointBuilder> {
         for (Coordinate coord : points) {
             shapes.add(SPATIAL_CONTEXT.makePoint(coord.x, coord.y));
         }
-        return new XShapeCollection<>(shapes, SPATIAL_CONTEXT);
+        XShapeCollection multiPoints = new XShapeCollection<>(shapes, SPATIAL_CONTEXT);
+        multiPoints.setPointsOnly(true);
+        return multiPoints;
     }
 
     @Override

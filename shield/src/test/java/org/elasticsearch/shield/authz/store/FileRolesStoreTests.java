@@ -291,4 +291,31 @@ public class FileRolesStoreTests extends ESTestCase {
         // we overriden the configured reserved role without index privs. (was configured with index priv on "index_a_*" indices)
         assertThat(reserved.indices().isEmpty(), is(true));
     }
+
+    @Test
+    public void testReservedRolesNonExistentRolesFile() throws Exception {
+        Set<Permission.Global.Role> reservedRoles = ImmutableSet.<Permission.Global.Role>builder()
+                .add(Permission.Global.Role.builder("reserved")
+                        .cluster(Privilege.Cluster.ALL)
+                        .build())
+                .build();
+
+        CapturingLogger logger = new CapturingLogger(CapturingLogger.Level.INFO);
+
+        Path path = createTempFile();
+        Files.delete(path);
+        assertThat(Files.exists(path), is(false));
+        Map<String, Permission.Global.Role> roles = FileRolesStore.parseFile(path, reservedRoles, logger);
+        assertThat(roles, notNullValue());
+        assertThat(roles.size(), is(1));
+
+        assertThat(roles, hasKey("reserved"));
+        Permission.Global.Role reserved = roles.get("reserved");
+
+        List<CapturingLogger.Msg> messages = logger.output(CapturingLogger.Level.WARN);
+        assertThat(messages, notNullValue());
+        assertThat(messages, hasSize(0));
+        assertThat(reserved.cluster().check("cluster:admin/test"), is(true));
+        assertThat(reserved.indices().isEmpty(), is(true));
+    }
 }

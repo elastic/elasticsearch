@@ -121,30 +121,25 @@ public class FileRolesStore extends AbstractLifecycleComponent<RolesStore> imple
             logger = NoOpLogger.INSTANCE;
         }
 
-        logger.trace("reading roles file located at [{}]", path.toAbsolutePath());
-
-        if (!Files.exists(path)) {
-            return ImmutableMap.of();
-        }
-
         Map<String, Permission.Global.Role> roles = new HashMap<>();
-
-        try {
-
-            List<String> roleSegments = roleSegments(path);
-            for (String segment : roleSegments) {
-                Permission.Global.Role role = parseRole(segment, path, logger, resolvePermission);
-                if (role != null) {
-                    if (SystemRole.NAME.equals(role.name())) {
-                        logger.warn("role [{}] is reserved to the system. the relevant role definition in the mapping file will be ignored", SystemRole.NAME);
-                    } else {
-                        roles.put(role.name(), role);
+        logger.trace("attempted to read roles file located at [{}]", path.toAbsolutePath());
+        if (Files.exists(path)) {
+            try {
+                List<String> roleSegments = roleSegments(path);
+                for (String segment : roleSegments) {
+                    Permission.Global.Role role = parseRole(segment, path, logger, resolvePermission);
+                    if (role != null) {
+                        if (SystemRole.NAME.equals(role.name())) {
+                            logger.warn("role [{}] is reserved to the system. the relevant role definition in the mapping file will be ignored", SystemRole.NAME);
+                        } else {
+                            roles.put(role.name(), role);
+                        }
                     }
                 }
-            }
 
-        } catch (IOException ioe) {
-            logger.error("failed to read roles file [{}]. skipping all roles...", ioe, path.toAbsolutePath());
+            } catch (IOException ioe) {
+                logger.error("failed to read roles file [{}]. skipping all roles...", ioe, path.toAbsolutePath());
+            }
         }
 
         // we now add all the fixed roles (overriding any attempts to override the fixed roles in the file)

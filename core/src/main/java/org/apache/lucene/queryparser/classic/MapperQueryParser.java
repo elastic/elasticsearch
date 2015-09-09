@@ -19,20 +19,12 @@
 
 package org.apache.lucene.queryparser.classic;
 
+import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.DisjunctionMaxQuery;
-import org.apache.lucene.search.FilteredQuery;
-import org.apache.lucene.search.FuzzyQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
-import org.apache.lucene.search.MultiPhraseQuery;
-import org.apache.lucene.search.PhraseQuery;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.WildcardQuery;
-import org.apache.lucene.util.Version;
+import org.apache.lucene.search.*;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -41,8 +33,6 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.support.QueryParsers;
-
-import com.google.common.collect.ImmutableMap;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -83,7 +73,7 @@ public class MapperQueryParser extends QueryParser {
 
     public void reset(QueryParserSettings settings) {
         this.settings = settings;
-        if (settings.fieldsAndWeights().size() == 0) {
+        if (settings.fieldsAndWeights().isEmpty()) {
             this.field = settings.defaultField();
         } else if (settings.fieldsAndWeights().size() == 1) {
             this.field = settings.fieldsAndWeights().keySet().iterator().next();
@@ -529,13 +519,6 @@ public class MapperQueryParser extends QueryParser {
                 clauses.add(new BooleanClause(super.getPrefixQuery(field, token), BooleanClause.Occur.SHOULD));
             }
             return getBooleanQuery(clauses, true);
-
-            //return super.getPrefixQuery(field, termStr);
-
-            // this means that the analyzer used either added or consumed (common for a stemmer) tokens, and we can't build a PrefixQuery
-            //throw new ParseException("Cannot build PrefixQuery with analyzer "
-            //        + getAnalyzer().getClass()
-            //        + (tlist.size() > 1 ? " - token(s) added" : " - token consumed"));
         }
 
     }

@@ -715,14 +715,7 @@ public class FieldLevelSecurityTests extends ShieldIntegTestCase {
     }
 
     public void testParentChild() {
-        // There are two parent/child impls:
-        // pre 2.0 parent/child uses the _uid and _parent fields
-        // 2.0 and beyond parent/child uses dedicated doc values join fields
-        // Both impls need to be tested with field level security, so that is why the index version is randomized here.
-        Version version = randomFrom(Version.V_1_7_2, Version.CURRENT);
-        logger.info("Testing parent/child with field level security on an index created with version[{}]", version);
         assertAcked(prepareCreate("test")
-                .setSettings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version))
                 .addMapping("parent")
                 .addMapping("child", "_parent", "type=parent"));
         ensureGreen();

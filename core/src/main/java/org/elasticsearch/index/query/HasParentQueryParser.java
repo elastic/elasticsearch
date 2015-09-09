@@ -18,29 +18,12 @@
  */
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.*;
-import org.apache.lucene.search.join.ScoreMode;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
-import org.elasticsearch.index.query.support.InnerHitsQueryParserHelper;
 import org.elasticsearch.index.query.support.QueryInnerHits;
-import org.elasticsearch.index.query.support.XContentStructure;
-import org.elasticsearch.index.search.child.ParentConstantScoreQuery;
-import org.elasticsearch.index.search.child.ParentQuery;
-import org.elasticsearch.index.search.child.ScoreType;
-import org.elasticsearch.search.fetch.innerhits.InnerHitsContext;
-import org.elasticsearch.search.fetch.innerhits.InnerHitsSubSearchContext;
 
 import java.io.IOException;
-import java.util.HashSet;
-import java.util.Set;
 
 
 public class HasParentQueryParser extends BaseQueryParser  {

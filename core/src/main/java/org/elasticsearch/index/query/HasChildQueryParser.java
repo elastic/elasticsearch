@@ -23,7 +23,6 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.support.QueryInnerHits;
-import org.elasticsearch.index.search.child.ScoreType;
 
 import java.io.IOException;
 
@@ -47,7 +46,6 @@ public class HasChildQueryParser extends BaseQueryParser {
         ScoreType scoreType = ScoreType.NONE;
         int minChildren = HasChildQueryBuilder.DEFAULT_MIN_CHILDREN;
         int maxChildren = HasChildQueryBuilder.DEFAULT_MAX_CHILDREN;
-        int shortCircuitParentDocSet = HasChildQueryBuilder.DEFAULT_SHORT_CIRCUIT_CUTOFF;
         String queryName = null;
         QueryInnerHits queryInnerHits = null;
         String currentFieldName = null;
@@ -79,8 +77,6 @@ public class HasChildQueryParser extends BaseQueryParser {
                     minChildren = parser.intValue(true);
                 } else if ("max_children".equals(currentFieldName) || "maxChildren".equals(currentFieldName)) {
                     maxChildren = parser.intValue(true);
-                } else if ("short_circuit_cutoff".equals(currentFieldName)) {
-                    shortCircuitParentDocSet = parser.intValue();
                 } else if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
                 } else {
@@ -88,7 +84,7 @@ public class HasChildQueryParser extends BaseQueryParser {
                 }
             }
         }
-        HasChildQueryBuilder hasChildQueryBuilder = new HasChildQueryBuilder(childType, iqb, maxChildren, minChildren, shortCircuitParentDocSet, scoreType, queryInnerHits);
+        HasChildQueryBuilder hasChildQueryBuilder = new HasChildQueryBuilder(childType, iqb, maxChildren, minChildren, scoreType, queryInnerHits);
         hasChildQueryBuilder.queryName(queryName);
         hasChildQueryBuilder.boost(boost);
         return hasChildQueryBuilder;

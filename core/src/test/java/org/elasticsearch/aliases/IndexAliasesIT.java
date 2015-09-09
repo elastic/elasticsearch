@@ -980,30 +980,6 @@ public class IndexAliasesIT extends ESIntegTestCase {
     }
 
     @Test
-    public void testAliasesFilterWithHasChildQueryPre2Dot0() throws Exception {
-        assertAcked(prepareCreate("my-index")
-                        .setSettings(Settings.builder()
-                                .put(indexSettings())
-                                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_6_0)
-                        )
-                        .addMapping("parent")
-                        .addMapping("child", "_parent", "type=parent")
-        );
-        client().prepareIndex("my-index", "parent", "1").setSource("{}").get();
-        client().prepareIndex("my-index", "child", "2").setSource("{}").setParent("1").get();
-        refresh();
-
-        assertAcked(admin().indices().prepareAliases().addAlias("my-index", "filter1", hasChildQuery("child", matchAllQuery())));
-        assertAcked(admin().indices().prepareAliases().addAlias("my-index", "filter2", hasParentQuery("parent", matchAllQuery())));
-        SearchResponse response = client().prepareSearch("filter1").get();
-        assertHitCount(response, 1);
-        assertThat(response.getHits().getAt(0).id(), equalTo("1"));
-        response = client().prepareSearch("filter2").get();
-        assertHitCount(response, 1);
-        assertThat(response.getHits().getAt(0).id(), equalTo("2"));
-    }
-
-    @Test
     public void testAliasesWithBlocks() {
         createIndex("test");
         ensureGreen();

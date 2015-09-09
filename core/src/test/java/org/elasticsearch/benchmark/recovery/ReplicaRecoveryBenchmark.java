@@ -60,7 +60,6 @@ public class ReplicaRecoveryBenchmark {
         BootstrapForTesting.ensureInitialized();
 
         Settings settings = settingsBuilder()
-                .put("gateway.type", "local")
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED, "false")
                 .put(SETTING_NUMBER_OF_SHARDS, 1)
                 .put(SETTING_NUMBER_OF_REPLICAS, 0)

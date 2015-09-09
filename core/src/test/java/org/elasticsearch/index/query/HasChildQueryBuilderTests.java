@@ -28,9 +28,6 @@ import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.support.QueryInnerHits;
-import org.elasticsearch.index.search.child.ChildrenQuery;
-import org.elasticsearch.index.search.child.ScoreType;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.innerhits.InnerHitsBuilder;
 import org.elasticsearch.search.fetch.innerhits.InnerHitsContext;
 import org.elasticsearch.search.internal.SearchContext;
@@ -108,7 +105,7 @@ public class HasChildQueryBuilderTests extends BaseQueryTestCase<HasChildQueryBu
         int max = randomIntBetween(min, Integer.MAX_VALUE);
         InnerHitsBuilder.InnerHit innerHit = new InnerHitsBuilder.InnerHit().setSize(100).addSort(STRING_FIELD_NAME, SortOrder.ASC);
         return new HasChildQueryBuilder(CHILD_TYPE,
-                RandomQueryBuilder.createQuery(random()), max, min, randomIntBetween(0, Integer.MAX_VALUE),
+                RandomQueryBuilder.createQuery(random()), max, min,
                 RandomPicks.randomFrom(random(), ScoreType.values()),
                 SearchContext.current() == null ? null : new QueryInnerHits("inner_hits_name", innerHit));
     }
@@ -125,12 +122,13 @@ public class HasChildQueryBuilderTests extends BaseQueryTestCase<HasChildQueryBu
             assertEquals(queryBuilder.maxChildren(), lpq.getMaxChildren());
             assertEquals(HasChildQueryBuilder.scoreTypeToScoreMode(queryBuilder.scoreType()), lpq.getScoreMode()); // WTF is this why do we have two?
         } else {
-            assertThat(query, instanceOf(ChildrenQuery.class));
+            //TODO
+            /*assertThat(query, instanceOf(ChildrenQuery.class));
             ChildrenQuery lpq = (ChildrenQuery) query;
             assertEquals(queryBuilder.minChildren(), lpq.getMinChildren());
             assertEquals(queryBuilder.maxChildren(), lpq.getMaxChildren());
             assertEquals(queryBuilder.scoreType(), lpq.getScoreType());
-            assertEquals(queryBuilder.shortCircuitCutoff(), lpq.getShortCircuitParentDocSet());
+            assertEquals(queryBuilder.shortCircuitCutoff(), lpq.getShortCircuitParentDocSet());*/
         }
         if (queryBuilder.innerHit() != null) {
             assertNotNull(SearchContext.current());
@@ -172,16 +170,6 @@ public class HasChildQueryBuilderTests extends BaseQueryTestCase<HasChildQueryBu
         }
         final int positiveValue = randomIntBetween(0, Integer.MAX_VALUE);
         try {
-            foo.shortCircuitCutoff(randomIntBetween(Integer.MIN_VALUE, -1));
-            fail("must not be negative");
-        } catch (IllegalArgumentException ex) {
-
-        }
-
-        foo.shortCircuitCutoff(positiveValue);
-        assertEquals(positiveValue, foo.shortCircuitCutoff());
-
-        try {
             foo.minChildren(randomIntBetween(Integer.MIN_VALUE, -1));
             fail("must not be negative");
         } catch (IllegalArgumentException ex) {
@@ -205,7 +193,6 @@ public class HasChildQueryBuilderTests extends BaseQueryTestCase<HasChildQueryBu
         HasChildQueryBuilder queryBuilder = (HasChildQueryBuilder) parseQuery(query);
         assertEquals(query, queryBuilder.maxChildren(), 1217235442);
         assertEquals(query, queryBuilder.minChildren(), 883170873);
-        assertEquals(query, queryBuilder.shortCircuitCutoff(), 340606183);
         assertEquals(query, queryBuilder.boost(), 2.0f, 0.0f);
         assertEquals(query, queryBuilder.queryName(), "WNzYMJKRwePuRBh");
         assertEquals(query, queryBuilder.childType(), "child");

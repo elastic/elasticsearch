@@ -145,7 +145,11 @@ public abstract class ExtensionPoint {
             if (instance == null) {
                 throw new IllegalArgumentException("Unknown [" + this.name + "] type [" + type + "]");
             }
-            binder.bind(extensionClass).to(instance).asEagerSingleton();
+            if (extensionClass == instance) {
+                binder.bind(extensionClass).asEagerSingleton();
+            } else {
+                binder.bind(extensionClass).to(instance).asEagerSingleton();
+            }
             return type;
         }
 

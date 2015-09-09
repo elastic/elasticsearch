@@ -63,16 +63,10 @@ setup() {
     dpkg -s 'elasticsearch'
 }
 
-##################################
-# Check that the package is correctly installed
-##################################
 @test "[DEB] verify package installation" {
     verify_package_installation
 }
 
-##################################
-# Check that Elasticsearch is working
-##################################
 @test "[DEB] test elasticsearch" {
     start_elasticsearch_service
 
@@ -149,6 +143,27 @@ setup() {
 }
 
 @test "[DEB] package has been completly removed" {
+    run dpkg -s 'elasticsearch'
+    [ "$status" -eq 1 ]
+}
+
+@test "[DEB] reinstall package" {
+    dpkg -i elasticsearch-$(cat version).deb
+}
+
+@test "[DEB] package is installed by reinstall" {
+    dpkg -s 'elasticsearch'
+}
+
+@test "[DEB] verify package reinstallation" {
+    verify_package_installation
+}
+
+@test "[DEB] repurge package" {
+    dpkg --purge 'elasticsearch'
+}
+
+@test "[DEB] package has been completly removed again" {
     run dpkg -s 'elasticsearch'
     [ "$status" -eq 1 ]
 }

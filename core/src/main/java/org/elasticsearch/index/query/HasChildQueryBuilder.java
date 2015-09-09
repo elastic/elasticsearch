@@ -20,14 +20,10 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.MultiDocValues;
-import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.QueryWrapperFilter;
-import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.JoinUtil;
 import org.apache.lucene.search.join.ScoreMode;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -37,9 +33,6 @@ import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.query.support.QueryInnerHits;
-import org.elasticsearch.index.search.child.ChildrenConstantScoreQuery;
-import org.elasticsearch.index.search.child.ChildrenQuery;
-import org.elasticsearch.index.search.child.ScoreType;
 import org.elasticsearch.search.fetch.innerhits.InnerHitsContext;
 import org.elasticsearch.search.fetch.innerhits.InnerHitsSubSearchContext;
 import org.elasticsearch.search.internal.SearchContext;
@@ -82,18 +75,15 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
 
     private int maxChildren = DEFAULT_MAX_CHILDREN;
 
-    private int shortCircuitCutoff = DEFAULT_SHORT_CIRCUIT_CUTOFF;
-
     private QueryInnerHits queryInnerHits;
 
     static final HasChildQueryBuilder PROTOTYPE = new HasChildQueryBuilder("", EmptyQueryBuilder.PROTOTYPE);
 
-    public HasChildQueryBuilder(String type, QueryBuilder query, Integer maxChildren, Integer minChildren, Integer shortCircuitCutoff, ScoreType scoreType, QueryInnerHits queryInnerHits) {
+    public HasChildQueryBuilder(String type, QueryBuilder query, Integer maxChildren, Integer minChildren, ScoreType scoreType, QueryInnerHits queryInnerHits) {
         this(type, query);
         scoreType(scoreType);
         this.maxChildren = maxChildren;
         this.minChildren = minChildren;
-        this.shortCircuitCutoff = shortCircuitCutoff;
         this.queryInnerHits = queryInnerHits;
     }
 
@@ -142,19 +132,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
     }
 
     /**
-     * Configures at what cut off point only to evaluate parent documents that contain the matching parent id terms
-     * instead of evaluating all parent docs.
-     */
-    public HasChildQueryBuilder shortCircuitCutoff(int shortCircuitCutoff) {
-        if (shortCircuitCutoff < 0) {
-            throw new IllegalArgumentException("[" + NAME + "]  requires non-negative 'short_circuit_cutoff' field");
-        }
-        this.shortCircuitCutoff = shortCircuitCutoff;
-        return this;
-    }
-
-    /**
-     * Sets inner hit definition in the scope of this query and reusing the defined type and query.
+     * Sets the query name for the filter that can be used when searching for matched_filters per hit.
      */
     public HasChildQueryBuilder innerHit(QueryInnerHits queryInnerHits) {
         this.queryInnerHits = queryInnerHits;
@@ -203,14 +181,6 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
      */
     public int maxChildren() { return maxChildren; }
 
-    /**
-     * Returns what cut off point only to evaluate parent documents that contain the matching parent id terms
-     * instead of evaluating all parent docs. The default is {@value #DEFAULT_SHORT_CIRCUIT_CUTOFF}
-     */
-    public int shortCircuitCutoff() {
-        return shortCircuitCutoff;
-    }
-
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
@@ -220,7 +190,6 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
         builder.field("score_type", scoreType.name().toLowerCase(Locale.ROOT));
         builder.field("min_children", minChildren);
         builder.field("max_children", maxChildren);
-        builder.field("short_circuit_cutoff", shortCircuitCutoff);
         printBoostAndQueryName(builder);
         if (queryInnerHits != null) {
             queryInnerHits.toXContent(builder, params);
@@ -276,35 +245,16 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
             throw new QueryShardException(context, "[" + NAME + "] 'max_children' is less than 'min_children'");
         }
 
-        BitSetProducer nonNestedDocsFilter = null;
-        if (parentDocMapper.hasNestedObjects()) {
-            nonNestedDocsFilter = context.bitsetFilter(Queries.newNonNestedFilter());
-        }
-
         // wrap the query with type query
         innerQuery = Queries.filtered(innerQuery, childDocMapper.typeFilter());
 
-        final Query query;
         final ParentChildIndexFieldData parentChildIndexFieldData = context.getForField(parentFieldMapper.fieldType());
-        if (context.indexVersionCreated().onOrAfter(Version.V_2_0_0_beta1)) {
-            int maxChildren = maxChildren();
-            // 0 in pre 2.x p/c impl means unbounded
-            if (maxChildren == 0) {
-                maxChildren = Integer.MAX_VALUE;
-            }
-            query = new LateParsingQuery(parentDocMapper.typeFilter(), innerQuery, minChildren(), maxChildren, parentType, scoreTypeToScoreMode(scoreType), parentChildIndexFieldData);
-        } else {
-            // TODO: use the query API
-            Filter parentFilter = new QueryWrapperFilter(parentDocMapper.typeFilter());
-            if (minChildren > 1 || maxChildren > 0 || scoreType != ScoreType.NONE) {
-                query = new ChildrenQuery(parentChildIndexFieldData, parentType, type, parentFilter, innerQuery, scoreType, minChildren,
-                        maxChildren, shortCircuitCutoff, nonNestedDocsFilter);
-            } else {
-                query = new ChildrenConstantScoreQuery(parentChildIndexFieldData, innerQuery, parentType, type, parentFilter,
-                        shortCircuitCutoff, nonNestedDocsFilter);
-            }
+        int maxChildren = maxChildren();
+        // 0 in pre 2.x p/c impl means unbounded
+        if (maxChildren == 0) {
+            maxChildren = Integer.MAX_VALUE;
         }
-        return query;
+        return new LateParsingQuery(parentDocMapper.typeFilter(), innerQuery, minChildren(), maxChildren, parentType, scoreTypeToScoreMode(scoreType), parentChildIndexFieldData);
     }
 
     static ScoreMode scoreTypeToScoreMode(ScoreType scoreType) {
@@ -419,20 +369,18 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
                 && Objects.equals(scoreType, that.scoreType)
                 && Objects.equals(minChildren, that.minChildren)
                 && Objects.equals(maxChildren, that.maxChildren)
-                && Objects.equals(shortCircuitCutoff, that.shortCircuitCutoff)
                 && Objects.equals(queryInnerHits, that.queryInnerHits);
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(query, type, scoreType, minChildren, maxChildren, shortCircuitCutoff, queryInnerHits);
+        return Objects.hash(query, type, scoreType, minChildren, maxChildren, queryInnerHits);
     }
 
     protected HasChildQueryBuilder(StreamInput in) throws IOException {
         type = in.readString();
         minChildren = in.readInt();
         maxChildren = in.readInt();
-        shortCircuitCutoff = in.readInt();
         final int ordinal = in.readVInt();
         scoreType = ScoreType.values()[ordinal];
         query = in.readQuery();
@@ -451,7 +399,6 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
         out.writeString(type);
         out.writeInt(minChildren());
         out.writeInt(maxChildren());
-        out.writeInt(shortCircuitCutoff());
         out.writeVInt(scoreType.ordinal());
         out.writeQuery(query);
         if (queryInnerHits != null) {

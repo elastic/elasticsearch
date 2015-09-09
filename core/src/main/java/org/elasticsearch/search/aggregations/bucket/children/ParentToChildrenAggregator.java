@@ -20,16 +20,12 @@ package org.elasticsearch.search.aggregations.bucket.children;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
-import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.Scorer;
-import org.apache.lucene.search.Weight;
+import org.apache.lucene.search.*;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.LongObjectPagedHashMap;
-import org.elasticsearch.index.search.child.ConstantScorer;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -155,7 +151,7 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator {
             final SortedDocValues globalOrdinals = valuesSource.globalOrdinalsValues(parentType, ctx);
 
             // Set the scorer, since we now replay only the child docIds
-            sub.setScorer(ConstantScorer.create(childDocsIter, null, 1f));
+            sub.setScorer(new ConstantScoreScorer(null, 1f,childDocsIter));
 
             final Bits liveDocs = ctx.reader().getLiveDocs();
             for (int docId = childDocsIter.nextDoc(); docId != DocIdSetIterator.NO_MORE_DOCS; docId = childDocsIter.nextDoc()) {

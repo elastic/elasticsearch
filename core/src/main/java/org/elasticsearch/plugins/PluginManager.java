@@ -321,7 +321,7 @@ public class PluginManager {
         }
 
         // read existing bundles. this does some checks on the installation too.
-        List<Bundle> bundles = PluginsService.getPluginBundles(environment);
+        List<Bundle> bundles = PluginsService.getPluginBundles(environment.pluginsFile());
 
         // if we aren't isolated, we need to jarhellcheck against any other non-isolated plugins
         // thats always the first bundle

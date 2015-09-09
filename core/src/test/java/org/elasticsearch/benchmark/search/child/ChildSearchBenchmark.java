@@ -26,7 +26,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.search.child.ScoreType;
+import org.elasticsearch.index.query.ScoreType;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.search.aggregations.AggregationBuilders;

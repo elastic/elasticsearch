@@ -15,7 +15,6 @@
     "score_type" : "avg",
     "min_children" : 883170873,
     "max_children" : 1217235442,
-    "short_circuit_cutoff" : 340606183,
     "boost" : 2.0,
     "_name" : "WNzYMJKRwePuRBh",
     "inner_hits" : {

@@ -20,7 +20,6 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.*;
 import org.apache.lucene.search.join.ScoreMode;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -30,14 +29,11 @@ import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.query.support.QueryInnerHits;
-import org.elasticsearch.index.search.child.ParentConstantScoreQuery;
-import org.elasticsearch.index.search.child.ParentQuery;
 import org.elasticsearch.search.fetch.innerhits.InnerHitsContext;
 import org.elasticsearch.search.fetch.innerhits.InnerHitsSubSearchContext;
 
 import java.io.IOException;
 import java.util.HashSet;
-import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
 
@@ -157,11 +153,11 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
             throw new QueryParsingException(context.parseContext(), "[has_parent] no _parent field configured");
         }
 
-        Query parentFilter = null;
+        Query parentTypeQuery = null;
         if (parentTypes.size() == 1) {
             DocumentMapper documentMapper = context.mapperService().documentMapper(parentTypes.iterator().next());
             if (documentMapper != null) {
-                parentFilter = documentMapper.typeFilter();
+                parentTypeQuery = documentMapper.typeFilter();
             }
         } else {
             BooleanQuery.Builder parentsFilter = new BooleanQuery.Builder();
@@ -171,25 +167,17 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
                     parentsFilter.add(documentMapper.typeFilter(), BooleanClause.Occur.SHOULD);
                 }
             }
-            parentFilter = parentsFilter.build();
+            parentTypeQuery = parentsFilter.build();
         }
 
-        if (parentFilter == null) {
+        if (parentTypeQuery == null) {
             return null;
         }
 
         // wrap the query with type query
         innerQuery = Queries.filtered(innerQuery, parentDocMapper.typeFilter());
-        Filter childrenFilter = new QueryWrapperFilter(Queries.not(parentFilter));
-        if (context.indexVersionCreated().onOrAfter(Version.V_2_0_0_beta1)) {
-            return new HasChildQueryBuilder.LateParsingQuery(childrenFilter, innerQuery, HasChildQueryBuilder.DEFAULT_MIN_CHILDREN, HasChildQueryBuilder.DEFAULT_MAX_CHILDREN, type, score ? ScoreMode.Max : ScoreMode.None, parentChildIndexFieldData);
-        } else {
-            if (score) {
-                return new ParentQuery(parentChildIndexFieldData, innerQuery, parentDocMapper.type(), childrenFilter);
-            } else {
-                return new ParentConstantScoreQuery(parentChildIndexFieldData, innerQuery, parentDocMapper.type(), childrenFilter);
-            }
-        }
+        Query childrenFilter = Queries.not(parentTypeQuery);
+        return new HasChildQueryBuilder.LateParsingQuery(childrenFilter, innerQuery, HasChildQueryBuilder.DEFAULT_MIN_CHILDREN, HasChildQueryBuilder.DEFAULT_MAX_CHILDREN, type, score ? ScoreMode.Max : ScoreMode.None, parentChildIndexFieldData);
     }
 
     @Override

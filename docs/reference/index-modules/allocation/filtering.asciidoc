@@ -81,9 +81,11 @@ one set of nodes to another:
 These special attributes are also supported:
 
 [horizontal]
-`_name`::   Match nodes by node name
-`_ip`::     Match nodes by IP address (the IP address associated with the hostname)
-`_host`::   Match nodes by hostname
+`_name`::       Match nodes by node name
+`_host_ip`::    Match nodes by host IP address (IP associated with hostname)
+`_publish_ip`:: Match nodes by publish IP address
+`_ip`::         Match either `_host_ip` or `_publish_ip`
+`_host`::       Match nodes by hostname
 
 All attribute values can be specified with wildcards, eg:
 

@@ -45,6 +45,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.InfoStream;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.routing.DjbHashFunction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasable;
@@ -755,9 +756,10 @@ public class InternalEngine extends Engine {
                         logger.trace("starting commit for flush; commitTranslog=true");
                         commitIndexWriter(indexWriter, translog);
                         logger.trace("finished commit for flush");
-                        translog.commit();
                         // we need to refresh in order to clear older version values
                         refresh("version_table_flush");
+                        // after refresh documents can be retrieved from the index so we can now commit the translog
+                        translog.commit();
                     } catch (Throwable e) {
                         throw new FlushFailedEngineException(shardId, e);
                     }
@@ -823,7 +825,7 @@ public class InternalEngine extends Engine {
 
     @Override
     public void forceMerge(final boolean flush, int maxNumSegments, boolean onlyExpungeDeletes,
-                           final boolean upgrade, final boolean upgradeOnlyAncientSegments) throws EngineException {
+                           final boolean upgrade, final boolean upgradeOnlyAncientSegments) throws EngineException, EngineClosedException, IOException {
         /*
          * We do NOT acquire the readlock here since we are waiting on the merges to finish
          * that's fine since the IW.rollback should stop all the threads and trigger an IOException
@@ -865,9 +867,8 @@ public class InternalEngine extends Engine {
                 store.decRef();
             }
         } catch (Throwable t) {
-            ForceMergeFailedEngineException ex = new ForceMergeFailedEngineException(shardId, t);
-            maybeFailEngine("force merge", ex);
-            throw ex;
+            maybeFailEngine("force merge", t);
+            throw t;
         } finally {
             try {
                 mp.setUpgradeInProgress(false, false); // reset it just to make sure we reset it in a case of an error

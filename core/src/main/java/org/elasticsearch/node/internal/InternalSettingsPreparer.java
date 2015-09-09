@@ -21,7 +21,6 @@ package org.elasticsearch.node.internal;
 
 import com.google.common.base.Charsets;
 import com.google.common.collect.Sets;
-import com.google.common.collect.UnmodifiableIterator;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
@@ -38,7 +37,6 @@ import java.io.InputStreamReader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -52,22 +50,22 @@ import static org.elasticsearch.common.settings.Settings.settingsBuilder;
  */
 public class InternalSettingsPreparer {
 
-    static final List<String> ALLOWED_SUFFIXES = Arrays.asList(".yml", ".yaml", ".json", ".properties");
+    private static final String[] ALLOWED_SUFFIXES = {".yml", ".yaml", ".json", ".properties"};
+    static final String[] PROPERTY_PREFIXES = {"es.", "elasticsearch."};
+    static final String[] PROPERTY_DEFAULTS_PREFIXES = {"es.default.", "elasticsearch.default."};
 
     public static final String SECRET_PROMPT_VALUE = "${prompt.secret}";
     public static final String TEXT_PROMPT_VALUE = "${prompt.text}";
     public static final String IGNORE_SYSTEM_PROPERTIES_SETTING = "config.ignore_system_properties";
 
     /**
-     * Prepares the settings by gathering all elasticsearch system properties, optionally loading the configuration settings,
-     * and then replacing all property placeholders. This method will not work with settings that have <code>${prompt.text}</code>
-     * or <code>${prompt.secret}</code> as their value unless they have been resolved previously.
-     * @param pSettings The initial settings to use
-     * @param loadConfigSettings flag to indicate whether to load settings from the configuration directory/file
-     * @return the {@link Settings} and {@link Environment} as a {@link Tuple}
+     * Prepares the settings by gathering all elasticsearch system properties and setting defaults.
      */
-    public static Tuple<Settings, Environment> prepareSettings(Settings pSettings, boolean loadConfigSettings) {
-        return prepareSettings(pSettings, loadConfigSettings, null);
+    public static Settings prepareSettings(Settings input) {
+        Settings.Builder output = settingsBuilder();
+        initializeSettings(output, input, true);
+        finalizeSettings(output, null, null);
+        return output.build();
     }
 
     /**
@@ -75,126 +73,143 @@ public class InternalSettingsPreparer {
      * and then replacing all property placeholders. If a {@link Terminal} is provided and configuration settings are loaded,
      * settings with a value of <code>${prompt.text}</code> or <code>${prompt.secret}</code> will result in a prompt for
      * the setting to the user.
-     * @param pSettings The initial settings to use
-     * @param loadConfigSettings flag to indicate whether to load settings from the configuration directory/file
+     * @param input The initial settings to use
      * @param terminal the Terminal to use for input/output
      * @return the {@link Settings} and {@link Environment} as a {@link Tuple}
      */
-    public static Tuple<Settings, Environment> prepareSettings(Settings pSettings, boolean loadConfigSettings, Terminal terminal) {
-        // ignore this prefixes when getting properties from es. and elasticsearch.
-        String[] ignorePrefixes = new String[]{"es.default.", "elasticsearch.default."};
-        boolean useSystemProperties = !pSettings.getAsBoolean(IGNORE_SYSTEM_PROPERTIES_SETTING, false);
-        // just create enough settings to build the environment
-        Settings.Builder settingsBuilder = settingsBuilder().put(pSettings);
-        if (useSystemProperties) {
-            settingsBuilder.putProperties("elasticsearch.default.", System.getProperties())
-                    .putProperties("es.default.", System.getProperties())
-                    .putProperties("elasticsearch.", System.getProperties(), ignorePrefixes)
-                    .putProperties("es.", System.getProperties(), ignorePrefixes);
-        }
-        settingsBuilder.replacePropertyPlaceholders();
+    public static Environment prepareEnvironment(Settings input, Terminal terminal) {
+        // just create enough settings to build the environment, to get the config dir
+        Settings.Builder output = settingsBuilder();
+        initializeSettings(output, input, true);
+        Environment environment = new Environment(output.build());
 
-        Environment environment = new Environment(settingsBuilder.build());
-
-        if (loadConfigSettings) {
-            boolean loadFromEnv = true;
-            if (useSystemProperties) {
-                // if its default, then load it, but also load form env
-                if (Strings.hasText(System.getProperty("es.default.config"))) {
-                    loadFromEnv = true;
-                    settingsBuilder.loadFromPath(environment.configFile().resolve(System.getProperty("es.default.config")));
-                }
-                // if explicit, just load it and don't load from env
-                if (Strings.hasText(System.getProperty("es.config"))) {
-                    loadFromEnv = false;
-                    settingsBuilder.loadFromPath(environment.configFile().resolve(System.getProperty("es.config")));
-                }
-                if (Strings.hasText(System.getProperty("elasticsearch.config"))) {
-                    loadFromEnv = false;
-                    settingsBuilder.loadFromPath(environment.configFile().resolve(System.getProperty("elasticsearch.config")));
-                }
+        // TODO: can we simplify all of this and have a single filename, which is looked up in the config dir?
+        boolean loadFromEnv = true;
+        if (useSystemProperties(input)) {
+            // if its default, then load it, but also load form env
+            if (Strings.hasText(System.getProperty("es.default.config"))) {
+                // TODO: we don't allow multiple config files, but having loadFromEnv true here allows just that
+                loadFromEnv = true;
+                output.loadFromPath(environment.configFile().resolve(System.getProperty("es.default.config")));
             }
-            if (loadFromEnv) {
-                boolean settingsFileFound = false;
-                Set<String> foundSuffixes = Sets.newHashSet();
-                for (String allowedSuffix : ALLOWED_SUFFIXES) {
-                    Path path = environment.configFile().resolve("elasticsearch" + allowedSuffix);
-                    if (Files.exists(path)) {
-                        if (!settingsFileFound) {
-                            settingsBuilder.loadFromPath(path);
-                        }
-                        settingsFileFound = true;
-                        foundSuffixes.add(allowedSuffix);
+            // TODO: these should be elseifs so that multiple files cannot be loaded
+            // if explicit, just load it and don't load from env
+            if (Strings.hasText(System.getProperty("es.config"))) {
+                loadFromEnv = false;
+                output.loadFromPath(environment.configFile().resolve(System.getProperty("es.config")));
+            }
+            if (Strings.hasText(System.getProperty("elasticsearch.config"))) {
+                loadFromEnv = false;
+                output.loadFromPath(environment.configFile().resolve(System.getProperty("elasticsearch.config")));
+            }
+        }
+        if (loadFromEnv) {
+            boolean settingsFileFound = false;
+            Set<String> foundSuffixes = Sets.newHashSet();
+            for (String allowedSuffix : ALLOWED_SUFFIXES) {
+                Path path = environment.configFile().resolve("elasticsearch" + allowedSuffix);
+                if (Files.exists(path)) {
+                    if (!settingsFileFound) {
+                        output.loadFromPath(path);
                     }
+                    settingsFileFound = true;
+                    foundSuffixes.add(allowedSuffix);
                 }
-                if (foundSuffixes.size() > 1) {
-                    throw new SettingsException("multiple settings files found with suffixes: " + Strings.collectionToDelimitedString(foundSuffixes, ","));
-                }
+            }
+            if (foundSuffixes.size() > 1) {
+                throw new SettingsException("multiple settings files found with suffixes: " + Strings.collectionToDelimitedString(foundSuffixes, ","));
             }
         }
 
-        settingsBuilder.put(pSettings);
-        if (useSystemProperties) {
-            settingsBuilder.putProperties("elasticsearch.", System.getProperties(), ignorePrefixes)
-                    .putProperties("es.", System.getProperties(), ignorePrefixes);
-        }
-        settingsBuilder.replacePropertyPlaceholders();
+        // re-initialize settings now that the config file has been loaded
+        // TODO: only re-initialize if a config file was actually loaded
+        initializeSettings(output, input, false);
+        finalizeSettings(output, terminal, environment.configFile());
 
+        environment = new Environment(output.build());
+
+        // we put back the path.logs so we can use it in the logging configuration file
+        output.put("path.logs", cleanPath(environment.logsFile().toAbsolutePath().toString()));
+
+        return new Environment(output.build());
+    }
+
+    private static boolean useSystemProperties(Settings input) {
+        return !input.getAsBoolean(IGNORE_SYSTEM_PROPERTIES_SETTING, false);
+    }
+
+    /**
+     * Initializes the builder with the given input settings, and loads system properties settings if allowed.
+     * If loadDefaults is true, system property default settings are loaded.
+     */
+    private static void initializeSettings(Settings.Builder output, Settings input, boolean loadDefaults) {
+        output.put(input);
+        if (useSystemProperties(input)) {
+            if (loadDefaults) {
+                for (String prefix : PROPERTY_DEFAULTS_PREFIXES) {
+                    output.putProperties(prefix, System.getProperties());
+                }
+            }
+            for (String prefix : PROPERTY_PREFIXES) {
+                output.putProperties(prefix, System.getProperties(), PROPERTY_DEFAULTS_PREFIXES);
+            }
+        }
+        output.replacePropertyPlaceholders();
+    }
+
+    /**
+     * Finish preparing settings by replacing forced settings, prompts, and any defaults that need to be added.
+     * The provided terminal is used to prompt for settings needing to be replaced.
+     * The provided configDir is optional and will be used to lookup names.txt if the node name is not set, if provided.
+     */
+    private static void finalizeSettings(Settings.Builder output, Terminal terminal, Path configDir) {
         // allow to force set properties based on configuration of the settings provided
-        for (Map.Entry<String, String> entry : pSettings.getAsMap().entrySet()) {
-            String setting = entry.getKey();
+        List<String> forcedSettings = new ArrayList<>();
+        for (String setting : output.internalMap().keySet()) {
             if (setting.startsWith("force.")) {
-                settingsBuilder.remove(setting);
-                settingsBuilder.put(setting.substring("force.".length()), entry.getValue());
+                forcedSettings.add(setting);
             }
         }
-        settingsBuilder.replacePropertyPlaceholders();
+        for (String forcedSetting : forcedSettings) {
+            String value = output.remove(forcedSetting);
+            output.put(forcedSetting.substring("force.".length()), value);
+        }
+        output.replacePropertyPlaceholders();
 
         // check if name is set in settings, if not look for system property and set it
-        if (settingsBuilder.get("name") == null) {
+        if (output.get("name") == null) {
             String name = System.getProperty("name");
             if (name != null) {
-                settingsBuilder.put("name", name);
+                output.put("name", name);
             }
         }
 
         // put the cluster name
-        if (settingsBuilder.get(ClusterName.SETTING) == null) {
-            settingsBuilder.put(ClusterName.SETTING, ClusterName.DEFAULT.value());
+        if (output.get(ClusterName.SETTING) == null) {
+            output.put(ClusterName.SETTING, ClusterName.DEFAULT.value());
         }
 
-        String v = settingsBuilder.get(Settings.SETTINGS_REQUIRE_UNITS);
+        String v = output.get(Settings.SETTINGS_REQUIRE_UNITS);
         if (v != null) {
             Settings.setSettingsRequireUnits(Booleans.parseBoolean(v, true));
         }
 
-        Settings settings = replacePromptPlaceholders(settingsBuilder.build(), terminal);
+        replacePromptPlaceholders(output, terminal);
         // all settings placeholders have been resolved. resolve the value for the name setting by checking for name,
         // then looking for node.name, and finally generate one if needed
-        if (settings.get("name") == null) {
-            String name = settings.get("node.name");
+        if (output.get("name") == null) {
+            String name = output.get("node.name");
             if (name == null || name.isEmpty()) {
-                name = randomNodeName(environment);
+                name = randomNodeName(configDir);
             }
-            settings = settingsBuilder().put(settings).put("name", name).build();
+            output.put("name", name);
         }
-
-        environment = new Environment(settings);
-
-        // put back the env settings
-        settingsBuilder = settingsBuilder().put(settings);
-        // we put back the path.logs so we can use it in the logging configuration file
-        settingsBuilder.put("path.logs", cleanPath(environment.logsFile().toAbsolutePath().toString()));
-
-        settings = settingsBuilder.build();
-
-        return new Tuple<>(settings, environment);
     }
 
-    static String randomNodeName(Environment environment) {
+    private static String randomNodeName(Path configDir) {
         InputStream input;
-        Path namesPath = environment.configFile().resolve("names.txt");
-        if (Files.exists(namesPath)) {
+        if (configDir != null && Files.exists(configDir.resolve("names.txt"))) {
+            Path namesPath = configDir.resolve("names.txt");
             try {
                 input = Files.newInputStream(namesPath);
             } catch (IOException e) {
@@ -220,37 +235,40 @@ public class InternalSettingsPreparer {
         }
     }
 
-    static Settings replacePromptPlaceholders(Settings settings, Terminal terminal) {
-        UnmodifiableIterator<Map.Entry<String, String>> iter = settings.getAsMap().entrySet().iterator();
-        Settings.Builder builder = Settings.builder();
-
-        while (iter.hasNext()) {
-            Map.Entry<String, String> entry = iter.next();
-            String value = entry.getValue();
-            String key = entry.getKey();
-            switch (value) {
+    private static void replacePromptPlaceholders(Settings.Builder settings, Terminal terminal) {
+        List<String> secretToPrompt = new ArrayList<>();
+        List<String> textToPrompt = new ArrayList<>();
+        for (Map.Entry<String, String> entry : settings.internalMap().entrySet()) {
+            switch (entry.getValue()) {
                 case SECRET_PROMPT_VALUE:
-                    String secretValue = promptForValue(key, terminal, true);
-                    if (Strings.hasLength(secretValue)) {
-                        builder.put(key, secretValue);
-                    }
+                    secretToPrompt.add(entry.getKey());
                     break;
                 case TEXT_PROMPT_VALUE:
-                    String textValue = promptForValue(key, terminal, false);
-                    if (Strings.hasLength(textValue)) {
-                        builder.put(key, textValue);
-                    }
-                    break;
-                default:
-                    builder.put(key, value);
+                    textToPrompt.add(entry.getKey());
                     break;
             }
         }
-
-        return builder.build();
+        for (String setting : secretToPrompt) {
+            String secretValue = promptForValue(setting, terminal, true);
+            if (Strings.hasLength(secretValue)) {
+                settings.put(setting, secretValue);
+            } else {
+                // TODO: why do we remove settings if prompt returns empty??
+                settings.remove(setting);
+            }
+        }
+        for (String setting : textToPrompt) {
+            String textValue = promptForValue(setting, terminal, false);
+            if (Strings.hasLength(textValue)) {
+                settings.put(setting, textValue);
+            } else {
+                // TODO: why do we remove settings if prompt returns empty??
+                settings.remove(setting);
+            }
+        }
     }
 
-    static String promptForValue(String key, Terminal terminal, boolean secret) {
+    private static String promptForValue(String key, Terminal terminal, boolean secret) {
         if (terminal == null) {
             throw new UnsupportedOperationException("found property [" + key + "] with value [" + (secret ? SECRET_PROMPT_VALUE : TEXT_PROMPT_VALUE) +"]. prompting for property values is only supported when running elasticsearch in the foreground");
         }

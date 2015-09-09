@@ -253,12 +253,12 @@ public class MoreLikeThisQuery extends Query {
         setLikeText(likeText.toArray(Strings.EMPTY_ARRAY));
     }
 
-    public void setUnlikeText(Fields... ignoreFields) {
-        this.unlikeFields = ignoreFields;
+    public void setUnlikeText(Fields... unlikeFields) {
+        this.unlikeFields = unlikeFields;
     }
 
-    public void setIgnoreText(List<String> ignoreText) {
-        this.unlikeText = ignoreText.toArray(Strings.EMPTY_ARRAY);
+    public void setUnlikeText(List<String> unlikeText) {
+        this.unlikeText = unlikeText.toArray(Strings.EMPTY_ARRAY);
     }
 
     public String[] getMoreLikeFields() {

@@ -584,7 +584,6 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
                 org.elasticsearch.index.query.QueryParsingException.class,
                 org.elasticsearch.action.support.replication.TransportReplicationAction.RetryOnPrimaryException.class,
                 org.elasticsearch.index.engine.DeleteByQueryFailedEngineException.class,
-                org.elasticsearch.index.engine.ForceMergeFailedEngineException.class,
                 org.elasticsearch.discovery.MasterNotDiscoveredException.class,
                 org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException.class,
                 org.elasticsearch.node.NodeClosedException.class,

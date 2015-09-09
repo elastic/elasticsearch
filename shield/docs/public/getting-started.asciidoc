@@ -4,8 +4,9 @@
 This getting started guide walks you through installing Shield, setting up basic authentication, and getting started with role-based
 access control. You can install Shield on nodes running Elasticsearch {version}.
 
-IMPORTANT: The Shield plugin must be installed on every node in the cluster and every
-node must be restarted after installation. Plan for a complete cluster restart before beginning the installation process.
+IMPORTANT: The Shield plugin must be installed on every node in the cluster. If you are installing 
+to a live cluster, you must stop all of the nodes, install Shield, and restart the nodes. You cannot
+perform a rolling restart to install Shield.
 
 To install and run Shield:
 

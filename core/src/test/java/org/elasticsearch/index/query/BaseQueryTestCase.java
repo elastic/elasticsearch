@@ -130,7 +130,7 @@ public abstract class BaseQueryTestCase<QB extends AbstractQueryBuilder<QB>> ext
     @BeforeClass
     public static void init() throws IOException {
         // we have to prefer CURRENT since with the range of versions we support it's rather unlikely to get the current actually.
-        Version version = randomBoolean() ? Version.CURRENT : VersionUtils.randomVersionBetween(random(), Version.V_1_0_0, Version.CURRENT);
+        Version version = randomBoolean() ? Version.CURRENT : VersionUtils.randomVersionBetween(random(), Version.V_2_0_0_beta1, Version.CURRENT);
         Settings settings = Settings.settingsBuilder()
                 .put("name", BaseQueryTestCase.class.toString())
                 .put("path.home", createTempDir())

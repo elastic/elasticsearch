@@ -22,7 +22,6 @@ package org.elasticsearch.index.query;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.ScoreMode;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -114,21 +113,10 @@ public class HasParentQueryBuilderTests extends BaseQueryTestCase<HasParentQuery
         QueryBuilder innerQueryBuilder = queryBuilder.query();
         if (innerQueryBuilder instanceof EmptyQueryBuilder) {
             assertNull(query);
-        } else if (context.indexVersionCreated().onOrAfter(Version.V_2_0_0_beta1)) {
+        } else {
             assertThat(query, instanceOf(HasChildQueryBuilder.LateParsingQuery.class));
             HasChildQueryBuilder.LateParsingQuery lpq = (HasChildQueryBuilder.LateParsingQuery) query;
             assertEquals(queryBuilder.score() ? ScoreMode.Max : ScoreMode.None, lpq.getScoreMode());
-        } else {
-            //TODO
-            /*if (queryBuilder.score()) {
-                assertThat(query, instanceOf(ParentQuery.class));
-                ParentQuery pq = (ParentQuery) query;
-                assertEquals(queryBuilder.boost(), pq.getBoost(), 0f);
-            } else {
-                assertThat(query, instanceOf(ParentConstantScoreQuery.class));
-                ParentConstantScoreQuery csq = (ParentConstantScoreQuery) query;
-                assertEquals(queryBuilder.boost(), csq.getBoost(), 0f);
-            }*/
         }
         if (queryBuilder.innerHit() != null) {
             assertNotNull(SearchContext.current());

@@ -21,10 +21,11 @@ package org.elasticsearch.index.query;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.xcontent.*;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.support.QueryInnerHits;
@@ -37,7 +38,7 @@ import org.elasticsearch.test.TestSearchContext;
 import java.io.IOException;
 
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
-import static org.hamcrest.CoreMatchers.*;
+import static org.hamcrest.CoreMatchers.instanceOf;
 
 public class HasChildQueryBuilderTests extends BaseQueryTestCase<HasChildQueryBuilder> {
     protected static final String PARENT_TYPE = "parent";
@@ -115,20 +116,12 @@ public class HasChildQueryBuilderTests extends BaseQueryTestCase<HasChildQueryBu
         QueryBuilder innerQueryBuilder = queryBuilder.query();
         if (innerQueryBuilder instanceof EmptyQueryBuilder) {
             assertNull(query);
-        } else if (context.indexVersionCreated().onOrAfter(Version.V_2_0_0_beta1)) {
+        } else {
             assertThat(query, instanceOf(HasChildQueryBuilder.LateParsingQuery.class));
             HasChildQueryBuilder.LateParsingQuery lpq = (HasChildQueryBuilder.LateParsingQuery) query;
             assertEquals(queryBuilder.minChildren(), lpq.getMinChildren());
             assertEquals(queryBuilder.maxChildren(), lpq.getMaxChildren());
             assertEquals(HasChildQueryBuilder.scoreTypeToScoreMode(queryBuilder.scoreType()), lpq.getScoreMode()); // WTF is this why do we have two?
-        } else {
-            //TODO
-            /*assertThat(query, instanceOf(ChildrenQuery.class));
-            ChildrenQuery lpq = (ChildrenQuery) query;
-            assertEquals(queryBuilder.minChildren(), lpq.getMinChildren());
-            assertEquals(queryBuilder.maxChildren(), lpq.getMaxChildren());
-            assertEquals(queryBuilder.scoreType(), lpq.getScoreType());
-            assertEquals(queryBuilder.shortCircuitCutoff(), lpq.getShortCircuitParentDocSet());*/
         }
         if (queryBuilder.innerHit() != null) {
             assertNotNull(SearchContext.current());

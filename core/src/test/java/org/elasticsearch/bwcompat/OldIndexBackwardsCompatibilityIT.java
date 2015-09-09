@@ -98,8 +98,7 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
 
     private List<String> loadIndexesList(String prefix) throws IOException {
         List<String> indexes = new ArrayList<>();
-        Path dir = getDataPath("/indices/bwc");
-        try (DirectoryStream<Path> stream = Files.newDirectoryStream(dir, prefix + "-*.zip")) {
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(getBwcIndicesPath(), prefix + "-*.zip")) {
             for (Path path : stream) {
                 indexes.add(path.getFileName().toString());
             }

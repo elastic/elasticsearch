@@ -133,8 +133,7 @@ public class MultiDataPathUpgraderTests extends ESTestCase {
      */
     public void testUpgradeRealIndex() throws IOException, URISyntaxException {
         List<Path> indexes = new ArrayList<>();
-        Path dir = getDataPath("/indices/bwc");
-        try (DirectoryStream<Path> stream = Files.newDirectoryStream(dir, "index-*.zip")) {
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(getBwcIndicesPath(), "index-*.zip")) {
             for (Path path : stream) {
                 indexes.add(path);
             }

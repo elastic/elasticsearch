@@ -1786,8 +1786,7 @@ public class InternalEngineTests extends ESTestCase {
 
     public void testUpgradeOldIndex() throws IOException {
         List<Path> indexes = new ArrayList<>();
-        Path dir = getDataPath("/indices/bwc");
-        try (DirectoryStream<Path> stream = Files.newDirectoryStream(dir, "index-*.zip")) {
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(getBwcIndicesPath(), "index-*.zip")) {
             for (Path path : stream) {
                 indexes.add(path);
             }

@@ -23,6 +23,7 @@
         <tests.rest.suite>marvel</tests.rest.suite>
         <tests.rest.load_packaged>false</tests.rest.load_packaged>
         <deploy.skip>true</deploy.skip>
+        <xlint.options>-Xlint:-rawtypes,-unchecked</xlint.options>
     </properties>
 
     <dependencies>

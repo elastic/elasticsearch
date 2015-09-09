@@ -76,6 +76,7 @@ public final class Automatons {
     /**
      * Builds and returns an automaton that represents the given pattern.
      */
+    @SuppressWarnings("fallthrough") // explicit fallthrough at end of switch
     static Automaton wildcard(String text) {
         List<Automaton> automata = new ArrayList<>();
         for (int i = 0; i < text.length();) {

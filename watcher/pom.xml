@@ -25,6 +25,7 @@
         <tests.rest.load_packaged>false</tests.rest.load_packaged>
         <tests.timewarp>true</tests.timewarp>
         <tests.rest.blacklist>hijack/10_basic/*</tests.rest.blacklist>
+        <xlint.options>-Xlint:-deprecation,-rawtypes,-serial,-unchecked</xlint.options>
     </properties>
 
     <dependencies>

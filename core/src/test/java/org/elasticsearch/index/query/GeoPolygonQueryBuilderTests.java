@@ -48,9 +48,9 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
         GeoPolygonQueryBuilder builder;
         List<GeoPoint> polygon = randomPolygon(randomIntBetween(4, 50));
         if (randomBoolean()) {
-            builder = new GeoPolygonQueryBuilder(GEO_FIELD_NAME, polygon);
+            builder = new GeoPolygonQueryBuilder(GEO_POINT_FIELD_NAME, polygon);
         } else {
-            builder = new GeoPolygonQueryBuilder(GEO_FIELD_NAME);
+            builder = new GeoPolygonQueryBuilder(GEO_POINT_FIELD_NAME);
             for (GeoPoint point : polygon) {
                 int method = randomInt(2);
                 switch (method) {
@@ -128,7 +128,7 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
 
     @Test
     public void testEmptyPolygon() {
-        GeoPolygonQueryBuilder builder = new GeoPolygonQueryBuilder(GEO_FIELD_NAME);
+        GeoPolygonQueryBuilder builder = new GeoPolygonQueryBuilder(GEO_POINT_FIELD_NAME);
         QueryValidationException exception = builder.validate();
         assertThat(exception, notNullValue());
         assertThat(exception.validationErrors(), notNullValue());
@@ -139,7 +139,7 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
 
     @Test
     public void testInvalidClosedPolygon() {
-        GeoPolygonQueryBuilder builder = new GeoPolygonQueryBuilder(GEO_FIELD_NAME);
+        GeoPolygonQueryBuilder builder = new GeoPolygonQueryBuilder(GEO_POINT_FIELD_NAME);
         builder.addPoint(new GeoPoint(0, 90));
         builder.addPoint(new GeoPoint(90, 90));
         builder.addPoint(new GeoPoint(0, 90));
@@ -153,7 +153,7 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
 
     @Test
     public void testInvalidOpenPolygon() {
-        GeoPolygonQueryBuilder builder = new GeoPolygonQueryBuilder(GEO_FIELD_NAME);
+        GeoPolygonQueryBuilder builder = new GeoPolygonQueryBuilder(GEO_POINT_FIELD_NAME);
         builder.addPoint(new GeoPoint(0, 90));
         builder.addPoint(new GeoPoint(90, 90));
         QueryValidationException exception = builder.validate();
@@ -168,7 +168,7 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
         XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
         builder.startObject();
         builder.startObject("geo_polygon");
-        builder.startObject(GEO_FIELD_NAME);
+        builder.startObject(GEO_POINT_FIELD_NAME);
         builder.startArray("points");
         builder.value("0,0");
         builder.value("0,90");

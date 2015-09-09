@@ -125,6 +125,7 @@ public class GeoShapeFieldMapper extends FieldMapper {
             super(name, Defaults.FIELD_TYPE);
         }
 
+        @Override
         public GeoShapeFieldType fieldType() {
             return (GeoShapeFieldType)fieldType;
         }
@@ -398,6 +399,10 @@ public class GeoShapeFieldMapper extends FieldMapper {
 
         public PrefixTreeStrategy defaultStrategy() {
             return this.defaultStrategy;
+        }
+
+        public PrefixTreeStrategy resolveStrategy(SpatialStrategy strategy) {
+            return resolveStrategy(strategy.getStrategyName());
         }
 
         public PrefixTreeStrategy resolveStrategy(String strategyName) {

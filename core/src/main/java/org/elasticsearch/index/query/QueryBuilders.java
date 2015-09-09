@@ -31,6 +31,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.Template;
 
+import java.io.IOException;
 import java.util.Collection;
 import java.util.Map;
 
@@ -548,17 +549,6 @@ public abstract class QueryBuilders {
     }
 
     /**
-     * Query that matches Documents based on the relationship between the given shape and
-     * indexed shapes
-     *
-     * @param name  The shape field name
-     * @param shape Shape to use in the Query
-     */
-    public static GeoShapeQueryBuilder geoShapeQuery(String name, ShapeBuilder shape) {
-        return new GeoShapeQueryBuilder(name, shape);
-    }
-
-    /**
      * Facilitates creating template query requests using an inline script
      */
     public static TemplateQueryBuilder templateQuery(Template template) {
@@ -694,16 +684,12 @@ public abstract class QueryBuilders {
      * @param shape Shape to use in the filter
      * @param relation relation of the shapes
      */
-    public static GeoShapeQueryBuilder geoShapeQuery(String name, ShapeBuilder shape, ShapeRelation relation) {
-        return new GeoShapeQueryBuilder(name, shape, relation);
-    }
-
-    public static GeoShapeQueryBuilder geoShapeQuery(String name, String indexedShapeId, String indexedShapeType, ShapeRelation relation) {
-        return new GeoShapeQueryBuilder(name, indexedShapeId, indexedShapeType, relation);
+    public static GeoShapeQueryBuilder geoShapeQuery(String name, ShapeBuilder shape) throws IOException {
+        return new GeoShapeQueryBuilder(name, shape);
     }
 
     public static GeoShapeQueryBuilder geoShapeQuery(String name, String indexedShapeId, String indexedShapeType) {
-        return geoShapeQuery(name, indexedShapeId, indexedShapeType, null);
+        return new GeoShapeQueryBuilder(name, indexedShapeId, indexedShapeType);
     }
 
     /**
@@ -712,12 +698,16 @@ public abstract class QueryBuilders {
      * @param name  The shape field name
      * @param shape Shape to use in the filter
      */
-    public static GeoShapeQueryBuilder geoIntersectionQuery(String name, ShapeBuilder shape) {
-        return geoShapeQuery(name, shape, ShapeRelation.INTERSECTS);
+    public static GeoShapeQueryBuilder geoIntersectionQuery(String name, ShapeBuilder shape) throws IOException {
+        GeoShapeQueryBuilder builder = geoShapeQuery(name, shape);
+        builder.relation(ShapeRelation.INTERSECTS);
+        return builder;
     }
 
     public static GeoShapeQueryBuilder geoIntersectionQuery(String name, String indexedShapeId, String indexedShapeType) {
-        return geoShapeQuery(name, indexedShapeId, indexedShapeType, ShapeRelation.INTERSECTS);
+        GeoShapeQueryBuilder builder = geoShapeQuery(name, indexedShapeId, indexedShapeType);
+        builder.relation(ShapeRelation.INTERSECTS);
+        return builder;
     }
 
     /**
@@ -726,12 +716,16 @@ public abstract class QueryBuilders {
      * @param name  The shape field name
      * @param shape Shape to use in the filter
      */
-    public static GeoShapeQueryBuilder geoWithinQuery(String name, ShapeBuilder shape) {
-        return geoShapeQuery(name, shape, ShapeRelation.WITHIN);
+    public static GeoShapeQueryBuilder geoWithinQuery(String name, ShapeBuilder shape) throws IOException {
+        GeoShapeQueryBuilder builder = geoShapeQuery(name, shape);
+        builder.relation(ShapeRelation.WITHIN);
+        return builder;
     }
 
     public static GeoShapeQueryBuilder geoWithinQuery(String name, String indexedShapeId, String indexedShapeType) {
-        return geoShapeQuery(name, indexedShapeId, indexedShapeType, ShapeRelation.WITHIN);
+        GeoShapeQueryBuilder builder = geoShapeQuery(name, indexedShapeId, indexedShapeType);
+        builder.relation(ShapeRelation.WITHIN);
+        return builder;
     }
 
     /**
@@ -740,12 +734,16 @@ public abstract class QueryBuilders {
      * @param name  The shape field name
      * @param shape Shape to use in the filter
      */
-    public static GeoShapeQueryBuilder geoDisjointQuery(String name, ShapeBuilder shape) {
-        return geoShapeQuery(name, shape, ShapeRelation.DISJOINT);
+    public static GeoShapeQueryBuilder geoDisjointQuery(String name, ShapeBuilder shape) throws IOException {
+        GeoShapeQueryBuilder builder = geoShapeQuery(name, shape);
+        builder.relation(ShapeRelation.DISJOINT);
+        return builder;
     }
 
     public static GeoShapeQueryBuilder geoDisjointQuery(String name, String indexedShapeId, String indexedShapeType) {
-        return geoShapeQuery(name, indexedShapeId, indexedShapeType, ShapeRelation.DISJOINT);
+        GeoShapeQueryBuilder builder = geoShapeQuery(name, indexedShapeId, indexedShapeType);
+        builder.relation(ShapeRelation.DISJOINT);
+        return builder;
     }
 
     /**

@@ -38,7 +38,7 @@ public class GeoDistanceRangeQueryTests extends AbstractQueryTestCase<GeoDistanc
 
     @Override
     protected GeoDistanceRangeQueryBuilder doCreateTestQueryBuilder() {
-        GeoDistanceRangeQueryBuilder builder = new GeoDistanceRangeQueryBuilder(GEO_FIELD_NAME);
+        GeoDistanceRangeQueryBuilder builder = new GeoDistanceRangeQueryBuilder(GEO_POINT_FIELD_NAME);
         if (randomBoolean()) {
             builder.geohash(randomGeohash(1, 12));
         } else {
@@ -164,7 +164,7 @@ public class GeoDistanceRangeQueryTests extends AbstractQueryTestCase<GeoDistanc
 
     @Test
     public void testNoPoint() {
-        GeoDistanceRangeQueryBuilder builder = new GeoDistanceRangeQueryBuilder(GEO_FIELD_NAME);
+        GeoDistanceRangeQueryBuilder builder = new GeoDistanceRangeQueryBuilder(GEO_POINT_FIELD_NAME);
         builder.from(10);
         QueryValidationException exception = builder.validate();
         assertThat(exception, notNullValue());
@@ -175,7 +175,7 @@ public class GeoDistanceRangeQueryTests extends AbstractQueryTestCase<GeoDistanc
 
     @Test
     public void testNoFromOrTo() {
-        GeoDistanceRangeQueryBuilder builder = new GeoDistanceRangeQueryBuilder(GEO_FIELD_NAME);
+        GeoDistanceRangeQueryBuilder builder = new GeoDistanceRangeQueryBuilder(GEO_POINT_FIELD_NAME);
         String geohash = randomGeohash(1, 20);
         builder.geohash(geohash);
         QueryValidationException exception = builder.validate();
@@ -188,7 +188,7 @@ public class GeoDistanceRangeQueryTests extends AbstractQueryTestCase<GeoDistanc
 
     @Test
     public void testInvalidFrom() {
-        GeoDistanceRangeQueryBuilder builder = new GeoDistanceRangeQueryBuilder(GEO_FIELD_NAME);
+        GeoDistanceRangeQueryBuilder builder = new GeoDistanceRangeQueryBuilder(GEO_POINT_FIELD_NAME);
         String geohash = randomGeohash(1, 20);
         builder.geohash(geohash);
         builder.from(new DateTime());
@@ -202,7 +202,7 @@ public class GeoDistanceRangeQueryTests extends AbstractQueryTestCase<GeoDistanc
 
     @Test
     public void testInvalidTo() {
-        GeoDistanceRangeQueryBuilder builder = new GeoDistanceRangeQueryBuilder(GEO_FIELD_NAME);
+        GeoDistanceRangeQueryBuilder builder = new GeoDistanceRangeQueryBuilder(GEO_POINT_FIELD_NAME);
         String geohash = randomGeohash(1, 20);
         builder.geohash(geohash);
         builder.to(new DateTime());
@@ -216,7 +216,7 @@ public class GeoDistanceRangeQueryTests extends AbstractQueryTestCase<GeoDistanc
 
     @Test
     public void testInvalidOptimizeBBox() {
-        GeoDistanceRangeQueryBuilder builder = new GeoDistanceRangeQueryBuilder(GEO_FIELD_NAME);
+        GeoDistanceRangeQueryBuilder builder = new GeoDistanceRangeQueryBuilder(GEO_POINT_FIELD_NAME);
         String geohash = randomGeohash(1, 20);
         builder.geohash(geohash);
         builder.from(10);
@@ -231,7 +231,7 @@ public class GeoDistanceRangeQueryTests extends AbstractQueryTestCase<GeoDistanc
 
     @Test
     public void testMultipleValidationErrors() {
-        GeoDistanceRangeQueryBuilder builder = new GeoDistanceRangeQueryBuilder(GEO_FIELD_NAME);
+        GeoDistanceRangeQueryBuilder builder = new GeoDistanceRangeQueryBuilder(GEO_POINT_FIELD_NAME);
         double lat = randomDouble() * 360 - 180;
         double lon = randomDouble() * 360 - 180;
         builder.point(lat, lon);

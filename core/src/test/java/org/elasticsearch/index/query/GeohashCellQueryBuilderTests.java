@@ -38,7 +38,7 @@ public class GeohashCellQueryBuilderTests extends AbstractQueryTestCase<Builder>
 
     @Override
     protected Builder doCreateTestQueryBuilder() {
-        GeohashCellQuery.Builder builder = new Builder(GEO_FIELD_NAME);
+        GeohashCellQuery.Builder builder = new Builder(GEO_POINT_FIELD_NAME);
         builder.geohash(randomGeohash(1, 12));
         if (randomBoolean()) {
             builder.neighbors(randomBoolean());
@@ -95,7 +95,7 @@ public class GeohashCellQueryBuilderTests extends AbstractQueryTestCase<Builder>
 
     @Test
     public void testNullGeohash() {
-        GeohashCellQuery.Builder builder = new Builder(GEO_FIELD_NAME);
+        GeohashCellQuery.Builder builder = new Builder(GEO_POINT_FIELD_NAME);
         QueryValidationException exception = builder.validate();
         assertThat(exception, notNullValue());
         assertThat(exception.validationErrors(), notNullValue());
@@ -105,7 +105,7 @@ public class GeohashCellQueryBuilderTests extends AbstractQueryTestCase<Builder>
 
     @Test
     public void testInvalidPrecision() {
-        GeohashCellQuery.Builder builder = new Builder(GEO_FIELD_NAME);
+        GeohashCellQuery.Builder builder = new Builder(GEO_POINT_FIELD_NAME);
         builder.geohash(randomGeohash(1, 12));
         builder.precision(-1);
         QueryValidationException exception = builder.validate();

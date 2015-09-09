@@ -222,12 +222,7 @@ public class HasChildQueryParser implements QueryParser {
 
         @Override
         public Query rewrite(IndexReader reader) throws IOException {
-            SearchContext searchContext = SearchContext.current();
-            if (searchContext == null) {
-                throw new IllegalArgumentException("Search context is required to be set");
-            }
-
-            IndexSearcher indexSearcher = searchContext.searcher();
+            IndexSearcher indexSearcher = new IndexSearcher(reader);
             String joinField = ParentFieldMapper.joinField(parentType);
             IndexParentChildFieldData indexParentChildFieldData = parentChildIndexFieldData.loadGlobal(indexSearcher.getIndexReader());
             MultiDocValues.OrdinalMap ordinalMap = ParentChildIndexFieldData.getOrdinalMap(indexParentChildFieldData, parentType);

@@ -19,12 +19,7 @@
 package org.elasticsearch.common.inject;
 
 import com.google.common.base.Predicate;
-import org.elasticsearch.common.inject.spi.Element;
-import org.elasticsearch.common.inject.spi.Elements;
-import org.elasticsearch.common.inject.spi.InstanceBinding;
-import org.elasticsearch.common.inject.spi.LinkedKeyBinding;
-import org.elasticsearch.common.inject.spi.ProviderInstanceBinding;
-import org.elasticsearch.common.inject.spi.ProviderLookup;
+import org.elasticsearch.common.inject.spi.*;
 import org.elasticsearch.test.ESTestCase;
 
 import java.lang.annotation.Annotation;

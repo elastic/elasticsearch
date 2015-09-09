@@ -21,6 +21,7 @@ package org.elasticsearch.gateway;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.inject.ModuleTestCase;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.env.NodeEnvironment;
@@ -33,24 +34,17 @@ import org.elasticsearch.test.InternalTestCluster;
 
 import static org.hamcrest.Matchers.instanceOf;
 
-public class GatewayModuleTests extends ESTestCase {
+public class GatewayModuleTests extends ModuleTestCase {
 
     public void testCustomGateway() {
-        Node node = buildNode("mock");
-        try {
-            assertThat(node.injector().getInstance(Gateway.class), instanceOf(MockGateway.class));
-        } finally {
-            node.close();
-        }
+        GatewayModule gatewayModule = new GatewayModule(Settings.builder().put(GatewayModule.GATEWAY_TYPE_KEY, "mock").build());
+        gatewayModule.registerGatewayType("mock", MockGateway.class);
+        assertBinding(gatewayModule, Gateway.class, MockGateway.class);
     }
 
     public void testDefaultGateway() {
-        Node node = buildNode(null);
-        try {
-            assertThat(node.injector().getInstance(Gateway.class), instanceOf(Gateway.class));
-        } finally {
-            node.close();
-        }
+        GatewayModule gatewayModule = new GatewayModule(Settings.EMPTY);
+        assertBinding(gatewayModule, Gateway.class, Gateway.class);
     }
 
     protected Node buildNode(String gateway) {
@@ -82,7 +76,7 @@ public class GatewayModuleTests extends ESTestCase {
         }
 
         public void onModule(GatewayModule gatewayModule) {
-            gatewayModule.addGatewayType("mock", MockGateway.class);
+            gatewayModule.registerGatewayType("mock", MockGateway.class);
         }
 
         @Override

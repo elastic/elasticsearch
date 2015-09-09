@@ -59,7 +59,7 @@ public class ScoreFunctionParserMapper {
     public ScoreFunctionParser get(QueryParseContext parseContext, String parserName) {
         ScoreFunctionParser functionParser = get(parserName);
         if (functionParser == null) {
-            throw new QueryParsingException(parseContext, "No function with the name [" + parserName + "] is registered.", null);
+            throw new QueryParsingException(parseContext, "No function with the name [" + parserName + "] is registered.");
         }
         return functionParser;
     }

@@ -179,7 +179,7 @@ public class MultiDataPathUpgraderTests extends ESTestCase {
             OldIndexBackwardsCompatibilityIT.copyIndex(logger, src, indexName, multiDataPath);
             final ShardPath shardPath = new ShardPath(false, nodeEnvironment.availableShardPaths(new ShardId(indexName, 0))[0], nodeEnvironment.availableShardPaths(new ShardId(indexName, 0))[0], IndexMetaData.INDEX_UUID_NA_VALUE, new ShardId(indexName, 0));
 
-            logger.info("{}", FileSystemUtils.files(shardPath.resolveIndex()));
+            logger.info("{}", (Object)FileSystemUtils.files(shardPath.resolveIndex()));
 
             MultiDataPathUpgrader helper = new MultiDataPathUpgrader(nodeEnvironment);
             helper.upgrade(new ShardId(indexName, 0), shardPath);

@@ -77,10 +77,10 @@ public class IndicesQueryParser implements QueryParser {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (parseContext.parseFieldMatcher().match(currentFieldName, QUERY_FIELD)) {
-                    innerQuery = new XContentStructure.InnerQuery(parseContext, null);
+                    innerQuery = new XContentStructure.InnerQuery(parseContext, (String[])null);
                     queryFound = true;
                 } else if (parseContext.parseFieldMatcher().match(currentFieldName, NO_MATCH_QUERY)) {
-                    innerNoMatchQuery = new XContentStructure.InnerQuery(parseContext, null);
+                    innerNoMatchQuery = new XContentStructure.InnerQuery(parseContext, (String[])null);
                 } else {
                     throw new QueryParsingException(parseContext, "[indices] query does not support [" + currentFieldName + "]");
                 }

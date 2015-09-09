@@ -574,8 +574,18 @@
                              be fixed in version > 3.1
                          -->
                         <useIncrementalCompilation>false</useIncrementalCompilation>
+                        <showWarnings>true</showWarnings>
                         <compilerArgs>
                             <arg>-XDignore.symbol.file</arg>
+                            <arg>-Xlint:all</arg>
+                            <arg>-Xlint:-cast</arg>
+                            <arg>-Xlint:-deprecation</arg>
+                            <arg>-Xlint:-fallthrough</arg>
+                            <arg>-Xlint:-overrides</arg>
+                            <arg>-Xlint:-rawtypes</arg>
+                            <arg>-Xlint:-serial</arg>
+                            <arg>-Xlint:-try</arg>
+                            <arg>-Xlint:-unchecked</arg>
                             <arg>-Werror</arg>
                         </compilerArgs>
                     </configuration>

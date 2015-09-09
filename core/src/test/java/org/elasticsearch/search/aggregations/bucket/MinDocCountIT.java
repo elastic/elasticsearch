@@ -306,9 +306,9 @@ public class MinDocCountIT extends AbstractTermsTestCase {
                     testMinDocCountOnTerms(field, script, order, include, false);
                 } catch (Throwable secondFailure) {
                     logger.error("exception on retry (will re-throw the original in a sec)", secondFailure);
-                } finally {
-                    throw ae;
                 }
+                throw ae;
+
             }
         }
 

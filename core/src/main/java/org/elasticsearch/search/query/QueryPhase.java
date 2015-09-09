@@ -227,6 +227,7 @@ public class QueryPhase implements SearchPhase {
                                     // set the last emitted doc
                                     scrollContext.lastEmittedDoc = topDocs.scoreDocs[topDocs.scoreDocs.length - 1];
                                 }
+                                break;
                             default:
                                 break;
                             }

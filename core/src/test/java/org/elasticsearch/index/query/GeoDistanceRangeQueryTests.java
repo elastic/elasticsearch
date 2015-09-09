@@ -114,7 +114,7 @@ public class GeoDistanceRangeQueryTests extends BaseQueryTestCase<GeoDistanceRan
         assertThat(geoQuery.fieldName(), equalTo(queryBuilder.fieldName()));
         if (queryBuilder.point() != null) {
             assertThat(geoQuery.lat(), equalTo(queryBuilder.point().lat()));
-            assertThat(geoQuery.lat(), equalTo(queryBuilder.point().lat()));
+            assertThat(geoQuery.lon(), equalTo(queryBuilder.point().lon()));
         }
         assertThat(geoQuery.geoDistance(), equalTo(queryBuilder.geoDistance()));
         if (queryBuilder.from() != null && queryBuilder.from() instanceof Number) {
@@ -137,6 +137,17 @@ public class GeoDistanceRangeQueryTests extends BaseQueryTestCase<GeoDistanceRan
             }
             assertThat(geoQuery.maxInclusiveDistance(), closeTo(toValue, Math.abs(toValue) / 1000));
         }
+    }
+
+    /**
+     * Overridden here to ensure the test is only run if at least one type is
+     * present in the mappings. Geo queries do not execute if the field is not
+     * explicitly mapped
+     */
+    @Override
+    public void testToQuery() throws IOException {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        super.testToQuery();
     }
 
     @Test

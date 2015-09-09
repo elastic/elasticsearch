@@ -71,6 +71,17 @@ public class GeohashCellQueryBuilderTests extends BaseQueryTestCase<GeohashCellQ
         }
     }
 
+    /**
+     * Overridden here to ensure the test is only run if at least one type is
+     * present in the mappings. Geo queries do not execute if the field is not
+     * explicitly mapped
+     */
+    @Override
+    public void testToQuery() throws IOException {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        super.testToQuery();
+    }
+
     @Test
     public void testNullField() {
         GeohashCellQuery.Builder builder = new Builder(null);

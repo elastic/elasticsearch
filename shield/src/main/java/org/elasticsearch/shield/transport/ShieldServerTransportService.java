@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.shield.transport;
 
-import com.google.common.collect.Maps;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -19,6 +18,7 @@ import org.elasticsearch.transport.*;
 import org.elasticsearch.transport.netty.NettyTransport;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.Callable;
 
@@ -80,7 +80,7 @@ public class ShieldServerTransportService extends TransportService {
         }
 
         Map<String, Settings> profileSettingsMap = settings.getGroups("transport.profiles.", true);
-        Map<String, ServerTransportFilter> profileFilters = Maps.newHashMapWithExpectedSize(profileSettingsMap.size() + 1);
+        Map<String, ServerTransportFilter> profileFilters = new HashMap<>(profileSettingsMap.size() + 1);
 
         for (Map.Entry<String, Settings> entry : profileSettingsMap.entrySet()) {
             Settings profileSettings = entry.getValue();

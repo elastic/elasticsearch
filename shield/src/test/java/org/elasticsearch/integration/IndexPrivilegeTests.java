@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.integration;
 
-import com.google.common.collect.Maps;
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.Node;
@@ -13,6 +12,7 @@ import org.elasticsearch.test.rest.client.http.HttpResponse;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.util.HashMap;
 import java.util.Locale;
 
 import static org.hamcrest.Matchers.is;
@@ -320,7 +320,7 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
 
     @Test
     public void testThatUnknownUserIsRejectedProperly() throws Exception {
-        HttpResponse response = executeRequest("idonotexist", "GET", "/", null, Maps.<String,String>newHashMap());
+        HttpResponse response = executeRequest("idonotexist", "GET", "/", null, new HashMap<>());
         assertThat(response.getStatusCode(), is(401));
     }
 

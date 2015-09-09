@@ -61,7 +61,7 @@ class TestProgressLogger implements AggregatedEventListener {
         Description description = e.getDescription()
         String suiteName = description.getDisplayName();
         suiteName = suiteName.substring(suiteName.lastIndexOf('.') + 1);
-        progressLogger.progress('Suites [' + suitesCompleted + '/' + totalSuites + '], Tests [' + testsCompleted + '|' + testsFailed + '|' + testsIgnored + '], J' + e.getSlave().id + ' - '+ suiteName + ' in ' + formatDurationInSeconds(e.getExecutionTime()))
+        progressLogger.progress('Suites [' + suitesCompleted + '/' + totalSuites + '], Tests [' + testsCompleted + '|' + testsFailed + '|' + testsIgnored + '], ' + suiteName + ' on J' + e.getSlave().id + ' in ' + formatDurationInSeconds(e.getExecutionTime()))
     }
 
     @Override

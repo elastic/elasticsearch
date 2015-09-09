@@ -392,6 +392,7 @@ public class PublishClusterStateAction extends AbstractComponent {
             @Override
             public void onNewClusterStateProcessed() {
                 try {
+                    // send a response to the master to indicate that this cluster state has been processed post committing it.
                     channel.sendResponse(TransportResponse.Empty.INSTANCE);
                 } catch (Throwable e) {
                     logger.debug("failed to send response on cluster state processed", e);

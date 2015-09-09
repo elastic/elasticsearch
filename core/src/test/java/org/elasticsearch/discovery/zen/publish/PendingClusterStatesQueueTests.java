@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.discovery.zen.publish;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
@@ -108,8 +107,8 @@ public class PendingClusterStatesQueueTests extends ESTestCase {
         }
         // check no state has been erroneously removed
         for (ClusterState state : states) {
-            int index = queue.findState(state.stateUUID());
-            if (index >= 0) {
+            ClusterStateContext pendingContext = queue.findState(state.stateUUID());
+            if (pendingContext != null) {
                 continue;
             }
             if (state.equals(toFail)) {
@@ -143,7 +142,7 @@ public class PendingClusterStatesQueueTests extends ESTestCase {
             ClusterState state = queue.markAsCommitted(randomFrom(queue.pendingStates).stateUUID(), new MockListener());
             if (state != null) {
                 // null cluster state means we committed twice
-                committedContexts.add(queue.pendingStates.get(queue.findState(state.stateUUID())));
+                committedContexts.add(queue.findState(state.stateUUID()));
             }
         }
         return committedContexts;

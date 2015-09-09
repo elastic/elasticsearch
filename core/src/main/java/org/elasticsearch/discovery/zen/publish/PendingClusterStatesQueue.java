@@ -28,7 +28,9 @@ import java.util.Objects;
 /**
  * A queue that holds all "in-flight" incoming cluster states from the master. Once a master commits a cluster
  * state, it is made available via {@link #getNextClusterStateToProcess()}. The class also takes care of batching
- * cluster states for processing and failures
+ * cluster states for processing and failures.
+ *
+ * The class is fully thread safe and can be used concurrently.
  */
 public class PendingClusterStatesQueue {
 
@@ -56,12 +58,11 @@ public class PendingClusterStatesQueue {
      * When the cluster state is processed (or failed), the supplied listener will be called
      **/
     public synchronized ClusterState markAsCommitted(String stateUUID, StateProcessedListener listener) {
-        final int stateIndex = findState(stateUUID);
-        if (stateIndex < 0) {
+        final ClusterStateContext context = findState(stateUUID);
+        if (context == null) {
             listener.onNewClusterStateFailed(new IllegalStateException("can't resolve cluster state with uuid [" + stateUUID + "] to commit"));
             return null;
         }
-        ClusterStateContext context = pendingStates.get(stateIndex);
         if (context.committed()) {
             listener.onNewClusterStateFailed(new IllegalStateException("cluster state with uuid [" + stateUUID + "] is already committed"));
             return null;
@@ -75,12 +76,13 @@ public class PendingClusterStatesQueue {
      * by this failed state, will be failed as well
      */
     public synchronized void markAsFailed(ClusterState state, Throwable reason) {
-        final int failedIndex = findState(state.stateUUID());
-        if (failedIndex < 0) {
-            throw new IllegalStateException("can't resolve failed cluster state with uuid [" + state.stateUUID() + "], version [" + state.version() + "]");
+        final ClusterStateContext failedContext = findState(state.stateUUID());
+        if (failedContext == null) {
+            throw new IllegalArgumentException("can't resolve failed cluster state with uuid [" + state.stateUUID() + "], version [" + state.version() + "]");
         }
-        final ClusterStateContext failedContext = pendingStates.get(failedIndex);
-        assert failedContext.committed() : "failed cluster state is not committed " + state;
+        if (failedContext.committed() == false) {
+            throw new IllegalArgumentException("failed cluster state is not committed " + state);
+        }
 
         // fail all committed states which are batch together with the failed state
         ArrayList<ClusterStateContext> statesToRemove = new ArrayList<>();
@@ -100,7 +102,7 @@ public class PendingClusterStatesQueue {
             }
         }
         pendingStates.removeAll(statesToRemove);
-        assert findState(state.stateUUID()) == -1 : "state was marked as processed but can still be found in pending list " + state;
+        assert findState(state.stateUUID()) == null : "state was marked as processed but can still be found in pending list " + state;
     }
 
     /**
@@ -111,8 +113,7 @@ public class PendingClusterStatesQueue {
      * be failed by this method
      */
     public synchronized void markAsProcessed(ClusterState state) {
-        final int processedIndex = findState(state.stateUUID());
-        if (processedIndex < 0) {
+        if (findState(state.stateUUID()) == null) {
             throw new IllegalStateException("can't resolve processed cluster state with uuid [" + state.stateUUID() + "], version [" + state.version() + "]");
         }
         final DiscoveryNode currentMaster = state.nodes().masterNode();
@@ -127,7 +128,7 @@ public class PendingClusterStatesQueue {
             final DiscoveryNode pendingMasterNode = pendingState.nodes().masterNode();
             if (Objects.equals(currentMaster, pendingMasterNode) == false) {
                 contextsToRemove.add(pendingContext);
-                if (pendingContext.listener != null) {
+                if (pendingContext.committed()) {
                     // this is a committed state , warn
                     logger.warn("received a cluster state (uuid[{}]/v[{}]) from a different master than the current one, rejecting (received {}, current {})",
                             pendingState.stateUUID(), pendingState.version(),
@@ -147,25 +148,26 @@ public class PendingClusterStatesQueue {
                 );
                 contextsToRemove.add(pendingContext);
                 pendingContext.listener.onNewClusterStateProcessed();
-            } else if (pendingState.equals(state)) {
-                assert pendingStates.get(processedIndex).committed() : "processed cluster state is not committed " + state;
+            } else if (pendingState.stateUUID().equals(state.stateUUID())) {
+                assert pendingContext.committed() : "processed cluster state is not committed " + state;
                 contextsToRemove.add(pendingContext);
                 pendingContext.listener.onNewClusterStateProcessed();
             }
         }
         // now ack the processed state
         pendingStates.removeAll(contextsToRemove);
-        assert findState(state.stateUUID()) == -1 : "state was marked as processed but can still be found in pending list " + state;
+        assert findState(state.stateUUID()) == null : "state was marked as processed but can still be found in pending list " + state;
 
     }
 
-    int findState(String stateUUID) {
+    ClusterStateContext findState(String stateUUID) {
         for (int i = 0; i < pendingStates.size(); i++) {
-            if (pendingStates.get(i).stateUUID().equals(stateUUID)) {
-                return i;
+            final ClusterStateContext context = pendingStates.get(i);
+            if (context.stateUUID().equals(stateUUID)) {
+                return context;
             }
         }
-        return -1;
+        return null;
     }
 
     /** clear the incoming queue. any committed state will be failed */
@@ -233,7 +235,9 @@ public class PendingClusterStatesQueue {
         }
 
         void markAsCommitted(StateProcessedListener listener) {
-            assert this.listener == null : "double committing of " + state;
+            if (this.listener != null) {
+                throw new IllegalStateException(toString() + "is already committed");
+            }
             this.listener = listener;
         }
 

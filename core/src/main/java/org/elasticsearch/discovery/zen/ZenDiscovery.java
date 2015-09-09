@@ -418,7 +418,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                         return joinThreadControl.stopRunningThreadAndRejoin(currentState, "master_switched_while_finalizing_join");
                     }
 
-                    // Note: we do not have to start master fault detection here because it's set at {@link #handleNewClusterStateFromMaster }
+                    // Note: we do not have to start master fault detection here because it's set at {@link #processNextPendingClusterState }
                     // when the first cluster state arrives.
                     joinThreadControl.markThreadAsDone(currentThread);
                     return currentState;
@@ -624,7 +624,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                         .masterNodeId(null).build();
 
                 // flush any pending cluster states from old master, so it will not be set as master again
-                publishClusterState.pendingStatesQueue().failAllStatesAndClear(new ElasticsearchException("master left [" + reason + "]"));
+                publishClusterState.pendingStatesQueue().failAllStatesAndClear(new ElasticsearchException("master left [{}]", reason));
 
                 if (rejoinOnMasterGone) {
                     return rejoin(ClusterState.builder(currentState).nodes(discoveryNodes).build(), "master left (reason = " + reason + ")");
@@ -670,7 +670,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         });
     }
 
-    void handleNewClusterStateFromMaster(String reason) {
+    void processNextPendingClusterState(String reason) {
         clusterService.submitStateUpdateTask("zen-disco-receive(from master [" + reason + "])", Priority.URGENT, new ProcessedClusterStateNonMasterUpdateTask() {
             ClusterState newClusterState = null;
 
@@ -984,7 +984,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
         @Override
         public void onNewClusterState(String reason) {
-            handleNewClusterStateFromMaster(reason);
+            processNextPendingClusterState(reason);
         }
     }
 

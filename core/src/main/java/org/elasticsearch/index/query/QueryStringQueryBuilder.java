@@ -654,6 +654,8 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
+        //TODO would be nice to have all the settings in one place: some change though at query execution time
+        //e.g. field names get expanded to concrete names, defaults get resolved sometimes to settings values etc.
         QueryParserSettings qpSettings;
         if (this.escape) {
             qpSettings = new QueryParserSettings(org.apache.lucene.queryparser.classic.QueryParser.escape(this.queryString));

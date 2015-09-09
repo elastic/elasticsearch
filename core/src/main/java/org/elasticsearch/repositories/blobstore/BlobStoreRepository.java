@@ -577,9 +577,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
         if (snapshotsBlobContainer.blobExists(SNAPSHOTS_FILE)) {
             snapshotsBlobContainer.deleteBlob(SNAPSHOTS_FILE);
         }
-        try (OutputStream output = snapshotsBlobContainer.createOutput(SNAPSHOTS_FILE)) {
-            bRef.writeTo(output);
-        }
+        snapshotsBlobContainer.writeBlob(SNAPSHOTS_FILE, bRef);
     }
 
     /**
@@ -591,7 +589,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
      * @throws IOException I/O errors
      */
     protected List<SnapshotId> readSnapshotList() throws IOException {
-        try (InputStream blob = snapshotsBlobContainer.openInput(SNAPSHOTS_FILE)) {
+        try (InputStream blob = snapshotsBlobContainer.readBlob(SNAPSHOTS_FILE)) {
             final byte[] data = ByteStreams.toByteArray(blob);
             ArrayList<SnapshotId> snapshots = new ArrayList<>();
             try (XContentParser parser = XContentHelper.createParser(new BytesArray(data))) {
@@ -643,9 +641,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
                 byte[] testBytes = Strings.toUTF8Bytes(seed);
                 BlobContainer testContainer = blobStore().blobContainer(basePath().add(testBlobPrefix(seed)));
                 String blobName = "master.dat";
-                try (OutputStream outputStream = testContainer.createOutput(blobName + "-temp")) {
-                    outputStream.write(testBytes);
-                }
+                testContainer.writeBlob(blobName + "-temp", new BytesArray(testBytes));
                 // Make sure that move is supported
                 testContainer.move(blobName + "-temp", blobName);
                 return seed;

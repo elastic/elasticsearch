@@ -52,7 +52,7 @@ public class LegacyBlobStoreFormat<T extends ToXContent> extends BlobStoreFormat
      * @throws IOException
      */
     public T readBlob(BlobContainer blobContainer, String blobName) throws IOException {
-        try (InputStream inputStream = blobContainer.openInput(blobName)) {
+        try (InputStream inputStream = blobContainer.readBlob(blobName)) {
             return read(new BytesArray(ByteStreams.toByteArray(inputStream)));
         }
     }

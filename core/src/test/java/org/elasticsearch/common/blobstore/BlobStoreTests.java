@@ -22,6 +22,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.common.blobstore.fs.FsBlobStore;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -30,7 +31,6 @@ import org.junit.Test;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Map;
@@ -47,10 +47,8 @@ public class BlobStoreTests extends ESTestCase {
         final BlobStore store = newBlobStore();
         final BlobContainer container = store.blobContainer(new BlobPath());
         byte[] data = randomBytes(randomIntBetween(10, scaledRandomIntBetween(1024, 1 << 16)));
-        try (OutputStream stream = container.createOutput("foobar")) {
-            stream.write(data);
-        }
-        try (InputStream stream = container.openInput("foobar")) {
+        container.writeBlob("foobar", new BytesArray(data));
+        try (InputStream stream = container.readBlob("foobar")) {
             BytesRefBuilder target = new BytesRefBuilder();
             while (target.length() < data.length) {
                 byte[] buffer = new byte[scaledRandomIntBetween(1, data.length - target.length())];
@@ -115,15 +113,13 @@ public class BlobStoreTests extends ESTestCase {
 
     protected byte[] createRandomBlob(BlobContainer container, String name, int length) throws IOException {
         byte[] data = randomBytes(length);
-        try (OutputStream stream = container.createOutput(name)) {
-            stream.write(data);
-        }
+        container.writeBlob(name, new BytesArray(data));
         return data;
     }
 
     protected byte[] readBlobFully(BlobContainer container, String name, int length) throws IOException {
         byte[] data = new byte[length];
-        try (InputStream inputStream = container.openInput(name)) {
+        try (InputStream inputStream = container.readBlob(name)) {
             assertThat(inputStream.read(data), equalTo(length));
             assertThat(inputStream.read(), equalTo(-1));
         }

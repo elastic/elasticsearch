@@ -25,7 +25,9 @@ import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.common.io.Streams;
 
 import java.io.*;
 import java.nio.file.DirectoryStream;
@@ -83,25 +85,28 @@ public class FsBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public InputStream openInput(String name) throws IOException {
+    public InputStream readBlob(String name) throws IOException {
         return new BufferedInputStream(Files.newInputStream(path.resolve(name)), blobStore.bufferSizeInBytes());
     }
 
     @Override
-    public OutputStream createOutput(String blobName) throws IOException {
+    public void writeBlob(String blobName, InputStream inputStream, long blobSize) throws IOException {
         final Path file = path.resolve(blobName);
-        return new BufferedOutputStream(new FilterOutputStream(Files.newOutputStream(file)) {
+        try (OutputStream outputStream = Files.newOutputStream(file)) {
+            Streams.copy(inputStream, outputStream, new byte[blobStore.bufferSizeInBytes()]);
+        }
+        IOUtils.fsync(file, false);
+        IOUtils.fsync(path, true);
+    }
 
-            @Override // FilterOutputStream#write(byte[] b, int off, int len) is trappy writes every single byte
-            public void write(byte[] b, int off, int len) throws IOException { out.write(b, off, len);}
-
-            @Override
-            public void close() throws IOException {
-                super.close();
-                IOUtils.fsync(file, false);
-                IOUtils.fsync(path, true);
-            }
-        }, blobStore.bufferSizeInBytes());
+    @Override
+    public void writeBlob(String blobName, BytesReference data) throws IOException {
+        final Path file = path.resolve(blobName);
+        try (OutputStream outputStream = Files.newOutputStream(file)) {
+            data.writeTo(outputStream);
+        }
+        IOUtils.fsync(file, false);
+        IOUtils.fsync(path, true);
     }
 
     @Override

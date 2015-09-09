@@ -31,21 +31,17 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.support.InnerHitsQueryParserHelper;
 import org.elasticsearch.index.query.support.NestedInnerQueryParseSupport;
+import org.elasticsearch.index.query.support.QueryInnerHits;
 import org.elasticsearch.search.fetch.innerhits.InnerHitsContext;
 import org.elasticsearch.search.fetch.innerhits.InnerHitsSubSearchContext;
 
 import java.io.IOException;
 
-public class NestedQueryParser extends BaseQueryParserTemp {
+public class NestedQueryParser extends BaseQueryParser<NestedQueryBuilder> {
 
     private static final ParseField FILTER_FIELD = new ParseField("filter").withAllDeprecated("query");
+    private static final NestedQueryBuilder PROTOTYPE = new NestedQueryBuilder("", EmptyQueryBuilder.PROTOTYPE);
 
-    private final InnerHitsQueryParserHelper innerHitsQueryParserHelper;
-
-    @Inject
-    public NestedQueryParser(InnerHitsQueryParserHelper innerHitsQueryParserHelper) {
-        this.innerHitsQueryParserHelper = innerHitsQueryParserHelper;
-    }
 
     @Override
     public String[] names() {
@@ -53,33 +49,32 @@ public class NestedQueryParser extends BaseQueryParserTemp {
     }
 
     @Override
-    public Query parse(QueryShardContext context) throws IOException, QueryParsingException {
-        QueryParseContext parseContext = context.parseContext();
+    public NestedQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
-        final ToBlockJoinQueryBuilder builder = new ToBlockJoinQueryBuilder(context);
-
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
-        ScoreMode scoreMode = ScoreMode.Avg;
+        ScoreMode scoreMode = NestedQueryBuilder.DEFAULT_SCORE_MODE;
         String queryName = null;
-
+        QueryBuilder query = null;
+        String path = null;
         String currentFieldName = null;
+        QueryInnerHits queryInnerHits = null;
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if ("query".equals(currentFieldName)) {
-                    builder.query();
+                    query = parseContext.parseInnerQueryBuilder();
                 } else if (parseContext.parseFieldMatcher().match(currentFieldName, FILTER_FIELD)) {
-                    builder.filter();
+                    query = parseContext.parseInnerFilterToQueryBuilder();
                 } else if ("inner_hits".equals(currentFieldName)) {
-                    builder.setInnerHits(innerHitsQueryParserHelper.parse(parser));
+                    queryInnerHits = new QueryInnerHits(parser);
                 } else {
                     throw new QueryParsingException(parseContext, "[nested] query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
                 if ("path".equals(currentFieldName)) {
-                    builder.setPath(parser.text());
+                    path = parser.text();
                 } else if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
                 } else if ("score_mode".equals(currentFieldName) || "scoreMode".equals(currentFieldName)) {
@@ -104,69 +99,11 @@ public class NestedQueryParser extends BaseQueryParserTemp {
                 }
             }
         }
-
-        builder.setScoreMode(scoreMode);
-        ToParentBlockJoinQuery joinQuery = builder.build();
-        if (joinQuery != null) {
-            joinQuery.setBoost(boost);
-            if (queryName != null) {
-                context.addNamedQuery(queryName, joinQuery);
-            }
-        }
-        return joinQuery;
-    }
-
-    public static class ToBlockJoinQueryBuilder extends NestedInnerQueryParseSupport {
-
-        private ScoreMode scoreMode;
-        private InnerHitsSubSearchContext innerHits;
-
-        public ToBlockJoinQueryBuilder(QueryShardContext context) throws IOException {
-            super(context);
-        }
-
-        public void setScoreMode(ScoreMode scoreMode) {
-            this.scoreMode = scoreMode;
-        }
-
-        public void setInnerHits(InnerHitsSubSearchContext innerHits) {
-            this.innerHits = innerHits;
-        }
-
-        @Nullable
-        public ToParentBlockJoinQuery build() throws IOException {
-            Query innerQuery;
-            if (queryFound) {
-                innerQuery = getInnerQuery();
-            } else if (filterFound) {
-                Query innerFilter = getInnerFilter();
-                if (innerFilter != null) {
-                    innerQuery = new ConstantScoreQuery(getInnerFilter());
-                } else {
-                    innerQuery = null;
-                }
-            } else {
-                throw new QueryShardException(shardContext, "[nested] requires either 'query' or 'filter' field");
-            }
-
-            if (innerHits != null) {
-                ParsedQuery parsedQuery = new ParsedQuery(innerQuery, shardContext.copyNamedQueries());
-                InnerHitsContext.NestedInnerHits nestedInnerHits = new InnerHitsContext.NestedInnerHits(innerHits.getSubSearchContext(), parsedQuery, null, getParentObjectMapper(), nestedObjectMapper);
-                String name = innerHits.getName() != null ? innerHits.getName() : path;
-                shardContext.addInnerHits(name, nestedInnerHits);
-            }
-
-            if (innerQuery != null) {
-                return new ToParentBlockJoinQuery(Queries.filtered(innerQuery, childFilter), parentFilter, scoreMode);
-            } else {
-                return null;
-            }
-        }
-
+        return new NestedQueryBuilder(path, query, scoreMode, queryInnerHits).queryName(queryName).boost(boost);
     }
 
     @Override
     public NestedQueryBuilder getBuilderPrototype() {
-        return NestedQueryBuilder.PROTOTYPE;
+        return PROTOTYPE;
     }
 }

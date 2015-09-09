@@ -20,6 +20,7 @@
 package org.elasticsearch.nested;
 
 import org.apache.lucene.search.Explanation;
+import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
@@ -311,7 +312,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
                 .execute().actionGet();
 
         SearchResponse searchResponse = client().prepareSearch("test")
-                .setQuery(nestedQuery("nested1", termQuery("nested1.n_field1", "n_value1")).scoreMode("total"))
+                .setQuery(nestedQuery("nested1", termQuery("nested1.n_field1", "n_value1")).scoreMode(ScoreMode.Total))
                 .setExplain(true)
                 .execute().actionGet();
         assertNoFailures(searchResponse);

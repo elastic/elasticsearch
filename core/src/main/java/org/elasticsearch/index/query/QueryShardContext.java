@@ -115,7 +115,7 @@ public class QueryShardContext {
         return parseFieldMatcher;
     }
 
-    private void reset() {
+    public void reset() {
         allowUnmappedFields = indexQueryParser.defaultAllowUnmappedFields();
         this.parseFieldMatcher = ParseFieldMatcher.EMPTY;
         this.lookup = null;

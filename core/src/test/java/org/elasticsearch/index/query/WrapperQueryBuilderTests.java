@@ -29,7 +29,7 @@ import java.io.IOException;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-public class WrapperQueryBuilderTests extends BaseQueryTestCase<WrapperQueryBuilder> {
+public class WrapperQueryBuilderTests extends AbstractQueryTestCase<WrapperQueryBuilder> {
 
     @Override
     protected boolean supportsBoostAndQueryName() {

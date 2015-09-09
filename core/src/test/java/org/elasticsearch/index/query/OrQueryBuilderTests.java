@@ -30,7 +30,7 @@ import java.util.*;
 import static org.hamcrest.CoreMatchers.*;
 
 @SuppressWarnings("deprecation")
-public class OrQueryBuilderTests extends BaseQueryTestCase<OrQueryBuilder> {
+public class OrQueryBuilderTests extends AbstractQueryTestCase<OrQueryBuilder> {
 
     /**
      * @return an OrQueryBuilder with random limit between 0 and 20

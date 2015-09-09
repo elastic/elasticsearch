@@ -27,7 +27,7 @@ import java.io.IOException;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 
-public class MatchNoneQueryBuilderTests extends BaseQueryTestCase {
+public class MatchNoneQueryBuilderTests extends AbstractQueryTestCase {
 
     @Override
     protected boolean supportsBoostAndQueryName() {

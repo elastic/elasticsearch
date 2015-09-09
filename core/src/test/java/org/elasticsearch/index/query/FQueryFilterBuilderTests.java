@@ -28,7 +28,7 @@ import java.io.IOException;
 import static org.hamcrest.CoreMatchers.*;
 
 @SuppressWarnings("deprecation")
-public class FQueryFilterBuilderTests extends BaseQueryTestCase<FQueryFilterBuilder> {
+public class FQueryFilterBuilderTests extends AbstractQueryTestCase<FQueryFilterBuilder> {
 
     /**
      * @return a FQueryFilterBuilder with random inner query

@@ -33,7 +33,7 @@ import java.util.Map;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 
-public class IdsQueryBuilderTests extends BaseQueryTestCase<IdsQueryBuilder> {
+public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder> {
 
     /**
      * check that parser throws exception on missing values field

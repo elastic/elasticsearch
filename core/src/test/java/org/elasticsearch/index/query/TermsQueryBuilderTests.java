@@ -24,6 +24,7 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.search.termslookup.TermsLookupFetchService;
 import org.elasticsearch.indices.cache.query.terms.TermsLookup;
@@ -38,7 +39,7 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.*;
 
-public class TermsQueryBuilderTests extends BaseQueryTestCase<TermsQueryBuilder> {
+public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuilder> {
 
     private MockTermsLookupFetchService termsLookupFetchService;
 
@@ -46,6 +47,11 @@ public class TermsQueryBuilderTests extends BaseQueryTestCase<TermsQueryBuilder>
     public void mockTermsLookupFetchService() {
         termsLookupFetchService = new MockTermsLookupFetchService();
         queryParserService().setTermsLookupFetchService(termsLookupFetchService);
+    }
+
+    @Override
+    protected ParseFieldMatcher getDefaultParseFieldMatcher() {
+        return ParseFieldMatcher.EMPTY;
     }
 
     @Override

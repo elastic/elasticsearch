@@ -31,7 +31,7 @@ import java.io.IOException;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
-public class RangeQueryBuilderTests extends BaseQueryTestCase<RangeQueryBuilder> {
+public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuilder> {
 
     @Override
     protected RangeQueryBuilder doCreateTestQueryBuilder() {

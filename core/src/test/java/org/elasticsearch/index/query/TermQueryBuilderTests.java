@@ -30,7 +30,7 @@ import java.io.IOException;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 
-public class TermQueryBuilderTests extends BaseTermQueryTestCase<TermQueryBuilder> {
+public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBuilder> {
 
     /**
      * @return a TermQuery with random field name and value, optional random boost and queryname

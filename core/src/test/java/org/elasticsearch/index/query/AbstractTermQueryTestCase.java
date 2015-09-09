@@ -26,7 +26,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.is;
 
-public abstract class BaseTermQueryTestCase<QB extends BaseTermQueryBuilder<QB>> extends BaseQueryTestCase<QB> {
+public abstract class AbstractTermQueryTestCase<QB extends BaseTermQueryBuilder<QB>> extends AbstractQueryTestCase<QB> {
 
     @Override
     protected final QB doCreateTestQueryBuilder() {

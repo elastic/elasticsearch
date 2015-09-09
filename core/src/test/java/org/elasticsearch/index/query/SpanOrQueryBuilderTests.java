@@ -30,7 +30,7 @@ import java.util.Iterator;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 
-public class SpanOrQueryBuilderTests extends BaseQueryTestCase<SpanOrQueryBuilder> {
+public class SpanOrQueryBuilderTests extends AbstractQueryTestCase<SpanOrQueryBuilder> {
 
     @Override
     protected SpanOrQueryBuilder doCreateTestQueryBuilder() {

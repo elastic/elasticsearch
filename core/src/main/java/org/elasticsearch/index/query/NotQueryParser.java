@@ -30,7 +30,7 @@ import java.io.IOException;
  */
 public class NotQueryParser extends BaseQueryParser<NotQueryBuilder> {
 
-    private static final ParseField QUERY_FIELD = new ParseField("filter", "query");
+    private static final ParseField QUERY_FIELD = new ParseField("query", "filter");
 
     @Inject
     public NotQueryParser() {

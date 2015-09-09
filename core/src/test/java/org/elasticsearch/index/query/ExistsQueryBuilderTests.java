@@ -32,7 +32,7 @@ import java.util.Collection;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 
-public class ExistsQueryBuilderTests extends BaseQueryTestCase<ExistsQueryBuilder> {
+public class ExistsQueryBuilderTests extends AbstractQueryTestCase<ExistsQueryBuilder> {
 
     @Override
     protected ExistsQueryBuilder doCreateTestQueryBuilder() {

@@ -32,7 +32,7 @@ import java.util.*;
 
 import static org.hamcrest.Matchers.*;
 
-public class SimpleQueryStringBuilderTests extends BaseQueryTestCase<SimpleQueryStringBuilder> {
+public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQueryStringBuilder> {
 
     @Override
     protected SimpleQueryStringBuilder doCreateTestQueryBuilder() {

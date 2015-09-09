@@ -30,7 +30,7 @@ import java.util.*;
 import static org.hamcrest.CoreMatchers.*;
 
 @SuppressWarnings("deprecation")
-public class AndQueryBuilderTests extends BaseQueryTestCase<AndQueryBuilder> {
+public class AndQueryBuilderTests extends AbstractQueryTestCase<AndQueryBuilder> {
 
     /**
      * @return a AndQueryBuilder with random limit between 0 and 20

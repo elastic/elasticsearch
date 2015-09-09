@@ -30,7 +30,7 @@ import java.io.IOException;
 import static org.elasticsearch.index.query.QueryBuilders.spanTermQuery;
 import static org.hamcrest.CoreMatchers.instanceOf;
 
-public class SpanFirstQueryBuilderTests extends BaseQueryTestCase<SpanFirstQueryBuilder> {
+public class SpanFirstQueryBuilderTests extends AbstractQueryTestCase<SpanFirstQueryBuilder> {
 
     @Override
     protected SpanFirstQueryBuilder doCreateTestQueryBuilder() {

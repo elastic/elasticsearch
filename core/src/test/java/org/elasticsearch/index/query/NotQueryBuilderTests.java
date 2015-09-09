@@ -31,7 +31,7 @@ import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.*;
 
-public class NotQueryBuilderTests extends BaseQueryTestCase<NotQueryBuilder> {
+public class NotQueryBuilderTests extends AbstractQueryTestCase<NotQueryBuilder> {
 
     /**
      * @return a NotQueryBuilder with random limit between 0 and 20

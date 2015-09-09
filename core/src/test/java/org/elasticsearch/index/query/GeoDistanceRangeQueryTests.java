@@ -34,7 +34,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class GeoDistanceRangeQueryTests extends BaseQueryTestCase<GeoDistanceRangeQueryBuilder> {
+public class GeoDistanceRangeQueryTests extends AbstractQueryTestCase<GeoDistanceRangeQueryBuilder> {
 
     @Override
     protected GeoDistanceRangeQueryBuilder doCreateTestQueryBuilder() {

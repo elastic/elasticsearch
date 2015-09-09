@@ -29,7 +29,7 @@ import java.io.IOException;
 
 import static org.hamcrest.Matchers.*;
 
-public class TypeQueryBuilderTests extends BaseQueryTestCase<TypeQueryBuilder> {
+public class TypeQueryBuilderTests extends AbstractQueryTestCase<TypeQueryBuilder> {
 
     @Override
     protected TypeQueryBuilder doCreateTestQueryBuilder() {

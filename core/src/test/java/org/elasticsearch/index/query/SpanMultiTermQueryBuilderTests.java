@@ -29,7 +29,7 @@ import java.io.IOException;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 
-public class SpanMultiTermQueryBuilderTests extends BaseQueryTestCase<SpanMultiTermQueryBuilder> {
+public class SpanMultiTermQueryBuilderTests extends AbstractQueryTestCase<SpanMultiTermQueryBuilder> {
 
     @Override
     protected SpanMultiTermQueryBuilder doCreateTestQueryBuilder() {

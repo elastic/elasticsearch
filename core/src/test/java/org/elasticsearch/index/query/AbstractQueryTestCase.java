@@ -89,7 +89,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public abstract class BaseQueryTestCase<QB extends AbstractQueryBuilder<QB>> extends ESTestCase { // TODO rename this AbstractQueryTestCase
+public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>> extends ESTestCase {
 
     private static final GeohashGenerator geohashGenerator = new GeohashGenerator();
     protected static final String STRING_FIELD_NAME = "mapped_string";
@@ -126,6 +126,8 @@ public abstract class BaseQueryTestCase<QB extends AbstractQueryBuilder<QB>> ext
 
     private static NamedWriteableRegistry namedWriteableRegistry;
 
+    private static String[] randomTypes;
+
     /**
      * Setup for the whole base test class.
      * @throws IOException
@@ -135,7 +137,7 @@ public abstract class BaseQueryTestCase<QB extends AbstractQueryBuilder<QB>> ext
         // we have to prefer CURRENT since with the range of versions we support it's rather unlikely to get the current actually.
         Version version = randomBoolean() ? Version.CURRENT : VersionUtils.randomVersionBetween(random(), Version.V_2_0_0_beta1, Version.CURRENT);
         Settings settings = Settings.settingsBuilder()
-                .put("name", BaseQueryTestCase.class.toString())
+                .put("name", AbstractQueryTestCase.class.toString())
                 .put("path.home", createTempDir())
                 .build();
         Settings indexSettings = Settings.settingsBuilder()
@@ -203,19 +205,13 @@ public abstract class BaseQueryTestCase<QB extends AbstractQueryBuilder<QB>> ext
         queryParserService = null;
         currentTypes = null;
         namedWriteableRegistry = null;
+        randomTypes = null;
     }
 
     @Before
     public void beforeTest() {
         //set some random types to be queried as part the search request, before each test
-        String[] types = getRandomTypes();
-        //some query (e.g. range query) have a different behaviour depending on whether the current search context is set or not
-        //which is why we randomly set the search context, which will internally also do QueryParseContext.setTypes(types)
-        if (randomBoolean()) {
-            QueryShardContext.setTypes(types);
-        } else {
-           setSearchContext(types); // TODO should this be set after we parsed and before we build the query? it makes more sense?
-        }
+        randomTypes = getRandomTypes();
     }
 
     protected void setSearchContext(String[] types) {
@@ -258,7 +254,7 @@ public abstract class BaseQueryTestCase<QB extends AbstractQueryBuilder<QB>> ext
         QB testQuery = createTestQueryBuilder();
         assertParsedQuery(testQuery.toString(), testQuery);
         for (Map.Entry<String, QB> alternateVersion : getAlternateVersions().entrySet()) {
-            assertParsedQuery(alternateVersion.getKey(), alternateVersion.getValue());
+            assertParsedQuery(alternateVersion.getKey(), alternateVersion.getValue(), ParseFieldMatcher.EMPTY);
         }
     }
 
@@ -274,19 +270,36 @@ public abstract class BaseQueryTestCase<QB extends AbstractQueryBuilder<QB>> ext
      * Parses the query provided as string argument and compares it with the expected result provided as argument as a {@link QueryBuilder}
      */
     protected void assertParsedQuery(String queryAsString, QueryBuilder<?> expectedQuery) throws IOException {
-        QueryBuilder<?> newQuery = parseQuery(queryAsString);
+        assertParsedQuery(queryAsString, expectedQuery, getDefaultParseFieldMatcher());
+    }
+
+    protected void assertParsedQuery(String queryAsString, QueryBuilder<?> expectedQuery, ParseFieldMatcher matcher) throws IOException {
+        QueryBuilder<?> newQuery = parseQuery(queryAsString, matcher);
         assertNotSame(newQuery, expectedQuery);
         assertEquals(expectedQuery, newQuery);
         assertEquals(expectedQuery.hashCode(), newQuery.hashCode());
     }
 
     protected QueryBuilder<?> parseQuery(String queryAsString) throws IOException {
+        return parseQuery(queryAsString, getDefaultParseFieldMatcher());
+    }
+
+    protected QueryBuilder<?> parseQuery(String queryAsString, ParseFieldMatcher matcher) throws IOException {
         XContentParser parser = XContentFactory.xContent(queryAsString).createParser(queryAsString);
         QueryParseContext context = createParseContext();
         context.reset(parser);
-        // TODO this should set context.parseFieldMatcher(ParseFieldMatcher.STRICT);
-        // all our builders should only create non-deprecated XContent.
+        context.parseFieldMatcher(matcher);
         return context.parseInnerQueryBuilder();
+    }
+
+    /**
+     * Returns the default {@link ParseFieldMatcher} used for parsing non-alternative XContent representations.
+     * The default is {@link ParseFieldMatcher#STRICT}.
+     * Note: Queries returned from {@link #getAlternateVersions()} are always parsed with {@link ParseFieldMatcher#EMPTY} as they might
+     * not be backwards compatible.
+     */
+    protected ParseFieldMatcher getDefaultParseFieldMatcher() {
+        return ParseFieldMatcher.STRICT;
     }
 
     /**
@@ -299,22 +312,30 @@ public abstract class BaseQueryTestCase<QB extends AbstractQueryBuilder<QB>> ext
         context.setAllowUnmappedFields(true);
 
         QB firstQuery = createTestQueryBuilder();
+        setSearchContext(randomTypes); // only set search context for toQuery to be more realistic
         Query firstLuceneQuery = firstQuery.toQuery(context);
         assertLuceneQuery(firstQuery, firstLuceneQuery, context);
+        SearchContext.removeCurrent(); // remove after assertLuceneQuery since the assertLuceneQuery impl might access the context as well
+
 
         QB secondQuery = copyQuery(firstQuery);
         //query _name never should affect the result of toQuery, we randomly set it to make sure
         if (randomBoolean()) {
             secondQuery.queryName(secondQuery.queryName() == null ? randomAsciiOfLengthBetween(1, 30) : secondQuery.queryName() + randomAsciiOfLengthBetween(1, 10));
         }
+        setSearchContext(randomTypes); // only set search context for toQuery to be more realistic
         Query secondLuceneQuery = secondQuery.toQuery(context);
         assertLuceneQuery(secondQuery, secondLuceneQuery, context);
+        SearchContext.removeCurrent(); // remove after assertLuceneQuery since the assertLuceneQuery impl might access the context as well
+
         assertThat("two equivalent query builders lead to different lucene queries", secondLuceneQuery, equalTo(firstLuceneQuery));
 
         //if the initial lucene query is null, changing its boost won't have any effect, we shouldn't test that
         if (firstLuceneQuery != null && supportsBoostAndQueryName()) {
             secondQuery.boost(firstQuery.boost() + 1f + randomFloat());
+            setSearchContext(randomTypes); // only set search context for toQuery to be more realistic
             Query thirdLuceneQuery = secondQuery.toQuery(context);
+            SearchContext.removeCurrent();
             assertThat("modifying the boost doesn't affect the corresponding lucene query", firstLuceneQuery, not(equalTo(thirdLuceneQuery)));
         }
     }
@@ -451,9 +472,9 @@ public abstract class BaseQueryTestCase<QB extends AbstractQueryBuilder<QB>> ext
     }
 
     /**
-     * create a random value for either {@link BaseQueryTestCase#BOOLEAN_FIELD_NAME}, {@link BaseQueryTestCase#INT_FIELD_NAME},
-     * {@link BaseQueryTestCase#DOUBLE_FIELD_NAME}, {@link BaseQueryTestCase#STRING_FIELD_NAME} or
-     * {@link BaseQueryTestCase#DATE_FIELD_NAME}, or a String value by default
+     * create a random value for either {@link AbstractQueryTestCase#BOOLEAN_FIELD_NAME}, {@link AbstractQueryTestCase#INT_FIELD_NAME},
+     * {@link AbstractQueryTestCase#DOUBLE_FIELD_NAME}, {@link AbstractQueryTestCase#STRING_FIELD_NAME} or
+     * {@link AbstractQueryTestCase#DATE_FIELD_NAME}, or a String value by default
      */
     protected static Object getRandomValueForFieldName(String fieldName) {
         Object value;

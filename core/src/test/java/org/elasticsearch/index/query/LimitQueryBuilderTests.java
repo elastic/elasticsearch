@@ -26,7 +26,7 @@ import java.io.IOException;
 
 import static org.hamcrest.CoreMatchers.instanceOf;
 
-public class LimitQueryBuilderTests extends BaseQueryTestCase<LimitQueryBuilder> {
+public class LimitQueryBuilderTests extends AbstractQueryTestCase<LimitQueryBuilder> {
 
     /**
      * @return a LimitQueryBuilder with random limit between 0 and 20

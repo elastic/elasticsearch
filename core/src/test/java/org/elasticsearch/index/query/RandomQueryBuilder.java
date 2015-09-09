@@ -62,7 +62,7 @@ public class RandomQueryBuilder {
         // for now, only use String Rangequeries for MultiTerm test, numeric and date makes little sense
         // see issue #12123 for discussion
         // Prefix / Fuzzy / RegEx / Wildcard can go here later once refactored and they have random query generators
-        RangeQueryBuilder query = new RangeQueryBuilder(BaseQueryTestCase.STRING_FIELD_NAME);
+        RangeQueryBuilder query = new RangeQueryBuilder(AbstractQueryTestCase.STRING_FIELD_NAME);
         query.from("a" + RandomStrings.randomAsciiOfLengthBetween(r, 1, 10));
         query.to("z" + RandomStrings.randomAsciiOfLengthBetween(r, 1, 10));
         return query;

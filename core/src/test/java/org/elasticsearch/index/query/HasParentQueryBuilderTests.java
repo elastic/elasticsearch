@@ -40,7 +40,7 @@ import java.util.Arrays;
 
 import static org.hamcrest.CoreMatchers.instanceOf;
 
-public class HasParentQueryBuilderTests extends BaseQueryTestCase<HasParentQueryBuilder> {
+public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQueryBuilder> {
     protected static final String PARENT_TYPE = "parent";
     protected static final String CHILD_TYPE = "child";
 
@@ -105,7 +105,7 @@ public class HasParentQueryBuilderTests extends BaseQueryTestCase<HasParentQuery
         InnerHitsBuilder.InnerHit innerHit = new InnerHitsBuilder.InnerHit().setSize(100).addSort(STRING_FIELD_NAME, SortOrder.ASC);
         return new HasParentQueryBuilder(PARENT_TYPE,
                 RandomQueryBuilder.createQuery(random()),randomBoolean(),
-                SearchContext.current() == null ? null : new QueryInnerHits("inner_hits_name", innerHit));
+                randomBoolean() ? null : new QueryInnerHits("inner_hits_name", innerHit));
     }
 
     @Override

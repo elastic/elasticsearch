@@ -46,6 +46,13 @@ public abstract class ModuleTestCase extends ESTestCase {
                     return;
                 }
             }
+            if (element instanceof UntargettedBinding) {
+                UntargettedBinding binding = (UntargettedBinding) element;
+                if (to.equals(binding.getKey().getTypeLiteral().getType())) {
+                    assertSame(clazz, to);
+                    return;
+                }
+            }
         }
         StringBuilder s = new StringBuilder();
         for (Element element : elements) {

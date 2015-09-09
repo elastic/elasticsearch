@@ -20,10 +20,10 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.XGeoHashUtils;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.inject.Inject;
@@ -31,9 +31,7 @@ import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
 
 import java.io.IOException;
@@ -126,7 +124,7 @@ public class GeohashCellQuery {
         }
 
         public Builder point(double lat, double lon) {
-            this.geohash = GeoHashUtils.encode(lat, lon);
+            this.geohash = XGeoHashUtils.stringEncode(lon, lat);
             return this;
         }
 
@@ -258,7 +256,7 @@ public class GeohashCellQuery {
 
             Query filter;
             if (neighbors) {
-                filter = create(parseContext, geoFieldType, geohash, GeoHashUtils.addNeighbors(geohash, new ArrayList<CharSequence>(8)));
+                filter = create(parseContext, geoFieldType, geohash, XGeoHashUtils.addNeighbors(geohash, new ArrayList<CharSequence>(8)));
             } else {
                 filter = create(parseContext, geoFieldType, geohash, null);
             }

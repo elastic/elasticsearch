@@ -20,8 +20,8 @@
 package org.elasticsearch.index.search.geo;
 
 
+import org.apache.lucene.util.XGeoHashUtils;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -54,7 +54,7 @@ public class GeoPointParsingTests  extends ESTestCase {
         assertCloseTo(point.resetLat(0), 0, 0);
         assertCloseTo(point.resetLon(lon), 0, lon);
         assertCloseTo(point.resetLon(0), 0, 0);
-        assertCloseTo(point.resetFromGeoHash(GeoHashUtils.encode(lat, lon)), lat, lon);
+        assertCloseTo(point.resetFromGeoHash(XGeoHashUtils.stringEncode(lon, lat)), lat, lon);
         assertCloseTo(point.reset(0, 0), 0, 0);
         assertCloseTo(point.resetFromString(Double.toString(lat) + ", " + Double.toHexString(lon)), lat, lon);
         assertCloseTo(point.reset(0, 0), 0, 0);
@@ -98,7 +98,7 @@ public class GeoPointParsingTests  extends ESTestCase {
     public void testInvalidPointLatHashMix() throws IOException {
         XContentBuilder content = JsonXContent.contentBuilder();
         content.startObject();
-        content.field("lat", 0).field("geohash", GeoHashUtils.encode(0, 0));
+        content.field("lat", 0).field("geohash", XGeoHashUtils.stringEncode(0, 0));
         content.endObject();
 
         XContentParser parser = JsonXContent.jsonXContent.createParser(content.bytes());
@@ -111,7 +111,7 @@ public class GeoPointParsingTests  extends ESTestCase {
     public void testInvalidPointLonHashMix() throws IOException {
         XContentBuilder content = JsonXContent.contentBuilder();
         content.startObject();
-        content.field("lon", 0).field("geohash", GeoHashUtils.encode(0, 0));
+        content.field("lon", 0).field("geohash", XGeoHashUtils.stringEncode(0, 0));
         content.endObject();
 
         XContentParser parser = JsonXContent.jsonXContent.createParser(content.bytes());
@@ -161,7 +161,7 @@ public class GeoPointParsingTests  extends ESTestCase {
 
     private static XContentParser geohash(double lat, double lon) throws IOException {
         XContentBuilder content = JsonXContent.contentBuilder();
-        content.value(GeoHashUtils.encode(lat, lon));
+        content.value(XGeoHashUtils.stringEncode(lon, lat));
         XContentParser parser = JsonXContent.jsonXContent.createParser(content.bytes());
         parser.nextToken();
         return parser;

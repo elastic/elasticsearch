@@ -20,11 +20,11 @@ package org.elasticsearch.search.suggest;
 
 import com.google.common.collect.Sets;
 
+import org.apache.lucene.util.XGeoHashUtils;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.suggest.SuggestRequest;
 import org.elasticsearch.action.suggest.SuggestRequestBuilder;
 import org.elasticsearch.action.suggest.SuggestResponse;
-import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -581,7 +581,7 @@ public class ContextSuggestSearchIT extends ESIntegTestCase {
 
     @Test // issue 5525, default location didnt work with lat/lon map, and did not set default location appropriately
     public void testGeoContextDefaultMapping() throws Exception {
-        GeoPoint berlinAlexanderplatz = GeoHashUtils.decode("u33dc1");
+        GeoPoint berlinAlexanderplatz = GeoPoint.fromGeohash("u33dc1");
 
         XContentBuilder xContentBuilder = jsonBuilder().startObject()
             .startObject("poi").startObject("properties").startObject("suggest")
@@ -728,10 +728,10 @@ public class ContextSuggestSearchIT extends ESIntegTestCase {
 
         // lets create some locations by geohashes in different cells with the precision 4
         // this means, that poelchaustr is not a neighour to alexanderplatz, but they share the same prefix until the fourth char!
-        GeoPoint alexanderplatz = GeoHashUtils.decode("u33dc1");
-        GeoPoint poelchaustr = GeoHashUtils.decode("u33du5");
-        GeoPoint dahlem = GeoHashUtils.decode("u336q"); // berlin dahlem, should be included with that precision
-        GeoPoint middleOfNoWhere = GeoHashUtils.decode("u334"); // location for west from berlin, should not be included in any suggestions
+        GeoPoint alexanderplatz = GeoPoint.fromGeohash("u33dc1");
+        GeoPoint poelchaustr = GeoPoint.fromGeohash("u33du5");
+        GeoPoint dahlem = GeoPoint.fromGeohash("u336q"); // berlin dahlem, should be included with that precision
+        GeoPoint middleOfNoWhere = GeoPoint.fromGeohash("u334"); // location for west from berlin, should not be included in any suggestions
 
         index(INDEX, "item", "1", jsonBuilder().startObject().startObject("suggest").field("input", "Berlin Alexanderplatz").field("weight", 3).startObject("context").startObject("location").field("lat", alexanderplatz.lat()).field("lon", alexanderplatz.lon()).endObject().endObject().endObject().endObject());
         index(INDEX, "item", "2", jsonBuilder().startObject().startObject("suggest").field("input", "Berlin Poelchaustr.").field("weight", 2).startObject("context").startObject("location").field("lat", poelchaustr.lat()).field("lon", poelchaustr.lon()).endObject().endObject().endObject().endObject());
@@ -760,10 +760,10 @@ public class ContextSuggestSearchIT extends ESIntegTestCase {
         assertAcked(prepareCreate(INDEX).addMapping("item", xContentBuilder));
         ensureYellow();
 
-        GeoPoint alexanderplatz = GeoHashUtils.decode("u33dc1");
+        GeoPoint alexanderplatz = GeoPoint.fromGeohash("u33dc1");
         // does not look like it, but is a direct neighbor
         // this test would fail, if the precision was set 4, as then both cells would be the same, u33d
-        GeoPoint cellNeighbourOfAlexanderplatz = GeoHashUtils.decode("u33dbc");
+        GeoPoint cellNeighbourOfAlexanderplatz = GeoPoint.fromGeohash("u33dbc");
 
         index(INDEX, "item", "1", jsonBuilder().startObject().startObject("suggest").field("input", "Berlin Alexanderplatz").field("weight", 3).startObject("context").startObject("location").field("lat", alexanderplatz.lat()).field("lon", alexanderplatz.lon()).endObject().endObject().endObject().endObject());
         index(INDEX, "item", "2", jsonBuilder().startObject().startObject("suggest").field("input", "Berlin Hackescher Markt").field("weight", 2).startObject("context").startObject("location").field("lat", cellNeighbourOfAlexanderplatz.lat()).field("lon", cellNeighbourOfAlexanderplatz.lon()).endObject().endObject().endObject().endObject());
@@ -790,7 +790,7 @@ public class ContextSuggestSearchIT extends ESIntegTestCase {
         assertAcked(prepareCreate(INDEX).addMapping("item", xContentBuilder));
         ensureYellow();
 
-        GeoPoint alexanderplatz = GeoHashUtils.decode("u33dc1");
+        GeoPoint alexanderplatz = GeoPoint.fromGeohash("u33dc1");
         index(INDEX, "item", "1", jsonBuilder().startObject().startObject("suggest").field("input", "Berlin Alexanderplatz").endObject().startObject("loc").field("lat", alexanderplatz.lat()).field("lon", alexanderplatz.lon()).endObject().endObject());
         refresh();
 
@@ -830,7 +830,7 @@ public class ContextSuggestSearchIT extends ESIntegTestCase {
 
         double latitude = 52.22;
         double longitude = 4.53;
-        String geohash = GeoHashUtils.encode(latitude, longitude);
+        String geohash = XGeoHashUtils.stringEncode(longitude, latitude);
 
         XContentBuilder doc1 = jsonBuilder().startObject().startObject("suggest_geo").field("input", "Hotel Marriot in Amsterdam").startObject("context").startObject("location").field("lat", latitude).field("lon", longitude).endObject().endObject().endObject().endObject();
         index("test", "test", "1", doc1);

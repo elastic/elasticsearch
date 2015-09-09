@@ -15,7 +15,7 @@ To use the transport client with Shield, you need to:
 `transport_client` role is defined in `roles.yml` that grants the `cluster:monitor/nodes/info` cluster permission. The transport client uses the node info API to fetch information about the nodes in the cluster. If the client is configured to use sniffing, you need to add the
 `cluster:monitor/state` cluster permission to the `transport_client` role.
 
-. Add the Shield JAR file (`shield-2.1.0.jar`) to your CLASSPATH. You can download the Shield distribution and extract the JAR file manually or you can get it from the http://maven.elasticsearch.org/releases/org/elasticsearch/plugin/shield/{version}/shield-{version}.jar[Elasticsearch Maven repository].
+. Add the Shield JAR file (`shield-2.1.0.jar`) to your CLASSPATH. You can download the Shield distribution and extract the JAR file manually or you can get it from the https://maven.elasticsearch.org/releases/org/elasticsearch/plugin/shield/{version}/shield-{version}.jar[Elasticsearch Maven repository].
 +
 If you are using Maven, you need to add the Shield JAR file as a dependency in your project's `pom.xml` file:
 +
@@ -27,7 +27,7 @@ If you are using Maven, you need to add the Shield JAR file as a dependency in y
       <!-- add the elasticsearch repo -->
       <repository>
          <id>elasticsearch-releases</id>
-         <url>http://maven.elasticsearch.org/releases</url>
+         <url>https://maven.elasticsearch.org/releases</url>
          <releases>
             <enabled>true</enabled>
          </releases>
@@ -62,7 +62,7 @@ repositories {
 
   // Add the Elasticsearch Maven Repository
   maven {
-    url "http://maven.elasticsearch.org/releases"
+    url "https://maven.elasticsearch.org/releases"
   }
 }
 

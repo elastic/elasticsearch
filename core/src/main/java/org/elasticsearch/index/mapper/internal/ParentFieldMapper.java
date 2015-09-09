@@ -117,12 +117,6 @@ public class ParentFieldMapper extends MetadataFieldMapper {
             parentJoinFieldType.setNames(new MappedFieldType.Names(joinField(documentType)));
             parentJoinFieldType.setFieldDataType(null);
             childJoinFieldType.setNames(new MappedFieldType.Names(joinField(parentType)));
-            if (context.indexCreatedVersion().before(Version.V_2_0_0_beta1)) {
-                childJoinFieldType.setHasDocValues(false);
-                childJoinFieldType.setDocValuesType(DocValuesType.NONE);
-                parentJoinFieldType.setHasDocValues(false);
-                parentJoinFieldType.setDocValuesType(DocValuesType.NONE);
-            }
             return new ParentFieldMapper(fieldType, parentJoinFieldType, childJoinFieldType, parentType, context.indexSettings());
         }
     }
@@ -265,12 +259,6 @@ public class ParentFieldMapper extends MetadataFieldMapper {
     private static MappedFieldType joinFieldTypeForParentType(String parentType, Settings indexSettings) {
         MappedFieldType parentJoinFieldType = Defaults.JOIN_FIELD_TYPE.clone();
         parentJoinFieldType.setNames(new MappedFieldType.Names(joinField(parentType)));
-
-        Version indexCreated = Version.indexCreated(indexSettings);
-        if (indexCreated.before(Version.V_2_0_0_beta1)) {
-            parentJoinFieldType.setHasDocValues(false);
-            parentJoinFieldType.setDocValuesType(DocValuesType.NONE);
-        }
         parentJoinFieldType.freeze();
         return parentJoinFieldType;
     }

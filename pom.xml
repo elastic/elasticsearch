@@ -45,7 +45,7 @@
 
         <!-- libraries -->
         <lucene.version>5.4.0</lucene.version>
-        <lucene.snapshot.revision>1701068</lucene.snapshot.revision>
+        <lucene.snapshot.revision>1702265</lucene.snapshot.revision>
         <lucene.maven.version>5.4.0-snapshot-${lucene.snapshot.revision}</lucene.maven.version>
         <testframework.version>2.1.16</testframework.version>
         <jackson.version>2.5.3</jackson.version>

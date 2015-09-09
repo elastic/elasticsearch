@@ -209,8 +209,9 @@ public class HasChildQueryParser implements QueryParser {
 
         @Override
         public Query rewrite(IndexReader reader) throws IOException {
-            IndexSearcher indexSearcher = new IndexSearcher(reader);
-            indexSearcher.setQueryCache(null);
+            if (getBoost() != 1.0F) {
+                return super.rewrite(reader);
+            }
             String joinField = ParentFieldMapper.joinField(parentType);
             IndexParentChildFieldData indexParentChildFieldData = parentChildIndexFieldData.loadGlobal(indexSearcher.getIndexReader());
             MultiDocValues.OrdinalMap ordinalMap = ParentChildIndexFieldData.getOrdinalMap(indexParentChildFieldData, parentType);

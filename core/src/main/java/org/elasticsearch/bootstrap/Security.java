@@ -121,8 +121,8 @@ final class Security {
     private static final Map<Pattern,String> SPECIAL_JARS;
     static {
         Map<Pattern,String> m = new IdentityHashMap<>();
-        m.put(Pattern.compile(".*lucene-core-.*\\.jar$"),    "es.security.jar.lucene.core");
-        m.put(Pattern.compile(".*securemock-.*\\.jar$"),     "es.security.jar.elasticsearch.securemock");
+        m.put(Pattern.compile(".*lucene-core-.*\\.jar$"),              "es.security.jar.lucene.core");
+        m.put(Pattern.compile(".*securemock-.*\\.jar$"),               "es.security.jar.elasticsearch.securemock");
         SPECIAL_JARS = Collections.unmodifiableMap(m);
     }
 

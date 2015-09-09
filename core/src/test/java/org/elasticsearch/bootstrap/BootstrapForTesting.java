@@ -115,7 +115,7 @@ public class BootstrapForTesting {
                     perms.add(new FilePermission(coverageDir.resolve("jacoco-it.exec").toString(), "read,write"));
                 }
                 Policy.setPolicy(new ESPolicy(perms));
-                System.setSecurityManager(new XTestSecurityManager());
+                System.setSecurityManager(new TestSecurityManager());
                 Security.selfTest();
             } catch (Exception e) {
                 throw new RuntimeException("unable to install test security manager", e);

@@ -198,25 +198,30 @@ public class SimpleIndexQueryParserTests extends ESSingleNodeTestCase {
     public void testQueryStringBoostsBuilder() throws Exception {
         IndexQueryParserService queryParser = queryParser();
         QueryStringQueryBuilder builder = queryStringQuery("field:boosted^2");
+        Query expected = new BoostQuery(new TermQuery(new Term("field", "boosted")), 2);
         Query parsedQuery = queryParser.parse(builder).query();
-        assertThat(parsedQuery, instanceOf(TermQuery.class));
-        assertThat(((TermQuery) parsedQuery).getTerm(), equalTo(new Term("field", "boosted")));
-        assertThat(parsedQuery.getBoost(), equalTo(2.0f));
+        assertEquals(expected, parsedQuery);
+
         builder.boost(2.0f);
+        expected = new BoostQuery(new TermQuery(new Term("field", "boosted")), 4);
         parsedQuery = queryParser.parse(builder).query();
-        assertThat(parsedQuery.getBoost(), equalTo(4.0f));
+        assertEquals(expected, parsedQuery);
 
         builder = queryStringQuery("((field:boosted^2) AND (field:foo^1.5))^3");
+        expected = new BoostQuery(new BooleanQuery.Builder()
+            .add(new BoostQuery(new TermQuery(new Term("field", "boosted")), 2), Occur.MUST)
+            .add(new BoostQuery(new TermQuery(new Term("field", "foo")), 1.5f), Occur.MUST)
+            .build(), 3);
         parsedQuery = queryParser.parse(builder).query();
-        assertThat(parsedQuery, instanceOf(BooleanQuery.class));
-        assertThat(assertBooleanSubQuery(parsedQuery, TermQuery.class, 0).getTerm(), equalTo(new Term("field", "boosted")));
-        assertThat(assertBooleanSubQuery(parsedQuery, TermQuery.class, 0).getBoost(), equalTo(2.0f));
-        assertThat(assertBooleanSubQuery(parsedQuery, TermQuery.class, 1).getTerm(), equalTo(new Term("field", "foo")));
-        assertThat(assertBooleanSubQuery(parsedQuery, TermQuery.class, 1).getBoost(), equalTo(1.5f));
-        assertThat(parsedQuery.getBoost(), equalTo(3.0f));
+        assertEquals(expected, parsedQuery);
+
         builder.boost(2.0f);
+        expected = new BoostQuery(new BooleanQuery.Builder()
+            .add(new BoostQuery(new TermQuery(new Term("field", "boosted")), 2), Occur.MUST)
+            .add(new BoostQuery(new TermQuery(new Term("field", "foo")), 1.5f), Occur.MUST)
+            .build(), 6);
         parsedQuery = queryParser.parse(builder).query();
-        assertThat(parsedQuery.getBoost(), equalTo(6.0f));
+        assertEquals(expected, parsedQuery);
     }
 
     @Test
@@ -1947,10 +1952,8 @@ public class SimpleIndexQueryParserTests extends ESSingleNodeTestCase {
 
             BooleanQuery.Builder expected = new BooleanQuery.Builder();
             expected.add(new TermQuery(new Term("foobar", "banon")), Occur.SHOULD);
-            TermQuery tq1 = new TermQuery(new Term("name.first", "banon"));
-            tq1.setBoost(2);
-            TermQuery tq2 = new TermQuery(new Term("name.last", "banon"));
-            tq2.setBoost(3);
+            Query tq1 = new BoostQuery(new TermQuery(new Term("name.first", "banon")), 2);
+            Query tq2 = new BoostQuery(new TermQuery(new Term("name.last", "banon")), 3);
             expected.add(new DisjunctionMaxQuery(Arrays.<Query>asList(tq1, tq2), 0f), Occur.SHOULD);
             assertEquals(expected.build(), rewrittenQuery);
         }

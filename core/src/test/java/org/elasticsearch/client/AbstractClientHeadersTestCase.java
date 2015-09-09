@@ -19,8 +19,8 @@
 
 package org.elasticsearch.client;
 
-import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableMap;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.GenericAction;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteAction;
@@ -59,7 +59,9 @@ import org.junit.Test;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  *
@@ -228,7 +230,7 @@ public abstract class AbstractClientHeadersTestCase extends ESTestCase {
                 }
                 if (counter++ > 10) {
                     // dear god, if we got more than 10 levels down, WTF? just bail
-                    fail("Exception cause unwrapping ran for 10 levels: " + Throwables.getStackTraceAsString(t));
+                    fail("Exception cause unwrapping ran for 10 levels: " + ExceptionsHelper.stackTrace(t));
                     return null;
                 }
                 result = result.getCause();

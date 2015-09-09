@@ -25,6 +25,7 @@
         <elasticsearch.plugin.isolated>false</elasticsearch.plugin.isolated>
         <!-- TODO: refactor -->
         <elasticsearch.integ.antfile>${basedir}/dev-tools/integration-tests.xml</elasticsearch.integ.antfile>
+        <xlint.options>-Xlint:-deprecation,-rawtypes,-serial,-try,-unchecked</xlint.options>
     </properties>
 
     <dependencies>

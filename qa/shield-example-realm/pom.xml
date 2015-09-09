@@ -18,6 +18,7 @@
         <elasticsearch.plugin.isolated>false</elasticsearch.plugin.isolated>
         <elasticsearch.integ.antfile>${project.basedir}/integration-tests.xml</elasticsearch.integ.antfile>
         <xplugins.list>license,shield,shield-example-realm</xplugins.list>
+        <xlint.options>-Xlint:-rawtypes</xlint.options>
     </properties>
 
     <dependencies>

@@ -70,28 +70,28 @@ public class ClusterInfoIT extends AbstractRendererTestCase {
         Map license = (Map) licenses.iterator().next();
         assertThat(license, instanceOf(Map.class));
 
-        String uid = (String) ((Map) license).get(ClusterInfoRenderer.Fields.UID.underscore().toString());
+        String uid = (String) license.get(ClusterInfoRenderer.Fields.UID.underscore().toString());
         assertThat(uid, not(isEmptyOrNullString()));
 
-        String type = (String) ((Map) license).get(ClusterInfoRenderer.Fields.TYPE.underscore().toString());
+        String type = (String) license.get(ClusterInfoRenderer.Fields.TYPE.underscore().toString());
         assertThat(type, not(isEmptyOrNullString()));
 
-        String status = (String) ((Map) license).get(ClusterInfoRenderer.Fields.STATUS.underscore().toString());
+        String status = (String) license.get(ClusterInfoRenderer.Fields.STATUS.underscore().toString());
         assertThat(status, not(isEmptyOrNullString()));
 
-        Long expiryDate = (Long) ((Map) license).get(ClusterInfoRenderer.Fields.EXPIRY_DATE_IN_MILLIS.underscore().toString());
+        Long expiryDate = (Long) license.get(ClusterInfoRenderer.Fields.EXPIRY_DATE_IN_MILLIS.underscore().toString());
         assertThat(expiryDate, greaterThan(0L));
 
         // We basically recompute the hash here
-        String hkey = (String) ((Map) license).get(ClusterInfoRenderer.Fields.HKEY.underscore().toString());
+        String hkey = (String) license.get(ClusterInfoRenderer.Fields.HKEY.underscore().toString());
         String recalculated = ClusterInfoRenderer.hash(status, uid, type, String.valueOf(expiryDate), clusterUUID);
         assertThat(hkey, equalTo(recalculated));
 
-        assertThat((String) ((Map) license).get(ClusterInfoRenderer.Fields.FEATURE.underscore().toString()), not(isEmptyOrNullString()));
-        assertThat((String) ((Map) license).get(ClusterInfoRenderer.Fields.ISSUER.underscore().toString()), not(isEmptyOrNullString()));
-        assertThat((String) ((Map) license).get(ClusterInfoRenderer.Fields.ISSUED_TO.underscore().toString()), not(isEmptyOrNullString()));
-        assertThat((Long) ((Map) license).get(ClusterInfoRenderer.Fields.ISSUE_DATE_IN_MILLIS.underscore().toString()), greaterThan(0L));
-        assertThat((Integer) ((Map) license).get(ClusterInfoRenderer.Fields.MAX_NODES.underscore().toString()), greaterThan(0));
+        assertThat((String) license.get(ClusterInfoRenderer.Fields.FEATURE.underscore().toString()), not(isEmptyOrNullString()));
+        assertThat((String) license.get(ClusterInfoRenderer.Fields.ISSUER.underscore().toString()), not(isEmptyOrNullString()));
+        assertThat((String) license.get(ClusterInfoRenderer.Fields.ISSUED_TO.underscore().toString()), not(isEmptyOrNullString()));
+        assertThat((Long) license.get(ClusterInfoRenderer.Fields.ISSUE_DATE_IN_MILLIS.underscore().toString()), greaterThan(0L));
+        assertThat((Integer) license.get(ClusterInfoRenderer.Fields.MAX_NODES.underscore().toString()), greaterThan(0));
 
         Object clusterStats = source.get(ClusterStatsRenderer.Fields.CLUSTER_STATS.underscore().toString());
         assertNotNull(clusterStats);

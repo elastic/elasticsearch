@@ -237,19 +237,6 @@ public class SortParseElement implements SearchParseElement {
                 sortMode = resolveDefaultSortMode(reverse);
             }
 
-            // TODO: remove this in master, we should be explicit when we want to sort on nested fields and don't do anything automatically
-            if (!(context instanceof SubSearchContext)) {
-                // Only automatically resolve nested path when sort isn't defined for top_hits
-                if (nestedHelper == null || nestedHelper.getNestedObjectMapper() == null) {
-                    ObjectMapper objectMapper = context.mapperService().resolveClosestNestedObjectMapper(fieldName);
-                    if (objectMapper != null && objectMapper.nested().isNested()) {
-                        if (nestedHelper == null) {
-                            nestedHelper = new NestedInnerQueryParseSupport(context.queryParserService().getParseContext());
-                        }
-                        nestedHelper.setPath(objectMapper.fullPath());
-                    }
-                }
-            }
             final Nested nested;
             if (nestedHelper != null && nestedHelper.getPath() != null) {
                 BitSetProducer rootDocumentsFilter = context.bitsetFilterCache().getBitSetProducer(Queries.newNonNestedFilter());

@@ -50,3 +50,9 @@ to using the unlike methods.
 
 MoreLikeThisBuilder#addItem has been deprecated in favor to using
 MoreLikeThisBuilder#addLikeItem.
+
+=== Nested sorting
+
+If sorting on field inside a nested object then the `nested_path` should be specified.
+Before there was an attempt to resolve the nested path automatically, but that was sometimes incorrect.
+To avoid confusion the `nested_path` should always be specified.

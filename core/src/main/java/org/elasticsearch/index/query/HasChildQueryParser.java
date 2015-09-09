@@ -21,14 +21,10 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.MultiDocValues;
-import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.QueryWrapperFilter;
-import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.JoinUtil;
 import org.apache.lucene.search.join.ScoreMode;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
@@ -40,9 +36,6 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.query.support.InnerHitsQueryParserHelper;
 import org.elasticsearch.index.query.support.XContentStructure;
-import org.elasticsearch.index.search.child.ChildrenConstantScoreQuery;
-import org.elasticsearch.index.search.child.ChildrenQuery;
-import org.elasticsearch.index.search.child.ScoreType;
 import org.elasticsearch.search.fetch.innerhits.InnerHitsContext;
 import org.elasticsearch.search.fetch.innerhits.InnerHitsSubSearchContext;
 import org.elasticsearch.search.internal.SearchContext;
@@ -79,7 +72,6 @@ public class HasChildQueryParser implements QueryParser {
         ScoreType scoreType = ScoreType.NONE;
         int minChildren = 0;
         int maxChildren = 0;
-        int shortCircuitParentDocSet = 8192;
         String queryName = null;
         InnerHitsSubSearchContext innerHits = null;
 
@@ -117,8 +109,6 @@ public class HasChildQueryParser implements QueryParser {
                     minChildren = parser.intValue(true);
                 } else if ("max_children".equals(currentFieldName) || "maxChildren".equals(currentFieldName)) {
                     maxChildren = parser.intValue(true);
-                } else if ("short_circuit_cutoff".equals(currentFieldName)) {
-                    shortCircuitParentDocSet = parser.intValue();
                 } else if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
                 } else {
@@ -167,29 +157,12 @@ public class HasChildQueryParser implements QueryParser {
             throw new QueryParsingException(parseContext, "[has_child] 'max_children' is less than 'min_children'");
         }
 
-        BitSetProducer nonNestedDocsFilter = null;
-        if (parentDocMapper.hasNestedObjects()) {
-            nonNestedDocsFilter = parseContext.bitsetFilter(Queries.newNonNestedFilter());
-        }
-
         // wrap the query with type query
         innerQuery = Queries.filtered(innerQuery, childDocMapper.typeFilter());
 
         final Query query;
         final ParentChildIndexFieldData parentChildIndexFieldData = parseContext.getForField(parentFieldMapper.fieldType());
-        if (parseContext.indexVersionCreated().onOrAfter(Version.V_2_0_0_beta1)) {
-            query = joinUtilHelper(parentType, parentChildIndexFieldData, parentDocMapper.typeFilter(), scoreType, innerQuery, minChildren, maxChildren);
-        } else {
-            // TODO: use the query API
-            Filter parentFilter = new QueryWrapperFilter(parentDocMapper.typeFilter());
-            if (minChildren > 1 || maxChildren > 0 || scoreType != ScoreType.NONE) {
-                query = new ChildrenQuery(parentChildIndexFieldData, parentType, childType, parentFilter, innerQuery, scoreType, minChildren,
-                        maxChildren, shortCircuitParentDocSet, nonNestedDocsFilter);
-            } else {
-                query = new ChildrenConstantScoreQuery(parentChildIndexFieldData, innerQuery, parentType, childType, parentFilter,
-                        shortCircuitParentDocSet, nonNestedDocsFilter);
-            }
-        }
+        query = joinUtilHelper(parentType, parentChildIndexFieldData, parentDocMapper.typeFilter(), scoreType, innerQuery, minChildren, maxChildren);
         if (queryName != null) {
             parseContext.addNamedQuery(queryName, query);
         }

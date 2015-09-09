@@ -263,7 +263,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             if (mapper.type().contains(",")) {
                 throw new InvalidTypeNameException("mapping type name [" + mapper.type() + "] should not include ',' in it");
             }
-            if (Version.indexCreated(indexSettings).onOrAfter(Version.V_2_0_0_beta1) && mapper.type().equals(mapper.parentFieldMapper().type())) {
+            if (mapper.type().equals(mapper.parentFieldMapper().type())) {
                 throw new IllegalArgumentException("The [_parent.type] option can't point to the same type");
             }
             if (typeNameStartsWithIllegalDot(mapper)) {

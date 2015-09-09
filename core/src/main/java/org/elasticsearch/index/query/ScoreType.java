@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.index.search.child;
+package org.elasticsearch.index.query;
 
 
 /**

@@ -129,7 +129,7 @@ public class RestoreBackwardsCompatIT extends AbstractSnapshotIntegTestCase {
     }
 
     private Path reposRoot() {
-        return getDataPath(".");
+        return getDataPath("/indices/bwc");
     }
 
     private List<String> repoVersions() throws Exception {
@@ -155,7 +155,7 @@ public class RestoreBackwardsCompatIT extends AbstractSnapshotIntegTestCase {
     }
 
     private void createRepo(String prefix, String version, String repo) throws Exception {
-        String repoFile = prefix + "-" + version + ".zip";
+        String repoFile = "/indices/bwc/" + prefix + "-" + version + ".zip";
         URI repoFileUri = getDataPath(repoFile).toUri();
         URI repoJarUri = new URI("jar:" + repoFileUri.toString() + "!/repo/");
         logger.info("-->  creating repository [{}] for version [{}]", repo, version);

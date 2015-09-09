@@ -123,7 +123,7 @@ public final class InnerHitsContext {
             if (size() == 0) {
                 return new TopDocs(context.searcher().count(q), Lucene.EMPTY_SCORE_DOCS, 0);
             } else {
-                int topN = from() + size();
+                int topN = Math.min(from() + size(), context.searcher().getIndexReader().maxDoc());
                 TopDocsCollector topDocsCollector;
                 if (sort() != null) {
                     try {
@@ -303,7 +303,7 @@ public final class InnerHitsContext {
                 final int count = context.searcher().count(q);
                 return new TopDocs(count, Lucene.EMPTY_SCORE_DOCS, 0);
             } else {
-                int topN = from() + size();
+                int topN = Math.min(from() + size(), context.searcher().getIndexReader().maxDoc());
                 TopDocsCollector topDocsCollector;
                 if (sort() != null) {
                     topDocsCollector = TopFieldCollector.create(sort(), topN, true, trackScores(), trackScores());

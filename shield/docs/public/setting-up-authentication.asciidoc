@@ -13,8 +13,11 @@ _LDAP_::    Authentication via an external Lightweight Directory Protocol. See <
 _Active Directory_::    Authentication via an external Active Directory service. See <<active-directory>>.
 _PKI_:: Authentication through the use of trusted X.509 certificates. See <<pki>>.
 
+The _esusers_, _LDAP_, and _Active Directory_ realms authenticate using the username and password authentication tokens.
 
-NOTE: _esusers_, _LDAP_, and _Active Directory_ realms authenticate using the username and password authentication tokens.
+Shield also supports custom realms. If you need to integrate with another authentication system, you 
+can build a custom realm plugin. For more information, see <<custom-realms, Integrating with Other 
+Authentication Systems>>. 
 
 Realms live within a _realm chain_. It is essentially a prioritized list of configured realms (typically of various types).
 The order of the list determines the order in which the realms will be consulted. During the authentication process,
@@ -103,6 +106,8 @@ include::setting-up-authentication/configuring-ldap-realm.asciidoc[]
 include::setting-up-authentication/configuring-active-directory-realm.asciidoc[]
 
 include::setting-up-authentication/configuring-pki-realm.asciidoc[]
+
+include::setting-up-authentication/integrating-other-auth-systems.asciidoc[]
 
 include::setting-up-authentication/controlling-user-cache.asciidoc[]
 

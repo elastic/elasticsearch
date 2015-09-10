@@ -18,8 +18,7 @@
  */
 package org.elasticsearch.search.suggest;
 
-import com.google.common.collect.Sets;
-
+import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.suggest.SuggestRequest;
 import org.elasticsearch.action.suggest.SuggestRequestBuilder;
@@ -27,6 +26,7 @@ import org.elasticsearch.action.suggest.SuggestResponse;
 import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.search.suggest.Suggest.Suggestion;
@@ -38,15 +38,21 @@ import org.elasticsearch.search.suggest.completion.CompletionSuggestionFuzzyBuil
 import org.elasticsearch.search.suggest.context.ContextBuilder;
 import org.elasticsearch.search.suggest.context.ContextMapping;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSuggestion;
 import static org.elasticsearch.test.hamcrest.ElasticsearchGeoAssertions.assertDistance;
 import static org.hamcrest.Matchers.containsString;
 

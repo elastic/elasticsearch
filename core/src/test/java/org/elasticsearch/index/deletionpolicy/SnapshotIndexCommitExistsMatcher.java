@@ -19,15 +19,13 @@
 
 package org.elasticsearch.index.deletionpolicy;
 
-import com.google.common.collect.Sets;
+import org.elasticsearch.common.util.set.Sets;
 import org.hamcrest.Description;
 import org.hamcrest.Matcher;
 import org.hamcrest.TypeSafeMatcher;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.HashSet;
-import java.util.List;
 
 /**
  *

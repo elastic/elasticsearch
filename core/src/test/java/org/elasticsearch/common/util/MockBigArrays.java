@@ -21,12 +21,12 @@ package org.elasticsearch.common.util;
 
 import com.carrotsearch.randomizedtesting.RandomizedContext;
 import com.carrotsearch.randomizedtesting.SeedUtils;
-import com.google.common.collect.Sets;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.Accountables;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 
@@ -58,7 +58,7 @@ public class MockBigArrays extends BigArrays {
             // not empty, we might be executing on a shared cluster that keeps on obtaining
             // and releasing arrays, lets make sure that after a reasonable timeout, all master
             // copy (snapshot) have been released
-            boolean success = ESTestCase.awaitBusy(() -> Sets.intersection(masterCopy.keySet(), ACQUIRED_ARRAYS.keySet()).isEmpty());
+            boolean success = ESTestCase.awaitBusy(() -> Sets.haveEmptyIntersection(masterCopy.keySet(), ACQUIRED_ARRAYS.keySet()));
             if (!success) {
                 masterCopy.keySet().retainAll(ACQUIRED_ARRAYS.keySet());
                 ACQUIRED_ARRAYS.keySet().removeAll(masterCopy.keySet()); // remove all existing master copy we will report on

@@ -29,8 +29,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
-import static com.google.common.collect.Sets.newHashSet;
 import static org.elasticsearch.cluster.metadata.AliasAction.newAddAliasAction;
+import static org.elasticsearch.common.util.set.Sets.newHashSet;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 

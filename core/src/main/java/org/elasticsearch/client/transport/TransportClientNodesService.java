@@ -20,7 +20,6 @@
 package org.elasticsearch.client.transport;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-import com.google.common.collect.Sets;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -396,7 +395,7 @@ public class TransportClientNodesService extends AbstractComponent {
         protected void doSample() {
             // the nodes we are going to ping include the core listed nodes that were added
             // and the last round of discovered nodes
-            Set<DiscoveryNode> nodesToPing = Sets.newHashSet();
+            Set<DiscoveryNode> nodesToPing = new HashSet<>();
             for (DiscoveryNode node : listedNodes) {
                 nodesToPing.add(node);
             }

@@ -20,7 +20,6 @@
 package org.elasticsearch.action.admin.indices.create;
 
 import com.google.common.base.Charsets;
-import com.google.common.collect.Sets;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionRequest;
@@ -45,6 +44,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
@@ -72,7 +72,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
 
     private final Map<String, String> mappings = new HashMap<>();
 
-    private final Set<Alias> aliases = Sets.newHashSet();
+    private final Set<Alias> aliases = new HashSet<>();
 
     private final Map<String, IndexMetaData.Custom> customs = new HashMap<>();
 

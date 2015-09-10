@@ -21,7 +21,6 @@ package org.elasticsearch.index.mapper;
 
 import com.google.common.base.Function;
 import com.google.common.collect.Collections2;
-import com.google.common.collect.Sets;
 import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.common.collect.CopyOnWriteHashMap;
 import org.elasticsearch.common.regex.Regex;
@@ -30,6 +29,7 @@ import org.elasticsearch.index.analysis.FieldNameAnalyzer;
 
 import java.util.AbstractMap;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
@@ -92,7 +92,7 @@ public final class DocumentFieldMappers implements Iterable<FieldMapper> {
     }
 
     public Collection<String> simpleMatchToFullName(String pattern) {
-        Set<String> fields = Sets.newHashSet();
+        Set<String> fields = new HashSet<>();
         for (FieldMapper fieldMapper : this) {
             if (Regex.simpleMatch(pattern, fieldMapper.fieldType().names().fullName())) {
                 fields.add(fieldMapper.fieldType().names().fullName());

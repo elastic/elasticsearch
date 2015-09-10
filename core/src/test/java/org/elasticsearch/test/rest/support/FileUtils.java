@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.test.rest.support;
 
-import com.google.common.collect.Sets;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.PathUtils;
 
@@ -156,7 +155,7 @@ public final class FileUtils {
                     String groupName = file.toAbsolutePath().getParent().getFileName().toString();
                     Set<Path> filesSet = files.get(groupName);
                     if (filesSet == null) {
-                        filesSet = Sets.newHashSet();
+                        filesSet = new HashSet<>();
                         files.put(groupName, filesSet);
                     }
                     filesSet.add(file);

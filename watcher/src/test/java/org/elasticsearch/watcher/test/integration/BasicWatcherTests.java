@@ -285,9 +285,9 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
     @Test
     public void testConditionSearchWithSource() throws Exception {
         String variable = randomFrom("ctx.execution_time", "ctx.trigger.scheduled_time", "ctx.trigger.triggered_time");
-        SearchSourceBuilder searchSourceBuilder = searchSource().query(filteredQuery(
-                matchQuery("level", "a"),
-                rangeQuery("_timestamp")
+        SearchSourceBuilder searchSourceBuilder = searchSource().query(boolQuery()
+                .must(matchQuery("level", "a"))
+                .must(rangeQuery("_timestamp")
                         .from("{{" + variable + "}}||-30s")
                         .to("{{" + variable + "}}")));
 
@@ -297,9 +297,9 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
     @Test
     public void testConditionSearchWithIndexedTemplate() throws Exception {
         String variable = randomFrom("ctx.execution_time", "ctx.trigger.scheduled_time", "ctx.trigger.triggered_time");
-        SearchSourceBuilder searchSourceBuilder = searchSource().query(filteredQuery(
-                matchQuery("level", "a"),
-                rangeQuery("_timestamp")
+        SearchSourceBuilder searchSourceBuilder = searchSource().query(boolQuery()
+                .must(matchQuery("level", "a"))
+                .must(rangeQuery("_timestamp")
                         .from("{{" + variable + "}}||-30s")
                         .to("{{" + variable + "}}")));
 

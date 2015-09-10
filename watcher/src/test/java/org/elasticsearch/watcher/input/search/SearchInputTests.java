@@ -109,7 +109,7 @@ public class SearchInputTests extends ESIntegTestCase {
     @Test
     public void testExecute() throws Exception {
         SearchSourceBuilder searchSourceBuilder = searchSource().query(
-                filteredQuery(matchQuery("event_type", "a"), rangeQuery("_timestamp").from("{{ctx.trigger.scheduled_time}}||-30s").to("{{ctx.trigger.triggered_time}}")));
+                boolQuery().must(matchQuery("event_type", "a")).must(rangeQuery("_timestamp").from("{{ctx.trigger.scheduled_time}}||-30s").to("{{ctx.trigger.triggered_time}}")));
         SearchRequest request = client()
                 .prepareSearch()
                 .setSearchType(ExecutableSearchInput.DEFAULT_SEARCH_TYPE)
@@ -213,7 +213,7 @@ public class SearchInputTests extends ESIntegTestCase {
     @Test
     public void testDifferentSearchType() throws Exception {
         SearchSourceBuilder searchSourceBuilder = searchSource().query(
-                filteredQuery(matchQuery("event_type", "a"), rangeQuery("_timestamp").from("{{ctx.trigger.scheduled_time}}||-30s").to("{{ctx.trigger.triggered_time}}"))
+                boolQuery().must(matchQuery("event_type", "a")).must(rangeQuery("_timestamp").from("{{ctx.trigger.scheduled_time}}||-30s").to("{{ctx.trigger.triggered_time}}"))
         );
         SearchType searchType = getRandomSupportedSearchType();
 
@@ -252,7 +252,7 @@ public class SearchInputTests extends ESIntegTestCase {
                 .setSearchType(ExecutableSearchInput.DEFAULT_SEARCH_TYPE)
                 .request()
                 .source(searchSource()
-                        .query(filteredQuery(matchQuery("event_type", "a"), rangeQuery("_timestamp").from("{{ctx.trigger.scheduled_time}}||-30s").to("{{ctx.trigger.triggered_time}}"))));
+                        .query(boolQuery().must(matchQuery("event_type", "a")).must(rangeQuery("_timestamp").from("{{ctx.trigger.scheduled_time}}||-30s").to("{{ctx.trigger.triggered_time}}"))));
 
         TimeValue timeout = randomBoolean() ? TimeValue.timeValueSeconds(randomInt(10)) : null;
         XContentBuilder builder = jsonBuilder().value(new SearchInput(request, null, timeout, null));

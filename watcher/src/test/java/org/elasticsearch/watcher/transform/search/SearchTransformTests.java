@@ -205,10 +205,10 @@ public class SearchTransformTests extends ESIntegTestCase {
         ensureGreen("idx");
         refresh();
 
-        SearchRequest request = Requests.searchRequest("idx").source(searchSource().query(filteredQuery(matchAllQuery(), boolQuery()
+        SearchRequest request = Requests.searchRequest("idx").source(searchSource().query(boolQuery()
                 .must(rangeQuery("date").gt("{{ctx.trigger.scheduled_time}}"))
                 .must(rangeQuery("date").lt("{{ctx.execution_time}}"))
-                .must(termQuery("value", "{{ctx.payload.value}}")))));
+                .must(termQuery("value", "{{ctx.payload.value}}"))));
 
         SearchTransform searchTransform = TransformBuilders.searchTransform(request).build();
         ExecutableSearchTransform transform = new ExecutableSearchTransform(searchTransform, logger, ClientProxy.of(client()), null, new DynamicIndexName.Parser());
@@ -223,7 +223,7 @@ public class SearchTransformTests extends ESIntegTestCase {
         assertThat(result.type(), is(SearchTransform.TYPE));
 
         SearchResponse response = client().prepareSearch("idx").setQuery(
-                filteredQuery(matchAllQuery(), termQuery("value", "val_3")))
+                termQuery("value", "val_3"))
                 .get();
         Payload expectedPayload = new Payload.XContent(response);
 
@@ -454,9 +454,9 @@ public class SearchTransformTests extends ESIntegTestCase {
     public void testDifferentSearchType() throws Exception {
         WatchExecutionContext ctx = createContext();
 
-        SearchSourceBuilder searchSourceBuilder = searchSource().query(filteredQuery(
-              matchQuery("event_type", "a"),
-              rangeQuery("_timestamp")
+        SearchSourceBuilder searchSourceBuilder = searchSource().query(boolQuery()
+              .must(matchQuery("event_type", "a"))
+              .must(rangeQuery("_timestamp")
                       .from("{{ctx.trigger.scheduled_time}}||-30s")
                       .to("{{ctx.trigger.triggered_time}}")));
 

@@ -153,10 +153,6 @@ fi
     install_and_check_plugin analysis stempel
 }
 
-@test "[$GROUP] install aws plugin" {
-    install_and_check_plugin cloud aws aws-java-sdk-core-*.jar
-}
-
 @test "[$GROUP] install azure plugin" {
     install_and_check_plugin cloud azure azure-core-*.jar
 }
@@ -165,8 +161,12 @@ fi
     install_and_check_plugin cloud gce google-api-client-*.jar
 }
 
-@test "[$GROUP] install delete by query" {
+@test "[$GROUP] install delete by query plugin" {
     install_and_check_plugin - delete-by-query
+}
+
+@test "[$GROUP] install ec2 discovery plugin" {
+    install_and_check_plugin discovery ec2 aws-java-sdk-core-*.jar
 }
 
 @test "[$GROUP] install multicast discovery plugin" {
@@ -181,12 +181,16 @@ fi
     install_and_check_plugin lang python jython-standalone-*.jar
 }
 
-@test "[$GROUP] install murmur3 mapper" {
+@test "[$GROUP] install murmur3 mapper plugin" {
     install_and_check_plugin mapper murmur3
 }
 
-@test "[$GROUP] install size mapper" {
+@test "[$GROUP] install size mapper plugin" {
     install_and_check_plugin mapper size
+}
+
+@test "[$GROUP] install s3 repository plugin" {
+    install_and_check_plugin repository s3 aws-java-sdk-core-*.jar
 }
 
 @test "[$GROUP] install site example" {
@@ -199,7 +203,7 @@ fi
     start_elasticsearch_service
 }
 
-@test "[$GROUP] check that the all bundled number of plugins are installed" {
+@test "[$GROUP] check the installed plugins matches the list of build plugins" {
     curl -s localhost:9200/_cat/plugins?h=c | sed 's/ *$//' |
         sort > /tmp/installed
     ls /elasticsearch/plugins/*/pom.xml | cut -d '/' -f 4 |
@@ -248,8 +252,12 @@ fi
     remove_plugin cloud-gce
 }
 
-@test "[$GROUP] remove delete by query" {
+@test "[$GROUP] remove delete by query plugin" {
     remove_plugin delete-by-query
+}
+
+@test "[$GROUP] remove ec2 discovery plugin" {
+    remove_plugin discovery-ec2
 }
 
 @test "[$GROUP] remove multicast discovery plugin" {
@@ -264,15 +272,19 @@ fi
     remove_plugin lang-python
 }
 
-@test "[$GROUP] remove murmur3 mapper" {
+@test "[$GROUP] remove murmur3 mapper plugin" {
     remove_plugin mapper-murmur3
 }
 
-@test "[$GROUP] remove size mapper" {
+@test "[$GROUP] remove size mapper plugin" {
     remove_plugin mapper-size
 }
 
-@test "[$GROUP] remove site example" {
+@test "[$GROUP] remove s3 repository plugin" {
+    remove_plugin repository-s3
+}
+
+@test "[$GROUP] remove site example plugin" {
     remove_plugin site-example
 }
 

@@ -30,7 +30,7 @@ import java.util.List;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
-public class RegexpQueryBuilderTests extends BaseQueryTestCase<RegexpQueryBuilder> {
+public class RegexpQueryBuilderTests extends AbstractQueryTestCase<RegexpQueryBuilder> {
 
     @Override
     protected RegexpQueryBuilder doCreateTestQueryBuilder() {

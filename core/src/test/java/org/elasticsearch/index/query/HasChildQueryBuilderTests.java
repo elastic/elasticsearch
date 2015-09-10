@@ -40,7 +40,7 @@ import java.io.IOException;
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
 import static org.hamcrest.CoreMatchers.instanceOf;
 
-public class HasChildQueryBuilderTests extends BaseQueryTestCase<HasChildQueryBuilder> {
+public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQueryBuilder> {
     protected static final String PARENT_TYPE = "parent";
     protected static final String CHILD_TYPE = "child";
 
@@ -108,7 +108,7 @@ public class HasChildQueryBuilderTests extends BaseQueryTestCase<HasChildQueryBu
         return new HasChildQueryBuilder(CHILD_TYPE,
                 RandomQueryBuilder.createQuery(random()), max, min,
                 RandomPicks.randomFrom(random(), ScoreType.values()),
-                SearchContext.current() == null ? null : new QueryInnerHits("inner_hits_name", innerHit));
+                randomBoolean()  ? null : new QueryInnerHits("inner_hits_name", innerHit));
     }
 
     @Override

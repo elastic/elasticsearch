@@ -30,7 +30,7 @@ import java.io.IOException;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 
-public class SpanTermQueryBuilderTests extends BaseTermQueryTestCase<SpanTermQueryBuilder> {
+public class SpanTermQueryBuilderTests extends AbstractTermQueryTestCase<SpanTermQueryBuilder> {
 
     @Override
     protected SpanTermQueryBuilder createQueryBuilder(String fieldName, Object value) {

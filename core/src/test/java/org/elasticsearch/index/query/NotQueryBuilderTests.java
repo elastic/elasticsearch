@@ -23,6 +23,7 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -31,7 +32,7 @@ import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.*;
 
-public class NotQueryBuilderTests extends BaseQueryTestCase<NotQueryBuilder> {
+public class NotQueryBuilderTests extends AbstractQueryTestCase<NotQueryBuilder> {
 
     /**
      * @return a NotQueryBuilder with random limit between 0 and 20
@@ -69,15 +70,6 @@ public class NotQueryBuilderTests extends BaseQueryTestCase<NotQueryBuilder> {
     @Override
     protected Map<String, NotQueryBuilder> getAlternateVersions() {
         Map<String, NotQueryBuilder> alternateVersions = new HashMap<>();
-
-        NotQueryBuilder testQuery1 = new NotQueryBuilder(createTestQueryBuilder().innerQuery());
-        String contentString1 = "{\n" +
-                "    \"not\" : {\n" +
-                "        \"filter\" : " + testQuery1.innerQuery().toString() + "\n" +
-                "    }\n" +
-                "}";
-        alternateVersions.put(contentString1, testQuery1);
-
         QueryBuilder innerQuery = createTestQueryBuilder().innerQuery();
         //not doesn't support empty query when query/filter element is not specified
         if (innerQuery != EmptyQueryBuilder.PROTOTYPE) {
@@ -88,6 +80,24 @@ public class NotQueryBuilderTests extends BaseQueryTestCase<NotQueryBuilder> {
         }
 
         return alternateVersions;
+    }
+
+
+    public void testDeprecatedXContent() throws IOException {
+        String deprecatedJson = "{\n" +
+                "    \"not\" : {\n" +
+                "        \"filter\" : " + EmptyQueryBuilder.PROTOTYPE.toString() + "\n" +
+                "    }\n" +
+                "}";
+        try {
+            parseQuery(deprecatedJson);
+            fail("filter is deprecated");
+        } catch (IllegalArgumentException ex) {
+            assertEquals("Deprecated field [filter] used, expected [query] instead", ex.getMessage());
+        }
+
+        NotQueryBuilder queryBuilder = (NotQueryBuilder) parseQuery(deprecatedJson, ParseFieldMatcher.EMPTY);
+        assertEquals(EmptyQueryBuilder.PROTOTYPE, queryBuilder.innerQuery());
     }
 
     @Test

@@ -35,7 +35,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.*;
 
-public class QueryStringQueryBuilderTests extends BaseQueryTestCase<QueryStringQueryBuilder> {
+public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStringQueryBuilder> {
 
     @Override
     protected QueryStringQueryBuilder doCreateTestQueryBuilder() {

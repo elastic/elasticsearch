@@ -30,7 +30,7 @@ import java.io.IOException;
  */
 public class NotQueryParser extends BaseQueryParser<NotQueryBuilder> {
 
-    private static final ParseField QUERY_FIELD = new ParseField("filter", "query");
+    private static final ParseField QUERY_FIELD = new ParseField("query", "filter");
 
     @Inject
     public NotQueryParser() {
@@ -78,7 +78,7 @@ public class NotQueryParser extends BaseQueryParser<NotQueryBuilder> {
         }
 
         if (!queryFound) {
-            throw new QueryParsingException(parseContext, "filter is required when using `not` query");
+            throw new QueryParsingException(parseContext, "query is required when using `not` query");
         }
 
         NotQueryBuilder notQueryBuilder = new NotQueryBuilder(query);

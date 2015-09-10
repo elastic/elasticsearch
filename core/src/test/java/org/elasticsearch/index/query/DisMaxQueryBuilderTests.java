@@ -31,7 +31,7 @@ import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.*;
 
-public class DisMaxQueryBuilderTests extends BaseQueryTestCase<DisMaxQueryBuilder> {
+public class DisMaxQueryBuilderTests extends AbstractQueryTestCase<DisMaxQueryBuilder> {
 
     /**
      * @return a {@link DisMaxQueryBuilder} with random inner queries

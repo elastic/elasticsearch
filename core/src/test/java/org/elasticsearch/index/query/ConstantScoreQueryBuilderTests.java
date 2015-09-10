@@ -27,7 +27,7 @@ import java.io.IOException;
 
 import static org.hamcrest.CoreMatchers.*;
 
-public class ConstantScoreQueryBuilderTests extends BaseQueryTestCase<ConstantScoreQueryBuilder> {
+public class ConstantScoreQueryBuilderTests extends AbstractQueryTestCase<ConstantScoreQueryBuilder> {
 
     /**
      * @return a {@link ConstantScoreQueryBuilder} with random boost between 0.1f and 2.0f

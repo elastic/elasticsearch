@@ -28,7 +28,7 @@ import java.io.IOException;
 import static org.hamcrest.CoreMatchers.*;
 
 @SuppressWarnings("deprecation")
-public class QueryFilterBuilderTests extends BaseQueryTestCase<QueryFilterBuilder> {
+public class QueryFilterBuilderTests extends AbstractQueryTestCase<QueryFilterBuilder> {
 
     @Override
     protected QueryFilterBuilder doCreateTestQueryBuilder() {

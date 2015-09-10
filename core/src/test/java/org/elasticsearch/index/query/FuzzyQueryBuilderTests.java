@@ -32,7 +32,7 @@ import java.io.IOException;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
-public class FuzzyQueryBuilderTests extends BaseQueryTestCase<FuzzyQueryBuilder> {
+public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuilder> {
 
     @Override
     protected FuzzyQueryBuilder doCreateTestQueryBuilder() {

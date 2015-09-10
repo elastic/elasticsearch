@@ -34,7 +34,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class GeohashCellQueryBuilderTests extends BaseQueryTestCase<GeohashCellQuery.Builder> {
+public class GeohashCellQueryBuilderTests extends AbstractQueryTestCase<Builder> {
 
     @Override
     protected Builder doCreateTestQueryBuilder() {

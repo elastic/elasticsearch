@@ -28,7 +28,7 @@ import java.io.IOException;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
-public class WildcardQueryBuilderTests extends BaseQueryTestCase<WildcardQueryBuilder> {
+public class WildcardQueryBuilderTests extends AbstractQueryTestCase<WildcardQueryBuilder> {
 
     @Override
     protected WildcardQueryBuilder doCreateTestQueryBuilder() {

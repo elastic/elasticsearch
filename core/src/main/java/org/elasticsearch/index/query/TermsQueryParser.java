@@ -104,16 +104,7 @@ public class TermsQueryParser extends BaseQueryParser {
         if (fieldName == null) {
             throw new QueryParsingException(parseContext, "terms query requires a field name, followed by array of terms or a document lookup specification");
         }
-        TermsQueryBuilder termsQueryBuilder;
-        if (values == null) {
-            termsQueryBuilder = new TermsQueryBuilder(fieldName);
-        } else {
-            termsQueryBuilder = new TermsQueryBuilder(fieldName, values);
-        }
-        return termsQueryBuilder
-                .disableCoord(disableCoord)
-                .minimumShouldMatch(minShouldMatch)
-                .termsLookup(termsLookup)
+        return new TermsQueryBuilder(fieldName, values, minShouldMatch, disableCoord, termsLookup)
                 .boost(boost)
                 .queryName(queryName);
     }

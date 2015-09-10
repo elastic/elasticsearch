@@ -31,7 +31,7 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.nullValue;
 
 @SuppressWarnings("deprecation")
-public class FilteredQueryBuilderTests extends BaseQueryTestCase<FilteredQueryBuilder> {
+public class FilteredQueryBuilderTests extends AbstractQueryTestCase<FilteredQueryBuilder> {
 
     @Override
     protected FilteredQueryBuilder doCreateTestQueryBuilder() {

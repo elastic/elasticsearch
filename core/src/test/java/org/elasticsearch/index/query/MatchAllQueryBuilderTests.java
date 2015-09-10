@@ -26,7 +26,7 @@ import java.io.IOException;
 
 import static org.hamcrest.CoreMatchers.instanceOf;
 
-public class MatchAllQueryBuilderTests extends BaseQueryTestCase<MatchAllQueryBuilder> {
+public class MatchAllQueryBuilderTests extends AbstractQueryTestCase<MatchAllQueryBuilder> {
 
     @Override
     protected MatchAllQueryBuilder doCreateTestQueryBuilder() {

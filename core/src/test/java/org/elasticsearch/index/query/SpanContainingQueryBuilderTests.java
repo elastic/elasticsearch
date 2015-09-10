@@ -28,7 +28,7 @@ import java.io.IOException;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 
-public class SpanContainingQueryBuilderTests extends BaseQueryTestCase<SpanContainingQueryBuilder> {
+public class SpanContainingQueryBuilderTests extends AbstractQueryTestCase<SpanContainingQueryBuilder> {
 
     @Override
     protected SpanContainingQueryBuilder doCreateTestQueryBuilder() {

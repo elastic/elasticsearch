@@ -40,7 +40,7 @@ import java.util.Arrays;
 
 import static org.hamcrest.CoreMatchers.instanceOf;
 
-public class HasParentQueryBuilderTests extends BaseQueryTestCase<HasParentQueryBuilder> {
+public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQueryBuilder> {
     protected static final String PARENT_TYPE = "parent";
     protected static final String CHILD_TYPE = "child";
 
@@ -105,7 +105,7 @@ public class HasParentQueryBuilderTests extends BaseQueryTestCase<HasParentQuery
         InnerHitsBuilder.InnerHit innerHit = new InnerHitsBuilder.InnerHit().setSize(100).addSort(STRING_FIELD_NAME, SortOrder.ASC);
         return new HasParentQueryBuilder(PARENT_TYPE,
                 RandomQueryBuilder.createQuery(random()),randomBoolean(),
-                SearchContext.current() == null ? null : new QueryInnerHits("inner_hits_name", innerHit));
+                randomBoolean() ? null : new QueryInnerHits("inner_hits_name", innerHit));
     }
 
     @Override
@@ -160,37 +160,35 @@ public class HasParentQueryBuilderTests extends BaseQueryTestCase<HasParentQuery
         builder.field("type", "foo"); // deprecated
         builder.endObject();
         builder.endObject();
-        String queryAsString = builder.string();
-        QueryShardContext shardContext = createShardContext();
-        QueryParseContext context = shardContext.parseContext();
-        XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(queryAsString);
-        context.reset(parser);
-        context.parseFieldMatcher(ParseFieldMatcher.STRICT);
         try {
-            context.parseInnerQueryBuilder();
+            parseQuery(builder.string());
             fail("type is deprecated");
         } catch (IllegalArgumentException ex) {
             assertEquals("Deprecated field [type] used, expected [parent_type] instead", ex.getMessage());
         }
 
+        HasParentQueryBuilder queryBuilder = (HasParentQueryBuilder) parseQuery(builder.string(), ParseFieldMatcher.EMPTY);
+        assertEquals("foo", queryBuilder.type());
+
+        boolean score = randomBoolean();
         String key = RandomPicks.randomFrom(random(), Arrays.asList("score_mode", "scoreMode", "score_type", "scoreType"));
         builder = XContentFactory.jsonBuilder().prettyPrint();
         builder.startObject();
         builder.startObject("has_parent");
         builder.field("query");
         EmptyQueryBuilder.PROTOTYPE.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        builder.field(key, "score");
+        builder.field(key, score ? "score": "none");
+        builder.field("parent_type", "foo");
         builder.endObject();
         builder.endObject();
-        queryAsString = builder.string();
-        parser = XContentFactory.xContent(XContentType.JSON).createParser(queryAsString);
-        context.reset(parser);
-        context.parseFieldMatcher(ParseFieldMatcher.STRICT);
         try {
-            context.parseInnerQueryBuilder();
+            parseQuery(builder.string());
             fail(key + " is deprecated");
         } catch (IllegalArgumentException ex) {
             assertEquals("Deprecated field [" + key + "] used, replaced by [score]", ex.getMessage());
         }
+
+        queryBuilder = (HasParentQueryBuilder) parseQuery(builder.string(), ParseFieldMatcher.EMPTY);
+        assertEquals(score, queryBuilder.score());
     }
 }

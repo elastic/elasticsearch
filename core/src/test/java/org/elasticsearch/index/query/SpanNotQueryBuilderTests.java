@@ -31,7 +31,7 @@ import static org.elasticsearch.index.query.QueryBuilders.spanNearQuery;
 import static org.elasticsearch.index.query.QueryBuilders.spanTermQuery;
 import static org.hamcrest.Matchers.*;
 
-public class SpanNotQueryBuilderTests extends BaseQueryTestCase<SpanNotQueryBuilder> {
+public class SpanNotQueryBuilderTests extends AbstractQueryTestCase<SpanNotQueryBuilder> {
 
     @Override
     protected SpanNotQueryBuilder doCreateTestQueryBuilder() {

@@ -33,7 +33,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.is;
 
-public class TemplateQueryBuilderTests extends BaseQueryTestCase<TemplateQueryBuilder> {
+public class TemplateQueryBuilderTests extends AbstractQueryTestCase<TemplateQueryBuilder> {
 
     /**
      * The query type all template tests will be based on.

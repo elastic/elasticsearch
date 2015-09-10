@@ -24,7 +24,7 @@ import org.junit.Test;
 
 import java.io.IOException;
 
-public class IndicesQueryBuilderTests extends BaseQueryTestCase<IndicesQueryBuilder> {
+public class IndicesQueryBuilderTests extends AbstractQueryTestCase<IndicesQueryBuilder> {
 
     @Override
     protected IndicesQueryBuilder doCreateTestQueryBuilder() {

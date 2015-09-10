@@ -19,11 +19,13 @@
 
 package org.elasticsearch.index.query;
 
+import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.search.termslookup.TermsLookupFetchService;
 import org.elasticsearch.indices.cache.query.terms.TermsLookup;
@@ -33,12 +35,13 @@ import org.junit.Test;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 
 import static org.hamcrest.Matchers.*;
 
-public class TermsQueryBuilderTests extends BaseQueryTestCase<TermsQueryBuilder> {
+public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuilder> {
 
     private MockTermsLookupFetchService termsLookupFetchService;
 
@@ -64,12 +67,6 @@ public class TermsQueryBuilderTests extends BaseQueryTestCase<TermsQueryBuilder>
             // right now the mock service returns us a list of strings
             query = new TermsQueryBuilder(randomBoolean() ? randomAsciiOfLengthBetween(1,10) : STRING_FIELD_NAME);
             query.termsLookup(randomTermsLookup());
-        }
-        if (randomBoolean()) {
-            query.minimumShouldMatch(randomInt(100) + "%");
-        }
-        if (randomBoolean()) {
-            query.disableCoord(randomBoolean());
         }
         return query;
     }
@@ -199,6 +196,50 @@ public class TermsQueryBuilderTests extends BaseQueryTestCase<TermsQueryBuilder>
                 "}";
         QueryBuilder termsQueryBuilder = parseQuery(query);
         assertThat(termsQueryBuilder.validate().validationErrors().size(), is(1));
+    }
+
+    public void testDeprecatedXContent() throws IOException {
+        String query = "{\n" +
+                "  \"terms\": {\n" +
+                "    \"field\": [\n" +
+                "      \"blue\",\n" +
+                "      \"pill\"\n" +
+                "    ],\n" +
+                "    \"disable_coord\": true\n" +
+                "  }\n" +
+                "}";
+        try {
+            parseQuery(query);
+            fail("disable_coord is deprecated");
+        } catch (IllegalArgumentException ex) {
+            assertEquals("Deprecated field [disable_coord] used, replaced by [Use [bool] query instead]", ex.getMessage());
+        }
+
+        TermsQueryBuilder queryBuilder = (TermsQueryBuilder) parseQuery(query, ParseFieldMatcher.EMPTY);
+        TermsQueryBuilder copy = assertSerialization(queryBuilder);
+        assertTrue(queryBuilder.disableCoord());
+        assertTrue(copy.disableCoord());
+
+        String randomMinShouldMatch = RandomPicks.randomFrom(random(), Arrays.asList("min_match", "min_should_match", "minimum_should_match"));
+        query = "{\n" +
+                "  \"terms\": {\n" +
+                "    \"field\": [\n" +
+                "      \"blue\",\n" +
+                "      \"pill\"\n" +
+                "    ],\n" +
+                "    \"" + randomMinShouldMatch +"\": \"42%\"\n" +
+                "  }\n" +
+                "}";
+        try {
+            parseQuery(query);
+            fail(randomMinShouldMatch + " is deprecated");
+        } catch (IllegalArgumentException ex) {
+            assertEquals("Deprecated field [" + randomMinShouldMatch + "] used, replaced by [Use [bool] query instead]", ex.getMessage());
+        }
+        queryBuilder = (TermsQueryBuilder) parseQuery(query, ParseFieldMatcher.EMPTY);
+        copy = assertSerialization(queryBuilder);
+        assertEquals("42%", queryBuilder.minimumShouldMatch());
+        assertEquals("42%", copy.minimumShouldMatch());
     }
 
     private static class MockTermsLookupFetchService extends TermsLookupFetchService {

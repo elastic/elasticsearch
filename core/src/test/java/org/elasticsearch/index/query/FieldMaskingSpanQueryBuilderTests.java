@@ -29,7 +29,7 @@ import java.io.IOException;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 
-public class FieldMaskingSpanQueryBuilderTests extends BaseQueryTestCase<FieldMaskingSpanQueryBuilder> {
+public class FieldMaskingSpanQueryBuilderTests extends AbstractQueryTestCase<FieldMaskingSpanQueryBuilder> {
 
     @Override
     protected FieldMaskingSpanQueryBuilder doCreateTestQueryBuilder() {

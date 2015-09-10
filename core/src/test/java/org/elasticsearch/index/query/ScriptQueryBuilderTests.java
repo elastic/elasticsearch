@@ -31,7 +31,7 @@ import java.util.Map;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
-public class ScriptQueryBuilderTests extends BaseQueryTestCase<ScriptQueryBuilder> {
+public class ScriptQueryBuilderTests extends AbstractQueryTestCase<ScriptQueryBuilder> {
 
     @Override
     protected ScriptQueryBuilder doCreateTestQueryBuilder() {

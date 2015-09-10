@@ -29,7 +29,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
-public class CommonTermsQueryBuilderTests extends BaseQueryTestCase<CommonTermsQueryBuilder> {
+public class CommonTermsQueryBuilderTests extends AbstractQueryTestCase<CommonTermsQueryBuilder> {
 
     @Override
     protected CommonTermsQueryBuilder doCreateTestQueryBuilder() {

@@ -29,7 +29,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
-public class PrefixQueryBuilderTests extends BaseQueryTestCase<PrefixQueryBuilder> {
+public class PrefixQueryBuilderTests extends AbstractQueryTestCase<PrefixQueryBuilder> {
 
     @Override
     protected PrefixQueryBuilder doCreateTestQueryBuilder() {

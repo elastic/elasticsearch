@@ -26,7 +26,7 @@ import java.io.IOException;
 
 import static org.hamcrest.Matchers.is;
 
-public class MissingQueryBuilderTests extends BaseQueryTestCase<MissingQueryBuilder> {
+public class MissingQueryBuilderTests extends AbstractQueryTestCase<MissingQueryBuilder> {
 
     @Override
     protected MissingQueryBuilder doCreateTestQueryBuilder() {

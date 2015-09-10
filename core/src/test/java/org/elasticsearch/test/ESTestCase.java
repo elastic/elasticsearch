@@ -495,6 +495,10 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
     }
 
+    public Path getBwcIndicesPath() {
+        return getDataPath("/indices/bwc");
+    }
+
     /** Returns a random number of temporary paths. */
     public String[] tmpPaths() {
         final int numPaths = TestUtil.nextInt(random(), 1, 3);

@@ -1,11 +1,6 @@
 {
-    "filtered":{
-        "query":{
-            "term":{
-                "name.first":"shay"
-            }
-        },
-        "filter":{
+    "constant_score": {
+        "filter": {
             "terms":{
                 "name.last":["banon", "kimchy"]
             }

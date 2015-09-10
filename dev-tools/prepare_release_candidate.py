@@ -237,12 +237,11 @@ if __name__ == "__main__":
     mvn_target = 'install'
   else:
     mvn_target = 'deploy'
-  install_command = 'mvn clean %s -Prelease -Dskip.integ.tests=true -Dgpg.keyname="%s" -Dpackaging.rpm.rpmbuild=/usr/bin/rpmbuild -Drpm.sign=true -Dmaven.repo.local=%s -Dno.commit.pattern="\\bno(n|)commit\\b" -Dforbidden.test.signatures=""' % (mvn_target, gpg_key, localRepo)
+  install_command = 'mvn clean %s -Prelease -Dskip.integ.tests=true -Dgpg.key="%s" -Dpackaging.rpm.rpmbuild=/usr/bin/rpmbuild -Drpm.sign=true -Dmaven.repo.local=%s -Dno.commit.pattern="\\bno(n|)commit\\b" -Dforbidden.test.signatures=""' % (mvn_target, gpg_key, localRepo)
   clean_repo_command = 'find %s -name _remote.repositories -exec rm {} \;' % (localRepoElasticsearch)
   rename_metadata_files_command = 'for i in $(find %s -name "maven-metadata-local.xml*") ; do mv "$i" "${i/-local/}" ; done' % (localRepoElasticsearch)
   s3_sync_command = 's3cmd sync %s s3://download.elasticsearch.org/elasticsearch/staging/%s-%s/org/' % (localRepoElasticsearch, release_version, shortHash)
   s3_bucket_sync_to = 'download.elasticsearch.org/elasticsearch/staging/%s-%s/repos' % (release_version, shortHash)
-  build_repo_command = 'dev-tools/build_repositories.sh %s' % (major_minor_version)
   if install_and_deploy:
     for cmd in [install_command, clean_repo_command]:
       run(cmd)
@@ -255,16 +254,14 @@ if __name__ == "__main__":
     print('  2. Rename all maven metadata files: %s' % (rename_metadata_files_command))
   if push:
     run(s3_sync_command)
-    env_vars = {'S3_BUCKET_SYNC_TO': s3_bucket_sync_to}
-    run(build_repo_command, env_vars)
+    print('Use rpm-s3/deb-s3 to push into repositories at %s' % s3_bucket_sync_to)
   else:
     print('')
     print('*** To push a release candidate to s3 run: ')
     print('  1. Sync %s into S3 bucket' % (localRepoElasticsearch))
     print ('    %s' % (s3_sync_command))
     print('  2. Create repositories: ')
-    print ('    export S3_BUCKET_SYNC_TO="%s"' % (s3_bucket_sync_to))
-    print('     %s' % (build_repo_command))
+    print('     Use rpm-s3/deb-s3 to push into repositories at %s' % s3_bucket_sync_to)
     print('')
     print('NOTE: the above mvn command will promt you several times for the GPG passphrase of the key you specified you can alternatively pass it via -Dgpg.passphrase=yourPassPhrase')
     print(' since RPM signing doesn\'t support gpg-agents the recommended way to set the password is to add a release profile to your settings.xml:')

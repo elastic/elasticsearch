@@ -31,9 +31,8 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.elasticsearch.index.query.QueryBuilders.andQuery;
+import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.index.query.QueryBuilders.notQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -119,11 +118,8 @@ public class HotThreadsIT extends ESIntegTestCase {
                 assertHitCount(
                         client().prepareSearch()
                                 .setQuery(matchAllQuery())
-                                .setPostFilter(
-                                        andQuery(
-                                                matchAllQuery(),
-                                                notQuery(andQuery(termQuery("field1", "value1"),
-                                                        termQuery("field1", "value2"))))).get(),
+                                .setPostFilter(boolQuery().must(matchAllQuery()).mustNot(boolQuery().must(termQuery("field1", "value1")).must(termQuery("field1", "value2"))))
+                                .get(),
                         3l);
             }
             latch.await();

@@ -20,7 +20,6 @@
 package org.elasticsearch.search.aggregations;
 
 import com.carrotsearch.hppc.IntHashSet;
-import com.google.common.collect.Maps;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -48,8 +47,19 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.*;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.extendedStats;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.filter;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.max;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.min;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.percentiles;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.range;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.stats;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.core.IsNull.notNullValue;
 
@@ -131,7 +141,7 @@ public class EquivalenceIT extends ESIntegTestCase {
         Range range = resp.getAggregations().get("range");
         List<? extends Bucket> buckets = range.getBuckets();
 
-        HashMap<String, Bucket> bucketMap = Maps.newHashMapWithExpectedSize(buckets.size());
+        HashMap<String, Bucket> bucketMap = new HashMap<>(buckets.size());
         for (Bucket bucket : buckets) {
             bucketMap.put(bucket.getKeyAsString(), bucket);
         }

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.support.broadcast.node;
 
-import com.google.common.collect.Maps;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.IndicesRequest;
@@ -57,6 +56,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
@@ -247,7 +247,7 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
 
             logger.trace("resolving shards for [{}] based on cluster state version [{}]", actionName, clusterState.version());
             ShardsIterator shardIt = shards(clusterState, request, concreteIndices);
-            nodeIds = Maps.newHashMap();
+            nodeIds = new HashMap<>();
 
             for (ShardRouting shard : shardIt.asUnordered()) {
                 if (shard.assignedToNode()) {

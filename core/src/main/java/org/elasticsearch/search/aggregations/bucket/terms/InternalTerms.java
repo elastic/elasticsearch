@@ -19,9 +19,7 @@
 package org.elasticsearch.search.aggregations.bucket.terms;
 
 import com.google.common.collect.ArrayListMultimap;
-import com.google.common.collect.Maps;
 import com.google.common.collect.Multimap;
-
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
@@ -36,6 +34,7 @@ import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -147,7 +146,7 @@ public abstract class InternalTerms<A extends InternalTerms, B extends InternalT
     @Override
     public Terms.Bucket getBucketByKey(String term) {
         if (bucketMap == null) {
-            bucketMap = Maps.newHashMapWithExpectedSize(buckets.size());
+            bucketMap = new HashMap<>(buckets.size());
             for (Bucket bucket : buckets) {
                 bucketMap.put(bucket.getKeyAsString(), bucket);
             }

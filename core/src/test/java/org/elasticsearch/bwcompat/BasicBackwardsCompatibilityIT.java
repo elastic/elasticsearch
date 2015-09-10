@@ -414,7 +414,7 @@ public class BasicBackwardsCompatibilityIT extends ESBackcompatTestCase {
                     client().prepareIndex(indexName, "type1", "3").setSource(jsonBuilder().startObject().startObject("obj2").field("obj2_val", "1").endObject().field("y1", "y_1").field("field2", "value2_3").endObject()),
                     client().prepareIndex(indexName, "type1", "4").setSource(jsonBuilder().startObject().startObject("obj2").field("obj2_val", "1").endObject().field("y2", "y_2").field("field3", "value3_4").endObject()));
 
-            CountResponse countResponse = client().prepareCount().setQuery(filteredQuery(matchAllQuery(), existsQuery("field1"))).get();
+            CountResponse countResponse = client().prepareCount().setQuery(existsQuery("field1")).get();
             assertHitCount(countResponse, 2l);
 
             countResponse = client().prepareCount().setQuery(constantScoreQuery(existsQuery("field1"))).get();
@@ -423,24 +423,24 @@ public class BasicBackwardsCompatibilityIT extends ESBackcompatTestCase {
             countResponse = client().prepareCount().setQuery(queryStringQuery("_exists_:field1")).get();
             assertHitCount(countResponse, 2l);
 
-            countResponse = client().prepareCount().setQuery(filteredQuery(matchAllQuery(), existsQuery("field2"))).get();
+            countResponse = client().prepareCount().setQuery(existsQuery("field2")).get();
             assertHitCount(countResponse, 2l);
 
-            countResponse = client().prepareCount().setQuery(filteredQuery(matchAllQuery(), existsQuery("field3"))).get();
+            countResponse = client().prepareCount().setQuery(existsQuery("field3")).get();
             assertHitCount(countResponse, 1l);
 
             // wildcard check
-            countResponse = client().prepareCount().setQuery(filteredQuery(matchAllQuery(), existsQuery("x*"))).get();
+            countResponse = client().prepareCount().setQuery(existsQuery("x*")).get();
             assertHitCount(countResponse, 2l);
 
             // object check
-            countResponse = client().prepareCount().setQuery(filteredQuery(matchAllQuery(), existsQuery("obj1"))).get();
+            countResponse = client().prepareCount().setQuery(existsQuery("obj1")).get();
             assertHitCount(countResponse, 2l);
 
-            countResponse = client().prepareCount().setQuery(filteredQuery(matchAllQuery(), missingQuery("field1"))).get();
+            countResponse = client().prepareCount().setQuery(missingQuery("field1")).get();
             assertHitCount(countResponse, 2l);
 
-            countResponse = client().prepareCount().setQuery(filteredQuery(matchAllQuery(), missingQuery("field1"))).get();
+            countResponse = client().prepareCount().setQuery(missingQuery("field1")).get();
             assertHitCount(countResponse, 2l);
 
             countResponse = client().prepareCount().setQuery(constantScoreQuery(missingQuery("field1"))).get();
@@ -450,11 +450,11 @@ public class BasicBackwardsCompatibilityIT extends ESBackcompatTestCase {
             assertHitCount(countResponse, 2l);
 
             // wildcard check
-            countResponse = client().prepareCount().setQuery(filteredQuery(matchAllQuery(), missingQuery("x*"))).get();
+            countResponse = client().prepareCount().setQuery(missingQuery("x*")).get();
             assertHitCount(countResponse, 2l);
 
             // object check
-            countResponse = client().prepareCount().setQuery(filteredQuery(matchAllQuery(), missingQuery("obj1"))).get();
+            countResponse = client().prepareCount().setQuery(missingQuery("obj1")).get();
             assertHitCount(countResponse, 2l);
             if (!backwardsCluster().upgradeOneNode()) {
                 break;

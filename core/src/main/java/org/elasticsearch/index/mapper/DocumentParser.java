@@ -19,8 +19,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import com.google.common.collect.Sets;
-
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
@@ -34,20 +32,20 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.mapper.core.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
-import org.elasticsearch.index.mapper.core.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.core.StringFieldMapper.StringFieldType;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.mapper.object.ArrayValueMapperParser;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.mapper.object.RootObjectMapper;
-import org.elasticsearch.percolator.PercolatorService;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -169,7 +167,7 @@ class DocumentParser implements Closeable {
         }
         // apply doc boost
         if (context.docBoost() != 1.0f) {
-            Set<String> encounteredFields = Sets.newHashSet();
+            Set<String> encounteredFields = new HashSet<>();
             for (ParseContext.Document doc : context.docs()) {
                 encounteredFields.clear();
                 for (IndexableField field : doc) {

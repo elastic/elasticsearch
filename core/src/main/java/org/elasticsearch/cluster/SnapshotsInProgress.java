@@ -34,10 +34,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
-import static com.google.common.collect.Maps.newHashMap;
 
 /**
  * Meta data about snapshots that are currently executing
@@ -155,7 +154,7 @@ public class SnapshotsInProgress extends AbstractDiffable<Custom> implements Cus
         }
 
         private ImmutableMap<String, List<ShardId>> findWaitingIndices(ImmutableMap<ShardId, ShardSnapshotStatus> shards) {
-            Map<String, List<ShardId>> waitingIndicesMap = newHashMap();
+            Map<String, List<ShardId>> waitingIndicesMap = new HashMap<>();
             for (ImmutableMap.Entry<ShardId, ShardSnapshotStatus> entry : shards.entrySet()) {
                 if (entry.getValue().state() == State.WAITING) {
                     List<ShardId> waitingShards = waitingIndicesMap.get(entry.getKey().getIndex());

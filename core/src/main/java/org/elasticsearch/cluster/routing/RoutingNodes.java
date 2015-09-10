@@ -35,14 +35,12 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
-
-import static com.google.common.collect.Maps.newHashMap;
-import static com.google.common.collect.Sets.newHashSet;
 
 /**
  * {@link RoutingNodes} represents a copy the routing information contained in
@@ -56,11 +54,11 @@ public class RoutingNodes implements Iterable<RoutingNode> {
 
     private final RoutingTable routingTable;
 
-    private final Map<String, RoutingNode> nodesToShards = newHashMap();
+    private final Map<String, RoutingNode> nodesToShards = new HashMap<>();
 
     private final UnassignedShards unassignedShards = new UnassignedShards(this);
 
-    private final Map<ShardId, List<ShardRouting>> assignedShards = newHashMap();
+    private final Map<ShardId, List<ShardRouting>> assignedShards = new HashMap<>();
 
     private final ImmutableOpenMap<String, ClusterState.Custom> customs;
 
@@ -85,7 +83,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         this.routingTable = clusterState.routingTable();
         this.customs = clusterState.customs();
 
-        Map<String, List<ShardRouting>> nodesToShards = newHashMap();
+        Map<String, List<ShardRouting>> nodesToShards = new HashMap<>();
         // fill in the nodeToShards with the "live" nodes
         for (ObjectCursor<DiscoveryNode> cursor : clusterState.nodes().dataNodes().values()) {
             nodesToShards.put(cursor.value.id(), new ArrayList<ShardRouting>());
@@ -705,7 +703,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         int inactivePrimaryCount = 0;
         int inactiveShardCount = 0;
         int relocating = 0;
-        final Set<ShardId> seenShards = newHashSet();
+        final Set<ShardId> seenShards = new HashSet<>();
         Map<String, Integer> indicesAndShards = new HashMap<>();
         for (RoutingNode node : routingNodes) {
             for (ShardRouting shard : node) {

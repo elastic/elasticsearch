@@ -19,7 +19,7 @@
 
 package org.elasticsearch.gateway;
 
-import com.google.common.collect.*;
+import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -30,6 +30,7 @@ import org.elasticsearch.env.NodeEnvironment;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
@@ -109,7 +110,7 @@ public class DanglingIndicesState extends AbstractComponent {
             return ImmutableMap.of();
         }
 
-        Map<String, IndexMetaData>  newIndices = Maps.newHashMap();
+        Map<String, IndexMetaData>  newIndices = new HashMap<>();
         for (String indexName : indices) {
             if (metaData.hasIndex(indexName) == false && danglingIndices.containsKey(indexName) == false) {
                 try {

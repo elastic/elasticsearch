@@ -64,13 +64,13 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 
-import static com.google.common.collect.Sets.newHashSet;
 import static org.elasticsearch.cluster.SnapshotsInProgress.completed;
 
 /**
@@ -139,7 +139,7 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
      * @return list of snapshots
      */
     public List<Snapshot> snapshots(String repositoryName) {
-        Set<Snapshot> snapshotSet = newHashSet();
+        Set<Snapshot> snapshotSet = new HashSet<>();
         List<SnapshotsInProgress.Entry> entries = currentSnapshots(repositoryName, null);
         for (SnapshotsInProgress.Entry entry : entries) {
             snapshotSet.add(inProgressSnapshot(entry));
@@ -736,8 +736,8 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
      * @return list of failed and closed indices
      */
     private Tuple<Set<String>, Set<String>> indicesWithMissingShards(ImmutableMap<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shards, MetaData metaData) {
-        Set<String> missing = newHashSet();
-        Set<String> closed = newHashSet();
+        Set<String> missing = new HashSet<>();
+        Set<String> closed = new HashSet<>();
         for (ImmutableMap.Entry<ShardId, SnapshotsInProgress.ShardSnapshotStatus> entry : shards.entrySet()) {
             if (entry.getValue().state() == State.MISSING) {
                 if (metaData.hasIndex(entry.getKey().getIndex()) && metaData.index(entry.getKey().getIndex()).getState() == IndexMetaData.State.CLOSE) {

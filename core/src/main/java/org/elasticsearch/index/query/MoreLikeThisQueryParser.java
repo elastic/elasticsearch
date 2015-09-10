@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import com.google.common.collect.Sets;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.queries.TermsQuery;
 import org.apache.lucene.search.BooleanClause;
@@ -41,7 +40,13 @@ import org.elasticsearch.index.search.morelikethis.MoreLikeThisFetchService;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.index.mapper.Uid.createUidAsBytes;
 
@@ -185,7 +190,7 @@ public class MoreLikeThisQueryParser implements QueryParser {
                         likeItems.add(Item.parse(parser, parseContext.parseFieldMatcher(), new Item()));
                     }
                 } else if (parseContext.parseFieldMatcher().match(currentFieldName, Field.STOP_WORDS)) {
-                    Set<String> stopWords = Sets.newHashSet();
+                    Set<String> stopWords = new HashSet<>();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         stopWords.add(parser.text());
                     }

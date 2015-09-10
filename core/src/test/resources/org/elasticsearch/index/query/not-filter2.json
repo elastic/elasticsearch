@@ -1,16 +1,7 @@
 {
-    "filtered":{
-        "query":{
-            "term":{
-                "name.first":"shay"
-            }
-        },
-        "filter":{
             "not":{
                 "term":{
                     "name.first":"shay1"
                 }
             }
-        }
-    }
 }

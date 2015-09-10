@@ -19,8 +19,6 @@
 
 package org.elasticsearch.search.aggregations;
 
-import com.google.common.collect.Maps;
-
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService.ScriptType;

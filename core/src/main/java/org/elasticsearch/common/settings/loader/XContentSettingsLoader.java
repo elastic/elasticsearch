@@ -26,10 +26,9 @@ import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
-import static com.google.common.collect.Maps.newHashMap;
 
 /**
  * Settings loader that loads (parses) the settings in a xcontent format by flattening them
@@ -55,7 +54,7 @@ public abstract class XContentSettingsLoader implements SettingsLoader {
 
     public Map<String, String> load(XContentParser jp) throws IOException {
         StringBuilder sb = new StringBuilder();
-        Map<String, String> settings = newHashMap();
+        Map<String, String> settings = new HashMap<>();
         List<String> path = new ArrayList<>();
         XContentParser.Token token = jp.nextToken();
         if (token == null) {

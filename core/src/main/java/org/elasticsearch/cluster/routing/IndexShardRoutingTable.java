@@ -20,12 +20,12 @@
 package org.elasticsearch.cluster.routing;
 
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Sets;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;

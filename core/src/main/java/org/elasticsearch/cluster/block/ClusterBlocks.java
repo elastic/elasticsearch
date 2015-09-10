@@ -21,8 +21,6 @@ package org.elasticsearch.cluster.block;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Maps;
-import com.google.common.collect.Sets;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
@@ -31,6 +29,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
@@ -270,9 +270,9 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
 
     public static class Builder {
 
-        private Set<ClusterBlock> global = Sets.newHashSet();
+        private Set<ClusterBlock> global = new HashSet<>();
 
-        private Map<String, Set<ClusterBlock>> indices = Maps.newHashMap();
+        private Map<String, Set<ClusterBlock>> indices = new HashMap<>();
 
         public Builder() {
         }
@@ -281,7 +281,7 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
             global.addAll(blocks.global());
             for (Map.Entry<String, ImmutableSet<ClusterBlock>> entry : blocks.indices().entrySet()) {
                 if (!indices.containsKey(entry.getKey())) {
-                    indices.put(entry.getKey(), Sets.<ClusterBlock>newHashSet());
+                    indices.put(entry.getKey(), new HashSet<>());
                 }
                 indices.get(entry.getKey()).addAll(entry.getValue());
             }
@@ -319,7 +319,7 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
 
         public Builder addIndexBlock(String index, ClusterBlock block) {
             if (!indices.containsKey(index)) {
-                indices.put(index, Sets.<ClusterBlock>newHashSet());
+                indices.put(index, new HashSet<>());
             }
             indices.get(index).add(block);
             return this;

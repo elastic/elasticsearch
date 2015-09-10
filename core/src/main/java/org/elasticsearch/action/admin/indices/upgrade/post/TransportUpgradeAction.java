@@ -45,12 +45,11 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-
-import static com.google.common.collect.Maps.newHashMap;
-import static com.google.common.collect.Sets.newHashSet;
 
 /**
  * Upgrade index/indices action.
@@ -72,8 +71,8 @@ public class TransportUpgradeAction extends TransportBroadcastByNodeAction<Upgra
 
     @Override
     protected UpgradeResponse newResponse(UpgradeRequest request, int totalShards, int successfulShards, int failedShards, List<ShardUpgradeResult> shardUpgradeResults, List<ShardOperationFailedException> shardFailures, ClusterState clusterState) {
-        Map<String, Integer> successfulPrimaryShards = newHashMap();
-        Map<String, Tuple<Version, org.apache.lucene.util.Version>> versions = newHashMap();
+        Map<String, Integer> successfulPrimaryShards = new HashMap<>();
+        Map<String, Tuple<Version, org.apache.lucene.util.Version>> versions = new HashMap<>();
         for (ShardUpgradeResult result : shardUpgradeResults) {
             successfulShards++;
             String index = result.getShardId().getIndex();
@@ -101,7 +100,7 @@ public class TransportUpgradeAction extends TransportBroadcastByNodeAction<Upgra
                 versions.put(index, new Tuple<>(version, luceneVersion));
             }
         }
-        Map<String, Tuple<org.elasticsearch.Version, String>> updatedVersions = newHashMap();
+        Map<String, Tuple<org.elasticsearch.Version, String>> updatedVersions = new HashMap<>();
         MetaData metaData = clusterState.metaData();
         for (Map.Entry<String, Tuple<Version, org.apache.lucene.util.Version>> versionEntry : versions.entrySet()) {
             String index = versionEntry.getKey();
@@ -158,7 +157,7 @@ public class TransportUpgradeAction extends TransportBroadcastByNodeAction<Upgra
      * Finds all indices that have not all primaries available
      */
     private Set<String> indicesWithMissingPrimaries(ClusterState clusterState, String[] concreteIndices) {
-        Set<String> indices = newHashSet();
+        Set<String> indices = new HashSet<>();
         RoutingTable routingTable = clusterState.routingTable();
         for (String index : concreteIndices) {
             IndexRoutingTable indexRoutingTable = routingTable.index(index);

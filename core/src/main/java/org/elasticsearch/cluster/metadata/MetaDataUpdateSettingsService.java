@@ -19,13 +19,16 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import com.google.common.collect.Sets;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeSettingsClusterStateUpdateRequest;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.cluster.*;
+import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
+import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -41,7 +44,13 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.settings.IndexDynamicSettings;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 
@@ -185,8 +194,8 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
 
         final Settings closeSettings = updatedSettingsBuilder.build();
 
-        final Set<String> removedSettings = Sets.newHashSet();
-        final Set<String> errors = Sets.newHashSet();
+        final Set<String> removedSettings = new HashSet<>();
+        final Set<String> errors = new HashSet<>();
         for (Map.Entry<String, String> setting : updatedSettingsBuilder.internalMap().entrySet()) {
             if (!dynamicSettings.hasDynamicSetting(setting.getKey())) {
                 removedSettings.add(setting.getKey());
@@ -225,8 +234,8 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
 
                 // allow to change any settings to a close index, and only allow dynamic settings to be changed
                 // on an open index
-                Set<String> openIndices = Sets.newHashSet();
-                Set<String> closeIndices = Sets.newHashSet();
+                Set<String> openIndices = new HashSet<>();
+                Set<String> closeIndices = new HashSet<>();
                 for (String index : actualIndices) {
                     if (currentState.metaData().index(index).state() == IndexMetaData.State.OPEN) {
                         openIndices.add(index);

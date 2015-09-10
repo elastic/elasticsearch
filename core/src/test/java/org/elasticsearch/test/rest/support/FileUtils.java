@@ -18,9 +18,6 @@
  */
 package org.elasticsearch.test.rest.support;
 
-import com.google.common.collect.Maps;
-import com.google.common.collect.Sets;
-
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.PathUtils;
 
@@ -35,6 +32,7 @@ import java.nio.file.NotDirectoryException;
 import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -81,7 +79,7 @@ public final class FileUtils {
      * Each path is looked up in the classpath, or optionally from {@code fileSystem} if its not null.
      */
     public static Map<String, Set<Path>> findYamlSuites(FileSystem fileSystem, String optionalPathPrefix, final String... paths) throws IOException {
-        Map<String, Set<Path>> yamlSuites = Maps.newHashMap();
+        Map<String, Set<Path>> yamlSuites = new HashMap<>();
         for (String path : paths) {
             collectFiles(resolveFile(fileSystem, optionalPathPrefix, path, YAML_SUFFIX), YAML_SUFFIX, yamlSuites);
         }
@@ -157,7 +155,7 @@ public final class FileUtils {
                     String groupName = file.toAbsolutePath().getParent().getFileName().toString();
                     Set<Path> filesSet = files.get(groupName);
                     if (filesSet == null) {
-                        filesSet = Sets.newHashSet();
+                        filesSet = new HashSet<>();
                         files.put(groupName, filesSet);
                     }
                     filesSet.add(file);

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.cluster.routing.allocation.decider;
 
-import com.google.common.collect.Sets;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterInfo;
@@ -36,6 +35,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.RatioValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.node.settings.NodeSettingsService;
 
 import java.util.Map;

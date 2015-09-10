@@ -19,7 +19,6 @@
 package org.elasticsearch.common.util;
 
 import com.google.common.base.Charsets;
-import com.google.common.collect.Sets;
 import com.google.common.primitives.Ints;
 import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.index.IndexWriter;
@@ -38,13 +37,25 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.gateway.MetaDataStateFormat;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.shard.*;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardPath;
+import org.elasticsearch.index.shard.ShardStateMetaData;
 
 import java.io.IOException;
 import java.io.PrintStream;
-import java.nio.file.*;
+import java.nio.file.DirectoryStream;
+import java.nio.file.FileStore;
+import java.nio.file.FileVisitResult;
+import java.nio.file.FileVisitor;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.BasicFileAttributes;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 /**
  */
@@ -343,7 +354,7 @@ public class MultiDataPathUpgrader {
     }
 
     private static Set<ShardId> findAllShardIds(Path... locations) throws IOException {
-        final Set<ShardId> shardIds = Sets.newHashSet();
+        final Set<ShardId> shardIds = new HashSet<>();
         for (final Path location : locations) {
             if (Files.isDirectory(location)) {
                 shardIds.addAll(findAllShardsForIndex(location));

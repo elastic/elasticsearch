@@ -25,12 +25,12 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
-import static com.google.common.collect.Maps.newHashMap;
-import static com.google.common.collect.Sets.newHashSet;
 import static org.elasticsearch.cluster.metadata.AliasAction.newAddAliasAction;
+import static org.elasticsearch.common.util.set.Sets.newHashSet;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -133,13 +133,13 @@ public class AliasResolveRoutingIT extends ESIntegTestCase {
 
 
     private <K, V> Map<K, V> newMap(K key, V value) {
-        Map<K, V> r = newHashMap();
+        Map<K, V> r = new HashMap<>();
         r.put(key, value);
         return r;
     }
 
     private <K, V> Map<K, V> newMap(K key1, V value1, K key2, V value2) {
-        Map<K, V> r = newHashMap();
+        Map<K, V> r = new HashMap<>();
         r.put(key1, value1);
         r.put(key2, value2);
         return r;

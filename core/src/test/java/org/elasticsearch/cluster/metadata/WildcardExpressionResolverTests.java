@@ -28,7 +28,7 @@ import org.junit.Test;
 
 import java.util.Arrays;
 
-import static com.google.common.collect.Sets.newHashSet;
+import static org.elasticsearch.common.util.set.Sets.newHashSet;
 import static org.hamcrest.Matchers.equalTo;
 
 public class WildcardExpressionResolverTests extends ESTestCase {

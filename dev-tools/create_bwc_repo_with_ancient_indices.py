@@ -63,7 +63,7 @@ def main():
     create_bwc_index.shutdown_node(node)
     print('%s server output:\n%s' % (second_version, node.stdout.read().decode('utf-8')))
 
-    create_bwc_index.compress(tmp_dir, "src/test/resources/org/elasticsearch/bwcompat", 'unsupportedrepo-%s.zip' % first_version, 'repo')
+    create_bwc_index.compress(tmp_dir, "src/test/resources/indices/bwc", 'unsupportedrepo-%s.zip' % first_version, 'repo')
 
     node = None
   finally:

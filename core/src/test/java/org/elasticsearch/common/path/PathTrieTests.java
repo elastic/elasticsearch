@@ -22,9 +22,9 @@ package org.elasticsearch.common.path;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
+import java.util.HashMap;
 import java.util.Map;
 
-import static com.google.common.collect.Maps.newHashMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -54,7 +54,7 @@ public class PathTrieTests extends ESTestCase {
         assertThat(trie.retrieve("a/b/c/d"), nullValue());
         assertThat(trie.retrieve("g/t/x"), equalTo("three"));
 
-        Map<String, String> params = newHashMap();
+        Map<String, String> params = new HashMap<>();
         assertThat(trie.retrieve("index1/insert/12", params), equalTo("bingo"));
         assertThat(params.size(), equalTo(2));
         assertThat(params.get("index"), equalTo("index1"));
@@ -74,7 +74,7 @@ public class PathTrieTests extends ESTestCase {
         trie.insert("/a/{type}", "test1");
         trie.insert("/b/{name}", "test2");
 
-        Map<String, String> params = newHashMap();
+        Map<String, String> params = new HashMap<>();
         assertThat(trie.retrieve("/a/test", params), equalTo("test1"));
         assertThat(params.get("type"), equalTo("test"));
 
@@ -89,7 +89,7 @@ public class PathTrieTests extends ESTestCase {
         trie.insert("/a/c/{name}", "test1");
         trie.insert("/b/{name}", "test2");
 
-        Map<String, String> params = newHashMap();
+        Map<String, String> params = new HashMap<>();
         assertThat(trie.retrieve("/a/c/test", params), equalTo("test1"));
         assertThat(params.get("name"), equalTo("test"));
 
@@ -108,7 +108,7 @@ public class PathTrieTests extends ESTestCase {
         trie.insert("{test}/{testB}", "test5");
         trie.insert("{test}/x/{testC}", "test6");
 
-        Map<String, String> params = newHashMap();
+        Map<String, String> params = new HashMap<>();
         assertThat(trie.retrieve("/b", params), equalTo("test2"));
         assertThat(trie.retrieve("/b/a", params), equalTo("test4"));
         assertThat(trie.retrieve("/v/x", params), equalTo("test5"));
@@ -121,7 +121,7 @@ public class PathTrieTests extends ESTestCase {
         trie.insert("{x}/{y}/{z}", "test1");
         trie.insert("{x}/_y/{k}", "test2");
 
-        Map<String, String> params = newHashMap();
+        Map<String, String> params = new HashMap<>();
         assertThat(trie.retrieve("/a/b/c", params), equalTo("test1"));
         assertThat(params.get("x"), equalTo("a"));
         assertThat(params.get("y"), equalTo("b"));
@@ -141,23 +141,23 @@ public class PathTrieTests extends ESTestCase {
         trie.insert("/{test}/_endpoint", "test4");
         trie.insert("/*/{test}/_endpoint", "test5");
 
-        Map<String, String> params = newHashMap();
+        Map<String, String> params = new HashMap<>();
         assertThat(trie.retrieve("/x/*", params), equalTo("test1"));
         assertThat(params.get("test"), equalTo("*"));
 
-        params = newHashMap();
+        params = new HashMap<>();
         assertThat(trie.retrieve("/b/a", params), equalTo("test2"));
         assertThat(params.get("test"), equalTo("b"));
 
-        params = newHashMap();
+        params = new HashMap<>();
         assertThat(trie.retrieve("/*", params), equalTo("test3"));
         assertThat(params.get("test"), equalTo("*"));
 
-        params = newHashMap();
+        params = new HashMap<>();
         assertThat(trie.retrieve("/*/_endpoint", params), equalTo("test4"));
         assertThat(params.get("test"), equalTo("*"));
 
-        params = newHashMap();
+        params = new HashMap<>();
         assertThat(trie.retrieve("a/*/_endpoint", params), equalTo("test5"));
         assertThat(params.get("test"), equalTo("*"));
     }

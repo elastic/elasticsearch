@@ -22,7 +22,6 @@ package org.elasticsearch.index;
 import com.google.common.base.Function;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterators;
-
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
@@ -30,7 +29,12 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.*;
+import org.elasticsearch.common.inject.CreationException;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.inject.Injector;
+import org.elasticsearch.common.inject.Injectors;
+import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
@@ -47,7 +51,12 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.settings.IndexSettingsService;
-import org.elasticsearch.index.shard.*;
+import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.IndexShardModule;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardNotFoundException;
+import org.elasticsearch.index.shard.ShardPath;
+import org.elasticsearch.index.shard.StoreRecoveryService;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.store.Store;
@@ -69,7 +78,6 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static com.google.common.collect.Maps.newHashMap;
 import static org.elasticsearch.common.collect.MapBuilder.newMapBuilder;
 
 /**
@@ -411,7 +419,7 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
             return;
         }
         logger.debug("[{}] closing... (reason: [{}])", shardId, reason);
-        HashMap<Integer, IndexShardInjectorPair> tmpShardsMap = newHashMap(shards);
+        HashMap<Integer, IndexShardInjectorPair> tmpShardsMap = new HashMap<>(shards);
         IndexShardInjectorPair indexShardInjectorPair = tmpShardsMap.remove(shardId);
         indexShard = indexShardInjectorPair.getIndexShard();
         shardInjector = indexShardInjectorPair.getInjector();

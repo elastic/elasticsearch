@@ -24,13 +24,15 @@ import org.elasticsearch.rest.support.RestUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
+import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Pattern;
 
-import static com.google.common.collect.Maps.newHashMap;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  *
@@ -39,7 +41,7 @@ public class RestUtilsTests extends ESTestCase {
 
     @Test
     public void testDecodeQueryString() {
-        Map<String, String> params = newHashMap();
+        Map<String, String> params = new HashMap<>();
 
         String uri = "something?test=value";
         RestUtils.decodeQueryString(uri, uri.indexOf('?') + 1, params);
@@ -66,7 +68,7 @@ public class RestUtilsTests extends ESTestCase {
 
     @Test
     public void testDecodeQueryStringEdgeCases() {
-        Map<String, String> params = newHashMap();
+        Map<String, String> params = new HashMap<>();
 
         String uri = "something?";
         RestUtils.decodeQueryString(uri, uri.indexOf('?') + 1, params);

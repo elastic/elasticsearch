@@ -20,13 +20,19 @@
 package org.elasticsearch.discovery.local;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.*;
+import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateNonMasterUpdateTask;
+import org.elasticsearch.cluster.Diff;
+import org.elasticsearch.cluster.IncompatibleClusterStateVersionException;
+import org.elasticsearch.cluster.ProcessedClusterStateNonMasterUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeService;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingService;
-import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -36,7 +42,12 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.discovery.*;
+import org.elasticsearch.discovery.AckClusterStatePublishResponseHandler;
+import org.elasticsearch.discovery.BlockingClusterStatePublishResponseHandler;
+import org.elasticsearch.discovery.Discovery;
+import org.elasticsearch.discovery.DiscoveryService;
+import org.elasticsearch.discovery.DiscoverySettings;
+import org.elasticsearch.discovery.InitialStateDiscoveryListener;
 import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.transport.TransportService;
 
@@ -48,7 +59,6 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static com.google.common.collect.Sets.newHashSet;
 import static org.elasticsearch.cluster.ClusterState.Builder;
 
 /**
@@ -227,7 +237,7 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
                     firstMaster.master = true;
                 }
 
-                final Set<String> newMembers = newHashSet();
+                final Set<String> newMembers = new HashSet<>();
                 for (LocalDiscovery discovery : clusterGroup.members()) {
                     newMembers.add(discovery.localNode.id());
                 }

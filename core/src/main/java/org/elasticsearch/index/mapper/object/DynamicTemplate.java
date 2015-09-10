@@ -19,13 +19,13 @@
 
 package org.elasticsearch.index.mapper.object;
 
-import com.google.common.collect.Maps;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.MapperParsingException;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -168,7 +168,7 @@ public class DynamicTemplate {
     }
 
     private Map<String, Object> processMap(Map<String, Object> map, String name, String dynamicType) {
-        Map<String, Object> processedMap = Maps.newHashMap();
+        Map<String, Object> processedMap = new HashMap<>();
         for (Map.Entry<String, Object> entry : map.entrySet()) {
             String key = entry.getKey().replace("{name}", name).replace("{dynamic_type}", dynamicType).replace("{dynamicType}", dynamicType);
             Object value = entry.getValue();

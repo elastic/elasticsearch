@@ -17,7 +17,6 @@
 package org.elasticsearch.common.inject;
 
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Maps;
 import org.elasticsearch.common.inject.internal.BindingImpl;
 import org.elasticsearch.common.inject.internal.Errors;
 import org.elasticsearch.common.inject.internal.InstanceBindingImpl;
@@ -30,6 +29,8 @@ import org.elasticsearch.common.inject.spi.TypeListenerBinding;
 import java.lang.annotation.Annotation;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -43,10 +44,10 @@ class InheritingState implements State {
     private final State parent;
 
     // Must be a linked hashmap in order to preserve order of bindings in Modules.
-    private final Map<Key<?>, Binding<?>> explicitBindingsMutable = Maps.newLinkedHashMap();
+    private final Map<Key<?>, Binding<?>> explicitBindingsMutable = new LinkedHashMap<>();
     private final Map<Key<?>, Binding<?>> explicitBindings
             = Collections.unmodifiableMap(explicitBindingsMutable);
-    private final Map<Class<? extends Annotation>, Scope> scopes = Maps.newHashMap();
+    private final Map<Class<? extends Annotation>, Scope> scopes = new HashMap<>();
     private final List<MatcherAndConverter> converters = new ArrayList<>();
     private final List<TypeListenerBinding> listenerBindings = new ArrayList<>();
     private WeakKeySet blacklistedKeys = new WeakKeySet();
@@ -150,7 +151,7 @@ class InheritingState implements State {
 
     @Override
     public void makeAllBindingsToEagerSingletons(Injector injector) {
-        Map<Key<?>, Binding<?>> x = Maps.newLinkedHashMap();
+        Map<Key<?>, Binding<?>> x = new LinkedHashMap<>();
         for (Map.Entry<Key<?>, Binding<?>> entry : this.explicitBindingsMutable.entrySet()) {
             Key key = entry.getKey();
             BindingImpl<?> binding = (BindingImpl<?>) entry.getValue();

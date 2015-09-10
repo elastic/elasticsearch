@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -350,19 +349,6 @@ public abstract class QueryBuilders {
 
     public static FieldMaskingSpanQueryBuilder fieldMaskingSpanQuery(SpanQueryBuilder query, String field) {
         return new FieldMaskingSpanQueryBuilder(query, field);
-    }
-
-    /**
-     * A query that applies a filter to the results of another query.
-     *
-     * @param queryBuilder  The query to apply the filter to
-     * @param filterBuilder The filter to apply on the query
-     * @deprecated Use {@link #boolQuery()} instead with a {@code must} clause
-     *             for the query and a {@code filter} clause for the filter.
-     */
-    @Deprecated
-    public static FilteredQueryBuilder filteredQuery(@Nullable QueryBuilder queryBuilder, @Nullable QueryBuilder filterBuilder) {
-        return new FilteredQueryBuilder(queryBuilder, filterBuilder);
     }
 
     /**
@@ -775,41 +761,6 @@ public abstract class QueryBuilders {
 
     public static NotQueryBuilder notQuery(QueryBuilder filter) {
         return new NotQueryBuilder(filter);
-    }
-
-    /**
-     * Create a new {@link OrQueryBuilder} composed of the given filters.
-     * @deprecated Use {@link #boolQuery()} instead
-     */
-    @Deprecated
-    public static OrQueryBuilder orQuery(QueryBuilder... filters) {
-        return new OrQueryBuilder(filters);
-    }
-
-    /**
-     * Create a new {@link AndQueryBuilder} composed of the given filters.
-     * @deprecated Use {@link #boolQuery()} instead
-     */
-    @Deprecated
-    public static AndQueryBuilder andQuery(QueryBuilder... filters) {
-        return new AndQueryBuilder(filters);
-    }
-
-    /**
-     * @deprecated Use {@link SearchRequestBuilder#setTerminateAfter(int)} instead
-     */
-    @Deprecated
-    public static LimitQueryBuilder limitQuery(int limit) {
-        return new LimitQueryBuilder(limit);
-    }
-
-    /**
-     * @deprecated Useless now that queries and filters are merged: pass the
-     *             query as a filter directly.
-     */
-    @Deprecated
-    public static QueryFilterBuilder queryFilter(QueryBuilder query) {
-        return new QueryFilterBuilder(query);
     }
 
     private QueryBuilders() {

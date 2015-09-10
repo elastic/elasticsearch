@@ -16,12 +16,12 @@
 
 package org.elasticsearch.common.inject;
 
-import com.google.common.collect.Maps;
 import org.elasticsearch.common.inject.internal.Errors;
 import org.elasticsearch.common.inject.internal.ErrorsException;
 import org.elasticsearch.common.inject.spi.InjectionPoint;
 
 import java.util.ArrayList;
+import java.util.IdentityHashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
@@ -49,7 +49,7 @@ class Initializer {
     /**
      * Maps instances that need injection to a source that registered them
      */
-    private final Map<Object, InjectableReference<?>> pendingInjection = Maps.newIdentityHashMap();
+    private final Map<Object, InjectableReference<?>> pendingInjection = new IdentityHashMap<>();
 
     /**
      * Registers an instance for member injection when that step is performed.

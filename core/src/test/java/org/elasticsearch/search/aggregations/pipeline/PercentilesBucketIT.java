@@ -19,10 +19,10 @@ package org.elasticsearch.search.aggregations.pipeline;
  * under the License.
  */
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.metrics.percentiles.Percentile;
@@ -41,9 +41,9 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.histogra
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilders.percentilesBucket;
-import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilders.sumBucket;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.core.IsNull.notNullValue;
@@ -433,30 +433,22 @@ public class PercentilesBucketIT extends ESIntegTestCase {
     }
 
     @Test
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/13179")
     public void testBadPercents() throws Exception {
         Double[] badPercents = {-1.0, 110.0};
 
         try {
-            SearchResponse response = client().prepareSearch("idx")
+            client().prepareSearch("idx")
                     .addAggregation(terms("terms").field("tag").subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME)))
                     .addAggregation(percentilesBucket("percentiles_bucket")
                             .setBucketsPaths("terms>sum")
                             .percents(badPercents)).execute().actionGet();
 
-            assertSearchResponse(response);
-
-            Terms terms = response.getAggregations().get("terms");
-            assertThat(terms, notNullValue());
-            assertThat(terms.getName(), equalTo("terms"));
-            List<Terms.Bucket> buckets = terms.getBuckets();
-            assertThat(buckets.size(), equalTo(0));
-
-            PercentilesBucket percentilesBucketValue = response.getAggregations().get("percentiles_bucket");
-
             fail("Illegal percent's were provided but no exception was thrown.");
         } catch (SearchPhaseExecutionException exception) {
-            // All good
+            ElasticsearchException[] rootCauses = exception.guessRootCauses();
+            assertThat(rootCauses.length, equalTo(1));
+            ElasticsearchException rootCause = rootCauses[0];
+            assertThat(rootCause.getMessage(), containsString("must only contain non-null doubles from 0.0-100.0 inclusive"));
         }
 
     }
@@ -466,7 +458,7 @@ public class PercentilesBucketIT extends ESIntegTestCase {
         Double[] badPercents = {-1.0, 110.0};
 
         try {
-        SearchResponse response = client()
+            client()
                 .prepareSearch("idx")
                 .addAggregation(
                         terms("terms")
@@ -479,11 +471,12 @@ public class PercentilesBucketIT extends ESIntegTestCase {
                                         .setBucketsPaths("histo>_count")
                                         .percents(badPercents))).execute().actionGet();
 
-            PercentilesBucket percentilesBucketValue = response.getAggregations().get("percentiles_bucket");
-
             fail("Illegal percent's were provided but no exception was thrown.");
         } catch (SearchPhaseExecutionException exception) {
-            // All good
+            ElasticsearchException[] rootCauses = exception.guessRootCauses();
+            assertThat(rootCauses.length, equalTo(1));
+            ElasticsearchException rootCause = rootCauses[0];
+            assertThat(rootCause.getMessage(), containsString("must only contain non-null doubles from 0.0-100.0 inclusive"));
         }
 
     }

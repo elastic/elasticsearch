@@ -20,7 +20,6 @@
 package org.elasticsearch.common.xcontent;
 
 import com.google.common.base.Charsets;
-import com.google.common.collect.Maps;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -35,6 +34,7 @@ import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -250,7 +250,7 @@ public class XContentHelper {
                     List mergedList = new ArrayList();
                     if (allListValuesAreMapsOfOne(defaultList) && allListValuesAreMapsOfOne(contentList)) {
                         // all are in the form of [ {"key1" : {}}, {"key2" : {}} ], merge based on keys
-                        Map<String, Map<String, Object>> processed = Maps.newLinkedHashMap();
+                        Map<String, Map<String, Object>> processed = new LinkedHashMap<>();
                         for (Object o : contentList) {
                             Map<String, Object> map = (Map<String, Object>) o;
                             Map.Entry<String, Object> entry = map.entrySet().iterator().next();

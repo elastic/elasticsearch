@@ -19,7 +19,8 @@
 
 package org.elasticsearch.script;
 
-import com.google.common.collect.*;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.ScriptService.ScriptType;
@@ -32,7 +33,11 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.util.*;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.notNullValue;
@@ -57,7 +62,7 @@ public class ScriptModesTests extends ESTestCase {
         //randomly register custom script contexts
         int randomInt = randomIntBetween(0, 3);
         //prevent duplicates using map
-        Map<String, ScriptContext.Plugin> contexts = Maps.newHashMap();
+        Map<String, ScriptContext.Plugin> contexts = new HashMap<>();
         for (int i = 0; i < randomInt; i++) {
             String plugin = randomAsciiOfLength(randomIntBetween(1, 10));
             String operation = randomAsciiOfLength(randomIntBetween(1, 30));
@@ -115,7 +120,7 @@ public class ScriptModesTests extends ESTestCase {
     @Test
     public void testScriptTypeGenericSettings() {
         int randomInt = randomIntBetween(1, ScriptType.values().length - 1);
-        Set<ScriptType> randomScriptTypesSet = Sets.newHashSet();
+        Set<ScriptType> randomScriptTypesSet = new HashSet<>();
         ScriptMode[] randomScriptModes = new ScriptMode[randomInt];
         for (int i = 0; i < randomInt; i++) {
             boolean added = false;
@@ -148,7 +153,7 @@ public class ScriptModesTests extends ESTestCase {
     @Test
     public void testScriptContextGenericSettings() {
         int randomInt = randomIntBetween(1, scriptContexts.length - 1);
-        Set<ScriptContext> randomScriptContextsSet = Sets.newHashSet();
+        Set<ScriptContext> randomScriptContextsSet = new HashSet<>();
         ScriptMode[] randomScriptModes = new ScriptMode[randomInt];
         for (int i = 0; i < randomInt; i++) {
             boolean added = false;
@@ -241,7 +246,7 @@ public class ScriptModesTests extends ESTestCase {
     }
 
     private ScriptContext[] complementOf(ScriptContext... scriptContexts) {
-        Map<String, ScriptContext> copy = Maps.newHashMap();
+        Map<String, ScriptContext> copy = new HashMap<>();
         for (ScriptContext scriptContext : scriptContextRegistry.scriptContexts()) {
             copy.put(scriptContext.getKey(), scriptContext);
         }

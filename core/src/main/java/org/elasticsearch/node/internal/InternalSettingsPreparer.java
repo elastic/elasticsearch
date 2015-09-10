@@ -20,7 +20,6 @@
 package org.elasticsearch.node.internal;
 
 import com.google.common.base.Charsets;
-import com.google.common.collect.Sets;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
@@ -37,6 +36,7 @@ import java.io.InputStreamReader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -105,7 +105,7 @@ public class InternalSettingsPreparer {
         }
         if (loadFromEnv) {
             boolean settingsFileFound = false;
-            Set<String> foundSuffixes = Sets.newHashSet();
+            Set<String> foundSuffixes = new HashSet<>();
             for (String allowedSuffix : ALLOWED_SUFFIXES) {
                 Path path = environment.configFile().resolve("elasticsearch" + allowedSuffix);
                 if (Files.exists(path)) {

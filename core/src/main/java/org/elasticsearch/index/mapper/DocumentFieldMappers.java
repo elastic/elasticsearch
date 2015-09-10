@@ -21,15 +21,15 @@ package org.elasticsearch.index.mapper;
 
 import com.google.common.base.Function;
 import com.google.common.collect.Collections2;
-import com.google.common.collect.Maps;
-import com.google.common.collect.Sets;
 import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.common.collect.CopyOnWriteHashMap;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.analysis.FieldNameAnalyzer;
 
+import java.util.AbstractMap;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
@@ -68,19 +68,19 @@ public final class DocumentFieldMappers implements Iterable<FieldMapper> {
         FieldNameAnalyzer indexAnalyzer = this.indexAnalyzer.copyAndAddAll(Collections2.transform(newMappers, new Function<FieldMapper, Map.Entry<String, Analyzer>>() {
             @Override
             public Map.Entry<String, Analyzer> apply(FieldMapper input) {
-                return Maps.immutableEntry(input.fieldType().names().indexName(), (Analyzer)input.fieldType().indexAnalyzer());
+                return new AbstractMap.SimpleImmutableEntry<>(input.fieldType().names().indexName(), (Analyzer)input.fieldType().indexAnalyzer());
             }
         }));
         FieldNameAnalyzer searchAnalyzer = this.searchAnalyzer.copyAndAddAll(Collections2.transform(newMappers, new Function<FieldMapper, Map.Entry<String, Analyzer>>() {
             @Override
             public Map.Entry<String, Analyzer> apply(FieldMapper input) {
-                return Maps.immutableEntry(input.fieldType().names().indexName(), (Analyzer)input.fieldType().searchAnalyzer());
+                return new AbstractMap.SimpleImmutableEntry<>(input.fieldType().names().indexName(), (Analyzer)input.fieldType().searchAnalyzer());
             }
         }));
         FieldNameAnalyzer searchQuoteAnalyzer = this.searchQuoteAnalyzer.copyAndAddAll(Collections2.transform(newMappers, new Function<FieldMapper, Map.Entry<String, Analyzer>>() {
             @Override
             public Map.Entry<String, Analyzer> apply(FieldMapper input) {
-                return Maps.immutableEntry(input.fieldType().names().indexName(), (Analyzer)input.fieldType().searchQuoteAnalyzer());
+                return new AbstractMap.SimpleImmutableEntry<>(input.fieldType().names().indexName(), (Analyzer)input.fieldType().searchQuoteAnalyzer());
             }
         }));
         return new DocumentFieldMappers(map, indexAnalyzer, searchAnalyzer, searchQuoteAnalyzer);
@@ -92,7 +92,7 @@ public final class DocumentFieldMappers implements Iterable<FieldMapper> {
     }
 
     public Collection<String> simpleMatchToFullName(String pattern) {
-        Set<String> fields = Sets.newHashSet();
+        Set<String> fields = new HashSet<>();
         for (FieldMapper fieldMapper : this) {
             if (Regex.simpleMatch(pattern, fieldMapper.fieldType().names().fullName())) {
                 fields.add(fieldMapper.fieldType().names().fullName());

@@ -23,7 +23,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.AndQueryBuilder;
+import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.bucket.filters.Filters;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
@@ -138,7 +138,7 @@ public class FiltersIT extends ESIntegTestCase {
     // https://github.com/elasticsearch/elasticsearch/issues/8438
     @Test
     public void emptyFilterDeclarations() throws Exception {
-        QueryBuilder emptyFilter = new AndQueryBuilder();
+        QueryBuilder emptyFilter = new BoolQueryBuilder();
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(filters("tags").filter("all", emptyFilter).filter("tag1", termQuery("tag", "tag1"))).execute()
                 .actionGet();

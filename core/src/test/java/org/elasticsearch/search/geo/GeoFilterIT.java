@@ -427,20 +427,16 @@ public class GeoFilterIT extends ESIntegTestCase {
         }
 
         SearchResponse world = client().prepareSearch().addField("pin").setQuery(
-                filteredQuery(
-                        matchAllQuery(),
-                        geoBoundingBoxQuery("pin")
-                                .topLeft(90, -179.99999)
-                                .bottomRight(-90, 179.99999))
+                geoBoundingBoxQuery("pin")
+                        .topLeft(90, -179.99999)
+                        .bottomRight(-90, 179.99999)
         ).execute().actionGet();
 
         assertHitCount(world, 53);
 
         SearchResponse distance = client().prepareSearch().addField("pin").setQuery(
-                filteredQuery(
-                        matchAllQuery(),
-                        geoDistanceQuery("pin").distance("425km").point(51.11, 9.851)
-                )).execute().actionGet();
+                geoDistanceQuery("pin").distance("425km").point(51.11, 9.851)
+                ).execute().actionGet();
 
         assertHitCount(distance, 5);
         GeoPoint point = new GeoPoint();

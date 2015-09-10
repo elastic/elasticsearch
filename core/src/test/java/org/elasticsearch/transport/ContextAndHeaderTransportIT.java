@@ -295,7 +295,7 @@ public class ContextAndHeaderTransportIT extends ESIntegTestCase {
                 .preparePutIndexedScript(
                         MustacheScriptEngineService.NAME,
                         "my_script",
-                        jsonBuilder().startObject().field("script", "{ \"query\": { \"match\": { \"name\": \"Star Wars\" }}}").endObject()
+                        jsonBuilder().startObject().field("script", "{ \"match\": { \"name\": \"Star Wars\" }}").endObject()
                                 .string()).get();
         assertThat(scriptResponse.isCreated(), is(true));
 
@@ -414,10 +414,8 @@ public class ContextAndHeaderTransportIT extends ESIntegTestCase {
 
         String filterStringAsFilter = XContentFactory.jsonBuilder()
                 .startObject()
-                .startObject("query")
                 .startObject("match_phrase")
                 .field("title", "{{suggestion}}")
-                .endObject()
                 .endObject()
                 .endObject()
                 .string();

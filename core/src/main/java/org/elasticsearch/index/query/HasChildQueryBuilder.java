@@ -31,7 +31,7 @@ public class HasChildQueryBuilder extends QueryBuilder implements BoostableQuery
 
     private float boost = 1.0f;
 
-    private String scoreType;
+    private String scoreMode;
 
     private Integer minChildren;
 
@@ -59,8 +59,8 @@ public class HasChildQueryBuilder extends QueryBuilder implements BoostableQuery
     /**
      * Defines how the scores from the matching child documents are mapped into the parent document.
      */
-    public HasChildQueryBuilder scoreType(String scoreType) {
-        this.scoreType = scoreType;
+    public HasChildQueryBuilder scoreMode(String scoreMode) {
+        this.scoreMode = scoreMode;
         return this;
     }
 
@@ -105,8 +105,8 @@ public class HasChildQueryBuilder extends QueryBuilder implements BoostableQuery
         if (boost != 1.0f) {
             builder.field("boost", boost);
         }
-        if (scoreType != null) {
-            builder.field("score_type", scoreType);
+        if (scoreMode != null) {
+            builder.field("score_mode", scoreMode);
         }
         if (minChildren != null) {
             builder.field("min_children", minChildren);

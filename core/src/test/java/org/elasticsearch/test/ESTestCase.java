@@ -225,7 +225,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     // -----------------------------------------------------------------
-    // Test facilities and facades for subclasses. 
+    // Test facilities and facades for subclasses.
     // -----------------------------------------------------------------
 
     // TODO: replaces uses of getRandom() with random()
@@ -303,6 +303,35 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     public static double randomDouble() {
         return random().nextDouble();
+    }
+
+    /**
+     * Returns a double value in the interval [start, end) if lowerInclusive is
+     * set to true, (start, end) otherwise.
+     *
+     * @param start lower bound of interval to draw uniformly distributed random numbers from
+     * @param end upper bound
+     * @param lowerInclusive whether or not to include lower end of the interval
+     * */
+    public static double randomDoubleBetween(double start, double end, boolean lowerInclusive) {
+        double result = 0.0;
+
+        if (start == -Double.MAX_VALUE || end == Double.MAX_VALUE) {
+            // formula below does not work with very large doubles
+            result = Double.longBitsToDouble(randomLong());
+            while (result < start || result > end || Double.isNaN(result)) {
+                result = Double.longBitsToDouble(randomLong());
+            }
+        } else {
+            result = randomDouble();
+            if (lowerInclusive == false) {
+                while (result <= 0.0) {
+                    result = randomDouble();
+                }
+            }
+            result = result * end + (1.0 - result) * start;
+        }
+        return result;
     }
 
     public static long randomLong() {
@@ -481,7 +510,7 @@ public abstract class ESTestCase extends LuceneTestCase {
      */
     @Override
     public Path getDataPath(String relativePath) {
-        // we override LTC behavior here: wrap even resources with mockfilesystems, 
+        // we override LTC behavior here: wrap even resources with mockfilesystems,
         // because some code is buggy when it comes to multiple nio.2 filesystems
         // (e.g. FileSystemUtils, and likely some tests)
         try {

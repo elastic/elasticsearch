@@ -151,11 +151,11 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
         // percolation queries we only ignore_malformed on 2.x created indexes
         if (!indexCreatedBeforeV2_0 && !ignoreMalformed) {
             for (GeoPoint point : shell) {
-                if (point.lat() > 90.0 || point.lat() < -90.0) {
+                if (!GeoUtils.isValidLatitude(point.lat())) {
                     throw new QueryShardException(context, "illegal latitude value [{}] for [{}]", point.lat(),
                             GeoPolygonQueryBuilder.NAME);
                 }
-                if (point.lon() > 180.0 || point.lon() < -180) {
+                if (!GeoUtils.isValidLongitude(point.lat())) {
                     throw new QueryShardException(context, "illegal longitude value [{}] for [{}]", point.lon(),
                             GeoPolygonQueryBuilder.NAME);
                 }
@@ -205,7 +205,7 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
         List<GeoPoint> shell = new ArrayList<>();
         int size = in.readVInt();
         for (int i = 0; i < size; i++) {
-            shell.add(new GeoPoint(in.readDouble(), in.readDouble()));
+            shell.add(GeoPoint.readGeoPointFrom(in));
         }
         GeoPolygonQueryBuilder builder = new GeoPolygonQueryBuilder(fieldName, shell);
         builder.coerce = in.readBoolean();
@@ -218,8 +218,7 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
         out.writeString(fieldName);
         out.writeVInt(shell.size());
         for (GeoPoint point : shell) {
-            out.writeDouble(point.lat());
-            out.writeDouble(point.lon());
+            point.writeTo(out);
         }
         out.writeBoolean(coerce);
         out.writeBoolean(ignoreMalformed);

@@ -145,6 +145,7 @@ public class GeoDistanceRangeQueryTests extends AbstractQueryTestCase<GeoDistanc
      * explicitly mapped
      */
     @Override
+    @Test
     public void testToQuery() throws IOException {
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         super.testToQuery();

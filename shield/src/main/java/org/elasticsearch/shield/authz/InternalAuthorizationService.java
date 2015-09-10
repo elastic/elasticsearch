@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.shield.authz;
 
-import com.google.common.collect.Sets;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.IndicesRequest;
@@ -20,6 +19,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.search.action.SearchServiceTransportAction;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.audit.AuditTrail;
@@ -31,11 +31,7 @@ import org.elasticsearch.shield.authz.indicesresolver.IndicesAndAliasesResolver;
 import org.elasticsearch.shield.authz.store.RolesStore;
 import org.elasticsearch.transport.TransportRequest;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.shield.support.Exceptions.authorizationError;

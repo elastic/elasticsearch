@@ -6,7 +6,8 @@
 package org.elasticsearch.shield.authc.esusers.tool;
 
 import com.google.common.base.Joiner;
-import com.google.common.collect.*;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.ObjectArrays;
 import org.apache.commons.cli.CommandLine;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.cli.CheckFileCommand;
@@ -14,6 +15,7 @@ import org.elasticsearch.common.cli.CliTool;
 import org.elasticsearch.common.cli.CliToolConfig;
 import org.elasticsearch.common.cli.Terminal;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.shield.authc.Realms;
 import org.elasticsearch.shield.authc.esusers.ESUsersRealm;
@@ -394,7 +396,7 @@ public class ESUsersTool extends CliTool {
             if (roles.size() == 0) {
                 userRolesToWrite.remove(username);
             } else {
-                userRolesToWrite.put(username, Sets.newLinkedHashSet(roles).toArray(new String[]{}));
+                userRolesToWrite.put(username, new LinkedHashSet<>(roles).toArray(new String[]{}));
             }
             FileUserRolesStore.writeFile(userRolesToWrite, file);
 

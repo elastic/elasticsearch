@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.shield.authz.accesscontrol;
 
-import com.google.common.collect.Sets;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
@@ -14,6 +13,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.shield.authz.Permission;
 import org.elasticsearch.shield.authz.Privilege;
 import org.elasticsearch.test.ESTestCase;

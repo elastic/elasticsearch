@@ -46,6 +46,7 @@ public class HasParentQueryParser implements QueryParser {
 
     public static final String NAME = "has_parent";
     private static final ParseField QUERY_FIELD = new ParseField("query", "filter");
+    private static final ParseField SCORE_MODE = new ParseField("score_mode", "score_type");
 
     private final InnerHitsQueryParserHelper innerHitsQueryParserHelper;
 
@@ -92,18 +93,11 @@ public class HasParentQueryParser implements QueryParser {
             } else if (token.isValue()) {
                 if ("type".equals(currentFieldName) || "parent_type".equals(currentFieldName) || "parentType".equals(currentFieldName)) {
                     parentType = parser.text();
-                } else if ("score_type".equals(currentFieldName) || "scoreType".equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, SCORE_MODE)) {
                     String scoreTypeValue = parser.text();
                     if ("score".equals(scoreTypeValue)) {
                         score = true;
                     } else if ("none".equals(scoreTypeValue)) {
-                        score = false;
-                    }
-                } else if ("score_mode".equals(currentFieldName) || "scoreMode".equals(currentFieldName)) {
-                    String scoreModeValue = parser.text();
-                    if ("score".equals(scoreModeValue)) {
-                        score = true;
-                    } else if ("none".equals(scoreModeValue)) {
                         score = false;
                     }
                 } else if ("boost".equals(currentFieldName)) {

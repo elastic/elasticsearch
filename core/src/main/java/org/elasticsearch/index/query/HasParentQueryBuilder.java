@@ -30,7 +30,7 @@ public class HasParentQueryBuilder extends QueryBuilder implements BoostableQuer
 
     private final QueryBuilder queryBuilder;
     private final String parentType;
-    private String scoreType;
+    private String scoreMode;
     private float boost = 1.0f;
     private String queryName;
     private QueryInnerHitBuilder innerHit = null;
@@ -53,8 +53,17 @@ public class HasParentQueryBuilder extends QueryBuilder implements BoostableQuer
     /**
      * Defines how the parent score is mapped into the child documents.
      */
-    public HasParentQueryBuilder scoreType(String scoreType) {
-        this.scoreType = scoreType;
+    public HasParentQueryBuilder scoreMode(String scoreMode) {
+        this.scoreMode = scoreMode;
+        return this;
+    }
+
+    /**
+     * Defines how the parent score is mapped into the child documents.
+     */
+    @Deprecated
+    public HasParentQueryBuilder scoreType(String scoreMode) {
+        this.scoreMode = scoreMode;
         return this;
     }
 
@@ -80,8 +89,8 @@ public class HasParentQueryBuilder extends QueryBuilder implements BoostableQuer
         builder.field("query");
         queryBuilder.toXContent(builder, params);
         builder.field("parent_type", parentType);
-        if (scoreType != null) {
-            builder.field("score_type", scoreType);
+        if (scoreMode != null) {
+            builder.field("score_mode", scoreMode);
         }
         if (boost != 1.0f) {
             builder.field("boost", boost);

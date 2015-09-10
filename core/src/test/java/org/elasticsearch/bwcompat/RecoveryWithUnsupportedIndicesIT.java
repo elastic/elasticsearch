@@ -31,7 +31,7 @@ public class RecoveryWithUnsupportedIndicesIT extends StaticIndexBackwardCompati
         String indexName = "unsupported-0.20.6";
 
         logger.info("Checking static index " + indexName);
-        Settings nodeSettings = prepareBackwardsDataDir(getDataPath(indexName + ".zip"), Node.HTTP_ENABLED, true);
+        Settings nodeSettings = prepareBackwardsDataDir(getBwcIndicesPath().resolve(indexName + ".zip"), Node.HTTP_ENABLED, true);
         try {
             internalCluster().startNode(nodeSettings);
             fail();

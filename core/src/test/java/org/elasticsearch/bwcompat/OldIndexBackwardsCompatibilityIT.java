@@ -165,7 +165,7 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
         String indexName = indexFile.replace(".zip", "").toLowerCase(Locale.ROOT).replace("unsupported-", "index-");
 
         // decompress the index
-        Path backwardsIndex = getDataPath(indexFile);
+        Path backwardsIndex = getBwcIndicesPath().resolve(indexFile);
         try (InputStream stream = Files.newInputStream(backwardsIndex)) {
             TestUtil.unzip(stream, unzipDir);
         }

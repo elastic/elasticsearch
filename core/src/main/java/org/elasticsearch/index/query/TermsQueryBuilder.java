@@ -39,10 +39,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.indices.cache.query.terms.TermsLookup;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
 
 /**
  * A filter for a field based on several terms matching on any of them.
@@ -51,15 +48,28 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
 
     public static final String NAME = "terms";
 
-    static final TermsQueryBuilder PROTOTYPE = new TermsQueryBuilder(null);
+    static final TermsQueryBuilder PROTOTYPE = new TermsQueryBuilder("");
 
     public static final boolean DEFAULT_DISABLE_COORD = false;
 
     private final String fieldName;
-    private List<Object> values;
+    private final List<Object> values;
+    @Deprecated
     private String minimumShouldMatch;
+    @Deprecated
     private boolean disableCoord = DEFAULT_DISABLE_COORD;
     private TermsLookup termsLookup;
+
+    TermsQueryBuilder(String fieldName, List<Object> values, String minimumShouldMatch, boolean disableCoord, TermsLookup termsLookup) {
+        this.fieldName = fieldName;
+        if (values == null && termsLookup == null) {
+            throw new IllegalArgumentException("No value specified for terms query");
+        }
+        this.values = values;
+        this.disableCoord = disableCoord;
+        this.minimumShouldMatch = minimumShouldMatch;
+        this.termsLookup = termsLookup;
+    }
 
     /**
      * A filter for a field based on several terms matching on any of them.
@@ -128,6 +138,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
      */
     public TermsQueryBuilder(String fieldName) {
         this.fieldName = fieldName;
+        this.values = null;
     }
 
     /**
@@ -176,7 +187,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         return this;
     }
 
-    public boolean disableCoord() {
+    boolean disableCoord() {
         return this.disableCoord;
     }
 
@@ -308,7 +319,9 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         if (minimumShouldMatch != null) {
             builder.field("minimum_should_match", minimumShouldMatch);
         }
-        builder.field("disable_coord", disableCoord);
+        if (disableCoord != DEFAULT_DISABLE_COORD) {
+            builder.field("disable_coord", disableCoord);
+        }
         printBoostAndQueryName(builder);
         builder.endObject();
     }
@@ -391,14 +404,15 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
     @SuppressWarnings("unchecked")
     @Override
     protected TermsQueryBuilder doReadFrom(StreamInput in) throws IOException {
-        TermsQueryBuilder termsQueryBuilder = new TermsQueryBuilder(in.readString());
+        String field = in.readString();
+        TermsLookup lookup = null;
         if (in.readBoolean()) {
-            termsQueryBuilder.termsLookup = TermsLookup.readTermsLookupFrom(in);
+            lookup = TermsLookup.readTermsLookupFrom(in);
         }
-        termsQueryBuilder.values = ((List<Object>) in.readGenericValue());
-        termsQueryBuilder.minimumShouldMatch = in.readOptionalString();
-        termsQueryBuilder.disableCoord = in.readBoolean();
-        return termsQueryBuilder;
+        List<Object> values = (List<Object>) in.readGenericValue();
+        String minimumShouldMatch = in.readOptionalString();
+        boolean disableCoord = in.readBoolean();
+        return new TermsQueryBuilder(field, values, minimumShouldMatch, disableCoord, lookup);
     }
 
     @Override

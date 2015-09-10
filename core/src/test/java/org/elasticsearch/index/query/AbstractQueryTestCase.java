@@ -254,7 +254,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         QB testQuery = createTestQueryBuilder();
         assertParsedQuery(testQuery.toString(), testQuery);
         for (Map.Entry<String, QB> alternateVersion : getAlternateVersions().entrySet()) {
-            assertParsedQuery(alternateVersion.getKey(), alternateVersion.getValue(), ParseFieldMatcher.EMPTY);
+            assertParsedQuery(alternateVersion.getKey(), alternateVersion.getValue());
         }
     }
 
@@ -270,7 +270,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
      * Parses the query provided as string argument and compares it with the expected result provided as argument as a {@link QueryBuilder}
      */
     protected void assertParsedQuery(String queryAsString, QueryBuilder<?> expectedQuery) throws IOException {
-        assertParsedQuery(queryAsString, expectedQuery, getDefaultParseFieldMatcher());
+        assertParsedQuery(queryAsString, expectedQuery, ParseFieldMatcher.STRICT);
     }
 
     protected void assertParsedQuery(String queryAsString, QueryBuilder<?> expectedQuery, ParseFieldMatcher matcher) throws IOException {
@@ -281,7 +281,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     }
 
     protected QueryBuilder<?> parseQuery(String queryAsString) throws IOException {
-        return parseQuery(queryAsString, getDefaultParseFieldMatcher());
+        return parseQuery(queryAsString, ParseFieldMatcher.STRICT);
     }
 
     protected QueryBuilder<?> parseQuery(String queryAsString, ParseFieldMatcher matcher) throws IOException {
@@ -290,16 +290,6 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         context.reset(parser);
         context.parseFieldMatcher(matcher);
         return context.parseInnerQueryBuilder();
-    }
-
-    /**
-     * Returns the default {@link ParseFieldMatcher} used for parsing non-alternative XContent representations.
-     * The default is {@link ParseFieldMatcher#STRICT}.
-     * Note: Queries returned from {@link #getAlternateVersions()} are always parsed with {@link ParseFieldMatcher#EMPTY} as they might
-     * not be backwards compatible.
-     */
-    protected ParseFieldMatcher getDefaultParseFieldMatcher() {
-        return ParseFieldMatcher.STRICT;
     }
 
     /**
@@ -384,6 +374,13 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     @Test
     public void testSerialization() throws IOException {
         QB testQuery = createTestQueryBuilder();
+        assertSerialization(testQuery);
+    }
+
+    /**
+     * Serialize the given query builder and asserts that both are equal
+     */
+    protected QB assertSerialization(QB testQuery) throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             testQuery.writeTo(output);
             try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
@@ -392,6 +389,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                 assertEquals(deserializedQuery, testQuery);
                 assertEquals(deserializedQuery.hashCode(), testQuery.hashCode());
                 assertNotSame(deserializedQuery, testQuery);
+                return (QB) deserializedQuery;
             }
         }
     }

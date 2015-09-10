@@ -100,6 +100,13 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
     }
 
     /**
+     * Returns the parents type name
+     */
+    public String type() {
+        return type;
+    }
+
+    /**
      *  Returns inner hit definition in the scope of this query and reusing the defined type and query.
      */
     public QueryInnerHits innerHit() {

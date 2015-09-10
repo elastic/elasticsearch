@@ -27,8 +27,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
-import static com.google.common.base.Preconditions.checkNotNull;
-
 /**
  * An error message and the context in which it occurred. Messages are usually created internally by
  * Guice and its extensions. Messages can be created explicitly in a module using {@link
@@ -52,7 +50,7 @@ public final class Message implements Serializable, Element {
      */
     public Message(List<Object> sources, String message, Throwable cause) {
         this.sources = Collections.unmodifiableList(sources);
-        this.message = checkNotNull(message, "message");
+        this.message = Objects.requireNonNull(message, "message");
         this.cause = cause;
     }
 

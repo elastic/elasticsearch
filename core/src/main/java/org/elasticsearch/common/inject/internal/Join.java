@@ -22,8 +22,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.Map;
-
-import static com.google.common.base.Preconditions.checkNotNull;
+import java.util.Objects;
 
 /**
  * Utility for joining pieces of text separated by a delimiter. It can handle
@@ -97,7 +96,7 @@ public final class Join {
      */
     public static String join(
             String delimiter, @Nullable Object firstToken, Object... otherTokens) {
-        checkNotNull(otherTokens);
+        Objects.requireNonNull(otherTokens);
         return join(delimiter, CollectionUtils.asArrayList(firstToken, otherTokens));
     }
 
@@ -207,7 +206,7 @@ public final class Join {
      */
     public static <T extends Appendable> T join(T appendable, String delimiter,
                                                 @Nullable Object firstToken, Object... otherTokens) {
-        checkNotNull(otherTokens);
+        Objects.requireNonNull(otherTokens);
         return join(appendable, delimiter, CollectionUtils.asArrayList(firstToken, otherTokens));
     }
 
@@ -232,8 +231,8 @@ public final class Join {
 
         /* This method is the workhorse of the class */
 
-        checkNotNull(appendable);
-        checkNotNull(delimiter);
+        Objects.requireNonNull(appendable);
+        Objects.requireNonNull(delimiter);
         if (tokens.hasNext()) {
             try {
                 appendOneToken(appendable, tokens.next());
@@ -268,9 +267,9 @@ public final class Join {
      */
     public static <T extends Appendable> T join(T appendable,
                                                 String keyValueSeparator, String entryDelimiter, Map<?, ?> map) {
-        checkNotNull(appendable);
-        checkNotNull(keyValueSeparator);
-        checkNotNull(entryDelimiter);
+        Objects.requireNonNull(appendable);
+        Objects.requireNonNull(keyValueSeparator);
+        Objects.requireNonNull(entryDelimiter);
         Iterator<? extends Map.Entry<?, ?>> entries = map.entrySet().iterator();
         if (entries.hasNext()) {
             try {

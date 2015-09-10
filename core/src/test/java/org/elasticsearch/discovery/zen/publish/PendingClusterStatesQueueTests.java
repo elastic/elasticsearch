@@ -58,7 +58,7 @@ public class PendingClusterStatesQueueTests extends ESTestCase {
             assertThat(((MockListener) context.listener).failure, notNullValue());
         }
 
-        // all states that should have dropped are
+        // all states that should have dropped are indeed dropped.
         for (ClusterState state : stateToDrop) {
             assertThat(queue.findState(state.stateUUID()), nullValue());
         }

@@ -24,24 +24,25 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.logging.ESLogger;
 
 import java.util.ArrayList;
+import java.util.Locale;
 import java.util.Objects;
 
 /**
  * A queue that holds all "in-flight" incoming cluster states from the master. Once a master commits a cluster
  * state, it is made available via {@link #getNextClusterStateToProcess()}. The class also takes care of batching
  * cluster states for processing and failures.
- *
+ * <p/>
  * The queue is bound by {@link #maxQueueSize}. When the queue is at capacity and a new cluster state is inserted
  * the oldest cluster state will be dropped. This is safe because:
  * 1) Under normal operations, master will publish & commit a cluster state before processing another change (i.e., the queue length is 1)
  * 2) If the master fails to commit a change, it will step down, causing a master election, which will flush the queue.
  * 3) In general it's safe to process the incoming cluster state as a replacement to the cluster state that's dropped.
- *    a) If the dropped cluster is from the same master as the incoming one is, it is likely to be superseded by the incoming state (or another state in the queue).
- *       This is only not true in very extreme cases of out of order delivery.
- *    b) If the dropping cluster state is not from the same master, it means that:
- *         i) we are no longer following the master of the dropped cluster state but follow the incoming one
- *         ii) we are no longer following any master, in which case it doesn't matter which cluster state will be processed first.
- *
+ * a) If the dropped cluster is from the same master as the incoming one is, it is likely to be superseded by the incoming state (or another state in the queue).
+ * This is only not true in very extreme cases of out of order delivery.
+ * b) If the dropping cluster state is not from the same master, it means that:
+ * i) we are no longer following the master of the dropped cluster state but follow the incoming one
+ * ii) we are no longer following any master, in which case it doesn't matter which cluster state will be processed first.
+ * <p/>
  * The class is fully thread safe and can be used concurrently.
  */
 public class PendingClusterStatesQueue {
@@ -272,7 +273,13 @@ public class PendingClusterStatesQueue {
 
         @Override
         public String toString() {
-            return "[uuid[" + stateUUID() + "], v[" + state.version() + "], m[" + state.nodes().masterNodeId() + "]]";
+            return String.format(
+                    Locale.ROOT,
+                    "[uuid[%s], v[%d], m[%s]]",
+                    stateUUID(),
+                    state.version(),
+                    state.nodes().masterNodeId()
+            );
         }
     }
 

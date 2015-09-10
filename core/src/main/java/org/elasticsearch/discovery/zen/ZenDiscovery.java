@@ -742,15 +742,23 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
             public void onFailure(String source, Throwable t) {
                 logger.error("unexpected failure during [{}]", t, source);
                 if (newClusterState != null) {
-                    publishClusterState.pendingStatesQueue().markAsFailed(newClusterState, t);
+                    try {
+                        publishClusterState.pendingStatesQueue().markAsFailed(newClusterState, t);
+                    } catch (Throwable unexpected) {
+                        logger.error("unexpected exception while failing [{}]", unexpected, source);
+                    }
                 }
             }
 
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                sendInitialStateEventIfNeeded();
-                if (newClusterState != null) {
-                    publishClusterState.pendingStatesQueue().markAsProcessed(newClusterState);
+                try {
+                    sendInitialStateEventIfNeeded();
+                    if (newClusterState != null) {
+                        publishClusterState.pendingStatesQueue().markAsProcessed(newClusterState);
+                    }
+                } catch (Throwable t) {
+                    onFailure(source, t);
                 }
             }
         });

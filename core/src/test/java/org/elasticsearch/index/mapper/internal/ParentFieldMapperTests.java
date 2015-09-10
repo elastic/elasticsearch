@@ -89,64 +89,6 @@ public class ParentFieldMapperTests extends ESTestCase {
         assertThat(parentFieldMapper.getChildJoinFieldType().docValuesType(), equalTo(DocValuesType.SORTED));
     }
 
-    public void testPre2Dot0LazyLoading() {
-        ParentFieldMapper.Builder builder = new ParentFieldMapper.Builder("child");
-        builder.type("parent");
-        builder.fieldDataSettings(createFDSettings(Loading.LAZY));
-
-        ParentFieldMapper parentFieldMapper = builder.build(new Mapper.BuilderContext(pre2Dot0IndexSettings(), new ContentPath(0)));
-
-        assertThat(parentFieldMapper.getParentJoinFieldType().names().indexName(), equalTo("_parent#child"));
-        assertThat(parentFieldMapper.getParentJoinFieldType().fieldDataType(), nullValue());
-        assertThat(parentFieldMapper.getParentJoinFieldType().hasDocValues(), is(false));
-        assertThat(parentFieldMapper.getParentJoinFieldType().docValuesType(), equalTo(DocValuesType.NONE));
-
-        assertThat(parentFieldMapper.getChildJoinFieldType().names().indexName(), equalTo("_parent#parent"));
-        assertThat(parentFieldMapper.getChildJoinFieldType().fieldDataType().getLoading(), equalTo(Loading.LAZY));
-        assertThat(parentFieldMapper.getChildJoinFieldType().hasDocValues(), is(false));
-        assertThat(parentFieldMapper.getChildJoinFieldType().docValuesType(), equalTo(DocValuesType.NONE));
-    }
-
-    public void testPre2Dot0EagerLoading() {
-        ParentFieldMapper.Builder builder = new ParentFieldMapper.Builder("child");
-        builder.type("parent");
-        builder.fieldDataSettings(createFDSettings(Loading.EAGER));
-
-        ParentFieldMapper parentFieldMapper = builder.build(new Mapper.BuilderContext(pre2Dot0IndexSettings(), new ContentPath(0)));
-
-        assertThat(parentFieldMapper.getParentJoinFieldType().names().indexName(), equalTo("_parent#child"));
-        assertThat(parentFieldMapper.getParentJoinFieldType().fieldDataType(), nullValue());
-        assertThat(parentFieldMapper.getParentJoinFieldType().hasDocValues(), is(false));
-        assertThat(parentFieldMapper.getParentJoinFieldType().docValuesType(), equalTo(DocValuesType.NONE));
-
-        assertThat(parentFieldMapper.getChildJoinFieldType().names().indexName(), equalTo("_parent#parent"));
-        assertThat(parentFieldMapper.getChildJoinFieldType().fieldDataType().getLoading(), equalTo(Loading.EAGER));
-        assertThat(parentFieldMapper.getChildJoinFieldType().hasDocValues(), is(false));
-        assertThat(parentFieldMapper.getChildJoinFieldType().docValuesType(), equalTo(DocValuesType.NONE));
-    }
-
-    public void testPre2Dot0EagerGlobalOrdinalsLoading() {
-        ParentFieldMapper.Builder builder = new ParentFieldMapper.Builder("child");
-        builder.type("parent");
-        builder.fieldDataSettings(createFDSettings(Loading.EAGER_GLOBAL_ORDINALS));
-
-        ParentFieldMapper parentFieldMapper = builder.build(new Mapper.BuilderContext(pre2Dot0IndexSettings(), new ContentPath(0)));
-
-        assertThat(parentFieldMapper.getParentJoinFieldType().names().indexName(), equalTo("_parent#child"));
-        assertThat(parentFieldMapper.getParentJoinFieldType().fieldDataType(), nullValue());
-        assertThat(parentFieldMapper.getParentJoinFieldType().hasDocValues(), is(false));
-        assertThat(parentFieldMapper.getParentJoinFieldType().docValuesType(), equalTo(DocValuesType.NONE));
-
-        assertThat(parentFieldMapper.getChildJoinFieldType().names().indexName(), equalTo("_parent#parent"));
-        assertThat(parentFieldMapper.getChildJoinFieldType().fieldDataType().getLoading(), equalTo(Loading.EAGER_GLOBAL_ORDINALS));
-        assertThat(parentFieldMapper.getChildJoinFieldType().hasDocValues(), is(false));
-        assertThat(parentFieldMapper.getChildJoinFieldType().docValuesType(), equalTo(DocValuesType.NONE));
-    }
-
-    private static Settings pre2Dot0IndexSettings() {
-        return Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_6_3).build();
-    }
-
     private static Settings post2Dot0IndexSettings() {
         return Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_2_1_0).build();
     }

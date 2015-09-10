@@ -31,6 +31,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.geo.GeoShapeFieldMapper;
 import org.elasticsearch.index.query.GeoShapeQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -43,10 +44,8 @@ import java.io.IOException;
 import java.util.Locale;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.QueryBuilders.filteredQuery;
 import static org.elasticsearch.index.query.QueryBuilders.geoIntersectionQuery;
 import static org.elasticsearch.index.query.QueryBuilders.geoShapeQuery;
-import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
@@ -101,8 +100,7 @@ public class GeoShapeIntegrationIT extends ESIntegTestCase {
         ShapeBuilder shape = ShapeBuilder.newEnvelope().topLeft(-45, 45).bottomRight(45, -45);
 
         SearchResponse searchResponse = client().prepareSearch()
-                .setQuery(filteredQuery(matchAllQuery(),
-                        geoIntersectionQuery("location", shape)))
+                .setQuery(geoIntersectionQuery("location", shape))
                 .execute().actionGet();
 
         assertSearchResponse(searchResponse);
@@ -151,8 +149,7 @@ public class GeoShapeIntegrationIT extends ESIntegTestCase {
         // This search would fail if both geoshape indexing and geoshape filtering
         // used the bottom-level optimization in SpatialPrefixTree#recursiveGetNodes.
         SearchResponse searchResponse = client().prepareSearch()
-                .setQuery(filteredQuery(matchAllQuery(),
-                        geoIntersectionQuery("location", query)))
+                .setQuery(geoIntersectionQuery("location", query))
                 .execute().actionGet();
 
         assertSearchResponse(searchResponse);
@@ -187,8 +184,7 @@ public class GeoShapeIntegrationIT extends ESIntegTestCase {
                 .endObject()));
 
         SearchResponse searchResponse = client().prepareSearch("test")
-                .setQuery(filteredQuery(matchAllQuery(),
-                        geoIntersectionQuery("location", "Big_Rectangle", "shape_type")))
+                .setQuery(geoIntersectionQuery("location", "Big_Rectangle", "shape_type"))
                 .execute().actionGet();
 
         assertSearchResponse(searchResponse);
@@ -493,15 +489,14 @@ public class GeoShapeIntegrationIT extends ESIntegTestCase {
 
         ShapeBuilder shape = RandomShapeGenerator.createShape(random());
         try {
-            indexRandom(true, client().prepareIndex("geo_points_only", "type1", "1").setSource(jsonBuilder().startObject()
-                    .field("location", shape).endObject()));
-        } catch (Throwable e) {
+            index("geo_points_only", "type1", "1", jsonBuilder().startObject().field("location", shape).endObject());
+        } catch (MapperParsingException e) {
             // RandomShapeGenerator created something other than a POINT type, verify the correct exception is thrown
-            assertThat(e.getMessage(), containsString("MapperParsingException"));
-            assertThat(e.getMessage(), containsString("is configured for points only"));
+            assertThat(e.getCause().getMessage(), containsString("is configured for points only"));
             return;
         }
 
+        refresh();
         // test that point was inserted
         SearchResponse response = client().prepareSearch()
                 .setQuery(geoIntersectionQuery("location", shape))

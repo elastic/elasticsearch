@@ -19,6 +19,7 @@
         <tests.rest.suite>jvm_example</tests.rest.suite>
         <tests.rest.load_packaged>false</tests.rest.load_packaged>
         <skip.unit.tests>true</skip.unit.tests>
+        <xlint.options>-Xlint:-rawtypes</xlint.options>
     </properties>
 
     <build>

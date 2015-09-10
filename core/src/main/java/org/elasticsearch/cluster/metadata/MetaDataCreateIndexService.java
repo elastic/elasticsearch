@@ -22,7 +22,6 @@ package org.elasticsearch.cluster.metadata;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.base.Charsets;
-import com.google.common.collect.Maps;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
@@ -36,7 +35,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
-import org.elasticsearch.cluster.metadata.IndexMetaData.*;
+import org.elasticsearch.cluster.metadata.IndexMetaData.Custom;
+import org.elasticsearch.cluster.metadata.IndexMetaData.State;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
@@ -81,6 +81,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -88,7 +89,12 @@ import java.util.Set;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_CREATION_DATE;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_INDEX_UUID;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_VERSION_CREATED;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 
 /**
@@ -245,12 +251,12 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     // find templates, highest order are better matching
                     List<IndexTemplateMetaData> templates = findTemplates(request, currentState, indexTemplateFilter);
 
-                    Map<String, Custom> customs = Maps.newHashMap();
+                    Map<String, Custom> customs = new HashMap<>();
 
                     // add the request mapping
-                    Map<String, Map<String, Object>> mappings = Maps.newHashMap();
+                    Map<String, Map<String, Object>> mappings = new HashMap<>();
 
-                    Map<String, AliasMetaData> templatesAliases = Maps.newHashMap();
+                    Map<String, AliasMetaData> templatesAliases = new HashMap<>();
 
                     List<String> templateNames = new ArrayList<>();
 
@@ -392,7 +398,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     }
 
                     // now, update the mappings with the actual source
-                    Map<String, MappingMetaData> mappingsMetaData = Maps.newHashMap();
+                    Map<String, MappingMetaData> mappingsMetaData = new HashMap<>();
                     for (DocumentMapper mapper : mapperService.docMappers(true)) {
                         MappingMetaData mappingMd = new MappingMetaData(mapper);
                         mappingsMetaData.put(mapper.type(), mappingMd);

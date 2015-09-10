@@ -18,11 +18,11 @@
  */
 package org.elasticsearch.test.rest.spec;
 
-import com.google.common.collect.Maps;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -198,7 +198,7 @@ public class RestApi {
         }
 
         private static Map<String,String> extractParts(String input) {
-            Map<String, String> parts = Maps.newHashMap();
+            Map<String, String> parts = new HashMap<>();
             Matcher matcher = PLACEHOLDERS_PATTERN.matcher(input);
             while (matcher.find()) {
                 //key is e.g. {index}

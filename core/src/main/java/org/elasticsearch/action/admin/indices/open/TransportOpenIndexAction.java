@@ -36,6 +36,8 @@ import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.Arrays;
+
 /**
  * Open index action
  */
@@ -92,7 +94,7 @@ public class TransportOpenIndexAction extends TransportMasterNodeAction<OpenInde
 
             @Override
             public void onFailure(Throwable t) {
-                logger.debug("failed to open indices [{}]", t, concreteIndices);
+                logger.debug("failed to open indices [{}]", t, (Object)concreteIndices);
                 listener.onFailure(t);
             }
         });

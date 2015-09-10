@@ -41,7 +41,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
 
-import static com.google.common.collect.Maps.newHashMap;
 import static com.google.common.collect.Sets.newHashSet;
 
 /**
@@ -56,11 +55,11 @@ public class RoutingNodes implements Iterable<RoutingNode> {
 
     private final RoutingTable routingTable;
 
-    private final Map<String, RoutingNode> nodesToShards = newHashMap();
+    private final Map<String, RoutingNode> nodesToShards = new HashMap<>();
 
     private final UnassignedShards unassignedShards = new UnassignedShards(this);
 
-    private final Map<ShardId, List<ShardRouting>> assignedShards = newHashMap();
+    private final Map<ShardId, List<ShardRouting>> assignedShards = new HashMap<>();
 
     private final ImmutableOpenMap<String, ClusterState.Custom> customs;
 
@@ -85,7 +84,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         this.routingTable = clusterState.routingTable();
         this.customs = clusterState.customs();
 
-        Map<String, List<ShardRouting>> nodesToShards = newHashMap();
+        Map<String, List<ShardRouting>> nodesToShards = new HashMap<>();
         // fill in the nodeToShards with the "live" nodes
         for (ObjectCursor<DiscoveryNode> cursor : clusterState.nodes().dataNodes().values()) {
             nodesToShards.put(cursor.value.id(), new ArrayList<ShardRouting>());

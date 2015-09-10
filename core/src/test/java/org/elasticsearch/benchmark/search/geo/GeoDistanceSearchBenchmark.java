@@ -31,7 +31,7 @@ import org.elasticsearch.node.NodeBuilder;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.geoDistanceQuery;
-import static org.elasticsearch.index.query.QueryBuilders.filteredQuery;
+import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 
 /**
@@ -191,7 +191,7 @@ public class GeoDistanceSearchBenchmark {
     public static void run(Client client, GeoDistance geoDistance, String optimizeBbox) {
         client.prepareSearch() // from NY
                 .setSize(0)
-                .setQuery(filteredQuery(matchAllQuery(), geoDistanceQuery("location")
+                .setQuery(boolQuery().must(matchAllQuery()).filter(geoDistanceQuery("location")
                         .distance("2km")
                         .optimizeBbox(optimizeBbox)
                         .geoDistance(geoDistance)

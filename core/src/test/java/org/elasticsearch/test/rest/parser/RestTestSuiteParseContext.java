@@ -18,12 +18,16 @@
  */
 package org.elasticsearch.test.rest.parser;
 
-import com.google.common.collect.Maps;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.rest.section.*;
+import org.elasticsearch.test.rest.section.DoSection;
+import org.elasticsearch.test.rest.section.ExecutableSection;
+import org.elasticsearch.test.rest.section.SetupSection;
+import org.elasticsearch.test.rest.section.SkipSection;
+import org.elasticsearch.test.rest.section.TestSection;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -36,7 +40,7 @@ public class RestTestSuiteParseContext {
     private static final RestTestSectionParser TEST_SECTION_PARSER = new RestTestSectionParser();
     private static final SkipSectionParser SKIP_SECTION_PARSER = new SkipSectionParser();
     private static final DoSectionParser DO_SECTION_PARSER = new DoSectionParser();
-    private static final Map<String, RestTestFragmentParser<? extends ExecutableSection>> EXECUTABLE_SECTIONS_PARSERS = Maps.newHashMap();
+    private static final Map<String, RestTestFragmentParser<? extends ExecutableSection>> EXECUTABLE_SECTIONS_PARSERS = new HashMap<>();
     static {
         EXECUTABLE_SECTIONS_PARSERS.put("do", DO_SECTION_PARSER);
         EXECUTABLE_SECTIONS_PARSERS.put("set", new SetSectionParser());

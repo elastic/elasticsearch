@@ -263,7 +263,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
     @Test
     public void testThatInvalidGetIndexTemplatesFails() throws Exception {
         logger.info("--> get template null");
-        testExpectActionRequestValidationException(null);
+        testExpectActionRequestValidationException((String[])null);
 
         logger.info("--> get template empty");
         testExpectActionRequestValidationException("");

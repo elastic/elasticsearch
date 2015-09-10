@@ -82,7 +82,6 @@ public class IndicesModule extends AbstractModule {
         registerQueryParser(RangeQueryParser.class);
         registerQueryParser(PrefixQueryParser.class);
         registerQueryParser(WildcardQueryParser.class);
-        registerQueryParser(FilteredQueryParser.class);
         registerQueryParser(ConstantScoreQueryParser.class);
         registerQueryParser(SpanTermQueryParser.class);
         registerQueryParser(SpanNotQueryParser.class);
@@ -101,7 +100,6 @@ public class IndicesModule extends AbstractModule {
         registerQueryParser(SimpleQueryStringParser.class);
         registerQueryParser(TemplateQueryParser.class);
         registerQueryParser(TypeQueryParser.class);
-        registerQueryParser(LimitQueryParser.class);
         registerQueryParser(ScriptQueryParser.class);
         registerQueryParser(GeoDistanceQueryParser.class);
         registerQueryParser(GeoDistanceRangeQueryParser.class);
@@ -109,9 +107,6 @@ public class IndicesModule extends AbstractModule {
         registerQueryParser(GeohashCellQuery.Parser.class);
         registerQueryParser(GeoPolygonQueryParser.class);
         registerQueryParser(QueryFilterParser.class);
-        registerQueryParser(FQueryFilterParser.class);
-        registerQueryParser(AndQueryParser.class);
-        registerQueryParser(OrQueryParser.class);
         registerQueryParser(NotQueryParser.class);
         registerQueryParser(ExistsQueryParser.class);
         registerQueryParser(MissingQueryParser.class);

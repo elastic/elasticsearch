@@ -131,7 +131,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
 
         // filter
-        searchResponse = client().prepareSearch("test").setQuery(filteredQuery(matchAllQuery(), nestedQuery("nested1",
+        searchResponse = client().prepareSearch("test").setQuery(boolQuery().must(matchAllQuery()).mustNot(nestedQuery("nested1",
                 boolQuery().must(termQuery("nested1.n_field1", "n_value1_1")).must(termQuery("nested1.n_field2", "n_value2_1"))))).execute().actionGet();
         assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
@@ -385,7 +385,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
         SearchResponse searchResponse = client().prepareSearch("test")
                 .setTypes("type1")
                 .setQuery(QueryBuilders.matchAllQuery())
-                .addSort(SortBuilders.fieldSort("nested1.field1").order(SortOrder.ASC))
+                .addSort(SortBuilders.fieldSort("nested1.field1").order(SortOrder.ASC).setNestedPath("nested1"))
                 .execute().actionGet();
 
         assertHitCount(searchResponse, 3);
@@ -399,7 +399,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
         searchResponse = client().prepareSearch("test")
                 .setTypes("type1")
                 .setQuery(QueryBuilders.matchAllQuery())
-                .addSort(SortBuilders.fieldSort("nested1.field1").order(SortOrder.DESC))
+                .addSort(SortBuilders.fieldSort("nested1.field1").order(SortOrder.DESC).setNestedPath("nested1"))
                 .execute().actionGet();
 
         assertHitCount(searchResponse, 3);
@@ -571,7 +571,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
 
         SearchRequestBuilder searchRequestBuilder = client().prepareSearch("test").setTypes("type1")
                 .setQuery(QueryBuilders.matchAllQuery())
-                .addSort(SortBuilders.fieldSort("nested1.field1").setNestedFilter(termQuery("nested1.field2", true)).missing(10).order(SortOrder.ASC));
+                .addSort(SortBuilders.fieldSort("nested1.field1").setNestedPath("nested1").setNestedFilter(termQuery("nested1.field2", true)).missing(10).order(SortOrder.ASC));
 
         if (randomBoolean()) {
             searchRequestBuilder.setScroll("10m");
@@ -588,7 +588,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().hits()[2].sortValues()[0].toString(), equalTo("10"));
 
         searchRequestBuilder = client().prepareSearch("test").setTypes("type1").setQuery(QueryBuilders.matchAllQuery())
-                .addSort(SortBuilders.fieldSort("nested1.field1").setNestedFilter(termQuery("nested1.field2", true)).missing(10).order(SortOrder.DESC));
+                .addSort(SortBuilders.fieldSort("nested1.field1").setNestedPath("nested1").setNestedFilter(termQuery("nested1.field2", true)).missing(10).order(SortOrder.DESC));
 
         if (randomBoolean()) {
             searchRequestBuilder.setScroll("10m");
@@ -767,6 +767,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
                 .setQuery(matchAllQuery())
                 .addSort(
                         SortBuilders.fieldSort("parent.child.child_values")
+                                .setNestedPath("parent.child")
                                 .setNestedFilter(QueryBuilders.termQuery("parent.child.filter", true))
                                 .order(SortOrder.ASC)
                 )
@@ -825,6 +826,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
                 .setQuery(matchAllQuery())
                 .addSort(
                         SortBuilders.fieldSort("parent.child.child_obj.value")
+                                .setNestedPath("parent.child")
                                 .setNestedFilter(QueryBuilders.termQuery("parent.child.filter", true))
                                 .order(SortOrder.ASC)
                 )
@@ -1081,6 +1083,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
 
         SearchResponse searchResponse = client().prepareSearch("test")
                 .addSort(SortBuilders.fieldSort("users.first")
+                        .setNestedPath("users")
                         .order(SortOrder.ASC))
                 .addSort(SortBuilders.fieldSort("users.first")
                         .order(SortOrder.ASC)

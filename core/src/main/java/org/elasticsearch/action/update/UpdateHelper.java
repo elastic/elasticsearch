@@ -53,8 +53,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 
-import static com.google.common.collect.Maps.newHashMapWithExpectedSize;
-
 /**
  * Helper for translating an update request to an index, delete request or update response.
  */
@@ -291,7 +289,7 @@ public class UpdateHelper extends AbstractComponent {
                 Object value = sourceLookup.extractValue(field);
                 if (value != null) {
                     if (fields == null) {
-                        fields = newHashMapWithExpectedSize(2);
+                        fields = new HashMap<>(2);
                     }
                     GetField getField = fields.get(field);
                     if (getField == null) {

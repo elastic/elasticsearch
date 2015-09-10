@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.test.rest.section;
 
-import com.google.common.collect.Maps;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.logging.ESLogger;
@@ -28,11 +27,16 @@ import org.elasticsearch.test.rest.client.RestException;
 import org.elasticsearch.test.rest.client.RestResponse;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.common.collect.Tuple.tuple;
 import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.fail;
 
@@ -125,7 +129,7 @@ public class DoSection implements ExecutableSection {
                 + restResponse.getStatusCode() + " " + restResponse.getReasonPhrase() + "] [" + restResponse.getBodyAsString() + "]";
     }
 
-    private static Map<String, Tuple<String, org.hamcrest.Matcher<Integer>>> catches = Maps.newHashMap();
+    private static Map<String, Tuple<String, org.hamcrest.Matcher<Integer>>> catches = new HashMap<>();
 
     static {
         catches.put("missing", tuple("404", equalTo(404)));

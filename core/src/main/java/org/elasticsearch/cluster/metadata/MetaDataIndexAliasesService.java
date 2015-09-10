@@ -20,7 +20,6 @@
 package org.elasticsearch.cluster.metadata;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-import com.google.common.collect.Maps;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesClusterStateUpdateRequest;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
@@ -38,6 +37,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.IndicesService;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -70,7 +70,7 @@ public class MetaDataIndexAliasesService extends AbstractComponent {
             @Override
             public ClusterState execute(final ClusterState currentState) {
                 List<String> indicesToClose = new ArrayList<>();
-                Map<String, IndexService> indices = Maps.newHashMap();
+                Map<String, IndexService> indices = new HashMap<>();
                 try {
                     for (AliasAction aliasAction : request.actions()) {
                         aliasValidator.validateAliasAction(aliasAction, currentState.metaData());

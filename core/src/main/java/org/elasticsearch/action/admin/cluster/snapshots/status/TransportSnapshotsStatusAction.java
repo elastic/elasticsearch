@@ -25,11 +25,11 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.SnapshotId;
-import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -43,11 +43,11 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static com.google.common.collect.Maps.newHashMap;
 import static com.google.common.collect.Sets.newHashSet;
 
 /**
@@ -146,7 +146,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
             if (nodeSnapshotStatuses != null) {
                 nodeSnapshotStatusMap = nodeSnapshotStatuses.getNodesMap();
             } else {
-                nodeSnapshotStatusMap = newHashMap();
+                nodeSnapshotStatusMap = new HashMap<>();
             }
 
             for (SnapshotsInProgress.Entry entry : currentSnapshots) {

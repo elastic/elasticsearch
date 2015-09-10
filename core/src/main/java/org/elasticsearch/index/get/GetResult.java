@@ -35,11 +35,11 @@ import org.elasticsearch.search.lookup.SourceLookup;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import static com.google.common.collect.Maps.newHashMapWithExpectedSize;
 import static org.elasticsearch.index.get.GetField.readGetField;
 
 /**
@@ -288,7 +288,7 @@ public class GetResult implements Streamable, Iterable<GetField>, ToXContent {
             if (size == 0) {
                 fields = ImmutableMap.of();
             } else {
-                fields = newHashMapWithExpectedSize(size);
+                fields = new HashMap<>(size);
                 for (int i = 0; i < size; i++) {
                     GetField field = readGetField(in);
                     fields.put(field.getName(), field);

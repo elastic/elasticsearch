@@ -20,6 +20,7 @@
         <tests.jvms>1</tests.jvms>
         <tests.rest.suite>repository_s3</tests.rest.suite>
         <tests.rest.load_packaged>false</tests.rest.load_packaged>
+        <xlint.options>-Xlint:-rawtypes</xlint.options>
     </properties>
 
     <dependencies>

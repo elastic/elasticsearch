@@ -20,7 +20,6 @@
 package org.elasticsearch.indices.query;
 
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Maps;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -29,6 +28,7 @@ import org.elasticsearch.index.query.EmptyQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParser;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
@@ -39,7 +39,7 @@ public class IndicesQueriesRegistry extends AbstractComponent {
     @Inject
     public IndicesQueriesRegistry(Settings settings, Set<QueryParser> injectedQueryParsers, NamedWriteableRegistry namedWriteableRegistry) {
         super(settings);
-        Map<String, QueryParser<?>> queryParsers = Maps.newHashMap();
+        Map<String, QueryParser<?>> queryParsers = new HashMap<>();
         for (QueryParser<?> queryParser : injectedQueryParsers) {
             for (String name : queryParser.names()) {
                 queryParsers.put(name, queryParser);

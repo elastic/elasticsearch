@@ -1595,9 +1595,9 @@ public class PercolatorIT extends ESIntegTestCase {
         logger.info("--> register a query");
         client().prepareIndex("test", PercolatorService.TYPE_NAME, "1")
                 .setSource(jsonBuilder().startObject()
-                        .field("query", QueryBuilders.constantScoreQuery(QueryBuilders.andQuery(
-                                QueryBuilders.queryStringQuery("root"),
-                                QueryBuilders.termQuery("message", "tree"))))
+                        .field("query", QueryBuilders.constantScoreQuery(QueryBuilders.boolQuery()
+                                .must(QueryBuilders.queryStringQuery("root"))
+                                .must(QueryBuilders.termQuery("message", "tree"))))
                         .endObject())
                 .setRefresh(true)
                 .execute().actionGet();

@@ -60,7 +60,7 @@ public class BasicAnalysisBackwardCompatibilityIT extends ESBackcompatTestCase {
             fields[i] = "type=string,analyzer=" + analyzer;
         }
         assertAcked(prepareCreate("test")
-                .addMapping("type", fields)
+                .addMapping("type", (Object[])fields)
                 .setSettings(indexSettings()));
         ensureYellow();
         InputOutput[] inout = new InputOutput[numFields];

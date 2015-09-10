@@ -17,7 +17,6 @@
 package org.elasticsearch.common.inject.util;
 
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Binder;
@@ -36,6 +35,7 @@ import org.elasticsearch.common.inject.spi.ScopeBinding;
 import java.lang.annotation.Annotation;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -178,7 +178,7 @@ public final class Modules {
                     // execute the original module, skipping all scopes and overridden keys. We only skip each
                     // overridden binding once so things still blow up if the module binds the same thing
                     // multiple times.
-                    final Map<Scope, Object> scopeInstancesInUse = Maps.newHashMap();
+                    final Map<Scope, Object> scopeInstancesInUse = new HashMap<>();
                     final List<ScopeBinding> scopeBindings = new ArrayList<>();
                     new ModuleWriter(binder()) {
                         @Override

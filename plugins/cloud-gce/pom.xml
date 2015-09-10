@@ -31,6 +31,7 @@ governing permissions and limitations under the License. -->
         <!-- currently has no unit tests -->
         <tests.rest.suite>cloud_gce</tests.rest.suite>
         <tests.rest.load_packaged>false</tests.rest.load_packaged>
+        <xlint.options>-Xlint:-rawtypes,-unchecked</xlint.options>
     </properties>
 
     <dependencies>

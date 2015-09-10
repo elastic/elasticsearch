@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.cluster.health;
 
-import com.google.common.collect.Maps;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -32,6 +31,7 @@ import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -62,7 +62,7 @@ public class ClusterIndexHealth implements Iterable<ClusterShardHealth>, Streama
 
     private ClusterHealthStatus status = ClusterHealthStatus.RED;
 
-    private final Map<Integer, ClusterShardHealth> shards = Maps.newHashMap();
+    private final Map<Integer, ClusterShardHealth> shards = new HashMap<>();
 
     private List<String> validationFailures;
 

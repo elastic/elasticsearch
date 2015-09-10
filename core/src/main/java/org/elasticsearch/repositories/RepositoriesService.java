@@ -21,9 +21,12 @@ package org.elasticsearch.repositories;
 
 import com.google.common.base.Joiner;
 import com.google.common.collect.ImmutableMap;
-
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.*;
+import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
+import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateRequest;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -43,10 +46,10 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static com.google.common.collect.Maps.newHashMap;
 import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 
 /**
@@ -265,7 +268,7 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
 
             logger.trace("processing new index repositories for state version [{}]", event.state().version());
 
-            Map<String, RepositoryHolder> survivors = newHashMap();
+            Map<String, RepositoryHolder> survivors = new HashMap<>();
             // First, remove repositories that are no longer there
             for (Map.Entry<String, RepositoryHolder> entry : repositories.entrySet()) {
                 if (newMetaData == null || newMetaData.repository(entry.getKey()) == null) {
@@ -370,7 +373,7 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
             // Closing previous version
             closeRepository(repositoryMetaData.name(), previous);
         }
-        Map<String, RepositoryHolder> newRepositories = newHashMap(repositories);
+        Map<String, RepositoryHolder> newRepositories = new HashMap<>(repositories);
         newRepositories.put(repositoryMetaData.name(), holder);
         repositories = ImmutableMap.copyOf(newRepositories);
         return true;

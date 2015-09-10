@@ -20,8 +20,6 @@
 package org.elasticsearch.index.fielddata;
 
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Maps;
-
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
@@ -31,7 +29,17 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.fielddata.plain.*;
+import org.elasticsearch.index.fielddata.plain.BytesBinaryDVIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.DisabledIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.DoubleArrayIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.FloatArrayIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.GeoPointBinaryDVIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.GeoPointDoubleArrayIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.IndexIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.PackedArrayIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.PagedBytesIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.core.BooleanFieldMapper;
@@ -44,6 +52,7 @@ import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -140,7 +149,7 @@ public class IndexFieldDataService extends AbstractIndexComponent {
 
     private final IndicesFieldDataCache indicesFieldDataCache;
     // the below map needs to be modified under a lock
-    private final Map<String, IndexFieldDataCache> fieldDataCaches = Maps.newHashMap();
+    private final Map<String, IndexFieldDataCache> fieldDataCaches = new HashMap<>();
     private final MapperService mapperService;
     private static final IndexFieldDataCache.Listener DEFAULT_NOOP_LISTENER = new IndexFieldDataCache.Listener() {
         @Override

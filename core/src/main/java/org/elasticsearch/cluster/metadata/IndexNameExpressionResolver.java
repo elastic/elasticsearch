@@ -43,6 +43,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -50,8 +51,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
-
-import static com.google.common.collect.Maps.newHashMap;
 
 public class IndexNameExpressionResolver extends AbstractComponent {
 
@@ -324,7 +323,7 @@ public class IndexNameExpressionResolver extends AbstractComponent {
                         if (!aliasMetaData.searchRoutingValues().isEmpty()) {
                             // Routing alias
                             if (routings == null) {
-                                routings = newHashMap();
+                                routings = new HashMap<>();
                             }
                             Set<String> r = routings.get(concreteIndex);
                             if (r == null) {
@@ -345,7 +344,7 @@ public class IndexNameExpressionResolver extends AbstractComponent {
                                 if (paramRouting != null) {
                                     Set<String> r = new HashSet<>(paramRouting);
                                     if (routings == null) {
-                                        routings = newHashMap();
+                                        routings = new HashMap<>();
                                     }
                                     routings.put(concreteIndex, r);
                                 } else {
@@ -364,7 +363,7 @@ public class IndexNameExpressionResolver extends AbstractComponent {
                     if (paramRouting != null) {
                         Set<String> r = new HashSet<>(paramRouting);
                         if (routings == null) {
-                            routings = newHashMap();
+                            routings = new HashMap<>();
                         }
                         routings.put(expression, r);
                     } else {
@@ -388,7 +387,7 @@ public class IndexNameExpressionResolver extends AbstractComponent {
     private Map<String, Set<String>> resolveSearchRoutingAllIndices(MetaData metaData, String routing) {
         if (routing != null) {
             Set<String> r = Strings.splitStringByCommaToSet(routing);
-            Map<String, Set<String>> routings = newHashMap();
+            Map<String, Set<String>> routings = new HashMap<>();
             String[] concreteIndices = metaData.concreteAllIndices();
             for (String index : concreteIndices) {
                 routings.put(index, r);
@@ -668,6 +667,7 @@ public class IndexNameExpressionResolver extends AbstractComponent {
             return result;
         }
 
+        @SuppressWarnings("fallthrough")
         String resolveExpression(String expression, final Context context) {
             if (expression.startsWith(EXPRESSION_LEFT_BOUND) == false || expression.endsWith(EXPRESSION_RIGHT_BOUND) == false) {
                 return expression;

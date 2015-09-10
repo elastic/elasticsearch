@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.index.mapper.core;
 
-import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
@@ -60,6 +59,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.SortedMap;
+import java.util.TreeMap;
 
 import static org.elasticsearch.index.mapper.MapperBuilders.completionField;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseMultiField;
@@ -372,7 +372,7 @@ public class CompletionFieldMapper extends FieldMapper {
                         throw new IllegalArgumentException("Unknown field name[" + currentFieldName + "], must be one of " + ALLOWED_CONTENT_FIELD_NAMES);
                     }
                 } else if (Fields.CONTEXT.equals(currentFieldName)) {
-                    SortedMap<String, ContextConfig> configs = Maps.newTreeMap(); 
+                    SortedMap<String, ContextConfig> configs = new TreeMap<>();
                     
                     if (token == Token.START_OBJECT) {
                         while ((token = parser.nextToken()) != Token.END_OBJECT) {
@@ -385,7 +385,7 @@ public class CompletionFieldMapper extends FieldMapper {
                                 configs.put(name, mapping.parseContext(context, parser));
                             }
                         }
-                        contextConfig = Maps.newTreeMap();
+                        contextConfig = new TreeMap<>();
                         for (ContextMapping mapping : fieldType().getContextMapping().values()) {
                             ContextConfig config = configs.get(mapping.name());
                             contextConfig.put(mapping.name(), config==null ? mapping.defaultConfig() : config);
@@ -443,7 +443,7 @@ public class CompletionFieldMapper extends FieldMapper {
         }
 
         if(contextConfig == null) {
-            contextConfig = Maps.newTreeMap();
+            contextConfig = new TreeMap<>();
             for (ContextMapping mapping : fieldType().getContextMapping().values()) {
                 contextConfig.put(mapping.name(), mapping.defaultConfig());
             }

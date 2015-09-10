@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.indices.segments;
 
-import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.action.ShardOperationFailedException;
@@ -35,6 +34,7 @@ import org.elasticsearch.index.engine.Segment;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -58,7 +58,7 @@ public class IndicesSegmentResponse extends BroadcastResponse implements ToXCont
         if (indicesSegments != null) {
             return indicesSegments;
         }
-        Map<String, IndexSegments> indicesSegments = Maps.newHashMap();
+        Map<String, IndexSegments> indicesSegments = new HashMap<>();
 
         Set<String> indices = Sets.newHashSet();
         for (ShardSegments shard : shards) {

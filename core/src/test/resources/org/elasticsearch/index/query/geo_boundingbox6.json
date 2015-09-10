@@ -1,9 +1,4 @@
 {
-    "filtered":{
-        "query":{
-            "match_all":{}
-        },
-        "filter":{
             "geo_bounding_box":{
                 "location":{
                     "right": -80,
@@ -12,6 +7,4 @@
                     "bottom": 30
                 }
             }
-        }
-    }
 }

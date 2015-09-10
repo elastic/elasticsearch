@@ -28,6 +28,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 
 import java.io.IOException;
+import java.util.Map;
 
 public class QueryParseContext {
 

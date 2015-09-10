@@ -19,8 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import com.google.common.collect.Maps;
-
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
@@ -31,6 +29,7 @@ import org.elasticsearch.index.search.MatchQuery;
 import org.elasticsearch.index.search.MultiMatchQuery;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -60,7 +59,7 @@ public class MultiMatchQueryParser extends BaseQueryParserTemp {
         MultiMatchQueryBuilder.Type type = null;
         MultiMatchQuery multiMatchQuery = new MultiMatchQuery(context);
         String minimumShouldMatch = null;
-        Map<String, Float> fieldNameWithBoosts = Maps.newHashMap();
+        Map<String, Float> fieldNameWithBoosts = new HashMap<>();
         String queryName = null;
         XContentParser.Token token;
         String currentFieldName = null;

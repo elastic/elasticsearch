@@ -21,9 +21,8 @@ package org.elasticsearch.common.collect;
 
 import com.google.common.collect.ImmutableMap;
 
+import java.util.HashMap;
 import java.util.Map;
-
-import static com.google.common.collect.Maps.newHashMap;
 
 /**
  *
@@ -38,14 +37,14 @@ public class MapBuilder<K, V> {
         return new MapBuilder<>(map);
     }
 
-    private Map<K, V> map = newHashMap();
+    private Map<K, V> map = new HashMap<>();
 
     public MapBuilder() {
-        this.map = newHashMap();
+        this.map = new HashMap<>();
     }
 
     public MapBuilder(Map<K, V> map) {
-        this.map = newHashMap(map);
+        this.map = new HashMap<>(map);
     }
 
     public MapBuilder<K, V> putAll(Map<K, V> map) {

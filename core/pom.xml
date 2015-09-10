@@ -15,6 +15,10 @@
     <name>Elasticsearch: Core</name>
     <description>Elasticsearch - Open Source, Distributed, RESTful Search Engine</description>
 
+    <properties>
+        <xlint.options>-Xlint:-cast,-deprecation,-fallthrough,-overrides,-rawtypes,-serial,-try,-unchecked</xlint.options>
+    </properties>
+
     <dependencies>
         <dependency>
             <groupId>org.hamcrest</groupId>
@@ -275,6 +279,7 @@
                                 <include>rest-api-spec/**/*</include>
                                 <include>org/elasticsearch/test/**/*</include>
                                 <include>org/elasticsearch/bootstrap/BootstrapForTesting.class</include>
+                                <include>org/elasticsearch/bootstrap/XTestSecurityManager*.class</include>
                                 <include>org/elasticsearch/common/cli/CliToolTestCase.class</include>
                                 <include>org/elasticsearch/common/cli/CliToolTestCase$*.class</include>
                                 <include>org/elasticsearch/cluster/MockInternalClusterInfoService.class</include>

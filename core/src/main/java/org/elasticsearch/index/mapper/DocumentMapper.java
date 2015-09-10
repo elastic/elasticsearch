@@ -19,11 +19,8 @@
 
 package org.elasticsearch.index.mapper;
 
-import com.google.common.base.Function;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Maps;
-
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -33,7 +30,6 @@ import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.StringAndBytesText;
@@ -67,6 +63,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -163,7 +160,7 @@ public class DocumentMapper implements ToXContent {
 
     private volatile DocumentFieldMappers fieldMappers;
 
-    private volatile ImmutableMap<String, ObjectMapper> objectMappers = ImmutableMap.of();
+    private volatile Map<String, ObjectMapper> objectMappers = Collections.emptyMap();
 
     private boolean hasNestedObjects = false;
 
@@ -206,12 +203,16 @@ public class DocumentMapper implements ToXContent {
         MapperUtils.collect(this.mapping.root, newObjectMappers, newFieldMappers);
 
         this.fieldMappers = new DocumentFieldMappers(docMapperParser.analysisService).copyAndAllAll(newFieldMappers);
-        this.objectMappers = Maps.uniqueIndex(newObjectMappers, new Function<ObjectMapper, String>() {
-            @Override
-            public String apply(ObjectMapper mapper) {
-                return mapper.fullPath();
+
+        Map<String, ObjectMapper> builder = new HashMap<>();
+        for (ObjectMapper objectMapper : newObjectMappers) {
+            ObjectMapper previous = builder.put(objectMapper.fullPath(), objectMapper);
+            if (previous != null) {
+                throw new IllegalStateException("duplicate key " + objectMapper.fullPath() + " encountered");
             }
-        });
+        }
+
+        this.objectMappers = Collections.unmodifiableMap(builder);
         for (ObjectMapper objectMapper : newObjectMappers) {
             if (objectMapper.nested().isNested()) {
                 hasNestedObjects = true;
@@ -306,7 +307,7 @@ public class DocumentMapper implements ToXContent {
         return this.fieldMappers;
     }
 
-    public ImmutableMap<String, ObjectMapper> objectMappers() {
+    public Map<String, ObjectMapper> objectMappers() {
         return this.objectMappers;
     }
 
@@ -390,14 +391,14 @@ public class DocumentMapper implements ToXContent {
         mapperService.checkNewMappersCompatibility(objectMappers, fieldMappers, updateAllTypes);
 
         // update mappers for this document type
-        MapBuilder<String, ObjectMapper> builder = MapBuilder.newMapBuilder(this.objectMappers);
+        Map<String, ObjectMapper> builder = new HashMap<>(this.objectMappers);
         for (ObjectMapper objectMapper : objectMappers) {
             builder.put(objectMapper.fullPath(), objectMapper);
             if (objectMapper.nested().isNested()) {
                 hasNestedObjects = true;
             }
         }
-        this.objectMappers = builder.immutableMap();
+        this.objectMappers = Collections.unmodifiableMap(builder);
         this.fieldMappers = this.fieldMappers.copyAndAllAll(fieldMappers);
 
         // finally update for the entire index

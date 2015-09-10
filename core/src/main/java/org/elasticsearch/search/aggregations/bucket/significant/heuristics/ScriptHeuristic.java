@@ -37,9 +37,8 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
-
-import static com.google.common.collect.Maps.newHashMap;
 
 public class ScriptHeuristic extends SignificanceHeuristic {
 
@@ -158,7 +157,7 @@ public class ScriptHeuristic extends SignificanceHeuristic {
                 ScriptParameterValue scriptValue = scriptParameterParser.getDefaultScriptParameterValue();
                 if (scriptValue != null) {
                     if (params == null) {
-                        params = newHashMap();
+                        params = new HashMap<>();
                     }
                     script = new Script(scriptValue.script(), scriptValue.scriptType(), scriptParameterParser.lang(), params);
                 }

@@ -19,8 +19,6 @@
 package org.elasticsearch.script;
 
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Maps;
-
 import org.elasticsearch.common.ContextAndHeaderHolder;
 import org.elasticsearch.common.HasContextAndHeaders;
 import org.elasticsearch.common.Nullable;
@@ -83,7 +81,7 @@ public class ScriptServiceTests extends ESTestCase {
         //randomly register custom script contexts
         int randomInt = randomIntBetween(0, 3);
         //prevent duplicates using map
-        Map<String, ScriptContext.Plugin> contexts = Maps.newHashMap();
+        Map<String, ScriptContext.Plugin> contexts = new HashMap<>();
         for (int i = 0; i < randomInt; i++) {
             String plugin;
             do {

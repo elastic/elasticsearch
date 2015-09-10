@@ -168,17 +168,6 @@ public class GeoDistanceSortParser implements SortParser {
             distances[i] = geoDistance.fixedSourceDistance(geoPoints.get(i).lat(), geoPoints.get(i).lon(), unit);
         }
 
-        // TODO: remove this in master, we should be explicit when we want to sort on nested fields and don't do anything automatically
-        if (nestedHelper == null || nestedHelper.getNestedObjectMapper() == null) {
-            ObjectMapper objectMapper = context.mapperService().resolveClosestNestedObjectMapper(fieldName);
-            if (objectMapper != null && objectMapper.nested().isNested()) {
-                if (nestedHelper == null) {
-                    nestedHelper = new NestedInnerQueryParseSupport(context.queryParserService().getShardContext());
-                }
-                nestedHelper.setPath(objectMapper.fullPath());
-            }
-        }
-
         final Nested nested;
         if (nestedHelper != null && nestedHelper.getPath() != null) {
             BitSetProducer rootDocumentsFilter = context.bitsetFilterCache().getBitSetProducer(Queries.newNonNestedFilter());

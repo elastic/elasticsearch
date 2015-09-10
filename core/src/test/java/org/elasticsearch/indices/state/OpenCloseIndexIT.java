@@ -196,7 +196,7 @@ public class OpenCloseIndexIT extends ESIntegTestCase {
     @Test(expected = ActionRequestValidationException.class)
     public void testCloseNullIndex() {
         Client client = client();
-        client.admin().indices().prepareClose(null).execute().actionGet();
+        client.admin().indices().prepareClose((String[])null).execute().actionGet();
     }
 
     @Test(expected = ActionRequestValidationException.class)
@@ -208,7 +208,7 @@ public class OpenCloseIndexIT extends ESIntegTestCase {
     @Test(expected = ActionRequestValidationException.class)
     public void testOpenNullIndex() {
         Client client = client();
-        client.admin().indices().prepareOpen(null).execute().actionGet();
+        client.admin().indices().prepareOpen((String[])null).execute().actionGet();
     }
 
     @Test

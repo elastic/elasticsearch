@@ -27,6 +27,7 @@ import java.io.IOException;
  * Parser for query filter
  * @deprecated use any query instead directly, possible since queries and filters are merged.
  */
+// TODO: remove when https://github.com/elastic/elasticsearch/issues/13326 is fixed
 @Deprecated
 public class QueryFilterParser extends BaseQueryParser<QueryFilterBuilder> {
 

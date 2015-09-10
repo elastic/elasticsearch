@@ -33,6 +33,7 @@ import java.util.Objects;
  * @deprecated Useless now that queries and filters are merged: pass the
  *             query as a filter directly.
  */
+//TODO: remove when https://github.com/elastic/elasticsearch/issues/13326 is fixed
 @Deprecated
 public class QueryFilterBuilder extends AbstractQueryBuilder<QueryFilterBuilder> {
 

@@ -130,10 +130,9 @@ public class ChildSearchBenchmark {
         for (int j = 0; j < QUERY_WARMUP; j++) {
             SearchResponse searchResponse = client.prepareSearch(indexName)
                     .setQuery(
-                            filteredQuery(
-                                    matchAllQuery(),
-                                    hasChildQuery("child", termQuery("field2", parentChildIndexGenerator.getQueryValue()))
-                            )
+                            boolQuery()
+                            .must(matchAllQuery())
+                            .filter(hasChildQuery("child", termQuery("field2", parentChildIndexGenerator.getQueryValue())))
                     )
                     .execute().actionGet();
             if (searchResponse.getFailedShards() > 0) {
@@ -145,10 +144,9 @@ public class ChildSearchBenchmark {
         for (int j = 0; j < QUERY_COUNT; j++) {
             SearchResponse searchResponse = client.prepareSearch(indexName)
                     .setQuery(
-                            filteredQuery(
-                                    matchAllQuery(),
-                                    hasChildQuery("child", termQuery("field2", parentChildIndexGenerator.getQueryValue()))
-                            )
+                            boolQuery()
+                            .must(matchAllQuery())
+                            .filter(hasChildQuery("child", termQuery("field2", parentChildIndexGenerator.getQueryValue())))
                     )
                     .execute().actionGet();
             if (searchResponse.getFailedShards() > 0) {
@@ -166,10 +164,9 @@ public class ChildSearchBenchmark {
         for (int j = 1; j <= QUERY_COUNT; j++) {
             SearchResponse searchResponse = client.prepareSearch(indexName)
                     .setQuery(
-                            filteredQuery(
-                                    matchAllQuery(),
-                                    hasChildQuery("child", matchAllQuery())
-                            )
+                            boolQuery()
+                            .must(matchAllQuery())
+                            .filter(hasChildQuery("child", matchAllQuery()))
                     )
                     .execute().actionGet();
             if (searchResponse.getFailedShards() > 0) {
@@ -226,10 +223,9 @@ public class ChildSearchBenchmark {
         for (int j = 0; j < QUERY_WARMUP; j++) {
             SearchResponse searchResponse = client.prepareSearch(indexName)
                     .setQuery(
-                            filteredQuery(
-                                    matchAllQuery(),
-                                    hasParentQuery("parent", termQuery("field1", parentChildIndexGenerator.getQueryValue()))
-                            )
+                            boolQuery()
+                            .must(matchAllQuery())
+                            .filter(hasParentQuery("parent", termQuery("field1", parentChildIndexGenerator.getQueryValue())))
                     )
                     .execute().actionGet();
             if (searchResponse.getFailedShards() > 0) {
@@ -241,10 +237,9 @@ public class ChildSearchBenchmark {
         for (int j = 1; j <= QUERY_COUNT; j++) {
             SearchResponse searchResponse = client.prepareSearch(indexName)
                     .setQuery(
-                            filteredQuery(
-                                    matchAllQuery(),
-                                    hasParentQuery("parent", termQuery("field1", parentChildIndexGenerator.getQueryValue()))
-                            )
+                            boolQuery()
+                            .must(matchAllQuery())
+                            .filter(hasParentQuery("parent", termQuery("field1", parentChildIndexGenerator.getQueryValue())))
                     )
                     .execute().actionGet();
             if (searchResponse.getFailedShards() > 0) {
@@ -261,10 +256,11 @@ public class ChildSearchBenchmark {
         totalQueryTime = 0;
         for (int j = 1; j <= QUERY_COUNT; j++) {
             SearchResponse searchResponse = client.prepareSearch(indexName)
-                    .setQuery(filteredQuery(
-                            matchAllQuery(),
-                            hasParentQuery("parent", matchAllQuery())
-                    ))
+                    .setQuery(
+                            boolQuery()
+                            .must(matchAllQuery())
+                            .filter(hasParentQuery("parent", matchAllQuery()))
+                    )
                     .execute().actionGet();
             if (searchResponse.getFailedShards() > 0) {
                 System.err.println("Search Failures " + Arrays.toString(searchResponse.getShardFailures()));

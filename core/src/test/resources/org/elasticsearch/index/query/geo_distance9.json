@@ -1,9 +1,4 @@
 {
-    "filtered":{
-        "query":{
-            "match_all":{}
-        },
-        "filter":{
             "geo_distance":{
                 "distance":"19.312128",
                 "unit":"km",
@@ -12,6 +7,4 @@
                     "lon":-70
                 }
             }
-        }
-    }
 }

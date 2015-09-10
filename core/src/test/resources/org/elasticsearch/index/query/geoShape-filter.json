@@ -1,9 +1,4 @@
 {
-    "filtered" : {
-        "query" : {
-            "match_all" : {}
-        },
-        "filter" : {
             "geo_shape" : {
                 "country" : {
                     "shape" : {
@@ -16,6 +11,4 @@
                     "relation" : "intersects"
                 }
             }
-        }
-    }
 }

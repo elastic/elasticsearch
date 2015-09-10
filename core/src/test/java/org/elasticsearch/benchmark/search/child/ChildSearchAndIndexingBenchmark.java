@@ -36,7 +36,7 @@ import static org.elasticsearch.client.Requests.createIndexRequest;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-import static org.elasticsearch.index.query.QueryBuilders.filteredQuery;
+import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.hasChildQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
@@ -167,9 +167,9 @@ public class ChildSearchAndIndexingBenchmark {
                     for (int j = 0; j < QUERY_COUNT; j++) {
                         SearchResponse searchResponse = client.prepareSearch(indexName)
                                 .setQuery(
-                                        filteredQuery(
-                                                matchAllQuery(),
-                                                hasChildQuery("child", termQuery("field2", "value" + random.nextInt(numValues)))
+                                        boolQuery()
+                                        .must(matchAllQuery())
+                                        .filter(hasChildQuery("child", termQuery("field2", "value" + random.nextInt(numValues)))
                                         )
                                 )
                                 .execute().actionGet();
@@ -184,10 +184,9 @@ public class ChildSearchAndIndexingBenchmark {
                     for (int j = 1; j <= QUERY_COUNT; j++) {
                         SearchResponse searchResponse = client.prepareSearch(indexName)
                                 .setQuery(
-                                        filteredQuery(
-                                                matchAllQuery(),
-                                                hasChildQuery("child", matchAllQuery())
-                                        )
+                                        boolQuery()
+                                        .must(matchAllQuery())
+                                        .filter(hasChildQuery("child", matchAllQuery()))
                                 )
                                 .execute().actionGet();
                         if (searchResponse.getFailedShards() > 0) {

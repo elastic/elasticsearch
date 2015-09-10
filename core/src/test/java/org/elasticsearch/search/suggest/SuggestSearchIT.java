@@ -1180,10 +1180,8 @@ public class SuggestSearchIT extends ESIntegTestCase {
         // suggest with collation
         String filterStringAsFilter = XContentFactory.jsonBuilder()
                 .startObject()
-                .startObject("query")
                 .startObject("match_phrase")
                 .field("title", "{{suggestion}}")
-                .endObject()
                 .endObject()
                 .endObject()
                 .string();

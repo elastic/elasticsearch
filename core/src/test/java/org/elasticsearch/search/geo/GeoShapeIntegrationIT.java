@@ -43,10 +43,8 @@ import java.io.IOException;
 import java.util.Locale;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.QueryBuilders.filteredQuery;
 import static org.elasticsearch.index.query.QueryBuilders.geoIntersectionQuery;
 import static org.elasticsearch.index.query.QueryBuilders.geoShapeQuery;
-import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
@@ -101,8 +99,7 @@ public class GeoShapeIntegrationIT extends ESIntegTestCase {
         ShapeBuilder shape = ShapeBuilder.newEnvelope().topLeft(-45, 45).bottomRight(45, -45);
 
         SearchResponse searchResponse = client().prepareSearch()
-                .setQuery(filteredQuery(matchAllQuery(),
-                        geoIntersectionQuery("location", shape)))
+                .setQuery(geoIntersectionQuery("location", shape))
                 .execute().actionGet();
 
         assertSearchResponse(searchResponse);
@@ -151,8 +148,7 @@ public class GeoShapeIntegrationIT extends ESIntegTestCase {
         // This search would fail if both geoshape indexing and geoshape filtering
         // used the bottom-level optimization in SpatialPrefixTree#recursiveGetNodes.
         SearchResponse searchResponse = client().prepareSearch()
-                .setQuery(filteredQuery(matchAllQuery(),
-                        geoIntersectionQuery("location", query)))
+                .setQuery(geoIntersectionQuery("location", query))
                 .execute().actionGet();
 
         assertSearchResponse(searchResponse);
@@ -187,8 +183,7 @@ public class GeoShapeIntegrationIT extends ESIntegTestCase {
                 .endObject()));
 
         SearchResponse searchResponse = client().prepareSearch("test")
-                .setQuery(filteredQuery(matchAllQuery(),
-                        geoIntersectionQuery("location", "Big_Rectangle", "shape_type")))
+                .setQuery(geoIntersectionQuery("location", "Big_Rectangle", "shape_type"))
                 .execute().actionGet();
 
         assertSearchResponse(searchResponse);

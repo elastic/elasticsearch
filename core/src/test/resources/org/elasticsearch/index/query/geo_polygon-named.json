@@ -1,9 +1,4 @@
 {
-    "filtered":{
-        "query":{
-            "match_all":{}
-        },
-        "filter":{
             "geo_polygon":{
                 "location":{
                     "points":[
@@ -14,6 +9,4 @@
                 },
                 "_name":"test"
             }
-        }
-    }
 }

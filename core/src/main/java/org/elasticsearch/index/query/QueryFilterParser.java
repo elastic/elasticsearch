@@ -19,12 +19,12 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.inject.Inject;
 
 import java.io.IOException;
 
+// TODO: remove when https://github.com/elastic/elasticsearch/issues/13326 is fixed
 @Deprecated
 public class QueryFilterParser implements QueryParser {
 
@@ -41,6 +41,6 @@ public class QueryFilterParser implements QueryParser {
 
     @Override
     public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
-        return new ConstantScoreQuery(parseContext.parseInnerQuery());
+        return parseContext.parseInnerQuery();
     }
 }

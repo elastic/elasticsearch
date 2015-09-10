@@ -22,10 +22,9 @@ package org.elasticsearch.common.util.concurrent;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.transport.Transports;
 
+import java.util.Objects;
 import java.util.concurrent.*;
 import java.util.concurrent.locks.AbstractQueuedSynchronizer;
-
-import static com.google.common.base.Preconditions.checkNotNull;
 
 /**
  * An abstract implementation of the {@link com.google.common.util.concurrent.ListenableFuture} interface. This
@@ -178,7 +177,7 @@ public abstract class BaseFuture<V> implements Future<V> {
      * @throws Error if the throwable was an {@link Error}.
      */
     protected boolean setException(Throwable throwable) {
-        boolean result = sync.setException(checkNotNull(throwable));
+        boolean result = sync.setException(Objects.requireNonNull(throwable));
         if (result) {
             done();
         }

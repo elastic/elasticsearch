@@ -22,9 +22,9 @@ import org.elasticsearch.common.inject.internal.ToStringBuilder;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Type;
+import java.util.Objects;
 
 import static com.google.common.base.Preconditions.checkArgument;
-import static com.google.common.base.Preconditions.checkNotNull;
 
 /**
  * Binding key consisting of an injection type and an optional annotation.
@@ -343,7 +343,7 @@ public class Key<T> {
      * Gets the strategy for an annotation.
      */
     static AnnotationStrategy strategyFor(Annotation annotation) {
-        checkNotNull(annotation, "annotation");
+        Objects.requireNonNull(annotation, "annotation");
         Class<? extends Annotation> annotationType = annotation.annotationType();
         ensureRetainedAtRuntime(annotationType);
         ensureIsBindingAnnotation(annotationType);
@@ -359,7 +359,7 @@ public class Key<T> {
      * Gets the strategy for an annotation type.
      */
     static AnnotationStrategy strategyFor(Class<? extends Annotation> annotationType) {
-        checkNotNull(annotationType, "annotation type");
+        Objects.requireNonNull(annotationType, "annotation type");
         ensureRetainedAtRuntime(annotationType);
         ensureIsBindingAnnotation(annotationType);
         return new AnnotationTypeStrategy(annotationType, null);
@@ -414,7 +414,7 @@ public class Key<T> {
         final Annotation annotation;
 
         AnnotationInstanceStrategy(Annotation annotation) {
-            this.annotation = checkNotNull(annotation, "annotation");
+            this.annotation = Objects.requireNonNull(annotation, "annotation");
         }
 
         @Override
@@ -467,7 +467,7 @@ public class Key<T> {
 
         AnnotationTypeStrategy(Class<? extends Annotation> annotationType,
                                Annotation annotation) {
-            this.annotationType = checkNotNull(annotationType, "annotation type");
+            this.annotationType = Objects.requireNonNull(annotationType, "annotation type");
             this.annotation = annotation;
         }
 

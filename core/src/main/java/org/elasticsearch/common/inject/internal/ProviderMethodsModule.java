@@ -32,8 +32,7 @@ import java.lang.reflect.Member;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
-
-import static com.google.common.base.Preconditions.checkNotNull;
+import java.util.Objects;
 
 /**
  * Creates bindings to methods annotated with {@literal @}{@link Provides}. Use the scope and
@@ -47,7 +46,7 @@ public final class ProviderMethodsModule implements Module {
     private final TypeLiteral<?> typeLiteral;
 
     private ProviderMethodsModule(Object delegate) {
-        this.delegate = checkNotNull(delegate, "delegate");
+        this.delegate = Objects.requireNonNull(delegate, "delegate");
         this.typeLiteral = TypeLiteral.get(this.delegate.getClass());
     }
 

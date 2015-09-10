@@ -35,9 +35,9 @@ import org.elasticsearch.common.inject.spi.TypeListenerBinding;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.logging.Logger;
 
-import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.base.Preconditions.checkState;
 import static org.elasticsearch.common.inject.Scopes.SINGLETON;
 
@@ -257,7 +257,7 @@ class InjectorShell {
         final Stage stage;
 
         private RootModule(Stage stage) {
-            this.stage = checkNotNull(stage, "stage");
+            this.stage = Objects.requireNonNull(stage, "stage");
         }
 
         @Override

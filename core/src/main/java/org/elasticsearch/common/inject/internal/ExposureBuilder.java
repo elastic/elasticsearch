@@ -21,6 +21,7 @@ import org.elasticsearch.common.inject.Key;
 import org.elasticsearch.common.inject.binder.AnnotatedElementBuilder;
 
 import java.lang.annotation.Annotation;
+import java.util.Objects;
 
 /**
  * For private binder's expose() method.
@@ -44,14 +45,14 @@ public class ExposureBuilder<T> implements AnnotatedElementBuilder {
 
     @Override
     public void annotatedWith(Class<? extends Annotation> annotationType) {
-        com.google.common.base.Preconditions.checkNotNull(annotationType, "annotationType");
+        Objects.requireNonNull(annotationType, "annotationType");
         checkNotAnnotated();
         key = Key.get(key.getTypeLiteral(), annotationType);
     }
 
     @Override
     public void annotatedWith(Annotation annotation) {
-        com.google.common.base.Preconditions.checkNotNull(annotation, "annotation");
+        Objects.requireNonNull(annotation, "annotation");
         checkNotAnnotated();
         key = Key.get(key.getTypeLiteral(), annotation);
     }

@@ -21,13 +21,21 @@ package org.elasticsearch.plugin.deletebyquery.test.rest;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+import org.elasticsearch.plugin.deletebyquery.DeleteByQueryPlugin;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.RestTestCandidate;
 import org.elasticsearch.test.rest.parser.RestTestParseException;
 
 import java.io.IOException;
+import java.util.Collection;
 
 public class DeleteByQueryRestIT extends ESRestTestCase {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return pluginList(DeleteByQueryPlugin.class);
+    }
 
     public DeleteByQueryRestIT(@Name("yaml") RestTestCandidate testCandidate) {
         super(testCandidate);

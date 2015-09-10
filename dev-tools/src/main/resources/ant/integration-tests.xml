@@ -157,7 +157,7 @@
       <!-- run bin/elasticsearch with args -->
       <echo>Starting up external cluster...</echo>
 
-      <run-script script="@{home}/bin/elasticsearch" 
+      <run-script script="@{home}/bin/elasticsearch"
                   spawn="@{spawn}">
         <nested>
           <env key="JAVA_HOME" value="${java.home}"/>
@@ -172,6 +172,8 @@
           <arg value="-Des.path.shared_data=@{home}/../"/>
           <arg value="-Des.script.inline=on"/>
           <arg value="-Des.script.indexed=on"/>
+          <!-- Define a node attribute so we can test that it exists -->
+          <arg value="-Des.node.testattr=test"/>
           <arg value="-Des.repositories.url.allowed_urls=http://snapshot.test*"/>
           <additional-args/>
         </nested>

@@ -222,11 +222,11 @@ public class SearchTransformTests extends ESIntegTestCase {
         assertThat(result, notNullValue());
         assertThat(result.type(), is(SearchTransform.TYPE));
 
-        SearchResponse response = client().prepareSearch("idx").setSearchType(SearchType.QUERY_THEN_FETCH).setQuery(
+        SearchResponse response = client().prepareSearch("idx").setSearchType(ExecutableSearchTransform.DEFAULT_SEARCH_TYPE).setQuery(
                 boolQuery()
-                    .must(constantScoreQuery(rangeQuery("date").gt(parseDate("2015-01-01T00:00:00", UTC))))
-                    .must(constantScoreQuery(rangeQuery("date").lt(parseDate("2015-01-04T00:00:00", UTC))))
-                    .must(termQuery("value", "val_3"))
+                        .must(constantScoreQuery(rangeQuery("date").gt(parseDate("2015-01-01T00:00:00", UTC))))
+                        .must(constantScoreQuery(rangeQuery("date").lt(parseDate("2015-01-04T00:00:00", UTC))))
+                        .must(termQuery("value", "val_3"))
         ).get();
         Payload expectedPayload = new Payload.XContent(response);
 
@@ -369,15 +369,15 @@ public class SearchTransformTests extends ESIntegTestCase {
     public void testSearch_InlineTemplate() throws Exception {
         WatchExecutionContext ctx = createContext();
 
-        final String templateQuery = "{\"query\":{\"filtered\":{\"query\":{\"match\":{\"event_type\":{\"query\":\"a\"," +
-                "\"type\":\"boolean\"}}},\"filter\":{\"range\":{\"_timestamp\":" +
+        final String templateQuery = "{\"query\":{\"bool\":{\"must\":[{\"match\":{\"event_type\":{\"query\":\"a\"," +
+                "\"type\":\"boolean\"}}},{\"range\":{\"_timestamp\":" +
                 "{\"from\":\"{{ctx.trigger.scheduled_time}}||-{{seconds_param}}\",\"to\":\"{{ctx.trigger.scheduled_time}}\"," +
-                "\"include_lower\":true,\"include_upper\":true}}}}}}";
+                "\"include_lower\":true,\"include_upper\":true}}}]}}}";
 
-        final String expectedQuery = "{\"template\":{\"query\":{\"filtered\":{\"query\":{\"match\":{\"event_type\":{\"query\":\"a\"," +
-                "\"type\":\"boolean\"}}},\"filter\":{\"range\":{\"_timestamp\":" +
+        final String expectedQuery = "{\"template\":{\"query\":{\"bool\":{\"must\":[{\"match\":{\"event_type\":{\"query\":\"a\"," +
+                "\"type\":\"boolean\"}}},{\"range\":{\"_timestamp\":" +
                 "{\"from\":\"{{ctx.trigger.scheduled_time}}||-{{seconds_param}}\",\"to\":\"{{ctx.trigger.scheduled_time}}\"," +
-                "\"include_lower\":true,\"include_upper\":true}}}}}},\"params\":{\"seconds_param\":\"30s\",\"ctx\":{" +
+                "\"include_lower\":true,\"include_upper\":true}}}]}}},\"params\":{\"seconds_param\":\"30s\",\"ctx\":{" +
                 "\"id\":\"" + ctx.id().value() + "\",\"metadata\":null,\"vars\":{},\"watch_id\":\"test-watch\",\"payload\":{}," +
                 "\"trigger\":{\"triggered_time\":\"1970-01-01T00:01:00.000Z\",\"scheduled_time\":\"1970-01-01T00:01:00.000Z\"}," +
                 "\"execution_time\":\"1970-01-01T00:01:00.000Z\"}}}";
@@ -404,10 +404,10 @@ public class SearchTransformTests extends ESIntegTestCase {
     public void testSearch_IndexedTemplate() throws Exception {
         WatchExecutionContext ctx = createContext();
 
-        final String templateQuery = "{\"query\":{\"filtered\":{\"query\":{\"match\":{\"event_type\":{\"query\":\"a\"," +
-                "\"type\":\"boolean\"}}},\"filter\":{\"range\":{\"_timestamp\":" +
+        final String templateQuery = "{\"query\":{\"bool\":{\"must\":[{\"match\":{\"event_type\":{\"query\":\"a\"," +
+                "\"type\":\"boolean\"}}},{\"range\":{\"_timestamp\":" +
                 "{\"from\":\"{{ctx.trigger.scheduled_time}}||-{{seconds_param}}\",\"to\":\"{{ctx.trigger.scheduled_time}}\"," +
-                "\"include_lower\":true,\"include_upper\":true}}}}}}";
+                "\"include_lower\":true,\"include_upper\":true}}}]}}}";
 
         PutIndexedScriptRequest indexedScriptRequest = client().preparePutIndexedScript("mustache", "test-script", templateQuery).request();
         assertThat(client().putIndexedScript(indexedScriptRequest).actionGet().isCreated(), is(true));

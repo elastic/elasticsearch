@@ -60,12 +60,8 @@ public class ShieldCachePermissionTests extends ShieldIntegTestCase {
         client().preparePutIndexedScript().setOpType(IndexRequest.OpType.CREATE).setSource("{\n" +
                 "\"template\": {\n" +
                 "  \"query\": {\n" +
-                "    \"filtered\": {\n" +
-                "      \"filter\": {\n" +
-                "        \"exists\": {\n" +
-                "          \"field\": \"{{name}}\"\n" +
-                "         }\n" +
-                "       }\n" +
+                "    \"exists\": {\n" +
+                "      \"field\": \"{{name}}\"\n" +
                 "     }\n" +
                 "   }\n" +
                 " }\n" +

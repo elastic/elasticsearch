@@ -28,6 +28,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.similarities.Similarity;
 import org.elasticsearch.Version;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -331,15 +332,15 @@ public class QueryShardContext {
         return this.indexQueryParser.matchesIndices(indices);
     }
 
-    public List<Object> handleTermsLookup(TermsLookup termsLookup) {
-        return this.indexQueryParser.handleTermsLookup(termsLookup);
-    }
-
     /*
     * Executes the given template, and returns the response.
     */
     public BytesReference executeQueryTemplate(Template template, SearchContext searchContext) {
         ExecutableScript executable = scriptService().executable(template, ScriptContext.Standard.SEARCH, searchContext);
         return (BytesReference) executable.run();
+    }
+
+    public Client getClient() {
+        return indexQueryParser.getClient();
     }
 }

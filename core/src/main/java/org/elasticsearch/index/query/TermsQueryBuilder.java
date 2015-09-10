@@ -30,13 +30,18 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.action.get.GetRequest;
+import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.indices.cache.query.terms.TermsLookup;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.*;
@@ -338,7 +343,8 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
             if (termsLookup.index() == null) {
                 termsLookup.index(context.index().name());
             }
-            terms = context.handleTermsLookup(termsLookup);
+            Client client = context.getClient();
+            terms = fetch(termsLookup, client);
         } else {
             terms = values;
         }
@@ -346,6 +352,19 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
             return Queries.newMatchNoDocsQuery();
         }
         return handleTermsQuery(terms, fieldName, context, minimumShouldMatch, disableCoord);
+    }
+
+    private List<Object> fetch(TermsLookup termsLookup, Client client) {
+        List<Object> terms = new ArrayList<>();
+        GetRequest getRequest = new GetRequest(termsLookup.index(), termsLookup.type(), termsLookup.id())
+                .preference("_local").routing(termsLookup.routing());
+        getRequest.copyContextAndHeadersFrom(SearchContext.current());
+        final GetResponse getResponse = client.get(getRequest).actionGet();
+        if (getResponse.isExists()) {
+            List<Object> extractedValues = XContentMapValues.extractRawValues(termsLookup.path(), getResponse.getSourceAsMap());
+            terms.addAll(extractedValues);
+        }
+        return terms;
     }
 
     private static Query handleTermsQuery(List<Object> terms, String fieldName, QueryShardContext context, String minimumShouldMatch, boolean disableCoord) {

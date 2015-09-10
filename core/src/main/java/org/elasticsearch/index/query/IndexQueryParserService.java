@@ -23,6 +23,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.CloseableThreadLocal;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.Nullable;
@@ -44,15 +45,12 @@ import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
 import org.elasticsearch.index.query.support.InnerHitsQueryParserHelper;
-import org.elasticsearch.index.search.termslookup.TermsLookupFetchService;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.similarity.SimilarityService;
-import org.elasticsearch.indices.cache.query.terms.TermsLookup;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.script.ScriptService;
 
 import java.io.IOException;
-import java.util.List;
 
 public class IndexQueryParserService extends AbstractIndexComponent {
 
@@ -98,7 +96,7 @@ public class IndexQueryParserService extends AbstractIndexComponent {
     private final ParseFieldMatcher parseFieldMatcher;
     private final boolean defaultAllowUnmappedFields;
 
-    private TermsLookupFetchService termsLookupFetchService;
+    private Client client;
 
     @Inject
     public IndexQueryParserService(Index index, @IndexSettings Settings indexSettings, Settings settings,
@@ -108,7 +106,7 @@ public class IndexQueryParserService extends AbstractIndexComponent {
                                    BitsetFilterCache bitsetFilterCache,
                                    @Nullable SimilarityService similarityService, ClusterService clusterService,
                                    IndexNameExpressionResolver indexNameExpressionResolver,
-                                   InnerHitsQueryParserHelper innerHitsQueryParserHelper) {
+                                   InnerHitsQueryParserHelper innerHitsQueryParserHelper, Client client) {
         super(index, indexSettings);
         this.scriptService = scriptService;
         this.analysisService = analysisService;
@@ -128,11 +126,7 @@ public class IndexQueryParserService extends AbstractIndexComponent {
         this.defaultAllowUnmappedFields = indexSettings.getAsBoolean(ALLOW_UNMAPPED, true);
         this.indicesQueriesRegistry = indicesQueriesRegistry;
         this.innerHitsQueryParserHelper = innerHitsQueryParserHelper;
-    }
-
-    @Inject(optional=true)
-    public void setTermsLookupFetchService(@Nullable  TermsLookupFetchService termsLookupFetchService) {
-        this.termsLookupFetchService = termsLookupFetchService;
+        this.client = client;
     }
 
     public void close() {
@@ -362,11 +356,11 @@ public class IndexQueryParserService extends AbstractIndexComponent {
         return false;
     }
 
-    public List<Object> handleTermsLookup(TermsLookup termsLookup) {
-        return this.termsLookupFetchService.fetch(termsLookup);
-    }
-
     public InnerHitsQueryParserHelper getInnerHitsQueryParserHelper() {
         return innerHitsQueryParserHelper;
+    }
+
+    public Client getClient() {
+        return client;
     }
 }

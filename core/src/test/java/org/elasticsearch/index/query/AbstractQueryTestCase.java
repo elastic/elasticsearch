@@ -23,7 +23,12 @@ import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.elasticsearch.action.get.GetRequest;
+import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -79,10 +84,14 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.lang.reflect.InvocationHandler;
+import java.lang.reflect.Method;
+import java.lang.reflect.Proxy;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -127,6 +136,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     private static NamedWriteableRegistry namedWriteableRegistry;
 
     private static String[] randomTypes;
+    private static ClientInvocationHandler clientInvocationHandler = new ClientInvocationHandler();
 
     /**
      * Setup for the whole base test class.
@@ -146,6 +156,10 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         final TestClusterService clusterService = new TestClusterService();
         clusterService.setState(new ClusterState.Builder(clusterService.state()).metaData(new MetaData.Builder().put(
                 new IndexMetaData.Builder(index.name()).settings(indexSettings).numberOfShards(1).numberOfReplicas(0))));
+        final Client proxy = (Client) Proxy.newProxyInstance(
+                Client.class.getClassLoader(),
+                new Class[]{Client.class},
+                clientInvocationHandler);
         injector = new ModulesBuilder().add(
                 new EnvironmentModule(new Environment(settings)),
                 new SettingsModule(settings),
@@ -166,6 +180,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         new AbstractModule() {
                     @Override
                     protected void configure() {
+                        bind(Client.class).toInstance(proxy);
                         Multibinder.newSetBinder(binder(), ScoreFunctionParser.class);
                         bind(ClusterService.class).toProvider(Providers.of(clusterService));
                         bind(CircuitBreakerService.class).to(NoneCircuitBreakerService.class);
@@ -210,6 +225,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
 
     @Before
     public void beforeTest() {
+        clientInvocationHandler.delegate = this;
         //set some random types to be queried as part the search request, before each test
         randomTypes = getRandomTypes();
     }
@@ -222,6 +238,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
 
     @After
     public void afterTest() {
+        clientInvocationHandler.delegate = null;
         QueryShardContext.removeTypes();
         SearchContext.removeCurrent();
     }
@@ -605,4 +622,31 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     }
 
     private static final List<String> TIMEZONE_IDS = new ArrayList<>(DateTimeZone.getAvailableIDs());
+
+    private static class ClientInvocationHandler implements InvocationHandler {
+        AbstractQueryTestCase delegate;
+        @Override
+        public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
+            if (method.equals(Client.class.getDeclaredMethod("get", GetRequest.class))) {
+                return new PlainActionFuture<GetResponse>() {
+                    @Override
+                    public GetResponse get() throws InterruptedException, ExecutionException {
+                        return delegate.executeGet((GetRequest) args[0]);
+                    }
+                };
+            } else if (method.equals(Object.class.getDeclaredMethod("toString"))) {
+                return "MockClient";
+            }
+            throw new UnsupportedOperationException("this test can't handle calls to: " + method);
+        }
+
+    }
+
+    /**
+     * Override this to handle {@link Client#get(GetRequest)} calls from parsers / builders
+     */
+    protected GetResponse executeGet(GetRequest getRequest) {
+        throw new UnsupportedOperationException("this test can't handle GET requests");
+    }
+
 }

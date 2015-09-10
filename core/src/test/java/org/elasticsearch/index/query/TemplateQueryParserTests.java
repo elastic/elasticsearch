@@ -21,6 +21,7 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.inject.AbstractModule;
@@ -54,6 +55,9 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.lang.reflect.InvocationHandler;
+import java.lang.reflect.Method;
+import java.lang.reflect.Proxy;
 
 /**
  * Test parsing and executing a template request.
@@ -72,7 +76,11 @@ public class TemplateQueryParserTests extends ESTestCase {
                 .put("name", getClass().getName())
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .build();
-
+        final Client proxy = (Client) Proxy.newProxyInstance(
+                Client.class.getClassLoader(),
+                new Class[]{Client.class}, (proxy1, method, args) -> {
+                    throw new UnsupportedOperationException("client is just a dummy");
+                });
         Index index = new Index("test");
         injector = new ModulesBuilder().add(
                 new EnvironmentModule(new Environment(settings)),
@@ -94,6 +102,7 @@ public class TemplateQueryParserTests extends ESTestCase {
                 new AbstractModule() {
                     @Override
                     protected void configure() {
+                        bind(Client.class).toInstance(proxy); // not needed here
                         Multibinder.newSetBinder(binder(), ScoreFunctionParser.class);
                         bind(ClusterService.class).toProvider(Providers.of((ClusterService) null));
                         bind(CircuitBreakerService.class).to(NoneCircuitBreakerService.class);

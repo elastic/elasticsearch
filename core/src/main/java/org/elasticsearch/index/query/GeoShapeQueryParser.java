@@ -25,22 +25,21 @@ import org.apache.lucene.spatial.prefix.RecursivePrefixTreeStrategy;
 import org.apache.lucene.spatial.query.SpatialArgs;
 import org.apache.lucene.spatial.query.SpatialOperation;
 import org.elasticsearch.action.get.GetRequest;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.ShapeRelation;
+import org.elasticsearch.common.geo.ShapesAvailability;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.geo.GeoShapeFieldMapper;
-import org.elasticsearch.index.search.shape.ShapeFetchService;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 
 public class GeoShapeQueryParser extends BaseQueryParserTemp {
-
-    private ShapeFetchService fetchService;
 
     public static class DEFAULTS {
         public static final String INDEX_NAME = "shapes";
@@ -114,7 +113,7 @@ public class GeoShapeQueryParser extends BaseQueryParserTemp {
                             }
                             GetRequest getRequest = new GetRequest(index, type, id);
                             getRequest.copyContextAndHeadersFrom(SearchContext.current());
-                            shape = fetchService.fetch(getRequest, shapePath);
+                            shape = fetch(context.getClient(), getRequest, shapePath);
                         } else {
                             throw new QueryParsingException(parseContext, "[geo_shape] query does not support [" + currentFieldName + "]");
                         }
@@ -173,11 +172,6 @@ public class GeoShapeQueryParser extends BaseQueryParserTemp {
         return query;
     }
 
-    @Inject(optional = true)
-    public void setFetchService(@Nullable ShapeFetchService fetchService) {
-        this.fetchService = fetchService;
-    }
-
     public static SpatialArgs getArgs(ShapeBuilder shape, ShapeRelation relation) {
         switch(relation) {
         case DISJOINT:
@@ -194,5 +188,52 @@ public class GeoShapeQueryParser extends BaseQueryParserTemp {
     @Override
     public GeoShapeQueryBuilder getBuilderPrototype() {
         return GeoShapeQueryBuilder.PROTOTYPE;
+    }
+
+    /**
+     * Fetches the Shape with the given ID in the given type and index.
+     *
+     * @param getRequest GetRequest containing index, type and id
+     * @param path      Name or path of the field in the Shape Document where the Shape itself is located
+     * @return Shape with the given ID
+     * @throws IOException Can be thrown while parsing the Shape Document and extracting the Shape
+     */
+    private ShapeBuilder fetch(Client client, GetRequest getRequest, String path) throws IOException {
+        if (ShapesAvailability.JTS_AVAILABLE == false) {
+            throw new IllegalStateException("JTS not available");
+        }
+        getRequest.preference("_local");
+        getRequest.operationThreaded(false);
+        GetResponse response = client.get(getRequest).actionGet();
+        if (!response.isExists()) {
+            throw new IllegalArgumentException("Shape with ID [" + getRequest.id() + "] in type [" + getRequest.type() + "] not found");
+        }
+
+        String[] pathElements = Strings.splitStringToArray(path, '.');
+        int currentPathSlot = 0;
+
+        XContentParser parser = null;
+        try {
+            parser = XContentHelper.createParser(response.getSourceAsBytesRef());
+            XContentParser.Token currentToken;
+            while ((currentToken = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                if (currentToken == XContentParser.Token.FIELD_NAME) {
+                    if (pathElements[currentPathSlot].equals(parser.currentName())) {
+                        parser.nextToken();
+                        if (++currentPathSlot == pathElements.length) {
+                            return ShapeBuilder.parse(parser);
+                        }
+                    } else {
+                        parser.nextToken();
+                        parser.skipChildren();
+                    }
+                }
+            }
+            throw new IllegalStateException("Shape with name [" + getRequest.id() + "] found but missing " + path + " field");
+        } finally {
+            if (parser != null) {
+                parser.close();
+            }
+        }
     }
 }

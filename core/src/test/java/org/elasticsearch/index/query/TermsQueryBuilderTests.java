@@ -25,9 +25,15 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.get.GetRequest;
+import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.search.termslookup.TermsLookupFetchService;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.indices.cache.query.terms.TermsLookup;
 import org.hamcrest.Matchers;
 import org.junit.Before;
@@ -43,12 +49,21 @@ import static org.hamcrest.Matchers.*;
 
 public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuilder> {
 
-    private MockTermsLookupFetchService termsLookupFetchService;
+    private List<Object> randomTerms;
+    private String termsPath;
 
     @Before
-    public void mockTermsLookupFetchService() {
-        termsLookupFetchService = new MockTermsLookupFetchService();
-        queryParserService().setTermsLookupFetchService(termsLookupFetchService);
+    public void randomTerms() {
+        List<Object> randomTerms = new ArrayList<>();
+        String[] strings = generateRandomStringArray(10, 10, false, true);
+        for (String string : strings) {
+            randomTerms.add(string);
+            if (rarely()) {
+                randomTerms.add(null);
+            }
+        }
+        this.randomTerms = randomTerms;
+        termsPath = randomAsciiOfLength(10).replace('.', '_');
     }
 
     @Override
@@ -76,7 +91,7 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
                 randomBoolean() ? randomAsciiOfLength(10) : null,
                 randomAsciiOfLength(10),
                 randomAsciiOfLength(10),
-                randomAsciiOfLength(10)
+                termsPath
         ).routing(randomBoolean() ? randomAsciiOfLength(10) : null);
     }
 
@@ -94,7 +109,7 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
         // expected returned terms depending on whether we have a terms query or a terms lookup query
         List<Object> terms;
         if (queryBuilder.termsLookup() != null) {
-            terms = termsLookupFetchService.getRandomTerms();
+            terms = randomTerms;
         } else {
             terms = queryBuilder.values();
         }
@@ -242,28 +257,19 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
         assertEquals("42%", copy.minimumShouldMatch());
     }
 
-    private static class MockTermsLookupFetchService extends TermsLookupFetchService {
-
-        private List<Object> randomTerms = new ArrayList<>();
-
-        MockTermsLookupFetchService() {
-            super(null, Settings.Builder.EMPTY_SETTINGS);
-            String[] strings = generateRandomStringArray(10, 10, false, true);
-            for (String string : strings) {
-                randomTerms.add(string);
-                if (rarely()) {
-                    randomTerms.add(null);
-                }
-            }
+    @Override
+    public GetResponse executeGet(GetRequest getRequest) {
+        String json;
+        try {
+            XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
+            builder.startObject();
+            builder.array(termsPath, randomTerms);
+            builder.endObject();
+            json = builder.string();
+        } catch (IOException ex) {
+            throw new ElasticsearchException("boom", ex);
         }
-
-        @Override
-        public List<Object> fetch(TermsLookup termsLookup) {
-            return randomTerms;
-        }
-
-        List<Object> getRandomTerms() {
-            return randomTerms;
-        }
+        return new GetResponse(new GetResult(getRequest.index(), getRequest.type(), getRequest.id(), 0, true, new BytesArray(json), null));
     }
 }
+

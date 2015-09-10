@@ -89,6 +89,9 @@ dependencies {
   restSpec project(':rest-api-spec') // for rest tests
 }
 
+compileJava.options.compilerArgs << "-Xlint:-cast,-deprecation,-fallthrough,-overrides,-rawtypes,-serial,-try,-unchecked"
+compileTestJava.options.compilerArgs << "-Xlint:-cast,-deprecation,-fallthrough,-overrides,-rawtypes,-serial,-try,-unchecked"
+
 sourceSets {
   main {
     output.resourcesDir = "build/classes/main"

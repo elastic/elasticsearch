@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.indices.create;
 
-import com.google.common.collect.Sets;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateRequest;
 import org.elasticsearch.cluster.block.ClusterBlock;
@@ -28,6 +27,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.transport.TransportMessage;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
@@ -47,11 +47,11 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
 
     private final Map<String, String> mappings = new HashMap<>();
 
-    private final Set<Alias> aliases = Sets.newHashSet();
+    private final Set<Alias> aliases = new HashSet<>();
 
     private final Map<String, IndexMetaData.Custom> customs = new HashMap<>();
 
-    private final Set<ClusterBlock> blocks = Sets.newHashSet();
+    private final Set<ClusterBlock> blocks = new HashSet<>();
 
 
     CreateIndexClusterStateUpdateRequest(TransportMessage originalMessage, String cause, String index, boolean updateAllTypes) {

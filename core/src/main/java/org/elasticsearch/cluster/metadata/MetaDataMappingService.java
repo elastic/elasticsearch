@@ -20,8 +20,6 @@
 package org.elasticsearch.cluster.metadata;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-import com.google.common.collect.Sets;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingClusterStateUpdateRequest;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
@@ -49,6 +47,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -182,7 +181,7 @@ public class MetaDataMappingService extends AbstractComponent {
                 // we need to create the index here, and add the current mapping to it, so we can merge
                 indexService = indicesService.createIndex(indexMetaData.index(), indexMetaData.settings(), currentState.nodes().localNode().id());
                 removeIndex = true;
-                Set<String> typesToIntroduce = Sets.newHashSet();
+                Set<String> typesToIntroduce = new HashSet<>();
                 for (MappingTask task : tasks) {
                     if (task instanceof UpdateTask) {
                         typesToIntroduce.add(((UpdateTask) task).type);
@@ -223,7 +222,7 @@ public class MetaDataMappingService extends AbstractComponent {
         boolean dirty = false;
         String index = indexService.index().name();
         // keep track of what we already refreshed, no need to refresh it again...
-        Set<String> processedRefreshes = Sets.newHashSet();
+        Set<String> processedRefreshes = new HashSet<>();
         for (MappingTask task : tasks) {
             if (task instanceof RefreshTask) {
                 RefreshTask refreshTask = (RefreshTask) task;

@@ -21,12 +21,12 @@ package org.elasticsearch.index.mapper;
 
 import com.google.common.base.Function;
 import com.google.common.collect.Iterators;
-import com.google.common.collect.Sets;
 import org.elasticsearch.common.collect.CopyOnWriteHashMap;
 import org.elasticsearch.common.regex.Regex;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
@@ -152,7 +152,7 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
      * Returns a list of the index names of a simple match regex like pattern against full name and index name.
      */
     public Collection<String> simpleMatchToIndexNames(String pattern) {
-        Set<String> fields = Sets.newHashSet();
+        Set<String> fields = new HashSet<>();
         for (MappedFieldType fieldType : this) {
             if (Regex.simpleMatch(pattern, fieldType.names().fullName())) {
                 fields.add(fieldType.names().indexName());
@@ -167,7 +167,7 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
      * Returns a list of the full names of a simple match regex like pattern against full name and index name.
      */
     public Collection<String> simpleMatchToFullName(String pattern) {
-        Set<String> fields = Sets.newHashSet();
+        Set<String> fields = new HashSet<>();
         for (MappedFieldType fieldType : this) {
             if (Regex.simpleMatch(pattern, fieldType.names().fullName())) {
                 fields.add(fieldType.names().fullName());

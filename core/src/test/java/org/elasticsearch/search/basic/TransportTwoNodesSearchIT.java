@@ -20,18 +20,14 @@
 package org.elasticsearch.search.basic;
 
 
-
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
-
 import com.google.common.base.Charsets;
-import com.google.common.collect.Sets;
-
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Requests;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.functionscore.script.ScriptScoreFunctionBuilder;
@@ -48,20 +44,29 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.util.HashSet;
 import java.util.Set;
+import java.util.TreeSet;
 
-import static org.elasticsearch.action.search.SearchType.*;
-import static org.elasticsearch.client.Requests.*;
+import static org.elasticsearch.action.search.SearchType.DFS_QUERY_AND_FETCH;
+import static org.elasticsearch.action.search.SearchType.DFS_QUERY_THEN_FETCH;
+import static org.elasticsearch.action.search.SearchType.QUERY_AND_FETCH;
+import static org.elasticsearch.action.search.SearchType.QUERY_THEN_FETCH;
+import static org.elasticsearch.client.Requests.createIndexRequest;
+import static org.elasticsearch.client.Requests.searchRequest;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.unit.TimeValue.timeValueMinutes;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class TransportTwoNodesSearchIT extends ESIntegTestCase {
 
@@ -75,7 +80,7 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
     }
 
     private Set<String> prepareData(int numShards) throws Exception {
-        Set<String> fullExpectedIds = Sets.newTreeSet();
+        Set<String> fullExpectedIds = new TreeSet<>();
 
         Settings.Builder settingsBuilder = settingsBuilder()
                 .put(indexSettings())
@@ -214,7 +219,7 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
                 .query(matchAllQuery())
                 .explain(true);
 
-        Set<String> collectedIds = Sets.newTreeSet();
+        Set<String> collectedIds = new TreeSet<>();
 
         SearchResponse searchResponse = client().search(searchRequest("test").source(source.from(0).size(60)).searchType(QUERY_THEN_FETCH)).actionGet();
         assertNoFailures(searchResponse);
@@ -268,7 +273,7 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
                 .query(termQuery("multi", "test"))
                 .from(0).size(20).explain(true);
 
-        Set<String> expectedIds = Sets.newHashSet();
+        Set<String> expectedIds = new HashSet<>();
         for (int i = 0; i < 100; i++) {
             expectedIds.add(Integer.toString(i));
         }
@@ -308,7 +313,7 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
                 .query(termQuery("multi", "test"))
                 .from(0).size(20).explain(true);
 
-        Set<String> expectedIds = Sets.newHashSet();
+        Set<String> expectedIds = new HashSet<>();
         for (int i = 0; i < 100; i++) {
             expectedIds.add(Integer.toString(i));
         }

@@ -35,13 +35,12 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
-
-import static com.google.common.collect.Sets.newHashSet;
 
 /**
  * {@link RoutingNodes} represents a copy the routing information contained in
@@ -704,7 +703,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         int inactivePrimaryCount = 0;
         int inactiveShardCount = 0;
         int relocating = 0;
-        final Set<ShardId> seenShards = newHashSet();
+        final Set<ShardId> seenShards = new HashSet<>();
         Map<String, Integer> indicesAndShards = new HashMap<>();
         for (RoutingNode node : routingNodes) {
             for (ShardRouting shard : node) {

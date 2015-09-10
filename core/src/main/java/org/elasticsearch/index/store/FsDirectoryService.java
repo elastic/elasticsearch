@@ -19,12 +19,22 @@
 
 package org.elasticsearch.index.store;
 
-import com.google.common.collect.Sets;
-import org.apache.lucene.store.*;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FSDirectory;
+import org.apache.lucene.store.FileSwitchDirectory;
+import org.apache.lucene.store.LockFactory;
+import org.apache.lucene.store.MMapDirectory;
+import org.apache.lucene.store.NIOFSDirectory;
+import org.apache.lucene.store.NativeFSLockFactory;
+import org.apache.lucene.store.RateLimitedFSDirectory;
+import org.apache.lucene.store.SimpleFSDirectory;
+import org.apache.lucene.store.SimpleFSLockFactory;
+import org.apache.lucene.store.StoreRateLimiting;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.ShardPath;
 
@@ -32,7 +42,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
-import java.util.Locale;
 import java.util.Set;
 
 /**

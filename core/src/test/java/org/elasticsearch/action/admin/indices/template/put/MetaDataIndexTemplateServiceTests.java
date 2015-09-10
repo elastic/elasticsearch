@@ -19,10 +19,8 @@
 
 package org.elasticsearch.action.admin.indices.template.put;
 
-import com.google.common.collect.Sets;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.IndexTemplateFilter;
 import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetaDataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.MetaDataIndexTemplateService.PutRequest;
@@ -33,6 +31,7 @@ import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 
@@ -82,7 +81,7 @@ public class MetaDataIndexTemplateServiceTests extends ESTestCase {
                 null,
                 Version.CURRENT,
                 null,
-                Sets.<IndexTemplateFilter>newHashSet(),
+                new HashSet<>(),
                 null,
                 null
         );

@@ -33,11 +33,10 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-
-import static com.google.common.collect.Sets.newHashSet;
 
 /**
  * Status of a snapshot
@@ -103,7 +102,7 @@ public class SnapshotStatus implements ToXContent, Streamable {
 
         ImmutableMap.Builder<String, SnapshotIndexStatus> indicesStatus = ImmutableMap.builder();
 
-        Set<String> indices = newHashSet();
+        Set<String> indices = new HashSet<>();
         for (SnapshotIndexShardStatus shard : shards) {
             indices.add(shard.getIndex());
         }

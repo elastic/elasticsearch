@@ -19,7 +19,6 @@
 
 package org.elasticsearch.threadpool;
 
-import com.google.common.collect.Sets;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -44,16 +43,24 @@ import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.lang.management.ThreadInfo;
 import java.lang.management.ThreadMXBean;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.*;
+import java.util.concurrent.BrokenBarrierException;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.ESIntegTestCase.Scope;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.sameInstance;
 
 /**
  */
@@ -69,7 +76,7 @@ public class SimpleThreadPoolIT extends ESIntegTestCase {
     public void verifyThreadNames() throws Exception {
 
         ThreadMXBean threadBean = ManagementFactory.getThreadMXBean();
-        Set<String> preNodeStartThreadNames = Sets.newHashSet();
+        Set<String> preNodeStartThreadNames = new HashSet<>();
         for (long l : threadBean.getAllThreadIds()) {
             ThreadInfo threadInfo = threadBean.getThreadInfo(l);
             if (threadInfo != null) {
@@ -98,7 +105,7 @@ public class SimpleThreadPoolIT extends ESIntegTestCase {
             assertNoFailures(client().prepareSearch("idx").setQuery(QueryBuilders.termQuery("str_value", "s" + i)).get());
             assertNoFailures(client().prepareSearch("idx").setQuery(QueryBuilders.termQuery("l_value", i)).get());
         }
-        Set<String> threadNames = Sets.newHashSet();
+        Set<String> threadNames = new HashSet<>();
         for (long l : threadBean.getAllThreadIds()) {
             ThreadInfo threadInfo = threadBean.getThreadInfo(l);
             if (threadInfo != null) {

@@ -42,7 +42,7 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class MatchQueryBuilderTests extends BaseQueryTestCase<MatchQueryBuilder> {
+public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuilder> {
 
     @Override
     protected MatchQueryBuilder doCreateTestQueryBuilder() {
@@ -50,10 +50,11 @@ public class MatchQueryBuilderTests extends BaseQueryTestCase<MatchQueryBuilder>
         Object value = "";
         if (fieldName.equals(STRING_FIELD_NAME)) {
             int terms = randomIntBetween(0, 3);
+            StringBuilder builder = new StringBuilder();
             for (int i = 0; i < terms; i++) {
-                value += randomAsciiOfLengthBetween(1, 10) + " ";
+                builder.append(randomAsciiOfLengthBetween(1, 10) + " ");
             }
-            value = ((String) value).trim();
+            value = builder.toString().trim();
         } else {
             value = getRandomValueForFieldName(fieldName);
         }

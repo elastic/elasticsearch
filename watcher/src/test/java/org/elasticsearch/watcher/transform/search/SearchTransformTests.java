@@ -206,8 +206,8 @@ public class SearchTransformTests extends ESIntegTestCase {
         refresh();
 
         SearchRequest request = Requests.searchRequest("idx").source(searchSource().query(boolQuery()
-                .must(rangeQuery("date").gt("{{ctx.trigger.scheduled_time}}"))
-                .must(rangeQuery("date").lt("{{ctx.execution_time}}"))
+                .must(constantScoreQuery(rangeQuery("date").gt("{{ctx.trigger.scheduled_time}}")))
+                .must(constantScoreQuery(rangeQuery("date").lt("{{ctx.execution_time}}")))
                 .must(termQuery("value", "{{ctx.payload.value}}"))));
 
         SearchTransform searchTransform = TransformBuilders.searchTransform(request).build();
@@ -222,9 +222,12 @@ public class SearchTransformTests extends ESIntegTestCase {
         assertThat(result, notNullValue());
         assertThat(result.type(), is(SearchTransform.TYPE));
 
-        SearchResponse response = client().prepareSearch("idx").setQuery(
-                termQuery("value", "val_3"))
-                .get();
+        SearchResponse response = client().prepareSearch("idx").setSearchType(SearchType.QUERY_THEN_FETCH).setQuery(
+                boolQuery()
+                    .must(constantScoreQuery(rangeQuery("date").gt(parseDate("2015-01-01T00:00:00", UTC))))
+                    .must(constantScoreQuery(rangeQuery("date").lt(parseDate("2015-01-04T00:00:00", UTC))))
+                    .must(termQuery("value", "val_3"))
+        ).get();
         Payload expectedPayload = new Payload.XContent(response);
 
         // we need to remove the "took" field from teh response as this is the only field

@@ -350,6 +350,13 @@ public abstract class StreamInput extends InputStream {
         return ret;
     }
 
+    public String[] readOptionalStringArray() throws IOException {
+        if (readBoolean()) {
+            return readStringArray();
+        }
+        return null;
+    }
+
     @Nullable
     @SuppressWarnings("unchecked")
     public Map<String, Object> readMap() throws IOException {

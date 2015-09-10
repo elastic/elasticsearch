@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.shield.authz.indicesresolver;
 
-import com.google.common.collect.Sets;
 import org.elasticsearch.action.AliasesRequest;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.IndicesRequest;
@@ -15,6 +14,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.shield.User;
@@ -51,7 +51,7 @@ public class DefaultIndicesAndAliasesResolver implements IndicesAndAliasesResolv
         }
 
         if (request instanceof CompositeIndicesRequest) {
-            Set<String> indices = Sets.newHashSet();
+            Set<String> indices = new HashSet<>();
             CompositeIndicesRequest compositeIndicesRequest = (CompositeIndicesRequest) request;
             for (IndicesRequest indicesRequest : compositeIndicesRequest.subRequests()) {
                 indices.addAll(resolveIndicesAndAliases(user, action, indicesRequest, metaData));

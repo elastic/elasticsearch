@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.shield.authz.accesscontrol;
 
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
@@ -40,6 +41,7 @@ import static org.mockito.Mockito.when;
 public class DocumentSubsetReaderTests extends ESTestCase {
 
     private Directory directory;
+    private DirectoryReader directoryReader;
     private BitsetFilterCache bitsetFilterCache;
 
     @Before
@@ -61,6 +63,9 @@ public class DocumentSubsetReaderTests extends ESTestCase {
 
     @After
     public void after() throws Exception {
+        if (directoryReader != null) {
+            directoryReader.close();
+        }
         directory.close();
     }
 
@@ -86,7 +91,7 @@ public class DocumentSubsetReaderTests extends ESTestCase {
         iw.forceMerge(1);
         iw.deleteDocuments(new Term("field", "value3"));
         iw.close();
-        DirectoryReader directoryReader = DirectoryReader.open(directory);
+        directoryReader = DirectoryReader.open(directory);
 
         IndexSearcher indexSearcher = new IndexSearcher(DocumentSubsetReader.wrap(directoryReader, bitsetFilterCache, new TermQuery(new Term("field", "value1"))));
         assertThat(indexSearcher.getIndexReader().numDocs(), equalTo(1));
@@ -111,13 +116,14 @@ public class DocumentSubsetReaderTests extends ESTestCase {
         result = indexSearcher.search(new MatchAllDocsQuery(), 1);
         assertThat(result.totalHits, equalTo(1));
         assertThat(result.scoreDocs[0].doc, equalTo(3));
-
-        directoryReader.close();
     }
 
     public void testLiveDocs() throws Exception {
         int numDocs = scaledRandomIntBetween(16, 128);
-        IndexWriter iw = new IndexWriter(directory, newIndexWriterConfig());
+        IndexWriter iw = new IndexWriter(
+                directory,
+                new IndexWriterConfig(new StandardAnalyzer()).setMergePolicy(NoMergePolicy.INSTANCE)
+        );
 
         for (int i = 0; i < numDocs; i++) {
             Document document = new Document();
@@ -128,12 +134,15 @@ public class DocumentSubsetReaderTests extends ESTestCase {
         iw.forceMerge(1);
         iw.close();
 
-        DirectoryReader in = DirectoryReader.open(directory);
-        for (int i = 0; i < numDocs; i++) {
-            DirectoryReader directoryReader = DocumentSubsetReader.wrap(in, bitsetFilterCache, new TermQuery(new Term("field", "value" + i)));
-            assertThat("should have one segment after force merge", directoryReader.leaves().size(), equalTo(1));
+        directoryReader = DirectoryReader.open(directory);
+        assertThat("should have one segment after force merge", directoryReader.leaves().size(), equalTo(1));
 
-            LeafReader leafReader = directoryReader.leaves().get(0).reader();
+        for (int i = 0; i < numDocs; i++) {
+            Query roleQuery = new TermQuery(new Term("field", "value" + i));
+            DirectoryReader wrappedReader = DocumentSubsetReader.wrap(directoryReader, bitsetFilterCache, roleQuery);
+
+            LeafReader leafReader = wrappedReader.leaves().get(0).reader();
+            assertThat(leafReader.hasDeletions(), is(true));
             assertThat(leafReader.numDocs(), equalTo(1));
             Bits liveDocs = leafReader.getLiveDocs();
             assertThat(liveDocs.length(), equalTo(numDocs));
@@ -145,8 +154,6 @@ public class DocumentSubsetReaderTests extends ESTestCase {
                 }
             }
         }
-
-        in.close();
     }
 
     public void testWrapTwice() throws Exception {

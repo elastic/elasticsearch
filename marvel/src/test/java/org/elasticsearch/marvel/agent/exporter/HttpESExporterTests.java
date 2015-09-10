@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.marvel.agent.exporter;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.cluster.ClusterState;
@@ -35,6 +36,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 
 // Transport Client instantiation also calls the marvel plugin, which then fails to find modules
@@ -220,6 +222,26 @@ public class HttpESExporterTests extends ESIntegTestCase {
 
         logger.info("verifying that template has been created");
         assertMarvelTemplateExists();
+    }
+
+    @Test
+    public void testLoadRemoteClusterVersion() {
+        Settings.Builder builder = Settings.builder()
+                .put(MarvelSettings.STARTUP_DELAY, "200m")
+                .put(Node.HTTP_ENABLED, true);
+        String nodeId = internalCluster().startNode(builder);
+
+        HttpESExporter httpEsExporter = getEsExporter(nodeId);
+
+        logger.info("--> exporting events to force host resolution");
+        httpEsExporter.export(Collections.singletonList(newRandomMarvelDoc()));
+
+        assertNotNull(httpEsExporter.getHosts());
+        assertThat(httpEsExporter.getHosts().length, greaterThan(0));
+
+        logger.info("--> loading remote cluster version");
+        Version resolved = httpEsExporter.loadRemoteClusterVersion(httpEsExporter.getHosts()[0]);
+        assertTrue(resolved.equals(Version.CURRENT));
     }
 
     private HttpESExporter getEsExporter() {

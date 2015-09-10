@@ -3,61 +3,29 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.marvel.agent.support;
+package org.elasticsearch.marvel.agent.exporter;
 
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.Version;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.UnsupportedEncodingException;
+import java.io.InputStream;
 import java.net.*;
-import java.util.Map;
+import java.nio.charset.Charset;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-public class AgentUtils {
+public class HttpESExporterUtils {
 
-    public static XContentBuilder nodeToXContent(DiscoveryNode node, XContentBuilder builder) throws IOException {
-        return nodeToXContent(node, null, builder);
-    }
-
-    public static XContentBuilder nodeToXContent(DiscoveryNode node, Boolean isMasterNode, XContentBuilder builder) throws IOException {
-        builder.field("id", node.id());
-        builder.field("name", node.name());
-        builder.field("transport_address", node.address());
-
-        if (node.address().uniqueAddressTypeId() == 1) { // InetSocket
-            InetSocketTransportAddress address = (InetSocketTransportAddress) node.address();
-            InetSocketAddress inetSocketAddress = address.address();
-            InetAddress inetAddress = inetSocketAddress.getAddress();
-            if (inetAddress != null) {
-                builder.field("ip", NetworkAddress.formatAddress(inetAddress));
-                builder.field("host", inetSocketAddress.getHostString());
-                builder.field("ip_port", NetworkAddress.formatAddress(inetSocketAddress));
-            }
-        } else if (node.address().uniqueAddressTypeId() == 2) {  // local transport
-            builder.field("ip_port", "_" + node.address()); // will end up being "_local[ID]"
-        }
-
-        builder.field("master_node", node.isMasterNode());
-        builder.field("data_node", node.isDataNode());
-        if (isMasterNode != null) {
-            builder.field("master", isMasterNode.booleanValue());
-        }
-
-        if (!node.attributes().isEmpty()) {
-            builder.startObject("attributes");
-            for (Map.Entry<String, String> attr : node.attributes().entrySet()) {
-                builder.field(attr.getKey(), attr.getValue());
-            }
-            builder.endObject();
-        }
-        return builder;
-    }
+    public static final String MARVEL_TEMPLATE_FILE = "/marvel_index_template.json";
+    static final String MARVEL_VERSION_FIELD = "marvel_version";
+    static final String VERSION_FIELD = "number";
 
     public static String[] extractHostsFromAddress(BoundTransportAddress boundAddress, ESLogger logger) {
         if (boundAddress == null || boundAddress.boundAddress() == null) {
@@ -108,14 +76,50 @@ public class AgentUtils {
 
     }
 
-    public static int parseIndexVersionFromTemplate(byte[] template) throws UnsupportedEncodingException {
-        Pattern versionRegex = Pattern.compile("marvel.index_format\"\\s*:\\s*\"?(\\d+)\"?");
-        Matcher matcher = versionRegex.matcher(new String(template, "UTF-8"));
-        if (matcher.find()) {
-            return Integer.parseInt(matcher.group(1));
-        } else {
-            return -1;
+    /**
+     * Loads the default Marvel template
+     */
+    public static byte[] loadDefaultTemplate() {
+        try (InputStream is = HttpESExporterUtils.class.getResourceAsStream(MARVEL_TEMPLATE_FILE)) {
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            Streams.copy(is, out);
+            return out.toByteArray();
+        } catch (IOException e) {
+            throw new IllegalStateException("unable to load marvel template", e);
         }
+    }
+
+    /**
+     * Extract & parse the version contained in the given template
+     */
+    public static Version parseTemplateVersion(byte[] template) {
+        return parseTemplateVersion(new String(template, Charset.forName("UTF-8")));
+    }
+
+    /**
+     * Extract & parse the version contained in the given template
+     */
+    public static Version parseTemplateVersion(String template) {
+        return parseVersion(MARVEL_VERSION_FIELD, template);
+    }
+
+    /**
+     * Extract & parse the elasticsearch version, as returned by the REST API
+     */
+    public static Version parseElasticsearchVersion(byte[] template) {
+        return parseVersion(VERSION_FIELD, new String(template, Charset.forName("UTF-8")));
+    }
+
+    static Version parseVersion(String field, String template) {
+        Pattern pattern = Pattern.compile(field + "\"\\s*:\\s*\"?([0-9a-zA-Z\\.\\-]+)\"?");
+        Matcher matcher = pattern.matcher(template);
+        if (matcher.find()) {
+            String parsedVersion = matcher.group(1);
+            if (Strings.hasText(parsedVersion)) {
+                return Version.fromString(parsedVersion);
+            }
+        }
+        return null;
     }
 
     private static final String userInfoChars = "\\w-\\._~!$&\\'\\(\\)*+,;=%";

@@ -3,12 +3,10 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.marvel.agent;
+package org.elasticsearch.marvel.agent.exporter;
 
-import org.elasticsearch.marvel.agent.support.AgentUtils;
+import org.elasticsearch.Version;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.StreamsUtils;
-import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
@@ -18,95 +16,137 @@ import java.net.MalformedURLException;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.URLEncoder;
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 
 
-public class AgentUtilsTests extends ESTestCase {
+public class HttpESExporterUtilsTests extends ESTestCase {
 
     @Test
-    public void testVersionIsExtractableFromIndexTemplate() throws IOException {
-        byte[] template = StreamsUtils.copyToBytesFromClasspath("/marvel_index_template.json");
-        MatcherAssert.assertThat(AgentUtils.parseIndexVersionFromTemplate(template), Matchers.greaterThan(0));
+    public void testLoadTemplate() {
+        byte[] template = HttpESExporterUtils.loadDefaultTemplate();
+        assertNotNull(template);
+        assertThat(template.length, Matchers.greaterThan(0));
     }
 
     @Test
+    public void testParseTemplateVersionFromByteArrayTemplate() throws IOException {
+        byte[] template = HttpESExporterUtils.loadDefaultTemplate();
+        assertNotNull(template);
+
+        Version version = HttpESExporterUtils.parseTemplateVersion(template);
+        assertNotNull(version);
+    }
+
+    @Test
+    public void testParseTemplateVersionFromStringTemplate() throws IOException {
+        List<String> templates = new ArrayList<>();
+        templates.add("{\"marvel_version\": \"1.4.0.Beta1\"}");
+        templates.add("{\"marvel_version\": \"1.6.2-SNAPSHOT\"}");
+        templates.add("{\"marvel_version\": \"1.7.1\"}");
+        templates.add("{\"marvel_version\": \"2.0.0-beta1\"}");
+        templates.add("{\"marvel_version\": \"2.0.0\"}");
+        templates.add("{  \"template\": \".marvel*\",  \"settings\": {    \"marvel_version\": \"2.0.0-beta1-SNAPSHOT\", \"index.number_of_shards\": 1 } }");
+
+        for (String template : templates) {
+            Version version = HttpESExporterUtils.parseTemplateVersion(template);
+            assertNotNull(version);
+        }
+
+        Version version = HttpESExporterUtils.parseTemplateVersion("{\"marvel.index_format\": \"7\"}");
+        assertNull(version);
+    }
+
+    @Test
+    public void testParseVersion() throws IOException {
+        assertNotNull(HttpESExporterUtils.parseVersion(HttpESExporterUtils.MARVEL_VERSION_FIELD, "{\"marvel_version\": \"2.0.0-beta1\"}"));
+        assertNotNull(HttpESExporterUtils.parseVersion(HttpESExporterUtils.MARVEL_VERSION_FIELD, "{\"marvel_version\": \"2.0.0\"}"));
+        assertNotNull(HttpESExporterUtils.parseVersion(HttpESExporterUtils.MARVEL_VERSION_FIELD, "{\"marvel_version\": \"1.5.2\"}"));
+        assertNotNull(HttpESExporterUtils.parseVersion(HttpESExporterUtils.MARVEL_VERSION_FIELD, "{  \"template\": \".marvel*\",  \"settings\": {    \"marvel_version\": \"2.0.0-beta1-SNAPSHOT\", \"index.number_of_shards\": 1 } }"));
+        assertNull(HttpESExporterUtils.parseVersion(HttpESExporterUtils.MARVEL_VERSION_FIELD, "{\"marvel.index_format\": \"7\"}"));
+        assertNull(HttpESExporterUtils.parseVersion(HttpESExporterUtils.MARVEL_VERSION_FIELD + "unkown", "{\"marvel_version\": \"1.5.2\"}"));
+    }
+
+
+    @Test
     public void testHostParsing() throws MalformedURLException, URISyntaxException {
-        URL url = AgentUtils.parseHostWithPath("localhost:9200", "");
+        URL url = HttpESExporterUtils.parseHostWithPath("localhost:9200", "");
         verifyUrl(url, "http", "localhost", 9200, "/");
 
-        url = AgentUtils.parseHostWithPath("localhost", "_bulk");
+        url = HttpESExporterUtils.parseHostWithPath("localhost", "_bulk");
         verifyUrl(url, "http", "localhost", 9200, "/_bulk");
 
-        url = AgentUtils.parseHostWithPath("http://localhost:9200", "_bulk");
+        url = HttpESExporterUtils.parseHostWithPath("http://localhost:9200", "_bulk");
         verifyUrl(url, "http", "localhost", 9200, "/_bulk");
 
-        url = AgentUtils.parseHostWithPath("http://localhost", "_bulk");
+        url = HttpESExporterUtils.parseHostWithPath("http://localhost", "_bulk");
         verifyUrl(url, "http", "localhost", 9200, "/_bulk");
 
-        url = AgentUtils.parseHostWithPath("https://localhost:9200", "_bulk");
+        url = HttpESExporterUtils.parseHostWithPath("https://localhost:9200", "_bulk");
         verifyUrl(url, "https", "localhost", 9200, "/_bulk");
 
-        url = AgentUtils.parseHostWithPath("https://boaz-air.local:9200", "_bulk");
+        url = HttpESExporterUtils.parseHostWithPath("https://boaz-air.local:9200", "_bulk");
         verifyUrl(url, "https", "boaz-air.local", 9200, "/_bulk");
 
-        url = AgentUtils.parseHostWithPath("boaz:test@localhost:9200", "");
+        url = HttpESExporterUtils.parseHostWithPath("boaz:test@localhost:9200", "");
         verifyUrl(url, "http", "localhost", 9200, "/", "boaz:test");
 
-        url = AgentUtils.parseHostWithPath("boaz:test@localhost", "_bulk");
+        url = HttpESExporterUtils.parseHostWithPath("boaz:test@localhost", "_bulk");
         verifyUrl(url, "http", "localhost", 9200, "/_bulk", "boaz:test");
 
-        url = AgentUtils.parseHostWithPath("http://boaz:test@localhost:9200", "_bulk");
+        url = HttpESExporterUtils.parseHostWithPath("http://boaz:test@localhost:9200", "_bulk");
         verifyUrl(url, "http", "localhost", 9200, "/_bulk", "boaz:test");
 
-        url = AgentUtils.parseHostWithPath("http://boaz:test@localhost", "_bulk");
+        url = HttpESExporterUtils.parseHostWithPath("http://boaz:test@localhost", "_bulk");
         verifyUrl(url, "http", "localhost", 9200, "/_bulk", "boaz:test");
 
-        url = AgentUtils.parseHostWithPath("https://boaz:test@localhost:9200", "_bulk");
+        url = HttpESExporterUtils.parseHostWithPath("https://boaz:test@localhost:9200", "_bulk");
         verifyUrl(url, "https", "localhost", 9200, "/_bulk", "boaz:test");
 
-        url = AgentUtils.parseHostWithPath("boaz:test@localhost:9200/suburl", "");
+        url = HttpESExporterUtils.parseHostWithPath("boaz:test@localhost:9200/suburl", "");
         verifyUrl(url, "http", "localhost", 9200, "/suburl/", "boaz:test");
 
-        url = AgentUtils.parseHostWithPath("boaz:test@localhost:9200/suburl/", "");
+        url = HttpESExporterUtils.parseHostWithPath("boaz:test@localhost:9200/suburl/", "");
         verifyUrl(url, "http", "localhost", 9200, "/suburl/", "boaz:test");
 
-        url = AgentUtils.parseHostWithPath("localhost/suburl", "_bulk");
+        url = HttpESExporterUtils.parseHostWithPath("localhost/suburl", "_bulk");
         verifyUrl(url, "http", "localhost", 9200, "/suburl/_bulk");
 
-        url = AgentUtils.parseHostWithPath("http://boaz:test@localhost:9200/suburl/suburl1", "_bulk");
+        url = HttpESExporterUtils.parseHostWithPath("http://boaz:test@localhost:9200/suburl/suburl1", "_bulk");
         verifyUrl(url, "http", "localhost", 9200, "/suburl/suburl1/_bulk", "boaz:test");
 
-        url = AgentUtils.parseHostWithPath("http://boaz:test@localhost/suburl", "_bulk");
+        url = HttpESExporterUtils.parseHostWithPath("http://boaz:test@localhost/suburl", "_bulk");
         verifyUrl(url, "http", "localhost", 9200, "/suburl/_bulk", "boaz:test");
 
-        url = AgentUtils.parseHostWithPath("https://boaz:test@localhost:9200/suburl", "_bulk");
+        url = HttpESExporterUtils.parseHostWithPath("https://boaz:test@localhost:9200/suburl", "_bulk");
         verifyUrl(url, "https", "localhost", 9200, "/suburl/_bulk", "boaz:test");
 
-        url = AgentUtils.parseHostWithPath("https://user:test@server_with_underscore:9300", "_bulk");
+        url = HttpESExporterUtils.parseHostWithPath("https://user:test@server_with_underscore:9300", "_bulk");
         verifyUrl(url, "https", "server_with_underscore", 9300, "/_bulk", "user:test");
 
-        url = AgentUtils.parseHostWithPath("user:test@server_with_underscore:9300", "_bulk");
+        url = HttpESExporterUtils.parseHostWithPath("user:test@server_with_underscore:9300", "_bulk");
         verifyUrl(url, "http", "server_with_underscore", 9300, "/_bulk", "user:test");
 
-        url = AgentUtils.parseHostWithPath("server_with_underscore:9300", "_bulk");
+        url = HttpESExporterUtils.parseHostWithPath("server_with_underscore:9300", "_bulk");
         verifyUrl(url, "http", "server_with_underscore", 9300, "/_bulk");
 
-        url = AgentUtils.parseHostWithPath("server_with_underscore", "_bulk");
+        url = HttpESExporterUtils.parseHostWithPath("server_with_underscore", "_bulk");
         verifyUrl(url, "http", "server_with_underscore", 9200, "/_bulk");
 
-        url = AgentUtils.parseHostWithPath("https://user:test@server-dash:9300", "_bulk");
+        url = HttpESExporterUtils.parseHostWithPath("https://user:test@server-dash:9300", "_bulk");
         verifyUrl(url, "https", "server-dash", 9300, "/_bulk", "user:test");
 
-        url = AgentUtils.parseHostWithPath("user:test@server-dash:9300", "_bulk");
+        url = HttpESExporterUtils.parseHostWithPath("user:test@server-dash:9300", "_bulk");
         verifyUrl(url, "http", "server-dash", 9300, "/_bulk", "user:test");
 
-        url = AgentUtils.parseHostWithPath("server-dash:9300", "_bulk");
+        url = HttpESExporterUtils.parseHostWithPath("server-dash:9300", "_bulk");
         verifyUrl(url, "http", "server-dash", 9300, "/_bulk");
 
-        url = AgentUtils.parseHostWithPath("server-dash", "_bulk");
+        url = HttpESExporterUtils.parseHostWithPath("server-dash", "_bulk");
         verifyUrl(url, "http", "server-dash", 9200, "/_bulk");
     }
 
@@ -148,7 +188,7 @@ public class AgentUtilsTests extends ESTestCase {
         };
 
         for (String input : inputs) {
-            String sanitized = AgentUtils.santizeUrlPwds(input);
+            String sanitized = HttpESExporterUtils.santizeUrlPwds(input);
             assertThat(sanitized, not(containsString(pwd)));
         }
     }

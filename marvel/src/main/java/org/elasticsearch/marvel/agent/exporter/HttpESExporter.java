@@ -5,7 +5,9 @@
  */
 package org.elasticsearch.marvel.agent.exporter;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.common.Base64;
@@ -27,7 +29,6 @@ import org.elasticsearch.http.HttpServer;
 import org.elasticsearch.marvel.agent.renderer.Renderer;
 import org.elasticsearch.marvel.agent.renderer.RendererRegistry;
 import org.elasticsearch.marvel.agent.settings.MarvelSettings;
-import org.elasticsearch.marvel.agent.support.AgentUtils;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.node.settings.NodeSettingsService;
@@ -91,6 +92,16 @@ public class HttpESExporter extends AbstractExporter<HttpESExporter> implements 
     final TimeValue bulkTimeout;
 
     volatile boolean checkedAndUploadedIndexTemplate = false;
+    volatile boolean supportedClusterVersion = false;
+
+    /** Version of the built-in template **/
+    final Version templateVersion;
+
+    /** Minimum supported version of the remote template **/
+    final Version minCompatibleTemplateVersion = Version.V_2_0_0_beta2;
+
+    /** Minimum supported version of the remote marvel cluster **/
+    final Version minCompatibleClusterVersion = Version.V_2_0_0_beta2;
 
     final ConnectionKeepAliveWorker keepAliveWorker;
     Thread keepAliveThread;
@@ -140,20 +151,27 @@ public class HttpESExporter extends AbstractExporter<HttpESExporter> implements 
         }
         hostnameVerification = settings.getAsBoolean(SETTINGS_SSL_HOSTNAME_VERIFICATION, true);
 
-        logger.debug("initialized with targets: {}, index prefix [{}], index time format [{}]",
-                AgentUtils.santizeUrlPwds(Strings.arrayToCommaDelimitedString(hosts)), MarvelSettings.MARVEL_INDICES_PREFIX, indexTimeFormat);
+        // Checks that the built-in template is versioned
+        templateVersion = HttpESExporterUtils.parseTemplateVersion(HttpESExporterUtils.loadDefaultTemplate());
+        if (templateVersion == null) {
+            throw new IllegalStateException("unable to find built-in template version");
+        }
+
+        logger.debug("initialized with targets: {}, index prefix [{}], index time format [{}], template version [{}]",
+                HttpESExporterUtils.santizeUrlPwds(Strings.arrayToCommaDelimitedString(hosts)),
+                MarvelSettings.MARVEL_INDICES_PREFIX, indexTimeFormat, templateVersion);
     }
 
     static private void validateHosts(String[] hosts) {
         for (String host : hosts) {
             try {
-                AgentUtils.parseHostWithPath(host, "");
+                HttpESExporterUtils.parseHostWithPath(host, "");
             } catch (URISyntaxException e) {
-                throw new RuntimeException("[marvel.agent.exporter] invalid host: [" + AgentUtils.santizeUrlPwds(host) + "]." +
-                        " error: [" + AgentUtils.santizeUrlPwds(e.getMessage()) + "]");
+                throw new RuntimeException("[marvel.agent.exporter] invalid host: [" + HttpESExporterUtils.santizeUrlPwds(host) + "]." +
+                        " error: [" + HttpESExporterUtils.santizeUrlPwds(e.getMessage()) + "]");
             } catch (MalformedURLException e) {
-                throw new RuntimeException("[marvel.agent.exporter] invalid host: [" + AgentUtils.santizeUrlPwds(host) + "]." +
-                        " error: [" + AgentUtils.santizeUrlPwds(e.getMessage()) + "]");
+                throw new RuntimeException("[marvel.agent.exporter] invalid host: [" + HttpESExporterUtils.santizeUrlPwds(host) + "]." +
+                        " error: [" + HttpESExporterUtils.santizeUrlPwds(e.getMessage()) + "]");
             }
         }
     }
@@ -279,7 +297,7 @@ public class HttpESExporter extends AbstractExporter<HttpESExporter> implements 
                 try {
                     sendCloseExportingConnection(connection);
                 } catch (IOException e) {
-                    logger.error("error sending data to [{}]: {}", AgentUtils.santizeUrlPwds(connection.getURL()), AgentUtils.santizeUrlPwds(ExceptionsHelper.detailedMessage(e)));
+                    logger.error("error sending data to [{}]: {}", HttpESExporterUtils.santizeUrlPwds(connection.getURL()), HttpESExporterUtils.santizeUrlPwds(ExceptionsHelper.detailedMessage(e)));
                 }
             }
         }
@@ -325,15 +343,6 @@ public class HttpESExporter extends AbstractExporter<HttpESExporter> implements 
      *
      * @return a url connection to the selected host or null if no current host is available.
      */
-    private HttpURLConnection openAndValidateConnection(String method, String path) {
-        return openAndValidateConnection(method, path, null);
-    }
-
-    /**
-     * open a connection to any host, validating it has the template installed if needed
-     *
-     * @return a url connection to the selected host or null if no current host is available.
-     */
     private HttpURLConnection openAndValidateConnection(String method, String path, String contentType) {
         if (hosts.length == 0) {
             // Due to how Guice injection works and because HttpServer can be optional,
@@ -355,7 +364,7 @@ public class HttpESExporter extends AbstractExporter<HttpESExporter> implements 
                 return null;
             }
 
-            String[] extractedHosts = AgentUtils.extractHostsFromAddress(boundAddress, logger);
+            String[] extractedHosts = HttpESExporterUtils.extractHostsFromAddress(boundAddress, logger);
             if (extractedHosts == null || extractedHosts.length == 0) {
                 return null;
             }
@@ -375,6 +384,24 @@ public class HttpESExporter extends AbstractExporter<HttpESExporter> implements 
         try {
             for (; hostIndex < hosts.length; hostIndex++) {
                 String host = hosts[hostIndex];
+                if (!supportedClusterVersion) {
+                    try {
+                        Version remoteVersion = loadRemoteClusterVersion(host);
+                        if (remoteVersion == null) {
+                            logger.warn("unable to check remote cluster version: no version found on host [" + HttpESExporterUtils.santizeUrlPwds(host) + "]");
+                            continue;
+                        }
+                        supportedClusterVersion = remoteVersion.onOrAfter(minCompatibleClusterVersion);
+                        if (!supportedClusterVersion) {
+                            logger.error("remote cluster version [" + remoteVersion + "] is not supported, please use a cluster with minimum version [" + minCompatibleClusterVersion + "]");
+                            continue;
+                        }
+                    } catch (ElasticsearchException e) {
+                        logger.error("exception when checking remote cluster version on host [{}]", e, HttpESExporterUtils.santizeUrlPwds(host));
+                        continue;
+                    }
+                }
+
                 if (!checkedAndUploadedIndexTemplate) {
                     // check templates first on the host
                     checkedAndUploadedIndexTemplate = checkAndUploadIndexTemplate(host);
@@ -386,9 +413,10 @@ public class HttpESExporter extends AbstractExporter<HttpESExporter> implements 
                 if (connection != null) {
                     return connection;
                 }
-                // failed hosts - reset template check , someone may have restarted the target cluster and deleted
+                // failed hosts - reset template & cluster versions check, someone may have restarted the target cluster and deleted
                 // it's data folder. be safe.
                 checkedAndUploadedIndexTemplate = false;
+                supportedClusterVersion = false;
             }
         } finally {
             if (hostIndex > 0 && hostIndex < hosts.length) {
@@ -397,11 +425,11 @@ public class HttpESExporter extends AbstractExporter<HttpESExporter> implements 
                 System.arraycopy(hosts, hostIndex, newHosts, 0, hosts.length - hostIndex);
                 System.arraycopy(hosts, 0, newHosts, hosts.length - hostIndex, hostIndex);
                 hosts = newHosts;
-                logger.debug("preferred target host is now [{}]", AgentUtils.santizeUrlPwds(hosts[0]));
+                logger.debug("preferred target host is now [{}]", HttpESExporterUtils.santizeUrlPwds(hosts[0]));
             }
         }
 
-        logger.error("could not connect to any configured elasticsearch instances: [{}]", AgentUtils.santizeUrlPwds(Strings.arrayToCommaDelimitedString(hosts)));
+        logger.error("could not connect to any configured elasticsearch instances: [{}]", HttpESExporterUtils.santizeUrlPwds(Strings.arrayToCommaDelimitedString(hosts)));
 
         return null;
 
@@ -410,7 +438,7 @@ public class HttpESExporter extends AbstractExporter<HttpESExporter> implements 
     /** open a connection to the given hosts, returning null when not successful * */
     private HttpURLConnection openConnection(String host, String method, String path, @Nullable String contentType) {
         try {
-            final URL url = AgentUtils.parseHostWithPath(host, path);
+            final URL url = HttpESExporterUtils.parseHostWithPath(host, path);
             HttpURLConnection conn = (HttpURLConnection) url.openConnection();
 
             if (conn instanceof HttpsURLConnection && sslSocketFactory != null) {
@@ -439,20 +467,48 @@ public class HttpESExporter extends AbstractExporter<HttpESExporter> implements 
 
             return conn;
         } catch (URISyntaxException e) {
-            logErrorBasedOnLevel(e, "error parsing host [{}]", AgentUtils.santizeUrlPwds(host));
+            logErrorBasedOnLevel(e, "error parsing host [{}]", HttpESExporterUtils.santizeUrlPwds(host));
         } catch (IOException e) {
-            logErrorBasedOnLevel(e, "error connecting to [{}]", AgentUtils.santizeUrlPwds(host));
+            logErrorBasedOnLevel(e, "error connecting to [{}]", HttpESExporterUtils.santizeUrlPwds(host));
         }
         return null;
     }
 
     private void logErrorBasedOnLevel(Throwable t, String msg, Object... params) {
-        logger.error(msg + " [" + AgentUtils.santizeUrlPwds(t.getMessage()) + "]", params);
+        logger.error(msg + " [" + HttpESExporterUtils.santizeUrlPwds(t.getMessage()) + "]", params);
         if (logger.isDebugEnabled()) {
-            logger.debug(msg + ". full error details:\n[{}]", params, AgentUtils.santizeUrlPwds(ExceptionsHelper.detailedMessage(t)));
+            logger.debug(msg + ". full error details:\n[{}]", params, HttpESExporterUtils.santizeUrlPwds(ExceptionsHelper.detailedMessage(t)));
         }
     }
 
+    /**
+     * Get the version of the remote Marvel cluster
+     */
+    Version loadRemoteClusterVersion(final String host) {
+        HttpURLConnection connection = null;
+        try {
+            connection = openConnection(host, "GET", "/", null);
+            if (connection == null) {
+                throw new ElasticsearchException("unable to check remote cluster version: no available connection for host [" + HttpESExporterUtils.santizeUrlPwds(host) + "]");
+            }
+
+            try (InputStream is = connection.getInputStream()) {
+                ByteArrayOutputStream out = new ByteArrayOutputStream();
+                Streams.copy(is, out);
+                return HttpESExporterUtils.parseElasticsearchVersion(out.toByteArray());
+            }
+        } catch (IOException e) {
+            throw new ElasticsearchException("failed to verify the remote cluster version on host [" + HttpESExporterUtils.santizeUrlPwds(host) + "]:\n" + HttpESExporterUtils.santizeUrlPwds(e.getMessage()));
+        } finally {
+            if (connection != null) {
+                try {
+                    connection.getInputStream().close();
+                } catch (IOException e) {
+                    // Ignore
+                }
+            }
+        }
+    }
 
     /**
      * Checks if the index templates already exist and if not uploads it
@@ -461,70 +517,118 @@ public class HttpESExporter extends AbstractExporter<HttpESExporter> implements 
      * @return true if template exists or was uploaded successfully.
      */
     private boolean checkAndUploadIndexTemplate(final String host) {
-        byte[] template;
-        try (InputStream is = getClass().getResourceAsStream("/marvel_index_template.json")) {
-            ByteArrayOutputStream out = new ByteArrayOutputStream();
-            Streams.copy(is, out);
-            template = out.toByteArray();
-        } catch (IOException e) {
-            // throwing an exception to stop exporting process - we don't want to send data unless
-            // we put in the template for it.
-            throw new RuntimeException("failed to load marvel_index_template.json", e);
+        boolean updateTemplate = true;
+
+        String url = "_template/marvel";
+        if (templateCheckTimeout != null) {
+            url += "?timeout=" + templateCheckTimeout;
         }
 
+        HttpURLConnection connection = null;
         try {
-            int expectedVersion = AgentUtils.parseIndexVersionFromTemplate(template);
-            if (expectedVersion < 0) {
-                throw new RuntimeException("failed to find an index version in pre-configured index template");
-            }
-
-            String queryString = "";
-            if (templateCheckTimeout != null) {
-                queryString = "?timeout=" + templateCheckTimeout;
-            }
-            HttpURLConnection conn = openConnection(host, "GET", "_template/marvel" + queryString, null);
-            if (conn == null) {
+            logger.debug("checking if marvel template exists on the marvel cluster");
+            connection = openConnection(host, "GET", url, null);
+            if (connection == null) {
+                logger.debug("no available connection to check marvel template existence");
                 return false;
             }
 
-            boolean hasTemplate = false;
-            if (conn.getResponseCode() == 200) {
-                // verify content.
-                InputStream is = conn.getInputStream();
-                ByteArrayOutputStream out = new ByteArrayOutputStream();
-                Streams.copy(is, out);
-                byte[] existingTemplate = out.toByteArray();
-                is.close();
-                int foundVersion = AgentUtils.parseIndexVersionFromTemplate(existingTemplate);
-                if (foundVersion < 0) {
-                    logger.warn("found an existing index template but couldn't extract it's version. leaving it as is.");
-                    hasTemplate = true;
-                } else if (foundVersion >= expectedVersion) {
-                    logger.debug("accepting existing index template (version [{}], needed [{}])", foundVersion, expectedVersion);
-                    hasTemplate = true;
-                } else {
-                    logger.debug("replacing existing index template (version [{}], needed [{}])", foundVersion, expectedVersion);
-                }
-            }
-            // nothing there, lets create it
-            if (!hasTemplate) {
-                logger.debug("uploading index template");
-                conn = openConnection(host, "PUT", "_template/marvel" + queryString, XContentType.JSON.restContentType());
-                OutputStream os = conn.getOutputStream();
-                Streams.copy(template, os);
-                if (!(conn.getResponseCode() == 200 || conn.getResponseCode() == 201)) {
-                    logConnectionError("error adding the marvel template to [" + host + "]", conn);
-                } else {
-                    hasTemplate = true;
-                }
-                conn.getInputStream().close(); // close and release to connection pool.
-            }
+            // 200 means that the template has been found, 404 otherwise
+            if (connection.getResponseCode() == 200) {
+                logger.debug("marvel template found, checking its version");
 
-            return hasTemplate;
+                byte[] remoteTemplate;
+                try (InputStream is = connection.getInputStream()) {
+                    ByteArrayOutputStream out = new ByteArrayOutputStream();
+                    Streams.copy(is, out);
+                    remoteTemplate = out.toByteArray();
+                }
+
+                if ((remoteTemplate == null) || (remoteTemplate.length == 0)) {
+                    logger.error("unable to load remote marvel template on host [{}]", HttpESExporterUtils.santizeUrlPwds(host));
+                    return false;
+                }
+
+                Version remoteVersion = HttpESExporterUtils.parseTemplateVersion(remoteTemplate);
+                logger.debug("detected existing remote template in version [{}] on host [{}]", remoteVersion, HttpESExporterUtils.santizeUrlPwds(host));
+
+                if (remoteVersion == null) {
+                    logger.warn("marvel template version cannot be found: template will be updated to version [{}]", templateVersion);
+                } else {
+
+                    if (remoteVersion.before(minCompatibleTemplateVersion)) {
+                        logger.error("marvel template version [{}] is below the minimum compatible version [{}] on host [{}]: "
+                                + "please manually update the marvel template to a more recent version"
+                                + "and delete the current active marvel index (don't forget to back up it first if needed)",
+                                remoteVersion, minCompatibleTemplateVersion, HttpESExporterUtils.santizeUrlPwds(host));
+                        return false;
+                    }
+
+                    // Compares the remote template version with the built-in template
+                    if (templateVersion.after(remoteVersion)) {
+                        logger.info("marvel template version will be updated to a newer version [remote:{}, built-in:{}]", remoteVersion, templateVersion);
+                        updateTemplate = true;
+
+                    } else if (templateVersion.equals(remoteVersion)) {
+                        logger.debug("marvel template version is up-to-date [remote:{}, built-in:{}]", remoteVersion, templateVersion);
+                        // Always update a snapshot version
+                        updateTemplate = templateVersion.snapshot();
+                    } else {
+                        logger.debug("marvel template version is newer than the one required by the marvel agent [remote:{}, built-in:{}]", remoteVersion, templateVersion);
+                        updateTemplate = false;
+                    }
+                }
+            }
         } catch (IOException e) {
-            logger.error("failed to verify/upload the marvel template to [{}]:\n{}", AgentUtils.santizeUrlPwds(host), AgentUtils.santizeUrlPwds(e.getMessage()));
+            logger.error("failed to verify the marvel template to [{}]:\n{}", HttpESExporterUtils.santizeUrlPwds(host), HttpESExporterUtils.santizeUrlPwds(e.getMessage()));
             return false;
+        } finally {
+            if (connection != null) {
+                try {
+                    connection.getInputStream().close();
+                } catch (IOException e) {
+                    // Ignore
+                }
+            }
         }
+
+        if (updateTemplate) {
+            try {
+                connection = openConnection(host, "PUT", url, XContentType.JSON.restContentType());
+
+                if (connection == null) {
+                    logger.debug("no available connection to update marvel template");
+                    return false;
+                }
+
+                logger.debug("loading marvel pre-configured template");
+                byte[] template = HttpESExporterUtils.loadDefaultTemplate();
+
+                // Uploads the template and closes the outputstream
+                Streams.copy(template, connection.getOutputStream());
+
+                if (!(connection.getResponseCode() == 200 || connection.getResponseCode() == 201)) {
+                    logConnectionError("error adding the marvel template to [" + host + "]", connection);
+                    return false;
+                }
+
+                logger.info("marvel template updated to version [{}]", templateVersion);
+            } catch (IOException e) {
+                logger.error("failed to update the marvel template to [{}]:\n{}", HttpESExporterUtils.santizeUrlPwds(host), HttpESExporterUtils.santizeUrlPwds(e.getMessage()));
+                return false;
+
+            } finally {
+                if (connection != null) {
+                    try {
+                        connection.getInputStream().close();
+                    } catch (IOException e) {
+                        // Ignore
+                    }
+                }
+            }
+        }
+
+        return updateTemplate;
     }
 
     private void logConnectionError(String msg, HttpURLConnection conn) {
@@ -537,11 +641,11 @@ public class HttpESExporter extends AbstractExporter<HttpESExporter> implements 
 
         try {
             logger.error("{} response code [{} {}]. content: [{}]",
-                    AgentUtils.santizeUrlPwds(msg), conn.getResponseCode(),
-                    AgentUtils.santizeUrlPwds(conn.getResponseMessage()),
-                    AgentUtils.santizeUrlPwds(err));
+                    HttpESExporterUtils.santizeUrlPwds(msg), conn.getResponseCode(),
+                    HttpESExporterUtils.santizeUrlPwds(conn.getResponseMessage()),
+                    HttpESExporterUtils.santizeUrlPwds(err));
         } catch (IOException e) {
-            logger.error("{}. connection had an error while reporting the error. tough life.", AgentUtils.santizeUrlPwds(msg));
+            logger.error("{}. connection had an error while reporting the error. tough life.", HttpESExporterUtils.santizeUrlPwds(msg));
         }
     }
 
@@ -561,9 +665,10 @@ public class HttpESExporter extends AbstractExporter<HttpESExporter> implements 
 
         String[] newHosts = settings.getAsArray(SETTINGS_HOSTS, null);
         if (newHosts != null) {
-            logger.info("hosts set to [{}]", AgentUtils.santizeUrlPwds(Strings.arrayToCommaDelimitedString(newHosts)));
+            logger.info("hosts set to [{}]", HttpESExporterUtils.santizeUrlPwds(Strings.arrayToCommaDelimitedString(newHosts)));
             this.hosts = newHosts;
             this.checkedAndUploadedIndexTemplate = false;
+            this.supportedClusterVersion = false;
             this.boundToLocalNode = false;
         }
 
@@ -612,7 +717,7 @@ public class HttpESExporter extends AbstractExporter<HttpESExporter> implements 
                     }
                     HttpURLConnection conn = openConnection(currentHosts[0], "GET", "", null);
                     if (conn == null) {
-                        logger.trace("keep alive thread shutting down. failed to open connection to current host [{}]", AgentUtils.santizeUrlPwds(currentHosts[0]));
+                        logger.trace("keep alive thread shutting down. failed to open connection to current host [{}]", HttpESExporterUtils.santizeUrlPwds(currentHosts[0]));
                         return;
                     } else {
                         conn.getInputStream().close(); // close and release to connection pool.
@@ -621,7 +726,7 @@ public class HttpESExporter extends AbstractExporter<HttpESExporter> implements 
                     // ignore, if closed, good....
                 } catch (Throwable t) {
                     logger.debug("error in keep alive thread, shutting down (will be restarted after a successful connection has been made) {}",
-                            AgentUtils.santizeUrlPwds(ExceptionsHelper.detailedMessage(t)));
+                            HttpESExporterUtils.santizeUrlPwds(ExceptionsHelper.detailedMessage(t)));
                     return;
                 }
             }

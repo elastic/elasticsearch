@@ -229,7 +229,7 @@ public class RandomShapeGenerator {
         }
     }
 
-    protected static Point xRandomPoint(Random r) {
+    public static Point xRandomPoint(Random r) {
         return xRandomPointIn(r, ctx.getWorldBounds());
     }
 
@@ -243,7 +243,7 @@ public class RandomShapeGenerator {
         return p;
     }
 
-    protected static Rectangle xRandomRectangle(Random r, Point nearP) {
+    public static Rectangle xRandomRectangle(Random r, Point nearP) {
         Rectangle bounds = ctx.getWorldBounds();
         if (nearP == null)
             nearP = xRandomPointIn(r, bounds);

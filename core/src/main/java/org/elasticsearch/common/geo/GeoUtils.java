@@ -34,10 +34,19 @@ import java.io.IOException;
  */
 public class GeoUtils {
 
+    /** Maximum valid latitude in degrees. */
+    public static final double MAX_LAT = 90.0;
+    /** Minimum valid latitude in degrees. */
+    public static final double MIN_LAT = -90.0;
+    /** Maximum valid longitude in degrees. */
+    public static final double MAX_LON = 180.0;
+    /** Minimum valid longitude in degrees. */
+    public static final double MIN_LON = -180.0;
+
     public static final String LATITUDE = GeoPointFieldMapper.Names.LAT;
     public static final String LONGITUDE = GeoPointFieldMapper.Names.LON;
     public static final String GEOHASH = GeoPointFieldMapper.Names.GEOHASH;
-    
+
     /** Earth ellipsoid major axis defined by WGS 84 in meters */
     public static final double EARTH_SEMI_MAJOR_AXIS = 6378137.0;      // meters (WGS 84)
 
@@ -55,6 +64,22 @@ public class GeoUtils {
 
     /** Earth ellipsoid polar distance in meters */
     public static final double EARTH_POLAR_DISTANCE = Math.PI * EARTH_SEMI_MINOR_AXIS;
+
+    /** Returns true if latitude is actually a valid latitude value.*/
+    public static boolean isValidLatitude(double latitude) {
+        if (Double.isNaN(latitude) || Double.isInfinite(latitude) || latitude < GeoUtils.MIN_LAT || latitude > GeoUtils.MAX_LAT) {
+            return false;
+        }
+        return true;
+    }
+
+    /** Returns true if longitude is actually a valid longitude value. */
+    public static boolean isValidLongitude(double longitude) {
+        if (Double.isNaN(longitude) || Double.isNaN(longitude) || longitude < GeoUtils.MIN_LON || longitude > GeoUtils.MAX_LON) {
+            return false;
+        }
+        return true;
+    }
 
     /**
      * Return an approximate value of the diameter of the earth (in meters) at the given latitude (in radians).

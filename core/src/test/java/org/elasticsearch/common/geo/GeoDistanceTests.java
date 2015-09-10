@@ -16,21 +16,57 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.elasticsearch.common.geo;
 
-package org.elasticsearch.index.search.geo;
-
-import org.elasticsearch.common.geo.GeoDistance;
-import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.*;
+import java.io.IOException;
+
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.equalTo;
 
 /**
+ * Basic Tests for {@link GeoDistance}
  */
 public class GeoDistanceTests extends ESTestCase {
+
+    @Test
+    public void testGeoDistanceSerialization() throws IOException  {
+        // make sure that ordinals don't change, because we rely on then in serialization
+        assertThat(GeoDistance.PLANE.ordinal(), equalTo(0));
+        assertThat(GeoDistance.FACTOR.ordinal(), equalTo(1));
+        assertThat(GeoDistance.ARC.ordinal(), equalTo(2));
+        assertThat(GeoDistance.SLOPPY_ARC.ordinal(), equalTo(3));
+        assertThat(GeoDistance.values().length, equalTo(4));
+
+        GeoDistance geoDistance = randomFrom(GeoDistance.PLANE, GeoDistance.FACTOR, GeoDistance.ARC, GeoDistance.SLOPPY_ARC);
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            geoDistance.writeTo(out);
+            try (StreamInput in = StreamInput.wrap(out.bytes())) {;
+                GeoDistance copy = GeoDistance.readGeoDistanceFrom(in);
+                assertEquals(copy.toString() + " vs. " + geoDistance.toString(), copy, geoDistance);
+            }
+        }
+    }
+
+    @Test(expected = IOException.class)
+    public void testInvalidReadFrom() throws Exception {
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            if (randomBoolean()) {
+                out.writeVInt(randomIntBetween(GeoDistance.values().length, Integer.MAX_VALUE));
+            } else {
+                out.writeVInt(randomIntBetween(Integer.MIN_VALUE, -1));
+            }
+            try (StreamInput in = StreamInput.wrap(out.bytes())) {
+                GeoDistance.readGeoDistanceFrom(in);
+            }
+        }
+    }
 
     @Test
     public void testDistanceCheck() {

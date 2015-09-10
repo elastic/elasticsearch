@@ -239,10 +239,10 @@ public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistan
         // validation was not available prior to 2.x, so to support bwc
         // percolation queries we only ignore_malformed on 2.x created indexes
         if (!indexCreatedBeforeV2_0 && !ignoreMalformed) {
-            if (point.lat() > 90.0 || point.lat() < -90.0) {
+            if (!GeoUtils.isValidLatitude(point.lat())) {
                 throw new QueryShardException(context, "illegal latitude value [{}] for [{}]", point.lat(), NAME);
             }
-            if (point.lon() > 180.0 || point.lon() < -180) {
+            if (!GeoUtils.isValidLongitude(point.lon())) {
                 throw new QueryShardException(context, "illegal longitude value [{}] for [{}]", point.lon(), NAME);
             }
         }
@@ -310,9 +310,7 @@ public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistan
     @Override
     protected GeoDistanceRangeQueryBuilder doReadFrom(StreamInput in) throws IOException {
         GeoDistanceRangeQueryBuilder queryBuilder = new GeoDistanceRangeQueryBuilder(in.readString());
-        double lat = in.readDouble();
-        double lon = in.readDouble();
-        queryBuilder.point = new GeoPoint(lat, lon);
+        queryBuilder.point = GeoPoint.readGeoPointFrom(in);
         queryBuilder.from = in.readGenericValue();
         queryBuilder.to = in.readGenericValue();
         queryBuilder.includeLower = in.readBoolean();
@@ -334,8 +332,7 @@ public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistan
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeString(fieldName);
-        out.writeDouble(point.lat());
-        out.writeDouble(point.lon());
+        point.writeTo(out);
         out.writeGenericValue(from);
         out.writeGenericValue(to);
         out.writeBoolean(includeLower);

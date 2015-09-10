@@ -99,3 +99,8 @@ and `unlike` methods.
 
 The deprecated `docs(Item... docs)`, `ignoreLike(Item... docs)`,
 `ignoreLike(String... likeText)`, `addItem(Item... likeItems)` have been removed.
+
+==== GeoDistanceQueryBuilder
+
+Removing individual setters for lon() and lat() values, both values should be set together
+ using point(lon, lat).

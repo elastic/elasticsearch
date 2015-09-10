@@ -19,6 +19,7 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.*;
+import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
@@ -88,13 +89,6 @@ public class HasParentQueryParser implements QueryParser {
             } else if (token.isValue()) {
                 if ("type".equals(currentFieldName) || "parent_type".equals(currentFieldName) || "parentType".equals(currentFieldName)) {
                     parentType = parser.text();
-                } else if ("score_type".equals(currentFieldName) || "scoreType".equals(currentFieldName)) {
-                    String scoreTypeValue = parser.text();
-                    if ("score".equals(scoreTypeValue)) {
-                        score = true;
-                    } else if ("none".equals(scoreTypeValue)) {
-                        score = false;
-                    }
                 } else if ("score_mode".equals(currentFieldName) || "scoreMode".equals(currentFieldName)) {
                     String scoreModeValue = parser.text();
                     if ("score".equals(scoreModeValue)) {
@@ -193,7 +187,7 @@ public class HasParentQueryParser implements QueryParser {
         // wrap the query with type query
         innerQuery = Queries.filtered(innerQuery, parentDocMapper.typeFilter());
         Query childrenFilter = Queries.not(parentTypeQuery);
-        ScoreType scoreMode = score ? ScoreType.MAX : ScoreType.NONE;
+        ScoreMode scoreMode = score ? ScoreMode.Max : ScoreMode.None;
         return joinUtilHelper(parentType, parentChildIndexFieldData, childrenFilter, scoreMode, innerQuery, 0, Integer.MAX_VALUE);
     }
 

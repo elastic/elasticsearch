@@ -18,42 +18,38 @@
  */
 package org.elasticsearch.index.query;
 
-import org.elasticsearch.index.query.ScoreType;
+import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
-/**
- * Tests {@link ScoreType} to ensure backward compatibility of any changes.
- */
-public class ScoreTypeTests extends ESTestCase {
+public class HasChildQueryParserTests extends ESTestCase {
+
     @Test
     public void minFromString() {
-        assertThat("fromString(min) != MIN", ScoreType.MIN, equalTo(ScoreType.fromString("min")));
+        assertThat("fromString(min) != MIN", ScoreMode.Min, equalTo(HasChildQueryParser.parseScoreMode("min")));
     }
 
     @Test
     public void maxFromString() {
-        assertThat("fromString(max) != MAX", ScoreType.MAX, equalTo(ScoreType.fromString("max")));
+        assertThat("fromString(max) != MAX", ScoreMode.Max, equalTo(HasChildQueryParser.parseScoreMode("max")));
     }
 
     @Test
     public void avgFromString() {
-        assertThat("fromString(avg) != AVG", ScoreType.AVG, equalTo(ScoreType.fromString("avg")));
+        assertThat("fromString(avg) != AVG", ScoreMode.Avg, equalTo(HasChildQueryParser.parseScoreMode("avg")));
     }
 
     @Test
     public void sumFromString() {
-        assertThat("fromString(sum) != SUM", ScoreType.SUM, equalTo(ScoreType.fromString("sum")));
-        // allowed for consistency with ScoreMode.Total:
-        assertThat("fromString(total) != SUM", ScoreType.SUM, equalTo(ScoreType.fromString("total")));
+        assertThat("fromString(total) != SUM", ScoreMode.Total, equalTo(HasChildQueryParser.parseScoreMode("total")));
     }
 
     @Test
     public void noneFromString() {
-        assertThat("fromString(none) != NONE", ScoreType.NONE, equalTo(ScoreType.fromString("none")));
+        assertThat("fromString(none) != NONE", ScoreMode.None, equalTo(HasChildQueryParser.parseScoreMode("none")));
     }
 
     /**
@@ -61,7 +57,7 @@ public class ScoreTypeTests extends ESTestCase {
      */
     @Test(expected = IllegalArgumentException.class)
     public void nullFromString_throwsException() {
-        ScoreType.fromString(null);
+        HasChildQueryParser.parseScoreMode(null);
     }
 
     /**
@@ -69,6 +65,6 @@ public class ScoreTypeTests extends ESTestCase {
      */
     @Test(expected = IllegalArgumentException.class)
     public void unrecognizedFromString_throwsException() {
-        ScoreType.fromString("unrecognized value");
+        HasChildQueryParser.parseScoreMode("unrecognized value");
     }
 }

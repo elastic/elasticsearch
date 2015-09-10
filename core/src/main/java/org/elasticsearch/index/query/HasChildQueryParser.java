@@ -38,7 +38,6 @@ import org.elasticsearch.index.query.support.InnerHitsQueryParserHelper;
 import org.elasticsearch.index.query.support.XContentStructure;
 import org.elasticsearch.search.fetch.innerhits.InnerHitsContext;
 import org.elasticsearch.search.fetch.innerhits.InnerHitsSubSearchContext;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 
@@ -69,9 +68,9 @@ public class HasChildQueryParser implements QueryParser {
         boolean queryFound = false;
         float boost = 1.0f;
         String childType = null;
-        ScoreType scoreType = ScoreType.NONE;
+        ScoreMode scoreMode = ScoreMode.None;
         int minChildren = 0;
-        int maxChildren = 0;
+        int maxChildren = Integer.MAX_VALUE;
         String queryName = null;
         InnerHitsSubSearchContext innerHits = null;
 
@@ -99,10 +98,8 @@ public class HasChildQueryParser implements QueryParser {
             } else if (token.isValue()) {
                 if ("type".equals(currentFieldName) || "child_type".equals(currentFieldName) || "childType".equals(currentFieldName)) {
                     childType = parser.text();
-                } else if ("score_type".equals(currentFieldName) || "scoreType".equals(currentFieldName)) {
-                    scoreType = ScoreType.fromString(parser.text());
                 } else if ("score_mode".equals(currentFieldName) || "scoreMode".equals(currentFieldName)) {
-                    scoreType = ScoreType.fromString(parser.text());
+                    scoreMode = parseScoreMode(parser.text());
                 } else if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
                 } else if ("min_children".equals(currentFieldName) || "minChildren".equals(currentFieldName)) {
@@ -162,7 +159,7 @@ public class HasChildQueryParser implements QueryParser {
 
         final Query query;
         final ParentChildIndexFieldData parentChildIndexFieldData = parseContext.getForField(parentFieldMapper.fieldType());
-        query = joinUtilHelper(parentType, parentChildIndexFieldData, parentDocMapper.typeFilter(), scoreType, innerQuery, minChildren, maxChildren);
+        query = joinUtilHelper(parentType, parentChildIndexFieldData, parentDocMapper.typeFilter(), scoreMode, innerQuery, minChildren, maxChildren);
         if (queryName != null) {
             parseContext.addNamedQuery(queryName, query);
         }
@@ -170,33 +167,23 @@ public class HasChildQueryParser implements QueryParser {
         return query;
     }
 
-    public static Query joinUtilHelper(String parentType, ParentChildIndexFieldData parentChildIndexFieldData, Query toQuery, ScoreType scoreType, Query innerQuery, int minChildren, int maxChildren) throws IOException {
-        ScoreMode scoreMode;
-        // TODO: move entirely over from ScoreType to org.apache.lucene.join.ScoreMode, when we drop the 1.x parent child code.
-        switch (scoreType) {
-            case NONE:
-                scoreMode = ScoreMode.None;
-                break;
-            case MIN:
-                scoreMode = ScoreMode.Min;
-                break;
-            case MAX:
-                scoreMode = ScoreMode.Max;
-                break;
-            case SUM:
-                scoreMode = ScoreMode.Total;
-                break;
-            case AVG:
-                scoreMode = ScoreMode.Avg;
-                break;
-            default:
-                throw new UnsupportedOperationException("score type [" + scoreType + "] not supported");
-        }
-        // 0 in pre 2.x p/c impl means unbounded
-        if (maxChildren == 0) {
-            maxChildren = Integer.MAX_VALUE;
-        }
+    public static Query joinUtilHelper(String parentType, ParentChildIndexFieldData parentChildIndexFieldData, Query toQuery, ScoreMode scoreMode, Query innerQuery, int minChildren, int maxChildren) throws IOException {
         return new LateParsingQuery(toQuery, innerQuery, minChildren, maxChildren, parentType, scoreMode, parentChildIndexFieldData);
+    }
+
+    public static ScoreMode parseScoreMode(String scoreModeString) {
+        if ("none".equals(scoreModeString)) {
+            return ScoreMode.None;
+        } else if ("min".equals(scoreModeString)) {
+            return ScoreMode.Min;
+        } else if ("max".equals(scoreModeString)) {
+            return ScoreMode.Max;
+        } else if ("avg".equals(scoreModeString)) {
+            return ScoreMode.Avg;
+        } else if ("total".equals(scoreModeString)) {
+            return ScoreMode.Total;
+        }
+        throw new IllegalArgumentException("No score mode for child query [" + scoreModeString + "] found");
     }
 
     final static class LateParsingQuery extends Query {

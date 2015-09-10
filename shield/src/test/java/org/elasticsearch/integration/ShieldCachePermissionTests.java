@@ -78,8 +78,7 @@ public class ShieldCachePermissionTests extends ShieldIntegTestCase {
 
     @Test
     public void testThatTermsFilterQueryDoesntLeakData() {
-        SearchResponse response = client().prepareSearch("data").setTypes("a").setQuery(QueryBuilders.filteredQuery(
-                QueryBuilders.matchAllQuery(),
+        SearchResponse response = client().prepareSearch("data").setTypes("a").setQuery(QueryBuilders.constantScoreQuery(
                 QueryBuilders.termsLookupQuery("token")
                         .lookupIndex("tokens")
                         .lookupType("tokens")
@@ -91,8 +90,7 @@ public class ShieldCachePermissionTests extends ShieldIntegTestCase {
 
         // Repeat with unauthorized user!!!!
         try {
-            response = client().prepareSearch("data").setTypes("a").setQuery(QueryBuilders.filteredQuery(
-                    QueryBuilders.matchAllQuery(),
+            response = client().prepareSearch("data").setTypes("a").setQuery(QueryBuilders.constantScoreQuery(
                     QueryBuilders.termsLookupQuery("token")
                             .lookupIndex("tokens")
                             .lookupType("tokens")

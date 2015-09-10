@@ -20,7 +20,6 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.queryparser.classic.QueryParser;
 import org.apache.lucene.search.BooleanClause;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -29,15 +28,9 @@ import org.elasticsearch.common.util.CollectionUtils;
 import java.io.IOException;
 
 public enum Operator implements Writeable<Operator> {
-    OR(0), AND(1);
-
-    private final int ordinal;
+    OR, AND;
 
     private static final Operator PROTOTYPE = OR;
-
-    Operator(int ordinal) {
-        this.ordinal = ordinal;
-    }
 
     public BooleanClause.Occur toBooleanClauseOccur() {
         switch (this) {
@@ -63,13 +56,7 @@ public enum Operator implements Writeable<Operator> {
 
     @Override
     public Operator readFrom(StreamInput in) throws IOException {
-        int ord = in.readVInt();
-        for (Operator operator : Operator.values()) {
-            if (operator.ordinal == ord) {
-                return operator;
-            }
-        }
-        throw new ElasticsearchException("unknown serialized operator [" + ord + "]");
+        return Operator.values()[in.readVInt()];
     }
 
     public static Operator readOperatorFrom(StreamInput in) throws IOException {
@@ -78,7 +65,7 @@ public enum Operator implements Writeable<Operator> {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(this.ordinal);
+        out.writeVInt(this.ordinal());
     }
 
     public static Operator fromString(String op) {

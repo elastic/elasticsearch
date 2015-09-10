@@ -39,6 +39,7 @@
                     indexing.index_current           .+   \n
                     indexing.index_time              .+   \n
                     indexing.index_total             .+   \n
+                    indexing.index_failed            .+   \n
                     merges.current                   .+   \n
                     merges.current_docs              .+   \n
                     merges.current_size              .+   \n
@@ -150,4 +151,3 @@
   - match:
       $body: |
                /^(index3 \s+ \d \s+ (p|s) \s+ ((STARTED|INITIALIZING|RELOCATING) \s+ (\d \s+ (\d+|\d+[.]\d+)(kb|b) \s+)? \d{1,3}.\d{1,3}.\d{1,3}.\d{1,3} \s+ .+|UNASSIGNED \s+) \n?){2}$/
-               

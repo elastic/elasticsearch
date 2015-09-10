@@ -93,14 +93,13 @@ compileJava.options.compilerArgs << "-Xlint:-cast,-deprecation,-fallthrough,-ove
 compileTestJava.options.compilerArgs << "-Xlint:-cast,-deprecation,-fallthrough,-overrides,-rawtypes,-serial,-try,-unchecked"
 
 sourceSets {
-  /*main {
+  main {
     output.resourcesDir = "build/classes/main"
   }
   test {
     // hack, see https://discuss.gradle.org/t/processresources-does-not-copy-to-correct-dir/11293
     output.resourcesDir = "build/classes/test"
   }
-*/
 }
 
 task sourcesJar(type: Jar, dependsOn: classes) {

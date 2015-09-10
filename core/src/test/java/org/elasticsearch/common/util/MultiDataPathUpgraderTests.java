@@ -39,16 +39,8 @@ import java.io.BufferedWriter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URISyntaxException;
-import java.nio.file.DirectoryStream;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
+import java.nio.file.*;
+import java.util.*;
 
 /**
  */
@@ -141,7 +133,7 @@ public class MultiDataPathUpgraderTests extends ESTestCase {
      */
     public void testUpgradeRealIndex() throws IOException, URISyntaxException {
         List<Path> indexes = new ArrayList<>();
-        Path dir = getDataPath("/indices/bwc");
+        Path dir = getDataPath("/" + OldIndexBackwardsCompatibilityIT.class.getPackage().getName().replace('.', '/')); // the files are in the same pkg as the OldIndexBackwardsCompatibilityTests test
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(dir, "index-*.zip")) {
             for (Path path : stream) {
                 indexes.add(path);
@@ -187,7 +179,7 @@ public class MultiDataPathUpgraderTests extends ESTestCase {
             OldIndexBackwardsCompatibilityIT.copyIndex(logger, src, indexName, multiDataPath);
             final ShardPath shardPath = new ShardPath(false, nodeEnvironment.availableShardPaths(new ShardId(indexName, 0))[0], nodeEnvironment.availableShardPaths(new ShardId(indexName, 0))[0], IndexMetaData.INDEX_UUID_NA_VALUE, new ShardId(indexName, 0));
 
-            logger.info("{}", (Object) FileSystemUtils.files(shardPath.resolveIndex()));
+            logger.info("{}", (Object)FileSystemUtils.files(shardPath.resolveIndex()));
 
             MultiDataPathUpgrader helper = new MultiDataPathUpgrader(nodeEnvironment);
             helper.upgrade(new ShardId(indexName, 0), shardPath);

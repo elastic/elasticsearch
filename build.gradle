@@ -3,7 +3,7 @@ apply plugin: 'idea'
 allprojects {
     gradle.projectsEvaluated {
         tasks.withType(JavaCompile) {
-            options.compilerArgs << "-Xlint:all" << "-Werror" 
+            options.compilerArgs << "-Werror" /*<< "-Xlint:unchecked"*/ << "-Xlint:deprecation"
         }
     }
 }

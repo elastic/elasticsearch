@@ -24,13 +24,6 @@
                 "request": {
                   "indices": [ "test_1" ],
                   "body": {
-                    "query": {
-                      "filtered": {
-                        "query": {
-                          "match_all": {}
-                        }
-                      }
-                    },
                     "aggs": {
                       "top_foos": {
                         "terms": {

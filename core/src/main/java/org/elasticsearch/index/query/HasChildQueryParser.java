@@ -223,6 +223,7 @@ public class HasChildQueryParser implements QueryParser {
         @Override
         public Query rewrite(IndexReader reader) throws IOException {
             IndexSearcher indexSearcher = new IndexSearcher(reader);
+            indexSearcher.setQueryCache(null);
             String joinField = ParentFieldMapper.joinField(parentType);
             IndexParentChildFieldData indexParentChildFieldData = parentChildIndexFieldData.loadGlobal(indexSearcher.getIndexReader());
             MultiDocValues.OrdinalMap ordinalMap = ParentChildIndexFieldData.getOrdinalMap(indexParentChildFieldData, parentType);

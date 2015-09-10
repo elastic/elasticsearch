@@ -57,6 +57,9 @@ setup() {
     # Rather than restart the VM which would be slow we check for the symlinks
     # that init.d uses to restart the application on startup.
     ! find /etc/rc[0123456].d | grep elasticsearch
+    # Note that we don't use -iname above because that'd have to look like:
+    # [ $(find /etc/rc[0123456].d -iname "elasticsearch*" | wc -l) -eq 0 ]
+    # Which isn't really clearer than what we do use.
 }
 
 @test "[INIT.D] start" {

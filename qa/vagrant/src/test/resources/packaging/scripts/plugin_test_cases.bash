@@ -83,11 +83,6 @@ else
     }
 fi
 
-@test "[$GROUP] install jvm-example plugin" {
-    install_jvm_example
-    remove_jvm_example
-}
-
 @test "[$GROUP] install jvm-example plugin with a custom path.plugins" {
     # Clean up after the last time this test was run
     rm -rf /tmp/plugins.*
@@ -132,54 +127,181 @@ fi
     remove_jvm_example
 }
 
+# Note that all of the tests from here to the end of the file expect to be run
+# in sequence and don't take well to being run one at a time.
+@test "[$GROUP] install jvm-example plugin" {
+    install_jvm_example
+}
+
 @test "[$GROUP] install icu plugin" {
-    install_and_remove_special_plugin analysis icu icu4j-*.jar
+    install_and_check_plugin analysis icu icu4j-*.jar
 }
 
 @test "[$GROUP] install kuromoji plugin" {
-    install_and_remove_special_plugin analysis kuromoji
+    install_and_check_plugin analysis kuromoji
 }
 
 @test "[$GROUP] install phonetic plugin" {
-    install_and_remove_special_plugin analysis phonetic commons-codec-*.jar
+    install_and_check_plugin analysis phonetic commons-codec-*.jar
 }
 
 @test "[$GROUP] install smartcn plugin" {
-    install_and_remove_special_plugin analysis smartcn
+    install_and_check_plugin analysis smartcn
 }
 
 @test "[$GROUP] install stempel plugin" {
-    install_and_remove_special_plugin analysis stempel
-}
-
-@test "[$GROUP] install aws plugin" {
-    install_and_remove_special_plugin cloud aws aws-java-sdk-core-*.jar
+    install_and_check_plugin analysis stempel
 }
 
 @test "[$GROUP] install azure plugin" {
-    install_and_remove_special_plugin cloud azure azure-core-*.jar
+    install_and_check_plugin cloud azure azure-core-*.jar
 }
 
 @test "[$GROUP] install gce plugin" {
-    install_and_remove_special_plugin cloud gce google-api-client-*.jar
+    install_and_check_plugin cloud gce google-api-client-*.jar
 }
 
-@test "[$GROUP] install delete by query" {
-    install_and_remove_special_plugin - delete-by-query
+@test "[$GROUP] install delete by query plugin" {
+    install_and_check_plugin - delete-by-query
+}
+
+@test "[$GROUP] install ec2 discovery plugin" {
+    install_and_check_plugin discovery ec2 aws-java-sdk-core-*.jar
+}
+
+@test "[$GROUP] install multicast discovery plugin" {
+    install_and_check_plugin discovery multicast
 }
 
 @test "[$GROUP] install javascript plugin" {
-    install_and_remove_special_plugin lang javascript rhino-*.jar
+    install_and_check_plugin lang javascript rhino-*.jar
 }
 
 @test "[$GROUP] install python plugin" {
-    install_and_remove_special_plugin lang python jython-standalone-*.jar
+    install_and_check_plugin lang python jython-standalone-*.jar
 }
 
-@test "[$GROUP] install murmur3 mapper" {
-    install_and_remove_special_plugin mapper murmur3
+@test "[$GROUP] install murmur3 mapper plugin" {
+    install_and_check_plugin mapper murmur3
 }
 
-@test "[$GROUP] install size mapper" {
-    install_and_remove_special_plugin mapper size
+@test "[$GROUP] install size mapper plugin" {
+    install_and_check_plugin mapper size
+}
+
+@test "[$GROUP] install s3 repository plugin" {
+    install_and_check_plugin repository s3 aws-java-sdk-core-*.jar
+}
+
+@test "[$GROUP] install site example" {
+    # Doesn't use install_and_check_plugin because this is a site plugin
+    install_plugin site-example $(readlink -m site-example-*.zip)
+    assert_file_exist "$ESHOME/plugins/site-example/_site/index.html"
+}
+
+@test "[$GROUP] start elasticsearch with all plugins installed" {
+    start_elasticsearch_service
+}
+
+@test "[$GROUP] check the installed plugins matches the list of build plugins" {
+    curl -s localhost:9200/_cat/plugins?h=c | sed 's/ *$//' |
+        sort > /tmp/installed
+    ls /elasticsearch/plugins/*/pom.xml | cut -d '/' -f 4 |
+        sort > /tmp/expected
+    echo "Checking installed plugins (<) against the plugins directory (>):"
+    diff /tmp/installed /tmp/expected
+}
+
+@test "[$GROUP] stop elasticsearch" {
+    stop_elasticsearch_service
+}
+
+@test "[$GROUP] remove jvm-example plugin" {
+    remove_jvm_example
+}
+
+@test "[$GROUP] remove icu plugin" {
+    remove_plugin analysis-icu
+}
+
+@test "[$GROUP] remove kuromoji plugin" {
+    remove_plugin analysis-kuromoji
+}
+
+@test "[$GROUP] remove phonetic plugin" {
+    remove_plugin analysis-phonetic
+}
+
+@test "[$GROUP] remove smartcn plugin" {
+    remove_plugin analysis-smartcn
+}
+
+@test "[$GROUP] remove stempel plugin" {
+    remove_plugin analysis-stempel
+}
+
+@test "[$GROUP] remove aws plugin" {
+    remove_plugin cloud-aws
+}
+
+@test "[$GROUP] remove azure plugin" {
+    remove_plugin cloud-azure
+}
+
+@test "[$GROUP] remove gce plugin" {
+    remove_plugin cloud-gce
+}
+
+@test "[$GROUP] remove delete by query plugin" {
+    remove_plugin delete-by-query
+}
+
+@test "[$GROUP] remove ec2 discovery plugin" {
+    remove_plugin discovery-ec2
+}
+
+@test "[$GROUP] remove multicast discovery plugin" {
+    remove_plugin discovery-multicast
+}
+
+@test "[$GROUP] remove javascript plugin" {
+    remove_plugin lang-javascript
+}
+
+@test "[$GROUP] remove python plugin" {
+    remove_plugin lang-python
+}
+
+@test "[$GROUP] remove murmur3 mapper plugin" {
+    remove_plugin mapper-murmur3
+}
+
+@test "[$GROUP] remove size mapper plugin" {
+    remove_plugin mapper-size
+}
+
+@test "[$GROUP] remove s3 repository plugin" {
+    remove_plugin repository-s3
+}
+
+@test "[$GROUP] remove site example plugin" {
+    remove_plugin site-example
+}
+
+@test "[$GROUP] start elasticsearch with all plugins removed" {
+    start_elasticsearch_service
+}
+
+@test "[$GROUP] check that there are now no plugins installed" {
+    curl -s localhost:9200/_cat/plugins > /tmp/installed
+    local installedCount=$(cat /tmp/installed | wc -l)
+    [ "$installedCount" == "0" ] || {
+        echo "Expected all plugins to be removed but found $installedCount:"
+        cat /tmp/installed
+        false
+    }
+}
+
+@test "[$GROUP] stop elasticsearch" {
+    stop_elasticsearch_service
 }

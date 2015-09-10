@@ -8,7 +8,7 @@ _filter context_:
 
 Query context::
 
-A query used in query context will caculated relevance scores and will not be
+A query used in query context will calculate relevance scores and will not be
 cacheable.  Query context is used whenever filter context does not apply.
 
 Filter context::

@@ -21,6 +21,8 @@ package org.elasticsearch.cloud.azure;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.plugin.cloud.azure.CloudAzurePlugin;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.RestTestCandidate;
 import org.elasticsearch.test.rest.parser.RestTestParseException;
@@ -28,6 +30,14 @@ import org.elasticsearch.test.rest.parser.RestTestParseException;
 import java.io.IOException;
 
 public class CloudAzureRestIT extends ESRestTestCase {
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return Settings.builder()
+                .put(super.nodeSettings(nodeOrdinal))
+                .put("plugin.types", CloudAzurePlugin.class.getName())
+                .build();
+    }
 
     public CloudAzureRestIT(@Name("yaml") RestTestCandidate testCandidate) {
         super(testCandidate);

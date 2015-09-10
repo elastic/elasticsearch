@@ -21,6 +21,8 @@ package org.elasticsearch.cloud.gce;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.plugin.cloud.gce.CloudGcePlugin;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.RestTestCandidate;
 import org.elasticsearch.test.rest.parser.RestTestParseException;
@@ -28,6 +30,14 @@ import org.elasticsearch.test.rest.parser.RestTestParseException;
 import java.io.IOException;
 
 public class CloudGCERestIT extends ESRestTestCase {
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return Settings.builder()
+                .put(super.nodeSettings(nodeOrdinal))
+                .put("plugin.types", CloudGcePlugin.class.getName())
+                .build();
+    }
 
     public CloudGCERestIT(@Name("yaml") RestTestCandidate testCandidate) {
         super(testCandidate);

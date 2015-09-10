@@ -21,6 +21,8 @@ package org.elasticsearch.index.analysis;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.plugin.analysis.smartcn.AnalysisSmartChinesePlugin;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.RestTestCandidate;
 import org.elasticsearch.test.rest.parser.RestTestParseException;
@@ -28,6 +30,14 @@ import org.elasticsearch.test.rest.parser.RestTestParseException;
 import java.io.IOException;
 
 public class AnalysisSmartChineseRestIT extends ESRestTestCase {
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return Settings.builder()
+                .put(super.nodeSettings(nodeOrdinal))
+                .put("plugin.types", AnalysisSmartChinesePlugin.class.getName())
+                .build();
+    }
 
     public AnalysisSmartChineseRestIT(@Name("yaml") RestTestCandidate testCandidate) {
         super(testCandidate);

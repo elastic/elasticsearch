@@ -21,6 +21,7 @@ package org.elasticsearch.plugin.example;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.RestTestCandidate;
 import org.elasticsearch.test.rest.parser.RestTestParseException;
@@ -28,6 +29,14 @@ import org.elasticsearch.test.rest.parser.RestTestParseException;
 import java.io.IOException;
 
 public class JvmExampleRestIT extends ESRestTestCase {
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return Settings.builder()
+                .put(super.nodeSettings(nodeOrdinal))
+                .put("plugin.types", JvmExamplePlugin.class.getName())
+                .build();
+    }
 
     public JvmExampleRestIT(@Name("yaml") RestTestCandidate testCandidate) {
         super(testCandidate);

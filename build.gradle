@@ -3,7 +3,7 @@ apply plugin: 'idea'
 allprojects {
     gradle.projectsEvaluated {
         tasks.withType(JavaCompile) {
-            options.compilerArgs << "-Werror -Xlint:all" 
+            options.compilerArgs << "-Werror" << "-Xlint:all" 
         }
     }
 }

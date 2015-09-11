@@ -23,6 +23,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.common.lucene.all.AllTermQuery;
+import org.hamcrest.Matchers;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -189,24 +190,34 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         QueryShardContext shardContext = createShardContext();
         QueryStringQueryBuilder queryStringQuery = queryStringQuery(STRING_FIELD_NAME + ":boosted^2");
         Query query = queryStringQuery.toQuery(shardContext);
-        assertThat(query, instanceOf(TermQuery.class));
-        assertThat(((TermQuery) query).getTerm(), equalTo(new Term(STRING_FIELD_NAME, "boosted")));
-        assertThat(query.getBoost(), equalTo(2.0f));
+        assertThat(query, instanceOf(BoostQuery.class));
+        BoostQuery boostQuery = (BoostQuery) query;
+        assertThat(boostQuery.getBoost(), Matchers.equalTo(2.0f));
+        assertThat(boostQuery.getQuery(), instanceOf(TermQuery.class));
+        assertThat(((TermQuery) boostQuery.getQuery()).getTerm(), equalTo(new Term(STRING_FIELD_NAME, "boosted")));
         queryStringQuery.boost(2.0f);
         query = queryStringQuery.toQuery(shardContext);
-        assertThat(query.getBoost(), equalTo(4.0f));
+        assertThat(query, instanceOf(BoostQuery.class));
+        assertThat(((BoostQuery) query).getBoost(), Matchers.equalTo(4.0f));
 
         queryStringQuery = queryStringQuery("((" + STRING_FIELD_NAME + ":boosted^2) AND (" + STRING_FIELD_NAME + ":foo^1.5))^3");
         query = queryStringQuery.toQuery(shardContext);
-        assertThat(query, instanceOf(BooleanQuery.class));
-        assertThat(assertBooleanSubQuery(query, TermQuery.class, 0).getTerm(), equalTo(new Term(STRING_FIELD_NAME, "boosted")));
-        assertThat(assertBooleanSubQuery(query, TermQuery.class, 0).getBoost(), equalTo(2.0f));
-        assertThat(assertBooleanSubQuery(query, TermQuery.class, 1).getTerm(), equalTo(new Term(STRING_FIELD_NAME, "foo")));
-        assertThat(assertBooleanSubQuery(query, TermQuery.class, 1).getBoost(), equalTo(1.5f));
-        assertThat(query.getBoost(), equalTo(3.0f));
+        assertThat(query, instanceOf(BoostQuery.class));
+        boostQuery = (BoostQuery) query;
+        assertThat(boostQuery.getBoost(), equalTo(3.0f));
+        BoostQuery boostQuery1 = assertBooleanSubQuery(boostQuery.getQuery(), BoostQuery.class, 0);
+        assertThat(boostQuery1.getBoost(), equalTo(2.0f));
+        assertThat(boostQuery1.getQuery(), instanceOf(TermQuery.class));
+        assertThat(((TermQuery)boostQuery1.getQuery()).getTerm(), equalTo(new Term(STRING_FIELD_NAME, "boosted")));
+        BoostQuery boostQuery2 = assertBooleanSubQuery(boostQuery.getQuery(), BoostQuery.class, 1);
+        assertThat(boostQuery2.getBoost(), equalTo(1.5f));
+        assertThat(boostQuery2.getQuery(), instanceOf(TermQuery.class));
+        assertThat(((TermQuery)boostQuery2.getQuery()).getTerm(), equalTo(new Term(STRING_FIELD_NAME, "foo")));
         queryStringQuery.boost(2.0f);
         query = queryStringQuery.toQuery(shardContext);
-        assertThat(query.getBoost(), equalTo(6.0f));
+        assertThat(query, instanceOf(BoostQuery.class));
+        boostQuery = (BoostQuery) query;
+        assertThat(boostQuery.getBoost(), equalTo(6.0f));
     }
 
     @Test

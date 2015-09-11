@@ -25,7 +25,6 @@ import org.junit.Test;
 
 import java.io.IOException;
 
-import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 
 public class SpanWithinQueryBuilderTests extends AbstractQueryTestCase<SpanWithinQueryBuilder> {
@@ -39,16 +38,6 @@ public class SpanWithinQueryBuilderTests extends AbstractQueryTestCase<SpanWithi
     @Override
     protected void doAssertLuceneQuery(SpanWithinQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         assertThat(query, instanceOf(SpanWithinQuery.class));
-    }
-
-    @Override
-    protected void assertBoost(SpanWithinQueryBuilder queryBuilder, Query query) throws IOException {
-        if (queryBuilder.boost() == AbstractQueryBuilder.DEFAULT_BOOST) {
-            //lucene default behaviour
-            assertThat(query.getBoost(), equalTo(queryBuilder.littleQuery().boost()));
-        } else {
-            assertThat(query.getBoost(), equalTo(queryBuilder.boost()));
-        }
     }
 
     @Test

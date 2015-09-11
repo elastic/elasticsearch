@@ -83,14 +83,6 @@ public class SpanContainingQueryBuilder extends AbstractQueryBuilder<SpanContain
     }
 
     @Override
-    protected void setFinalBoost(Query query) {
-        if (boost != AbstractQueryBuilder.DEFAULT_BOOST) {
-            //preserve potential inner boost coming from lucene (default is big.boost)
-            query.setBoost(boost);
-        }
-    }
-
-    @Override
     public QueryValidationException validate() {
         QueryValidationException validationException = null;
         if (big == null) {

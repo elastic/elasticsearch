@@ -50,3 +50,30 @@
                 \n
               )+
             $/
+
+
+---
+"With ts parameter":
+
+  - do:
+      cat.health:
+        ts: 0
+
+  - match:
+      $body: |
+            /^
+              ( \S+            \s+ # cluster
+                \w+            \s+ # status
+                \d+            \s+ # node.total
+                \d+            \s+ # node.data
+                \d+            \s+ # shards
+                \d+            \s+ # pri
+                \d+            \s+ # relo
+                \d+            \s+ # init
+                \d+            \s+ # unassign
+                \d+            \s+ # pending_tasks
+                (-|\d+[.]\d+ms|s) \s+ # max task waiting time
+                \d+\.\d+%             # active shards percent
+                \n
+              )+
+            $/

@@ -48,17 +48,19 @@ public class RestTableTests extends ESTestCase {
     private static final String CONTENT_TYPE = "Content-Type";
     private static final String ACCEPT = "Accept";
     private static final String TEXT_PLAIN = "text/plain; charset=UTF-8";
-    private static final String TEXT_TABLE_BODY = "foo foo foo foo foo foo\n";
+    private static final String TEXT_TABLE_BODY = "foo foo foo foo foo foo foo foo\n";
     private static final String JSON_TABLE_BODY = "[{\"bulk.foo\":\"foo\",\"bulk.bar\":\"foo\",\"aliasedBulk\":\"foo\"," +
             "\"aliasedSecondBulk\":\"foo\",\"unmatched\":\"foo\"," +
-            "\"invalidAliasesBulk\":\"foo\"}]";
+            "\"invalidAliasesBulk\":\"foo\",\"timestamp\":\"foo\",\"epoch\":\"foo\"}]";
     private static final String YAML_TABLE_BODY = "---\n" +
             "- bulk.foo: \"foo\"\n" +
             "  bulk.bar: \"foo\"\n" +
             "  aliasedBulk: \"foo\"\n" +
             "  aliasedSecondBulk: \"foo\"\n" +
             "  unmatched: \"foo\"\n" +
-            "  invalidAliasesBulk: \"foo\"\n";
+            "  invalidAliasesBulk: \"foo\"\n" +
+            "  timestamp: \"foo\"\n" +
+            "  epoch: \"foo\"\n";
     private Table table = new Table();
     private FakeRestRequest restRequest = new FakeRestRequest();
 
@@ -74,6 +76,9 @@ public class RestTableTests extends ESTestCase {
         table.addCell("unmatched", "alias:un.matched;desc:bar");
         // invalid alias
         table.addCell("invalidAliasesBulk", "alias:,,,;desc:bar");
+        // timestamp
+        table.addCell("timestamp", "alias:ts");
+        table.addCell("epoch", "alias:t");
         table.endHeaders();
     }
 
@@ -129,9 +134,22 @@ public class RestTableTests extends ESTestCase {
                 TEXT_TABLE_BODY);
     }
 
+    public void testThatDisplayHeadersWithoutTimestamp() throws Exception {
+        restRequest.params().put("h", "timestamp,epoch,bulk*");
+        restRequest.params().put("ts", "0");
+        List<RestTable.DisplayHeader> headers = buildDisplayHeaders(table, restRequest);
+
+        List<String> headerNames = getHeaderNames(headers);
+        assertThat(headerNames, contains("bulk.foo", "bulk.bar", "aliasedBulk", "aliasedSecondBulk"));
+        assertThat(headerNames, not(hasItem("timestamp")));
+        assertThat(headerNames, not(hasItem("epoch")));
+    }
+
     private RestResponse assertResponseContentType(Map<String, String> headers, String mediaType) throws Exception {
         FakeRestRequest requestWithAcceptHeader = new FakeRestRequest(headers);
         table.startRow();
+        table.addCell("foo");
+        table.addCell("foo");
         table.addCell("foo");
         table.addCell("foo");
         table.addCell("foo");

@@ -582,7 +582,7 @@
                             <arg>-XDignore.symbol.file</arg>
                             <arg>-Xlint:all</arg>
                             <arg>${xlint.options}</arg>
-                            <arg>-Werror</arg>
+                            <!-- DISABLED: incompatible with java 9 <arg>-Werror</arg> -->
                         </compilerArgs>
                     </configuration>
                 </plugin>

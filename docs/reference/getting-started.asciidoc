@@ -548,6 +548,13 @@ curl -XPOST 'localhost:9200/bank/account/_bulk?pretty' --data-binary @accounts.j
 curl 'localhost:9200/_cat/indices?v'
 --------------------------------------------------
 
+For Windows Operating systems, the @account.json should be double quoted otherwise the json content could not be loaded.
+
+[source,sh]
+--------------------------------------------------
+curl -XPOST 'localhost:9200/bank/account/_bulk?pretty' --data-binary "@accounts.json"
+curl 'localhost:9200/_cat/indices?v'
+--------------------------------------------------
 And the response:
 
 [source,sh]

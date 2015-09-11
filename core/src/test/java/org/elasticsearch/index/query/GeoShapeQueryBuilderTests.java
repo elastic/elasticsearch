@@ -19,8 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
-
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
@@ -47,7 +45,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 
-@Repeat(iterations = 100)
 public class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<GeoShapeQueryBuilder> {
 
     private static String indexedShapeId;

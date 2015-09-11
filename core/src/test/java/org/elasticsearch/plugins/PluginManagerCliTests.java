@@ -24,6 +24,7 @@ import org.elasticsearch.common.cli.CliToolTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.net.MalformedURLException;
 import java.nio.file.Path;
 
 import static org.elasticsearch.common.cli.CliTool.ExitStatus.OK_AND_EXIT;
@@ -54,11 +55,12 @@ public class PluginManagerCliTests extends CliToolTestCase {
         assertTerminalOutputContainsHelpFile(terminal, "/org/elasticsearch/plugins/plugin-list.help");
     }
 
-    public void testUrlSpacesInPath() {
+    public void testUrlSpacesInPath() throws MalformedURLException {
         CliToolTestCase.CaptureOutputTerminal terminal = new CliToolTestCase.CaptureOutputTerminal();
-        Path tmpDir = createTempDir().resolve("foo");
-        String finalDir = tmpDir.toAbsolutePath().toString() + "%20deps";
-        CliTool.ExitStatus execute = new PluginManagerCliParser(terminal).execute(args("install file://" + finalDir));
+        Path tmpDir = createTempDir().resolve("foo deps");
+        String finalDir = tmpDir.toAbsolutePath().toUri().toURL().toString();
+        logger.warn(finalDir);
+        CliTool.ExitStatus execute = new PluginManagerCliParser(terminal).execute(args("install " + finalDir));
         assertThat(execute.status(), is(IO_ERROR.status()));
     }
 }

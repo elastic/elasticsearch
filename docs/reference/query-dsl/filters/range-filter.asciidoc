@@ -88,7 +88,7 @@ The `execution` option controls how the range filter internally executes. The `e
 `index`::       Uses the field's inverted index in order to determine whether documents fall within the specified range.
 `fielddata`::   Uses fielddata in order to determine whether documents fall within the specified range.
 
-In general for small ranges the `index` execution is faster and for longer ranges the `fielddata` execution is faster.
+In general for small ranges the `index` execution is faster and for longer ranges the `fielddata` execution is faster. Defaults to `index`.
 
 The `fielddata` execution, as the name suggests, uses field data and therefore
 requires more memory, so make sure you have sufficient memory on your nodes in

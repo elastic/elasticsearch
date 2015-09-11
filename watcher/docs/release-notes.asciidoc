@@ -44,12 +44,30 @@ bin/plugin remove watcher
 * Added new <<actions-slack, Slack Action>>
 * Watches now have an <<watch-active-state, active state>>. In addition, a new API was added to
   <<api-rest-activate-watch, activate>>/<<api-rest-deactivate-watch, deactivate>> registered watches.
+* Added new <<condition-array-compare, array-compare>>, that can compare an array of values in the
+  <<watch-execution-context, Watch Execution Context Model>> to a given value.
+
+.Bug Fixes
+* If Watcher was installed with Shield then the Watcher index templates couldn't be stored and could lead
+  to Watcher behaving incorrectly. This was caused by Watcher not detecting correctly if Shield was installed.
+* Update `croneval` command line utility to properly handle whitespaces in the elasticsearch home path.
 
 [float]
 ==== 2.0.0-beta1
 
-This release is primarily for compatibility with Elasticsearch 2.0.0-beta1.
+This release is primarily for compatibility with Elasticsearch 2.0.0-beta1 and the Watcher versioning has
+been aligned with the Elasticsearch versioning.
 
+.Enhancements
+* Watcher continuously checks if the index templates for `.watches`, `.triggered_watches`
+  and `.watch_history-*` exist. Whereas before the existence of these index templates was
+  only checked at Watcher startup time. The absence of these index templates leads to
+  watcher data being indexed incorrectly, which then can cause Watcher to behave incorrectly.
+* If Watcher was stopped via the stop Watcher api and after that a master election took place
+  then Watcher would then unexpectedly start.
+* During Watcher start up only wait for the shards of the `.watches` and `.triggered_watches`
+  indices to be available. Before Watcher also waited for the shards of the `.watch_history-*`
+  indices, which wasn't needed. This improved time it takes for Watcher to startup.
 
 [float]
 ==== 1.0.0

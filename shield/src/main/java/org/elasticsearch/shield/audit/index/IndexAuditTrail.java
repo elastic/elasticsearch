@@ -10,6 +10,8 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.io.ByteStreams;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequest;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateResponse;
@@ -760,13 +762,20 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
                 dateTime = DateTime.now(DateTimeZone.UTC);
             }
             String index = resolve(INDEX_NAME_PREFIX, dateTime, rollover);
-            if (client.admin().indices().prepareExists(index).get().isExists()) {
+            IndicesExistsRequest existsRequest = new IndicesExistsRequest(index);
+            // TODO need to clean this up so we don't forget to attach the header...
+            if (!indexToRemoteCluster) {
+                authenticationService.attachUserHeaderIfMissing(existsRequest, auditUser.user());
+            }
+
+            if (client.admin().indices().exists(existsRequest).get().isExists()) {
                 logger.debug("index [{}] exists so we need to update mappings", index);
-                PutMappingResponse putMappingResponse = client.admin().indices()
-                        .preparePutMapping(index)
-                        .setType(DOC_TYPE)
-                        .setSource(request.mappings().get(DOC_TYPE))
-                        .get();
+                PutMappingRequest putMappingRequest = new PutMappingRequest(index).type(DOC_TYPE).source(request.mappings().get(DOC_TYPE));
+                if (!indexToRemoteCluster) {
+                    authenticationService.attachUserHeaderIfMissing(putMappingRequest, auditUser.user());
+                }
+
+                PutMappingResponse putMappingResponse = client.admin().indices().putMapping(putMappingRequest).get();
                 if (!putMappingResponse.isAcknowledged()) {
                     throw new IllegalStateException("failed to put mappings for audit logging index [" + index + "]");
                 }

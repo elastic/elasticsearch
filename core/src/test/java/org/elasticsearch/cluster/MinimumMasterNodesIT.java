@@ -31,6 +31,7 @@ import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.discovery.zen.fd.FaultDetection;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.disruption.NetworkDelaysPartition;
@@ -38,10 +39,7 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.junit.Test;
 
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -56,6 +54,13 @@ import static org.hamcrest.Matchers.*;
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 @ESIntegTestCase.SuppressLocalMode
 public class MinimumMasterNodesIT extends ESIntegTestCase {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        final HashSet<Class<? extends Plugin>> classes = new HashSet<>(super.nodePlugins());
+        classes.add(MockTransportService.TestPlugin.class);
+        return classes;
+    }
 
     @Test
     @TestLogging("cluster.service:TRACE,discovery.zen:TRACE,gateway:TRACE,transport.tracer:TRACE")
@@ -353,7 +358,6 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
                 .put(ZenDiscovery.SETTING_PING_TIMEOUT, "200ms")
                 .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, 2)
                 .put(DiscoverySettings.COMMIT_TIMEOUT, "100ms") // speed things up
-                .put("plugin.types", MockTransportService.TestPlugin.class.getName())
                 .build();
         internalCluster().startNodesAsync(3, settings).get();
 

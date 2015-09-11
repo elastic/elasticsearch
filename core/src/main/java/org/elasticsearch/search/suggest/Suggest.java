@@ -112,6 +112,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
         final int size = in.readVInt();
         suggestions = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
+            // TODO: remove these complicated generics
             Suggestion<? extends Entry<? extends Option>> suggestion;
             final int type = in.readVInt();
             switch (type) {
@@ -125,7 +126,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                 suggestion = new PhraseSuggestion();
                 break;
             default:
-                suggestion = new Suggestion<>();
+                suggestion = new Suggestion<Entry<? extends Option>>();
                 break;
             }
             suggestion.readFrom(in);

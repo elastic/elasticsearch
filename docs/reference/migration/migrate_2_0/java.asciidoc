@@ -21,6 +21,17 @@ Settings settings = Settings.settingsBuilder()
 Client client = TransportClient.builder().settings(settings).build();
 --------------------------------------------------
 
+The transport client also no longer supports loading settings from config files.
+If you have have a config file, you can load into settings yourself before
+consturcting the transport client:
+
+[source,java]
+--------------------------------------------------
+Settings settings = Settings.settingsBuilder()
+        .loadFromPath(pathToYourSettingsFile).build();
+Client client = TransportClient.builder().settings(settings).build();
+--------------------------------------------------
+
 ==== Automatically thread client listeners
 
 Previously, the user had to set request listener threads to `true` when on the
@@ -78,3 +89,36 @@ WrapperQueryBuilder internally.
 
 The `TermsQueryBuilder#execution` method has been removed as it has no effect, it is ignored by the
  corresponding parser.
+
+==== ImmutableSettings removed
+
+Use `Settings.builder()` instead of `ImmutableSettings.builder()`.
+
+==== InetSocketTransportAddress removed
+
+Use `InetSocketTransportAddress(InetSocketAddress address)` instead of `InetSocketTransportAddress(String, int)`.
+You can create an InetSocketAddress instance with `InetSocketAddress(String, int)`. For example:
+
+[source,java]
+-----------------------------
+new InetSocketTransportAddress(new InetSocketAddress("127.0.0.1", 0));
+-----------------------------
+
+==== Shading and package relocation removed
+
+Elasticsearch used to shade its dependencies and to relocate packages. We no longer use shading or relocation.
+You might need to change your imports to the original package names:
+
+* `com.google.common` was `org.elasticsearch.common` 
+* `com.carrotsearch.hppc` was `org.elasticsearch.common.hppc`
+* `jsr166e` was `org.elasticsearch.common.util.concurrent.jsr166e`
+* `com.fasterxml.jackson` was `org.elasticsearch.common.jackson`
+* `org.joda.time` was `org.elasticsearch.common.joda.time`
+* `org.joda.convert` was `org.elasticsearch.common.joda.convert`
+* `org.jboss.netty` was `org.elasticsearch.common.netty`
+* `com.ning.compress` was `org.elasticsearch.common.compress`
+* `com.github.mustachejava` was `org.elasticsearch.common.mustache`
+* `com.tdunning.math.stats` was `org.elasticsearch.common.stats`
+* `org.apache.commons.lang` was `org.elasticsearch.common.lang`
+* `org.apache.commons.cli` was `org.elasticsearch.common.cli.commons`
+ 

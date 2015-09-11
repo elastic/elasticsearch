@@ -20,23 +20,23 @@
 package org.elasticsearch.env;
 
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Sets;
-
 import com.google.common.primitives.Ints;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.SegmentInfos;
-import org.apache.lucene.store.*;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FSDirectory;
+import org.apache.lucene.store.Lock;
+import org.apache.lucene.store.LockObtainFailedException;
+import org.apache.lucene.store.NativeFSLockFactory;
+import org.apache.lucene.store.SimpleFSDirectory;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.FileSystemUtils;
-import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
@@ -48,8 +48,21 @@ import org.elasticsearch.monitor.fs.FsProbe;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.nio.file.*;
-import java.util.*;
+import java.nio.file.AtomicMoveNotSupportedException;
+import java.nio.file.DirectoryStream;
+import java.nio.file.FileStore;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -73,7 +86,7 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
         public NodePath(Path path, Environment environment) throws IOException {
             this.path = path;
             this.indicesPath = path.resolve(INDICES_FOLDER);
-            this.fileStore = environment.getFileStore(path);
+            this.fileStore = Environment.getFileStore(path);
             if (fileStore.supportsFileAttributeView("lucene")) {
                 this.spins = (Boolean) fileStore.getAttribute("lucene:spins");
             } else {
@@ -154,7 +167,7 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
                 try (Directory luceneDir = FSDirectory.open(dir, NativeFSLockFactory.INSTANCE)) {
                     logger.trace("obtaining node lock on {} ...", dir.toAbsolutePath());
                     try {
-                        locks[dirIndex] = Lucene.acquireLock(luceneDir, NODE_LOCK_FILENAME, 0);
+                        locks[dirIndex] = luceneDir.obtainLock(NODE_LOCK_FILENAME);
                         nodePaths[dirIndex] = new NodePath(dir, environment);
                         localNodeId = possibleLockId;
                     } catch (LockObtainFailedException ex) {
@@ -324,7 +337,7 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
                 dirs[i] = new SimpleFSDirectory(p, FsDirectoryService.buildLockFactory(indexSettings));
                 // create a lock for the "write.lock" file
                 try {
-                    locks[i] = Lucene.acquireWriteLock(dirs[i]);
+                    locks[i] = dirs[i].obtainLock(IndexWriter.WRITE_LOCK_NAME);
                 } catch (IOException ex) {
                     throw new LockObtainFailedException("unable to acquire " +
                             IndexWriter.WRITE_LOCK_NAME + " for " + p);
@@ -645,7 +658,7 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
             throw new IllegalStateException("node is not configured to store local location");
         }
         assert assertEnvIsLocked();
-        Set<String> indices = Sets.newHashSet();
+        Set<String> indices = new HashSet<>();
         for (NodePath nodePath : nodePaths) {
             Path indicesLocation = nodePath.indicesPath;
             if (Files.isDirectory(indicesLocation)) {
@@ -675,7 +688,7 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
             throw new IllegalStateException("node is not configured to store local location");
         }
         assert assertEnvIsLocked();
-        final Set<ShardId> shardIds = Sets.newHashSet();
+        final Set<ShardId> shardIds = new HashSet<>();
         String indexName = index.name();
         for (final NodePath nodePath : nodePaths) {
             Path location = nodePath.indicesPath;
@@ -730,7 +743,7 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
         if (!closed.get() && locks != null) {
             for (Lock lock : locks) {
                 try {
-                    assert lock.isLocked() : "Lock: " + lock + "is not locked";
+                    lock.ensureValid();
                 } catch (IOException e) {
                     logger.warn("lock assertion failed", e);
                     return false;

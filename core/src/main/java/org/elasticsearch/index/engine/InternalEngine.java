@@ -45,6 +45,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.InfoStream;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.routing.DjbHashFunction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasable;
@@ -136,7 +137,7 @@ public class InternalEngine extends Engine {
             this.indexingService = engineConfig.getIndexingService();
             this.warmer = engineConfig.getWarmer();
             mergeScheduler = scheduler = new EngineMergeScheduler(engineConfig.getShardId(), engineConfig.getIndexSettings(), engineConfig.getMergeSchedulerConfig());
-            this.dirtyLocks = new Object[engineConfig.getIndexConcurrency() * 50]; // we multiply it to have enough...
+            this.dirtyLocks = new Object[Runtime.getRuntime().availableProcessors() * 10]; // we multiply it to have enough...
             for (int i = 0; i < dirtyLocks.length; i++) {
                 dirtyLocks[i] = new Object();
             }
@@ -638,10 +639,10 @@ public class InternalEngine extends Engine {
         try {
             Query query = delete.query();
             if (delete.aliasFilter() != null) {
-                BooleanQuery boolQuery = new BooleanQuery();
-                boolQuery.add(query, Occur.MUST);
-                boolQuery.add(delete.aliasFilter(), Occur.FILTER);
-                query = boolQuery;
+                query = new BooleanQuery.Builder()
+                    .add(query, Occur.MUST)
+                    .add(delete.aliasFilter(), Occur.FILTER)
+                    .build();
             }
             if (delete.nested()) {
                 query = new IncludeNestedDocsQuery(query, delete.parentFilter());
@@ -755,9 +756,10 @@ public class InternalEngine extends Engine {
                         logger.trace("starting commit for flush; commitTranslog=true");
                         commitIndexWriter(indexWriter, translog);
                         logger.trace("finished commit for flush");
-                        translog.commit();
                         // we need to refresh in order to clear older version values
                         refresh("version_table_flush");
+                        // after refresh documents can be retrieved from the index so we can now commit the translog
+                        translog.commit();
                     } catch (Throwable e) {
                         throw new FlushFailedEngineException(shardId, e);
                     }
@@ -823,7 +825,7 @@ public class InternalEngine extends Engine {
 
     @Override
     public void forceMerge(final boolean flush, int maxNumSegments, boolean onlyExpungeDeletes,
-                           final boolean upgrade, final boolean upgradeOnlyAncientSegments) throws EngineException {
+                           final boolean upgrade, final boolean upgradeOnlyAncientSegments) throws EngineException, EngineClosedException, IOException {
         /*
          * We do NOT acquire the readlock here since we are waiting on the merges to finish
          * that's fine since the IW.rollback should stop all the threads and trigger an IOException
@@ -865,9 +867,8 @@ public class InternalEngine extends Engine {
                 store.decRef();
             }
         } catch (Throwable t) {
-            ForceMergeFailedEngineException ex = new ForceMergeFailedEngineException(shardId, t);
-            maybeFailEngine("force merge", ex);
-            throw ex;
+            maybeFailEngine("force merge", t);
+            throw t;
         } finally {
             try {
                 mp.setUpgradeInProgress(false, false); // reset it just to make sure we reset it in a case of an error
@@ -1038,7 +1039,6 @@ public class InternalEngine extends Engine {
             iwc.setMergePolicy(mergePolicy);
             iwc.setSimilarity(engineConfig.getSimilarity());
             iwc.setRAMBufferSizeMB(engineConfig.getIndexingBufferSize().mbFrac());
-            iwc.setMaxThreadStates(engineConfig.getIndexConcurrency());
             iwc.setCodec(engineConfig.getCodec());
             /* We set this timeout to a highish value to work around
              * the default poll interval in the Lucene lock that is

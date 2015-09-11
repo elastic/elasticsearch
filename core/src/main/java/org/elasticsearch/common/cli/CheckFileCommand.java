@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.cli;
 
-import com.google.common.collect.Maps;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 
@@ -30,6 +29,7 @@ import java.nio.file.attribute.PosixFileAttributeView;
 import java.nio.file.attribute.PosixFileAttributes;
 import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.PosixFilePermissions;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
@@ -69,9 +69,9 @@ public abstract class CheckFileCommand extends CliTool.Command {
             return doExecute(settings, env);
         }
 
-        Map<Path, Set<PosixFilePermission>> permissions = Maps.newHashMapWithExpectedSize(paths.length);
-        Map<Path, String> owners = Maps.newHashMapWithExpectedSize(paths.length);
-        Map<Path, String> groups = Maps.newHashMapWithExpectedSize(paths.length);
+        Map<Path, Set<PosixFilePermission>> permissions = new HashMap<>(paths.length);
+        Map<Path, String> owners = new HashMap<>(paths.length);
+        Map<Path, String> groups = new HashMap<>(paths.length);
 
         if (paths != null && paths.length > 0) {
             for (Path path : paths) {

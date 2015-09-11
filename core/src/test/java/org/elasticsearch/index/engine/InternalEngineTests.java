@@ -41,6 +41,7 @@ import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.bwcompat.OldIndexBackwardsCompatibilityIT;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Base64;
@@ -92,8 +93,12 @@ import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
+import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Pattern;
 
 import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
@@ -116,7 +121,6 @@ public class InternalEngineTests extends ESTestCase {
     protected InternalEngine replicaEngine;
 
     private Settings defaultSettings;
-    private int indexConcurrency;
     private String codecName;
     private Path primaryTranslogDir;
     private Path replicaTranslogDir;
@@ -127,7 +131,6 @@ public class InternalEngineTests extends ESTestCase {
         super.setUp();
 
         CodecService codecService = new CodecService(shardId.index());
-        indexConcurrency = randomIntBetween(1, 20);
         String name = Codec.getDefault().getName();
         if (Arrays.asList(codecService.availableCodecs()).contains(name)) {
             // some codecs are read only so we only take the ones that we have in the service and randomly
@@ -140,7 +143,6 @@ public class InternalEngineTests extends ESTestCase {
                 .put(EngineConfig.INDEX_COMPOUND_ON_FLUSH, randomBoolean())
                 .put(EngineConfig.INDEX_GC_DELETES_SETTING, "1h") // make sure this doesn't kick in on us
                 .put(EngineConfig.INDEX_CODEC_SETTING, codecName)
-                .put(EngineConfig.INDEX_CONCURRENCY_SETTING, indexConcurrency)
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .build(); // TODO randomize more settings
         threadPool = new ThreadPool(getClass().getName());
@@ -520,6 +522,45 @@ public class InternalEngineTests extends ESTestCase {
         assertThat(counter.get(), equalTo(2));
         searcher.close();
         IOUtils.close(store, engine);
+    }
+
+    @Test
+    /* */
+    public void testConcurrentGetAndFlush() throws Exception {
+        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, null);
+        engine.create(new Engine.Create(newUid("1"), doc));
+
+        final AtomicReference<Engine.GetResult> latestGetResult = new AtomicReference<>();
+        latestGetResult.set(engine.get(new Engine.Get(true, newUid("1"))));
+        final AtomicBoolean flushFinished = new AtomicBoolean(false);
+        final CyclicBarrier barrier = new CyclicBarrier(2);
+        Thread getThread = new Thread() {
+            @Override
+            public void run() {
+                try {
+                    barrier.await();
+                } catch (InterruptedException | BrokenBarrierException e) {
+                    throw new RuntimeException(e);
+                }
+                while (flushFinished.get() == false) {
+                    Engine.GetResult previousGetResult = latestGetResult.get();
+                    if (previousGetResult != null) {
+                        previousGetResult.release();
+                    }
+                    latestGetResult.set(engine.get(new Engine.Get(true, newUid("1"))));
+                    if (latestGetResult.get().exists() == false) {
+                        break;
+                    }
+                }
+            }
+        };
+        getThread.start();
+        barrier.await();
+        engine.flush();
+        flushFinished.set(true);
+        getThread.join();
+        assertTrue(latestGetResult.get().exists());
+        latestGetResult.get().release();
     }
 
     @Test
@@ -1003,8 +1044,7 @@ public class InternalEngineTests extends ESTestCase {
                                 indexed.countDown();
                                 try {
                                     engine.forceMerge(randomBoolean(), 1, false, randomBoolean(), randomBoolean());
-                                } catch (ForceMergeFailedEngineException ex) {
-                                    // ok
+                                } catch (IOException e) {
                                     return;
                                 }
                             }
@@ -1507,8 +1547,6 @@ public class InternalEngineTests extends ESTestCase {
 
         assertEquals(engine.config().getCodec().getName(), codecService.codec(codecName).getName());
         assertEquals(currentIndexWriterConfig.getCodec().getName(), codecService.codec(codecName).getName());
-        assertEquals(engine.config().getIndexConcurrency(), indexConcurrency);
-        assertEquals(currentIndexWriterConfig.getMaxThreadStates(), indexConcurrency);
     }
 
     @Test
@@ -1748,8 +1786,7 @@ public class InternalEngineTests extends ESTestCase {
 
     public void testUpgradeOldIndex() throws IOException {
         List<Path> indexes = new ArrayList<>();
-        Path dir = getDataPath("/" + OldIndexBackwardsCompatibilityIT.class.getPackage().getName().replace('.', '/')); // the files are in the same pkg as the OldIndexBackwardsCompatibilityTests test
-        try (DirectoryStream<Path> stream = Files.newDirectoryStream(dir, "index-*.zip")) {
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(getBwcIndicesPath(), "index-*.zip")) {
             for (Path path : stream) {
                 indexes.add(path);
             }
@@ -2023,5 +2060,43 @@ public class InternalEngineTests extends ESTestCase {
             TopDocs topDocs = searcher.searcher().search(new MatchAllDocsQuery(), randomIntBetween(numDocs, numDocs + 10));
             assertThat(topDocs.totalHits, equalTo(numDocs));
         }
+    }
+
+    public void testShardNotAvailableExceptionWhenEngineClosedConcurrently() throws IOException, InterruptedException {
+        AtomicReference<Throwable> throwable = new AtomicReference<>();
+        String operation = randomFrom("optimize", "refresh", "flush");
+        Thread mergeThread = new Thread() {
+            @Override
+            public void run() {
+                boolean stop = false;
+                logger.info("try with {}", operation);
+                while (stop == false) {
+                    try {
+                        switch (operation) {
+                            case "optimize": {
+                                engine.forceMerge(true, 1, false, false, false);
+                                break;
+                            }
+                            case "refresh": {
+                                engine.refresh("test refresh");
+                                break;
+                            }
+                            case "flush": {
+                                engine.flush(true, false);
+                                break;
+                            }
+                        }
+                    } catch (Throwable t) {
+                        throwable.set(t);
+                        stop = true;
+                    }
+                }
+            }
+        };
+        mergeThread.start();
+        engine.close();
+        mergeThread.join();
+        logger.info("exception caught: ", throwable.get());
+        assertTrue("expected an Exception that signals shard is not available", TransportActions.isShardNotAvailableException(throwable.get()));
     }
 }

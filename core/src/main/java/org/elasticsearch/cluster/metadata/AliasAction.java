@@ -154,14 +154,14 @@ public class AliasAction implements Streamable {
         }
     }
 
-    public AliasAction filter(QueryBuilder filterBuilder) {
-        if (filterBuilder == null) {
+    public AliasAction filter(QueryBuilder queryBuilder) {
+        if (queryBuilder == null) {
             this.filter = null;
             return this;
         }
         try {
             XContentBuilder builder = XContentFactory.jsonBuilder();
-            filterBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            queryBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
             builder.close();
             this.filter = builder.string();
             return this;

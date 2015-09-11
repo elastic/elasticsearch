@@ -17,7 +17,6 @@
 
 package org.elasticsearch.common.inject.internal;
 
-import com.google.common.base.Objects;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.common.inject.ConfigurationException;
@@ -29,9 +28,9 @@ import java.lang.reflect.*;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.Objects;
 
 import static com.google.common.base.Preconditions.checkArgument;
-import static com.google.common.base.Preconditions.checkNotNull;
 
 /**
  * Static methods for working with types that we aren't publishing in the
@@ -192,7 +191,7 @@ public class MoreTypes {
             // TODO: save a .clone() call
             ParameterizedType pa = (ParameterizedType) a;
             ParameterizedType pb = (ParameterizedType) b;
-            return Objects.equal(pa.getOwnerType(), pb.getOwnerType())
+            return Objects.equals(pa.getOwnerType(), pb.getOwnerType())
                     && pa.getRawType().equals(pb.getRawType())
                     && Arrays.equals(pa.getActualTypeArguments(), pb.getActualTypeArguments());
 
@@ -316,7 +315,7 @@ public class MoreTypes {
      * Returns {@code Field.class}, {@code Method.class} or {@code Constructor.class}.
      */
     public static Class<? extends Member> memberType(Member member) {
-        checkNotNull(member, "member");
+        Objects.requireNonNull(member, "member");
 
         if (member instanceof MemberImpl) {
             return ((MemberImpl) member).memberType;
@@ -355,7 +354,7 @@ public class MoreTypes {
     }
 
     public static String memberKey(Member member) {
-        checkNotNull(member, "member");
+        Objects.requireNonNull(member, "member");
 
         return "<NO_MEMBER_KEY>";
     }
@@ -456,7 +455,7 @@ public class MoreTypes {
             this.rawType = canonicalize(rawType);
             this.typeArguments = typeArguments.clone();
             for (int t = 0; t < this.typeArguments.length; t++) {
-                checkNotNull(this.typeArguments[t], "type parameter");
+                Objects.requireNonNull(this.typeArguments[t], "type parameter");
                 checkNotPrimitive(this.typeArguments[t], "type parameters");
                 this.typeArguments[t] = canonicalize(this.typeArguments[t]);
             }
@@ -566,14 +565,14 @@ public class MoreTypes {
             checkArgument(upperBounds.length == 1, "Must have exactly one upper bound.");
 
             if (lowerBounds.length == 1) {
-                checkNotNull(lowerBounds[0], "lowerBound");
+                Objects.requireNonNull(lowerBounds[0], "lowerBound");
                 checkNotPrimitive(lowerBounds[0], "wildcard bounds");
                 checkArgument(upperBounds[0] == Object.class, "bounded both ways");
                 this.lowerBound = canonicalize(lowerBounds[0]);
                 this.upperBound = Object.class;
 
             } else {
-                checkNotNull(upperBounds[0], "upperBound");
+                Objects.requireNonNull(upperBounds[0], "upperBound");
                 checkNotPrimitive(upperBounds[0], "wildcard bounds");
                 this.lowerBound = null;
                 this.upperBound = canonicalize(upperBounds[0]);

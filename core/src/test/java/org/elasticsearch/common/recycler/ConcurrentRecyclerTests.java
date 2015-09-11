@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.recycler;
 
-public class ConcurrentRecyclerTests extends AbstractRecyclerTests {
+public class ConcurrentRecyclerTests extends AbstractRecyclerTestCase {
 
     @Override
     protected Recycler<byte[]> newRecycler(int limit) {

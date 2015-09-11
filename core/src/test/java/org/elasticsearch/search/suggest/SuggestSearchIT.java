@@ -20,7 +20,6 @@
 package org.elasticsearch.search.suggest;
 
 import com.google.common.base.Charsets;
-import com.google.common.collect.ImmutableList;
 import com.google.common.io.Resources;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
@@ -967,7 +966,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
         assertAcked(builder.addMapping("type1", mapping));
         ensureGreen();
 
-        ImmutableList.Builder<String> titles = ImmutableList.<String>builder();
+        List<String> titles = new ArrayList<>();
 
         // We're going to be searching for:
         //   united states house of representatives elections in washington 2006
@@ -1058,7 +1057,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
         }
 
         List<IndexRequestBuilder> builders = new ArrayList<>();
-        for (String title: titles.build()) {
+        for (String title: titles) {
             builders.add(client().prepareIndex("test", "type1").setSource("title", title));
         }
         indexRandom(true, builders);
@@ -1113,7 +1112,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
         assertAcked(builder.addMapping("type1", mapping));
         ensureGreen();
 
-        ImmutableList.Builder<String> titles = ImmutableList.<String>builder();
+        List<String> titles = new ArrayList<>();
 
         titles.add("United States House of Representatives Elections in Washington 2006");
         titles.add("United States House of Representatives Elections in Washington 2005");
@@ -1123,7 +1122,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
         titles.add("Election");
 
         List<IndexRequestBuilder> builders = new ArrayList<>();
-        for (String title: titles.build()) {
+        for (String title: titles) {
             builders.add(client().prepareIndex("test", "type1").setSource("title", title));
         }
         indexRandom(true, builders);
@@ -1181,10 +1180,8 @@ public class SuggestSearchIT extends ESIntegTestCase {
         // suggest with collation
         String filterStringAsFilter = XContentFactory.jsonBuilder()
                 .startObject()
-                .startObject("query")
                 .startObject("match_phrase")
                 .field("title", "{{suggestion}}")
-                .endObject()
                 .endObject()
                 .endObject()
                 .string();

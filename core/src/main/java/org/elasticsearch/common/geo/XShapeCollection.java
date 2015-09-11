@@ -36,8 +36,18 @@ import java.util.List;
  */
 public class XShapeCollection<S extends Shape> extends ShapeCollection<S> {
 
+  private boolean pointsOnly = false;
+
   public XShapeCollection(List<S> shapes, SpatialContext ctx) {
     super(shapes, ctx);
+  }
+
+  public boolean pointsOnly() {
+    return this.pointsOnly;
+  }
+
+  public void setPointsOnly(boolean pointsOnly) {
+    this.pointsOnly = pointsOnly;
   }
 
   @Override

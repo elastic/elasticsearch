@@ -338,8 +338,8 @@ time to setup all the VMs one at a time. Run this to download and setup the VMs
 we use for testing by default:
 
 --------------------------------------------------------
-vagrant up --provision trusty && vagrant halt trusty
-vagrant up --provision centos-7 && vagrant halt centos-7
+vagrant up --provision trusty --provider virtualbox && vagrant halt trusty
+vagrant up --provision centos-7 --provider virtualbox && vagrant halt centos-7
 --------------------------------------------------------
 
 or run this to download and setup all the VMs:
@@ -347,7 +347,7 @@ or run this to download and setup all the VMs:
 -------------------------------------------------------------------------------
 vagrant halt
 for box in $(vagrant status | grep 'poweroff\|not created' | cut -f1 -d' '); do
-  vagrant up --provision $box
+  vagrant up --provision $box --provider virtualbox
   vagrant halt $box
 done
 -------------------------------------------------------------------------------
@@ -420,13 +420,13 @@ This is just regular vagrant so you can run normal multi box vagrant commands
 to test things manually. Just run:
 
 ---------------------------------------
-vagrant up trusty && vagrant ssh trusty
+vagrant up trusty --provider virtualbox && vagrant ssh trusty
 ---------------------------------------
 
 to get an Ubuntu or
 
 -------------------------------------------
-vagrant up centos-7 && vagrant ssh centos-7
+vagrant up centos-7 --provider virtualbox && vagrant ssh centos-7
 -------------------------------------------
 
 to get a CentOS. Once you are done with them you should halt them:
@@ -469,7 +469,7 @@ vagrant ssh precise -c 'sudo rm -rf /bin'; echo oops
 All you've got to do to get another one is
 
 ----------------------------------------------
-vagrant destroy -f trusty && vagrant up trusty
+vagrant destroy -f trusty && vagrant up trusty --provider virtualbox
 ----------------------------------------------
 
 The whole process takes a minute and a half on a modern laptop, two and a half
@@ -508,7 +508,7 @@ mvn -pl distribution/rpm package
 and in another window:
 
 ----------------------------------------------------
-vagrant up centos-7 && vagrant ssh centos-7
+vagrant up centos-7 --provider virtualbox && vagrant ssh centos-7
 cd $RPM
 sudo bats $BATS/*rpm*.bats
 ----------------------------------------------------
@@ -520,18 +520,32 @@ If you wanted to retest all the release artifacts on a single VM you could:
 mvn -amd -pl distribution install -DskipTests
 # Copy them all the testroot
 mvn -Dtests.vagrant -pl qa/vagrant pre-integration-test
-vagrant up trusty && vagrant ssh trusty
+vagrant up trusty --provider virtualbox && vagrant ssh trusty
 cd $TESTROOT
 sudo bats $BATS/*.bats
 -------------------------------------------------
 
 == Coverage analysis
 
-To run tests instrumented with jacoco and produce a coverage report in
-`target/site/jacoco/`:
+Tests can be run instrumented with jacoco to produce a coverage report in
+`target/site/jacoco/`.
+
+Unit test coverage:
 
 ---------------------------------------------------------------------------
 mvn -Dtests.coverage test jacoco:report
+---------------------------------------------------------------------------
+
+Integration test coverage:
+
+---------------------------------------------------------------------------
+mvn -Dtests.coverage -Dskip.unit.tests verify jacoco:report
+---------------------------------------------------------------------------
+
+Combined (Unit+Integration) coverage:
+
+---------------------------------------------------------------------------
+mvn -Dtests.coverage verify jacoco:report
 ---------------------------------------------------------------------------
 
 == Debugging from an IDE

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.discovery.zen;
 
-import com.google.common.collect.Sets;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
@@ -60,6 +59,7 @@ import org.elasticsearch.transport.*;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -881,9 +881,9 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         }
 
         // nodes discovered during pinging
-        Set<DiscoveryNode> activeNodes = Sets.newHashSet();
+        Set<DiscoveryNode> activeNodes = new HashSet<>();
         // nodes discovered who has previously been part of the cluster and do not ping for the very first time
-        Set<DiscoveryNode> joinedOnceActiveNodes = Sets.newHashSet();
+        Set<DiscoveryNode> joinedOnceActiveNodes = new HashSet<>();
         if (localNode.masterNode()) {
             activeNodes.add(localNode);
             long joinsCounter = clusterJoinsCounter.get();
@@ -922,7 +922,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         }
     }
 
-    private ClusterState rejoin(ClusterState clusterState, String reason) {
+    protected ClusterState rejoin(ClusterState clusterState, String reason) {
 
         // *** called from within an cluster state update task *** //
         assert Thread.currentThread().getName().contains(InternalClusterService.UPDATE_THREAD_NAME);

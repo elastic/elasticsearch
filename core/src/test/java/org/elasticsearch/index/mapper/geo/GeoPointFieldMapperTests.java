@@ -614,26 +614,27 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
     public void testGeoPointMapperMerge() throws Exception {
         String stage1Mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("point").field("type", "geo_point").field("lat_lon", true).field("geohash", true)
-                .field("ignore_malformed", true).endObject().endObject()
+                .field("coerce", true).endObject().endObject()
                 .endObject().endObject().string();
         DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
         DocumentMapper stage1 = parser.parse(stage1Mapping);
         String stage2Mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("point").field("type", "geo_point").field("lat_lon", false).field("geohash", true)
-                .field("ignore_malformed", false).endObject().endObject()
+                .field("coerce", false).endObject().endObject()
                 .endObject().endObject().string();
         DocumentMapper stage2 = parser.parse(stage2Mapping);
 
         MergeResult mergeResult = stage1.merge(stage2.mapping(), false, false);
         assertThat(mergeResult.hasConflicts(), equalTo(true));
-        assertThat(mergeResult.buildConflicts().length, equalTo(1));
+        assertThat(mergeResult.buildConflicts().length, equalTo(2));
         // todo better way of checking conflict?
-        assertThat("mapper [point] has different lat_lon", isIn(new ArrayList<>(Arrays.asList(mergeResult.buildConflicts()))));
+        assertThat("mapper [point] has different [lat_lon]", isIn(new ArrayList<>(Arrays.asList(mergeResult.buildConflicts()))));
+        assertThat("mapper [point] has different [coerce]", isIn(new ArrayList<>(Arrays.asList(mergeResult.buildConflicts()))));
 
         // correct mapping and ensure no failures
         stage2Mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("point").field("type", "geo_point").field("lat_lon", true).field("geohash", true)
-                .field("ignore_malformed", true).endObject().endObject()
+                .field("coerce", true).endObject().endObject()
                 .endObject().endObject().string();
         stage2 = parser.parse(stage2Mapping);
         mergeResult = stage1.merge(stage2.mapping(), false, false);

@@ -185,6 +185,9 @@ public class StemmerTokenFilterFactory extends AbstractTokenFilterFactory {
         } else if ("latvian".equalsIgnoreCase(language)) {
             return new LatvianStemFilter(tokenStream);
 
+        } else if ("lithuanian".equalsIgnoreCase(language)) {
+            return new SnowballFilter(tokenStream, new LithuanianStemmer());
+
             // Norwegian (Bokmål) stemmers
         } else if ("norwegian".equalsIgnoreCase(language)) {
             return new SnowballFilter(tokenStream, new NorwegianStemmer());

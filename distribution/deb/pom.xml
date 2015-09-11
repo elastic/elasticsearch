@@ -6,7 +6,7 @@
     <parent>
         <groupId>org.elasticsearch.distribution</groupId>
         <artifactId>distributions</artifactId>
-        <version>2.1.0-SNAPSHOT</version>
+        <version>3.0.0-SNAPSHOT</version>
     </parent>
 
     <groupId>org.elasticsearch.distribution.deb</groupId>
@@ -23,15 +23,6 @@
         <deb.sign>false</deb.sign>
         <deb.sign.method>dpkg-sig</deb.sign.method>
     </properties>
-
-    <dependencies>
-        <dependency>
-            <groupId>org.elasticsearch.distribution.fully-loaded</groupId>
-            <artifactId>elasticsearch</artifactId>
-            <version>${elasticsearch.version}</version>
-            <type>pom</type>
-        </dependency>
-    </dependencies>
 
     <build>
 
@@ -172,7 +163,7 @@
                                 </data>
                                 <data>
                                     <src>${project.build.directory}/../target/lib</src>
-                                    <excludes>${project.build.finalName}-shaded.jar,${project.build.finalName}-sources.jar,${project.build.finalName}-tests.jar,${project.build.finalName}-test-sources.jar,slf4j-api-*.jar</excludes>
+                                    <excludes>${project.build.finalName}-sources.jar,${project.build.finalName}-tests.jar,${project.build.finalName}-test-sources.jar,slf4j-api-*.jar</excludes>
                                     <type>directory</type>
                                     <mapper>
                                         <type>perm</type>

@@ -161,12 +161,14 @@ public class BoolQueryParser implements QueryParser {
             return new MatchAllDocsQuery();
         }
 
-        BooleanQuery booleanQuery = new BooleanQuery(disableCoord);
+        BooleanQuery.Builder booleanQueryBuilder = new BooleanQuery.Builder();
+        booleanQueryBuilder.setDisableCoord(disableCoord);
         for (BooleanClause clause : clauses) {
-            booleanQuery.add(clause);
+            booleanQueryBuilder.add(clause);
         }
+        BooleanQuery booleanQuery = booleanQueryBuilder.build();
         booleanQuery.setBoost(boost);
-        Queries.applyMinimumShouldMatch(booleanQuery, minimumShouldMatch);
+        booleanQuery = Queries.applyMinimumShouldMatch(booleanQuery, minimumShouldMatch);
         Query query = adjustPureNegative ? fixNegativeQueryIfNeeded(booleanQuery) : booleanQuery;
         if (queryName != null) {
             parseContext.addNamedQuery(queryName, query);

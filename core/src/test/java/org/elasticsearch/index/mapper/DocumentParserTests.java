@@ -19,12 +19,9 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.common.xcontent.json.JsonXContentParser;
+import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 // TODO: make this a real unit test
@@ -37,11 +34,12 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
         DocumentMapper mapper = mapperParser.parse(mapping);
 
         BytesReference bytes = XContentFactory.jsonBuilder()
-            .startObject()
+            .startObject().startObject("foo")
             .field("field", "1234")
-            .endObject().bytes();
+            .endObject().endObject().bytes();
         ParsedDocument doc = mapper.parse("test", "type", "1", bytes);
         assertNull(doc.rootDoc().getField("field"));
+        assertNotNull(doc.rootDoc().getField(UidFieldMapper.NAME));
     }
 
     public void testFieldDisabled() throws Exception {
@@ -60,5 +58,6 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
         ParsedDocument doc = mapper.parse("test", "type", "1", bytes);
         assertNull(doc.rootDoc().getField("foo"));
         assertNotNull(doc.rootDoc().getField("bar"));
+        assertNotNull(doc.rootDoc().getField(UidFieldMapper.NAME));
     }
 }

@@ -16,9 +16,7 @@
 
 package org.elasticsearch.common.inject.internal;
 
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Maps;
 import org.elasticsearch.common.inject.Binder;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.Key;
@@ -28,11 +26,15 @@ import org.elasticsearch.common.inject.spi.ElementVisitor;
 import org.elasticsearch.common.inject.spi.PrivateElements;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
-import static com.google.common.base.Preconditions.*;
+import static com.google.common.base.Preconditions.checkArgument;
+import static com.google.common.base.Preconditions.checkState;
 
 /**
  * @author jessewilson@google.com (Jesse Wilson)
@@ -53,7 +55,7 @@ public final class PrivateElementsImpl implements PrivateElements {
     /**
      * lazily instantiated
      */
-    private ImmutableList<Element> elements;
+    private List<Element> elements;
 
     /**
      * lazily instantiated
@@ -62,7 +64,7 @@ public final class PrivateElementsImpl implements PrivateElements {
     private Injector injector;
 
     public PrivateElementsImpl(Object source) {
-        this.source = checkNotNull(source, "source");
+        this.source = Objects.requireNonNull(source, "source");
     }
 
     @Override
@@ -73,7 +75,7 @@ public final class PrivateElementsImpl implements PrivateElements {
     @Override
     public List<Element> getElements() {
         if (elements == null) {
-            elements = ImmutableList.copyOf(elementsMutable);
+            elements = Collections.unmodifiableList(elementsMutable);
             elementsMutable = null;
         }
 
@@ -87,13 +89,13 @@ public final class PrivateElementsImpl implements PrivateElements {
 
     public void initInjector(Injector injector) {
         checkState(this.injector == null, "injector already initialized");
-        this.injector = checkNotNull(injector, "injector");
+        this.injector = Objects.requireNonNull(injector, "injector");
     }
 
     @Override
     public Set<Key<?>> getExposedKeys() {
         if (exposedKeysToSources == null) {
-            Map<Key<?>, Object> exposedKeysToSourcesMutable = Maps.newLinkedHashMap();
+            Map<Key<?>, Object> exposedKeysToSourcesMutable = new LinkedHashMap<>();
             for (ExposureBuilder<?> exposureBuilder : exposureBuilders) {
                 exposedKeysToSourcesMutable.put(exposureBuilder.getKey(), exposureBuilder.getSource());
             }

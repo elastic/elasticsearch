@@ -19,7 +19,7 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.*;
-import org.elasticsearch.Version;
+import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
@@ -30,9 +30,6 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.query.support.InnerHitsQueryParserHelper;
 import org.elasticsearch.index.query.support.XContentStructure;
-import org.elasticsearch.index.search.child.ParentConstantScoreQuery;
-import org.elasticsearch.index.search.child.ParentQuery;
-import org.elasticsearch.index.search.child.ScoreType;
 import org.elasticsearch.search.fetch.innerhits.InnerHitsContext;
 import org.elasticsearch.search.fetch.innerhits.InnerHitsSubSearchContext;
 
@@ -92,13 +89,6 @@ public class HasParentQueryParser implements QueryParser {
             } else if (token.isValue()) {
                 if ("type".equals(currentFieldName) || "parent_type".equals(currentFieldName) || "parentType".equals(currentFieldName)) {
                     parentType = parser.text();
-                } else if ("score_type".equals(currentFieldName) || "scoreType".equals(currentFieldName)) {
-                    String scoreTypeValue = parser.text();
-                    if ("score".equals(scoreTypeValue)) {
-                        score = true;
-                    } else if ("none".equals(scoreTypeValue)) {
-                        score = false;
-                    }
                 } else if ("score_mode".equals(currentFieldName) || "scoreMode".equals(currentFieldName)) {
                     String scoreModeValue = parser.text();
                     if ("score".equals(scoreModeValue)) {
@@ -173,40 +163,32 @@ public class HasParentQueryParser implements QueryParser {
             throw new QueryParsingException(parseContext, "[has_parent] no _parent field configured");
         }
 
-        Query parentFilter = null;
+        Query parentTypeQuery = null;
         if (parentTypes.size() == 1) {
             DocumentMapper documentMapper = parseContext.mapperService().documentMapper(parentTypes.iterator().next());
             if (documentMapper != null) {
-                parentFilter = documentMapper.typeFilter();
+                parentTypeQuery = documentMapper.typeFilter();
             }
         } else {
-            BooleanQuery parentsFilter = new BooleanQuery();
+            BooleanQuery.Builder parentsFilter = new BooleanQuery.Builder();
             for (String parentTypeStr : parentTypes) {
                 DocumentMapper documentMapper = parseContext.mapperService().documentMapper(parentTypeStr);
                 if (documentMapper != null) {
                     parentsFilter.add(documentMapper.typeFilter(), BooleanClause.Occur.SHOULD);
                 }
             }
-            parentFilter = parentsFilter;
+            parentTypeQuery = parentsFilter.build();
         }
 
-        if (parentFilter == null) {
+        if (parentTypeQuery == null) {
             return null;
         }
 
         // wrap the query with type query
         innerQuery = Queries.filtered(innerQuery, parentDocMapper.typeFilter());
-        Filter childrenFilter = new QueryWrapperFilter(Queries.not(parentFilter));
-        if (parseContext.indexVersionCreated().onOrAfter(Version.V_2_0_0_beta1)) {
-            ScoreType scoreMode = score ? ScoreType.MAX : ScoreType.NONE;
-            return joinUtilHelper(parentType, parentChildIndexFieldData, childrenFilter, scoreMode, innerQuery, 0, Integer.MAX_VALUE);
-        } else {
-            if (score) {
-                return new ParentQuery(parentChildIndexFieldData, innerQuery, parentDocMapper.type(), childrenFilter);
-            } else {
-                return new ParentConstantScoreQuery(parentChildIndexFieldData, innerQuery, parentDocMapper.type(), childrenFilter);
-            }
-        }
+        Query childrenFilter = Queries.not(parentTypeQuery);
+        ScoreMode scoreMode = score ? ScoreMode.Max : ScoreMode.None;
+        return joinUtilHelper(parentType, parentChildIndexFieldData, childrenFilter, scoreMode, innerQuery, 0, Integer.MAX_VALUE);
     }
 
 }

@@ -28,8 +28,8 @@ import org.elasticsearch.action.admin.indices.close.CloseIndexAction;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
-import org.elasticsearch.action.admin.indices.flush.FlushAction;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
+import org.elasticsearch.action.admin.indices.flush.TransportShardFlushAction;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsAction;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsAction;
@@ -42,8 +42,8 @@ import org.elasticsearch.action.admin.indices.optimize.OptimizeAction;
 import org.elasticsearch.action.admin.indices.optimize.OptimizeRequest;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryAction;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryRequest;
-import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
+import org.elasticsearch.action.admin.indices.refresh.TransportShardRefreshAction;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsAction;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsAction;
@@ -85,9 +85,9 @@ import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
@@ -96,31 +96,17 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.Transport;
-import org.elasticsearch.transport.TransportChannel;
-import org.elasticsearch.transport.TransportModule;
-import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.transport.TransportRequestHandler;
-import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.*;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
+import java.util.concurrent.Callable;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.hamcrest.Matchers.emptyIterable;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.*;
 
 @ClusterScope(scope = Scope.SUITE, numClientNodes = 1, minNumDataNodes = 2)
 public class IndicesRequestIT extends ESIntegTestCase {
@@ -141,11 +127,15 @@ public class IndicesRequestIT extends ESIntegTestCase {
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.settingsBuilder()
-                .put(super.nodeSettings(nodeOrdinal))
-                .extendArray("plugin.types", InterceptingTransportService.TestPlugin.class.getName())
-                .build();
+    protected Settings nodeSettings(int ordinal) {
+        // must set this independently of the plugin so it overrides MockTransportService
+        return Settings.builder().put(super.nodeSettings(ordinal))
+            .put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, "intercepting").build();
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return pluginList(InterceptingTransportService.TestPlugin.class);
     }
 
     @Before
@@ -383,19 +373,20 @@ public class IndicesRequestIT extends ESIntegTestCase {
 
     @Test
     public void testFlush() {
-        String flushShardAction = FlushAction.NAME + "[s]";
-        interceptTransportActions(flushShardAction);
+        String[] indexShardActions = new String[]{TransportShardFlushAction.NAME + "[r]", TransportShardFlushAction.NAME};
+        interceptTransportActions(indexShardActions);
 
         FlushRequest flushRequest = new FlushRequest(randomIndicesOrAliases());
         internalCluster().clientNodeClient().admin().indices().flush(flushRequest).actionGet();
 
         clearInterceptedActions();
-        assertSameIndices(flushRequest, flushShardAction);
+        String[] indices = new IndexNameExpressionResolver(Settings.EMPTY).concreteIndices(client().admin().cluster().prepareState().get().getState(), flushRequest);
+        assertIndicesSubset(Arrays.asList(indices), indexShardActions);
     }
 
     @Test
     public void testOptimize() {
-        String optimizeShardAction = OptimizeAction.NAME + "[s]";
+        String optimizeShardAction = OptimizeAction.NAME + "[n]";
         interceptTransportActions(optimizeShardAction);
 
         OptimizeRequest optimizeRequest = new OptimizeRequest(randomIndicesOrAliases());
@@ -407,19 +398,20 @@ public class IndicesRequestIT extends ESIntegTestCase {
 
     @Test
     public void testRefresh() {
-        String refreshShardAction = RefreshAction.NAME + "[s]";
-        interceptTransportActions(refreshShardAction);
+        String[] indexShardActions = new String[]{TransportShardRefreshAction.NAME + "[r]", TransportShardRefreshAction.NAME};
+        interceptTransportActions(indexShardActions);
 
         RefreshRequest refreshRequest = new RefreshRequest(randomIndicesOrAliases());
         internalCluster().clientNodeClient().admin().indices().refresh(refreshRequest).actionGet();
 
         clearInterceptedActions();
-        assertSameIndices(refreshRequest, refreshShardAction);
+        String[] indices = new IndexNameExpressionResolver(Settings.EMPTY).concreteIndices(client().admin().cluster().prepareState().get().getState(), refreshRequest);
+        assertIndicesSubset(Arrays.asList(indices), indexShardActions);
     }
 
     @Test
     public void testClearCache() {
-        String clearCacheAction = ClearIndicesCacheAction.NAME + "[s]";
+        String clearCacheAction = ClearIndicesCacheAction.NAME + "[n]";
         interceptTransportActions(clearCacheAction);
 
         ClearIndicesCacheRequest clearIndicesCacheRequest = new ClearIndicesCacheRequest(randomIndicesOrAliases());
@@ -431,7 +423,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
 
     @Test
     public void testRecovery() {
-        String recoveryAction = RecoveryAction.NAME + "[s]";
+        String recoveryAction = RecoveryAction.NAME + "[n]";
         interceptTransportActions(recoveryAction);
 
         RecoveryRequest recoveryRequest = new RecoveryRequest(randomIndicesOrAliases());
@@ -443,7 +435,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
 
     @Test
     public void testSegments() {
-        String segmentsAction = IndicesSegmentsAction.NAME + "[s]";
+        String segmentsAction = IndicesSegmentsAction.NAME + "[n]";
         interceptTransportActions(segmentsAction);
 
         IndicesSegmentsRequest segmentsRequest = new IndicesSegmentsRequest(randomIndicesOrAliases());
@@ -455,7 +447,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
 
     @Test
     public void testIndicesStats() {
-        String indicesStats = IndicesStatsAction.NAME + "[s]";
+        String indicesStats = IndicesStatsAction.NAME + "[n]";
         interceptTransportActions(indicesStats);
 
         IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest().indices(randomIndicesOrAliases());
@@ -703,27 +695,6 @@ public class IndicesRequestIT extends ESIntegTestCase {
         assertSameIndicesOptionalRequests(searchRequest, SearchServiceTransportAction.FREE_CONTEXT_ACTION_NAME);
     }
 
-    @Test
-    public void testSearchScan() throws Exception {
-        interceptTransportActions(SearchServiceTransportAction.SCAN_ACTION_NAME);
-
-        String[] randomIndicesOrAliases = randomIndicesOrAliases();
-        for (int i = 0; i < randomIndicesOrAliases.length; i++) {
-            client().prepareIndex(randomIndicesOrAliases[i], "type", "id-" + i).setSource("field", "value").get();
-        }
-        refresh();
-
-        SearchRequest searchRequest = new SearchRequest(randomIndicesOrAliases).searchType(SearchType.SCAN).scroll(new TimeValue(500));
-        SearchResponse searchResponse = internalCluster().clientNodeClient().search(searchRequest).actionGet();
-        assertNoFailures(searchResponse);
-        assertThat(searchResponse.getHits().totalHits(), greaterThan(0l));
-
-        client().prepareClearScroll().addScrollId(searchResponse.getScrollId()).get();
-
-        clearInterceptedActions();
-        assertSameIndices(searchRequest, SearchServiceTransportAction.SCAN_ACTION_NAME);
-    }
-
     private static void assertSameIndices(IndicesRequest originalRequest, String... actions) {
         assertSameIndices(originalRequest, false, actions);
     }
@@ -856,10 +827,6 @@ public class IndicesRequestIT extends ESIntegTestCase {
             public void onModule(TransportModule transportModule) {
                 transportModule.addTransportService("intercepting", InterceptingTransportService.class);
             }
-            @Override
-            public Settings additionalSettings() {
-                return Settings.builder().put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, "intercepting").build();
-            }
         }
 
         private final Set<String> actions = new HashSet<>();
@@ -886,6 +853,11 @@ public class IndicesRequestIT extends ESIntegTestCase {
         @Override
         public <Request extends TransportRequest> void registerRequestHandler(String action, Class<Request> request, String executor, boolean forceExecution, TransportRequestHandler<Request> handler) {
             super.registerRequestHandler(action, request, executor, forceExecution, new InterceptingRequestHandler(action, handler));
+        }
+
+        @Override
+        public <Request extends TransportRequest> void registerRequestHandler(String action, Callable<Request> requestFactory, String executor, TransportRequestHandler<Request> handler) {
+            super.registerRequestHandler(action, requestFactory, executor, new InterceptingRequestHandler(action, handler));
         }
 
         private class InterceptingRequestHandler implements TransportRequestHandler {

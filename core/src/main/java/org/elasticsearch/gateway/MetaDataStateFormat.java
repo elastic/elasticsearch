@@ -19,7 +19,6 @@
 package org.elasticsearch.gateway;
 
 import com.google.common.base.Preconditions;
-import com.google.common.base.Predicate;
 import com.google.common.collect.Collections2;
 
 import org.apache.lucene.codecs.CodecUtil;
@@ -48,9 +47,12 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.file.*;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
+import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 /**
  * MetaDataStateFormat is a base class to write checksummed
@@ -279,7 +281,12 @@ public abstract class MetaDataStateFormat<T> {
         //       new format (ie. legacy == false) then we know that the latest version state ought to use this new format.
         //       In case the state file with the latest version does not use the new format while older state files do,
         //       the list below will be empty and loading the state will fail
-        for (PathAndStateId pathAndStateId : Collections2.filter(files, new StateIdAndLegacyPredicate(maxStateId, maxStateIdIsLegacy))) {
+        Collection<PathAndStateId> pathAndStateIds = files
+                .stream()
+                .filter(new StateIdAndLegacyPredicate(maxStateId, maxStateIdIsLegacy))
+                .collect(Collectors.toCollection(ArrayList::new));
+
+        for (PathAndStateId pathAndStateId : pathAndStateIds) {
             try {
                 final Path stateFile = pathAndStateId.file;
                 final long id = pathAndStateId.id;
@@ -328,7 +335,7 @@ public abstract class MetaDataStateFormat<T> {
         }
 
         @Override
-        public boolean apply(PathAndStateId input) {
+        public boolean test(PathAndStateId input) {
             return input.id == id && input.legacy == legacy;
         }
     }

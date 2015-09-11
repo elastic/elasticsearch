@@ -164,6 +164,12 @@ fields in differnt types, this warning has been relaxed: type names may now
 contain dots, but they may not *begin* with a dot.  The only exception to this
 is the special `.percolator` type.
 
+==== Type names may not be longer than 255 characters
+
+Mapping type names may not be longer than 255 characters.  Long type names
+will continue to function on indices created before upgrade, but it will not
+be possible create types with long names in new indices.
+
 ==== Types may no longer be deleted
 
 In 1.x it was possible to delete a type mapping, along with all of the
@@ -249,6 +255,18 @@ PUT my_index/my_type/1?routing=bar <2>
 -----------------------------
 <1> Routing can be marked as required to ensure it is not forgotten during indexing.
 <2> This indexing request uses a `routing` value of `bar`.
+
+==== `_timestamp` and `_ttl` deprecated
+
+The `_timestamp` and `_ttl` fields are deprecated, but will remain functional
+for the remainder of the 2.x series.
+
+Instead of the `_timestamp` field, use a normal <<date,`date`>> field and set
+the value explicitly.
+
+The current `_ttl` functionality will be replaced in a future version with a
+new implementation of TTL, possibly with different semantics, and will not
+depend on the `_timestamp` field.
 
 ==== Analyzer mappings
 
@@ -363,6 +381,16 @@ Along with this change, the following settings have ben removed:
 
 * `index.mapper.default_mapping_location`
 * `index.mapper.default_percolator_mapping_location`
+
+==== Fielddata formats
+
+Now that doc values are the default for fielddata, specialized in-memory
+formats have become an esoteric option. These fielddata formats have been removed:
+
+* `fst` on string fields
+* `compressed` on geo points
+
+The default fielddata format will be used instead.
 
 ==== Posting and doc-values codecs
 

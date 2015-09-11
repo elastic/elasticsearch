@@ -19,8 +19,6 @@
 package org.elasticsearch.test.rest.client;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
-import com.google.common.collect.Maps;
-import com.google.common.collect.Sets;
 import org.apache.http.config.Registry;
 import org.apache.http.config.RegistryBuilder;
 import org.apache.http.conn.socket.ConnectionSocketFactory;
@@ -39,6 +37,7 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
 import org.elasticsearch.test.rest.client.http.HttpResponse;
 import org.elasticsearch.test.rest.spec.RestApi;
@@ -57,6 +56,7 @@ import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.cert.CertificateException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -138,7 +138,7 @@ public class RestClient implements Closeable {
         Map<String, String> requestParams = null;
         if (params != null) {
             //makes a copy of the parameters before modifying them for this specific request
-            requestParams = Maps.newHashMap(params);
+            requestParams = new HashMap<>(params);
             //ignore is a special parameter supported by the clients, shouldn't be sent to es
             String ignoreString = requestParams.remove("ignore");
             if (Strings.hasLength(ignoreString)) {
@@ -192,7 +192,7 @@ public class RestClient implements Closeable {
         HttpRequestBuilder httpRequestBuilder = httpRequestBuilder();
 
         //divide params between ones that go within query string and ones that go within path
-        Map<String, String> pathParts = Maps.newHashMap();
+        Map<String, String> pathParts = new HashMap<>();
         if (params != null) {
             for (Map.Entry<String, String> entry : params.entrySet()) {
                 if (restApi.getPathParts().contains(entry.getKey())) {

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.snapshots.blobstore;
 
-import com.google.common.collect.ImmutableList;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.ElasticsearchParseException;
@@ -38,6 +37,7 @@ import org.elasticsearch.index.store.StoreFileMetaData;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -326,7 +326,7 @@ public class BlobStoreIndexShardSnapshot implements ToXContent, FromXContentBuil
 
     private final long totalSize;
 
-    private final ImmutableList<FileInfo> indexFiles;
+    private final List<FileInfo> indexFiles;
 
     /**
      * Constructs new shard snapshot metadata from snapshot metadata
@@ -345,7 +345,7 @@ public class BlobStoreIndexShardSnapshot implements ToXContent, FromXContentBuil
         assert indexVersion >= 0;
         this.snapshot = snapshot;
         this.indexVersion = indexVersion;
-        this.indexFiles = ImmutableList.copyOf(indexFiles);
+        this.indexFiles = Collections.unmodifiableList(new ArrayList<>(indexFiles));
         this.startTime = startTime;
         this.time = time;
         this.numberOfFiles = numberOfFiles;
@@ -358,7 +358,7 @@ public class BlobStoreIndexShardSnapshot implements ToXContent, FromXContentBuil
     private BlobStoreIndexShardSnapshot() {
         this.snapshot = "";
         this.indexVersion = 0;
-        this.indexFiles = ImmutableList.of();
+        this.indexFiles = Collections.emptyList();
         this.startTime = 0;
         this.time = 0;
         this.numberOfFiles = 0;
@@ -523,7 +523,7 @@ public class BlobStoreIndexShardSnapshot implements ToXContent, FromXContentBuil
                 }
             }
         }
-        return new BlobStoreIndexShardSnapshot(snapshot, indexVersion, ImmutableList.copyOf(indexFiles),
+        return new BlobStoreIndexShardSnapshot(snapshot, indexVersion, Collections.unmodifiableList(indexFiles),
                 startTime, time, numberOfFiles, totalSize);
     }
 }

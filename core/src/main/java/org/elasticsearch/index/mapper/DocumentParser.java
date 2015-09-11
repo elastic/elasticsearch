@@ -19,8 +19,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import com.google.common.collect.Sets;
-
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
@@ -34,20 +32,20 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.mapper.core.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
-import org.elasticsearch.index.mapper.core.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.core.StringFieldMapper.StringFieldType;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.mapper.object.ArrayValueMapperParser;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.mapper.object.RootObjectMapper;
-import org.elasticsearch.percolator.PercolatorService;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -104,8 +102,9 @@ class DocumentParser implements Closeable {
             if (token != XContentParser.Token.START_OBJECT) {
                 throw new MapperParsingException("Malformed content, must start with an object");
             }
+
+            boolean emptyDoc = false;
             if (mapping.root.isEnabled()) {
-                boolean emptyDoc = false;
                 token = parser.nextToken();
                 if (token == XContentParser.Token.END_OBJECT) {
                     // empty doc, we can handle it...
@@ -113,23 +112,24 @@ class DocumentParser implements Closeable {
                 } else if (token != XContentParser.Token.FIELD_NAME) {
                     throw new MapperParsingException("Malformed content, after first object, either the type field or the actual properties should exist");
                 }
+            }
 
-                for (MetadataFieldMapper metadataMapper : mapping.metadataMappers) {
-                    metadataMapper.preParse(context);
-                }
-                if (emptyDoc == false) {
-                    Mapper update = parseObject(context, mapping.root);
-                    if (update != null) {
-                        context.addDynamicMappingsUpdate(update);
-                    }
-                }
-                for (MetadataFieldMapper metadataMapper : mapping.metadataMappers) {
-                    metadataMapper.postParse(context);
-                }
+            for (MetadataFieldMapper metadataMapper : mapping.metadataMappers) {
+                metadataMapper.preParse(context);
+            }
 
-            } else {
+            if (mapping.root.isEnabled() == false) {
                 // entire type is disabled
                 parser.skipChildren();
+            } else if (emptyDoc == false) {
+                Mapper update = parseObject(context, mapping.root);
+                if (update != null) {
+                    context.addDynamicMappingsUpdate(update);
+                }
+            }
+
+            for (MetadataFieldMapper metadataMapper : mapping.metadataMappers) {
+                metadataMapper.postParse(context);
             }
 
             // try to parse the next token, this should be null if the object is ended properly
@@ -167,7 +167,7 @@ class DocumentParser implements Closeable {
         }
         // apply doc boost
         if (context.docBoost() != 1.0f) {
-            Set<String> encounteredFields = Sets.newHashSet();
+            Set<String> encounteredFields = new HashSet<>();
             for (ParseContext.Document doc : context.docs()) {
                 encounteredFields.clear();
                 for (IndexableField field : doc) {
@@ -762,7 +762,7 @@ class DocumentParser implements Closeable {
 
     private static XContentParser transform(Mapping mapping, XContentParser parser) throws IOException {
         Map<String, Object> transformed;
-        try (XContentParser _ = parser) {
+        try (XContentParser autoCloses = parser) {
             transformed = transformSourceAsMap(mapping, parser.mapOrdered());
         }
         XContentBuilder builder = XContentFactory.contentBuilder(parser.contentType()).value(transformed);

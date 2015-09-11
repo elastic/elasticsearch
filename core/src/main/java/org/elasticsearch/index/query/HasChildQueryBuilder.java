@@ -31,13 +31,11 @@ public class HasChildQueryBuilder extends QueryBuilder implements BoostableQuery
 
     private float boost = 1.0f;
 
-    private String scoreType;
+    private String scoreMode;
 
     private Integer minChildren;
 
     private Integer maxChildren;
-
-    private Integer shortCircuitCutoff;
 
     private String queryName;
 
@@ -61,8 +59,8 @@ public class HasChildQueryBuilder extends QueryBuilder implements BoostableQuery
     /**
      * Defines how the scores from the matching child documents are mapped into the parent document.
      */
-    public HasChildQueryBuilder scoreType(String scoreType) {
-        this.scoreType = scoreType;
+    public HasChildQueryBuilder scoreMode(String scoreMode) {
+        this.scoreMode = scoreMode;
         return this;
     }
 
@@ -79,15 +77,6 @@ public class HasChildQueryBuilder extends QueryBuilder implements BoostableQuery
      */
     public HasChildQueryBuilder maxChildren(int maxChildren) {
         this.maxChildren = maxChildren;
-        return this;
-    }
-
-    /**
-     * Configures at what cut off point only to evaluate parent documents that contain the matching parent id terms
-     * instead of evaluating all parent docs.
-     */
-    public HasChildQueryBuilder setShortCircuitCutoff(int shortCircuitCutoff) {
-        this.shortCircuitCutoff = shortCircuitCutoff;
         return this;
     }
 
@@ -116,17 +105,14 @@ public class HasChildQueryBuilder extends QueryBuilder implements BoostableQuery
         if (boost != 1.0f) {
             builder.field("boost", boost);
         }
-        if (scoreType != null) {
-            builder.field("score_type", scoreType);
+        if (scoreMode != null) {
+            builder.field("score_mode", scoreMode);
         }
         if (minChildren != null) {
             builder.field("min_children", minChildren);
         }
         if (maxChildren != null) {
             builder.field("max_children", maxChildren);
-        }
-        if (shortCircuitCutoff != null) {
-            builder.field("short_circuit_cutoff", shortCircuitCutoff);
         }
         if (queryName != null) {
             builder.field("_name", queryName);

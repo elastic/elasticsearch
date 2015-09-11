@@ -18,8 +18,6 @@
  */
 package org.elasticsearch.test;
 
-import com.google.common.base.Predicate;
-
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
@@ -60,7 +58,7 @@ final class ExternalNode implements Closeable {
 
     private final Path path;
     private final Random random;
-    private final SettingsSource settingsSource;
+    private final NodeConfigurationSource nodeConfigurationSource;
     private Process process;
     private NodeInfo nodeInfo;
     private final String clusterName;
@@ -70,23 +68,23 @@ final class ExternalNode implements Closeable {
     private Settings externalNodeSettings;
 
 
-    ExternalNode(Path path, long seed, SettingsSource settingsSource) {
-        this(path, null, seed, settingsSource);
+    ExternalNode(Path path, long seed, NodeConfigurationSource nodeConfigurationSource) {
+        this(path, null, seed, nodeConfigurationSource);
     }
 
-    ExternalNode(Path path, String clusterName, long seed, SettingsSource settingsSource) {
+    ExternalNode(Path path, String clusterName, long seed, NodeConfigurationSource nodeConfigurationSource) {
         if (!Files.isDirectory(path)) {
             throw new IllegalArgumentException("path must be a directory");
         }
         this.path = path;
         this.clusterName = clusterName;
         this.random = new Random(seed);
-        this.settingsSource = settingsSource;
+        this.nodeConfigurationSource = nodeConfigurationSource;
     }
 
     synchronized ExternalNode start(Client localNode, Settings defaultSettings, String nodeName, String clusterName, int nodeOrdinal) throws IOException, InterruptedException {
-        ExternalNode externalNode = new ExternalNode(path, clusterName, random.nextLong(), settingsSource);
-        Settings settings = Settings.builder().put(defaultSettings).put(settingsSource.node(nodeOrdinal)).build();
+        ExternalNode externalNode = new ExternalNode(path, clusterName, random.nextLong(), nodeConfigurationSource);
+        Settings settings = Settings.builder().put(defaultSettings).put(nodeConfigurationSource.nodeSettings(nodeOrdinal)).build();
         externalNode.startInternal(localNode, settings, nodeName, clusterName);
         return externalNode;
     }
@@ -155,18 +153,15 @@ final class ExternalNode implements Closeable {
     }
 
     static boolean waitForNode(final Client client, final String name) throws InterruptedException {
-        return ESTestCase.awaitBusy(new Predicate<Object>() {
-            @Override
-            public boolean apply(java.lang.Object input) {
-                final NodesInfoResponse nodeInfos = client.admin().cluster().prepareNodesInfo().get();
-                final NodeInfo[] nodes = nodeInfos.getNodes();
-                for (NodeInfo info : nodes) {
-                    if (name.equals(info.getNode().getName())) {
-                        return true;
-                    }
+        return ESTestCase.awaitBusy(() -> {
+            final NodesInfoResponse nodeInfos = client.admin().cluster().prepareNodesInfo().get();
+            final NodeInfo[] nodes = nodeInfos.getNodes();
+            for (NodeInfo info : nodes) {
+                if (name.equals(info.getNode().getName())) {
+                    return true;
                 }
-                return false;
             }
+            return false;
         }, 30, TimeUnit.SECONDS);
     }
 

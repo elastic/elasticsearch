@@ -146,7 +146,7 @@ public class TransportPercolateAction extends TransportBroadcastAction<Percolate
             PercolateResponse.Match[] matches = request.onlyCount() ? null : PercolateResponse.EMPTY;
             return new PercolateResponse(shardsResponses.length(), successfulShards, failedShards, shardFailures, tookInMillis, matches);
         } else {
-            PercolatorService.ReduceResult result = percolatorService.reduce(percolatorTypeId, shardResults);
+            PercolatorService.ReduceResult result = percolatorService.reduce(percolatorTypeId, shardResults, request);
             long tookInMillis =  Math.max(1, System.currentTimeMillis() - request.startTime);
             return new PercolateResponse(
                     shardsResponses.length(), successfulShards, failedShards, shardFailures,

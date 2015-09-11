@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action;
 
-import com.google.common.collect.Maps;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsAction;
@@ -171,15 +170,14 @@ import org.elasticsearch.action.search.type.TransportSearchDfsQueryAndFetchActio
 import org.elasticsearch.action.search.type.TransportSearchDfsQueryThenFetchAction;
 import org.elasticsearch.action.search.type.TransportSearchQueryAndFetchAction;
 import org.elasticsearch.action.search.type.TransportSearchQueryThenFetchAction;
-import org.elasticsearch.action.search.type.TransportSearchScanAction;
 import org.elasticsearch.action.search.type.TransportSearchScrollQueryAndFetchAction;
 import org.elasticsearch.action.search.type.TransportSearchScrollQueryThenFetchAction;
-import org.elasticsearch.action.search.type.TransportSearchScrollScanAction;
 import org.elasticsearch.action.suggest.SuggestAction;
 import org.elasticsearch.action.suggest.TransportSuggestAction;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.AutoCreateIndex;
+import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.termvectors.MultiTermVectorsAction;
 import org.elasticsearch.action.termvectors.TermVectorsAction;
@@ -194,6 +192,7 @@ import org.elasticsearch.common.inject.multibindings.MapBinder;
 import org.elasticsearch.common.inject.multibindings.Multibinder;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -202,7 +201,7 @@ import java.util.Map;
  */
 public class ActionModule extends AbstractModule {
 
-    private final Map<String, ActionEntry> actions = Maps.newHashMap();
+    private final Map<String, ActionEntry> actions = new HashMap<>();
     private final List<Class<? extends ActionFilter>> actionFilters = new ArrayList<>();
 
     static class ActionEntry<Request extends ActionRequest, Response extends ActionResponse> {
@@ -252,6 +251,7 @@ public class ActionModule extends AbstractModule {
         }
         bind(ActionFilters.class).asEagerSingleton();
         bind(AutoCreateIndex.class).asEagerSingleton();
+        bind(DestructiveOperations.class).asEagerSingleton();
         registerAction(NodesInfoAction.INSTANCE, TransportNodesInfoAction.class);
         registerAction(NodesStatsAction.INSTANCE, TransportNodesStatsAction.class);
         registerAction(NodesHotThreadsAction.INSTANCE, TransportNodesHotThreadsAction.class);
@@ -325,11 +325,9 @@ public class ActionModule extends AbstractModule {
                 TransportSearchDfsQueryThenFetchAction.class,
                 TransportSearchQueryThenFetchAction.class,
                 TransportSearchDfsQueryAndFetchAction.class,
-                TransportSearchQueryAndFetchAction.class,
-                TransportSearchScanAction.class
+                TransportSearchQueryAndFetchAction.class
         );
         registerAction(SearchScrollAction.INSTANCE, TransportSearchScrollAction.class,
-                TransportSearchScrollScanAction.class,
                 TransportSearchScrollQueryThenFetchAction.class,
                 TransportSearchScrollQueryAndFetchAction.class
         );

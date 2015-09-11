@@ -56,7 +56,7 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.*;
 
-public class DuelFieldDataTests extends AbstractFieldDataTests {
+public class DuelFieldDataTests extends AbstractFieldDataTestCase {
 
     @Override
     protected FieldDataType getFieldDataType() {

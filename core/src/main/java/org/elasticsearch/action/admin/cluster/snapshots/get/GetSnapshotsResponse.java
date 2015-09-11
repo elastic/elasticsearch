@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.get;
 
-import com.google.common.collect.ImmutableList;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -29,6 +28,8 @@ import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.snapshots.SnapshotInfo;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -36,12 +37,12 @@ import java.util.List;
  */
 public class GetSnapshotsResponse extends ActionResponse implements ToXContent {
 
-    private ImmutableList<SnapshotInfo> snapshots = ImmutableList.of();
+    private List<SnapshotInfo> snapshots = Collections.emptyList();
 
     GetSnapshotsResponse() {
     }
 
-    GetSnapshotsResponse(ImmutableList<SnapshotInfo> snapshots) {
+    GetSnapshotsResponse(List<SnapshotInfo> snapshots) {
         this.snapshots = snapshots;
     }
 
@@ -58,11 +59,11 @@ public class GetSnapshotsResponse extends ActionResponse implements ToXContent {
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         int size = in.readVInt();
-        ImmutableList.Builder<SnapshotInfo> builder = ImmutableList.builder();
+        List<SnapshotInfo> builder = new ArrayList<>();
         for (int i = 0; i < size; i++) {
             builder.add(SnapshotInfo.readSnapshotInfo(in));
         }
-        snapshots = builder.build();
+        snapshots = Collections.unmodifiableList(builder);
     }
 
     @Override

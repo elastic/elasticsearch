@@ -6,7 +6,7 @@
 
     <groupId>org.elasticsearch</groupId>
     <artifactId>parent</artifactId>
-    <version>2.1.0-SNAPSHOT</version>
+    <version>3.0.0-SNAPSHOT</version>
     <packaging>pom</packaging>
     <name>Elasticsearch: Parent POM</name>
     <description>Parent POM</description>
@@ -37,22 +37,25 @@
         <!-- elasticsearch stack -->
         <elasticsearch.version>${project.version}</elasticsearch.version>
         <jvm.executable>${java.home}${file.separator}bin${file.separator}java</jvm.executable>
-        <maven.compiler.source>1.7</maven.compiler.source>
-        <maven.compiler.target>1.7</maven.compiler.target>
+        <maven.compiler.source>1.8</maven.compiler.source>
+        <maven.compiler.target>1.8</maven.compiler.target>
+        <!-- Path warnings must be ignored because maven doesnt create the classes output
+             dir when no source files exist (eg for distribution or qa modules) -->
+        <xlint.options>-Xlint:-path</xlint.options>
 
         <!-- libraries -->
-        <lucene.version>5.2.1</lucene.version>
-        <lucene.maven.version>5.2.1</lucene.maven.version>
+        <lucene.version>5.4.0</lucene.version>
+        <lucene.snapshot.revision>1701068</lucene.snapshot.revision>
+        <lucene.maven.version>5.4.0-snapshot-${lucene.snapshot.revision}</lucene.maven.version>
         <testframework.version>2.1.16</testframework.version>
         <jackson.version>2.5.3</jackson.version>
         <slf4j.version>1.6.2</slf4j.version>
         <log4j.version>1.2.17</log4j.version>
-        <jacoco.version>0.7.2.201409121644</jacoco.version>
+        <jacoco.version>0.7.5.201505241946</jacoco.version>
         <elasticsearch.s3.repository>s3://download.elasticsearch.org/elasticsearch/staging/</elasticsearch.s3.repository>
 
         <!-- Build resources properties -->
         <elasticsearch.tools.directory>${project.build.directory}/dev-tools</elasticsearch.tools.directory>
-        <elasticsearch.thirdparty.config>unshaded</elasticsearch.thirdparty.config>
         <elasticsearch.license.header>${elasticsearch.tools.directory}/license-check/elasticsearch_license_header.txt</elasticsearch.license.header>
         <elasticsearch.license.headerDefinition>${elasticsearch.tools.directory}/license-check/license_header_definition.xml</elasticsearch.license.headerDefinition>
         <elasticsearch.integ.antfile.default>${elasticsearch.tools.directory}/ant/integration-tests.xml</elasticsearch.integ.antfile.default>
@@ -72,7 +75,7 @@
         <tests.timezone>random</tests.timezone>
         <es.logger.level>ERROR</es.logger.level>
         <tests.heap.size>512m</tests.heap.size>
-        <tests.heapdump.path>${basedir}/logs/</tests.heapdump.path>
+        <tests.heapdump.path>${project.build.directory}/heapdump/</tests.heapdump.path>
         <tests.topn>5</tests.topn>
         <execution.hint.file>.local-${elasticsearch.version}-execution-hints.log</execution.hint.file>
         <execution.hint.integ.file>.local-${elasticsearch.version}-integ-execution-hints.log</execution.hint.integ.file>
@@ -138,6 +141,10 @@
             <name>Sonatype OSS Snapshots</name>
             <url>https://oss.sonatype.org/content/repositories/snapshots/</url>
         </repository>
+        <repository>
+            <id>Lucene snapshots</id>
+            <url>https://download.elasticsearch.org/lucenesnapshots/${lucene.snapshot.revision}</url>
+        </repository>
     </repositories>
 
     <dependencyManagement>
@@ -170,12 +177,6 @@
                 <groupId>com.google.jimfs</groupId>
                 <artifactId>jimfs</artifactId>
                 <version>1.0</version>
-            </dependency>
-
-            <dependency>
-                <groupId>com.twitter</groupId>
-                <artifactId>jsr166e</artifactId>
-                <version>1.1.0</version>
             </dependency>
 
             <dependency>
@@ -336,7 +337,6 @@
                 <version>${lucene.maven.version}</version>
             </dependency>
 
-            <!-- START: dependencies that might be shaded -->
             <dependency>
                 <groupId>com.google.guava</groupId>
                 <artifactId>guava</artifactId>
@@ -415,8 +415,6 @@
                 <artifactId>commons-cli</artifactId>
                 <version>1.3.1</version>
             </dependency>
-
-            <!-- END: dependencies that might be shaded -->
 
             <dependency>
                 <groupId>org.codehaus.groovy</groupId>
@@ -528,7 +526,7 @@
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-enforcer-plugin</artifactId>
-                    <version>1.4</version>
+                    <version>1.4.1</version>
                     <executions>
                         <execution>
                             <id>enforce-versions</id>
@@ -540,6 +538,19 @@
                                     <requireJavaVersion>
                                         <version>[${maven.compiler.source},)</version>
                                     </requireJavaVersion>
+                                </rules>
+                            </configuration>
+                        </execution>
+                        <execution>
+                            <id>enforce-maven-version</id>
+                            <goals>
+                                <goal>enforce</goal>
+                            </goals>
+                            <configuration>
+                                <rules>
+                                    <requireMavenVersion>
+                                        <version>[3.1.0,)</version>
+                                    </requireMavenVersion>
                                 </rules>
                             </configuration>
                         </execution>
@@ -566,8 +577,12 @@
                              be fixed in version > 3.1
                          -->
                         <useIncrementalCompilation>false</useIncrementalCompilation>
+                        <showWarnings>true</showWarnings>
                         <compilerArgs>
                             <arg>-XDignore.symbol.file</arg>
+                            <arg>-Xlint:all</arg>
+                            <arg>${xlint.options}</arg>
+                            <arg>-Werror</arg>
                         </compilerArgs>
                     </configuration>
                 </plugin>
@@ -596,7 +611,6 @@
                         <jvmArgs>
                             <param>-Xmx${tests.heap.size}</param>
                             <param>-Xms${tests.heap.size}</param>
-                            <param>${java.permGenSpace}</param>
                             <param>-XX:MaxDirectMemorySize=512m</param>
                             <param>-Des.logger.prefix=</param>
                             <param>-XX:+HeapDumpOnOutOfMemoryError</param>
@@ -633,6 +647,8 @@
                             <tests.showSuccess>${tests.showSuccess}</tests.showSuccess>
                             <tests.thirdparty>${tests.thirdparty}</tests.thirdparty>
                             <tests.config>${tests.config}</tests.config>
+                            <tests.coverage>${tests.coverage}</tests.coverage>
+                            <tests.coverage.dir>${project.build.directory}</tests.coverage.dir>
                             <tests.client.ratio>${tests.client.ratio}</tests.client.ratio>
                             <tests.enable_mock_modules>${tests.enable_mock_modules}</tests.enable_mock_modules>
                             <tests.assertion.disabled>${tests.assertion.disabled}</tests.assertion.disabled>
@@ -705,11 +721,9 @@
                                 </balancers>
                                 <includes>
                                     <include>**/*Tests.class</include>
-                                    <include>**/*Test.class</include>
                                 </includes>
                                 <excludes>
-                                    <exclude>**/Abstract*.class</exclude>
-                                    <exclude>**/*StressTest.class</exclude>
+                                    <exclude>**/*$*.class</exclude>
                                 </excludes>
                             </configuration>
                         </execution>
@@ -831,7 +845,7 @@
                                      <signaturesFiles>
                                           <signaturesFile>${elasticsearch.tools.directory}/forbidden/core-signatures.txt</signaturesFile>
                                           <signaturesFile>${elasticsearch.tools.directory}/forbidden/all-signatures.txt</signaturesFile>
-                                          <signaturesFile>${elasticsearch.tools.directory}/forbidden/third-party-${elasticsearch.thirdparty.config}-signatures.txt</signaturesFile>
+                                          <signaturesFile>${elasticsearch.tools.directory}/forbidden/third-party-signatures.txt</signaturesFile>
                                      </signaturesFiles>
                                      <signatures>${forbidden.signatures}</signatures>
                                      <suppressAnnotations><annotation>**.SuppressForbidden</annotation></suppressAnnotations>
@@ -878,7 +892,7 @@
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-resources-plugin</artifactId>
                     <version>2.7</version>
-                    <!-- add some additonal binary types to prevent maven from 
+                    <!-- add some additional binary types to prevent maven from
                          screwing them up with resource filtering  -->
                     <configuration>
                         <nonFilteredFileExtensions>
@@ -1007,8 +1021,8 @@ org.eclipse.jdt.core.compiler.annotation.inheritNullAnnotations=enabled
 org.eclipse.jdt.core.compiler.annotation.missingNonNullByDefaultAnnotation=ignore
 org.eclipse.jdt.core.compiler.annotation.nullable=org.elasticsearch.common.Nullable
 org.eclipse.jdt.core.compiler.annotation.nullanalysis=enabled
-org.eclipse.jdt.core.compiler.codegen.targetPlatform=1.7
-org.eclipse.jdt.core.compiler.compliance=1.7
+org.eclipse.jdt.core.compiler.codegen.targetPlatform=1.8
+org.eclipse.jdt.core.compiler.compliance=1.8
 org.eclipse.jdt.core.compiler.problem.forbiddenReference=warning
 org.eclipse.jdt.core.compiler.problem.nonnullParameterAnnotationDropped=warning
 org.eclipse.jdt.core.compiler.problem.nullAnnotationInferenceConflict=warning
@@ -1016,7 +1030,7 @@ org.eclipse.jdt.core.compiler.problem.nullReference=warning
 org.eclipse.jdt.core.compiler.problem.nullSpecViolation=warning
 org.eclipse.jdt.core.compiler.problem.nullUncheckedConversion=warning
 org.eclipse.jdt.core.compiler.problem.potentialNullReference=warning
-org.eclipse.jdt.core.compiler.source=1.7
+org.eclipse.jdt.core.compiler.source=1.8
 org.eclipse.jdt.core.formatter.lineSplit=140
 org.eclipse.jdt.core.formatter.tabulation.char=space
 org.eclipse.jdt.core.formatter.tabulation.size=4
@@ -1092,12 +1106,6 @@ org.eclipse.jdt.ui.text.custom_code_templates=<?xml version\="1.0" encoding\="UT
                                 <goal>report</goal>
                             </goals>
                         </execution>
-                        <execution>
-                            <id>default-check</id>
-                            <goals>
-                                <goal>check</goal>
-                            </goals>
-                        </execution>
                     </executions>
                 </plugin>
                 <plugin>
@@ -1105,22 +1113,6 @@ org.eclipse.jdt.ui.text.custom_code_templates=<?xml version\="1.0" encoding\="UT
                     <artifactId>maven-antrun-plugin</artifactId>
                     <version>1.8</version>
                     <executions>
-                        <execution>
-                            <id>set-permgen</id>
-                            <phase>validate</phase>
-                            <goals>
-                                <goal>run</goal>
-                            </goals>
-                            <configuration>
-                                <target>
-                                    <!-- if we are on java 1.7.* we set perm gen space since some tests need it otherwise we just inject a dummy value -->
-                                    <condition property="java.permGenSpace" value="-XX:MaxPermSize=128m" else="-Dsome.dummy.value=" >
-                                        <matches pattern="1\.7\..+$" string="${java.runtime.version}" />
-                                    </condition>
-                                </target>
-                                <exportAntProperties>true</exportAntProperties>
-                            </configuration>
-                        </execution>
                         <execution>
                             <id>check-invalid-patterns</id>
                             <phase>validate</phase>
@@ -1408,7 +1400,8 @@ org.eclipse.jdt.ui.text.custom_code_templates=<?xml version\="1.0" encoding\="UT
                 </property>
             </activation>
             <properties>
-                <tests.security.manager>false</tests.security.manager> <!-- security policy doesn't have appropriate permissions for instrumentation -->
+                <!-- in case activated otherwise -->
+                <tests.coverage>true</tests.coverage>
             </properties>
             <build>
                 <plugins>

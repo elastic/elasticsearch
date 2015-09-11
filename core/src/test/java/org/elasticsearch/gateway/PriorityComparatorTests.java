@@ -23,11 +23,69 @@ import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.HashMap;
-import java.util.Locale;
-import java.util.Map;
+import java.util.*;
 
 public class PriorityComparatorTests extends ESTestCase {
+
+    public void testPreferNewIndices() {
+        RoutingNodes.UnassignedShards shards = new RoutingNodes.UnassignedShards((RoutingNodes) null);
+        List<ShardRouting> shardRoutings = Arrays.asList(TestShardRouting.newShardRouting("oldest", 0, null, null, null,
+                randomBoolean(), ShardRoutingState.UNASSIGNED, 0, new UnassignedInfo(randomFrom(UnassignedInfo.Reason.values()), "foobar")), TestShardRouting.newShardRouting("newest", 0, null, null, null,
+                randomBoolean(), ShardRoutingState.UNASSIGNED, 0, new UnassignedInfo(randomFrom(UnassignedInfo.Reason.values()), "foobar")));
+        Collections.shuffle(shardRoutings, random());
+        for (ShardRouting routing : shardRoutings) {
+            shards.add(routing);
+        }
+        shards.sort(new PriorityComparator() {
+            @Override
+            protected Settings getIndexSettings(String index) {
+                if ("oldest".equals(index)) {
+                    return Settings.builder().put(IndexMetaData.SETTING_CREATION_DATE, 10)
+                            .put(IndexMetaData.SETTING_PRIORITY, 1).build();
+                } else if ("newest".equals(index)) {
+                    return Settings.builder().put(IndexMetaData.SETTING_CREATION_DATE, 100)
+                            .put(IndexMetaData.SETTING_PRIORITY, 1).build();
+                }
+                return Settings.EMPTY;
+            }
+        });
+        RoutingNodes.UnassignedShards.UnassignedIterator iterator = shards.iterator();
+        ShardRouting next = iterator.next();
+        assertEquals("newest", next.index());
+        next = iterator.next();
+        assertEquals("oldest", next.index());
+        assertFalse(iterator.hasNext());
+    }
+
+    public void testPreferPriorityIndices() {
+        RoutingNodes.UnassignedShards shards = new RoutingNodes.UnassignedShards((RoutingNodes) null);
+        List<ShardRouting> shardRoutings = Arrays.asList(TestShardRouting.newShardRouting("oldest", 0, null, null, null,
+                randomBoolean(), ShardRoutingState.UNASSIGNED, 0, new UnassignedInfo(randomFrom(UnassignedInfo.Reason.values()), "foobar")), TestShardRouting.newShardRouting("newest", 0, null, null, null,
+                randomBoolean(), ShardRoutingState.UNASSIGNED, 0, new UnassignedInfo(randomFrom(UnassignedInfo.Reason.values()), "foobar")));
+        Collections.shuffle(shardRoutings, random());
+        for (ShardRouting routing : shardRoutings) {
+            shards.add(routing);
+        }
+        shards.sort(new PriorityComparator() {
+            @Override
+            protected Settings getIndexSettings(String index) {
+                if ("oldest".equals(index)) {
+                    return Settings.builder().put(IndexMetaData.SETTING_CREATION_DATE, 10)
+                            .put(IndexMetaData.SETTING_PRIORITY, 100).build();
+                } else if ("newest".equals(index)) {
+                    return Settings.builder().put(IndexMetaData.SETTING_CREATION_DATE, 100)
+                            .put(IndexMetaData.SETTING_PRIORITY, 1).build();
+                }
+                return Settings.EMPTY;
+            }
+        });
+        RoutingNodes.UnassignedShards.UnassignedIterator iterator = shards.iterator();
+        ShardRouting next = iterator.next();
+        assertEquals("oldest", next.index());
+        next = iterator.next();
+        assertEquals("newest", next.index());
+        assertFalse(iterator.hasNext());
+    }
 
     public void testPriorityComparatorSort() {
         RoutingNodes.UnassignedShards shards = new RoutingNodes.UnassignedShards((RoutingNodes) null);

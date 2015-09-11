@@ -20,7 +20,8 @@ import org.elasticsearch.common.inject.Binder;
 import org.elasticsearch.common.inject.MembersInjector;
 import org.elasticsearch.common.inject.TypeLiteral;
 
-import static com.google.common.base.Preconditions.checkNotNull;
+import java.util.Objects;
+
 import static com.google.common.base.Preconditions.checkState;
 
 /**
@@ -40,8 +41,8 @@ public final class MembersInjectorLookup<T> implements Element {
     private MembersInjector<T> delegate;
 
     public MembersInjectorLookup(Object source, TypeLiteral<T> type) {
-        this.source = checkNotNull(source, "source");
-        this.type = checkNotNull(type, "type");
+        this.source = Objects.requireNonNull(source, "source");
+        this.type = Objects.requireNonNull(type, "type");
     }
 
     @Override
@@ -68,7 +69,7 @@ public final class MembersInjectorLookup<T> implements Element {
      */
     public void initializeDelegate(MembersInjector<T> delegate) {
         checkState(this.delegate == null, "delegate already initialized");
-        this.delegate = checkNotNull(delegate, "delegate");
+        this.delegate = Objects.requireNonNull(delegate, "delegate");
     }
 
     @Override

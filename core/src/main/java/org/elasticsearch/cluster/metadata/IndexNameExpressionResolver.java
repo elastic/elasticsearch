@@ -19,8 +19,6 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import com.google.common.base.Predicate;
-import com.google.common.collect.ImmutableList;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -45,25 +43,24 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Callable;
-
-import static com.google.common.collect.Maps.filterEntries;
-import static com.google.common.collect.Maps.newHashMap;
+import java.util.stream.Collectors;
 
 public class IndexNameExpressionResolver extends AbstractComponent {
 
-    private final ImmutableList<ExpressionResolver> expressionResolvers;
+    private final List<ExpressionResolver> expressionResolvers;
     private final DateMathExpressionResolver dateMathExpressionResolver;
 
     @Inject
     public IndexNameExpressionResolver(Settings settings) {
         super(settings);
-        expressionResolvers = ImmutableList.of(
+        expressionResolvers = Arrays.asList(
                 dateMathExpressionResolver = new DateMathExpressionResolver(settings),
                 new WildcardExpressionResolver()
         );
@@ -326,7 +323,7 @@ public class IndexNameExpressionResolver extends AbstractComponent {
                         if (!aliasMetaData.searchRoutingValues().isEmpty()) {
                             // Routing alias
                             if (routings == null) {
-                                routings = newHashMap();
+                                routings = new HashMap<>();
                             }
                             Set<String> r = routings.get(concreteIndex);
                             if (r == null) {
@@ -347,7 +344,7 @@ public class IndexNameExpressionResolver extends AbstractComponent {
                                 if (paramRouting != null) {
                                     Set<String> r = new HashSet<>(paramRouting);
                                     if (routings == null) {
-                                        routings = newHashMap();
+                                        routings = new HashMap<>();
                                     }
                                     routings.put(concreteIndex, r);
                                 } else {
@@ -366,7 +363,7 @@ public class IndexNameExpressionResolver extends AbstractComponent {
                     if (paramRouting != null) {
                         Set<String> r = new HashSet<>(paramRouting);
                         if (routings == null) {
-                            routings = newHashMap();
+                            routings = new HashMap<>();
                         }
                         routings.put(expression, r);
                     } else {
@@ -390,7 +387,7 @@ public class IndexNameExpressionResolver extends AbstractComponent {
     private Map<String, Set<String>> resolveSearchRoutingAllIndices(MetaData metaData, String routing) {
         if (routing != null) {
             Set<String> r = Strings.splitStringByCommaToSet(routing);
-            Map<String, Set<String>> routings = newHashMap();
+            Map<String, Set<String>> routings = new HashMap<>();
             String[] concreteIndices = metaData.concreteAllIndices();
             for (String index : concreteIndices) {
                 routings.put(index, r);
@@ -601,12 +598,11 @@ public class IndexNameExpressionResolver extends AbstractComponent {
                 } else {
                     // Other wildcard expressions:
                     final String pattern = expression;
-                    matches = filterEntries(metaData.getAliasAndIndexLookup(), new Predicate<Map.Entry<String, AliasOrIndex>>() {
-                        @Override
-                        public boolean apply(@Nullable Map.Entry<String, AliasOrIndex> input) {
-                            return Regex.simpleMatch(pattern, input.getKey());
-                        }
-                    });
+                    matches = metaData.getAliasAndIndexLookup()
+                            .entrySet()
+                            .stream()
+                            .filter(e -> Regex.simpleMatch(pattern, e.getKey()))
+                            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
                 }
                 for (Map.Entry<String, AliasOrIndex> entry : matches.entrySet()) {
                     AliasOrIndex aliasOrIndex = entry.getValue();
@@ -671,6 +667,7 @@ public class IndexNameExpressionResolver extends AbstractComponent {
             return result;
         }
 
+        @SuppressWarnings("fallthrough")
         String resolveExpression(String expression, final Context context) {
             if (expression.startsWith(EXPRESSION_LEFT_BOUND) == false || expression.endsWith(EXPRESSION_RIGHT_BOUND) == false) {
                 return expression;

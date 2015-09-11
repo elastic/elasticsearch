@@ -20,7 +20,6 @@
 package org.elasticsearch.cluster.routing.allocation.decider;
 
 import com.carrotsearch.hppc.ObjectIntHashMap;
-import com.google.common.collect.Maps;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -135,7 +134,7 @@ public class AwarenessAllocationDecider extends AllocationDecider {
         super(settings);
         this.awarenessAttributes = settings.getAsArray(CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTES);
 
-        forcedAwarenessAttributes = Maps.newHashMap();
+        forcedAwarenessAttributes = new HashMap<>();
         Map<String, Settings> forceGroups = settings.getGroups(CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP);
         for (Map.Entry<String, Settings> entry : forceGroups.entrySet()) {
             String[] aValues = entry.getValue().getAsArray("values");
@@ -189,7 +188,7 @@ public class AwarenessAllocationDecider extends AllocationDecider {
                 if (assignedShard.relocating()) {
                     RoutingNode relocationNode = allocation.routingNodes().node(assignedShard.relocatingNodeId());
                     shardPerAttribute.addTo(relocationNode.node().attributes().get(awarenessAttribute), 1);
-                } else if (assignedShard.started()) {
+                } else if (assignedShard.started() || assignedShard.initializing()) {
                     RoutingNode routingNode = allocation.routingNodes().node(assignedShard.currentNodeId());
                     shardPerAttribute.addTo(routingNode.node().attributes().get(awarenessAttribute), 1);
                 }

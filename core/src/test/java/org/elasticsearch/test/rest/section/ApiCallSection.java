@@ -19,11 +19,11 @@
 package org.elasticsearch.test.rest.section;
 
 import com.google.common.base.Joiner;
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Maps;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -33,7 +33,7 @@ import java.util.Map;
 public class ApiCallSection {
 
     private final String api;
-    private final Map<String, String> params = Maps.newHashMap();
+    private final Map<String, String> params = new HashMap<>();
     private final List<Map<String, Object>> bodies = new ArrayList<>();
 
     public ApiCallSection(String api) {
@@ -58,7 +58,7 @@ public class ApiCallSection {
     }
 
     public List<Map<String, Object>> getBodies() {
-        return ImmutableList.copyOf(bodies);
+        return Collections.unmodifiableList(bodies);
     }
 
     public void addBody(Map<String, Object> body) {

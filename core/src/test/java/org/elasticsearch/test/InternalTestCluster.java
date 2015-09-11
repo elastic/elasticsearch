@@ -24,13 +24,7 @@ import com.carrotsearch.randomizedtesting.SysGlobals;
 import com.carrotsearch.randomizedtesting.generators.RandomInts;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
-import com.google.common.base.Predicate;
-import com.google.common.base.Predicates;
-import com.google.common.collect.Collections2;
-import com.google.common.collect.Iterables;
 import com.google.common.collect.Iterators;
-import com.google.common.collect.Maps;
-import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
@@ -70,6 +64,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.IndexService;
@@ -87,10 +82,12 @@ import org.elasticsearch.indices.cache.request.IndicesRequestCache;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.store.IndicesStore;
+import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeMocksPlugin;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.node.service.NodeService;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.search.SearchService;
@@ -125,14 +122,20 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static junit.framework.Assert.fail;
-import static org.apache.lucene.util.LuceneTestCase.*;
+import static org.apache.lucene.util.LuceneTestCase.TEST_NIGHTLY;
+import static org.apache.lucene.util.LuceneTestCase.rarely;
+import static org.apache.lucene.util.LuceneTestCase.usually;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-import static org.elasticsearch.node.NodeBuilder.nodeBuilder;
 import static org.elasticsearch.test.ESTestCase.assertBusy;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.junit.Assert.assertThat;
 
 /**
@@ -150,16 +153,7 @@ public final class InternalTestCluster extends TestCluster {
 
     private final ESLogger logger = Loggers.getLogger(getClass());
 
-    static SettingsSource DEFAULT_SETTINGS_SOURCE = SettingsSource.EMPTY;
-
-    /**
-     * A boolean value to enable or disable mock modules. This is useful to test the
-     * system without asserting modules that to make sure they don't hide any bugs in
-     * production.
-     *
-     * @see ESIntegTestCase
-     */
-    public static final String TESTS_ENABLE_MOCK_MODULES = "tests.enable_mock_modules";
+    static NodeConfigurationSource DEFAULT_SETTINGS_SOURCE = NodeConfigurationSource.EMPTY;
 
     /**
      * A node level setting that holds a per node random seed that is consistent across node restarts
@@ -190,8 +184,6 @@ public final class InternalTestCluster extends TestCluster {
     public final int TRANSPORT_BASE_PORT = GLOBAL_TRANSPORT_BASE_PORT + CLUSTER_BASE_PORT_OFFSET;
     public final int HTTP_BASE_PORT = GLOBAL_HTTP_BASE_PORT + CLUSTER_BASE_PORT_OFFSET;
 
-
-    private static final boolean ENABLE_MOCK_MODULES = RandomizedTest.systemPropertyAsBoolean(TESTS_ENABLE_MOCK_MODULES, true);
 
     static final int DEFAULT_MIN_NUM_DATA_NODES = 1;
     static final int DEFAULT_MAX_NUM_DATA_NODES = TEST_NIGHTLY ? 6 : 3;
@@ -224,9 +216,11 @@ public final class InternalTestCluster extends TestCluster {
 
     private final int numSharedClientNodes;
 
-    private final SettingsSource settingsSource;
+    private final NodeConfigurationSource nodeConfigurationSource;
 
     private final ExecutorService executor;
+
+    private final boolean enableMockModules;
 
     /**
      * All nodes started by the cluster will have their name set to nodePrefix followed by a positive number
@@ -238,8 +232,8 @@ public final class InternalTestCluster extends TestCluster {
     private String nodeMode;
 
     public InternalTestCluster(String nodeMode, long clusterSeed, Path baseDir,
-                               int minNumDataNodes, int maxNumDataNodes, String clusterName, SettingsSource settingsSource, int numClientNodes,
-                               boolean enableHttpPipelining, String nodePrefix) {
+                               int minNumDataNodes, int maxNumDataNodes, String clusterName, NodeConfigurationSource nodeConfigurationSource, int numClientNodes,
+                               boolean enableHttpPipelining, String nodePrefix, boolean enableMockModules) {
         super(clusterSeed);
         if ("network".equals(nodeMode) == false && "local".equals(nodeMode) == false) {
             throw new IllegalArgumentException("Unknown nodeMode: " + nodeMode);
@@ -275,6 +269,7 @@ public final class InternalTestCluster extends TestCluster {
         this.nodePrefix = nodePrefix;
 
         assert nodePrefix != null;
+        this.enableMockModules = enableMockModules;
 
         /*
          *  TODO
@@ -289,7 +284,7 @@ public final class InternalTestCluster extends TestCluster {
         }
 
         logger.info("Setup InternalTestCluster [{}] with seed [{}] using [{}] data nodes and [{}] client nodes", clusterName, SeedUtils.formatSeed(clusterSeed), numSharedDataNodes, numSharedClientNodes);
-        this.settingsSource = settingsSource;
+        this.nodeConfigurationSource = nodeConfigurationSource;
         Builder builder = Settings.settingsBuilder();
         if (random.nextInt(5) == 0) { // sometimes set this
             // randomize (multi/single) data path, special case for 0, don't set it at all...
@@ -369,7 +364,7 @@ public final class InternalTestCluster extends TestCluster {
     private Settings getSettings(int nodeOrdinal, long nodeSeed, Settings others) {
         Builder builder = Settings.settingsBuilder().put(defaultSettings)
                 .put(getRandomNodeSettings(nodeSeed));
-        Settings settings = settingsSource.node(nodeOrdinal);
+        Settings settings = nodeConfigurationSource.nodeSettings(nodeOrdinal);
         if (settings != null) {
             if (settings.get(ClusterName.SETTING) != null) {
                 throw new IllegalStateException("Tests must not set a '" + ClusterName.SETTING + "' as a node setting set '" + ClusterName.SETTING + "': [" + settings.get(ClusterName.SETTING) + "]");
@@ -383,21 +378,27 @@ public final class InternalTestCluster extends TestCluster {
         return builder.build();
     }
 
+    private Collection<Class<? extends Plugin>> getPlugins(long seed) {
+        Set<Class<? extends Plugin>> plugins = new HashSet<>(nodeConfigurationSource.nodePlugins());
+        Random random = new Random(seed);
+        if (enableMockModules && usually(random)) {
+            plugins.add(MockTransportService.TestPlugin.class);
+            plugins.add(MockFSIndexStore.TestPlugin.class);
+            plugins.add(NodeMocksPlugin.class);
+            plugins.add(MockEngineFactoryPlugin.class);
+            plugins.add(MockSearchService.TestPlugin.class);
+            if (isLocalTransportConfigured()) {
+                plugins.add(AssertingLocalTransport.TestPlugin.class);
+            }
+        }
+        return plugins;
+    }
+
     private Settings getRandomNodeSettings(long seed) {
         Random random = new Random(seed);
         Builder builder = Settings.settingsBuilder()
                 .put(SETTING_CLUSTER_NODE_SEED, seed);
-        if (ENABLE_MOCK_MODULES && usually(random)) {
-            builder.extendArray("plugin.types",
-                MockTransportService.TestPlugin.class.getName(),
-                MockFSIndexStore.TestPlugin.class.getName(),
-                NodeMocksPlugin.class.getName(),
-                MockEngineFactoryPlugin.class.getName(),
-                MockSearchService.TestPlugin.class.getName());
-        }
-        if (isLocalTransportConfigured()) {
-            builder.extendArray("plugin.types", AssertingLocalTransport.TestPlugin.class.getName());
-        } else {
+        if (isLocalTransportConfigured() == false) {
             builder.put(Transport.TransportSettings.TRANSPORT_TCP_COMPRESS, rarely(random));
         }
         if (random.nextBoolean()) {
@@ -432,9 +433,6 @@ public final class InternalTestCluster extends TestCluster {
         if (random.nextBoolean()) {
             if (random.nextBoolean()) {
                 builder.put("indices.fielddata.cache.size", 1 + random.nextInt(1000), ByteSizeUnit.MB);
-            }
-            if (random.nextBoolean()) {
-                builder.put("indices.fielddata.cache.expire", TimeValue.timeValueMillis(1 + random.nextInt(10000)));
             }
         }
 
@@ -536,14 +534,13 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     private synchronized NodeAndClient getRandomNodeAndClient() {
-        Predicate<NodeAndClient> all = Predicates.alwaysTrue();
-        return getRandomNodeAndClient(all);
+        return getRandomNodeAndClient(nc -> true);
     }
 
 
     private synchronized NodeAndClient getRandomNodeAndClient(Predicate<NodeAndClient> predicate) {
         ensureOpen();
-        Collection<NodeAndClient> values = Collections2.filter(nodes.values(), predicate);
+        Collection<NodeAndClient> values = nodes.values().stream().filter(predicate).collect(Collectors.toCollection(ArrayList::new));
         if (!values.isEmpty()) {
             int whichOne = random.nextInt(values.size());
             for (NodeAndClient nodeAndClient : values) {
@@ -592,8 +589,9 @@ public final class InternalTestCluster extends TestCluster {
             return;
         }
         // prevent killing the master if possible and client nodes
-        final Iterator<NodeAndClient> values = n == 0 ? nodes.values().iterator() : Iterators.filter(nodes.values().iterator(),
-                Predicates.and(new DataNodePredicate(), Predicates.not(new MasterNodePredicate(getMasterName()))));
+        final Stream<NodeAndClient> collection =
+                n == 0 ? nodes.values().stream() : nodes.values().stream().filter(new DataNodePredicate().and(new MasterNodePredicate(getMasterName()).negate()));
+        final Iterator<NodeAndClient> values = collection.iterator();
 
         final Iterator<NodeAndClient> limit = Iterators.limit(values, size - n);
         logger.info("changing cluster size from {} to {}, {} data nodes", size(), n + numSharedClientNodes, n);
@@ -626,6 +624,7 @@ public final class InternalTestCluster extends TestCluster {
         assert Thread.holdsLock(this);
         ensureOpen();
         settings = getSettings(nodeId, seed, settings);
+        Collection<Class<? extends Plugin>> plugins = getPlugins(seed);
         String name = buildNodeName(nodeId);
         assert !nodes.containsKey(name);
         Settings finalSettings = settingsBuilder()
@@ -633,9 +632,8 @@ public final class InternalTestCluster extends TestCluster {
                 .put(settings)
                 .put("name", name)
                 .put("discovery.id.seed", seed)
-                .put("tests.mock.version", version)
                 .build();
-        Node node = nodeBuilder().settings(finalSettings).build();
+        MockNode node = new MockNode(finalSettings, version, plugins);
         return new NodeAndClient(name, node);
     }
 
@@ -686,7 +684,7 @@ public final class InternalTestCluster extends TestCluster {
      */
     public synchronized Client nonMasterClient() {
         ensureOpen();
-        NodeAndClient randomNodeAndClient = getRandomNodeAndClient(Predicates.not(new MasterNodePredicate(getMasterName())));
+        NodeAndClient randomNodeAndClient = getRandomNodeAndClient(new MasterNodePredicate(getMasterName()).negate());
         if (randomNodeAndClient != null) {
             return randomNodeAndClient.nodeClient(); // ensure node client non-master is requested
         }
@@ -762,12 +760,7 @@ public final class InternalTestCluster extends TestCluster {
      */
     public synchronized Client client(final Predicate<Settings> filterPredicate) {
         ensureOpen();
-        final NodeAndClient randomNodeAndClient = getRandomNodeAndClient(new Predicate<NodeAndClient>() {
-            @Override
-            public boolean apply(NodeAndClient nodeAndClient) {
-                return filterPredicate.apply(nodeAndClient.node.settings());
-            }
-        });
+        final NodeAndClient randomNodeAndClient = getRandomNodeAndClient(nodeAndClient -> filterPredicate.test(nodeAndClient.node.settings()));
         if (randomNodeAndClient != null) {
             return randomNodeAndClient.client(random);
         }
@@ -792,13 +785,13 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     private final class NodeAndClient implements Closeable {
-        private Node node;
+        private MockNode node;
         private Client nodeClient;
         private Client transportClient;
         private final AtomicBoolean closed = new AtomicBoolean(false);
         private final String name;
 
-        NodeAndClient(String name, Node node) {
+        NodeAndClient(String name, MockNode node) {
             this.node = node;
             this.name = name;
         }
@@ -853,7 +846,7 @@ public final class InternalTestCluster extends TestCluster {
             /* no sniff client for now - doesn't work will all tests since it might throw NoNodeAvailableException if nodes are shut down.
              * we first need support of transportClientRatio as annotations or so
              */
-            return transportClient = new TransportClientFactory(false, settingsSource.transportClient(), baseDir, nodeMode).client(node, clusterName);
+            return transportClient = new TransportClientFactory(false, nodeConfigurationSource.transportClientSettings(), baseDir, nodeMode, nodeConfigurationSource.transportClientPlugins()).client(node, clusterName);
         }
 
         void resetClient() throws IOException {
@@ -885,7 +878,11 @@ public final class InternalTestCluster extends TestCluster {
                     IOUtils.rm(nodeEnv.nodeDataPaths());
                 }
             }
-            node = nodeBuilder().settings(node.settings()).settings(newSettings).node();
+            Settings finalSettings = Settings.builder().put(node.settings()).put(newSettings).build();
+            Collection<Class<? extends Plugin>> plugins = node.getPlugins();
+            Version version = node.getVersion();
+            node = new MockNode(finalSettings, version, plugins);
+            node.start();
         }
 
         void registerDataPath() {
@@ -911,12 +908,14 @@ public final class InternalTestCluster extends TestCluster {
         private final Settings settings;
         private final Path baseDir;
         private final String nodeMode;
+        private final Collection<Class<? extends Plugin>> plugins;
 
-        TransportClientFactory(boolean sniff, Settings settings, Path baseDir, String nodeMode) {
+        TransportClientFactory(boolean sniff, Settings settings, Path baseDir, String nodeMode, Collection<Class<? extends Plugin>> plugins) {
             this.sniff = sniff;
             this.settings = settings != null ? settings : Settings.EMPTY;
             this.baseDir = baseDir;
             this.nodeMode = nodeMode;
+            this.plugins = plugins;
         }
 
         public Client client(Node node, String clusterName) {
@@ -934,7 +933,11 @@ public final class InternalTestCluster extends TestCluster {
                     .put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING, true)
                     .put(settings);
 
-            TransportClient client = TransportClient.builder().settings(builder.build()).build();
+            TransportClient.Builder clientBuilder = TransportClient.builder().settings(builder.build());
+            for (Class<? extends Plugin> plugin : plugins) {
+                clientBuilder.addPlugin(plugin);
+            }
+            TransportClient client = clientBuilder.build();
             client.addTransportAddress(addr);
             return client;
         }
@@ -1139,7 +1142,7 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     private synchronized <T> Iterable<T> getInstances(Class<T> clazz, Predicate<NodeAndClient> predicate) {
-        Iterable<NodeAndClient> filteredNodes = Iterables.filter(nodes.values(), predicate);
+        Iterable<NodeAndClient> filteredNodes = nodes.values().stream().filter(predicate)::iterator;
         List<T> instances = new ArrayList<>();
         for (NodeAndClient nodeAndClient : filteredNodes) {
             instances.add(getInstanceFromNode(clazz, nodeAndClient.node));
@@ -1151,18 +1154,7 @@ public final class InternalTestCluster extends TestCluster {
      * Returns a reference to the given nodes instances of the given class &gt;T&lt;
      */
     public synchronized <T> T getInstance(Class<T> clazz, final String node) {
-        final Predicate<InternalTestCluster.NodeAndClient> predicate;
-        if (node != null) {
-            predicate = new Predicate<InternalTestCluster.NodeAndClient>() {
-                @Override
-                public boolean apply(NodeAndClient nodeAndClient) {
-                    return node.equals(nodeAndClient.name);
-                }
-            };
-        } else {
-            predicate = Predicates.alwaysTrue();
-        }
-        return getInstance(clazz, predicate);
+        return getInstance(clazz, nc -> node == null || node.equals(nc.name));
     }
 
     public synchronized <T> T getDataNodeInstance(Class<T> clazz) {
@@ -1179,7 +1171,7 @@ public final class InternalTestCluster extends TestCluster {
      * Returns a reference to a random nodes instances of the given class &gt;T&lt;
      */
     public synchronized <T> T getInstance(Class<T> clazz) {
-        return getInstance(clazz, Predicates.<NodeAndClient>alwaysTrue());
+        return getInstance(clazz, nc -> true);
     }
 
     private synchronized <T> T getInstanceFromNode(Class<T> clazz, Node node) {
@@ -1222,12 +1214,7 @@ public final class InternalTestCluster extends TestCluster {
      */
     public synchronized void stopRandomNode(final Predicate<Settings> filter) throws IOException {
         ensureOpen();
-        NodeAndClient nodeAndClient = getRandomNodeAndClient(new Predicate<InternalTestCluster.NodeAndClient>() {
-            @Override
-            public boolean apply(NodeAndClient nodeAndClient) {
-                return filter.apply(nodeAndClient.node.settings());
-            }
-        });
+        NodeAndClient nodeAndClient = getRandomNodeAndClient(nc -> filter.test(nc.node.settings()));
         if (nodeAndClient != null) {
             logger.info("Closing filtered random node [{}] ", nodeAndClient.name);
             removeDisruptionSchemeFromNode(nodeAndClient);
@@ -1254,7 +1241,7 @@ public final class InternalTestCluster extends TestCluster {
      * Stops the any of the current nodes but not the master node.
      */
     public void stopRandomNonMasterNode() throws IOException {
-        NodeAndClient nodeAndClient = getRandomNodeAndClient(Predicates.not(new MasterNodePredicate(getMasterName())));
+        NodeAndClient nodeAndClient = getRandomNodeAndClient(new MasterNodePredicate(getMasterName()).negate());
         if (nodeAndClient != null) {
             logger.info("Closing random non master node [{}] current master [{}] ", nodeAndClient.name, getMasterName());
             removeDisruptionSchemeFromNode(nodeAndClient);
@@ -1274,7 +1261,7 @@ public final class InternalTestCluster extends TestCluster {
      * Restarts a random node in the cluster and calls the callback during restart.
      */
     public void restartRandomNode(RestartCallback callback) throws Exception {
-        restartRandomNode(Predicates.<NodeAndClient>alwaysTrue(), callback);
+        restartRandomNode(nc -> true, callback);
     }
 
     /**
@@ -1436,7 +1423,12 @@ public final class InternalTestCluster extends TestCluster {
 
     private synchronized Set<String> nRandomDataNodes(int numNodes) {
         assert size() >= numNodes;
-        NavigableMap<String, NodeAndClient> dataNodes = Maps.filterEntries(nodes, new EntryNodePredicate(new DataNodePredicate()));
+        Map<String, NodeAndClient> dataNodes =
+                nodes
+                        .entrySet()
+                        .stream()
+                        .filter(new EntryNodePredicate(new DataNodePredicate()))
+                        .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
         return Sets.newHashSet(Iterators.limit(dataNodes.keySet().iterator(), numNodes));
     }
 
@@ -1670,23 +1662,31 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     private synchronized Collection<NodeAndClient> dataNodeAndClients() {
-        return Collections2.filter(nodes.values(), new DataNodePredicate());
+        return filterNodes(nodes, new DataNodePredicate());
     }
 
     private synchronized Collection<NodeAndClient> dataAndMasterNodes() {
-        return Collections2.filter(nodes.values(), new DataOrMasterNodePredicate());
+        return filterNodes(nodes, new DataOrMasterNodePredicate());
+    }
+
+    private synchronized Collection<NodeAndClient> filterNodes(Map<String, InternalTestCluster.NodeAndClient> map, Predicate<NodeAndClient> predicate) {
+        return map
+                .values()
+                .stream()
+                .filter(predicate)
+                .collect(Collectors.toCollection(ArrayList::new));
     }
 
     private static final class DataNodePredicate implements Predicate<NodeAndClient> {
         @Override
-        public boolean apply(NodeAndClient nodeAndClient) {
+        public boolean test(NodeAndClient nodeAndClient) {
             return DiscoveryNode.dataNode(nodeAndClient.node.settings());
         }
     }
 
     private static final class DataOrMasterNodePredicate implements Predicate<NodeAndClient> {
         @Override
-        public boolean apply(NodeAndClient nodeAndClient) {
+        public boolean test(NodeAndClient nodeAndClient) {
             return DiscoveryNode.dataNode(nodeAndClient.node.settings()) ||
                     DiscoveryNode.masterNode(nodeAndClient.node.settings());
         }
@@ -1700,14 +1700,14 @@ public final class InternalTestCluster extends TestCluster {
         }
 
         @Override
-        public boolean apply(NodeAndClient nodeAndClient) {
+        public boolean test(NodeAndClient nodeAndClient) {
             return masterNodeName.equals(nodeAndClient.name);
         }
     }
 
     private static final class ClientNodePredicate implements Predicate<NodeAndClient> {
         @Override
-        public boolean apply(NodeAndClient nodeAndClient) {
+        public boolean test(NodeAndClient nodeAndClient) {
             return DiscoveryNode.clientNode(nodeAndClient.node.settings());
         }
     }
@@ -1720,8 +1720,8 @@ public final class InternalTestCluster extends TestCluster {
         }
 
         @Override
-        public boolean apply(Map.Entry<String, NodeAndClient> entry) {
-            return delegateNodePredicate.apply(entry.getValue());
+        public boolean test(Map.Entry<String, NodeAndClient> entry) {
+            return delegateNodePredicate.test(entry.getValue());
         }
     }
 
@@ -1789,7 +1789,7 @@ public final class InternalTestCluster extends TestCluster {
         }
 
         @Override
-        public boolean apply(Settings settings) {
+        public boolean test(Settings settings) {
             return nodeNames.contains(settings.get("name"));
 
         }

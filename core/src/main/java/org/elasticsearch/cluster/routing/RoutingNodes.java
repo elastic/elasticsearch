@@ -21,7 +21,6 @@ package org.elasticsearch.cluster.routing;
 
 import com.carrotsearch.hppc.ObjectIntHashMap;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-import com.google.common.base.Predicate;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Iterators;
 import org.apache.lucene.util.CollectionUtil;
@@ -36,13 +35,12 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-
-import static com.google.common.collect.Maps.newHashMap;
-import static com.google.common.collect.Sets.newHashSet;
+import java.util.function.Predicate;
 
 /**
  * {@link RoutingNodes} represents a copy the routing information contained in
@@ -56,11 +54,11 @@ public class RoutingNodes implements Iterable<RoutingNode> {
 
     private final RoutingTable routingTable;
 
-    private final Map<String, RoutingNode> nodesToShards = newHashMap();
+    private final Map<String, RoutingNode> nodesToShards = new HashMap<>();
 
     private final UnassignedShards unassignedShards = new UnassignedShards(this);
 
-    private final Map<ShardId, List<ShardRouting>> assignedShards = newHashMap();
+    private final Map<ShardId, List<ShardRouting>> assignedShards = new HashMap<>();
 
     private final ImmutableOpenMap<String, ClusterState.Custom> customs;
 
@@ -85,7 +83,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         this.routingTable = clusterState.routingTable();
         this.customs = clusterState.customs();
 
-        Map<String, List<ShardRouting>> nodesToShards = newHashMap();
+        Map<String, List<ShardRouting>> nodesToShards = new HashMap<>();
         // fill in the nodeToShards with the "live" nodes
         for (ObjectCursor<DiscoveryNode> cursor : clusterState.nodes().dataNodes().values()) {
             nodesToShards.put(cursor.value.id(), new ArrayList<ShardRouting>());
@@ -294,7 +292,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         List<ShardRouting> shards = new ArrayList<>();
         for (RoutingNode routingNode : this) {
             for (ShardRouting shardRouting : routingNode) {
-                if (predicate.apply(shardRouting)) {
+                if (predicate.test(shardRouting)) {
                     shards.add(shardRouting);
                 }
             }
@@ -630,7 +628,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
 
             /**
              * Unsupported operation, just there for the interface. Use {@link #removeAndIgnore()} or
-             * {@link #initialize(String)}.
+             * {@link #initialize(String, long, long)}.
              */
             @Override
             public void remove() {
@@ -705,7 +703,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         int inactivePrimaryCount = 0;
         int inactiveShardCount = 0;
         int relocating = 0;
-        final Set<ShardId> seenShards = newHashSet();
+        final Set<ShardId> seenShards = new HashSet<>();
         Map<String, Integer> indicesAndShards = new HashMap<>();
         for (RoutingNode node : routingNodes) {
             for (ShardRouting shard : node) {

@@ -19,11 +19,13 @@
 
 package org.elasticsearch.index.query.functionscore.fieldvaluefactor;
 
+import org.apache.lucene.document.FieldType;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.lucene.search.function.FieldValueFactorFunction;
 import org.elasticsearch.common.lucene.search.function.ScoreFunction;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.fielddata.plain.DoubleArrayIndexFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryParseContext;
@@ -86,11 +88,15 @@ public class FieldValueFactorFunctionParser implements ScoreFunctionParser {
 
         SearchContext searchContext = SearchContext.current();
         MappedFieldType fieldType = searchContext.mapperService().smartNameFieldType(field);
+        IndexNumericFieldData fieldData = null;
         if (fieldType == null) {
-            throw new ElasticsearchException("Unable to find a field mapper for field [" + field + "]");
+            if(missing == null) {
+                throw new ElasticsearchException("Unable to find a field mapper for field [" + field + "]. No 'missing' value defined.");
+            }
+        } else {
+            fieldData = searchContext.fieldData().getForField(fieldType);
         }
-        return new FieldValueFactorFunction(field, boostFactor, modifier, missing,
-                (IndexNumericFieldData)searchContext.fieldData().getForField(fieldType));
+        return new FieldValueFactorFunction(field, boostFactor, modifier, missing, fieldData);
     }
 
     @Override

@@ -19,8 +19,6 @@
 
 package org.elasticsearch.action.admin.cluster.health;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Maps;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.ClusterState;
@@ -39,6 +37,8 @@ import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -67,7 +67,7 @@ public class ClusterHealthResponse extends ActionResponse implements Iterable<Cl
     boolean timedOut = false;
     ClusterHealthStatus status = ClusterHealthStatus.RED;
     private List<String> validationFailures;
-    Map<String, ClusterIndexHealth> indices = Maps.newHashMap();
+    Map<String, ClusterIndexHealth> indices = new HashMap<>();
 
     ClusterHealthResponse() {
     }
@@ -270,7 +270,7 @@ public class ClusterHealthResponse extends ActionResponse implements Iterable<Cl
         timedOut = in.readBoolean();
         size = in.readVInt();
         if (size == 0) {
-            validationFailures = ImmutableList.of();
+            validationFailures = Collections.emptyList();
         } else {
             for (int i = 0; i < size; i++) {
                 validationFailures.add(in.readString());

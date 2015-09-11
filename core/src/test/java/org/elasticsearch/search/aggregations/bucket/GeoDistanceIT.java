@@ -18,8 +18,6 @@
  */
 package org.elasticsearch.search.aggregations.bucket;
 
-import com.google.common.collect.Sets;
-
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.unit.DistanceUnit;
@@ -35,6 +33,7 @@ import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -360,7 +359,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
         assertThat(bucket.getAggregations().asList().isEmpty(), is(false));
         Terms cities = bucket.getAggregations().get("cities");
         assertThat(cities, Matchers.notNullValue());
-        Set<String> names = Sets.newHashSet();
+        Set<String> names = new HashSet<>();
         for (Terms.Bucket city : cities.getBuckets()) {
             names.add(city.getKeyAsString());
         }
@@ -380,7 +379,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
         assertThat(bucket.getAggregations().asList().isEmpty(), is(false));
         cities = bucket.getAggregations().get("cities");
         assertThat(cities, Matchers.notNullValue());
-        names = Sets.newHashSet();
+        names = new HashSet<>();
         for (Terms.Bucket city : cities.getBuckets()) {
             names.add(city.getKeyAsString());
         }
@@ -400,7 +399,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
         assertThat(bucket.getAggregations().asList().isEmpty(), is(false));
         cities = bucket.getAggregations().get("cities");
         assertThat(cities, Matchers.notNullValue());
-        names = Sets.newHashSet();
+        names = new HashSet<>();
         for (Terms.Bucket city : cities.getBuckets()) {
             names.add(city.getKeyAsString());
         }

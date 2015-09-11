@@ -17,8 +17,7 @@
 "Empty cluster":
 
   - do:
-      cat.aliases:
-        v: false
+      cat.aliases: {}
 
   - match:
       $body: |
@@ -38,8 +37,7 @@
             name:  test_alias
 
   - do:
-      cat.aliases:
-        v: false
+      cat.aliases: {}
 
   - match:
       $body: |
@@ -75,8 +73,7 @@
                     term:
                         foo: bar
   - do:
-      cat.aliases:
-        v: false
+      cat.aliases: {}
 
   - match:
       $body: |
@@ -108,14 +105,12 @@
   - do:
       cat.aliases:
         name: test_1
-        v: false
 
   - match:
       $body: /^test_1 .+ \n$/
 
   - do:
       cat.aliases:
-        v: false
         name: test_2
 
   - match:
@@ -123,7 +118,6 @@
 
   - do:
       cat.aliases:
-        v: false
         name: test_*
 
   - match:
@@ -178,8 +172,7 @@
 
   - do:
         cat.aliases:
-          v: false
-          h:      [index, alias]
+            h:      [index, alias]
 
   - match:
       $body: /^ test \s+ test_1 \s+ $/
@@ -195,9 +188,3 @@
                 index \s+ alias  \s+ \n
                 test  \s+ test_1 \s+ \n
             $/
-
-
-
-
-
-

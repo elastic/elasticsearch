@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.indices.template;
 
-import com.google.common.collect.Sets;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
@@ -42,12 +41,24 @@ import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
-import static org.hamcrest.Matchers.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  *
@@ -263,7 +274,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
     @Test
     public void testThatInvalidGetIndexTemplatesFails() throws Exception {
         logger.info("--> get template null");
-        testExpectActionRequestValidationException(null);
+        testExpectActionRequestValidationException((String[])null);
 
         logger.info("--> get template empty");
         testExpectActionRequestValidationException("");
@@ -379,7 +390,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         searchResponse = client().prepareSearch("complex_filtered_alias").get();
         assertHitCount(searchResponse, 3l);
 
-        Set<String> types = Sets.newHashSet();
+        Set<String> types = new HashSet<>();
         for (SearchHit searchHit : searchResponse.getHits().getHits()) {
             types.add(searchHit.getType());
         }

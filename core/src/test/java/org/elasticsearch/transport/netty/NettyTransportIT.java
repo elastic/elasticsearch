@@ -47,6 +47,7 @@ import org.junit.Test;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.util.Collection;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.ESIntegTestCase.ClusterScope;
@@ -67,7 +68,12 @@ public class NettyTransportIT extends ESIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         return settingsBuilder().put(super.nodeSettings(nodeOrdinal))
                 .put("node.mode", "network")
-                .extendArray("plugin.types", ExceptionThrowingNettyTransport.TestPlugin.class.getName()).build();
+                .put(TransportModule.TRANSPORT_TYPE_KEY, "exception-throwing").build();
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return pluginList(ExceptionThrowingNettyTransport.TestPlugin.class);
     }
 
     @Test
@@ -98,10 +104,6 @@ public class NettyTransportIT extends ESIntegTestCase {
             }
             public void onModule(TransportModule transportModule) {
                 transportModule.addTransport("exception-throwing", ExceptionThrowingNettyTransport.class);
-            }
-            @Override
-            public Settings additionalSettings() {
-                return Settings.builder().put(TransportModule.TRANSPORT_TYPE_KEY, "exception-throwing").build();
             }
         }
 

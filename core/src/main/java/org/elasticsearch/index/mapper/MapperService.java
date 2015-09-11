@@ -21,8 +21,6 @@ package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.hppc.ObjectHashSet;
 import com.google.common.base.Function;
-import com.google.common.base.Predicate;
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterators;
@@ -31,8 +29,12 @@ import org.apache.lucene.analysis.DelegatingAnalyzerWrapper;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.TermsQuery;
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.Version;
@@ -59,7 +61,13 @@ import org.elasticsearch.script.ScriptService;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
@@ -193,19 +201,12 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                 if (includingDefaultMapping) {
                     iterator = mappers.values().iterator();
                 } else {
-                    iterator = Iterators.filter(mappers.values().iterator(), NOT_A_DEFAULT_DOC_MAPPER);
+                    iterator = mappers.values().stream().filter(mapper -> !DEFAULT_MAPPING.equals(mapper.type())).iterator();
                 }
                 return Iterators.unmodifiableIterator(iterator);
             }
         };
     }
-
-    private static final Predicate<DocumentMapper> NOT_A_DEFAULT_DOC_MAPPER = new Predicate<DocumentMapper>() {
-        @Override
-        public boolean apply(DocumentMapper input) {
-            return !DEFAULT_MAPPING.equals(input.type());
-        }
-    };
 
     public AnalysisService analysisService() {
         return this.analysisService;
@@ -262,7 +263,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             if (mapper.type().contains(",")) {
                 throw new InvalidTypeNameException("mapping type name [" + mapper.type() + "] should not include ',' in it");
             }
-            if (Version.indexCreated(indexSettings).onOrAfter(Version.V_2_0_0_beta1) && mapper.type().equals(mapper.parentFieldMapper().type())) {
+            if (mapper.type().equals(mapper.parentFieldMapper().type())) {
                 throw new IllegalArgumentException("The [_parent.type] option can't point to the same type");
             }
             if (typeNameStartsWithIllegalDot(mapper)) {
@@ -417,10 +418,10 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
         if (types == null || types.length == 0) {
             if (hasNested && filterPercolateType) {
-                BooleanQuery bq = new BooleanQuery();
+                BooleanQuery.Builder bq = new BooleanQuery.Builder();
                 bq.add(percolatorType, Occur.MUST_NOT);
                 bq.add(Queries.newNonNestedFilter(), Occur.MUST);
-                return new ConstantScoreQuery(bq);
+                return new ConstantScoreQuery(bq.build());
             } else if (hasNested) {
                 return Queries.newNonNestedFilter();
             } else if (filterPercolateType) {
@@ -435,10 +436,10 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             DocumentMapper docMapper = documentMapper(types[0]);
             Query filter = docMapper != null ? docMapper.typeFilter() : new TermQuery(new Term(TypeFieldMapper.NAME, types[0]));
             if (filterPercolateType) {
-                BooleanQuery bq = new BooleanQuery();
+                BooleanQuery.Builder bq = new BooleanQuery.Builder();
                 bq.add(percolatorType, Occur.MUST_NOT);
                 bq.add(filter, Occur.MUST);
-                return new ConstantScoreQuery(bq);
+                return new ConstantScoreQuery(bq.build());
             } else {
                 return filter;
             }
@@ -465,16 +466,16 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             }
             TermsQuery termsFilter = new TermsQuery(TypeFieldMapper.NAME, typesBytes);
             if (filterPercolateType) {
-                BooleanQuery bq = new BooleanQuery();
+                BooleanQuery.Builder bq = new BooleanQuery.Builder();
                 bq.add(percolatorType, Occur.MUST_NOT);
                 bq.add(termsFilter, Occur.MUST);
-                return new ConstantScoreQuery(bq);
+                return new ConstantScoreQuery(bq.build());
             } else {
                 return termsFilter;
             }
         } else {
             // Current bool filter requires that at least one should clause matches, even with a must clause.
-            BooleanQuery bool = new BooleanQuery();
+            BooleanQuery.Builder bool = new BooleanQuery.Builder();
             for (String type : types) {
                 DocumentMapper docMapper = documentMapper(type);
                 if (docMapper == null) {
@@ -490,7 +491,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                 bool.add(Queries.newNonNestedFilter(), BooleanClause.Occur.MUST);
             }
 
-            return new ConstantScoreQuery(bool);
+            return new ConstantScoreQuery(bool.build());
         }
     }
 
@@ -519,7 +520,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     public Collection<String> simpleMatchToIndexNames(String pattern) {
         if (Regex.isSimpleMatchPattern(pattern) == false) {
             // no wildcards
-            return ImmutableList.of(pattern);
+            return Collections.singletonList(pattern);
         }
         return fieldTypes.simpleMatchToIndexNames(pattern);
     }
@@ -554,7 +555,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         final ImmutableMap<String, MappedFieldType> unmappedFieldMappers = this.unmappedFieldTypes;
         MappedFieldType fieldType = unmappedFieldMappers.get(type);
         if (fieldType == null) {
-            final Mapper.TypeParser.ParserContext parserContext = documentMapperParser().parserContext();
+            final Mapper.TypeParser.ParserContext parserContext = documentMapperParser().parserContext(type);
             Mapper.TypeParser typeParser = parserContext.typeParser(type);
             if (typeParser == null) {
                 throw new IllegalArgumentException("No mapper found for type [" + type + "]");

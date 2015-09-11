@@ -323,8 +323,8 @@ public class BloomFilterPostingsFormat extends PostingsFormat {
 
 
         @Override
-        public PostingsEnum postings(Bits liveDocs, PostingsEnum reuse, int flags) throws IOException {
-            return getDelegate().postings(liveDocs, reuse, flags);
+        public PostingsEnum postings(PostingsEnum reuse, int flags) throws IOException {
+            return getDelegate().postings(reuse, flags);
         }
     }
 
@@ -384,7 +384,7 @@ public class BloomFilterPostingsFormat extends PostingsFormat {
                         bloomFilters.put(fieldInfo, bloomFilter);
                     }
                     // Make sure there's at least one doc for this term:
-                    postings = termsEnum.postings(null, postings, 0);
+                    postings = termsEnum.postings(postings, 0);
                     if (postings.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
                         bloomFilter.put(term);
                     }

@@ -22,8 +22,6 @@ package org.elasticsearch.cluster.routing;
 import com.carrotsearch.hppc.IntSet;
 import com.carrotsearch.hppc.cursors.IntCursor;
 import com.carrotsearch.hppc.cursors.IntObjectCursor;
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Sets;
 import com.google.common.collect.UnmodifiableIterator;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.cluster.AbstractDiffable;
@@ -36,7 +34,9 @@ import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
@@ -73,7 +73,7 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
         this.index = index;
         this.shuffler = new RotationShardShuffler(ThreadLocalRandom.current().nextInt());
         this.shards = shards;
-        ImmutableList.Builder<ShardRouting> allActiveShards = ImmutableList.builder();
+        List<ShardRouting> allActiveShards = new ArrayList<>();
         for (IntObjectCursor<IndexShardRoutingTable> cursor : shards) {
             for (ShardRouting shardRouting : cursor.value) {
                 shardRouting.freeze();
@@ -82,7 +82,7 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
                 }
             }
         }
-        this.allActiveShards = allActiveShards.build();
+        this.allActiveShards = Collections.unmodifiableList(allActiveShards);
     }
 
     /**
@@ -137,7 +137,7 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
 
         // check the number of shards
         if (indexMetaData.numberOfShards() != shards().size()) {
-            Set<Integer> expected = Sets.newHashSet();
+            Set<Integer> expected = new HashSet<>();
             for (int i = 0; i < indexMetaData.numberOfShards(); i++) {
                 expected.add(i);
             }
@@ -176,7 +176,7 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
      * @return number of distinct nodes this index has at least one shard allocated on
      */
     public int numberOfNodesShardsAreAllocatedOn(String... excludedNodes) {
-        Set<String> nodes = Sets.newHashSet();
+        Set<String> nodes = new HashSet<>();
         for (IndexShardRoutingTable shardRoutingTable : this) {
             for (ShardRouting shardRouting : shardRoutingTable) {
                 if (shardRouting.assignedToNode()) {

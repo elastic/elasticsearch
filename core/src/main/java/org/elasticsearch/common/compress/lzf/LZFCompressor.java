@@ -46,8 +46,7 @@ public class LZFCompressor implements Compressor {
 
     public LZFCompressor() {
         this.decoder = ChunkDecoderFactory.safeInstance();
-        Loggers.getLogger(LZFCompressor.class).debug("using encoder [{}] and decoder[{}] ",
-                this.decoder.getClass().getSimpleName());
+        Loggers.getLogger(LZFCompressor.class).debug("using decoder[{}] ", this.decoder.getClass().getSimpleName());
     }
 
     @Override

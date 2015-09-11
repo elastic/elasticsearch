@@ -18,7 +18,6 @@ package org.elasticsearch.common.inject.assistedinject;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Maps;
 import org.elasticsearch.common.inject.ConfigurationException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Injector;
@@ -37,6 +36,7 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -241,7 +241,7 @@ public class FactoryProvider<F> implements Provider<F>, HasDependencies {
                     constructors.size(), factoryType, factoryMethods.length);
         }
 
-        Map<ParameterListKey, AssistedConstructor> paramsToConstructor = Maps.newHashMap();
+        Map<ParameterListKey, AssistedConstructor> paramsToConstructor = new HashMap<>();
 
         for (AssistedConstructor c : constructors) {
             if (paramsToConstructor.containsKey(c.getAssistedParameters())) {
@@ -250,7 +250,7 @@ public class FactoryProvider<F> implements Provider<F>, HasDependencies {
             paramsToConstructor.put(c.getAssistedParameters(), c);
         }
 
-        Map<Method, AssistedConstructor<?>> result = Maps.newHashMap();
+        Map<Method, AssistedConstructor<?>> result = new HashMap<>();
         for (Method method : factoryMethods) {
             if (!method.getReturnType().isAssignableFrom(implementationType.getRawType())) {
                 throw newConfigurationException("Return type of method %s is not assignable from %s",

@@ -16,9 +16,7 @@
 
 package org.elasticsearch.common.inject;
 
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Maps;
 import org.elasticsearch.common.Classes;
 import org.elasticsearch.common.inject.internal.Annotations;
 import org.elasticsearch.common.inject.internal.BindingImpl;
@@ -49,7 +47,9 @@ import java.lang.reflect.Modifier;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -72,7 +72,7 @@ class InjectorImpl implements Injector, Lookups {
     /**
      * Just-in-time binding cache. Guarded by state.lock()
      */
-    Map<Key<?>, BindingImpl<?>> jitBindings = Maps.newHashMap();
+    Map<Key<?>, BindingImpl<?>> jitBindings = new HashMap<>();
 
     Lookups lookups = new DeferredLookups(this);
 
@@ -164,7 +164,7 @@ class InjectorImpl implements Injector, Lookups {
 
     @Override
     public Injector createChildInjector(Module... modules) {
-        return createChildInjector(ImmutableList.copyOf(modules));
+        return createChildInjector(Arrays.asList(modules));
     }
 
     /**
@@ -698,7 +698,7 @@ class InjectorImpl implements Injector, Lookups {
     }
 
     private static class BindingsMultimap {
-        final Map<TypeLiteral<?>, List<Binding<?>>> multimap = Maps.newHashMap();
+        final Map<TypeLiteral<?>, List<Binding<?>>> multimap = new HashMap<>();
 
         <T> void put(TypeLiteral<T> type, Binding<T> binding) {
             List<Binding<?>> bindingsForType = multimap.get(type);
@@ -716,7 +716,7 @@ class InjectorImpl implements Injector, Lookups {
             List<Binding<?>> bindings = multimap.get(type);
             return bindings != null
                     ? Collections.<Binding<T>>unmodifiableList((List) multimap.get(type))
-                    : ImmutableList.<Binding<T>>of();
+                    : Collections.<Binding<T>>emptyList();
         }
     }
 
@@ -900,7 +900,7 @@ class InjectorImpl implements Injector, Lookups {
         state.clearBlacklisted();
         constructors = new ConstructorInjectorStore(this);
         membersInjectorStore = new MembersInjectorStore(this, state.getTypeListenerBindings());
-        jitBindings = Maps.newHashMap();
+        jitBindings = new HashMap<>();
     }
 
     // ES_GUICE: make all registered bindings act as eager singletons

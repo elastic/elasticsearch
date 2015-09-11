@@ -20,7 +20,6 @@
 package org.elasticsearch.action.admin.indices.alias;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-import com.google.common.collect.ImmutableList;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.AliasesRequest;
 import org.elasticsearch.action.CompositeIndicesRequest;
@@ -179,9 +178,9 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             if (expandAliasesWildcards()) {
                 //for DELETE we expand the aliases
                 String[] indexAsArray = {concreteIndex};
-                ImmutableOpenMap<String, ImmutableList<AliasMetaData>> aliasMetaData = metaData.findAliases(aliases, indexAsArray);
+                ImmutableOpenMap<String, List<AliasMetaData>> aliasMetaData = metaData.findAliases(aliases, indexAsArray);
                 List<String> finalAliases = new ArrayList<>();
-                for (ObjectCursor<ImmutableList<AliasMetaData>> curAliases : aliasMetaData.values()) {
+                for (ObjectCursor<List<AliasMetaData>> curAliases : aliasMetaData.values()) {
                     for (AliasMetaData aliasMeta: curAliases.value) {
                         finalAliases.add(aliasMeta.alias());
                     }

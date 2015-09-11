@@ -49,7 +49,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
-public class DoubleNestedSortingTests extends AbstractNumberNestedSortingTests {
+public class DoubleNestedSortingTests extends AbstractNumberNestedSortingTestCase {
 
     @Override
     protected FieldDataType getFieldDataType() {

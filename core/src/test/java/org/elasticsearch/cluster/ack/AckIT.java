@@ -20,8 +20,6 @@
 package org.elasticsearch.cluster.ack;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import com.google.common.base.Predicate;
-import com.google.common.collect.ImmutableList;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
@@ -48,6 +46,7 @@ import org.elasticsearch.search.warmer.IndexWarmersMetaData;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
@@ -100,7 +99,7 @@ public class AckIT extends ESIntegTestCase {
         for (Client client : clients()) {
             GetWarmersResponse getWarmersResponse = client.admin().indices().prepareGetWarmers().setLocal(true).get();
             assertThat(getWarmersResponse.warmers().size(), equalTo(1));
-            ObjectObjectCursor<String, ImmutableList<IndexWarmersMetaData.Entry>> entry = getWarmersResponse.warmers().iterator().next();
+            ObjectObjectCursor<String, List<IndexWarmersMetaData.Entry>> entry = getWarmersResponse.warmers().iterator().next();
             assertThat(entry.key, equalTo("test"));
             assertThat(entry.value.size(), equalTo(1));
             assertThat(entry.value.get(0).name(), equalTo("custom_warmer"));
@@ -120,17 +119,14 @@ public class AckIT extends ESIntegTestCase {
         /* Since we don't wait for the ack here we have to wait until the search request has been executed from the master
          * otherwise the test infra might have already deleted the index and the search request fails on all shards causing
          * the test to fail too. We simply wait until the the warmer has been installed and also clean it up afterwards.*/
-        assertTrue(awaitBusy(new Predicate<Object>() {
-            @Override
-            public boolean apply(Object input) {
-                for (Client client : clients()) {
-                    GetWarmersResponse getWarmersResponse = client.admin().indices().prepareGetWarmers().setLocal(true).get();
-                    if (getWarmersResponse.warmers().size() != 1) {
-                        return false;
-                    }
+        assertTrue(awaitBusy(() -> {
+            for (Client client : clients()) {
+                GetWarmersResponse getWarmersResponse = client.admin().indices().prepareGetWarmers().setLocal(true).get();
+                if (getWarmersResponse.warmers().size() != 1) {
+                    return false;
                 }
-                return true;
             }
+            return true;
         }));
         assertAcked(client().admin().indices().prepareDeleteWarmer().setIndices("test").setNames("custom_warmer"));
     }
@@ -161,17 +157,14 @@ public class AckIT extends ESIntegTestCase {
 
         DeleteWarmerResponse deleteWarmerResponse = client().admin().indices().prepareDeleteWarmer().setIndices("test").setNames("custom_warmer").setTimeout("0s").get();
         assertFalse(deleteWarmerResponse.isAcknowledged());
-        assertTrue(awaitBusy(new Predicate<Object>() { // wait until they are all deleted
-            @Override
-            public boolean apply(Object input) {
-                for (Client client : clients()) {
-                    GetWarmersResponse getWarmersResponse = client.admin().indices().prepareGetWarmers().setLocal(true).get();
-                    if (getWarmersResponse.warmers().size() > 0) {
-                        return false;
-                    }
+        assertTrue(awaitBusy(() -> {
+            for (Client client : clients()) {
+                GetWarmersResponse getWarmersResponse = client.admin().indices().prepareGetWarmers().setLocal(true).get();
+                if (getWarmersResponse.warmers().size() > 0) {
+                    return false;
                 }
-                return true;
             }
+            return true;
         }));
     }
 

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.cluster.routing;
 
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -27,10 +26,10 @@ import org.elasticsearch.common.io.stream.Streamable;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
-import static com.google.common.collect.Maps.newHashMap;
 
 /**
  * Encapsulates the result of a routing table validation and provides access to
@@ -53,7 +52,7 @@ public class RoutingTableValidation implements Streamable {
 
     public List<String> allFailures() {
         if (failures().isEmpty() && indicesFailures().isEmpty()) {
-            return ImmutableList.of();
+            return Collections.emptyList();
         }
         List<String> allFailures = new ArrayList<>(failures());
         for (Map.Entry<String, List<String>> entry : indicesFailures().entrySet()) {
@@ -66,7 +65,7 @@ public class RoutingTableValidation implements Streamable {
 
     public List<String> failures() {
         if (failures == null) {
-            return ImmutableList.of();
+            return Collections.emptyList();
         }
         return failures;
     }
@@ -80,11 +79,11 @@ public class RoutingTableValidation implements Streamable {
 
     public List<String> indexFailures(String index) {
         if (indicesFailures == null) {
-            return ImmutableList.of();
+            return Collections.emptyList();
         }
         List<String> indexFailures = indicesFailures.get(index);
         if (indexFailures == null) {
-            return ImmutableList.of();
+            return Collections.emptyList();
         }
         return indexFailures;
     }
@@ -100,7 +99,7 @@ public class RoutingTableValidation implements Streamable {
     public void addIndexFailure(String index, String failure) {
         valid = false;
         if (indicesFailures == null) {
-            indicesFailures = newHashMap();
+            indicesFailures = new HashMap<>();
         }
         List<String> indexFailures = indicesFailures.get(index);
         if (indexFailures == null) {
@@ -120,7 +119,7 @@ public class RoutingTableValidation implements Streamable {
         valid = in.readBoolean();
         int size = in.readVInt();
         if (size == 0) {
-            failures = ImmutableList.of();
+            failures = Collections.emptyList();
         } else {
             failures = new ArrayList<>(size);
             for (int i = 0; i < size; i++) {
@@ -131,7 +130,7 @@ public class RoutingTableValidation implements Streamable {
         if (size == 0) {
             indicesFailures = ImmutableMap.of();
         } else {
-            indicesFailures = newHashMap();
+            indicesFailures = new HashMap<>();
             for (int i = 0; i < size; i++) {
                 String index = in.readString();
                 int size2 = in.readVInt();

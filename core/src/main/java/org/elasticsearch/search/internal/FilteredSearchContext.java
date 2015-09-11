@@ -19,16 +19,13 @@
 
 package org.elasticsearch.search.internal;
 
-import com.carrotsearch.hppc.ObjectObjectAssociativeContainer;
-
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.util.Counter;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
-import org.elasticsearch.common.*;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
@@ -54,12 +51,10 @@ import org.elasticsearch.search.highlight.SearchContextHighlight;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rescore.RescoreSearchContext;
-import org.elasticsearch.search.scan.ScanContext;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 public abstract class FilteredSearchContext extends SearchContext {
 
@@ -67,7 +62,7 @@ public abstract class FilteredSearchContext extends SearchContext {
 
     public FilteredSearchContext(SearchContext in) {
         //inner_hits in percolator ends up with null inner search context
-        super(in == null ? ParseFieldMatcher.EMPTY : in.parseFieldMatcher());
+        super(in == null ? ParseFieldMatcher.EMPTY : in.parseFieldMatcher(), in);
         this.in = in;
     }
 
@@ -502,11 +497,6 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public ScanContext scanContext() {
-        return in.scanContext();
-    }
-
-    @Override
     public MappedFieldType smartNameFieldType(String name) {
         return in.smartNameFieldType(name);
     }
@@ -524,81 +514,6 @@ public abstract class FilteredSearchContext extends SearchContext {
     @Override
     public Counter timeEstimateCounter() {
         return in.timeEstimateCounter();
-    }
-
-    @Override
-    public <V> V putInContext(Object key, Object value) {
-        return in.putInContext(key, value);
-    }
-
-    @Override
-    public void putAllInContext(ObjectObjectAssociativeContainer<Object, Object> map) {
-        in.putAllInContext(map);
-    }
-
-    @Override
-    public <V> V getFromContext(Object key) {
-        return in.getFromContext(key);
-    }
-
-    @Override
-    public <V> V getFromContext(Object key, V defaultValue) {
-        return in.getFromContext(key, defaultValue);
-    }
-
-    @Override
-    public boolean hasInContext(Object key) {
-        return in.hasInContext(key);
-    }
-
-    @Override
-    public int contextSize() {
-        return in.contextSize();
-    }
-
-    @Override
-    public boolean isContextEmpty() {
-        return in.isContextEmpty();
-    }
-
-    @Override
-    public ImmutableOpenMap<Object, Object> getContext() {
-        return in.getContext();
-    }
-
-    @Override
-    public void copyContextFrom(HasContext other) {
-        in.copyContextFrom(other);
-    }
-
-    @Override
-    public <V> void putHeader(String key, V value) {
-        in.putHeader(key, value);
-    }
-
-    @Override
-    public <V> V getHeader(String key) {
-        return in.getHeader(key);
-    }
-
-    @Override
-    public boolean hasHeader(String key) {
-        return in.hasHeader(key);
-    }
-
-    @Override
-    public Set<String> getHeaders() {
-        return in.getHeaders();
-    }
-
-    @Override
-    public void copyHeadersFrom(HasHeaders from) {
-        in.copyHeadersFrom(from);
-    }
-
-    @Override
-    public void copyContextAndHeadersFrom(HasContextAndHeaders other) {
-        in.copyContextAndHeadersFrom(other);
     }
 
     @Override

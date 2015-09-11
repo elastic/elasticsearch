@@ -20,7 +20,6 @@
 package org.elasticsearch.tribe;
 
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Maps;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -52,6 +51,7 @@ import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.rest.RestStatus;
 
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -125,7 +125,7 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
     public TribeService(Settings settings, ClusterService clusterService, DiscoveryService discoveryService) {
         super(settings);
         this.clusterService = clusterService;
-        Map<String, Settings> nodesSettings = Maps.newHashMap(settings.getGroups("tribe", true));
+        Map<String, Settings> nodesSettings = new HashMap<>(settings.getGroups("tribe", true));
         nodesSettings.remove("blocks"); // remove prefix settings that don't indicate a client
         nodesSettings.remove("on_conflict"); // remove prefix settings that don't indicate a client
         for (Map.Entry<String, Settings> entry : nodesSettings.entrySet()) {
@@ -137,7 +137,7 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
             if (sb.get("http.enabled") == null) {
                 sb.put("http.enabled", false);
             }
-            nodes.add(NodeBuilder.nodeBuilder().settings(sb).client(true).loadConfigSettings(false).build());
+            nodes.add(NodeBuilder.nodeBuilder().settings(sb).client(true).build());
         }
 
         String[] blockIndicesWrite = Strings.EMPTY_ARRAY;

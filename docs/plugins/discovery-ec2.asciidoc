@@ -1,0 +1,215 @@
+[[discovery-ec2]]
+=== EC2 Discovery Plugin
+
+The EC2 discovery plugin uses the https://github.com/aws/aws-sdk-java[AWS API] for unicast discovery.
+
+[[discovery-ec2-install]]
+[float]
+==== Installation
+
+This plugin can be installed using the plugin manager:
+
+[source,sh]
+----------------------------------------------------------------
+sudo bin/plugin install discovery-ec2
+----------------------------------------------------------------
+
+The plugin must be installed on every node in the cluster, and each node must
+be restarted after installation.
+
+[[discovery-ec2-remove]]
+[float]
+==== Removal
+
+The plugin can be removed with the following command:
+
+[source,sh]
+----------------------------------------------------------------
+sudo bin/plugin remove discovery-ec2
+----------------------------------------------------------------
+
+The node must be stopped before removing the plugin.
+
+[[discovery-ec2-usage]]
+==== Getting started with AWS
+
+The plugin will default to using
+http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/iam-roles-for-amazon-ec2.html[IAM Role]
+credentials for authentication. These can be overridden by, in increasing
+order of precedence, system properties `aws.accessKeyId` and `aws.secretKey`,
+environment variables `AWS_ACCESS_KEY_ID` and `AWS_SECRET_KEY`, or the
+elasticsearch config using `cloud.aws.access_key` and `cloud.aws.secret_key`:
+
+[source,yaml]
+----
+cloud:
+    aws:
+        access_key: AKVAIQBF2RECL7FJWGJQ
+        secret_key: vExyMThREXeRMm/b/LRzEB8jWwvzQeXgjqMX+6br
+----
+
+[[discovery-ec2-usage-security]]
+===== Transport security
+
+By default this plugin uses HTTPS for all API calls to AWS endpoints. If you wish to configure HTTP you can set
+`cloud.aws.protocol` in the elasticsearch config. You can optionally override this setting per individual service
+via: `cloud.aws.ec2.protocol` or `cloud.aws.s3.protocol`.
+
+[source,yaml]
+----
+cloud:
+    aws:
+        protocol: https
+        ec2:
+            protocol: https
+----
+
+In addition, a proxy can be configured with the `proxy_host` and `proxy_port` settings (note that protocol can be
+`http` or `https`):
+
+[source,yaml]
+----
+cloud:
+    aws:
+        protocol: https
+        proxy_host: proxy1.company.com
+        proxy_port: 8083
+----
+
+You can also set different proxies for `ec2` and `s3`:
+
+[source,yaml]
+----
+cloud:
+    aws:
+        s3:
+            proxy_host: proxy1.company.com
+            proxy_port: 8083
+        ec2:
+            proxy_host: proxy2.company.com
+            proxy_port: 8083
+----
+
+[[discovery-ec2-usage-region]]
+===== Region
+
+The `cloud.aws.region` can be set to a region and will automatically use the relevant settings for both `ec2` and `s3`.
+The available values are:
+
+* `us-east` (`us-east-1`)
+* `us-west` (`us-west-1`)
+* `us-west-1`
+* `us-west-2`
+* `ap-southeast` (`ap-southeast-1`)
+* `ap-southeast-1`
+* `ap-southeast-2`
+* `ap-northeast` (`ap-northeast-1`)
+* `eu-west` (`eu-west-1`)
+* `eu-central` (`eu-central-1`)
+* `sa-east` (`sa-east-1`)
+* `cn-north` (`cn-north-1`)
+
+[[discovery-ec2-usage-signer]]
+===== EC2 Signer API
+
+If you are using a compatible EC2 service, they might be using an older API to sign the requests.
+You can set your compatible signer API using `cloud.aws.signer` (or `cloud.aws.ec2.signer`)
+with the right signer to use.
+
+[[discovery-ec2-discovery]]
+==== EC2 Discovery
+
+ec2 discovery allows to use the ec2 APIs to perform automatic discovery (similar to multicast in non hostile multicast
+environments). Here is a simple sample configuration:
+
+[source,yaml]
+----
+discovery:
+    type: ec2
+----
+
+The ec2 discovery is using the same credentials as the rest of the AWS services provided by this plugin (`repositories`).
+See <<discovery-ec2-usage>> for details.
+
+The following are a list of settings (prefixed with `discovery.ec2`) that can further control the discovery:
+
+`groups`::
+
+    Either a comma separated list or array based list of (security) groups.
+    Only instances with the provided security groups will be used in the
+    cluster discovery. (NOTE: You could provide either group NAME or group
+    ID.)
+
+`host_type`::
+
+    The type of host type to use to communicate with other instances. Can be
+    one of `private_ip`, `public_ip`, `private_dns`, `public_dns`. Defaults to
+    `private_ip`.
+
+`availability_zones`::
+
+    Either a comma separated list or array based list of availability zones.
+    Only instances within the provided availability zones will be used in the
+    cluster discovery.
+
+`any_group`::
+
+    If set to `false`, will require all security groups to be present for the
+    instance to be used for the discovery. Defaults to `true`.
+
+`ping_timeout`::
+
+    How long to wait for existing EC2 nodes to reply during discovery.
+    Defaults to `3s`. If no unit like `ms`, `s` or `m` is specified,
+    milliseconds are used.
+
+[[discovery-ec2-permissions]]
+===== Recommended EC2 Permissions
+
+EC2 discovery requires making a call to the EC2 service. You'll want to setup
+an IAM policy to allow this. You can create a custom policy via the IAM
+Management Console. It should look similar to this.
+
+[source,js]
+----
+{
+  "Statement": [
+    {
+      "Action": [
+        "ec2:DescribeInstances"
+      ],
+      "Effect": "Allow",
+      "Resource": [
+        "*"
+      ]
+    }
+  ],
+  "Version": "2012-10-17"
+}
+----
+
+[[discovery-ec2-filtering]]
+===== Filtering by Tags
+
+The ec2 discovery can also filter machines to include in the cluster based on tags (and not just groups). The settings
+to use include the `discovery.ec2.tag.` prefix. For example, setting `discovery.ec2.tag.stage` to `dev` will only
+filter instances with a tag key set to `stage`, and a value of `dev`. Several tags set will require all of those tags
+to be set for the instance to be included.
+
+One practical use for tag filtering is when an ec2 cluster contains many nodes that are not running elasticsearch. In
+this case (particularly with high `ping_timeout` values) there is a risk that a new node's discovery phase will end
+before it has found the cluster (which will result in it declaring itself master of a new cluster with the same name
+- highly undesirable). Tagging elasticsearch ec2 nodes and then filtering by that tag will resolve this issue.
+
+[[discovery-ec2-attributes]]
+===== Automatic Node Attributes
+
+Though not dependent on actually using `ec2` as discovery (but still requires the cloud aws plugin installed), the
+plugin can automatically add node attributes relating to ec2 (for example, availability zone, that can be used with
+the awareness allocation feature). In order to enable it, set `cloud.node.auto_attributes` to `true` in the settings.
+
+[[discovery-ec2-endpoint]]
+===== Using other EC2 endpoint
+
+If you are using any EC2 api compatible service, you can set the endpoint you want to use by setting
+`cloud.aws.ec2.endpoint` to your URL provider.

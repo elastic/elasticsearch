@@ -146,13 +146,13 @@ public class ThrowingLeafReaderWrapper extends FilterLeafReader {
         }
 
         @Override
-        public PostingsEnum postings(Bits liveDocs, PostingsEnum reuse, int flags) throws IOException {
+        public PostingsEnum postings(PostingsEnum reuse, int flags) throws IOException {
             if ((flags & PostingsEnum.POSITIONS) != 0) {
                 thrower.maybeThrow(Flags.DocsAndPositionsEnum);
             } else {
                 thrower.maybeThrow(Flags.DocsEnum);
             }
-            return super.postings(liveDocs, reuse, flags);
+            return super.postings(reuse, flags);
         }
     }
 

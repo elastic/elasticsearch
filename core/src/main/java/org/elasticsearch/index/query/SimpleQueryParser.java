@@ -56,7 +56,8 @@ public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.Simp
 
     @Override
     public Query newDefaultQuery(String text) {
-        BooleanQuery bq = new BooleanQuery(true);
+        BooleanQuery.Builder bq = new BooleanQuery.Builder();
+        bq.setDisableCoord(true);
         for (Map.Entry<String,Float> entry : weights.entrySet()) {
             try {
                 Query q = createBooleanQuery(entry.getKey(), text, super.getDefaultOperator());
@@ -68,7 +69,7 @@ public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.Simp
                 rethrowUnlessLenient(e);
             }
         }
-        return super.simplify(bq);
+        return super.simplify(bq.build());
     }
 
     /**
@@ -80,24 +81,24 @@ public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.Simp
         if (settings.lowercaseExpandedTerms()) {
             text = text.toLowerCase(settings.locale());
         }
-        BooleanQuery bq = new BooleanQuery(true);
+        BooleanQuery.Builder bq = new BooleanQuery.Builder();
+        bq.setDisableCoord(true);
         for (Map.Entry<String,Float> entry : weights.entrySet()) {
             try {
                 Query q = new FuzzyQuery(new Term(entry.getKey(), text), fuzziness);
-                if (q != null) {
-                    q.setBoost(entry.getValue());
-                    bq.add(q, BooleanClause.Occur.SHOULD);
-                }
+                q.setBoost(entry.getValue());
+                bq.add(q, BooleanClause.Occur.SHOULD);
             } catch (RuntimeException e) {
                 rethrowUnlessLenient(e);
             }
         }
-        return super.simplify(bq);
+        return super.simplify(bq.build());
     }
 
     @Override
     public Query newPhraseQuery(String text, int slop) {
-        BooleanQuery bq = new BooleanQuery(true);
+        BooleanQuery.Builder bq = new BooleanQuery.Builder();
+        bq.setDisableCoord(true);
         for (Map.Entry<String,Float> entry : weights.entrySet()) {
             try {
                 Query q = createPhraseQuery(entry.getKey(), text, slop);
@@ -109,7 +110,7 @@ public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.Simp
                 rethrowUnlessLenient(e);
             }
         }
-        return super.simplify(bq);
+        return super.simplify(bq.build());
     }
 
     /**
@@ -121,7 +122,8 @@ public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.Simp
         if (settings.lowercaseExpandedTerms()) {
             text = text.toLowerCase(settings.locale());
         }
-        BooleanQuery bq = new BooleanQuery(true);
+        BooleanQuery.Builder bq = new BooleanQuery.Builder();
+        bq.setDisableCoord(true);
         for (Map.Entry<String,Float> entry : weights.entrySet()) {
             try {
                 if (settings.analyzeWildcard()) {
@@ -137,7 +139,7 @@ public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.Simp
                 return rethrowUnlessLenient(e);
             }
         }
-        return super.simplify(bq);
+        return super.simplify(bq.build());
     }
 
     /**
@@ -171,31 +173,28 @@ public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.Simp
             // rewind buffer
             buffer.reset();
 
-            BytesRef bytes = termAtt == null ? null : termAtt.getBytesRef();
             if (numTokens == 0) {
                 return null;
             } else if (numTokens == 1) {
                 try {
                     boolean hasNext = buffer.incrementToken();
                     assert hasNext == true;
-                    termAtt.fillBytesRef();
                 } catch (IOException e) {
                     // safe to ignore, because we know the number of tokens
                 }
-                return new PrefixQuery(new Term(field, BytesRef.deepCopyOf(bytes)));
+                return new PrefixQuery(new Term(field, BytesRef.deepCopyOf(termAtt.getBytesRef())));
             } else {
-                BooleanQuery bq = new BooleanQuery();
+                BooleanQuery.Builder bq = new BooleanQuery.Builder();
                 for (int i = 0; i < numTokens; i++) {
                     try {
                         boolean hasNext = buffer.incrementToken();
                         assert hasNext == true;
-                        termAtt.fillBytesRef();
                     } catch (IOException e) {
                         // safe to ignore, because we know the number of tokens
                     }
-                    bq.add(new BooleanClause(new PrefixQuery(new Term(field, BytesRef.deepCopyOf(bytes))), BooleanClause.Occur.SHOULD));
+                    bq.add(new BooleanClause(new PrefixQuery(new Term(field, BytesRef.deepCopyOf(termAtt.getBytesRef()))), BooleanClause.Occur.SHOULD));
                 }
-                return bq;
+                return bq.build();
             }
         } catch (IOException e) {
             // Bail on any exceptions, going with a regular prefix query

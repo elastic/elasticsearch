@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.shard;
 
-import com.google.common.collect.ImmutableList;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -28,6 +27,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
@@ -37,7 +37,7 @@ import java.util.List;
  */
 public class CommitPoints implements Iterable<CommitPoint> {
 
-    private final ImmutableList<CommitPoint> commitPoints;
+    private final List<CommitPoint> commitPoints;
 
     public CommitPoints(List<CommitPoint> commitPoints) {
         CollectionUtil.introSort(commitPoints, new Comparator<CommitPoint>() {
@@ -46,7 +46,7 @@ public class CommitPoints implements Iterable<CommitPoint> {
                 return (o2.version() < o1.version() ? -1 : (o2.version() == o1.version() ? 0 : 1));
             }
         });
-        this.commitPoints = ImmutableList.copyOf(commitPoints);
+        this.commitPoints = Collections.unmodifiableList(new ArrayList<>(commitPoints));
     }
 
     public List<CommitPoint> commits() {

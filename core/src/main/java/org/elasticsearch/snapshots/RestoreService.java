@@ -22,7 +22,6 @@ import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.hppc.IntSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.Version;
@@ -80,6 +79,9 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -88,9 +90,16 @@ import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
 
-import static com.google.common.collect.Maps.newHashMap;
-import static com.google.common.collect.Sets.newHashSet;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_CREATION_DATE;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_INDEX_UUID;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_LEGACY_ROUTING_HASH_FUNCTION;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_LEGACY_ROUTING_USE_TYPE;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_VERSION_CREATED;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_VERSION_MINIMUM_COMPATIBLE;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_VERSION_UPGRADED;
 import static org.elasticsearch.cluster.metadata.MetaDataIndexStateService.INDEX_CLOSED_BLOCK;
 
 /**
@@ -220,7 +229,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
                     ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
                     RoutingTable.Builder rtBuilder = RoutingTable.builder(currentState.routingTable());
                     final ImmutableMap<ShardId, RestoreInProgress.ShardRestoreStatus> shards;
-                    Set<String> aliases = newHashSet();
+                    Set<String> aliases = new HashSet<>();
                     if (!renamedIndices.isEmpty()) {
                         // We have some indices to restore
                         ImmutableMap.Builder<ShardId, RestoreInProgress.ShardRestoreStatus> shardsBuilder = ImmutableMap.builder();
@@ -295,7 +304,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
                         }
 
                         shards = shardsBuilder.build();
-                        RestoreInProgress.Entry restoreEntry = new RestoreInProgress.Entry(snapshotId, RestoreInProgress.State.INIT, ImmutableList.copyOf(renamedIndices.keySet()), shards);
+                        RestoreInProgress.Entry restoreEntry = new RestoreInProgress.Entry(snapshotId, RestoreInProgress.State.INIT, Collections.unmodifiableList(new ArrayList<>(renamedIndices.keySet())), shards);
                         builder.putCustom(RestoreInProgress.TYPE, new RestoreInProgress(restoreEntry));
                     } else {
                         shards = ImmutableMap.of();
@@ -308,7 +317,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
 
                     if (completed(shards)) {
                         // We don't have any indices to restore - we are done
-                        restoreInfo = new RestoreInfo(request.name(), ImmutableList.copyOf(renamedIndices.keySet()),
+                        restoreInfo = new RestoreInfo(request.name(), Collections.unmodifiableList(new ArrayList<>(renamedIndices.keySet())),
                                 shards.size(), shards.size() - failedShards(shards));
                     }
 
@@ -373,7 +382,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
                     }
                     Settings normalizedChangeSettings = Settings.settingsBuilder().put(changeSettings).normalizePrefix(IndexMetaData.INDEX_SETTING_PREFIX).build();
                     IndexMetaData.Builder builder = IndexMetaData.builder(indexMetaData);
-                    Map<String, String> settingsMap = newHashMap(indexMetaData.settings().getAsMap());
+                    Map<String, String> settingsMap = new HashMap<>(indexMetaData.settings().getAsMap());
                     List<String> simpleMatchPatterns = new ArrayList<>();
                     for (String ignoredSetting : ignoreSettings) {
                         if (!Regex.isSimpleMatchPattern(ignoredSetting)) {
@@ -550,7 +559,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
                             if (entry.snapshotId().equals(updateSnapshotState.snapshotId())) {
                                 logger.trace("[{}] Updating shard [{}] with status [{}]", updateSnapshotState.snapshotId(), updateSnapshotState.shardId(), updateSnapshotState.status().state());
                                 if (shards == null) {
-                                    shards = newHashMap(entry.shards());
+                                    shards = new HashMap<>(entry.shards());
                                 }
                                 shards.put(updateSnapshotState.shardId(), updateSnapshotState.status());
                                 changedCount++;
@@ -563,7 +572,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
                             } else {
                                 logger.info("restore [{}] is done", entry.snapshotId());
                                 if (batchedRestoreInfo == null) {
-                                    batchedRestoreInfo = newHashMap();
+                                    batchedRestoreInfo = new HashMap<>();
                                 }
                                 assert !batchedRestoreInfo.containsKey(entry.snapshotId());
                                 batchedRestoreInfo.put(entry.snapshotId(),
@@ -684,7 +693,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
     }
 
     private Map<String, String> renamedIndices(RestoreRequest request, List<String> filteredIndices) {
-        Map<String, String> renamedIndices = newHashMap();
+        Map<String, String> renamedIndices = new HashMap<>();
         for (String index : filteredIndices) {
             String renamedIndex = index;
             if (request.renameReplacement() != null && request.renamePattern() != null) {

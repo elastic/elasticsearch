@@ -19,9 +19,6 @@
 
 package org.elasticsearch.index.get;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Sets;
-
 import org.apache.lucene.index.Term;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
@@ -30,6 +27,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -38,8 +36,16 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fieldvisitor.CustomFieldsVisitor;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
-import org.elasticsearch.index.mapper.*;
-import org.elasticsearch.index.mapper.internal.*;
+import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
+import org.elasticsearch.index.mapper.internal.RoutingFieldMapper;
+import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
+import org.elasticsearch.index.mapper.internal.TTLFieldMapper;
+import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
+import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.translog.Translog;
@@ -49,14 +55,13 @@ import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-
-import static com.google.common.collect.Maps.newHashMapWithExpectedSize;
 
 /**
  */
@@ -253,12 +258,12 @@ public final class ShardGetService extends AbstractIndexShardComponent {
                     }
                     if (value != null) {
                         if (fields == null) {
-                            fields = newHashMapWithExpectedSize(2);
+                            fields = new HashMap<>(2);
                         }
                         if (value instanceof List) {
                             fields.put(field, new GetField(field, (List) value));
                         } else {
-                            fields.put(field, new GetField(field, ImmutableList.of(value)));
+                            fields.put(field, new GetField(field, Collections.singletonList(value)));
                         }
                     }
                 }
@@ -378,12 +383,12 @@ public final class ShardGetService extends AbstractIndexShardComponent {
 
                 if (value != null) {
                     if (fields == null) {
-                        fields = newHashMapWithExpectedSize(2);
+                        fields = new HashMap<>(2);
                     }
                     if (value instanceof List) {
                         fields.put(field, new GetField(field, (List) value));
                     } else {
-                        fields.put(field, new GetField(field, ImmutableList.of(value)));
+                        fields.put(field, new GetField(field, Collections.singletonList(value)));
                     }
                 }
             }

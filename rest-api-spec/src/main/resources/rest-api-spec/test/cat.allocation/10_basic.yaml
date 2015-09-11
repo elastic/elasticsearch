@@ -3,7 +3,6 @@
   - do:
       cat.allocation:
         help: true
-        v: false
 
   - match:
       $body: |
@@ -21,8 +20,7 @@
 "Empty cluster":
 
   - do:
-      cat.allocation:
-        v: false
+      cat.allocation: {}
 
   - match:
       $body: |
@@ -51,8 +49,7 @@
             wait_for_status: yellow
 
   - do:
-        cat.allocation:
-          v: false
+        cat.allocation: {}
 
   - match:
       $body: |
@@ -82,7 +79,6 @@
   - do:
         cat.allocation:
             node_id: _master
-            v: false
 
   - match:
       $body: |
@@ -102,7 +98,6 @@
   - do:
         cat.allocation:
             node_id: non_existent
-            v: false
 
   - match:
       $body: |
@@ -116,7 +111,6 @@
    - do:
          cat.allocation:
            node_id: "*"
-           v: false
 
    - match:
        $body: |
@@ -215,7 +209,6 @@
   - do:
       cat.allocation:
         bytes: g
-        v: false
 
   - match:
       $body: |
@@ -231,4 +224,3 @@
                 \n
               )+
             $/
-

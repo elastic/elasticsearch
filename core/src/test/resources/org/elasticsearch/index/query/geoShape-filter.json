@@ -1,0 +1,14 @@
+{
+            "geo_shape" : {
+                "country" : {
+                    "shape" : {
+                        "type" : "Envelope",
+                        "coordinates" : [
+                            [-45, 45],
+                            [45, -45]
+                        ]
+                    },
+                    "relation" : "intersects"
+                }
+            }
+}

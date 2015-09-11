@@ -18,7 +18,7 @@ governing permissions and limitations under the License. -->
     <parent>
         <groupId>org.elasticsearch.plugin</groupId>
         <artifactId>plugins</artifactId>
-        <version>2.1.0-SNAPSHOT</version>
+        <version>3.0.0-SNAPSHOT</version>
     </parent>
 
     <artifactId>cloud-azure</artifactId>
@@ -30,6 +30,8 @@ governing permissions and limitations under the License. -->
         <tests.jvms>1</tests.jvms>
         <tests.rest.suite>cloud_azure</tests.rest.suite>
         <tests.rest.load_packaged>false</tests.rest.load_packaged>
+        <!-- need -path because there is no resources dir... -->
+        <xlint.options>-Xlint:-path,-serial,-static,-unchecked</xlint.options>
     </properties>
 
     <dependencies>

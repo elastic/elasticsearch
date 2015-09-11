@@ -60,7 +60,7 @@ public class BasicAnalysisBackwardCompatibilityIT extends ESBackcompatTestCase {
             fields[i] = "type=string,analyzer=" + analyzer;
         }
         assertAcked(prepareCreate("test")
-                .addMapping("type", fields)
+                .addMapping("type", (Object[])fields)
                 .setSettings(indexSettings()));
         ensureYellow();
         InputOutput[] inout = new InputOutput[numFields];
@@ -111,6 +111,9 @@ public class BasicAnalysisBackwardCompatibilityIT extends ESBackcompatTestCase {
             PreBuiltAnalyzers preBuiltAnalyzers = RandomPicks.randomFrom(getRandom(), PreBuiltAnalyzers.values());
             if (preBuiltAnalyzers == PreBuiltAnalyzers.SORANI && compatibilityVersion().before(Version.V_1_3_0)) {
                 continue; // SORANI was added in 1.3.0
+            }
+            if (preBuiltAnalyzers == PreBuiltAnalyzers.LITHUANIAN && compatibilityVersion().before(Version.V_2_1_0)) {
+                continue; // LITHUANIAN was added in 2.1.0
             }
             return preBuiltAnalyzers.name().toLowerCase(Locale.ROOT);
         }

@@ -28,7 +28,7 @@
         "v": {
           "type": "boolean",
           "description": "Verbose mode. Display column headers",
-          "default": true
+          "default": false
         },
         "full_id": {
           "type": "boolean",

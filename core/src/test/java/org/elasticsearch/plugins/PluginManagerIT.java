@@ -88,18 +88,18 @@ import static org.jboss.netty.handler.codec.http.HttpVersion.HTTP_1_1;
 // if its in your classpath, then do not use plugins!!!!!!
 public class PluginManagerIT extends ESIntegTestCase {
 
-    private Tuple<Settings, Environment> initialSettings;
+    private Environment environment;
     private CaptureOutputTerminal terminal = new CaptureOutputTerminal();
 
     @Before
     public void setup() throws Exception {
-        initialSettings = buildInitialSettings();
-        System.setProperty("es.default.path.home", initialSettings.v1().get("path.home"));
-        Path binDir = initialSettings.v2().binFile();
+        environment = buildInitialSettings();
+        System.setProperty("es.default.path.home", environment.settings().get("path.home"));
+        Path binDir = environment.binFile();
         if (!Files.exists(binDir)) {
             Files.createDirectories(binDir);
         }
-        Path configDir = initialSettings.v2().configFile();
+        Path configDir = environment.configFile();
         if (!Files.exists(configDir)) {
             Files.createDirectories(configDir);
         }
@@ -206,11 +206,10 @@ public class PluginManagerIT extends ESIntegTestCase {
             "jvm", "true",
             "classname", "FakePlugin");
 
-        Environment env = initialSettings.v2();
-        Path binDir = env.binFile();
+        Path binDir = environment.binFile();
         Path pluginBinDir = binDir.resolve(pluginName);
 
-        Path pluginConfigDir = env.configFile().resolve(pluginName);
+        Path pluginConfigDir = environment.configFile().resolve(pluginName);
         assertStatusOk("install " + pluginUrl + " --verbose");
 
         terminal.getTerminalOutput().clear();
@@ -252,8 +251,7 @@ public class PluginManagerIT extends ESIntegTestCase {
             "jvm", "true",
             "classname", "FakePlugin");
 
-        Environment env = initialSettings.v2();
-        Path pluginConfigDir = env.configFile().resolve(pluginName);
+        Path pluginConfigDir = environment.configFile().resolve(pluginName);
 
         assertStatusOk(String.format(Locale.ROOT, "install %s --verbose", pluginUrl));
 
@@ -355,8 +353,7 @@ public class PluginManagerIT extends ESIntegTestCase {
             "jvm", "true",
             "classname", "FakePlugin");
 
-        Environment env = initialSettings.v2();
-        Path binDir = env.binFile();
+        Path binDir = environment.binFile();
         Path pluginBinDir = binDir.resolve(pluginName);
 
         assertStatusOk(String.format(Locale.ROOT, "install %s --verbose", pluginUrl));
@@ -372,7 +369,7 @@ public class PluginManagerIT extends ESIntegTestCase {
 
     @Test
     public void testListInstalledEmptyWithExistingPluginDirectory() throws IOException {
-        Files.createDirectory(initialSettings.v2().pluginsFile());
+        Files.createDirectory(environment.pluginsFile());
         assertStatusOk("list");
         assertThat(terminal.getTerminalOutput(), hasItem(containsString("No plugin detected")));
     }
@@ -407,7 +404,7 @@ public class PluginManagerIT extends ESIntegTestCase {
         assertStatusOk(String.format(Locale.ROOT, "install %s --verbose", pluginUrl));
         assertThatPluginIsListed(pluginName);
         // We want to check that Plugin Manager moves content to _site
-        assertFileExists(initialSettings.v2().pluginsFile().resolve(pluginName).resolve("_site"));
+        assertFileExists(environment.pluginsFile().resolve(pluginName).resolve("_site"));
     }
 
     @Test
@@ -423,7 +420,7 @@ public class PluginManagerIT extends ESIntegTestCase {
         assertStatus(String.format(Locale.ROOT, "install %s --verbose", pluginUrl),
                 ExitStatus.IO_ERROR);
         assertThatPluginIsNotListed(pluginName);
-        assertFileNotExists(initialSettings.v2().pluginsFile().resolve(pluginName).resolve("_site"));
+        assertFileNotExists(environment.pluginsFile().resolve(pluginName).resolve("_site"));
     }
 
     private void singlePluginInstallAndRemove(String pluginDescriptor, String pluginName, String pluginCoordinates) throws IOException {
@@ -555,7 +552,6 @@ public class PluginManagerIT extends ESIntegTestCase {
         PluginManager.checkForOfficialPlugins("analysis-phonetic");
         PluginManager.checkForOfficialPlugins("analysis-smartcn");
         PluginManager.checkForOfficialPlugins("analysis-stempel");
-        PluginManager.checkForOfficialPlugins("cloud-aws");
         PluginManager.checkForOfficialPlugins("cloud-azure");
         PluginManager.checkForOfficialPlugins("cloud-gce");
         PluginManager.checkForOfficialPlugins("delete-by-query");
@@ -564,6 +560,8 @@ public class PluginManagerIT extends ESIntegTestCase {
         PluginManager.checkForOfficialPlugins("mapper-murmur3");
         PluginManager.checkForOfficialPlugins("mapper-size");
         PluginManager.checkForOfficialPlugins("discovery-multicast");
+        PluginManager.checkForOfficialPlugins("discovery-ec2");
+        PluginManager.checkForOfficialPlugins("repository-s3");
 
         try {
             PluginManager.checkForOfficialPlugins("elasticsearch-mapper-attachment");
@@ -647,11 +645,11 @@ public class PluginManagerIT extends ESIntegTestCase {
 
 
 
-    private Tuple<Settings, Environment> buildInitialSettings() throws IOException {
+    private Environment buildInitialSettings() throws IOException {
         Settings settings = settingsBuilder()
                 .put("http.enabled", true)
                 .put("path.home", createTempDir()).build();
-        return InternalSettingsPreparer.prepareSettings(settings, false);
+        return InternalSettingsPreparer.prepareEnvironment(settings, null);
     }
 
     private void assertStatusOk(String command) {

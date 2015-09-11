@@ -1,0 +1,108 @@
+[[search-aggregations-pipeline-stats-bucket-aggregation]]
+=== Stats Bucket Aggregation
+
+coming[2.1.0]
+
+experimental[]
+
+A sibling pipeline aggregation which calculates a variety of stats across all bucket of a specified metric in a sibling aggregation.
+The specified metric must be numeric and the sibling aggregation must be a multi-bucket aggregation.
+
+==== Syntax
+
+A `stats_bucket` aggregation looks like this in isolation:
+
+[source,js]
+--------------------------------------------------
+{
+    "stats_bucket": {
+        "buckets_path": "the_sum"
+    }
+}
+--------------------------------------------------
+
+.`stats_bucket` Parameters
+|===
+|Parameter Name |Description |Required |Default Value
+|`buckets_path` |The path to the buckets we wish to calculate stats for (see <<buckets-path-syntax>> for more
+ details) |Required |
+|`gap_policy` |The policy to apply when gaps are found in the data (see <<gap-policy>> for more
+ details)|Optional | `skip`
+|`format` |format to apply to the output value of this aggregation |Optional | `null`
+|===
+
+The following snippet calculates the sum of all the total monthly `sales` buckets:
+
+[source,js]
+--------------------------------------------------
+{
+    "aggs" : {
+        "sales_per_month" : {
+            "date_histogram" : {
+                "field" : "date",
+                "interval" : "month"
+            },
+            "aggs": {
+                "sales": {
+                    "sum": {
+                        "field": "price"
+                    }
+                }
+            }
+        },
+        "stats_monthly_sales": {
+            "stats_bucket": {
+                "buckets_paths": "sales_per_month>sales" <1>
+            }
+        }
+    }
+}
+--------------------------------------------------
+<1> `bucket_paths` instructs this `stats_bucket` aggregation that we want the calculate stats for the `sales` aggregation in the
+`sales_per_month` date histogram.
+
+And the following may be the response:
+
+[source,js]
+--------------------------------------------------
+{
+   "aggregations": {
+      "sales_per_month": {
+         "buckets": [
+            {
+               "key_as_string": "2015/01/01 00:00:00",
+               "key": 1420070400000,
+               "doc_count": 3,
+               "sales": {
+                  "value": 550
+               }
+            },
+            {
+               "key_as_string": "2015/02/01 00:00:00",
+               "key": 1422748800000,
+               "doc_count": 2,
+               "sales": {
+                  "value": 60
+               }
+            },
+            {
+               "key_as_string": "2015/03/01 00:00:00",
+               "key": 1425168000000,
+               "doc_count": 2,
+               "sales": {
+                  "value": 375
+               }
+            }
+         ]
+      },
+      "stats_monthly_sales": {
+         "count": 3,
+         "min": 60,
+         "max": 550,
+         "avg": 328.333333333,
+         "sum": 985
+      }
+   }
+}
+--------------------------------------------------
+

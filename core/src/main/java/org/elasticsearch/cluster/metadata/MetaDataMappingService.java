@@ -20,9 +20,6 @@
 package org.elasticsearch.cluster.metadata;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-import com.google.common.collect.Maps;
-import com.google.common.collect.Sets;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingClusterStateUpdateRequest;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
@@ -49,11 +46,11 @@ import org.elasticsearch.percolator.PercolatorService;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-
-import static com.google.common.collect.Maps.newHashMap;
 /**
  * Service responsible for submitting mapping changes
  */
@@ -141,7 +138,7 @@ public class MetaDataMappingService extends AbstractComponent {
 
         // break down to tasks per index, so we can optimize the on demand index service creation
         // to only happen for the duration of a single index processing of its respective events
-        Map<String, List<MappingTask>> tasksPerIndex = Maps.newHashMap();
+        Map<String, List<MappingTask>> tasksPerIndex = new HashMap<>();
         for (MappingTask task : allTasks) {
             if (task.index == null) {
                 logger.debug("ignoring a mapping task of type [{}] with a null index.", task);
@@ -184,7 +181,7 @@ public class MetaDataMappingService extends AbstractComponent {
                 // we need to create the index here, and add the current mapping to it, so we can merge
                 indexService = indicesService.createIndex(indexMetaData.index(), indexMetaData.settings(), currentState.nodes().localNode().id());
                 removeIndex = true;
-                Set<String> typesToIntroduce = Sets.newHashSet();
+                Set<String> typesToIntroduce = new HashSet<>();
                 for (MappingTask task : tasks) {
                     if (task instanceof UpdateTask) {
                         typesToIntroduce.add(((UpdateTask) task).type);
@@ -225,7 +222,7 @@ public class MetaDataMappingService extends AbstractComponent {
         boolean dirty = false;
         String index = indexService.index().name();
         // keep track of what we already refreshed, no need to refresh it again...
-        Set<String> processedRefreshes = Sets.newHashSet();
+        Set<String> processedRefreshes = new HashSet<>();
         for (MappingTask task : tasks) {
             if (task instanceof RefreshTask) {
                 RefreshTask refreshTask = (RefreshTask) task;
@@ -372,8 +369,8 @@ public class MetaDataMappingService extends AbstractComponent {
                         }
                     }
 
-                    Map<String, DocumentMapper> newMappers = newHashMap();
-                    Map<String, DocumentMapper> existingMappers = newHashMap();
+                    Map<String, DocumentMapper> newMappers = new HashMap<>();
+                    Map<String, DocumentMapper> existingMappers = new HashMap<>();
                     for (String index : request.indices()) {
                         IndexService indexService = indicesService.indexServiceSafe(index);
                         // try and parse it (no need to add it here) so we can bail early in case of parsing exception
@@ -399,7 +396,7 @@ public class MetaDataMappingService extends AbstractComponent {
                                 // For example in MapperService we can't distinguish between a create index api call
                                 // and a put mapping api call, so we don't which type did exist before.
                                 // Also the order of the mappings may be backwards.
-                                if (Version.indexCreated(indexService.getIndexSettings()).onOrAfter(Version.V_2_0_0_beta1) && newMapper.parentFieldMapper().active()) {
+                                if (newMapper.parentFieldMapper().active()) {
                                     IndexMetaData indexMetaData = currentState.metaData().index(index);
                                     for (ObjectCursor<MappingMetaData> mapping : indexMetaData.mappings().values()) {
                                         if (newMapper.parentFieldMapper().type().equals(mapping.value.type())) {
@@ -427,7 +424,7 @@ public class MetaDataMappingService extends AbstractComponent {
                         throw new InvalidTypeNameException("Document mapping type name can't start with '_'");
                     }
 
-                    final Map<String, MappingMetaData> mappings = newHashMap();
+                    final Map<String, MappingMetaData> mappings = new HashMap<>();
                     for (Map.Entry<String, DocumentMapper> entry : newMappers.entrySet()) {
                         String index = entry.getKey();
                         // do the actual merge here on the master, and update the mapping source

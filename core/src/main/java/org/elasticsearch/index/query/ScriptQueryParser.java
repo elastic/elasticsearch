@@ -19,25 +19,28 @@
 
 package org.elasticsearch.index.query;
 
-import com.google.common.base.Objects;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.RandomAccessWeight;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.script.*;
+import org.elasticsearch.script.LeafSearchScript;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.script.Script.ScriptField;
+import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.script.ScriptParameterParser;
 import org.elasticsearch.script.ScriptParameterParser.ScriptParameterValue;
+import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
-
-import static com.google.common.collect.Maps.newHashMap;
+import java.util.Objects;
 
 /**
  *
@@ -95,7 +98,7 @@ public class ScriptQueryParser implements QueryParser {
             ScriptParameterValue scriptValue = scriptParameterParser.getDefaultScriptParameterValue();
             if (scriptValue != null) {
                 if (params == null) {
-                    params = newHashMap();
+                    params = new HashMap<>();
                 }
                 script = new Script(scriptValue.script(), scriptValue.scriptType(), scriptParameterParser.lang(), params);
             }
@@ -141,7 +144,7 @@ public class ScriptQueryParser implements QueryParser {
             if (!super.equals(obj))
                 return false;
             ScriptQuery other = (ScriptQuery) obj;
-            return Objects.equal(script, other.script);
+            return Objects.equals(script, other.script);
         }
 
         @Override

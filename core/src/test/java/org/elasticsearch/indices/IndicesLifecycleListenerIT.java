@@ -18,8 +18,6 @@
  */
 package org.elasticsearch.indices;
 
-import com.google.common.base.Predicate;
-import com.google.common.collect.Maps;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.cluster.ClusterState;
@@ -41,16 +39,22 @@ import org.junit.Test;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BooleanSupplier;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.cluster.routing.allocation.decider.DisableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_DISABLE_ALLOCATION;
 import static org.elasticsearch.common.settings.Settings.builder;
-import static org.elasticsearch.index.shard.IndexShardState.*;
+import static org.elasticsearch.index.shard.IndexShardState.CLOSED;
+import static org.elasticsearch.index.shard.IndexShardState.CREATED;
+import static org.elasticsearch.index.shard.IndexShardState.POST_RECOVERY;
+import static org.elasticsearch.index.shard.IndexShardState.RECOVERING;
+import static org.elasticsearch.index.shard.IndexShardState.STARTED;
 import static org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import static org.elasticsearch.test.ESIntegTestCase.Scope;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -203,24 +207,21 @@ public class IndicesLifecycleListenerIT extends ESIntegTestCase {
     private static void assertShardStatesMatch(final IndexShardStateChangeListener stateChangeListener, final int numShards, final IndexShardState... shardStates)
             throws InterruptedException {
 
-        Predicate<Object> waitPredicate = new Predicate<Object>() {
-            @Override
-            public boolean apply(Object input) {
-                if (stateChangeListener.shardStates.size() != numShards) {
+        BooleanSupplier waitPredicate = () -> {
+            if (stateChangeListener.shardStates.size() != numShards) {
+                return false;
+            }
+            for (List<IndexShardState> indexShardStates : stateChangeListener.shardStates.values()) {
+                if (indexShardStates == null || indexShardStates.size() != shardStates.length) {
                     return false;
                 }
-                for (List<IndexShardState> indexShardStates : stateChangeListener.shardStates.values()) {
-                    if (indexShardStates == null || indexShardStates.size() != shardStates.length) {
+                for (int i = 0; i < shardStates.length; i++) {
+                    if (indexShardStates.get(i) != shardStates[i]) {
                         return false;
                     }
-                    for (int i = 0; i < shardStates.length; i++) {
-                        if (indexShardStates.get(i) != shardStates[i]) {
-                            return false;
-                        }
-                    }
                 }
-                return true;
             }
+            return true;
         };
         if (!awaitBusy(waitPredicate, 1, TimeUnit.MINUTES)) {
             fail("failed to observe expect shard states\n" +
@@ -233,7 +234,7 @@ public class IndicesLifecycleListenerIT extends ESIntegTestCase {
 
     private static class IndexShardStateChangeListener extends IndicesLifecycle.Listener {
         //we keep track of all the states (ordered) a shard goes through
-        final ConcurrentMap<ShardId, List<IndexShardState>> shardStates = Maps.newConcurrentMap();
+        final ConcurrentMap<ShardId, List<IndexShardState>> shardStates = new ConcurrentHashMap<>();
         Settings creationSettings = Settings.EMPTY;
         Settings afterCloseSettings = Settings.EMPTY;
 

@@ -90,7 +90,7 @@
         },
         "search_type": {
           "type" : "enum",
-          "options" : ["query_then_fetch", "dfs_query_then_fetch", "count", "scan"],
+          "options" : ["query_then_fetch", "dfs_query_then_fetch"],
           "description" : "Search operation type"
         },
         "size": {

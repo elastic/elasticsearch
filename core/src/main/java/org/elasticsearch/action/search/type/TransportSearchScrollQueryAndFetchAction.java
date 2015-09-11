@@ -21,7 +21,11 @@ package org.elasticsearch.action.search.type;
 
 import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.search.*;
+import org.elasticsearch.action.search.ReduceSearchPhaseException;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchScrollRequest;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -188,7 +192,8 @@ public class TransportSearchScrollQueryAndFetchAction extends AbstractComponent 
 
         private void innerFinishHim() throws Exception {
             ScoreDoc[] sortedShardList = searchPhaseController.sortDocs(true, queryFetchResults);
-            final InternalSearchResponse internalResponse = searchPhaseController.merge(sortedShardList, queryFetchResults, queryFetchResults);
+            final InternalSearchResponse internalResponse = searchPhaseController.merge(sortedShardList, queryFetchResults,
+                    queryFetchResults, request);
             String scrollId = null;
             if (request.scroll() != null) {
                 scrollId = request.scrollId();

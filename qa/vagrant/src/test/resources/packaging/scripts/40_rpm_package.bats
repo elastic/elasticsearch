@@ -33,82 +33,62 @@ load packaging_test_utils
 
 # Cleans everything for the 1st execution
 setup() {
-    if [ "$BATS_TEST_NUMBER" -eq 1 ]; then
-        clean_before_test
-    fi
+    skip_not_rpm
 }
 
 ##################################
 # Install RPM package
 ##################################
 @test "[RPM] rpm command is available" {
-    skip_not_rpm
-    run rpm --version
-    [ "$status" -eq 0 ]
+    clean_before_test
+    rpm --version
 }
 
 @test "[RPM] package is available" {
-    skip_not_rpm
-    count=$(find . -type f -name 'elastic*.rpm' | wc -l)
+    count=$(ls elasticsearch-$(cat version).rpm | wc -l)
     [ "$count" -eq 1 ]
 }
 
 @test "[RPM] package is not installed" {
-    skip_not_rpm
-    run rpm -qe 'elasticsearch' >&2
+    run rpm -qe 'elasticsearch'
     [ "$status" -eq 1 ]
 }
 
 @test "[RPM] install package" {
-    skip_not_rpm
-    run rpm -i elasticsearch*.rpm >&2
-    [ "$status" -eq 0 ]
+    rpm -i elasticsearch-$(cat version).rpm
 }
 
 @test "[RPM] package is installed" {
-    skip_not_rpm
-    run rpm -qe 'elasticsearch' >&2
-    [ "$status" -eq 0 ]
+    rpm -qe 'elasticsearch'
 }
 
-##################################
-# Check that the package is correctly installed
-##################################
 @test "[RPM] verify package installation" {
-    skip_not_rpm
-
     verify_package_installation
 }
 
-##################################
-# Check that Elasticsearch is working
-##################################
-@test "[RPM] test elasticsearch" {
-    skip_not_rpm
+@test "[RPM] elasticsearch isn't started by package install" {
+    # Wait a second to give Elasticsearch a change to start if it is going to.
+    # This isn't perfect by any means but its something.
+    sleep 1
+    ! ps aux | grep elasticsearch | grep java
+}
 
+@test "[RPM] test elasticsearch" {
     start_elasticsearch_service
 
     run_elasticsearch_tests
 }
 
-##################################
-# Uninstall RPM package
-##################################
 @test "[RPM] remove package" {
-    skip_not_rpm
-    run rpm -e 'elasticsearch' >&2
-    [ "$status" -eq 0 ]
+    rpm -e 'elasticsearch'
 }
 
 @test "[RPM] package has been removed" {
-    skip_not_rpm
-    run rpm -qe 'elasticsearch' >&2
+    run rpm -qe 'elasticsearch'
     [ "$status" -eq 1 ]
 }
 
 @test "[RPM] verify package removal" {
-    skip_not_rpm
-
     # The removal must stop the service
     count=$(ps | grep Elasticsearch | wc -l)
     [ "$count" -eq 0 ]
@@ -134,4 +114,26 @@ setup() {
     assert_file_not_exist "/usr/lib/systemd/system/elasticsearch.service"
 
     assert_file_not_exist "/etc/sysconfig/elasticsearch"
+}
+
+
+@test "[RPM] reinstall package" {
+    rpm -i elasticsearch-$(cat version).rpm
+}
+
+@test "[RPM] package is installed by reinstall" {
+    rpm -qe 'elasticsearch'
+}
+
+@test "[RPM] verify package reinstallation" {
+    verify_package_installation
+}
+
+@test "[RPM] reremove package" {
+    rpm -e 'elasticsearch'
+}
+
+@test "[RPM] package has been removed again" {
+    run rpm -qe 'elasticsearch'
+    [ "$status" -eq 1 ]
 }

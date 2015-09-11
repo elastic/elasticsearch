@@ -22,8 +22,8 @@ package org.elasticsearch.script;
 import com.google.common.collect.ImmutableCollection;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Maps;
 
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -37,7 +37,7 @@ public final class ScriptContextRegistry {
     private final ImmutableMap<String, ScriptContext> scriptContexts;
 
     ScriptContextRegistry(Iterable<ScriptContext.Plugin> customScriptContexts) {
-        Map<String, ScriptContext> scriptContexts = Maps.newHashMap();
+        Map<String, ScriptContext> scriptContexts = new HashMap<>();
         for (ScriptContext.Standard scriptContext : ScriptContext.Standard.values()) {
             scriptContexts.put(scriptContext.getKey(), scriptContext);
         }

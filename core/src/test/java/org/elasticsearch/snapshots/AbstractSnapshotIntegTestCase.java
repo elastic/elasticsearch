@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.snapshots;
 
-import com.google.common.base.Predicate;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -33,6 +32,7 @@ import org.elasticsearch.cluster.service.PendingClusterTask;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -43,10 +43,12 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.equalTo;
@@ -60,7 +62,12 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
             // Rebalancing is causing some checks after restore to randomly fail
             // due to https://github.com/elastic/elasticsearch/issues/9421
             .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE, EnableAllocationDecider.Rebalance.NONE)
-            .extendArray("plugin.types", MockRepository.Plugin.class.getName()).build();
+            .build();
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return pluginList(MockRepository.Plugin.class);
     }
 
     public static long getFailureCount(String repository) {
@@ -85,12 +92,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     }
 
     public static void stopNode(final String node) throws IOException {
-        internalCluster().stopRandomNode(new Predicate<Settings>() {
-            @Override
-            public boolean apply(Settings settings) {
-                return settings.get("name").equals(node);
-            }
-        });
+        internalCluster().stopRandomNode(settings -> settings.get("name").equals(node));
     }
 
     public void waitForBlock(String node, String repository, TimeValue timeout) throws InterruptedException {
@@ -179,18 +181,8 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
 
         public BlockingClusterStateListener(ClusterService clusterService, final String blockOn, final String countOn, Priority passThroughPriority, TimeValue timeout) {
             this.clusterService = clusterService;
-            this.blockOn = new Predicate<ClusterChangedEvent>() {
-                @Override
-                public boolean apply(ClusterChangedEvent clusterChangedEvent) {
-                    return clusterChangedEvent.source().startsWith(blockOn);
-                }
-            };
-            this.countOn = new Predicate<ClusterChangedEvent>() {
-                @Override
-                public boolean apply(ClusterChangedEvent clusterChangedEvent) {
-                    return clusterChangedEvent.source().startsWith(countOn);
-                }
-            };
+            this.blockOn = clusterChangedEvent -> clusterChangedEvent.source().startsWith(blockOn);
+            this.countOn = clusterChangedEvent -> clusterChangedEvent.source().startsWith(countOn);
             this.latch = new CountDownLatch(1);
             this.passThroughPriority = passThroughPriority;
             this.timeout = timeout;
@@ -203,13 +195,13 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
 
         @Override
         public void clusterChanged(ClusterChangedEvent event) {
-            if (blockOn.apply(event)) {
+            if (blockOn.test(event)) {
                 logger.info("blocking cluster state tasks on [{}]", event.source());
                 assert stopWaitingAt < 0; // Make sure we are the first time here
                 stopWaitingAt = System.currentTimeMillis() + timeout.getMillis();
                 addBlock();
             }
-            if (countOn.apply(event)) {
+            if (countOn.test(event)) {
                 count++;
             }
         }

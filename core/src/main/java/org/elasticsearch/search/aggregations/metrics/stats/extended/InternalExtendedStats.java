@@ -65,7 +65,7 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
     private double sumOfSqrs;
     private double sigma;
 
-    InternalExtendedStats() {} // for serialization
+    protected InternalExtendedStats() {} // for serialization
 
     public InternalExtendedStats(String name, long count, double sum, double min, double max, double sumOfSqrs, double sigma,
             ValueFormatter formatter, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {

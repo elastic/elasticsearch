@@ -19,8 +19,6 @@
 
 package org.elasticsearch.cluster;
 
-import com.google.common.base.Predicate;
-
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -48,12 +46,11 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.ESIntegTestCase.Scope;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.*;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
@@ -111,12 +108,9 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
         }
 
         internalCluster().stopCurrentMasterNode();
-        awaitBusy(new Predicate<Object>() {
-            @Override
-            public boolean apply(Object obj) {
-                ClusterState state = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
-                return state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID);
-            }
+        awaitBusy(() -> {
+            ClusterState clusterState = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
+            return clusterState.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID);
         });
         state = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
         assertThat(state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID), equalTo(true));
@@ -291,20 +285,26 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
     }
 
     private void assertNoMasterBlockOnAllNodes() throws InterruptedException {
-        assertThat(awaitBusy(new Predicate<Object>() {
-            @Override
-            public boolean apply(Object obj) {
-                boolean success = true;
-                for (Client client : internalCluster()) {
-                    ClusterState state = client.admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
-                    success &= state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID);
-                    if (logger.isDebugEnabled()) {
-                        logger.debug("Checking for NO_MASTER_BLOCK on client: {} NO_MASTER_BLOCK: [{}]", client, state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID));
-                    }
-                }
-                return success;
-            }
-        }, 20, TimeUnit.SECONDS), equalTo(true));
+        Predicate<Client> hasNoMasterBlock = client -> {
+            ClusterState state = client.admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
+            return state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID);
+        };
+        assertTrue(awaitBusy(
+                        () -> {
+                            boolean success = true;
+                            for (Client client : internalCluster()) {
+                                boolean clientHasNoMasterBlock = hasNoMasterBlock.test(client);
+                                if (logger.isDebugEnabled()) {
+                                    logger.debug("Checking for NO_MASTER_BLOCK on client: {} NO_MASTER_BLOCK: [{}]", client, clientHasNoMasterBlock);
+                                }
+                                success &= clientHasNoMasterBlock;
+                            }
+                            return success;
+                        },
+                        20,
+                        TimeUnit.SECONDS
+                )
+        );
     }
 
     @Test

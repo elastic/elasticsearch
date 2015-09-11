@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.mapper.object;
 
-import com.google.common.collect.Sets;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
@@ -38,6 +37,7 @@ import org.elasticsearch.index.settings.IndexSettings;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -66,7 +66,7 @@ public class RootObjectMapper extends ObjectMapper {
         protected final List<DynamicTemplate> dynamicTemplates = new ArrayList<>();
 
         // we use this to filter out seen date formats, because we might get duplicates during merging
-        protected Set<String> seenDateFormats = Sets.newHashSet();
+        protected Set<String> seenDateFormats = new HashSet<>();
         protected List<FormatDateTimeFormatter> dynamicDateTimeFormatters = new ArrayList<>();
 
         protected boolean dateDetection = Defaults.DATE_DETECTION;
@@ -245,7 +245,7 @@ public class RootObjectMapper extends ObjectMapper {
         if (dynamicTemplate == null) {
             return null;
         }
-        Mapper.TypeParser.ParserContext parserContext = context.docMapperParser().parserContext();
+        Mapper.TypeParser.ParserContext parserContext = context.docMapperParser().parserContext(name);
         String mappingType = dynamicTemplate.mappingType(dynamicType);
         Mapper.TypeParser typeParser = parserContext.typeParser(mappingType);
         if (typeParser == null) {

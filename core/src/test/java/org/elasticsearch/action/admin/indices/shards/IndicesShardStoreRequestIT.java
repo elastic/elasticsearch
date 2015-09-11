@@ -22,7 +22,6 @@ package org.elasticsearch.action.admin.indices.shards;
 import com.carrotsearch.hppc.cursors.IntObjectCursor;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-import com.google.common.base.Predicate;
 import org.apache.lucene.index.CorruptIndexException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.client.Requests;
@@ -42,6 +41,7 @@ import org.junit.Test;
 
 import java.util.*;
 import java.util.concurrent.ExecutionException;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
@@ -209,7 +209,7 @@ public class IndicesShardStoreRequestIT extends ESIntegTestCase {
         }
 
         @Override
-        public boolean apply(Settings settings) {
+        public boolean test(Settings settings) {
             return nodesWithShard.contains(settings.get("name"));
         }
 

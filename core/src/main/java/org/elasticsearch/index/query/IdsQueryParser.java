@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 
 import org.apache.lucene.queries.TermsQuery;
@@ -34,6 +33,7 @@ import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -96,7 +96,7 @@ public class IdsQueryParser implements QueryParser {
                 }
             } else if (token.isValue()) {
                 if ("type".equals(currentFieldName) || "_type".equals(currentFieldName)) {
-                    types = ImmutableList.of(parser.text());
+                    types = Collections.singletonList(parser.text());
                 } else if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
                 } else if ("_name".equals(currentFieldName)) {

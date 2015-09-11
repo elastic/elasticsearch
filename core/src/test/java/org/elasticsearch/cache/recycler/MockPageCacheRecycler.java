@@ -19,38 +19,34 @@
 
 package org.elasticsearch.cache.recycler;
 
-import com.google.common.base.Predicate;
-import com.google.common.collect.Maps;
-import com.google.common.collect.Sets;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.recycler.Recycler.V;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.lang.reflect.Array;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Random;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
 public class MockPageCacheRecycler extends PageCacheRecycler {
 
-    private static final ConcurrentMap<Object, Throwable> ACQUIRED_PAGES = Maps.newConcurrentMap();
+    private static final ConcurrentMap<Object, Throwable> ACQUIRED_PAGES = new ConcurrentHashMap<>();
 
     public static void ensureAllPagesAreReleased() throws Exception {
-        final Map<Object, Throwable> masterCopy = Maps.newHashMap(ACQUIRED_PAGES);
+        final Map<Object, Throwable> masterCopy = new HashMap<>(ACQUIRED_PAGES);
         if (!masterCopy.isEmpty()) {
             // not empty, we might be executing on a shared cluster that keeps on obtaining
             // and releasing pages, lets make sure that after a reasonable timeout, all master
             // copy (snapshot) have been released
-            boolean success = ESTestCase.awaitBusy(new Predicate<Object>() {
-                @Override
-                public boolean apply(Object input) {
-                    return Sets.intersection(masterCopy.keySet(), ACQUIRED_PAGES.keySet()).isEmpty();
-                }
-            });
+            boolean success =
+                    ESTestCase.awaitBusy(() -> Sets.haveEmptyIntersection(masterCopy.keySet(), ACQUIRED_PAGES.keySet()));
             if (!success) {
                 masterCopy.keySet().retainAll(ACQUIRED_PAGES.keySet());
                 ACQUIRED_PAGES.keySet().removeAll(masterCopy.keySet()); // remove all existing master copy we will report on

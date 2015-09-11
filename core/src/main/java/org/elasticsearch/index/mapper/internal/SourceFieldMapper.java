@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.mapper.internal;
 
-import com.google.common.base.Objects;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexOptions;
@@ -57,6 +56,7 @@ import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeStringValue;
@@ -406,7 +406,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         if (includeDefaults || enabled != Defaults.ENABLED) {
             builder.field("enabled", enabled);
         }
-        if (includeDefaults || !Objects.equal(format, Defaults.FORMAT)) {
+        if (includeDefaults || !Objects.equals(format, Defaults.FORMAT)) {
             builder.field("format", format);
         }
         if (compress != null) {

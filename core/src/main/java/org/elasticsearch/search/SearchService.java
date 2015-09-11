@@ -23,11 +23,11 @@ import com.carrotsearch.hppc.ObjectHashSet;
 import com.carrotsearch.hppc.ObjectSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.google.common.collect.ImmutableMap;
+
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.search.TopDocs;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.search.SearchType;
@@ -62,6 +62,7 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.Loading;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.query.TemplateQueryParser;
 import org.elasticsearch.index.search.stats.ShardSearchStats;
 import org.elasticsearch.index.search.stats.StatsGroupsParseElement;
@@ -82,10 +83,23 @@ import org.elasticsearch.script.Template;
 import org.elasticsearch.script.mustache.MustacheScriptEngineService;
 import org.elasticsearch.search.dfs.DfsPhase;
 import org.elasticsearch.search.dfs.DfsSearchResult;
-import org.elasticsearch.search.fetch.*;
-import org.elasticsearch.search.internal.*;
+import org.elasticsearch.search.fetch.FetchPhase;
+import org.elasticsearch.search.fetch.FetchSearchResult;
+import org.elasticsearch.search.fetch.QueryFetchSearchResult;
+import org.elasticsearch.search.fetch.ScrollQueryFetchSearchResult;
+import org.elasticsearch.search.fetch.ShardFetchRequest;
+import org.elasticsearch.search.internal.DefaultSearchContext;
+import org.elasticsearch.search.internal.InternalScrollSearchRequest;
+import org.elasticsearch.search.internal.ScrollContext;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.SearchContext.Lifetime;
-import org.elasticsearch.search.query.*;
+import org.elasticsearch.search.internal.ShardSearchLocalRequest;
+import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.search.query.QueryPhase;
+import org.elasticsearch.search.query.QuerySearchRequest;
+import org.elasticsearch.search.query.QuerySearchResult;
+import org.elasticsearch.search.query.QuerySearchResultProvider;
+import org.elasticsearch.search.query.ScrollQuerySearchResult;
 import org.elasticsearch.search.warmer.IndexWarmersMetaData;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -256,83 +270,6 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             return context.dfsResult();
         } catch (Throwable e) {
             logger.trace("Dfs phase failed", e);
-            processFailure(context, e);
-            throw ExceptionsHelper.convertToRuntime(e);
-        } finally {
-            cleanContext(context);
-        }
-    }
-
-    @Deprecated // remove in 3.0
-    public QuerySearchResult executeScan(ShardSearchRequest request) {
-        final SearchContext context = createAndPutContext(request);
-        final int originalSize = context.size();
-        try {
-            if (context.aggregations() != null) {
-                throw new IllegalArgumentException("aggregations are not supported with search_type=scan");
-            }
-
-            if (context.scrollContext() == null || context.scrollContext().scroll == null) {
-                throw new ElasticsearchException("Scroll must be provided when scanning...");
-            }
-
-            assert context.searchType() == SearchType.SCAN;
-            context.searchType(SearchType.QUERY_THEN_FETCH); // move to QUERY_THEN_FETCH, and then, when scrolling, move to SCAN
-            context.size(0); // set size to 0 so that we only count matches
-            assert context.searchType() == SearchType.QUERY_THEN_FETCH;
-
-            contextProcessing(context);
-            queryPhase.execute(context);
-            contextProcessedSuccessfully(context);
-            return context.queryResult();
-        } catch (Throwable e) {
-            logger.trace("Scan phase failed", e);
-            processFailure(context, e);
-            throw ExceptionsHelper.convertToRuntime(e);
-        } finally {
-            context.size(originalSize);
-            cleanContext(context);
-        }
-    }
-
-    public ScrollQueryFetchSearchResult executeScan(InternalScrollSearchRequest request) {
-        final SearchContext context = findContext(request.id());
-        ShardSearchStats shardSearchStats = context.indexShard().searchService();
-        contextProcessing(context);
-        try {
-            processScroll(request, context);
-            shardSearchStats.onPreQueryPhase(context);
-            long time = System.nanoTime();
-            try {
-                if (context.searchType() == SearchType.QUERY_THEN_FETCH) {
-                    // first scanning, reset the from to 0
-                    context.searchType(SearchType.SCAN);
-                    context.from(0);
-                }
-                queryPhase.execute(context);
-            } catch (Throwable e) {
-                shardSearchStats.onFailedQueryPhase(context);
-                throw ExceptionsHelper.convertToRuntime(e);
-            }
-            long queryFinishTime = System.nanoTime();
-            shardSearchStats.onQueryPhase(context, queryFinishTime - time);
-            shardSearchStats.onPreFetchPhase(context);
-            try {
-                shortcutDocIdsToLoadForScanning(context);
-                fetchPhase.execute(context);
-                if (context.scrollContext() == null || context.fetchResult().hits().hits().length < context.size()) {
-                    freeContext(request.id());
-                } else {
-                    contextProcessedSuccessfully(context);
-                }
-            } catch (Throwable e) {
-                shardSearchStats.onFailedFetchPhase(context);
-                throw ExceptionsHelper.convertToRuntime(e);
-            }
-            shardSearchStats.onFetchPhase(context, System.nanoTime() - queryFinishTime);
-            return new ScrollQueryFetchSearchResult(new QueryFetchSearchResult(context.queryResult(), context.fetchResult()), context.shardTarget());
-        } catch (Throwable e) {
-            logger.trace("Scan phase failed", e);
             processFailure(context, e);
             throw ExceptionsHelper.convertToRuntime(e);
         } finally {
@@ -644,12 +581,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             if (context.from() == -1) {
                 context.from(0);
             }
-            if (context.searchType() == SearchType.COUNT) {
-                // so that the optimizations we apply to size=0 also apply to search_type=COUNT
-                // and that we close contexts when done with the query phase
-                context.searchType(SearchType.QUERY_THEN_FETCH);
-                context.size(0);
-            } else if (context.size() == -1) {
+            if (context.size() == -1) {
                 context.size(10);
             }
 
@@ -736,7 +668,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
 
         BytesReference processedQuery;
         if (request.template() != null) {
-            ExecutableScript executable = this.scriptService.executable(request.template(), ScriptContext.Standard.SEARCH);
+            ExecutableScript executable = this.scriptService.executable(request.template(), ScriptContext.Standard.SEARCH, searchContext);
             processedQuery = (BytesReference) executable.run();
         } else {
             if (!hasLength(request.templateSource())) {
@@ -753,7 +685,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                     //Try to double parse for nested template id/file
                     parser = null;
                     try {
-                        ExecutableScript executable = this.scriptService.executable(template, ScriptContext.Standard.SEARCH);
+                        ExecutableScript executable = this.scriptService.executable(template, ScriptContext.Standard.SEARCH, searchContext);
                         processedQuery = (BytesReference) executable.run();
                         parser = XContentFactory.xContent(processedQuery).createParser(processedQuery);
                     } catch (ElasticsearchParseException epe) {
@@ -761,7 +693,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                         //for backwards compatibility and keep going
                         template = new Template(template.getScript(), ScriptService.ScriptType.FILE, MustacheScriptEngineService.NAME,
                                 null, template.getParams());
-                        ExecutableScript executable = this.scriptService.executable(template, ScriptContext.Standard.SEARCH);
+                        ExecutableScript executable = this.scriptService.executable(template, ScriptContext.Standard.SEARCH, searchContext);
                         processedQuery = (BytesReference) executable.run();
                     }
                     if (parser != null) {
@@ -771,7 +703,8 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                                 //An inner template referring to a filename or id
                                 template = new Template(innerTemplate.getScript(), innerTemplate.getType(),
                                         MustacheScriptEngineService.NAME, null, template.getParams());
-                                ExecutableScript executable = this.scriptService.executable(template, ScriptContext.Standard.SEARCH);
+                                ExecutableScript executable = this.scriptService.executable(template, ScriptContext.Standard.SEARCH,
+                                        searchContext);
                                 processedQuery = (BytesReference) executable.run();
                             }
                         } catch (ScriptParseException e) {
@@ -779,7 +712,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                         }
                     }
                 } else {
-                    ExecutableScript executable = this.scriptService.executable(template, ScriptContext.Standard.SEARCH);
+                    ExecutableScript executable = this.scriptService.executable(template, ScriptContext.Standard.SEARCH, searchContext);
                     processedQuery = (BytesReference) executable.run();
                 }
             } catch (IOException e) {
@@ -978,7 +911,22 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             final Map<String, MappedFieldType> warmUp = new HashMap<>();
             for (DocumentMapper docMapper : mapperService.docMappers(false)) {
                 for (FieldMapper fieldMapper : docMapper.mappers()) {
-                    final FieldDataType fieldDataType = fieldMapper.fieldType().fieldDataType();
+                    final FieldDataType fieldDataType;
+                    final String indexName;
+                    if (fieldMapper instanceof ParentFieldMapper) {
+                        MappedFieldType joinFieldType = ((ParentFieldMapper) fieldMapper).getChildJoinFieldType();
+                        if (joinFieldType == null) {
+                            continue;
+                        }
+                        fieldDataType = joinFieldType.fieldDataType();
+                        // TODO: this can be removed in 3.0 when the old parent/child impl is removed:
+                        // related to: https://github.com/elastic/elasticsearch/pull/12418
+                        indexName = fieldMapper.fieldType().names().indexName();
+                    } else {
+                        fieldDataType = fieldMapper.fieldType().fieldDataType();
+                        indexName = fieldMapper.fieldType().names().indexName();
+                    }
+
                     if (fieldDataType == null) {
                         continue;
                     }
@@ -986,7 +934,6 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                         continue;
                     }
 
-                    final String indexName = fieldMapper.fieldType().names().indexName();
                     if (warmUp.containsKey(indexName)) {
                         continue;
                     }
@@ -1032,14 +979,27 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             final Map<String, MappedFieldType> warmUpGlobalOrdinals = new HashMap<>();
             for (DocumentMapper docMapper : mapperService.docMappers(false)) {
                 for (FieldMapper fieldMapper : docMapper.mappers()) {
-                    final FieldDataType fieldDataType = fieldMapper.fieldType().fieldDataType();
+                    final FieldDataType fieldDataType;
+                    final String indexName;
+                    if (fieldMapper instanceof ParentFieldMapper) {
+                        MappedFieldType joinFieldType = ((ParentFieldMapper) fieldMapper).getChildJoinFieldType();
+                        if (joinFieldType == null) {
+                            continue;
+                        }
+                        fieldDataType = joinFieldType.fieldDataType();
+                        // TODO: this can be removed in 3.0 when the old parent/child impl is removed:
+                        // related to: https://github.com/elastic/elasticsearch/pull/12418
+                        indexName = fieldMapper.fieldType().names().indexName();
+                    } else {
+                        fieldDataType = fieldMapper.fieldType().fieldDataType();
+                        indexName = fieldMapper.fieldType().names().indexName();
+                    }
                     if (fieldDataType == null) {
                         continue;
                     }
                     if (fieldDataType.getLoading() != Loading.EAGER_GLOBAL_ORDINALS) {
                         continue;
                     }
-                    final String indexName = fieldMapper.fieldType().names().indexName();
                     if (warmUpGlobalOrdinals.containsKey(indexName)) {
                         continue;
                     }

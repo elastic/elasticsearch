@@ -20,7 +20,6 @@
 package org.elasticsearch.gateway;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import com.google.common.base.Predicate;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -160,18 +159,15 @@ public class MetaDataWriteDataNodesIT extends ESIntegTestCase {
 
 
     private void assertMetaState(final String nodeName, final String indexName, final boolean shouldBe) throws Exception {
-        awaitBusy(new Predicate<Object>() {
-            @Override
-            public boolean apply(Object o) {
-                logger.info("checking if meta state exists...");
-                try {
-                    return shouldBe == metaStateExists(nodeName, indexName);
-                } catch (Throwable t) {
-                    logger.info("failed to load meta state", t);
-                    // TODO: loading of meta state fails rarely if the state is deleted while we try to load it
-                    // this here is a hack, would be much better to use for example a WatchService
-                    return false;
-                }
+        awaitBusy(() -> {
+            logger.info("checking if meta state exists...");
+            try {
+                return shouldBe == metaStateExists(nodeName, indexName);
+            } catch (Throwable t) {
+                logger.info("failed to load meta state", t);
+                // TODO: loading of meta state fails rarely if the state is deleted while we try to load it
+                // this here is a hack, would be much better to use for example a WatchService
+                return false;
             }
         });
         boolean inMetaSate = metaStateExists(nodeName, indexName);

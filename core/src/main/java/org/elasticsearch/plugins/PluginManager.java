@@ -19,7 +19,6 @@
 
 package org.elasticsearch.plugins;
 
-import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterators;
 import org.apache.lucene.util.IOUtils;
@@ -29,6 +28,7 @@ import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.JarHell;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.cli.Terminal;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.http.client.HttpDownloadHelper;
@@ -80,15 +80,16 @@ public class PluginManager {
                     "analysis-phonetic",
                     "analysis-smartcn",
                     "analysis-stempel",
-                    "cloud-aws",
                     "cloud-azure",
                     "cloud-gce",
                     "delete-by-query",
+                    "discovery-ec2",
                     "discovery-multicast",
                     "lang-javascript",
                     "lang-python",
                     "mapper-murmur3",
-                    "mapper-size"
+                    "mapper-size",
+                    "repository-s3"
             ).build();
 
     private final Environment environment;
@@ -320,7 +321,7 @@ public class PluginManager {
         }
 
         // read existing bundles. this does some checks on the installation too.
-        List<Bundle> bundles = PluginsService.getPluginBundles(environment);
+        List<Bundle> bundles = PluginsService.getPluginBundles(environment.pluginsFile());
 
         // if we aren't isolated, we need to jarhellcheck against any other non-isolated plugins
         // thats always the first bundle
@@ -463,17 +464,15 @@ public class PluginManager {
             if (version != null) {
                 // Elasticsearch new download service uses groupId org.elasticsearch.plugin from 2.0.0
                 if (user == null) {
-                    // TODO Update to https
                     if (!Strings.isNullOrEmpty(System.getProperty(PROPERTY_SUPPORT_STAGING_URLS))) {
-                        addUrl(urls, String.format(Locale.ROOT, "http://download.elastic.co/elasticsearch/staging/%s-%s/org/elasticsearch/plugin/%s/%s/%s-%s.zip", version, Build.CURRENT.hashShort(), name, version, name, version));
+                        addUrl(urls, String.format(Locale.ROOT, "https://download.elastic.co/elasticsearch/staging/%s-%s/org/elasticsearch/plugin/%s/%s/%s-%s.zip", version, Build.CURRENT.hashShort(), name, version, name, version));
                     }
-                    addUrl(urls, String.format(Locale.ROOT, "http://download.elastic.co/elasticsearch/release/org/elasticsearch/plugin/%s/%s/%s-%s.zip", name, version, name, version));
+                    addUrl(urls, String.format(Locale.ROOT, "https://download.elastic.co/elasticsearch/release/org/elasticsearch/plugin/%s/%s/%s-%s.zip", name, version, name, version));
                 } else {
                     // Elasticsearch old download service
-                    // TODO Update to https
-                    addUrl(urls, String.format(Locale.ROOT, "http://download.elastic.co/%1$s/%2$s/%2$s-%3$s.zip", user, name, version));
+                    addUrl(urls, String.format(Locale.ROOT, "https://download.elastic.co/%1$s/%2$s/%2$s-%3$s.zip", user, name, version));
                     // Maven central repository
-                    addUrl(urls, String.format(Locale.ROOT, "http://search.maven.org/remotecontent?filepath=%1$s/%2$s/%3$s/%2$s-%3$s.zip", user.replace('.', '/'), name, version));
+                    addUrl(urls, String.format(Locale.ROOT, "https://search.maven.org/remotecontent?filepath=%1$s/%2$s/%3$s/%2$s-%3$s.zip", user.replace('.', '/'), name, version));
                     // Sonatype repository
                     addUrl(urls, String.format(Locale.ROOT, "https://oss.sonatype.org/service/local/repositories/releases/content/%1$s/%2$s/%3$s/%2$s-%3$s.zip", user.replace('.', '/'), name, version));
                     // Github repository

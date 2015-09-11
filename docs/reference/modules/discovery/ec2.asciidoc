@@ -1,6 +1,4 @@
 [[modules-discovery-ec2]]
 === EC2 Discovery
 
-EC2 discovery allows to use the EC2 APIs to perform automatic discovery (similar to multicast).
-Please check the https://github.com/elasticsearch/elasticsearch-cloud-aws[plugin website]
-to find the full documentation.
+EC2 discovery is available as a plugin. See {plugins}/discovery-ec2.html[discovery-ec2] for more information.

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.recovery;
 
-import com.google.common.base.Predicate;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
@@ -46,7 +45,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
-import static org.hamcrest.Matchers.equalTo;
 
 public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
 
@@ -284,24 +282,25 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
             IndicesStatsResponse indicesStatsResponse = client().admin().indices().prepareStats().get();
             for (ShardStats shardStats : indicesStatsResponse.getShards()) {
                 DocsStats docsStats = shardStats.getStats().docs;
-                logger.info("shard [{}] - count {}, primary {}", shardStats.getShardId(), docsStats.getCount(), shardStats.getShardRouting().primary());
+                logger.info("shard [{}] - count {}, primary {}", shardStats.getShardRouting().id(), docsStats.getCount(), shardStats.getShardRouting().primary());
             }
 
             //if there was an error we try to wait and see if at some point it'll get fixed
             logger.info("--> trying to wait");
-            assertThat(awaitBusy(new Predicate<Object>() {
-                @Override
-                public boolean apply(Object o) {
-                    boolean error = false;
-                    for (int i = 0; i < iterations; i++) {
-                        SearchResponse searchResponse = client().prepareSearch().setSize(0).setQuery(matchAllQuery()).get();
-                        if (searchResponse.getHits().totalHits() != numberOfDocs) {
-                            error = true;
-                        }
-                    }
-                    return !error;
-                }
-            }, 5, TimeUnit.MINUTES), equalTo(true));
+            assertTrue(awaitBusy(() -> {
+                                boolean errorOccurred = false;
+                                for (int i = 0; i < iterations; i++) {
+                                    SearchResponse searchResponse = client().prepareSearch().setSize(0).setQuery(matchAllQuery()).get();
+                                    if (searchResponse.getHits().totalHits() != numberOfDocs) {
+                                        errorOccurred = true;
+                                    }
+                                }
+                                return !errorOccurred;
+                            },
+                            5,
+                            TimeUnit.MINUTES
+                    )
+            );
         }
 
         //lets now make the test fail if it was supposed to fail

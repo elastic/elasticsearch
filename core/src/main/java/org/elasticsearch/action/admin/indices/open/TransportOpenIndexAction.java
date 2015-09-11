@@ -36,6 +36,8 @@ import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.Arrays;
+
 /**
  * Open index action
  */
@@ -47,10 +49,11 @@ public class TransportOpenIndexAction extends TransportMasterNodeAction<OpenInde
     @Inject
     public TransportOpenIndexAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                     ThreadPool threadPool, MetaDataIndexStateService indexStateService,
-                                    NodeSettingsService nodeSettingsService, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
+                                    NodeSettingsService nodeSettingsService, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
+                                    DestructiveOperations destructiveOperations) {
         super(settings, OpenIndexAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, OpenIndexRequest.class);
         this.indexStateService = indexStateService;
-        this.destructiveOperations = new DestructiveOperations(logger, settings, nodeSettingsService);
+        this.destructiveOperations = destructiveOperations;
     }
 
     @Override
@@ -91,7 +94,7 @@ public class TransportOpenIndexAction extends TransportMasterNodeAction<OpenInde
 
             @Override
             public void onFailure(Throwable t) {
-                logger.debug("failed to open indices [{}]", t, concreteIndices);
+                logger.debug("failed to open indices [{}]", t, (Object)concreteIndices);
                 listener.onFailure(t);
             }
         });

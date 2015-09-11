@@ -18,10 +18,9 @@
  */
 package org.elasticsearch.search.highlight;
 
-import com.google.common.collect.Maps;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
@@ -29,9 +28,10 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.Map;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHighlight;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -42,11 +42,8 @@ import static org.hamcrest.Matchers.equalTo;
 public class CustomHighlighterSearchIT extends ESIntegTestCase {
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return settingsBuilder()
-                .put(super.nodeSettings(nodeOrdinal))
-                .put("plugin.types", CustomHighlighterPlugin.class.getName())
-                .build();
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return pluginList(CustomHighlighterPlugin.class);
     }
 
     @Before
@@ -72,7 +69,7 @@ public class CustomHighlighterSearchIT extends ESIntegTestCase {
     public void testThatCustomHighlighterCanBeConfiguredPerField() throws Exception {
         HighlightBuilder.Field highlightConfig = new HighlightBuilder.Field("name");
         highlightConfig.highlighterType("test-custom");
-        Map<String, Object> options = Maps.newHashMap();
+        Map<String, Object> options = new HashMap<>();
         options.put("myFieldOption", "someValue");
         highlightConfig.options(options);
 
@@ -87,7 +84,7 @@ public class CustomHighlighterSearchIT extends ESIntegTestCase {
 
     @Test
     public void testThatCustomHighlighterCanBeConfiguredGlobally() throws Exception {
-        Map<String, Object> options = Maps.newHashMap();
+        Map<String, Object> options = new HashMap<>();
         options.put("myGlobalOption", "someValue");
 
         SearchResponse searchResponse = client().prepareSearch("test").setTypes("test")

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.snapshots;
 
-import com.google.common.collect.ImmutableList;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseFieldMatcher;
@@ -57,7 +56,7 @@ public class Snapshot implements Comparable<Snapshot>, ToXContent, FromXContentB
 
     private final List<SnapshotShardFailure> shardFailures;
 
-    private final static List<SnapshotShardFailure> NO_FAILURES = ImmutableList.of();
+    private final static List<SnapshotShardFailure> NO_FAILURES = Collections.emptyList();
 
     public final static Snapshot PROTO = new Snapshot();
 
@@ -287,7 +286,7 @@ public class Snapshot implements Comparable<Snapshot>, ToXContent, FromXContentB
         Version version = Version.CURRENT;
         SnapshotState state = SnapshotState.IN_PROGRESS;
         String reason = null;
-        ImmutableList<String> indices = ImmutableList.of();
+        List<String> indices = Collections.emptyList();
         long startTime = 0;
         long endTime = 0;
         int totalShard = 0;
@@ -331,13 +330,13 @@ public class Snapshot implements Comparable<Snapshot>, ToXContent, FromXContentB
                                 while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
                                     indicesArray.add(parser.text());
                                 }
-                                indices = ImmutableList.copyOf(indicesArray);
+                                indices = Collections.unmodifiableList(indicesArray);
                             } else if ("failures".equals(currentFieldName)) {
                                 ArrayList<SnapshotShardFailure> shardFailureArrayList = new ArrayList<>();
                                 while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
                                     shardFailureArrayList.add(SnapshotShardFailure.fromXContent(parser));
                                 }
-                                shardFailures = ImmutableList.copyOf(shardFailureArrayList);
+                                shardFailures = Collections.unmodifiableList(shardFailureArrayList);
                             } else {
                                 // It was probably created by newer version - ignoring
                                 parser.skipChildren();

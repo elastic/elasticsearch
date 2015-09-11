@@ -22,6 +22,7 @@ package org.elasticsearch.common.lucene.search.function;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 
@@ -54,7 +55,13 @@ public class FieldValueFactorFunction extends ScoreFunction {
 
     @Override
     public LeafScoreFunction getLeafScoreFunction(LeafReaderContext ctx) {
-        final SortedNumericDoubleValues values = this.indexFieldData.load(ctx).getDoubleValues();
+        final SortedNumericDoubleValues values;
+        if(indexFieldData == null) {
+            values = FieldData.emptySortedNumericDoubles(ctx.reader().maxDoc());
+        } else {
+            values = this.indexFieldData.load(ctx).getDoubleValues();
+        }
+
         return new LeafScoreFunction() {
 
             @Override

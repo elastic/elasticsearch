@@ -20,6 +20,9 @@
 package org.elasticsearch.search.query;
 
 import com.google.common.collect.ImmutableMap;
+
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.MinDocQuery;
 import org.apache.lucene.search.*;
 import org.elasticsearch.action.search.SearchType;
@@ -35,7 +38,6 @@ import org.elasticsearch.search.internal.ScrollContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.rescore.RescorePhase;
 import org.elasticsearch.search.rescore.RescoreSearchContext;
-import org.elasticsearch.search.scan.ScanContext.ScanCollector;
 import org.elasticsearch.search.sort.SortParseElement;
 import org.elasticsearch.search.sort.TrackScoresParseElement;
 import org.elasticsearch.search.suggest.SuggestPhase;
@@ -100,23 +102,51 @@ public class QueryPhase implements SearchPhase {
         // here to make sure it happens during the QUERY phase
         aggregationPhase.preProcess(searchContext);
 
-        searchContext.queryResult().searchTimedOut(false);
+        boolean rescore = execute(searchContext, searchContext.searcher());
+
+        if (rescore) { // only if we do a regular search
+            rescorePhase.execute(searchContext);
+        }
+        suggestPhase.execute(searchContext);
+        aggregationPhase.execute(searchContext);
+    }
+
+    private static boolean returnsDocsInOrder(Query query, Sort sort) {
+        if (sort == null || Sort.RELEVANCE.equals(sort)) {
+            // sort by score
+            // queries that return constant scores will return docs in index
+            // order since Lucene tie-breaks on the doc id
+            return query.getClass() == ConstantScoreQuery.class
+                    || query.getClass() == MatchAllDocsQuery.class;
+        } else {
+            return Sort.INDEXORDER.equals(sort);
+        }
+    }
+
+    /**
+     * In a package-private method so that it can be tested without having to
+     * wire everything (mapperService, etc.)
+     * @return whether the rescoring phase should be executed
+     */
+    static boolean execute(SearchContext searchContext, final IndexSearcher searcher) throws QueryPhaseExecutionException {
+        QuerySearchResult queryResult = searchContext.queryResult();
+        queryResult.searchTimedOut(false);
 
         final SearchType searchType = searchContext.searchType();
         boolean rescore = false;
         try {
-            searchContext.queryResult().from(searchContext.from());
-            searchContext.queryResult().size(searchContext.size());
+            queryResult.from(searchContext.from());
+            queryResult.size(searchContext.size());
 
-            final IndexSearcher searcher = searchContext.searcher();
             Query query = searchContext.query();
 
             final int totalNumDocs = searcher.getIndexReader().numDocs();
             int numDocs = Math.min(searchContext.from() + searchContext.size(), totalNumDocs);
 
             Collector collector;
-            final Callable<TopDocs> topDocsCallable;
+            Callable<TopDocs> topDocsCallable;
 
+            assert query == searcher.rewrite(query); // already rewritten
             if (searchContext.size() == 0) { // no matter what the value of from is
                 final TotalHitCountCollector totalHitCountCollector = new TotalHitCountCollector();
                 collector = totalHitCountCollector;
@@ -124,16 +154,6 @@ public class QueryPhase implements SearchPhase {
                     @Override
                     public TopDocs call() throws Exception {
                         return new TopDocs(totalHitCountCollector.getTotalHits(), Lucene.EMPTY_SCORE_DOCS, 0);
-                    }
-                };
-            } else if (searchType == SearchType.SCAN) {
-                query = searchContext.scanContext().wrapQuery(query);
-                final ScanCollector scanCollector = searchContext.scanContext().collector(searchContext);
-                collector = scanCollector;
-                topDocsCallable = new Callable<TopDocs>() {
-                    @Override
-                    public TopDocs call() throws Exception {
-                        return scanCollector.topDocs();
                     }
                 };
             } else {
@@ -146,7 +166,7 @@ public class QueryPhase implements SearchPhase {
                     numDocs = Math.min(searchContext.size(), totalNumDocs);
                     lastEmittedDoc = scrollContext.lastEmittedDoc;
 
-                    if (Sort.INDEXORDER.equals(searchContext.sort())) {
+                    if (returnsDocsInOrder(query, searchContext.sort())) {
                         if (scrollContext.totalHits == -1) {
                             // first round
                             assert scrollContext.lastEmittedDoc == null;
@@ -156,9 +176,10 @@ public class QueryPhase implements SearchPhase {
                             // now this gets interesting: since we sort in index-order, we can directly
                             // skip to the desired doc and stop collecting after ${size} matches
                             if (scrollContext.lastEmittedDoc != null) {
-                                BooleanQuery bq = new BooleanQuery();
-                                bq.add(query, BooleanClause.Occur.MUST);
-                                bq.add(new MinDocQuery(lastEmittedDoc.doc + 1), BooleanClause.Occur.FILTER);
+                                BooleanQuery bq = new BooleanQuery.Builder()
+                                    .add(query, BooleanClause.Occur.MUST)
+                                    .add(new MinDocQuery(lastEmittedDoc.doc + 1), BooleanClause.Occur.FILTER)
+                                    .build();
                                 query = bq;
                             }
                             searchContext.terminateAfter(numDocs);
@@ -206,6 +227,7 @@ public class QueryPhase implements SearchPhase {
                                     // set the last emitted doc
                                     scrollContext.lastEmittedDoc = topDocs.scoreDocs[topDocs.scoreDocs.length - 1];
                                 }
+                                break;
                             default:
                                 break;
                             }
@@ -240,36 +262,75 @@ public class QueryPhase implements SearchPhase {
                 collector = new MinimumScoreCollector(collector, searchContext.minimumScore());
             }
 
+            if (collector.getClass() == TotalHitCountCollector.class) {
+                // Optimize counts in simple cases to return in constant time
+                // instead of using a collector
+                while (true) {
+                    // remove wrappers that don't matter for counts
+                    // this is necessary so that we don't only optimize match_all
+                    // queries but also match_all queries that are nested in
+                    // a constant_score query
+                    if (query instanceof ConstantScoreQuery) {
+                        query = ((ConstantScoreQuery) query).getQuery();
+                    } else {
+                        break;
+                    }
+                }
+
+                if (query.getClass() == MatchAllDocsQuery.class) {
+                    collector = null;
+                    topDocsCallable = new Callable<TopDocs>() {
+                        @Override
+                        public TopDocs call() throws Exception {
+                            int count = searcher.getIndexReader().numDocs();
+                            return new TopDocs(count, Lucene.EMPTY_SCORE_DOCS, 0);
+                        }
+                    };
+                } else if (query.getClass() == TermQuery.class && searcher.getIndexReader().hasDeletions() == false) {
+                    final Term term = ((TermQuery) query).getTerm();
+                    collector = null;
+                    topDocsCallable = new Callable<TopDocs>() {
+                        @Override
+                        public TopDocs call() throws Exception {
+                            int count = 0;
+                            for (LeafReaderContext context : searcher.getIndexReader().leaves()) {
+                                count += context.reader().docFreq(term);
+                            }
+                            return new TopDocs(count, Lucene.EMPTY_SCORE_DOCS, 0);
+                        }
+                    };
+                }
+            }
+
             final boolean timeoutSet = searchContext.timeoutInMillis() != SearchService.NO_TIMEOUT.millis();
-            if (timeoutSet) {
+            if (timeoutSet && collector != null) { // collector might be null if no collection is actually needed
                 // TODO: change to use our own counter that uses the scheduler in ThreadPool
                 // throws TimeLimitingCollector.TimeExceededException when timeout has reached
                 collector = Lucene.wrapTimeLimitingCollector(collector, searchContext.timeEstimateCounter(), searchContext.timeoutInMillis());
             }
 
             try {
-                searchContext.searcher().search(query, collector);
+                if (collector != null) {
+                    searcher.search(query, collector);
+                }
             } catch (TimeLimitingCollector.TimeExceededException e) {
                 assert timeoutSet : "TimeExceededException thrown even though timeout wasn't set";
-                searchContext.queryResult().searchTimedOut(true);
+                queryResult.searchTimedOut(true);
             } catch (Lucene.EarlyTerminationException e) {
                 assert terminateAfterSet : "EarlyTerminationException thrown even though terminateAfter wasn't set";
-                searchContext.queryResult().terminatedEarly(true);
+                queryResult.terminatedEarly(true);
             } finally {
                 searchContext.clearReleasables(SearchContext.Lifetime.COLLECTION);
             }
-            if (terminateAfterSet && searchContext.queryResult().terminatedEarly() == null) {
-                searchContext.queryResult().terminatedEarly(false);
+            if (terminateAfterSet && queryResult.terminatedEarly() == null) {
+                queryResult.terminatedEarly(false);
             }
 
-            searchContext.queryResult().topDocs(topDocsCallable.call());
+            queryResult.topDocs(topDocsCallable.call());
+
+            return rescore;
         } catch (Throwable e) {
             throw new QueryPhaseExecutionException(searchContext, "Failed to execute main query", e);
         }
-        if (rescore) { // only if we do a regular search
-            rescorePhase.execute(searchContext);
-        }
-        suggestPhase.execute(searchContext);
-        aggregationPhase.execute(searchContext);
     }
 }

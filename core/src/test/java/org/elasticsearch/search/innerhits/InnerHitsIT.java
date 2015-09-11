@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.innerhits;
 
-import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -734,7 +734,7 @@ public class InnerHitsIT extends ESIntegTestCase {
         assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).getNestedIdentity().getField().string(), equalTo("comments"));
         assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).getNestedIdentity().getOffset(), equalTo(0));
         assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).getNestedIdentity().getChild(), nullValue());
-        assertThat(String.valueOf(response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).fields().get("comments.message").getValue()), equalTo("fox eat quick"));
+        assertThat(String.valueOf((Object)response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).fields().get("comments.message").getValue()), equalTo("fox eat quick"));
     }
 
     @Test
@@ -811,7 +811,7 @@ public class InnerHitsIT extends ESIntegTestCase {
         assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).getNestedIdentity().getField().string(), equalTo("comments"));
         assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).getNestedIdentity().getOffset(), equalTo(0));
         assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).getNestedIdentity().getChild(), nullValue());
-        assertThat(String.valueOf(response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).fields().get("comments.message").getValue()), equalTo("fox eat quick"));
+        assertThat(String.valueOf((Object)response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).fields().get("comments.message").getValue()), equalTo("fox eat quick"));
     }
 
     @Test
@@ -1130,6 +1130,40 @@ public class InnerHitsIT extends ESIntegTestCase {
         assertThat(response.getHits().getAt(0).getInnerHits().get("child").getTotalHits(), equalTo(1l));
         assertThat(response.getHits().getAt(0).getInnerHits().get("child").getAt(0).getMatchedQueries().length, equalTo(1));
         assertThat(response.getHits().getAt(0).getInnerHits().get("child").getAt(0).getMatchedQueries()[0], equalTo("_name2"));
+    }
+
+    @Test
+    public void testDontExplode() throws Exception {
+        assertAcked(prepareCreate("index1").addMapping("child", "_parent", "type=parent"));
+        List<IndexRequestBuilder> requests = new ArrayList<>();
+        requests.add(client().prepareIndex("index1", "parent", "1").setSource("{}"));
+        requests.add(client().prepareIndex("index1", "child", "1").setParent("1").setSource("field", "value1"));
+        indexRandom(true, requests);
+
+        SearchResponse response = client().prepareSearch("index1")
+                .setQuery(hasChildQuery("child", matchQuery("field", "value1")).innerHit(new QueryInnerHitBuilder().setSize(ArrayUtil.MAX_ARRAY_LENGTH - 1)))
+                .addSort("_uid", SortOrder.ASC)
+                .get();
+        assertNoFailures(response);
+        assertHitCount(response, 1);
+
+        assertAcked(prepareCreate("index2").addMapping("type", "nested", "type=nested"));
+        client().prepareIndex("index2", "type", "1").setSource(jsonBuilder().startObject()
+                .startArray("nested")
+                .startObject()
+                .field("field", "value1")
+                .endObject()
+                .endArray()
+                .endObject())
+        .setRefresh(true)
+        .get();
+
+        response = client().prepareSearch("index2")
+                .setQuery(nestedQuery("nested", matchQuery("nested.field", "value1")).innerHit(new QueryInnerHitBuilder().setSize(ArrayUtil.MAX_ARRAY_LENGTH - 1)))
+                .addSort("_uid", SortOrder.ASC)
+                .get();
+        assertNoFailures(response);
+        assertHitCount(response, 1);
     }
 
 }

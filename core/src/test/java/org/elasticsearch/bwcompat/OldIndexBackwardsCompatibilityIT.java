@@ -19,7 +19,6 @@
 
 package org.elasticsearch.bwcompat;
 
-import com.google.common.base.Predicate;
 import com.google.common.util.concurrent.ListenableFuture;
 
 import org.apache.lucene.index.IndexWriter;
@@ -99,8 +98,7 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
 
     private List<String> loadIndexesList(String prefix) throws IOException {
         List<String> indexes = new ArrayList<>();
-        Path dir = getDataPath(".");
-        try (DirectoryStream<Path> stream = Files.newDirectoryStream(dir, prefix + "-*.zip")) {
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(getBwcIndicesPath(), prefix + "-*.zip")) {
             for (Path path : stream) {
                 indexes.add(path.getFileName().toString());
             }
@@ -167,7 +165,7 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
         String indexName = indexFile.replace(".zip", "").toLowerCase(Locale.ROOT).replace("unsupported-", "index-");
 
         // decompress the index
-        Path backwardsIndex = getDataPath(indexFile);
+        Path backwardsIndex = getBwcIndicesPath().resolve(indexFile);
         try (InputStream stream = Files.newInputStream(backwardsIndex)) {
             TestUtil.unzip(stream, unzipDir);
         }
@@ -292,13 +290,12 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
      * Waits for the index to show up in the cluster state in closed state
      */
     void ensureClosed(final String index) throws InterruptedException {
-        assertTrue(awaitBusy(new Predicate<Object>() {
-            @Override
-            public boolean apply(Object o) {
-                ClusterState state = client().admin().cluster().prepareState().get().getState();
-                return state.metaData().hasIndex(index) && state.metaData().index(index).getState() == IndexMetaData.State.CLOSE;
-            }
-        }));
+        assertTrue(awaitBusy(() -> {
+                            ClusterState state = client().admin().cluster().prepareState().get().getState();
+                            return state.metaData().hasIndex(index) && state.metaData().index(index).getState() == IndexMetaData.State.CLOSE;
+                        }
+                )
+        );
     }
 
     /**

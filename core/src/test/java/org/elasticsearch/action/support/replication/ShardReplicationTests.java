@@ -18,17 +18,14 @@
  */
 package org.elasticsearch.action.support.replication;
 
-import com.google.common.base.Predicate;
 import org.apache.lucene.index.CorruptIndexException;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionWriteResponse;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
@@ -40,16 +37,15 @@ import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.*;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.ShardIterator;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.index.shard.IndexShardNotStartedException;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
@@ -70,15 +66,19 @@ import org.junit.Test;
 import java.io.IOException;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
-import static org.hamcrest.Matchers.*;
+import static org.elasticsearch.action.support.replication.ClusterStateCreationUtils.state;
+import static org.elasticsearch.action.support.replication.ClusterStateCreationUtils.stateWithStartedPrimary;
+import static org.hamcrest.Matchers.arrayWithSize;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class ShardReplicationTests extends ESTestCase {
 
@@ -98,6 +98,7 @@ public class ShardReplicationTests extends ESTestCase {
         threadPool = new ThreadPool("ShardReplicationTests");
     }
 
+    @Override
     @Before
     public void setUp() throws Exception {
         super.setUp();
@@ -159,103 +160,6 @@ public class ShardReplicationTests extends ESTestCase {
 
     public void assertIndexShardUninitialized() {
         assertEquals(1, count.get());
-    }
-
-    ClusterState stateWithStartedPrimary(String index, boolean primaryLocal, int numberOfReplicas) {
-        int assignedReplicas = randomIntBetween(0, numberOfReplicas);
-        return stateWithStartedPrimary(index, primaryLocal, assignedReplicas, numberOfReplicas - assignedReplicas);
-    }
-
-    ClusterState stateWithStartedPrimary(String index, boolean primaryLocal, int assignedReplicas, int unassignedReplicas) {
-        ShardRoutingState[] replicaStates = new ShardRoutingState[assignedReplicas + unassignedReplicas];
-        // no point in randomizing - node assignment later on does it too.
-        for (int i = 0; i < assignedReplicas; i++) {
-            replicaStates[i] = randomFrom(ShardRoutingState.INITIALIZING, ShardRoutingState.STARTED, ShardRoutingState.RELOCATING);
-        }
-        for (int i = assignedReplicas; i < replicaStates.length; i++) {
-            replicaStates[i] = ShardRoutingState.UNASSIGNED;
-        }
-        return state(index, primaryLocal, randomFrom(ShardRoutingState.STARTED, ShardRoutingState.RELOCATING), replicaStates);
-    }
-
-    ClusterState state(String index, boolean primaryLocal, ShardRoutingState primaryState, ShardRoutingState... replicaStates) {
-        final int numberOfReplicas = replicaStates.length;
-
-        int numberOfNodes = numberOfReplicas + 1;
-        if (primaryState == ShardRoutingState.RELOCATING) {
-            numberOfNodes++;
-        }
-        for (ShardRoutingState state : replicaStates) {
-            if (state == ShardRoutingState.RELOCATING) {
-                numberOfNodes++;
-            }
-        }
-        numberOfNodes = Math.max(2, numberOfNodes); // we need a non-local master to test shard failures
-        final ShardId shardId = new ShardId(index, 0);
-        DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
-        Set<String> unassignedNodes = new HashSet<>();
-        for (int i = 0; i < numberOfNodes + 1; i++) {
-            final DiscoveryNode node = newNode(i);
-            discoBuilder = discoBuilder.put(node);
-            unassignedNodes.add(node.id());
-        }
-        discoBuilder.localNodeId(newNode(0).id());
-        discoBuilder.masterNodeId(newNode(1).id()); // we need a non-local master to test shard failures
-        IndexMetaData indexMetaData = IndexMetaData.builder(index).settings(Settings.builder()
-                .put(SETTING_VERSION_CREATED, Version.CURRENT)
-                .put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, numberOfReplicas)
-                .put(SETTING_CREATION_DATE, System.currentTimeMillis())).build();
-
-        RoutingTable.Builder routing = new RoutingTable.Builder();
-        routing.addAsNew(indexMetaData);
-        IndexShardRoutingTable.Builder indexShardRoutingBuilder = new IndexShardRoutingTable.Builder(shardId);
-
-        String primaryNode = null;
-        String relocatingNode = null;
-        UnassignedInfo unassignedInfo = null;
-        if (primaryState != ShardRoutingState.UNASSIGNED) {
-            if (primaryLocal) {
-                primaryNode = newNode(0).id();
-                unassignedNodes.remove(primaryNode);
-            } else {
-                primaryNode = selectAndRemove(unassignedNodes);
-            }
-            if (primaryState == ShardRoutingState.RELOCATING) {
-                relocatingNode = selectAndRemove(unassignedNodes);
-            }
-        } else {
-            unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null);
-        }
-        indexShardRoutingBuilder.addShard(TestShardRouting.newShardRouting(index, 0, primaryNode, relocatingNode, null, true, primaryState, 0, unassignedInfo));
-
-        for (ShardRoutingState replicaState : replicaStates) {
-            String replicaNode = null;
-            relocatingNode = null;
-            unassignedInfo = null;
-            if (replicaState != ShardRoutingState.UNASSIGNED) {
-                assert primaryNode != null : "a replica is assigned but the primary isn't";
-                replicaNode = selectAndRemove(unassignedNodes);
-                if (replicaState == ShardRoutingState.RELOCATING) {
-                    relocatingNode = selectAndRemove(unassignedNodes);
-                }
-            } else {
-                unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null);
-            }
-            indexShardRoutingBuilder.addShard(
-                    TestShardRouting.newShardRouting(index, shardId.id(), replicaNode, relocatingNode, null, false, replicaState, 0, unassignedInfo));
-        }
-
-        ClusterState.Builder state = ClusterState.builder(new ClusterName("test"));
-        state.nodes(discoBuilder);
-        state.metaData(MetaData.builder().put(indexMetaData, false).generateClusterUuidIfNeeded());
-        state.routingTable(RoutingTable.builder().add(IndexRoutingTable.builder(index).addIndexShard(indexShardRoutingBuilder.build())));
-        return state.build();
-    }
-
-    private String selectAndRemove(Set<String> strings) {
-        String selection = randomFrom(strings.toArray(new String[strings.size()]));
-        strings.remove(selection);
-        return selection;
     }
 
     @Test
@@ -527,6 +431,7 @@ public class ShardReplicationTests extends ESTestCase {
         action = new ActionWithDelay(Settings.EMPTY, "testActionWithExceptions", transportService, clusterService, threadPool);
         final TransportReplicationAction<Request, Request, Response>.PrimaryPhase primaryPhase = action.new PrimaryPhase(request, listener);
         Thread t = new Thread() {
+            @Override
             public void run() {
                 primaryPhase.run();
             }
@@ -534,12 +439,7 @@ public class ShardReplicationTests extends ESTestCase {
         t.start();
         // shard operation should be ongoing, so the counter is at 2
         // we have to wait here because increment happens in thread
-        awaitBusy(new Predicate<Object>() {
-            @Override
-            public boolean apply(@Nullable Object input) {
-                    return (count.get() == 2);
-            }
-        });
+        awaitBusy(() -> count.get() == 2);
 
         assertIndexShardCounter(2);
         assertThat(transport.capturedRequests().length, equalTo(0));
@@ -587,6 +487,7 @@ public class ShardReplicationTests extends ESTestCase {
         action = new ActionWithDelay(Settings.EMPTY, "testActionWithExceptions", transportService, clusterService, threadPool);
         final Action.ReplicaOperationTransportHandler replicaOperationTransportHandler = action.new ReplicaOperationTransportHandler();
         Thread t = new Thread() {
+            @Override
             public void run() {
                 try {
                     replicaOperationTransportHandler.messageReceived(new Request(), createTransportChannel());
@@ -597,12 +498,7 @@ public class ShardReplicationTests extends ESTestCase {
         t.start();
         // shard operation should be ongoing, so the counter is at 2
         // we have to wait here because increment happens in thread
-        awaitBusy(new Predicate<Object>() {
-            @Override
-            public boolean apply(@Nullable Object input) {
-                return count.get() == 2;
-            }
-        });
+        awaitBusy(() -> count.get() == 2);
         ((ActionWithDelay) action).countDownLatch.countDown();
         t.join();
         // operation should have finished and counter decreased because no outstanding replica requests
@@ -744,10 +640,6 @@ public class ShardReplicationTests extends ESTestCase {
         protected boolean checkWriteConsistency() {
             return true;
         }
-    }
-
-    static DiscoveryNode newNode(int nodeId) {
-        return new DiscoveryNode("node_" + nodeId, DummyTransportAddress.INSTANCE, Version.CURRENT);
     }
 
     /*

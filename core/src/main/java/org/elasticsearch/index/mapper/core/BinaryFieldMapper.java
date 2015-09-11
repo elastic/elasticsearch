@@ -134,6 +134,15 @@ public class BinaryFieldMapper extends FieldMapper {
             return CONTENT_TYPE;
         }
 
+        @Override
+        public void checkCompatibility(MappedFieldType fieldType, List<String> conflicts, boolean strict) {
+            super.checkCompatibility(fieldType, conflicts, strict);
+            BinaryFieldType other = (BinaryFieldType)fieldType;
+            if (tryUncompressing() != other.tryUncompressing()) {
+                conflicts.add("mapper [" + names().fullName() + "] has different [try_uncompressing] (IMPOSSIBLE)");
+            }
+        }
+
         public boolean tryUncompressing() {
             return tryUncompressing;
         }

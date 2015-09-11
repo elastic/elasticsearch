@@ -34,59 +34,51 @@ load packaging_test_utils
 
 # Cleans everything for the 1st execution
 setup() {
-    if [ "$BATS_TEST_NUMBER" -eq 1 ]; then
-        clean_before_test
-    fi
+    skip_not_dpkg
 }
 
 ##################################
 # Install DEB package
 ##################################
 @test "[DEB] dpkg command is available" {
-    skip_not_dpkg
-    run dpkg --version
-    [ "$status" -eq 0 ]
+    clean_before_test
+    dpkg --version
 }
 
 @test "[DEB] package is available" {
-    skip_not_dpkg
-    count=$(find . -type f -name 'elastic*.deb' | wc -l)
+    count=$(ls elasticsearch-$(cat version).deb | wc -l)
     [ "$count" -eq 1 ]
 }
 
 @test "[DEB] package is not installed" {
-    skip_not_dpkg
-    run dpkg -s 'elasticsearch' >&2
+    run dpkg -s 'elasticsearch'
     [ "$status" -eq 1 ]
 }
 
 @test "[DEB] install package" {
-    skip_not_dpkg
-    run dpkg -i elasticsearch*.deb >&2
-    [ "$status" -eq 0 ]
+    dpkg -i elasticsearch-$(cat version).deb
 }
 
 @test "[DEB] package is installed" {
-    skip_not_dpkg
-    run dpkg -s 'elasticsearch' >&2
-    [ "$status" -eq 0 ]
+    dpkg -s 'elasticsearch'
 }
 
-##################################
-# Check that the package is correctly installed
-##################################
 @test "[DEB] verify package installation" {
-    skip_not_dpkg
-
     verify_package_installation
 }
 
-##################################
-# Check that Elasticsearch is working
-##################################
-@test "[DEB] test elasticsearch" {
-    skip_not_dpkg
+@test "[DEB] elasticsearch isn't started by package install" {
+    # Wait a second to give Elasticsearch a change to start if it is going to.
+    # This isn't perfect by any means but its something.
+    sleep 1
+    ! ps aux | grep elasticsearch | grep java
+    # You might be tempted to use jps instead of the above but that'd have to
+    # look like:
+    # ! sudo -u elasticsearch jps | grep -i elasticsearch
+    # which isn't really easier to read than the above.
+}
 
+@test "[DEB] test elasticsearch" {
     start_elasticsearch_service
 
     run_elasticsearch_tests
@@ -96,21 +88,16 @@ setup() {
 # Uninstall DEB package
 ##################################
 @test "[DEB] remove package" {
-    skip_not_dpkg
-    run dpkg -r 'elasticsearch' >&2
-    [ "$status" -eq 0 ]
+    dpkg -r 'elasticsearch'
 }
 
 @test "[DEB] package has been removed" {
-    skip_not_dpkg
-    run dpkg -s 'elasticsearch' >&2
+    run dpkg -s 'elasticsearch'
     [ "$status" -eq 0 ]
     echo "$output" | grep -i "status" | grep -i "deinstall ok"
 }
 
 @test "[DEB] verify package removal" {
-    skip_not_dpkg
-
     # The removal must stop the service
     count=$(ps | grep Elasticsearch | wc -l)
     [ "$count" -eq 0 ]
@@ -146,14 +133,10 @@ setup() {
 }
 
 @test "[DEB] purge package" {
-    skip_not_dpkg
-    run dpkg --purge 'elasticsearch' >&2
-    [ "$status" -eq 0 ]
+    dpkg --purge 'elasticsearch'
 }
 
 @test "[DEB] verify package purge" {
-    skip_not_dpkg
-
     # all remaining files are deleted by the purge
     assert_file_not_exist "/etc/elasticsearch"
     assert_file_not_exist "/etc/elasticsearch/elasticsearch.yml"
@@ -171,7 +154,27 @@ setup() {
 }
 
 @test "[DEB] package has been completly removed" {
-    skip_not_dpkg
-    run dpkg -s 'elasticsearch' >&2
+    run dpkg -s 'elasticsearch'
+    [ "$status" -eq 1 ]
+}
+
+@test "[DEB] reinstall package" {
+    dpkg -i elasticsearch-$(cat version).deb
+}
+
+@test "[DEB] package is installed by reinstall" {
+    dpkg -s 'elasticsearch'
+}
+
+@test "[DEB] verify package reinstallation" {
+    verify_package_installation
+}
+
+@test "[DEB] repurge package" {
+    dpkg --purge 'elasticsearch'
+}
+
+@test "[DEB] package has been completly removed again" {
+    run dpkg -s 'elasticsearch'
     [ "$status" -eq 1 ]
 }

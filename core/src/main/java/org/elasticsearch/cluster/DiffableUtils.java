@@ -32,8 +32,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static com.google.common.collect.Maps.newHashMap;
-
 public final class DiffableUtils {
     private DiffableUtils() {
     }
@@ -152,7 +150,7 @@ public final class DiffableUtils {
 
         @Override
         public ImmutableMap<String, T> apply(ImmutableMap<String, T> map) {
-            HashMap<String, T> builder = newHashMap();
+            HashMap<String, T> builder = new HashMap<>();
             builder.putAll(map);
 
             for (String part : deletes) {
@@ -233,14 +231,14 @@ public final class DiffableUtils {
 
         protected MapDiff() {
             deletes = new ArrayList<>();
-            diffs = newHashMap();
-            adds = newHashMap();
+            diffs = new HashMap<>();
+            adds = new HashMap<>();
         }
 
         protected MapDiff(StreamInput in, KeyedReader<T> reader) throws IOException {
             deletes = new ArrayList<>();
-            diffs = newHashMap();
-            adds = newHashMap();
+            diffs = new HashMap<>();
+            adds = new HashMap<>();
             int deletesCount = in.readVInt();
             for (int i = 0; i < deletesCount; i++) {
                 deletes.add(in.readString());

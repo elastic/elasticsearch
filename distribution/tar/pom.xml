@@ -6,7 +6,7 @@
     <parent>
         <groupId>org.elasticsearch.distribution</groupId>
         <artifactId>distributions</artifactId>
-        <version>2.1.0-SNAPSHOT</version>
+        <version>3.0.0-SNAPSHOT</version>
     </parent>
 
     <groupId>org.elasticsearch.distribution.tar</groupId>
@@ -18,15 +18,6 @@
      -->
     <!--packaging>pom</packaging-->
     <description>The TAR distribution of Elasticsearch</description>
-
-    <dependencies>
-        <dependency>
-            <groupId>org.elasticsearch.distribution.fully-loaded</groupId>
-            <artifactId>elasticsearch</artifactId>
-            <version>${elasticsearch.version}</version>
-            <type>pom</type>
-        </dependency>
-    </dependencies>
 
     <build>
         <filters>

@@ -20,6 +20,7 @@ package org.elasticsearch.index.mapper.core;
 
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.junit.Before;
 
 public class ByteFieldTypeTests extends FieldTypeTestCase {
     @Override
@@ -27,8 +28,8 @@ public class ByteFieldTypeTests extends FieldTypeTestCase {
         return new ByteFieldMapper.ByteFieldType();
     }
 
-    @Override
-    protected Object dummyNullValue() {
-        return (byte)10;
+    @Before
+    public void setupProperties() {
+        setDummyNullValue((byte)10);
     }
 }

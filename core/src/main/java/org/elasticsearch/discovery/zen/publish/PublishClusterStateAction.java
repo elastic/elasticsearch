@@ -19,7 +19,6 @@
 
 package org.elasticsearch.discovery.zen.publish;
 
-import com.google.common.collect.Maps;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.*;
@@ -119,8 +118,8 @@ public class PublishClusterStateAction extends AbstractComponent {
                 }
             }
             sendFullVersion = !discoverySettings.getPublishDiff() || clusterChangedEvent.previousState() == null;
-            serializedStates = Maps.newHashMap();
-            serializedDiffs = Maps.newHashMap();
+            serializedStates = new HashMap<>();
+            serializedDiffs = new HashMap<>();
 
             // we build these early as a best effort not to commit in the case of error.
             // sadly this is not water tight as it may that a failed diff based publishing to a node

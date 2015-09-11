@@ -22,14 +22,19 @@ package org.elasticsearch.index;
 import com.google.common.base.Function;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterators;
-
+import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.*;
+import org.elasticsearch.common.inject.CreationException;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.inject.Injector;
+import org.elasticsearch.common.inject.Injectors;
+import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
@@ -38,12 +43,20 @@ import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.deletionpolicy.DeletionPolicyModule;
+import org.elasticsearch.index.fielddata.FieldDataType;
+import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.settings.IndexSettingsService;
-import org.elasticsearch.index.shard.*;
+import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.IndexShardModule;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardNotFoundException;
+import org.elasticsearch.index.shard.ShardPath;
+import org.elasticsearch.index.shard.StoreRecoveryService;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.store.Store;
@@ -65,7 +78,6 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static com.google.common.collect.Maps.newHashMap;
 import static org.elasticsearch.common.collect.MapBuilder.newMapBuilder;
 
 /**
@@ -150,8 +162,8 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
         this.indicesLifecycle = (InternalIndicesLifecycle) injector.getInstance(IndicesLifecycle.class);
 
         // inject workarounds for cyclic dep
-        indexFieldData.setIndexService(this);
-        bitSetFilterCache.setIndexService(this);
+        indexFieldData.setListener(new FieldDataCacheListener(this));
+        bitSetFilterCache.setListener(new BitsetCacheListener(this));
         this.nodeEnv = nodeEnv;
     }
 
@@ -407,7 +419,7 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
             return;
         }
         logger.debug("[{}] closing... (reason: [{}])", shardId, reason);
-        HashMap<Integer, IndexShardInjectorPair> tmpShardsMap = newHashMap(shards);
+        HashMap<Integer, IndexShardInjectorPair> tmpShardsMap = new HashMap<>(shards);
         IndexShardInjectorPair indexShardInjectorPair = tmpShardsMap.remove(shardId);
         indexShard = indexShardInjectorPair.getIndexShard();
         shardInjector = indexShardInjectorPair.getInjector();
@@ -536,5 +548,63 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
 
     public Settings getIndexSettings() {
         return indexSettings;
+    }
+
+    private static final class BitsetCacheListener implements BitsetFilterCache.Listener {
+        final IndexService indexService;
+
+        private BitsetCacheListener(IndexService indexService) {
+            this.indexService = indexService;
+        }
+
+        @Override
+        public void onCache(ShardId shardId, Accountable accountable) {
+            if (shardId != null) {
+                final IndexShard shard = indexService.shard(shardId.id());
+                if (shard != null) {
+                    long ramBytesUsed = accountable != null ? accountable.ramBytesUsed() : 0l;
+                    shard.shardBitsetFilterCache().onCached(ramBytesUsed);
+                }
+            }
+        }
+
+        @Override
+        public void onRemoval(ShardId shardId, Accountable accountable) {
+            if (shardId != null) {
+                final IndexShard shard = indexService.shard(shardId.id());
+                if (shard != null) {
+                    long ramBytesUsed = accountable != null ? accountable.ramBytesUsed() : 0l;
+                    shard.shardBitsetFilterCache().onRemoval(ramBytesUsed);
+                }
+            }
+        }
+    }
+
+    private final class FieldDataCacheListener implements IndexFieldDataCache.Listener {
+        final IndexService indexService;
+
+        public FieldDataCacheListener(IndexService indexService) {
+            this.indexService = indexService;
+        }
+
+        @Override
+        public void onCache(ShardId shardId, MappedFieldType.Names fieldNames, FieldDataType fieldDataType, Accountable ramUsage) {
+            if (shardId != null) {
+                final IndexShard shard = indexService.shard(shardId.id());
+                if (shard != null) {
+                    shard.fieldData().onCache(shardId, fieldNames, fieldDataType, ramUsage);
+                }
+            }
+        }
+
+        @Override
+        public void onRemoval(ShardId shardId, MappedFieldType.Names fieldNames, FieldDataType fieldDataType, boolean wasEvicted, long sizeInBytes) {
+            if (shardId != null) {
+                final IndexShard shard = indexService.shard(shardId.id());
+                if (shard != null) {
+                    shard.fieldData().onRemoval(shardId, fieldNames, fieldDataType, wasEvicted, sizeInBytes);
+                }
+            }
+        }
     }
 }

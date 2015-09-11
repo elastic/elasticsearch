@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DocIdSet;
@@ -68,6 +67,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
@@ -142,7 +142,7 @@ public class DocumentMapper implements ToXContent {
         }
 
         public DocumentMapper build(MapperService mapperService, DocumentMapperParser docMapperParser) {
-            Preconditions.checkNotNull(rootObjectMapper, "Mapper builder must have the root object mapper set");
+            Objects.requireNonNull(rootObjectMapper, "Mapper builder must have the root object mapper set");
             return new DocumentMapper(mapperService, indexSettings, docMapperParser, rootObjectMapper, meta, rootMappers, sourceTransforms, mapperService.mappingLock);
         }
     }

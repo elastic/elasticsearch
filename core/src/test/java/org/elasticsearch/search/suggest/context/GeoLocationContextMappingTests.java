@@ -18,8 +18,8 @@
  */
 package org.elasticsearch.search.suggest.context;
 
+import org.apache.lucene.util.XGeoHashUtils;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -57,7 +57,7 @@ public class GeoLocationContextMappingTests extends ESTestCase {
         XContentParser parser = XContentHelper.createParser(builder.bytes());
         parser.nextToken();
 
-        String geohash = GeoHashUtils.encode(randomIntBetween(-90, +90), randomIntBetween(-180, +180));
+        String geohash = XGeoHashUtils.stringEncode(randomIntBetween(-180, +180), randomIntBetween(-90, +90));
         HashMap<String, Object> config = new HashMap<>();
         config.put("precision", 12);
         config.put("default", geohash);
@@ -182,8 +182,8 @@ public class GeoLocationContextMappingTests extends ESTestCase {
     }
 
     public void testUseWithMultiGeoHashGeoContext() throws Exception {
-        String geohash1 = GeoHashUtils.encode(randomIntBetween(-90, +90), randomIntBetween(-180, +180));
-        String geohash2 = GeoHashUtils.encode(randomIntBetween(-90, +90), randomIntBetween(-180, +180));
+        String geohash1 = XGeoHashUtils.stringEncode(randomIntBetween(-180, +180), randomIntBetween(-90, +90));
+        String geohash2 = XGeoHashUtils.stringEncode(randomIntBetween(-180, +180), randomIntBetween(-90, +90));
         XContentBuilder builder = jsonBuilder().startObject().startArray("location").value(geohash1).value(geohash2).endArray().endObject();
         XContentParser parser = XContentHelper.createParser(builder.bytes());
         parser.nextToken(); // start of object

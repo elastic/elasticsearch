@@ -28,9 +28,13 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
+import org.elasticsearch.cluster.routing.allocation.command.CancelAllocationCommand;
+import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESAllocationTestCase;
 import org.junit.Test;
 
@@ -785,7 +789,7 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
 
         ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.DEFAULT).metaData(metaData).routingTable(routingTable).build();
 
-        logger.info("--> adding two nodes on same rack and do rerouting");
+        logger.info("--> adding two nodes in different zones and do rerouting");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
                 .put(newNode("A-0", ImmutableMap.of("zone", "a")))
                 .put(newNode("B-0", ImmutableMap.of("zone", "b")))
@@ -825,5 +829,67 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
         assertThat(clusterState.getRoutingNodes().node("A-1").size(), equalTo(2));
         assertThat(clusterState.getRoutingNodes().node("A-0").size(), equalTo(3));
         assertThat(clusterState.getRoutingNodes().node("B-0").size(), equalTo(5));
+    }
+
+    @Test
+    public void testUnassignedShardsWithUnbalancedZones() {
+        AllocationService strategy = createAllocationService(settingsBuilder()
+                .put("cluster.routing.allocation.concurrent_recoveries", 10)
+                .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE, "always")
+                .put("cluster.routing.allocation.awareness.attributes", "zone")
+                .build());
+
+        logger.info("Building initial routing table for 'testUnassignedShardsWithUnbalancedZones'");
+
+        MetaData metaData = MetaData.builder()
+                .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(4))
+                .build();
+
+        RoutingTable routingTable = RoutingTable.builder()
+                .addAsNew(metaData.index("test"))
+                .build();
+
+        ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.DEFAULT).metaData(metaData).routingTable(routingTable).build();
+
+        logger.info("--> adding 5 nodes in different zones and do rerouting");
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
+                        .put(newNode("A-0", ImmutableMap.of("zone", "a")))
+                        .put(newNode("A-1", ImmutableMap.of("zone", "a")))
+                        .put(newNode("A-2", ImmutableMap.of("zone", "a")))
+                        .put(newNode("A-3", ImmutableMap.of("zone", "a")))
+                        .put(newNode("A-4", ImmutableMap.of("zone", "a")))
+                        .put(newNode("B-0", ImmutableMap.of("zone", "b")))
+        ).build();
+        routingTable = strategy.reroute(clusterState).routingTable();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+        assertThat(clusterState.getRoutingNodes().shardsWithState(STARTED).size(), equalTo(0));
+        assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(1));
+
+        logger.info("--> start the shard (primary)");
+        routingTable = strategy.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING)).routingTable();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+        assertThat(clusterState.getRoutingNodes().shardsWithState(STARTED).size(), equalTo(1));
+        assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(3));
+        assertThat(clusterState.getRoutingNodes().shardsWithState(UNASSIGNED).size(), equalTo(1)); // Unassigned shard is expected.
+
+        // Cancel all initializing shards and move started primary to another node.
+        AllocationCommands commands = new AllocationCommands();
+        String primaryNode = null;
+        for (ShardRouting routing : routingTable.allShards()) {
+            if (routing.primary()) {
+                primaryNode = routing.currentNodeId();
+            } else if (routing.initializing()) {
+                commands.add(new CancelAllocationCommand(routing.shardId(), routing.currentNodeId(), false));
+            }
+        }
+        commands.add(new MoveAllocationCommand(new ShardId("test", 0), primaryNode, "A-4"));
+
+        routingTable = strategy.reroute(clusterState, commands).routingTable();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+
+        assertThat(clusterState.getRoutingNodes().shardsWithState(STARTED).size(), equalTo(0));
+        assertThat(clusterState.getRoutingNodes().shardsWithState(RELOCATING).size(), equalTo(1));
+        assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(4)); // +1 for relocating shard.
+        assertThat(clusterState.getRoutingNodes().shardsWithState(UNASSIGNED).size(), equalTo(1)); // Still 1 unassigned.
     }
 }

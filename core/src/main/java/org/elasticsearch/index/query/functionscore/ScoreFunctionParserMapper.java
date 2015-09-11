@@ -23,7 +23,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.index.query.functionscore.exp.ExponentialDecayFunctionParser;
-import org.elasticsearch.index.query.functionscore.factor.FactorParser;
 import org.elasticsearch.index.query.functionscore.fieldvaluefactor.FieldValueFactorFunctionParser;
 import org.elasticsearch.index.query.functionscore.gauss.GaussDecayFunctionParser;
 import org.elasticsearch.index.query.functionscore.lin.LinearDecayFunctionParser;
@@ -42,8 +41,7 @@ public class ScoreFunctionParserMapper {
     @Inject
     public ScoreFunctionParserMapper(Set<ScoreFunctionParser> parsers) {
         Map<String, ScoreFunctionParser> map = new HashMap<>();
-        // build-in parsers
-        addParser(new FactorParser(), map);
+        // built-in parsers
         addParser(new ScriptScoreFunctionParser(), map);
         addParser(new GaussDecayFunctionParser(), map);
         addParser(new LinearDecayFunctionParser(), map);

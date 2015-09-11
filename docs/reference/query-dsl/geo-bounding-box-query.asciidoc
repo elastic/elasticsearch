@@ -22,8 +22,8 @@ Then the following simple query can be executed with a
 [source,js]
 --------------------------------------------------
 {
-    "filtered" : {
-        "query" : {
+    "bool" : {
+        "must" : {
             "match_all" : {}
         },
         "filter" : {
@@ -75,8 +75,8 @@ representation of the geo point, the filter can accept it as well:
 [source,js]
 --------------------------------------------------
 {
-    "filtered" : {
-        "query" : {
+    "boost" : {
+        "must" : {
             "match_all" : {}
         },
         "filter" : {
@@ -106,8 +106,8 @@ conform with http://geojson.org/[GeoJSON].
 [source,js]
 --------------------------------------------------
 {
-    "filtered" : {
-        "query" : {
+    "bool" : {
+        "must" : {
             "match_all" : {}
         },
         "filter" : {
@@ -130,8 +130,8 @@ Format in `lat,lon`.
 [source,js]
 --------------------------------------------------
 {
-    "filtered" : {
-        "query" : {
+    "bool" : {
+        "must" : {
             "match_all" : {}
         },
         "filter" : {
@@ -152,8 +152,8 @@ Format in `lat,lon`.
 [source,js]
 --------------------------------------------------
 {
-    "filtered" : {
-        "query" : {
+    "bool" : {
+        "must" : {
             "match_all" : {}
         },
         "filter" : {
@@ -181,8 +181,8 @@ values separately.
 [source,js]
 --------------------------------------------------
 {
-    "filtered" : {
-        "query" : {
+    "bool" : {
+        "must" : {
             "match_all" : {}
         },
         "filter" : {
@@ -227,8 +227,8 @@ are not supported. Here is an example:
 [source,js]
 --------------------------------------------------
 {
-    "filtered" : {
-        "query" : {
+    "bool" : {
+        "must" : {
             "match_all" : {}
         },
         "filter" : {

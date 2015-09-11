@@ -20,11 +20,10 @@
 package org.elasticsearch.index.shard;
 
 import com.google.common.base.Charsets;
-import com.google.common.base.Preconditions;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.index.CheckIndex;
-import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.QueryCachingPolicy;
+import org.apache.lucene.search.UsageTrackingQueryCachingPolicy;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.ThreadInterruptedException;
@@ -110,10 +109,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.channels.ClosedByInterruptException;
-import java.util.Arrays;
-import java.util.EnumSet;
-import java.util.Locale;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
@@ -207,8 +203,8 @@ public class IndexShard extends AbstractIndexShardComponent {
         this.deletionPolicy = deletionPolicy;
         this.similarityService = similarityService;
         this.wrappingService = wrappingService;
-        Preconditions.checkNotNull(store, "Store must be provided to the index shard");
-        Preconditions.checkNotNull(deletionPolicy, "Snapshot deletion policy must be provided to the index shard");
+        Objects.requireNonNull(store, "Store must be provided to the index shard");
+        Objects.requireNonNull(deletionPolicy, "Snapshot deletion policy must be provided to the index shard");
         this.engineFactory = factory;
         this.indicesLifecycle = (InternalIndicesLifecycle) indicesLifecycle;
         this.indexSettingsService = indexSettingsService;

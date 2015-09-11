@@ -9,18 +9,12 @@
         },
         "functions":  [
             {
-                "boost_factor": 3,
+                "weight": 3,
                 "filter": {
-                    term:{
+                    "term":{
                         "name.last":"banon"
                     }
                 }
-            },
-            {
-                "boost_factor": 3
-            },
-            {
-                "boost_factor": 3
             }
         ],
         "boost" : 3,

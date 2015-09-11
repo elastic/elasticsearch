@@ -19,7 +19,6 @@
 
 package org.elasticsearch.transport;
 
-import com.google.common.base.Preconditions;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -31,6 +30,7 @@ import org.elasticsearch.transport.netty.NettyTransport;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  *
@@ -107,15 +107,15 @@ public class TransportModule extends AbstractModule {
     }
 
     public void setTransportService(Class<? extends TransportService> transportService, String source) {
-        Preconditions.checkNotNull(transportService, "Configured transport service may not be null");
-        Preconditions.checkNotNull(source, "Plugin, that changes transport service may not be null");
+        Objects.requireNonNull(transportService, "Configured transport service may not be null");
+        Objects.requireNonNull(source, "Plugin, that changes transport service may not be null");
         this.configuredTransportService = transportService;
         this.configuredTransportServiceSource = source;
     }
 
     public void setTransport(Class<? extends Transport> transport, String source) {
-        Preconditions.checkNotNull(transport, "Configured transport may not be null");
-        Preconditions.checkNotNull(source, "Plugin, that changes transport may not be null");
+        Objects.requireNonNull(transport, "Configured transport may not be null");
+        Objects.requireNonNull(source, "Plugin, that changes transport may not be null");
         this.configuredTransport = transport;
         this.configuredTransportSource = source;
     }

@@ -54,11 +54,14 @@ public class OsProbeTests extends ESTestCase {
         }
 
         assertNotNull(stats.getMem());
-        assertThat(stats.getMem().getTotal().bytes(), greaterThan(0L));
-        assertThat(stats.getMem().getFree().bytes(), greaterThan(0L));
-        assertThat(stats.getMem().getFreePercent(), allOf(greaterThanOrEqualTo((short) 0), lessThanOrEqualTo((short) 100)));
-        assertThat(stats.getMem().getUsed().bytes(), greaterThan(0L));
-        assertThat(stats.getMem().getUsedPercent(), allOf(greaterThanOrEqualTo((short) 0), lessThanOrEqualTo((short) 100)));
+        // TODO: once java 9 is sorted out make these hard checks (currently 9-ea and 9-ea-jigsaw will differ)
+        if (!Constants.JRE_IS_MINIMUM_JAVA9) {
+            assertThat(stats.getMem().getTotal().bytes(), greaterThan(0L));
+            assertThat(stats.getMem().getFree().bytes(), greaterThan(0L));
+            assertThat(stats.getMem().getFreePercent(), allOf(greaterThanOrEqualTo((short) 0), lessThanOrEqualTo((short) 100)));
+            assertThat(stats.getMem().getUsed().bytes(), greaterThan(0L));
+            assertThat(stats.getMem().getUsedPercent(), allOf(greaterThanOrEqualTo((short) 0), lessThanOrEqualTo((short) 100)));
+        }
 
         assertNotNull(stats.getSwap());
         assertNotNull(stats.getSwap().getTotal());
@@ -70,9 +73,12 @@ public class OsProbeTests extends ESTestCase {
             assertThat(stats.getSwap().getUsed().bytes(), greaterThanOrEqualTo(0L));
         } else {
             // On platforms with no swap
-            assertThat(stats.getSwap().getTotal().bytes(), equalTo(0L));
-            assertThat(stats.getSwap().getFree().bytes(), equalTo(0L));
-            assertThat(stats.getSwap().getUsed().bytes(), equalTo(0L));
+            // TODO: one java 9 is sorted out make these hard checks (currently 9-ea and 9-ea-jigsaw will differ)
+            if (!Constants.JRE_IS_MINIMUM_JAVA9) {
+                assertThat(stats.getSwap().getTotal().bytes(), equalTo(0L));
+                assertThat(stats.getSwap().getFree().bytes(), equalTo(0L));
+                assertThat(stats.getSwap().getUsed().bytes(), equalTo(0L));
+            }
         }
     }
 }

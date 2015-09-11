@@ -25,9 +25,8 @@ import org.elasticsearch.common.inject.spi.Message;
 
 import java.lang.annotation.Annotation;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
-
-import static com.google.common.base.Preconditions.checkNotNull;
 
 /**
  * Bind a non-constant key.
@@ -65,7 +64,7 @@ public class BindingBuilder<T> extends AbstractBindingBuilder<T>
 
     @Override
     public BindingBuilder<T> to(Key<? extends T> linkedKey) {
-        checkNotNull(linkedKey, "linkedKey");
+        Objects.requireNonNull(linkedKey, "linkedKey");
         checkNotTargetted();
         BindingImpl<T> base = getBinding();
         setBinding(new LinkedBindingImpl<>(
@@ -100,7 +99,7 @@ public class BindingBuilder<T> extends AbstractBindingBuilder<T>
 
     @Override
     public BindingBuilder<T> toProvider(Provider<? extends T> provider) {
-        checkNotNull(provider, "provider");
+        Objects.requireNonNull(provider, "provider");
         checkNotTargetted();
 
         // lookup the injection points, adding any errors to the binder's errors list
@@ -127,7 +126,7 @@ public class BindingBuilder<T> extends AbstractBindingBuilder<T>
 
     @Override
     public BindingBuilder<T> toProvider(Key<? extends Provider<? extends T>> providerKey) {
-        checkNotNull(providerKey, "providerKey");
+        Objects.requireNonNull(providerKey, "providerKey");
         checkNotTargetted();
 
         BindingImpl<T> base = getBinding();

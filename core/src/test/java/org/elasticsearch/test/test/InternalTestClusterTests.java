@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.test.test;
 
-import com.google.common.collect.ImmutableSet;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.client.Client;
@@ -84,7 +83,7 @@ public class InternalTestClusterTests extends ESTestCase {
     }
 
     public static void assertSettings(Settings left, Settings right, boolean checkClusterUniqueSettings) {
-        ImmutableSet<Map.Entry<String, String>> entries0 = left.getAsMap().entrySet();
+        Set<Map.Entry<String, String>> entries0 = left.getAsMap().entrySet();
         Map<String, String> entries1 = right.getAsMap();
         assertThat(entries0.size(), equalTo(entries1.size()));
         for (Map.Entry<String, String> entry : entries0) {

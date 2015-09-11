@@ -20,6 +20,10 @@
 package org.elasticsearch.common.geo;
 
 
+import org.apache.lucene.util.BitUtil;
+import org.apache.lucene.util.XGeoHashUtils;
+import org.apache.lucene.util.XGeoUtils;
+
 /**
  *
  */
@@ -27,6 +31,7 @@ public final class GeoPoint {
 
     private double lat;
     private double lon;
+    private final static double TOLERANCE = XGeoUtils.TOLERANCE;
 
     public GeoPoint() {
     }
@@ -34,7 +39,7 @@ public final class GeoPoint {
     /**
      * Create a new Geopointform a string. This String must either be a geohash
      * or a lat-lon tuple.
-     *   
+     *
      * @param value String to create the point from
      */
     public GeoPoint(String value) {
@@ -73,9 +78,20 @@ public final class GeoPoint {
         return this;
     }
 
-    public GeoPoint resetFromGeoHash(String hash) {
-        GeoHashUtils.decode(hash, this);
+    public GeoPoint resetFromIndexHash(long hash) {
+        lon = XGeoUtils.mortonUnhashLon(hash);
+        lat = XGeoUtils.mortonUnhashLat(hash);
         return this;
+    }
+
+    public GeoPoint resetFromGeoHash(String geohash) {
+        final long hash = XGeoHashUtils.mortonEncode(geohash);
+        return this.reset(XGeoUtils.mortonUnhashLat(hash), XGeoUtils.mortonUnhashLon(hash));
+    }
+
+    public GeoPoint resetFromGeoHash(long geohashLong) {
+        final int level = (int)(12 - (geohashLong&15));
+        return this.resetFromIndexHash(BitUtil.flipFlop((geohashLong >>> 4) << ((level * 5) + 2)));
     }
 
     public final double lat() {
@@ -95,11 +111,11 @@ public final class GeoPoint {
     }
 
     public final String geohash() {
-        return GeoHashUtils.encode(lat, lon);
+        return XGeoHashUtils.stringEncode(lon, lat);
     }
 
     public final String getGeohash() {
-        return GeoHashUtils.encode(lat, lon);
+        return XGeoHashUtils.stringEncode(lon, lat);
     }
 
     @Override
@@ -107,10 +123,14 @@ public final class GeoPoint {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
 
-        GeoPoint geoPoint = (GeoPoint) o;
+        final GeoPoint geoPoint = (GeoPoint) o;
+        final double lonCompare = geoPoint.lon - lon;
+        final double latCompare = geoPoint.lat - lat;
 
-        if (Double.compare(geoPoint.lat, lat) != 0) return false;
-        if (Double.compare(geoPoint.lon, lon) != 0) return false;
+        if ((lonCompare < -TOLERANCE || lonCompare > TOLERANCE)
+                || (latCompare < -TOLERANCE || latCompare > TOLERANCE)) {
+            return false;
+        }
 
         return true;
     }
@@ -135,5 +155,17 @@ public final class GeoPoint {
         GeoPoint point = new GeoPoint();
         point.resetFromString(latLon);
         return point;
+    }
+
+    public static GeoPoint fromGeohash(String geohash) {
+        return new GeoPoint().resetFromGeoHash(geohash);
+    }
+
+    public static GeoPoint fromGeohash(long geohashLong) {
+        return new GeoPoint().resetFromGeoHash(geohashLong);
+    }
+
+    public static GeoPoint fromIndexLong(long indexLong) {
+        return new GeoPoint().resetFromIndexHash(indexLong);
     }
 }

@@ -35,9 +35,6 @@ public class WeightFactorFunction extends ScoreFunction {
 
     public WeightFactorFunction(float weight, ScoreFunction scoreFunction) {
         super(CombineFunction.MULT);
-        if (scoreFunction instanceof BoostScoreFunction) {
-            throw new IllegalArgumentException(BoostScoreFunction.BOOST_WEIGHT_ERROR_MESSAGE);
-        }
         if (scoreFunction == null) {
             this.scoreFunction = SCORE_ONE;
         } else {

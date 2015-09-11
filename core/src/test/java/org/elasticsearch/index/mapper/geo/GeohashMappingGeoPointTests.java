@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.mapper.geo;
 
-import org.elasticsearch.common.geo.GeoHashUtils;
+import org.apache.lucene.util.XGeoHashUtils;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -83,13 +83,13 @@ public class GeohashMappingGeoPointTests extends ESSingleNodeTestCase {
 
         ParsedDocument doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
-                .field("point", GeoHashUtils.encode(1.2, 1.3))
+                .field("point", XGeoHashUtils.stringEncode(1.3, 1.2))
                 .endObject()
                 .bytes());
 
         MatcherAssert.assertThat(doc.rootDoc().getField("point.lat"), nullValue());
         MatcherAssert.assertThat(doc.rootDoc().getField("point.lon"), nullValue());
-        MatcherAssert.assertThat(doc.rootDoc().get("point.geohash"), equalTo(GeoHashUtils.encode(1.2, 1.3)));
+        MatcherAssert.assertThat(doc.rootDoc().get("point.geohash"), equalTo(XGeoHashUtils.stringEncode(1.3, 1.2)));
         MatcherAssert.assertThat(doc.rootDoc().get("point"), notNullValue());
     }
 

@@ -89,8 +89,7 @@ import java.util.Locale;
  * <p>
  * See {@link GaussDecayFunctionBuilder} and {@link GaussDecayFunctionParser}
  * for an example. The parser furthermore needs to be registered in the
- * {@link org.elasticsearch.index.query.functionscore.FunctionScoreModule
- * FunctionScoreModule}.
+ * {@link org.elasticsearch.search.SearchModule SearchModule}.
  *
  * **/
 

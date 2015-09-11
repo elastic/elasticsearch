@@ -21,6 +21,8 @@ package org.elasticsearch;
 import com.fasterxml.jackson.core.JsonLocation;
 import com.fasterxml.jackson.core.JsonParseException;
 import com.google.common.collect.ImmutableSet;
+
+import org.apache.lucene.util.Constants;
 import org.codehaus.groovy.runtime.typehandling.GroovyCastException;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.RoutingMissingException;
@@ -567,12 +569,15 @@ public class ExceptionSerializationTests extends ESTestCase {
             }
             Throwable deserialized = serialize(t);
             assertTrue(deserialized instanceof NotSerializableExceptionWrapper);
-            assertArrayEquals(t.getStackTrace(), deserialized.getStackTrace());
-            assertEquals(t.getSuppressed().length, deserialized.getSuppressed().length);
-            if (t.getSuppressed().length > 0) {
-                assertTrue(deserialized.getSuppressed()[0] instanceof NotSerializableExceptionWrapper);
-                assertArrayEquals(t.getSuppressed()[0].getStackTrace(), deserialized.getSuppressed()[0].getStackTrace());
-                assertTrue(deserialized.getSuppressed()[1] instanceof NullPointerException);
+            // TODO: fix this test for more java 9 differences
+            if (!Constants.JRE_IS_MINIMUM_JAVA9) {
+                assertArrayEquals(t.getStackTrace(), deserialized.getStackTrace());
+                assertEquals(t.getSuppressed().length, deserialized.getSuppressed().length);
+                if (t.getSuppressed().length > 0) {
+                    assertTrue(deserialized.getSuppressed()[0] instanceof NotSerializableExceptionWrapper);
+                    assertArrayEquals(t.getSuppressed()[0].getStackTrace(), deserialized.getSuppressed()[0].getStackTrace());
+                    assertTrue(deserialized.getSuppressed()[1] instanceof NullPointerException);
+                }
             }
         }
     }

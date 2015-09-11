@@ -213,6 +213,8 @@ public class HasChildQueryParser implements QueryParser {
                 return super.rewrite(reader);
             }
             String joinField = ParentFieldMapper.joinField(parentType);
+            IndexSearcher indexSearcher = new IndexSearcher(reader);
+            indexSearcher.setQueryCache(null);
             IndexParentChildFieldData indexParentChildFieldData = parentChildIndexFieldData.loadGlobal(indexSearcher.getIndexReader());
             MultiDocValues.OrdinalMap ordinalMap = ParentChildIndexFieldData.getOrdinalMap(indexParentChildFieldData, parentType);
             return JoinUtil.createJoinQuery(joinField, innerQuery, toQuery, indexSearcher, scoreMode, ordinalMap, minChildren, maxChildren);

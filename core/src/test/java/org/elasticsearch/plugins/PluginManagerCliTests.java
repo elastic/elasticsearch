@@ -24,6 +24,7 @@ import org.elasticsearch.common.cli.CliToolTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.nio.file.Path;
 
 import static org.elasticsearch.common.cli.CliTool.ExitStatus.OK_AND_EXIT;
 import static org.elasticsearch.common.cli.CliTool.ExitStatus.IO_ERROR;
@@ -55,8 +56,9 @@ public class PluginManagerCliTests extends CliToolTestCase {
 
     public void testUrlSpacesInPath() {
         CliToolTestCase.CaptureOutputTerminal terminal = new CliToolTestCase.CaptureOutputTerminal();
-        CliTool.ExitStatus execute = new PluginManagerCliParser(terminal).execute(args("install file://foo%20deps"));
+        Path tmpDir = createTempDir().resolve("foo");
+        String finalDir = tmpDir.toAbsolutePath().toString() + "%20deps";
+        CliTool.ExitStatus execute = new PluginManagerCliParser(terminal).execute(args("install file://" + finalDir));
         assertThat(execute.status(), is(IO_ERROR.status()));
-
     }
 }

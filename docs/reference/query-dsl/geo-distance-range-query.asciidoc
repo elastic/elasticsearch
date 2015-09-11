@@ -6,8 +6,8 @@ Filters documents that exists within a range from a specific point:
 [source,js]
 --------------------------------------------------
 {
-    "filtered" : {
-        "query" : {
+    "boost" : {
+        "must" : {
             "match_all" : {}
         },
         "filter" : {

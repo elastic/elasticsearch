@@ -169,8 +169,8 @@ We could write the query as:
 ------------------------------------------
 {
   "query": {
-    "filtered": {
-      "query": {
+    "bool": {
+      "must": {
         "match": {
           "line": "{{text}}" <1>
         }
@@ -212,7 +212,7 @@ via the REST API, should be written as a string:
 
 [source,js]
 --------------------
-"inline": "{\"query\":{\"filtered\":{\"query\":{\"match\":{\"line\":\"{{text}}\"}},\"filter\":{{{#line_no}}\"range\":{\"line_no\":{{{#start}}\"gte\":\"{{start}}\"{{#end}},{{/end}}{{/start}}{{#end}}\"lte\":\"{{end}}\"{{/end}}}}{{/line_no}}}}}}"
+"inline": "{\"query\":{\"bool\":{\"must\":{\"match\":{\"line\":\"{{text}}\"}},\"filter\":{{{#line_no}}\"range\":{\"line_no\":{{{#start}}\"gte\":\"{{start}}\"{{#end}},{{/end}}{{/start}}{{#end}}\"lte\":\"{{end}}\"{{/end}}}}{{/line_no}}}}}}"
 --------------------
 
 ==================================

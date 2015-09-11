@@ -316,7 +316,7 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
         ).get();
 
         DateTime now = DateTime.now(UTC);
-        final int numRecords = scaledRandomIntBetween(2, 128);
+        final int numRecords = scaledRandomIntBetween(2, 12);
         for (int i = 0; i < numRecords; i++) {
             now = now.plusMinutes(1);
             ScheduleTriggerEvent event = new ScheduleTriggerEvent(watchId, now, now);

@@ -69,7 +69,7 @@ public abstract class ESSmokeClientTestCase extends LuceneTestCase {
      */
     public static final String TESTS_CLUSTER_DEFAULT = "localhost:9300";
 
-    protected static ESLogger logger = ESLoggerFactory.getLogger(ESSmokeClientTestCase.class.getName());
+    protected static final ESLogger logger = ESLoggerFactory.getLogger(ESSmokeClientTestCase.class.getName());
 
     private static final AtomicInteger counter = new AtomicInteger();
     private static Client client;

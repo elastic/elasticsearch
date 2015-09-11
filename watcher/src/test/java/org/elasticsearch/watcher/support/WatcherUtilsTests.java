@@ -105,7 +105,7 @@ public class WatcherUtilsTests extends ESTestCase {
         SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery()).size(11);
         XContentBuilder searchSourceJsonBuilder = jsonBuilder();
         searchSourceBuilder.toXContent(searchSourceJsonBuilder, ToXContent.EMPTY_PARAMS);
-        String expectedSource = searchSourceJsonBuilder.string();
+        BytesReference expectedSource = searchSourceJsonBuilder.bytes();
         expectedRequest.source(expectedSource);
 
         if (randomBoolean()) {
@@ -135,7 +135,7 @@ public class WatcherUtilsTests extends ESTestCase {
         assertThat(result.types(), arrayContainingInAnyOrder(expectedRequest.types()));
         assertThat(result.indicesOptions(), equalTo(expectedRequest.indicesOptions()));
         assertThat(result.searchType(), equalTo(expectedRequest.searchType()));
-        assertThat(result.source().toUtf8(), equalTo(expectedSource));
+        assertThat(result.source().toUtf8(), equalTo(expectedSource.toUtf8()));
         assertThat(result.templateSource(), equalTo(expectedRequest.templateSource()));
     }
 

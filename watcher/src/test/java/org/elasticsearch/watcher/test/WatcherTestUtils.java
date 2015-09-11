@@ -122,9 +122,8 @@ public final class WatcherTestUtils {
     }
 
     public static SearchRequest matchAllRequest(IndicesOptions indicesOptions) {
-        // TODO (2.0 upgrade): move back to BytesReference, instead of converting to a string
         SearchRequest request = new SearchRequest(Strings.EMPTY_ARRAY)
-                .source(SearchSourceBuilder.searchSource().query(matchAllQuery()).buildAsBytes(XContentType.JSON).toUtf8());
+                .source(SearchSourceBuilder.searchSource().query(matchAllQuery()).buildAsBytes(XContentType.JSON));
         if (indicesOptions != null) {
             request.indicesOptions(indicesOptions);
         }

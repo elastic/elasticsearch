@@ -11,6 +11,8 @@ import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.Template;
+import org.elasticsearch.script.mustache.MustacheScriptEngineService;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.test.ShieldIntegTestCase;
 import org.elasticsearch.test.ShieldSettingsSource;
@@ -104,9 +106,7 @@ public class ShieldCachePermissionTests extends ShieldIntegTestCase {
     @Test
     public void testThatScriptServiceDoesntLeakData() {
         SearchResponse response = client().prepareSearch("data").setTypes("a")
-                .setTemplateType(ScriptService.ScriptType.INDEXED)
-                .setTemplateName("testTemplate")
-                .setTemplateParams(Collections.<String, Object>singletonMap("name", "token"))
+                .setTemplate(new Template("testTemplate", ScriptService.ScriptType.INDEXED, MustacheScriptEngineService.NAME, null, Collections.<String, Object>singletonMap("name", "token")))
                 .execute().actionGet();
         assertThat(response.isTimedOut(), is(false));
         assertThat(response.getHits().hits().length, is(1));
@@ -114,9 +114,7 @@ public class ShieldCachePermissionTests extends ShieldIntegTestCase {
         // Repeat with unauthorized user!!!!
         try {
             response = client().prepareSearch("data").setTypes("a")
-                    .setTemplateType(ScriptService.ScriptType.INDEXED)
-                    .setTemplateName("testTemplate")
-                    .setTemplateParams(Collections.<String, Object>singletonMap("name", "token"))
+                    .setTemplate(new Template("testTemplate", ScriptService.ScriptType.INDEXED, MustacheScriptEngineService.NAME, null, Collections.<String, Object>singletonMap("name", "token")))
                     .putHeader("Authorization", basicAuthHeaderValue(READ_ONE_IDX_USER, new SecuredString("changeme".toCharArray())))
                     .execute().actionGet();
             fail("search phase exception should have been thrown! response was:\n" + response.toString());

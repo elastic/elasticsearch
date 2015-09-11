@@ -245,9 +245,8 @@ public final class WatcherUtils {
         searchRequest.searchType(searchType);
         searchRequest.indicesOptions(indicesOptions);
         if (searchBody != null) {
-            // TODO (2.0 upgrade): move back to BytesReference instead of dealing with the array directly
             assert searchBody.hasArray();
-            searchRequest.source(searchBody.array(), searchBody.arrayOffset(), searchBody.length());
+            searchRequest.source(searchBody);
         }
         if (templateBody != null) {
             // Unfortunately because of SearchRequest#templateSource(BytesReference, boolean) has been removed in 1.6 and

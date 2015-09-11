@@ -126,7 +126,7 @@ public class SearchTransformTests extends ESIntegTestCase {
                 .startObject("query")
                 .startObject("match_all").endObject()
                 .endObject()
-                .endObject());
+                .endObject().bytes());
         SearchTransform searchTransform = TransformBuilders.searchTransform(request).build();
         ExecutableSearchTransform transform = new ExecutableSearchTransform(searchTransform, logger, ClientProxy.of(client()), null, new DynamicIndexName.Parser());
 
@@ -163,7 +163,7 @@ public class SearchTransformTests extends ESIntegTestCase {
                 .startObject("query")
                 .startObject("_unknown_query_").endObject()
                 .endObject()
-                .endObject());
+                .endObject().bytes());
         SearchTransform searchTransform = TransformBuilders.searchTransform(request).build();
         ExecutableSearchTransform transform = new ExecutableSearchTransform(searchTransform, logger, ClientProxy.of(client()), null, new DynamicIndexName.Parser());
 

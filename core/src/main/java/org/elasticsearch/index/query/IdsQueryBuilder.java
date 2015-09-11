@@ -19,8 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import com.google.common.collect.Sets;
-
 import org.apache.lucene.queries.TermsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -42,7 +40,7 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
 
     public static final String NAME = "ids";
 
-    private final Set<String> ids = Sets.newHashSet();
+    private final Set<String> ids = new HashSet<>();
 
     private final String[] types;
 
@@ -135,7 +133,8 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
             } else if (types.length == 1 && MetaData.ALL.equals(types[0])) {
                 typesForQuery = context.mapperService().types();
             } else {
-                typesForQuery = Sets.newHashSet(types);
+                typesForQuery = new HashSet<>();
+                Collections.addAll(typesForQuery, types);
             }
 
             query = new TermsQuery(UidFieldMapper.NAME, Uid.createUidsForTypesAndIds(typesForQuery, ids));

@@ -19,8 +19,6 @@
 
 package org.elasticsearch.cluster.routing.allocation.decider;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.cluster.ClusterInfo;
@@ -28,11 +26,8 @@ import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.MockInternalClusterInfoService;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.DummyTransportAddress;
-import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
@@ -168,20 +163,4 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
             }
         });
     }
-
-    /** Create a fake NodeStats for the given node and usage */
-    public static NodeStats makeStats(String nodeName, DiskUsage usage) {
-        FsInfo.Path[] paths = new FsInfo.Path[1];
-        FsInfo.Path path = new FsInfo.Path("/dev/null", null,
-                usage.getTotalBytes(), usage.getFreeBytes(), usage.getFreeBytes());
-        paths[0] = path;
-        FsInfo fsInfo = new FsInfo(System.currentTimeMillis(), paths);
-        return new NodeStats(new DiscoveryNode(nodeName, DummyTransportAddress.INSTANCE, Version.CURRENT),
-                System.currentTimeMillis(),
-                null, null, null, null, null,
-                fsInfo,
-                null, null, null,
-                null);
-    }
-
 }

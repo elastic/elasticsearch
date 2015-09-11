@@ -98,3 +98,4 @@ com.google.common.base.Preconditions#checkNotNull(java.lang.Object)
 com.google.common.base.Preconditions#checkNotNull(java.lang.Object, java.lang.Object)
 com.google.common.base.Preconditions#checkNotNull(java.lang.Object, java.lang.String, java.lang.Object[])
 com.google.common.collect.ImmutableSortedSet
+com.google.common.collect.Queues

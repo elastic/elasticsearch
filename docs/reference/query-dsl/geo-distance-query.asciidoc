@@ -22,8 +22,8 @@ filter:
 [source,js]
 --------------------------------------------------
 {
-    "filtered" : {
-        "query" : {
+    "bool" : {
+        "must" : {
             "match_all" : {}
         },
         "filter" : {
@@ -51,8 +51,8 @@ representation of the geo point, the filter can accept it as well:
 [source,js]
 --------------------------------------------------
 {
-    "filtered" : {
-        "query" : {
+    "bool" : {
+        "must" : {
             "match_all" : {}
         },
         "filter" : {
@@ -77,8 +77,8 @@ conform with http://geojson.org/[GeoJSON].
 [source,js]
 --------------------------------------------------
 {
-    "filtered" : {
-        "query" : {
+    "bool" : {
+        "must" : {
             "match_all" : {}
         },
         "filter" : {
@@ -99,8 +99,8 @@ Format in `lat,lon`.
 [source,js]
 --------------------------------------------------
 {
-    "filtered" : {
-        "query" : {
+    "bool" : {
+        "must" : {
             "match_all" : {}
         },
         "filter" : {
@@ -119,8 +119,8 @@ Format in `lat,lon`.
 [source,js]
 --------------------------------------------------
 {
-    "filtered" : {
-        "query" : {
+    "bool" : {
+        "must" : {
             "match_all" : {}
         },
         "filter" : {

@@ -9,8 +9,7 @@ Assuming the data consists of documents representing stock ticks, where each tic
 --------------------------------------------------
 {
     "query" : {
-        "filtered" : {
-            "query" : { "match_all" : {}},
+        "constant_score" : {
             "filter" : {
                 "range" : { "timestamp" : { "from" : "now/1d+9.5h", "to" : "now/1d+16h" }}
             }

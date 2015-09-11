@@ -40,8 +40,8 @@ The following query will find the point using the Elasticsearch's
 --------------------------------------------------
 {
     "query":{
-        "filtered": {
-            "query": {
+        "bool": {
+            "must": {
                 "match_all": {}
             },
             "filter": {
@@ -81,8 +81,8 @@ shape:
 [source,js]
 --------------------------------------------------
 {
-    "filtered": {
-        "query": {
+    "bool": {
+        "must": {
             "match_all": {}
         },
         "filter": {

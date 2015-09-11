@@ -86,3 +86,19 @@ java.net.InetAddress#getHostName()
 java.net.InetAddress#getCanonicalHostName()
 
 java.net.InetSocketAddress#getHostName() @ Use getHostString() instead, which avoids a DNS lookup
+
+@defaultMessage avoid adding additional dependencies on Guava
+com.google.common.collect.Lists
+com.google.common.collect.ImmutableList
+com.google.common.base.Objects
+com.google.common.base.Predicate
+com.google.common.base.Predicates
+com.google.common.base.Strings
+com.google.common.base.Throwables
+com.google.common.collect.Maps
+com.google.common.collect.Sets
+com.google.common.base.Preconditions#checkNotNull(java.lang.Object)
+com.google.common.base.Preconditions#checkNotNull(java.lang.Object, java.lang.Object)
+com.google.common.base.Preconditions#checkNotNull(java.lang.Object, java.lang.String, java.lang.Object[])
+com.google.common.collect.ImmutableSortedSet
+com.google.common.collect.Queues

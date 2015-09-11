@@ -34,6 +34,7 @@ import org.elasticsearch.plugins.PluginManager.OutputMode;
 
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.net.URLDecoder;
 import java.util.Locale;
 
 import static org.elasticsearch.common.cli.CliToolConfig.Builder.cmd;
@@ -221,7 +222,7 @@ public class PluginManagerCliParser extends CliTool {
             if (name != null) {
                 terminal.println("-> Installing " + Strings.coalesceToEmpty(name) + "...");
             } else {
-                terminal.println("-> Installing from " + url + "...");
+                terminal.println("-> Installing from " + URLDecoder.decode(url.toString(), "UTF-8") + "...");
             }
             pluginManager.downloadAndExtract(name, terminal);
             return ExitStatus.OK;

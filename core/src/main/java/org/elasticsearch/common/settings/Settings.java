@@ -98,9 +98,10 @@ public final class Settings implements ToXContent {
 
     /**
      * The settings as a flat {@link java.util.Map}.
+     * @return an unmodifiable map of settings
      */
-    public ImmutableMap<String, String> getAsMap() {
-        return this.settings;
+    public Map<String, String> getAsMap() {
+        return Collections.unmodifiableMap(this.settings);
     }
 
     /**

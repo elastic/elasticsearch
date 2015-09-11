@@ -560,7 +560,9 @@ public class RestoreSnapshotRequest extends MasterNodeOperationRequest<RestoreSn
                         throw new ElasticsearchIllegalArgumentException("malformed ignore_index_settings section, should be an array of strings");
                     }
             } else {
-                throw new ElasticsearchIllegalArgumentException("Unknown parameter " + name);
+                if (IndicesOptions.isIndicesOptions(name) == false) {
+                    throw new ElasticsearchIllegalArgumentException("Unknown parameter " + name);
+                }
             }
         }
         indicesOptions(IndicesOptions.fromMap((Map<String, Object>) source, IndicesOptions.fromOptions(ignoreUnavailable, allowNoIndices, expandWildcardsOpen, expandWildcardsClosed)));

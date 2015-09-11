@@ -21,11 +21,10 @@ import org.elasticsearch.common.inject.util.Types;
 
 import java.lang.reflect.*;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 
 import static com.google.common.base.Preconditions.checkArgument;
-import static com.google.common.base.Preconditions.checkNotNull;
 import static org.elasticsearch.common.inject.internal.MoreTypes.canonicalize;
 
 /**
@@ -85,7 +84,7 @@ public class TypeLiteral<T> {
      */
     @SuppressWarnings("unchecked")
     TypeLiteral(Type type) {
-        this.type = canonicalize(checkNotNull(type, "type"));
+        this.type = canonicalize(Objects.requireNonNull(type, "type"));
         this.rawType = (Class<? super T>) MoreTypes.getRawType(this.type);
         this.hashCode = MoreTypes.hashCode(this.type);
     }

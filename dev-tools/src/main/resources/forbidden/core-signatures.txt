@@ -94,3 +94,6 @@ com.google.common.base.Strings
 com.google.common.base.Throwables
 com.google.common.collect.Maps
 com.google.common.collect.Sets
+com.google.common.base.Preconditions#checkNotNull(java.lang.Object)
+com.google.common.base.Preconditions#checkNotNull(java.lang.Object, java.lang.Object)
+com.google.common.base.Preconditions#checkNotNull(java.lang.Object, java.lang.String, java.lang.Object[])

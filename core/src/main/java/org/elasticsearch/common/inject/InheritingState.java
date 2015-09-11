@@ -33,8 +33,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-
-import static com.google.common.base.Preconditions.checkNotNull;
+import java.util.Objects;
 
 /**
  * @author jessewilson@google.com (Jesse Wilson)
@@ -54,7 +53,7 @@ class InheritingState implements State {
     private final Object lock;
 
     InheritingState(State parent) {
-        this.parent = checkNotNull(parent, "parent");
+        this.parent = Objects.requireNonNull(parent, "parent");
         this.lock = (parent == State.NONE) ? this : parent.lock();
     }
 

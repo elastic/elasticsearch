@@ -798,21 +798,8 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
         refresh();
 
         XContentBuilder query = XContentFactory.jsonBuilder();
-        // query that contains a functions[] array but also a single function
-        query.startObject().startObject("function_score").startArray("functions").startObject().field("boost_factor", "1.3").endObject().endArray().field("boost_factor", "1").endObject().endObject();
-        try {
-            client().search(
-                    searchRequest().source(
-                            searchSource().query(query))).actionGet();
-            fail("Search should result in SearchPhaseExecutionException");
-        } catch (SearchPhaseExecutionException e) {
-            logger.info(e.shardFailures()[0].reason());
-            assertThat(e.shardFailures()[0].reason(), containsString("already found [functions] array, now encountering [boost_factor]. did you mean [boost] instead?"));
-        }
-
-        query = XContentFactory.jsonBuilder();
         // query that contains a single function and a functions[] array
-        query.startObject().startObject("function_score").field("boost_factor", "1").startArray("functions").startObject().field("boost_factor", "1.3").endObject().endArray().endObject().endObject();
+        query.startObject().startObject("function_score").field("weight", "1").startArray("functions").startObject().startObject("script_score").field("script", "3").endObject().endObject().endArray().endObject().endObject();
         try {
             client().search(
                     searchRequest().source(
@@ -820,7 +807,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
             fail("Search should result in SearchPhaseExecutionException");
         } catch (SearchPhaseExecutionException e) {
             logger.info(e.shardFailures()[0].reason());
-            assertThat(e.shardFailures()[0].reason(), containsString("already found [boost_factor], now encountering [functions]. did you mean [boost] instead?"));
+            assertThat(e.shardFailures()[0].reason(), containsString("already found [weight], now encountering [functions]."));
         }
 
         query = XContentFactory.jsonBuilder();
@@ -888,7 +875,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
                 "              \"text\": \"baseball\"\n" +
                 "            }\n" +
                 "          },\n" +
-                "          \"boost_factor\": 2\n" +
+                "          \"weight\": 2\n" +
                 "        },\n" +
                 "        {\n" +
                 "          \"filter\": {\n" +

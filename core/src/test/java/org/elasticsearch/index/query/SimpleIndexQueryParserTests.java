@@ -70,7 +70,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.search.MoreLikeThisQuery;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.common.lucene.search.function.BoostScoreFunction;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.common.lucene.search.function.WeightFactorFunction;
 import org.elasticsearch.common.settings.Settings;
@@ -2057,18 +2056,7 @@ public class SimpleIndexQueryParserTests extends ESSingleNodeTestCase {
         IndexQueryParserService queryParser = queryParser();
         String query = jsonBuilder().startObject().startObject("function_score")
                 .startArray("functions")
-                .startObject().field("weight", 2).field("boost_factor", 2).endObject()
-                .endArray()
-                .endObject().endObject().string();
-        try {
-            queryParser.parse(query).query();
-            fail("Expect exception here because boost_factor must not have a weight");
-        } catch (QueryParsingException e) {
-            assertThat(e.getDetailedMessage(), containsString(BoostScoreFunction.BOOST_WEIGHT_ERROR_MESSAGE));
-        }
-        query = jsonBuilder().startObject().startObject("function_score")
-                .startArray("functions")
-                .startObject().field("boost_factor",2).endObject()
+                .startObject().startObject("script_score").field("script", "3").endObject().endObject()
                 .endArray()
                 .field("weight", 2)
                 .endObject().endObject().string();
@@ -2081,7 +2069,7 @@ public class SimpleIndexQueryParserTests extends ESSingleNodeTestCase {
         query = jsonBuilder().startObject().startObject("function_score")
                 .field("weight", 2)
                 .startArray("functions")
-                .startObject().field("boost_factor",2).endObject()
+                .startObject().endObject()
                 .endArray()
                 .endObject().endObject().string();
         try {

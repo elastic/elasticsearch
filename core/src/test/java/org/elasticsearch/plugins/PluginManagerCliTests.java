@@ -19,12 +19,14 @@
 
 package org.elasticsearch.plugins;
 
+import org.elasticsearch.common.cli.CliTool;
 import org.elasticsearch.common.cli.CliToolTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
 
 import static org.elasticsearch.common.cli.CliTool.ExitStatus.OK_AND_EXIT;
+import static org.elasticsearch.common.cli.CliTool.ExitStatus.IO_ERROR;
 import static org.hamcrest.Matchers.*;
 
 public class PluginManagerCliTests extends CliToolTestCase {
@@ -49,5 +51,12 @@ public class PluginManagerCliTests extends CliToolTestCase {
         terminal.getTerminalOutput().clear();
         assertThat(new PluginManagerCliParser(terminal).execute(args("list -h")), is(OK_AND_EXIT));
         assertTerminalOutputContainsHelpFile(terminal, "/org/elasticsearch/plugins/plugin-list.help");
+    }
+
+    public void testUrlSpacesInPath() {
+        CliToolTestCase.CaptureOutputTerminal terminal = new CliToolTestCase.CaptureOutputTerminal();
+        CliTool.ExitStatus execute = new PluginManagerCliParser(terminal).execute(args("install file://foo%20deps"));
+        assertThat(execute.status(), is(IO_ERROR.status()));
+
     }
 }

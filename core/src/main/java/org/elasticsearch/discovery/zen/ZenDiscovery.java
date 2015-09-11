@@ -19,7 +19,6 @@
 
 package org.elasticsearch.discovery.zen;
 
-import com.google.common.collect.Sets;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -73,6 +72,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Queue;
@@ -948,9 +948,9 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         }
 
         // nodes discovered during pinging
-        Set<DiscoveryNode> activeNodes = Sets.newHashSet();
+        Set<DiscoveryNode> activeNodes = new HashSet<>();
         // nodes discovered who has previously been part of the cluster and do not ping for the very first time
-        Set<DiscoveryNode> joinedOnceActiveNodes = Sets.newHashSet();
+        Set<DiscoveryNode> joinedOnceActiveNodes = new HashSet<>();
         if (localNode.masterNode()) {
             activeNodes.add(localNode);
             long joinsCounter = clusterJoinsCounter.get();

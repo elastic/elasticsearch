@@ -333,7 +333,7 @@ def parse_config():
                         help='Recreate all existing backwards compatibility indexes')
   parser.add_argument('--releases-dir', '-d', default='backwards', metavar='DIR',
                       help='The directory containing elasticsearch releases')
-  parser.add_argument('--output-dir', '-o', default='core/src/test/resources/org/elasticsearch/bwcompat',
+  parser.add_argument('--output-dir', '-o', default='core/src/test/resources/indices/bwc',
                       help='The directory to write the zipped index into')
   parser.add_argument('--tcp-port', default=DEFAULT_TRANSPORT_TCP_PORT, type=int,
                       help='The port to use as the minimum port for TCP communication')

@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.benchmark.search.child;
 
+import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
@@ -30,7 +31,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.query.ScoreType;
 import org.elasticsearch.node.Node;
 
 import java.io.IOException;
@@ -179,7 +179,7 @@ public class ChildSearchShortCircuitBenchmark {
         for (int i = 1; i < PARENT_COUNT; i *= 2) {
             for (int j = 0; j < QUERY_COUNT; j++) {
                 SearchResponse searchResponse = client.prepareSearch(indexName)
-                        .setQuery(hasChildQuery("child", matchQuery("field2", i)).scoreType(ScoreType.MAX))
+                        .setQuery(hasChildQuery("child", matchQuery("field2", i)).scoreMode(ScoreMode.Max))
                         .execute().actionGet();
                 if (searchResponse.getHits().totalHits() != i) {
                     System.err.println("--> mismatch on hits");

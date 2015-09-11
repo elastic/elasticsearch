@@ -43,9 +43,10 @@ import java.util.Set;
 public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBuilder> {
 
     public static final String NAME = "has_parent";
+    public static final boolean DEFAULT_SCORE = false;
     private final QueryBuilder query;
     private final String type;
-    private boolean score = false;
+    private boolean score = DEFAULT_SCORE;
     private QueryInnerHits innerHit;
 
     /**

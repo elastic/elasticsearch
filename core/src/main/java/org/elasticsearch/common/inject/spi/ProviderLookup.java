@@ -20,7 +20,8 @@ import org.elasticsearch.common.inject.Binder;
 import org.elasticsearch.common.inject.Key;
 import org.elasticsearch.common.inject.Provider;
 
-import static com.google.common.base.Preconditions.checkNotNull;
+import java.util.Objects;
+
 import static com.google.common.base.Preconditions.checkState;
 
 /**
@@ -64,8 +65,8 @@ public final class ProviderLookup<T> implements Element {
     private Provider<T> delegate;
 
     public ProviderLookup(Object source, Key<T> key) {
-        this.source = checkNotNull(source, "source");
-        this.key = checkNotNull(key, "key");
+        this.source = Objects.requireNonNull(source, "source");
+        this.key = Objects.requireNonNull(key, "key");
     }
 
     @Override
@@ -89,7 +90,7 @@ public final class ProviderLookup<T> implements Element {
      */
     public void initializeDelegate(Provider<T> delegate) {
         checkState(this.delegate == null, "delegate already initialized");
-        this.delegate = checkNotNull(delegate, "delegate");
+        this.delegate = Objects.requireNonNull(delegate, "delegate");
     }
 
     @Override

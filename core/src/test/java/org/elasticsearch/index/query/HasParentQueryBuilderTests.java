@@ -171,7 +171,7 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
         assertEquals("foo", queryBuilder.type());
 
         boolean score = randomBoolean();
-        String key = RandomPicks.randomFrom(random(), Arrays.asList("score_mode", "scoreMode", "score_type", "scoreType"));
+        String key = RandomPicks.randomFrom(random(), Arrays.asList("score_mode", "scoreMode"));
         builder = XContentFactory.jsonBuilder().prettyPrint();
         builder.startObject();
         builder.startObject("has_parent");

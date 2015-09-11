@@ -45,7 +45,7 @@
 
         <!-- libraries -->
         <lucene.version>5.4.0</lucene.version>
-        <lucene.snapshot.revision>1701068</lucene.snapshot.revision>
+        <lucene.snapshot.revision>1702265</lucene.snapshot.revision>
         <lucene.maven.version>5.4.0-snapshot-${lucene.snapshot.revision}</lucene.maven.version>
         <testframework.version>2.1.16</testframework.version>
         <jackson.version>2.5.3</jackson.version>
@@ -115,8 +115,8 @@
         <tests.ifNoTests>fail</tests.ifNoTests>
         <skip.unit.tests>${skipTests}</skip.unit.tests>
         <skip.integ.tests>${skipTests}</skip.integ.tests>
-        <integ.scratch>${project.build.directory}/integ-tests</integ.scratch>
-        <integ.deps>${project.build.directory}/integ-deps</integ.deps>
+        <integ.scratch>${project.build.directory}/integ tests</integ.scratch>
+        <integ.deps>${project.build.directory}/integ deps</integ.deps>
         <integ.temp>${integ.scratch}/temp</integ.temp>
         <integ.http.port>9400</integ.http.port>
         <integ.transport.port>9500</integ.transport.port>
@@ -582,7 +582,7 @@
                             <arg>-XDignore.symbol.file</arg>
                             <arg>-Xlint:all</arg>
                             <arg>${xlint.options}</arg>
-                            <arg>-Werror</arg>
+                            <!-- DISABLED: incompatible with java 9 <arg>-Werror</arg> -->
                         </compilerArgs>
                     </configuration>
                 </plugin>

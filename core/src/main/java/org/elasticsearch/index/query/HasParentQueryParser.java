@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.index.query;
 
+
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -25,12 +26,11 @@ import org.elasticsearch.index.query.support.QueryInnerHits;
 
 import java.io.IOException;
 
-
 public class HasParentQueryParser extends BaseQueryParser  {
 
     private static final HasParentQueryBuilder PROTOTYPE = new HasParentQueryBuilder("", EmptyQueryBuilder.PROTOTYPE);
     private static final ParseField QUERY_FIELD = new ParseField("query", "filter");
-    private static final ParseField SCORE_FIELD = new ParseField("score_type", "score_mode").withAllDeprecated("score");
+    private static final ParseField SCORE_FIELD = new ParseField("score_mode").withAllDeprecated("score");
     private static final ParseField TYPE_FIELD = new ParseField("parent_type", "type");
 
     @Override
@@ -44,7 +44,7 @@ public class HasParentQueryParser extends BaseQueryParser  {
 
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         String parentType = null;
-        boolean score = false;
+        boolean score = HasParentQueryBuilder.DEFAULT_SCORE;
         String queryName = null;
         QueryInnerHits innerHits = null;
 
@@ -55,10 +55,6 @@ public class HasParentQueryParser extends BaseQueryParser  {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT) {
-                // Usually, the query would be parsed here, but the child
-                // type may not have been extracted yet, so use the
-                // XContentStructure.<type> facade to parse if available,
-                // or delay parsing if not.
                 if (parseContext.parseFieldMatcher().match(currentFieldName, QUERY_FIELD)) {
                     iqb = parseContext.parseInnerQueryBuilder();
                 } else if ("inner_hits".equals(currentFieldName)) {
@@ -70,12 +66,13 @@ public class HasParentQueryParser extends BaseQueryParser  {
                 if (parseContext.parseFieldMatcher().match(currentFieldName, TYPE_FIELD)) {
                     parentType = parser.text();
                 } else if (parseContext.parseFieldMatcher().match(currentFieldName, SCORE_FIELD)) {
-                    // deprecated we use a boolean now
-                    String scoreTypeValue = parser.text();
-                    if ("score".equals(scoreTypeValue)) {
+                    String scoreModeValue = parser.text();
+                    if ("score".equals(scoreModeValue)) {
                         score = true;
-                    } else if ("none".equals(scoreTypeValue)) {
+                    } else if ("none".equals(scoreModeValue)) {
                         score = false;
+                    } else {
+                        throw new QueryParsingException(parseContext, "[has_parent] query does not support [" + scoreModeValue + "] as an option for score_mode");
                     }
                 } else if ("score".equals(currentFieldName)) {
                     score = parser.booleanValue();

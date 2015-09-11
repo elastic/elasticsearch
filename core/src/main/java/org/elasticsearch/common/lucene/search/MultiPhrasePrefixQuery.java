@@ -120,6 +120,9 @@ public class MultiPhrasePrefixQuery extends Query {
 
     @Override
     public Query rewrite(IndexReader reader) throws IOException {
+        if (getBoost() != 1.0F) {
+            return super.rewrite(reader);
+        }
         if (termArrays.isEmpty()) {
             return new MatchNoDocsQuery();
         }

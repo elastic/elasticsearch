@@ -21,6 +21,7 @@ package org.elasticsearch.index.query;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -107,7 +108,7 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
         InnerHitsBuilder.InnerHit innerHit = new InnerHitsBuilder.InnerHit().setSize(100).addSort(STRING_FIELD_NAME, SortOrder.ASC);
         return new HasChildQueryBuilder(CHILD_TYPE,
                 RandomQueryBuilder.createQuery(random()), max, min,
-                RandomPicks.randomFrom(random(), ScoreType.values()),
+                RandomPicks.randomFrom(random(), ScoreMode.values()),
                 randomBoolean()  ? null : new QueryInnerHits("inner_hits_name", innerHit));
     }
 
@@ -121,7 +122,7 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
             HasChildQueryBuilder.LateParsingQuery lpq = (HasChildQueryBuilder.LateParsingQuery) query;
             assertEquals(queryBuilder.minChildren(), lpq.getMinChildren());
             assertEquals(queryBuilder.maxChildren(), lpq.getMaxChildren());
-            assertEquals(HasChildQueryBuilder.scoreTypeToScoreMode(queryBuilder.scoreType()), lpq.getScoreMode()); // WTF is this why do we have two?
+            assertEquals(queryBuilder.scoreMode(), lpq.getScoreMode()); // WTF is this why do we have two?
         }
         if (queryBuilder.innerHit() != null) {
             assertNotNull(SearchContext.current());
@@ -156,7 +157,7 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
         }
         HasChildQueryBuilder foo = new HasChildQueryBuilder("foo", query);// all good
         try {
-            foo.scoreType(null);
+            foo.scoreMode(null);
             fail("must not be null");
         } catch (IllegalArgumentException ex) {
 
@@ -189,7 +190,7 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
         assertEquals(query, queryBuilder.boost(), 2.0f, 0.0f);
         assertEquals(query, queryBuilder.queryName(), "WNzYMJKRwePuRBh");
         assertEquals(query, queryBuilder.childType(), "child");
-        assertEquals(query, queryBuilder.scoreType(), ScoreType.AVG);
+        assertEquals(query, queryBuilder.scoreMode(), ScoreMode.Avg);
         assertNotNull(query, queryBuilder.innerHit());
         assertEquals(query, queryBuilder.innerHit(), new QueryInnerHits("inner_hits_name", new InnerHitsBuilder.InnerHit().setSize(100).addSort("mapped_string", SortOrder.ASC)));
         // now assert that we actually generate the same JSON

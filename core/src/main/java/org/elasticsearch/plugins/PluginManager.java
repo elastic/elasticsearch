@@ -41,7 +41,6 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.net.MalformedURLException;
 import java.net.URL;
-import java.net.URLClassLoader;
 import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.PosixFileAttributeView;
@@ -315,10 +314,7 @@ public class PluginManager {
     private void jarHellCheck(Path candidate, boolean isolated) throws IOException {
         // create list of current jars in classpath
         final List<URL> jars = new ArrayList<>();
-        ClassLoader loader = PluginManager.class.getClassLoader();
-        if (loader instanceof URLClassLoader) {
-            Collections.addAll(jars, ((URLClassLoader) loader).getURLs());
-        }
+        jars.addAll(Arrays.asList(JarHell.parseClassPath()));
 
         // read existing bundles. this does some checks on the installation too.
         List<Bundle> bundles = PluginsService.getPluginBundles(environment.pluginsFile());

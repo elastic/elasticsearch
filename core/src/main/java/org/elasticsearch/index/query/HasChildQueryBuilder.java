@@ -52,11 +52,6 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
     public static final String NAME = "has_child";
 
     /**
-     * The default cut off point only to evaluate parent documents that contain the matching parent id terms
-     * instead of evaluating all parent docs.
-     */
-    public static final int DEFAULT_SHORT_CIRCUIT_CUTOFF = 8192;
-    /**
      * The default maximum number of children that are required to match for the parent to be considered a match.
      */
     public static final int DEFAULT_MAX_CHILDREN = Integer.MAX_VALUE;
@@ -64,12 +59,16 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
      * The default minimum number of children that are required to match for the parent to be considered a match.
      */
     public static final int DEFAULT_MIN_CHILDREN = 0;
+    /*
+     * The default score mode that is used to combine score coming from multiple parent documents.
+     */
+    public static final ScoreMode DEFAULT_SCORE_MODE = ScoreMode.None;
 
     private final QueryBuilder query;
 
     private final String type;
 
-    private ScoreType scoreType = ScoreType.NONE;
+    private ScoreMode scoreMode = DEFAULT_SCORE_MODE;
 
     private int minChildren = DEFAULT_MIN_CHILDREN;
 
@@ -79,9 +78,9 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
 
     static final HasChildQueryBuilder PROTOTYPE = new HasChildQueryBuilder("", EmptyQueryBuilder.PROTOTYPE);
 
-    public HasChildQueryBuilder(String type, QueryBuilder query, Integer maxChildren, Integer minChildren, ScoreType scoreType, QueryInnerHits queryInnerHits) {
+    public HasChildQueryBuilder(String type, QueryBuilder query, int maxChildren, int minChildren, ScoreMode scoreMode, QueryInnerHits queryInnerHits) {
         this(type, query);
-        scoreType(scoreType);
+        scoreMode(scoreMode);
         this.maxChildren = maxChildren;
         this.minChildren = minChildren;
         this.queryInnerHits = queryInnerHits;
@@ -101,11 +100,11 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
     /**
      * Defines how the scores from the matching child documents are mapped into the parent document.
      */
-    public HasChildQueryBuilder scoreType(ScoreType scoreType) {
-        if (scoreType == null) {
-            throw new IllegalArgumentException("[" + NAME + "]  requires 'score_type' field");
+    public HasChildQueryBuilder scoreMode(ScoreMode scoreMode) {
+        if (scoreMode == null) {
+            throw new IllegalArgumentException("[" + NAME + "]  requires 'score_mode' field");
         }
-        this.scoreType = scoreType;
+        this.scoreMode = scoreMode;
         return this;
     }
 
@@ -163,8 +162,8 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
     /**
      * Returns how the scores from the matching child documents are mapped into the parent document.
      */
-    public ScoreType scoreType() {
-        return scoreType;
+    public ScoreMode scoreMode() {
+        return scoreMode;
     }
 
     /**
@@ -187,7 +186,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
         builder.field("query");
         query.toXContent(builder, params);
         builder.field("child_type", type);
-        builder.field("score_type", scoreType.name().toLowerCase(Locale.ROOT));
+        builder.field("score_mode", scoreMode.name().toLowerCase(Locale.ROOT));
         builder.field("min_children", minChildren);
         builder.field("max_children", maxChildren);
         printBoostAndQueryName(builder);
@@ -254,32 +253,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
         if (maxChildren == 0) {
             maxChildren = Integer.MAX_VALUE;
         }
-        return new LateParsingQuery(parentDocMapper.typeFilter(), innerQuery, minChildren(), maxChildren, parentType, scoreTypeToScoreMode(scoreType), parentChildIndexFieldData);
-    }
-
-    static ScoreMode scoreTypeToScoreMode(ScoreType scoreType) {
-        ScoreMode scoreMode;
-        // TODO: move entirely over from ScoreType to org.apache.lucene.join.ScoreMode, when we drop the 1.x parent child code.
-        switch (scoreType) {
-            case NONE:
-                scoreMode = ScoreMode.None;
-                break;
-            case MIN:
-                scoreMode = ScoreMode.Min;
-                break;
-            case MAX:
-                scoreMode = ScoreMode.Max;
-                break;
-            case SUM:
-                scoreMode = ScoreMode.Total;
-                break;
-            case AVG:
-                scoreMode = ScoreMode.Avg;
-                break;
-            default:
-                throw new IllegalArgumentException("score type [" + scoreType + "] not supported");
-        }
-        return scoreMode;
+        return new LateParsingQuery(parentDocMapper.typeFilter(), innerQuery, minChildren(), maxChildren, parentType, scoreMode, parentChildIndexFieldData);
     }
 
     final static class LateParsingQuery extends Query {
@@ -304,8 +278,12 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
 
         @Override
         public Query rewrite(IndexReader reader) throws IOException {
-            IndexSearcher indexSearcher = new IndexSearcher(reader);
+            if (getBoost() != 1.0F) {
+                return super.rewrite(reader);
+            }
             String joinField = ParentFieldMapper.joinField(parentType);
+            IndexSearcher indexSearcher = new IndexSearcher(reader);
+            indexSearcher.setQueryCache(null);
             IndexParentChildFieldData indexParentChildFieldData = parentChildIndexFieldData.loadGlobal(indexSearcher.getIndexReader());
             MultiDocValues.OrdinalMap ordinalMap = ParentChildIndexFieldData.getOrdinalMap(indexParentChildFieldData, parentType);
             return JoinUtil.createJoinQuery(joinField, innerQuery, toQuery, indexSearcher, scoreMode, ordinalMap, minChildren, maxChildren);
@@ -361,7 +339,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
     protected boolean doEquals(HasChildQueryBuilder that) {
         return Objects.equals(query, that.query)
                 && Objects.equals(type, that.type)
-                && Objects.equals(scoreType, that.scoreType)
+                && Objects.equals(scoreMode, that.scoreMode)
                 && Objects.equals(minChildren, that.minChildren)
                 && Objects.equals(maxChildren, that.maxChildren)
                 && Objects.equals(queryInnerHits, that.queryInnerHits);
@@ -369,7 +347,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(query, type, scoreType, minChildren, maxChildren, queryInnerHits);
+        return Objects.hash(query, type, scoreMode, minChildren, maxChildren, queryInnerHits);
     }
 
     protected HasChildQueryBuilder(StreamInput in) throws IOException {
@@ -377,7 +355,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
         minChildren = in.readInt();
         maxChildren = in.readInt();
         final int ordinal = in.readVInt();
-        scoreType = ScoreType.values()[ordinal];
+        scoreMode = ScoreMode.values()[ordinal];
         query = in.readQuery();
         if (in.readBoolean()) {
             queryInnerHits = new QueryInnerHits(in);
@@ -394,7 +372,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
         out.writeString(type);
         out.writeInt(minChildren());
         out.writeInt(maxChildren());
-        out.writeVInt(scoreType.ordinal());
+        out.writeVInt(scoreMode.ordinal());
         out.writeQuery(query);
         if (queryInnerHits != null) {
             out.writeBoolean(true);

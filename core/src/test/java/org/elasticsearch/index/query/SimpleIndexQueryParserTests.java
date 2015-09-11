@@ -19,16 +19,42 @@
 
 package org.elasticsearch.index.query;
 
-import com.google.common.collect.Sets;
 import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
-import org.apache.lucene.index.*;
+import org.apache.lucene.index.Fields;
+import org.apache.lucene.index.MultiFields;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.index.memory.MemoryIndex;
 import org.apache.lucene.queries.BoostingQuery;
 import org.apache.lucene.queries.ExtendedCommonTermsQuery;
 import org.apache.lucene.queries.TermsQuery;
-import org.apache.lucene.search.*;
-import org.apache.lucene.search.spans.*;
+import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.DisjunctionMaxQuery;
+import org.apache.lucene.search.FuzzyQuery;
+import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.MultiTermQuery;
+import org.apache.lucene.search.NumericRangeQuery;
+import org.apache.lucene.search.PrefixQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryWrapperFilter;
+import org.apache.lucene.search.RegexpQuery;
+import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.TermRangeQuery;
+import org.apache.lucene.search.WildcardQuery;
+import org.apache.lucene.search.spans.FieldMaskingSpanQuery;
+import org.apache.lucene.search.spans.SpanContainingQuery;
+import org.apache.lucene.search.spans.SpanFirstQuery;
+import org.apache.lucene.search.spans.SpanMultiTermQueryWrapper;
+import org.apache.lucene.search.spans.SpanNearQuery;
+import org.apache.lucene.search.spans.SpanNotQuery;
+import org.apache.lucene.search.spans.SpanOrQuery;
+import org.apache.lucene.search.spans.SpanTermQuery;
+import org.apache.lucene.search.spans.SpanWithinQuery;
 import org.apache.lucene.spatial.prefix.IntersectsPrefixTreeFilter;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
@@ -42,12 +68,12 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.search.MoreLikeThisQuery;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.common.lucene.search.function.BoostScoreFunction;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.common.lucene.search.function.WeightFactorFunction;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
@@ -66,21 +92,50 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.lang.reflect.InvocationHandler;
-import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.util.Arrays;
 import java.util.EnumSet;
-import java.util.HashSet;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.QueryBuilders.*;
+import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
+import static org.elasticsearch.index.query.QueryBuilders.boostingQuery;
+import static org.elasticsearch.index.query.QueryBuilders.commonTermsQuery;
+import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
+import static org.elasticsearch.index.query.QueryBuilders.disMaxQuery;
+import static org.elasticsearch.index.query.QueryBuilders.functionScoreQuery;
+import static org.elasticsearch.index.query.QueryBuilders.fuzzyQuery;
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.index.query.QueryBuilders.moreLikeThisQuery;
+import static org.elasticsearch.index.query.QueryBuilders.multiMatchQuery;
+import static org.elasticsearch.index.query.QueryBuilders.notQuery;
+import static org.elasticsearch.index.query.QueryBuilders.prefixQuery;
+import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
+import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
+import static org.elasticsearch.index.query.QueryBuilders.regexpQuery;
+import static org.elasticsearch.index.query.QueryBuilders.spanContainingQuery;
+import static org.elasticsearch.index.query.QueryBuilders.spanFirstQuery;
+import static org.elasticsearch.index.query.QueryBuilders.spanNearQuery;
+import static org.elasticsearch.index.query.QueryBuilders.spanNotQuery;
+import static org.elasticsearch.index.query.QueryBuilders.spanOrQuery;
+import static org.elasticsearch.index.query.QueryBuilders.spanTermQuery;
+import static org.elasticsearch.index.query.QueryBuilders.spanWithinQuery;
+import static org.elasticsearch.index.query.QueryBuilders.termQuery;
+import static org.elasticsearch.index.query.QueryBuilders.termsQuery;
+import static org.elasticsearch.index.query.QueryBuilders.wildcardQuery;
 import static org.elasticsearch.test.StreamsUtils.copyToBytesFromClasspath;
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBooleanSubQuery;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class SimpleIndexQueryParserTests extends ESSingleNodeTestCase {
 
@@ -140,25 +195,30 @@ public class SimpleIndexQueryParserTests extends ESSingleNodeTestCase {
     public void testQueryStringBoostsBuilder() throws Exception {
         IndexQueryParserService queryParser = queryParser();
         QueryStringQueryBuilder builder = queryStringQuery("field:boosted^2");
+        Query expected = new BoostQuery(new TermQuery(new Term("field", "boosted")), 2);
         Query parsedQuery = queryParser.parse(builder).query();
-        assertThat(parsedQuery, instanceOf(TermQuery.class));
-        assertThat(((TermQuery) parsedQuery).getTerm(), equalTo(new Term("field", "boosted")));
-        assertThat(parsedQuery.getBoost(), equalTo(2.0f));
+        assertEquals(expected, parsedQuery);
+
         builder.boost(2.0f);
+        expected = new BoostQuery(new TermQuery(new Term("field", "boosted")), 4);
         parsedQuery = queryParser.parse(builder).query();
-        assertThat(parsedQuery.getBoost(), equalTo(4.0f));
+        assertEquals(expected, parsedQuery);
 
         builder = queryStringQuery("((field:boosted^2) AND (field:foo^1.5))^3");
+        expected = new BoostQuery(new BooleanQuery.Builder()
+            .add(new BoostQuery(new TermQuery(new Term("field", "boosted")), 2), Occur.MUST)
+            .add(new BoostQuery(new TermQuery(new Term("field", "foo")), 1.5f), Occur.MUST)
+            .build(), 3);
         parsedQuery = queryParser.parse(builder).query();
-        assertThat(parsedQuery, instanceOf(BooleanQuery.class));
-        assertThat(assertBooleanSubQuery(parsedQuery, TermQuery.class, 0).getTerm(), equalTo(new Term("field", "boosted")));
-        assertThat(assertBooleanSubQuery(parsedQuery, TermQuery.class, 0).getBoost(), equalTo(2.0f));
-        assertThat(assertBooleanSubQuery(parsedQuery, TermQuery.class, 1).getTerm(), equalTo(new Term("field", "foo")));
-        assertThat(assertBooleanSubQuery(parsedQuery, TermQuery.class, 1).getBoost(), equalTo(1.5f));
-        assertThat(parsedQuery.getBoost(), equalTo(3.0f));
+        assertEquals(expected, parsedQuery);
+
         builder.boost(2.0f);
+        expected = new BoostQuery(new BooleanQuery.Builder()
+            .add(new BoostQuery(new TermQuery(new Term("field", "boosted")), 2), Occur.MUST)
+            .add(new BoostQuery(new TermQuery(new Term("field", "foo")), 1.5f), Occur.MUST)
+            .build(), 6);
         parsedQuery = queryParser.parse(builder).query();
-        assertThat(parsedQuery.getBoost(), equalTo(6.0f));
+        assertEquals(expected, parsedQuery);
     }
 
     @Test
@@ -1903,10 +1963,8 @@ public class SimpleIndexQueryParserTests extends ESSingleNodeTestCase {
 
             BooleanQuery.Builder expected = new BooleanQuery.Builder();
             expected.add(new TermQuery(new Term("foobar", "banon")), Occur.SHOULD);
-            TermQuery tq1 = new TermQuery(new Term("name.first", "banon"));
-            tq1.setBoost(2);
-            TermQuery tq2 = new TermQuery(new Term("name.last", "banon"));
-            tq2.setBoost(3);
+            Query tq1 = new BoostQuery(new TermQuery(new Term("name.first", "banon")), 2);
+            Query tq2 = new BoostQuery(new TermQuery(new Term("name.last", "banon")), 3);
             expected.add(new DisjunctionMaxQuery(Arrays.<Query>asList(tq1, tq2), 0f), Occur.SHOULD);
             assertEquals(expected.build(), rewrittenQuery);
         }
@@ -1984,18 +2042,7 @@ public class SimpleIndexQueryParserTests extends ESSingleNodeTestCase {
         IndexQueryParserService queryParser = queryParser();
         String query = jsonBuilder().startObject().startObject("function_score")
                 .startArray("functions")
-                .startObject().field("weight", 2).field("boost_factor", 2).endObject()
-                .endArray()
-                .endObject().endObject().string();
-        try {
-            queryParser.parse(query).query();
-            fail("Expect exception here because boost_factor must not have a weight");
-        } catch (QueryParsingException e) {
-            assertThat(e.getDetailedMessage(), containsString(BoostScoreFunction.BOOST_WEIGHT_ERROR_MESSAGE));
-        }
-        query = jsonBuilder().startObject().startObject("function_score")
-                .startArray("functions")
-                .startObject().field("boost_factor",2).endObject()
+                .startObject().startObject("script_score").field("script", "3").endObject().endObject()
                 .endArray()
                 .field("weight", 2)
                 .endObject().endObject().string();
@@ -2008,7 +2055,7 @@ public class SimpleIndexQueryParserTests extends ESSingleNodeTestCase {
         query = jsonBuilder().startObject().startObject("function_score")
                 .field("weight", 2)
                 .startArray("functions")
-                .startObject().field("boost_factor",2).endObject()
+                .startObject().endObject()
                 .endArray()
                 .endObject().endObject().string();
         try {

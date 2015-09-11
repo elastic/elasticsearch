@@ -20,8 +20,7 @@ import org.elasticsearch.common.inject.Binder;
 import org.elasticsearch.common.inject.Scope;
 
 import java.lang.annotation.Annotation;
-
-import static com.google.common.base.Preconditions.checkNotNull;
+import java.util.Objects;
 
 /**
  * Registration of a scope annotation with the scope that implements it. Instances are created
@@ -40,9 +39,9 @@ public final class ScopeBinding implements Element {
     private final Scope scope;
 
     ScopeBinding(Object source, Class<? extends Annotation> annotationType, Scope scope) {
-        this.source = checkNotNull(source, "source");
-        this.annotationType = checkNotNull(annotationType, "annotationType");
-        this.scope = checkNotNull(scope, "scope");
+        this.source = Objects.requireNonNull(source, "source");
+        this.annotationType = Objects.requireNonNull(annotationType, "annotationType");
+        this.scope = Objects.requireNonNull(scope, "scope");
     }
 
     @Override

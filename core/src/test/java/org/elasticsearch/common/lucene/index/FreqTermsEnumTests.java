@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.lucene.index;
 
-import com.google.common.collect.Sets;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
@@ -50,6 +49,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -123,7 +123,7 @@ public class FreqTermsEnumTests extends ESTestCase {
             }
         }
 
-        Set<String> deletedIds = Sets.newHashSet();
+        Set<String> deletedIds = new HashSet<>();
         for (int i = 0; i < docs.length; i++) {
             Document doc = docs[i];
             if (randomInt(5) == 2) {
@@ -157,7 +157,7 @@ public class FreqTermsEnumTests extends ESTestCase {
     }
 
     private void addFreqs(Document doc, Map<String, FreqHolder> reference) {
-        Set<String> addedDocFreq = Sets.newHashSet();
+        Set<String> addedDocFreq = new HashSet<>();
         for (IndexableField field : doc.getFields("field")) {
             String term = field.stringValue();
             FreqHolder freqHolder = reference.get(term);

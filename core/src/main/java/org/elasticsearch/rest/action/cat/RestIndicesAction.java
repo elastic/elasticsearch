@@ -192,6 +192,9 @@ public class RestIndicesAction extends AbstractCatAction {
         table.addCell("indexing.index_total", "sibling:pri;alias:iito,indexingIndexTotal;default:false;text-align:right;desc:number of indexing ops");
         table.addCell("pri.indexing.index_total", "default:false;text-align:right;desc:number of indexing ops");
 
+        table.addCell("indexing.index_failed", "sibling:pri;alias:iif,indexingIndexFailed;default:false;text-align:right;desc:number of failed indexing ops");
+        table.addCell("pri.indexing.index_failed", "default:false;text-align:right;desc:number of failed indexing ops");
+
         table.addCell("merges.current", "sibling:pri;alias:mc,mergesCurrent;default:false;text-align:right;desc:number of current merges");
         table.addCell("pri.merges.current", "default:false;text-align:right;desc:number of current merges");
 
@@ -402,6 +405,9 @@ public class RestIndicesAction extends AbstractCatAction {
 
             table.addCell(indexStats == null ? null : indexStats.getTotal().getIndexing().getTotal().getIndexCount());
             table.addCell(indexStats == null ? null : indexStats.getPrimaries().getIndexing().getTotal().getIndexCount());
+
+            table.addCell(indexStats == null ? null : indexStats.getTotal().getIndexing().getTotal().getIndexFailedCount());
+            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getIndexing().getTotal().getIndexFailedCount());
 
             table.addCell(indexStats == null ? null : indexStats.getTotal().getMerge().getCurrent());
             table.addCell(indexStats == null ? null : indexStats.getPrimaries().getMerge().getCurrentSize());

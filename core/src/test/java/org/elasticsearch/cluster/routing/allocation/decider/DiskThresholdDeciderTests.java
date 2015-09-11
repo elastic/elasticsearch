@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.DiskUsage;
+import org.elasticsearch.cluster.MockInternalClusterInfoService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -88,7 +89,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         Map<String, Long> shardSizes = new HashMap<>();
         shardSizes.put("[test][0][p]", 10L); // 10 bytes
         shardSizes.put("[test][0][r]", 10L);
-        final ClusterInfo clusterInfo = new ClusterInfo(Collections.unmodifiableMap(usages), Collections.unmodifiableMap(usages), Collections.unmodifiableMap(shardSizes), DEV_NULL_MAP);
+        final ClusterInfo clusterInfo = new ClusterInfo(Collections.unmodifiableMap(usages), Collections.unmodifiableMap(usages), Collections.unmodifiableMap(shardSizes), MockInternalClusterInfoService.DEV_NULL_MAP);
 
         AllocationDeciders deciders = new AllocationDeciders(Settings.EMPTY,
                 new HashSet<>(Arrays.asList(
@@ -282,7 +283,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         Map<String, Long> shardSizes = new HashMap<>();
         shardSizes.put("[test][0][p]", 10L); // 10 bytes
         shardSizes.put("[test][0][r]", 10L);
-        final ClusterInfo clusterInfo = new ClusterInfo(Collections.unmodifiableMap(usages), Collections.unmodifiableMap(usages), Collections.unmodifiableMap(shardSizes), DEV_NULL_MAP);
+        final ClusterInfo clusterInfo = new ClusterInfo(Collections.unmodifiableMap(usages), Collections.unmodifiableMap(usages), Collections.unmodifiableMap(shardSizes), MockInternalClusterInfoService.DEV_NULL_MAP);
 
         AllocationDeciders deciders = new AllocationDeciders(Settings.EMPTY,
                 new HashSet<>(Arrays.asList(
@@ -344,7 +345,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
 
         // Make node without the primary now habitable to replicas
         usages.put(nodeWithoutPrimary, new DiskUsage(nodeWithoutPrimary, "", "/dev/null", 100, 35)); // 65% used
-        final ClusterInfo clusterInfo2 = new ClusterInfo(Collections.unmodifiableMap(usages), Collections.unmodifiableMap(usages), Collections.unmodifiableMap(shardSizes), DEV_NULL_MAP);
+        final ClusterInfo clusterInfo2 = new ClusterInfo(Collections.unmodifiableMap(usages), Collections.unmodifiableMap(usages), Collections.unmodifiableMap(shardSizes), MockInternalClusterInfoService.DEV_NULL_MAP);
         cis = new ClusterInfoService() {
             @Override
             public ClusterInfo getClusterInfo() {
@@ -543,7 +544,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
 
         Map<String, Long> shardSizes = new HashMap<>();
         shardSizes.put("[test][0][p]", 10L); // 10 bytes
-        final ClusterInfo clusterInfo = new ClusterInfo(Collections.unmodifiableMap(usages), Collections.unmodifiableMap(usages), Collections.unmodifiableMap(shardSizes), DEV_NULL_MAP);
+        final ClusterInfo clusterInfo = new ClusterInfo(Collections.unmodifiableMap(usages), Collections.unmodifiableMap(usages), Collections.unmodifiableMap(shardSizes), MockInternalClusterInfoService.DEV_NULL_MAP);
 
         AllocationDeciders deciders = new AllocationDeciders(Settings.EMPTY,
                 new HashSet<>(Arrays.asList(
@@ -610,7 +611,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         Map<String, Long> shardSizes = new HashMap<>();
         shardSizes.put("[test][0][p]", 10L); // 10 bytes
         shardSizes.put("[test][0][r]", 10L); // 10 bytes
-        final ClusterInfo clusterInfo = new ClusterInfo(Collections.unmodifiableMap(usages), Collections.unmodifiableMap(usages), Collections.unmodifiableMap(shardSizes), DEV_NULL_MAP);
+        final ClusterInfo clusterInfo = new ClusterInfo(Collections.unmodifiableMap(usages), Collections.unmodifiableMap(usages), Collections.unmodifiableMap(shardSizes), MockInternalClusterInfoService.DEV_NULL_MAP);
 
         AllocationDeciders deciders = new AllocationDeciders(Settings.EMPTY,
                 new HashSet<>(Arrays.asList(
@@ -714,7 +715,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         shardSizes.put("[test][0][r]", 14L);
         shardSizes.put("[test2][0][p]", 1L); // 1 bytes
         shardSizes.put("[test2][0][r]", 1L);
-        final ClusterInfo clusterInfo = new ClusterInfo(Collections.unmodifiableMap(usages), Collections.unmodifiableMap(usages), Collections.unmodifiableMap(shardSizes), DEV_NULL_MAP);
+        final ClusterInfo clusterInfo = new ClusterInfo(Collections.unmodifiableMap(usages), Collections.unmodifiableMap(usages), Collections.unmodifiableMap(shardSizes), MockInternalClusterInfoService.DEV_NULL_MAP);
 
         AllocationDeciders deciders = new AllocationDeciders(Settings.EMPTY,
                 new HashSet<>(Arrays.asList(
@@ -817,7 +818,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         Map<String, Long> shardSizes = new HashMap<>();
         shardSizes.put("[test][0][p]", 40L);
         shardSizes.put("[test][1][p]", 40L);
-        final ClusterInfo clusterInfo = new ClusterInfo(Collections.unmodifiableMap(usages), Collections.unmodifiableMap(usages), Collections.unmodifiableMap(shardSizes), DEV_NULL_MAP);
+        final ClusterInfo clusterInfo = new ClusterInfo(Collections.unmodifiableMap(usages), Collections.unmodifiableMap(usages), Collections.unmodifiableMap(shardSizes), MockInternalClusterInfoService.DEV_NULL_MAP);
 
         DiskThresholdDecider diskThresholdDecider = new DiskThresholdDecider(diskSettings);
         MetaData metaData = MetaData.builder()
@@ -924,27 +925,5 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
                 rn.shardsWithState(INITIALIZING),
                 rn.shardsWithState(RELOCATING),
                 rn.shardsWithState(STARTED));
-    }
-
-    public static final Map<ShardRouting, String> DEV_NULL_MAP = Collections.unmodifiableMap(new StaticValueMap("/dev/null"));
-
-    // a test only map that always returns the same value no matter what key is passed
-    private static final class StaticValueMap extends AbstractMap<ShardRouting, String> {
-
-        private final String value;
-
-        private StaticValueMap(String value) {
-            this.value = value;
-        }
-
-        @Override
-        public String get(Object key) {
-            return value;
-        }
-
-        @Override
-        public Set<Entry<ShardRouting, String>> entrySet() {
-            throw new UnsupportedOperationException("this is a test-only map that only supports #get(Object key)");
-        }
     }
 }

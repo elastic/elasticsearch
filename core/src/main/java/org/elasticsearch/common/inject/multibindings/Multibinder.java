@@ -39,6 +39,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -208,10 +209,10 @@ public abstract class Multibinder<T> {
 
         private RealMultibinder(Binder binder, TypeLiteral<T> elementType,
                                 String setName, Key<Set<T>> setKey) {
-            this.binder = checkNotNull(binder, "binder");
-            this.elementType = checkNotNull(elementType, "elementType");
-            this.setName = checkNotNull(setName, "setName");
-            this.setKey = checkNotNull(setKey, "setKey");
+            this.binder = Objects.requireNonNull(binder, "binder");
+            this.elementType = Objects.requireNonNull(elementType, "elementType");
+            this.setName = Objects.requireNonNull(setName, "setName");
+            this.setKey = Objects.requireNonNull(setKey, "setKey");
         }
 
         @Override

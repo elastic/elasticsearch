@@ -26,7 +26,6 @@ import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.junit.Test;
 
-import static com.google.common.collect.Sets.newHashSet;
 import static org.elasticsearch.test.VersionUtils.randomVersion;
 
 public class HumanReadableIndexSettingsTests extends ESTestCase {

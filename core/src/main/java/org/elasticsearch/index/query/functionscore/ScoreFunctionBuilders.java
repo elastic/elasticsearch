@@ -20,7 +20,6 @@
 package org.elasticsearch.index.query.functionscore;
 
 import org.elasticsearch.index.query.functionscore.exp.ExponentialDecayFunctionBuilder;
-import org.elasticsearch.index.query.functionscore.factor.FactorBuilder;
 import org.elasticsearch.index.query.functionscore.fieldvaluefactor.FieldValueFactorFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.gauss.GaussDecayFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.lin.LinearDecayFunctionBuilder;
@@ -28,8 +27,6 @@ import org.elasticsearch.index.query.functionscore.random.RandomScoreFunctionBui
 import org.elasticsearch.index.query.functionscore.script.ScriptScoreFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.weight.WeightBuilder;
 import org.elasticsearch.script.Script;
-
-import java.util.Map;
 
 public class ScoreFunctionBuilders {
    

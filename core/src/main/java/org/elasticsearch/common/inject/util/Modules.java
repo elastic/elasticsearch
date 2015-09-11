@@ -17,7 +17,6 @@
 package org.elasticsearch.common.inject.util;
 
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Sets;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Binder;
 import org.elasticsearch.common.inject.Binding;
@@ -36,6 +35,7 @@ import java.lang.annotation.Annotation;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -151,8 +151,8 @@ public final class Modules {
                     final List<Element> elements = Elements.getElements(baseModules);
                     final List<Element> overrideElements = Elements.getElements(overrides);
 
-                    final Set<Key> overriddenKeys = Sets.newHashSet();
-                    final Set<Class<? extends Annotation>> overridesScopeAnnotations = Sets.newHashSet();
+                    final Set<Key> overriddenKeys = new HashSet<>();
+                    final Set<Class<? extends Annotation>> overridesScopeAnnotations = new HashSet<>();
 
                     // execute the overrides module, keeping track of which keys and scopes are bound
                     new ModuleWriter(binder()) {
@@ -201,7 +201,7 @@ public final class Modules {
                             PrivateBinder privateBinder = binder.withSource(privateElements.getSource())
                                     .newPrivateBinder();
 
-                            Set<Key<?>> skippedExposes = Sets.newHashSet();
+                            Set<Key<?>> skippedExposes = new HashSet<>();
 
                             for (Key<?> key : privateElements.getExposedKeys()) {
                                 if (overriddenKeys.remove(key)) {

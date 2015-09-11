@@ -12,7 +12,7 @@
       }
     },
     "child_type" : "child",
-    "score_type" : "avg",
+    "score_mode" : "avg",
     "min_children" : 883170873,
     "max_children" : 1217235442,
     "boost" : 2.0,

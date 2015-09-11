@@ -46,6 +46,14 @@ setup() {
     systemctl daemon-reload
 }
 
+@test "[SYSTEMD] daemon isn't enabled on restart" {
+    # Rather than restart the VM we just ask systemd if it plans on starting
+    # elasticsearch on restart. Not as strong as a restart but much much
+    # faster.
+    run systemctl is-enabled elasticsearch.service
+    [ "$output" = "disabled" ]
+}
+
 @test "[SYSTEMD] enable" {
     systemctl enable elasticsearch.service
 

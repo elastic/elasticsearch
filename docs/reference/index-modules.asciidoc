@@ -98,6 +98,14 @@ specific index module:
     index visible to search.  Defaults to `1s`.  Can be set to `-1` to disable
     refresh.
 
+`index.max_result_window`::
+
+    The maximum value of `from + size` for searches to this index. Defaults to
+    `10000`. Search requests take heap memory and time proportional to
+    `from + size` and this limits that memory. See
+    {ref}/search-request-scroll.html[Scroll] for a more efficient alternative
+    to raising this.
+
 `index.blocks.read_only`::
 
     Set to `true` to make the index and index metadata read only, `false` to
@@ -184,5 +192,3 @@ include::index-modules/slowlog.asciidoc[]
 include::index-modules/store.asciidoc[]
 
 include::index-modules/translog.asciidoc[]
-
-

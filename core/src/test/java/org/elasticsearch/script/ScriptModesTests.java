@@ -21,7 +21,6 @@ package org.elasticsearch.script;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Sets;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.ScriptService.ScriptType;
@@ -121,7 +120,7 @@ public class ScriptModesTests extends ESTestCase {
     @Test
     public void testScriptTypeGenericSettings() {
         int randomInt = randomIntBetween(1, ScriptType.values().length - 1);
-        Set<ScriptType> randomScriptTypesSet = Sets.newHashSet();
+        Set<ScriptType> randomScriptTypesSet = new HashSet<>();
         ScriptMode[] randomScriptModes = new ScriptMode[randomInt];
         for (int i = 0; i < randomInt; i++) {
             boolean added = false;
@@ -154,7 +153,7 @@ public class ScriptModesTests extends ESTestCase {
     @Test
     public void testScriptContextGenericSettings() {
         int randomInt = randomIntBetween(1, scriptContexts.length - 1);
-        Set<ScriptContext> randomScriptContextsSet = Sets.newHashSet();
+        Set<ScriptContext> randomScriptContextsSet = new HashSet<>();
         ScriptMode[] randomScriptModes = new ScriptMode[randomInt];
         for (int i = 0; i < randomInt; i++) {
             boolean added = false;

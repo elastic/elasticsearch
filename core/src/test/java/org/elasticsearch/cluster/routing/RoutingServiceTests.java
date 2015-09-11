@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESAllocationTestCase;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
@@ -93,6 +94,7 @@ public class RoutingServiceTests extends ESAllocationTestCase {
     }
 
     @Test
+    @TestLogging("_root:DEBUG")
     public void testDelayedUnassignedScheduleReroute() throws Exception {
         AllocationService allocation = createAllocationService();
         MetaData metaData = MetaData.builder()
@@ -108,7 +110,7 @@ public class RoutingServiceTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState).routingResult(allocation.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING))).build();
         // starting replicas
         clusterState = ClusterState.builder(clusterState).routingResult(allocation.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING))).build();
-        assertThat(clusterState.getRoutingNodes().hasUnassigned(), equalTo(false));
+        assertFalse("no shards should be unassigned", clusterState.getRoutingNodes().hasUnassigned());
         // remove node2 and reroute
         ClusterState prevState = clusterState;
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).remove("node2")).build();
@@ -123,7 +125,7 @@ public class RoutingServiceTests extends ESAllocationTestCase {
         assertBusy(new Runnable() {
             @Override
             public void run() {
-                assertThat(routingService.hasReroutedAndClear(), equalTo(true));
+                assertTrue("routing service should have run a reroute", routingService.hasReroutedAndClear());
             }
         });
         // verify the registration has been reset
@@ -186,6 +188,7 @@ public class RoutingServiceTests extends ESAllocationTestCase {
 
         @Override
         protected void performReroute(String reason) {
+            logger.info("--> performing fake reroute [{}]", reason);
             rerouted.set(true);
         }
     }

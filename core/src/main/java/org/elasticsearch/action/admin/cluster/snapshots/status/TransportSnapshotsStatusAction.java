@@ -44,11 +44,10 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-
-import static com.google.common.collect.Sets.newHashSet;
 
 /**
  */
@@ -94,7 +93,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
             return;
         }
 
-        Set<String> nodesIds = newHashSet();
+        Set<String> nodesIds = new HashSet<>();
         for (SnapshotsInProgress.Entry entry : currentSnapshots) {
             for (SnapshotsInProgress.ShardSnapshotStatus status : entry.shards().values()) {
                 if (status.nodeId() != null) {
@@ -140,7 +139,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                                                   TransportNodesSnapshotsStatus.NodesSnapshotStatus nodeSnapshotStatuses) throws IOException {
         // First process snapshot that are currently processed
         List<SnapshotStatus> builder = new ArrayList<>();
-        Set<SnapshotId> currentSnapshotIds = newHashSet();
+        Set<SnapshotId> currentSnapshotIds = new HashSet<>();
         if (!currentSnapshots.isEmpty()) {
             Map<String, TransportNodesSnapshotsStatus.NodeSnapshotStatus> nodeSnapshotStatusMap;
             if (nodeSnapshotStatuses != null) {

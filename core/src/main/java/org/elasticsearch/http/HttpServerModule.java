@@ -19,12 +19,13 @@
 
 package org.elasticsearch.http;
 
-import com.google.common.base.Preconditions;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.http.netty.NettyHttpServerTransport;
+
+import java.util.Objects;
 
 /**
  *
@@ -50,8 +51,8 @@ public class HttpServerModule extends AbstractModule {
     }
 
     public void setHttpServerTransport(Class<? extends HttpServerTransport> httpServerTransport, String source) {
-        Preconditions.checkNotNull(httpServerTransport, "Configured http server transport may not be null");
-        Preconditions.checkNotNull(source, "Plugin, that changes transport may not be null");
+        Objects.requireNonNull(httpServerTransport, "Configured http server transport may not be null");
+        Objects.requireNonNull(source, "Plugin, that changes transport may not be null");
         logger.info("Using [{}] as http transport, overridden by [{}]", httpServerTransportClass.getName(), source);
         this.httpServerTransportClass = httpServerTransport;
     }

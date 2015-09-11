@@ -19,8 +19,6 @@
 
 package org.elasticsearch.index.engine;
 
-import com.google.common.base.Preconditions;
-
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.IndexCommit;
@@ -71,6 +69,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.Condition;
@@ -100,8 +99,8 @@ public abstract class Engine implements Closeable {
     protected volatile Throwable failedEngine = null;
 
     protected Engine(EngineConfig engineConfig) {
-        Preconditions.checkNotNull(engineConfig.getStore(), "Store must be provided to the engine");
-        Preconditions.checkNotNull(engineConfig.getDeletionPolicy(), "Snapshot deletion policy must be provided to the engine");
+        Objects.requireNonNull(engineConfig.getStore(), "Store must be provided to the engine");
+        Objects.requireNonNull(engineConfig.getDeletionPolicy(), "Snapshot deletion policy must be provided to the engine");
 
         this.engineConfig = engineConfig;
         this.shardId = engineConfig.getShardId();

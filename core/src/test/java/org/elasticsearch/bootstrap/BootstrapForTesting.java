@@ -86,7 +86,7 @@ public class BootstrapForTesting {
                 // initialize paths the same exact way as bootstrap.
                 Permissions perms = new Permissions();
                 // add permissions to everything in classpath
-                for (URL url : ((URLClassLoader)BootstrapForTesting.class.getClassLoader()).getURLs()) {
+                for (URL url : JarHell.parseClassPath()) {
                     Path path = PathUtils.get(url.toURI());
                     // resource itself
                     perms.add(new FilePermission(path.toString(), "read,readlink"));
@@ -97,6 +97,7 @@ public class BootstrapForTesting {
                     String filename = path.getFileName().toString();
                     if (filename.contains("jython") && filename.endsWith(".jar")) {
                         // just enough so it won't fail when it does not exist
+                        perms.add(new FilePermission(path.getParent().toString(), "read,readlink"));
                         perms.add(new FilePermission(path.getParent().resolve("Lib").toString(), "read,readlink"));
                     }
                 }
@@ -114,7 +115,7 @@ public class BootstrapForTesting {
                     perms.add(new FilePermission(coverageDir.resolve("jacoco-it.exec").toString(), "read,write"));
                 }
                 Policy.setPolicy(new ESPolicy(perms));
-                System.setSecurityManager(new XTestSecurityManager());
+                System.setSecurityManager(new TestSecurityManager());
                 Security.selfTest();
             } catch (Exception e) {
                 throw new RuntimeException("unable to install test security manager", e);

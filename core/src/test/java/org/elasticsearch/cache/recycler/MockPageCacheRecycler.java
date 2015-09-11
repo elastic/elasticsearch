@@ -19,10 +19,10 @@
 
 package org.elasticsearch.cache.recycler;
 
-import com.google.common.collect.Sets;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.recycler.Recycler.V;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -46,7 +46,7 @@ public class MockPageCacheRecycler extends PageCacheRecycler {
             // and releasing pages, lets make sure that after a reasonable timeout, all master
             // copy (snapshot) have been released
             boolean success =
-                    ESTestCase.awaitBusy(() -> Sets.intersection(masterCopy.keySet(), ACQUIRED_PAGES.keySet()).isEmpty());
+                    ESTestCase.awaitBusy(() -> Sets.haveEmptyIntersection(masterCopy.keySet(), ACQUIRED_PAGES.keySet()));
             if (!success) {
                 masterCopy.keySet().retainAll(ACQUIRED_PAGES.keySet());
                 ACQUIRED_PAGES.keySet().removeAll(masterCopy.keySet()); // remove all existing master copy we will report on

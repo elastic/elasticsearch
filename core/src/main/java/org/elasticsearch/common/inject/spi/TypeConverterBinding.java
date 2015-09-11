@@ -20,7 +20,7 @@ import org.elasticsearch.common.inject.Binder;
 import org.elasticsearch.common.inject.TypeLiteral;
 import org.elasticsearch.common.inject.matcher.Matcher;
 
-import static com.google.common.base.Preconditions.checkNotNull;
+import java.util.Objects;
 
 /**
  * Registration of type converters for matching target types. Instances are created
@@ -39,9 +39,9 @@ public final class TypeConverterBinding implements Element {
 
     TypeConverterBinding(Object source, Matcher<? super TypeLiteral<?>> typeMatcher,
                          TypeConverter typeConverter) {
-        this.source = checkNotNull(source, "source");
-        this.typeMatcher = checkNotNull(typeMatcher, "typeMatcher");
-        this.typeConverter = checkNotNull(typeConverter, "typeConverter");
+        this.source = Objects.requireNonNull(source, "source");
+        this.typeMatcher = Objects.requireNonNull(typeMatcher, "typeMatcher");
+        this.typeConverter = Objects.requireNonNull(typeConverter, "typeConverter");
     }
 
     @Override

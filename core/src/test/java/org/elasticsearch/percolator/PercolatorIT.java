@@ -45,8 +45,9 @@ import org.elasticsearch.index.percolator.PercolatorException;
 import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryShardException;
-import org.elasticsearch.index.query.functionscore.factor.FactorBuilder;
 import org.elasticsearch.index.query.support.QueryInnerHits;
+import org.elasticsearch.index.query.QueryParsingException;
+import org.elasticsearch.index.query.functionscore.weight.WeightBuilder;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.highlight.HighlightBuilder;
@@ -55,43 +56,16 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.NavigableSet;
-import java.util.Set;
-import java.util.TreeSet;
+import java.util.*;
 
 import static org.elasticsearch.action.percolate.PercolateSourceBuilder.docBuilder;
 import static org.elasticsearch.common.settings.Settings.builder;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.common.xcontent.XContentFactory.smileBuilder;
-import static org.elasticsearch.common.xcontent.XContentFactory.yamlBuilder;
+import static org.elasticsearch.common.xcontent.XContentFactory.*;
 import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.scriptFunction;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertMatchCount;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.hamcrest.Matchers.anyOf;
-import static org.hamcrest.Matchers.arrayContaining;
-import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
-import static org.hamcrest.Matchers.arrayWithSize;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.emptyArray;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
+import static org.hamcrest.Matchers.*;
 
 /**
  *
@@ -1447,7 +1421,7 @@ public class PercolatorIT extends ESIntegTestCase {
                 .setSize(5)
                 .setPercolateDoc(docBuilder().setDoc(jsonBuilder().startObject().field("field1", "The quick brown fox jumps over the lazy dog").endObject()))
                 .setHighlightBuilder(new HighlightBuilder().field("field1"))
-                .setPercolateQuery(functionScoreQuery(matchAllQuery()).add(new FactorBuilder().boostFactor(5.5f)))
+                .setPercolateQuery(functionScoreQuery(matchAllQuery()).add(new WeightBuilder().setWeight(5.5f)))
                 .setScore(true)
                 .execute().actionGet();
         assertNoFailures(response);
@@ -1479,7 +1453,7 @@ public class PercolatorIT extends ESIntegTestCase {
                 .setSize(5)
                 .setPercolateDoc(docBuilder().setDoc(jsonBuilder().startObject().field("field1", "The quick brown fox jumps over the lazy dog").endObject()))
                 .setHighlightBuilder(new HighlightBuilder().field("field1"))
-                .setPercolateQuery(functionScoreQuery(matchAllQuery()).add(new FactorBuilder().boostFactor(5.5f)))
+                .setPercolateQuery(functionScoreQuery(matchAllQuery()).add(new WeightBuilder().setWeight(5.5f)))
                 .setSortByScore(true)
                 .execute().actionGet();
         assertMatchCount(response, 5l);
@@ -1511,7 +1485,7 @@ public class PercolatorIT extends ESIntegTestCase {
                 .setSize(5)
                 .setPercolateDoc(docBuilder().setDoc(jsonBuilder().startObject().field("field1", "The quick brown fox jumps over the lazy dog").endObject()))
                 .setHighlightBuilder(new HighlightBuilder().field("field1").highlightQuery(QueryBuilders.matchQuery("field1", "jumps")))
-                .setPercolateQuery(functionScoreQuery(matchAllQuery()).add(new FactorBuilder().boostFactor(5.5f)))
+                .setPercolateQuery(functionScoreQuery(matchAllQuery()).add(new WeightBuilder().setWeight(5.5f)))
                 .setSortByScore(true)
                 .execute().actionGet();
         assertMatchCount(response, 5l);
@@ -1548,7 +1522,7 @@ public class PercolatorIT extends ESIntegTestCase {
                 .setSize(5)
                 .setGetRequest(Requests.getRequest("test").type("type").id("1"))
                 .setHighlightBuilder(new HighlightBuilder().field("field1"))
-                .setPercolateQuery(functionScoreQuery(matchAllQuery()).add(new FactorBuilder().boostFactor(5.5f)))
+                .setPercolateQuery(functionScoreQuery(matchAllQuery()).add(new WeightBuilder().setWeight(5.5f)))
                 .setSortByScore(true)
                 .execute().actionGet();
         assertMatchCount(response, 5l);

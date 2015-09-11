@@ -73,7 +73,16 @@ public class JvmInfo implements Streamable, ToXContent {
             // ignore
         }
         info.inputArguments = runtimeMXBean.getInputArguments().toArray(new String[runtimeMXBean.getInputArguments().size()]);
-        info.bootClassPath = runtimeMXBean.getBootClassPath();
+        try {
+            info.bootClassPath = runtimeMXBean.getBootClassPath();
+        } catch (UnsupportedOperationException e) {
+            // oracle java 9
+            info.bootClassPath = System.getProperty("sun.boot.class.path");
+            if (info.bootClassPath == null) {
+                // something else
+                info.bootClassPath = "<unknown>";
+            }
+        }
         info.classPath = runtimeMXBean.getClassPath();
         info.systemProperties = runtimeMXBean.getSystemProperties();
 

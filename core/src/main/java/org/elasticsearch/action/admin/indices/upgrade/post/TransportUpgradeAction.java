@@ -46,11 +46,10 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-
-import static com.google.common.collect.Sets.newHashSet;
 
 /**
  * Upgrade index/indices action.
@@ -158,7 +157,7 @@ public class TransportUpgradeAction extends TransportBroadcastByNodeAction<Upgra
      * Finds all indices that have not all primaries available
      */
     private Set<String> indicesWithMissingPrimaries(ClusterState clusterState, String[] concreteIndices) {
-        Set<String> indices = newHashSet();
+        Set<String> indices = new HashSet<>();
         RoutingTable routingTable = clusterState.routingTable();
         for (String index : concreteIndices) {
             IndexRoutingTable indexRoutingTable = routingTable.index(index);

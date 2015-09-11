@@ -30,10 +30,10 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 import static com.google.common.base.Preconditions.checkArgument;
-import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.base.Preconditions.checkState;
 
 /**
@@ -64,7 +64,7 @@ public final class PrivateElementsImpl implements PrivateElements {
     private Injector injector;
 
     public PrivateElementsImpl(Object source) {
-        this.source = checkNotNull(source, "source");
+        this.source = Objects.requireNonNull(source, "source");
     }
 
     @Override
@@ -89,7 +89,7 @@ public final class PrivateElementsImpl implements PrivateElements {
 
     public void initInjector(Injector injector) {
         checkState(this.injector == null, "injector already initialized");
-        this.injector = checkNotNull(injector, "injector");
+        this.injector = Objects.requireNonNull(injector, "injector");
     }
 
     @Override

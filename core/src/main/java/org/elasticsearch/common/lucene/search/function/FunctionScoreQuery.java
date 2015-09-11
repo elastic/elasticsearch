@@ -76,6 +76,9 @@ public class FunctionScoreQuery extends Query {
 
     @Override
     public Query rewrite(IndexReader reader) throws IOException {
+        if (getBoost() != 1.0F) {
+            return super.rewrite(reader);
+        }
         Query newQ = subQuery.rewrite(reader);
         if (newQ == subQuery) {
             return this;
@@ -117,14 +120,12 @@ public class FunctionScoreQuery extends Query {
 
         @Override
         public float getValueForNormalization() throws IOException {
-            float sum = subQueryWeight.getValueForNormalization();
-            sum *= getBoost() * getBoost();
-            return sum;
+            return subQueryWeight.getValueForNormalization();
         }
 
         @Override
-        public void normalize(float norm, float topLevelBoost) {
-            subQueryWeight.normalize(norm, topLevelBoost * getBoost());
+        public void normalize(float norm, float boost) {
+            subQueryWeight.normalize(norm, boost);
         }
 
         @Override
@@ -148,7 +149,7 @@ public class FunctionScoreQuery extends Query {
             }
             if (function != null) {
                 Explanation functionExplanation = function.getLeafScoreFunction(context).explainScore(doc, subQueryExpl);
-                return combineFunction.explain(getBoost(), subQueryExpl, functionExplanation, maxBoost);
+                return combineFunction.explain(subQueryExpl, functionExplanation, maxBoost);
             } else {
                 return subQueryExpl;
             }
@@ -174,9 +175,9 @@ public class FunctionScoreQuery extends Query {
             // are needed
             float score = needsScores ? scorer.score() : 0f;
             if (function == null) {
-                return subQueryBoost * score;
+                return score;
             } else {
-                return scoreCombiner.combine(subQueryBoost, score,
+                return scoreCombiner.combine(score,
                         function.score(scorer.docID(), score), maxBoost);
             }
         }

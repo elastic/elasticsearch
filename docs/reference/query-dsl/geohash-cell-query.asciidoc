@@ -43,8 +43,8 @@ next to the given cell.
 [source,js]
 --------------------------------------------------
 {
-    "filtered" : {
-        "query" : {
+    "bool" : {
+        "must" : {
             "match_all" : {}
         },
         "filter" : {

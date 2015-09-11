@@ -244,5 +244,13 @@ public class AggregatorFactories {
                 orderedPipelineAggregators.add(factory);
             }
         }
+
+        AggregatorFactory[] getAggregatorFactories() {
+            return this.factories.toArray(new AggregatorFactory[this.factories.size()]);
+        }
+
+        List<PipelineAggregatorFactory> getPipelineAggregatorFactories() {
+            return this.pipelineAggregatorFactories;
+        }
     }
 }

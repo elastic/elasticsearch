@@ -18,11 +18,10 @@
  */
 package org.elasticsearch.test.rest.section;
 
-import com.google.common.collect.Sets;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import java.util.TreeSet;
 
 /**
  * Holds a REST test suite loaded from a specific yaml file.
@@ -35,7 +34,7 @@ public class RestTestSuite {
 
     private SetupSection setupSection;
 
-    private Set<TestSection> testSections = Sets.newTreeSet();
+    private Set<TestSection> testSections = new TreeSet<>();
 
     public RestTestSuite(String api, String name) {
         this.api = api;

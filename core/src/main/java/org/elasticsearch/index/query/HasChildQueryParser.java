@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -43,7 +44,7 @@ public class HasChildQueryParser extends BaseQueryParser {
         XContentParser parser = parseContext.parser();
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         String childType = null;
-        ScoreType scoreType = ScoreType.NONE;
+        ScoreMode scoreMode = HasChildQueryBuilder.DEFAULT_SCORE_MODE;
         int minChildren = HasChildQueryBuilder.DEFAULT_MIN_CHILDREN;
         int maxChildren = HasChildQueryBuilder.DEFAULT_MAX_CHILDREN;
         String queryName = null;
@@ -67,10 +68,8 @@ public class HasChildQueryParser extends BaseQueryParser {
             } else if (token.isValue()) {
                 if ("type".equals(currentFieldName) || "child_type".equals(currentFieldName) || "childType".equals(currentFieldName)) {
                     childType = parser.text();
-                } else if ("score_type".equals(currentFieldName) || "scoreType".equals(currentFieldName)) {
-                    scoreType = ScoreType.fromString(parser.text());
                 } else if ("score_mode".equals(currentFieldName) || "scoreMode".equals(currentFieldName)) {
-                    scoreType = ScoreType.fromString(parser.text());
+                    scoreMode = parseScoreMode(parser.text());
                 } else if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
                 } else if ("min_children".equals(currentFieldName) || "minChildren".equals(currentFieldName)) {
@@ -84,10 +83,25 @@ public class HasChildQueryParser extends BaseQueryParser {
                 }
             }
         }
-        HasChildQueryBuilder hasChildQueryBuilder = new HasChildQueryBuilder(childType, iqb, maxChildren, minChildren, scoreType, queryInnerHits);
+        HasChildQueryBuilder hasChildQueryBuilder = new HasChildQueryBuilder(childType, iqb, maxChildren, minChildren, scoreMode, queryInnerHits);
         hasChildQueryBuilder.queryName(queryName);
         hasChildQueryBuilder.boost(boost);
         return hasChildQueryBuilder;
+    }
+
+    public static ScoreMode parseScoreMode(String scoreModeString) {
+        if ("none".equals(scoreModeString)) {
+            return ScoreMode.None;
+        } else if ("min".equals(scoreModeString)) {
+            return ScoreMode.Min;
+        } else if ("max".equals(scoreModeString)) {
+            return ScoreMode.Max;
+        } else if ("avg".equals(scoreModeString)) {
+            return ScoreMode.Avg;
+        } else if ("total".equals(scoreModeString)) {
+            return ScoreMode.Total;
+        }
+        throw new IllegalArgumentException("No score mode for child query [" + scoreModeString + "] found");
     }
 
     @Override

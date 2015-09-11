@@ -16,7 +16,6 @@
 
 package org.elasticsearch.common.inject.spi;
 
-import com.google.common.collect.Sets;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Binder;
 import org.elasticsearch.common.inject.Binding;
@@ -49,6 +48,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -141,7 +141,7 @@ public final class Elements {
 
         private RecordingBinder(Stage stage) {
             this.stage = stage;
-            this.modules = Sets.newHashSet();
+            this.modules = new HashSet<>();
             this.elements = new ArrayList<>();
             this.source = null;
             this.sourceProvider = new SourceProvider().plusSkippedClasses(
@@ -172,7 +172,7 @@ public final class Elements {
          */
         private RecordingBinder(RecordingBinder parent, PrivateElementsImpl privateElements) {
             this.stage = parent.stage;
-            this.modules = Sets.newHashSet();
+            this.modules = new HashSet<>();
             this.elements = privateElements.getElementsMutable();
             this.source = parent.source;
             this.sourceProvider = parent.sourceProvider;

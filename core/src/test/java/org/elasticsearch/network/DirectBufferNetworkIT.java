@@ -54,6 +54,7 @@ public class DirectBufferNetworkIT extends ESIntegTestCase {
      */
     @Test
     public void verifySaneDirectBufferAllocations() throws Exception {
+        assumeTrue("test cannot run with security manager enabled", System.getSecurityManager() == null);
         createIndex("test");
 
         int estimatedBytesSize = scaledRandomIntBetween(ByteSizeValue.parseBytesSizeValue("1.1mb", "estimatedBytesSize").bytesAsInt(),

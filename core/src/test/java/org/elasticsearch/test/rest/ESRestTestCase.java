@@ -155,6 +155,7 @@ public abstract class ESRestTestCase extends ESIntegTestCase {
         return Settings.builder()
             .putArray(URLRepository.ALLOWED_URLS_SETTING, "http://snapshot.test*")
             .put(Node.HTTP_ENABLED, true)
+            .put("node.testattr", "test")
             .put(super.nodeSettings(nodeOrdinal)).build();
     }
     

@@ -25,8 +25,8 @@ import org.elasticsearch.common.inject.spi.TypeConverter;
 import org.elasticsearch.common.inject.spi.TypeListener;
 
 import java.lang.annotation.Annotation;
+import java.util.Objects;
 
-import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.base.Preconditions.checkState;
 
 /**
@@ -56,7 +56,7 @@ public abstract class AbstractModule implements Module {
     public final synchronized void configure(Binder builder) {
         checkState(this.binder == null, "Re-entry is not allowed.");
 
-        this.binder = checkNotNull(builder, "builder");
+        this.binder = Objects.requireNonNull(builder, "builder");
         try {
             configure();
         } finally {

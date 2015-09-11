@@ -72,7 +72,7 @@ public class PackedArrayIndexFieldData extends AbstractIndexFieldData<AtomicNume
                                      FieldDataType fieldDataType, IndexFieldDataCache cache, NumericType numericType,
                                      CircuitBreakerService breakerService) {
         super(index, indexSettings, fieldNames, fieldDataType, cache);
-        Preconditions.checkNotNull(numericType);
+        Objects.requireNonNull(numericType);
         Preconditions.checkArgument(EnumSet.of(NumericType.BOOLEAN, NumericType.BYTE, NumericType.SHORT, NumericType.INT, NumericType.LONG).contains(numericType), getClass().getSimpleName() + " only supports integer types, not " + numericType);
         this.numericType = numericType;
         this.breakerService = breakerService;

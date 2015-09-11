@@ -42,10 +42,10 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
-import static com.google.common.collect.Sets.newHashSet;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
@@ -70,7 +70,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
 
     private Map<String, String> mappings = new HashMap<>();
 
-    private final Set<Alias> aliases = newHashSet();
+    private final Set<Alias> aliases = new HashSet<>();
     
     private Map<String, IndexMetaData.Custom> customs = new HashMap<>();
 

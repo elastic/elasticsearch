@@ -21,20 +21,14 @@
 
 package org.elasticsearch.index.query.functionscore.script;
 
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.search.function.ScoreFunction;
-import org.elasticsearch.common.lucene.search.function.ScriptScoreFunction;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionParser;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.Script.ScriptField;
-import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptParameterParser;
 import org.elasticsearch.script.ScriptParameterParser.ScriptParameterValue;
-import org.elasticsearch.script.SearchScript;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -43,13 +37,11 @@ import java.util.Map;
 /**
  *
  */
-public class ScriptScoreFunctionParser implements ScoreFunctionParser {
+public class ScriptScoreFunctionParser implements ScoreFunctionParser<ScriptScoreFunctionBuilder> {
 
     public static String[] NAMES = { "script_score", "scriptScore" };
 
-    @Inject
-    public ScriptScoreFunctionParser() {
-    }
+    private static final ScriptScoreFunctionBuilder PROTOTYPE = new ScriptScoreFunctionBuilder(new Script(""));
 
     @Override
     public String[] getNames() {
@@ -57,8 +49,7 @@ public class ScriptScoreFunctionParser implements ScoreFunctionParser {
     }
 
     @Override
-    public ScoreFunction parse(QueryShardContext context, XContentParser parser) throws IOException, ParsingException {
-        QueryParseContext parseContext = context.parseContext();
+    public ScriptScoreFunctionBuilder fromXContent(QueryParseContext parseContext, XContentParser parser) throws IOException, ParsingException {
         ScriptParameterParser scriptParameterParser = new ScriptParameterParser();
         Script script = null;
         Map<String, Object> vars = null;
@@ -98,12 +89,11 @@ public class ScriptScoreFunctionParser implements ScoreFunctionParser {
             throw new ParsingException(parser.getTokenLocation(), NAMES[0] + " requires 'script' field");
         }
 
-        SearchScript searchScript;
-        try {
-            searchScript = context.scriptService().search(context.lookup(), script, ScriptContext.Standard.SEARCH);
-            return new ScriptScoreFunction(script, searchScript);
-        } catch (Exception e) {
-            throw new ParsingException(parser.getTokenLocation(), NAMES[0] + " the script could not be loaded", e);
-        }
+        return new ScriptScoreFunctionBuilder(script);
+    }
+
+    @Override
+    public ScriptScoreFunctionBuilder getBuilderPrototype() {
+        return PROTOTYPE;
     }
 }

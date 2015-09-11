@@ -10,13 +10,22 @@ Plugins implementing custom queries need to implement the `fromXContent(QueryPar
 `QueryParser` subclass rather than `parse`. This method will take care of parsing the query from `XContent` format
 into an intermediate query representation that can be streamed between the nodes in binary format, effectively the
 query object used in the java api. Also, the query parser needs to implement the `getBuilderPrototype` method that
-returns a prototype of the streamable query, which allows to deserialize an incoming query by calling
+returns a prototype of the `NamedWriteable` query, which allows to deserialize an incoming query by calling
 `readFrom(StreamInput)` against it, which will create a new object, see usages of `Writeable`. The `QueryParser`
 also needs to declare the generic type of the query that it supports and it's able to parse.
 The query object can then transform itself into a lucene query through the new `toQuery(QueryShardContext)` method,
-which returns a lucene query to be executed on the data node. The query implementation also needs to implement the
-`validate` method that allows to validate the content of the query, no matter whether it came in through the java api
-directly or through the REST layer.
+which returns a lucene query to be executed on the data node.
+
+Similarly, plugins implementing custom score functions need to implement the `fromXContent(QueryParseContext)`
+method in their `ScoreFunctionParser` subclass rather than `parse`. This method will take care of parsing
+the function from `XContent` format into an intermediate function representation that can be streamed between
+the nodes in binary format, effectively the function object used in the java api. Also, the query parser needs
+to implement the `getBuilderPrototype` method that returns a prototype of the `NamedWriteable` function, which
+allows to deserialize an incoming function by calling `readFrom(StreamInput)` against it, which will create a
+new object, see usages of `Writeable`. The `ScoreFunctionParser` also needs to declare the generic type of the
+function that it supports and it's able to parse. The function object can then transform itself into a lucene
+function through the new `toFunction(QueryShardContext)` method, which returns a lucene function to be executed
+on the data node.
 
 === Java-API
 
@@ -144,4 +153,15 @@ Remove the setter for `termsLookup()`, making it only possible to either use a T
 individual values at constrution time. Also moving individual settings for the TermsLookUp (lookupIndex,
 lookupType, lookupId, lookupPath) to the separate TermsLookUp class, using construtor only and moving
 checks for validation there.
+
+==== FunctionScoreQueryBuilder
+
+`add` methods have been removed, all filters and functions must be provided as constructor arguments by
+creating an array of `FunctionScoreQueryBuilder.FilterFunctionBuilder` objects, containing one element
+for each filter/function pair.
+
+`scoreMode` and `boostMode` can only be provided using corresponding enum members instead
+of string values: see `FilterFunctionScoreQuery.ScoreMode` and `CombineFunction`.
+
+`CombineFunction.MULT` has been renamed to `MULTIPLY`.
 

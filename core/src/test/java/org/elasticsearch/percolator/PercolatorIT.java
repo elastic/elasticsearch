@@ -45,9 +45,8 @@ import org.elasticsearch.index.percolator.PercolatorException;
 import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryShardException;
-import org.elasticsearch.index.query.support.QueryInnerHits;
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.index.query.functionscore.weight.WeightBuilder;
+import org.elasticsearch.index.query.support.QueryInnerHits;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.highlight.HighlightBuilder;
@@ -1421,7 +1420,7 @@ public class PercolatorIT extends ESIntegTestCase {
                 .setSize(5)
                 .setPercolateDoc(docBuilder().setDoc(jsonBuilder().startObject().field("field1", "The quick brown fox jumps over the lazy dog").endObject()))
                 .setHighlightBuilder(new HighlightBuilder().field("field1"))
-                .setPercolateQuery(functionScoreQuery(matchAllQuery()).add(new WeightBuilder().setWeight(5.5f)))
+                .setPercolateQuery(functionScoreQuery(new WeightBuilder().setWeight(5.5f)))
                 .setScore(true)
                 .execute().actionGet();
         assertNoFailures(response);
@@ -1453,7 +1452,7 @@ public class PercolatorIT extends ESIntegTestCase {
                 .setSize(5)
                 .setPercolateDoc(docBuilder().setDoc(jsonBuilder().startObject().field("field1", "The quick brown fox jumps over the lazy dog").endObject()))
                 .setHighlightBuilder(new HighlightBuilder().field("field1"))
-                .setPercolateQuery(functionScoreQuery(matchAllQuery()).add(new WeightBuilder().setWeight(5.5f)))
+                .setPercolateQuery(functionScoreQuery(new WeightBuilder().setWeight(5.5f)))
                 .setSortByScore(true)
                 .execute().actionGet();
         assertMatchCount(response, 5l);
@@ -1485,7 +1484,7 @@ public class PercolatorIT extends ESIntegTestCase {
                 .setSize(5)
                 .setPercolateDoc(docBuilder().setDoc(jsonBuilder().startObject().field("field1", "The quick brown fox jumps over the lazy dog").endObject()))
                 .setHighlightBuilder(new HighlightBuilder().field("field1").highlightQuery(QueryBuilders.matchQuery("field1", "jumps")))
-                .setPercolateQuery(functionScoreQuery(matchAllQuery()).add(new WeightBuilder().setWeight(5.5f)))
+                .setPercolateQuery(functionScoreQuery(new WeightBuilder().setWeight(5.5f)))
                 .setSortByScore(true)
                 .execute().actionGet();
         assertMatchCount(response, 5l);
@@ -1522,7 +1521,7 @@ public class PercolatorIT extends ESIntegTestCase {
                 .setSize(5)
                 .setGetRequest(Requests.getRequest("test").type("type").id("1"))
                 .setHighlightBuilder(new HighlightBuilder().field("field1"))
-                .setPercolateQuery(functionScoreQuery(matchAllQuery()).add(new WeightBuilder().setWeight(5.5f)))
+                .setPercolateQuery(functionScoreQuery(new WeightBuilder().setWeight(5.5f)))
                 .setSortByScore(true)
                 .execute().actionGet();
         assertMatchCount(response, 5l);

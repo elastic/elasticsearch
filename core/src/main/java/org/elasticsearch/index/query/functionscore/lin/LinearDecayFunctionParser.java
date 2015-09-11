@@ -19,44 +19,21 @@
 
 package org.elasticsearch.index.query.functionscore.lin;
 
-import org.apache.lucene.search.Explanation;
-import org.elasticsearch.index.query.functionscore.DecayFunction;
 import org.elasticsearch.index.query.functionscore.DecayFunctionParser;
 
-public class LinearDecayFunctionParser extends DecayFunctionParser {
+public class LinearDecayFunctionParser extends DecayFunctionParser<LinearDecayFunctionBuilder> {
 
     public static final String[] NAMES = { "linear" };
+
+    private static final LinearDecayFunctionBuilder PROTOTYPE = new LinearDecayFunctionBuilder("", "", "", "");
 
     @Override
     public String[] getNames() {
         return NAMES;
     }
 
-    static final DecayFunction decayFunction = new LinearDecayScoreFunction();
-
     @Override
-    public DecayFunction getDecayFunction() {
-        return decayFunction;
-    }
-
-    final static class LinearDecayScoreFunction implements DecayFunction {
-
-        @Override
-        public double evaluate(double value, double scale) { 
-            return Math.max(0.0, (scale - value) / scale);
-        }
-
-        @Override
-        public Explanation explainFunction(String valueExpl, double value, double scale) {
-            return Explanation.match(
-                    (float) evaluate(value, scale),
-                    "max(0.0, ((" + scale + " - " + valueExpl + ")/" + scale + ")");
-        }
-
-        @Override
-        public double processScale(double scale, double decay) {
-            return scale / (1.0 - decay);
-        }
-
+    public LinearDecayFunctionBuilder getBuilderPrototype() {
+        return PROTOTYPE;
     }
 }

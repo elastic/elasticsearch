@@ -1201,8 +1201,7 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
                 .prepareSearch("idx")
                 .setTypes("type")
                 .setQuery(
-                        functionScoreQuery(matchAllQuery()).add(
-                                ScoreFunctionBuilders.scriptFunction(new Script("doc['" + SINGLE_VALUED_FIELD_NAME + "'].value"))))
+                        functionScoreQuery(ScoreFunctionBuilders.scriptFunction(new Script("doc['" + SINGLE_VALUED_FIELD_NAME + "'].value"))))
                 .addAggregation(
                         terms("terms").collectMode(randomFrom(SubAggCollectionMode.values())).script(
                                 new Script("ceil(_score.doubleValue()/3)"))).execute().actionGet();

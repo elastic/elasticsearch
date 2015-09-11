@@ -32,6 +32,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
 import org.joda.time.ReadableInstant;
 
 import java.io.EOFException;
@@ -587,5 +588,12 @@ public abstract class StreamOutput extends OutputStream {
      */
     public void writeQuery(QueryBuilder queryBuilder) throws IOException {
         writeNamedWriteable(queryBuilder);
+    }
+
+    /**
+     * Writes a {@link ScoreFunctionBuilder} to the current stream
+     */
+    public void writeScoreFunction(ScoreFunctionBuilder<?> scoreFunctionBuilder) throws IOException {
+        writeNamedWriteable(scoreFunctionBuilder);
     }
 }

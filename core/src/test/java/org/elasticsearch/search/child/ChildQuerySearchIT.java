@@ -30,6 +30,7 @@ import org.elasticsearch.action.search.SearchType;
 
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
+import org.elasticsearch.common.lucene.search.function.FiltersFunctionScoreQuery;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.cache.IndexCacheModule;
@@ -37,6 +38,7 @@ import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.query.HasChildQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -651,7 +653,7 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
                                 "child",
                                 QueryBuilders.functionScoreQuery(matchQuery("c_field2", 0),
                                         scriptFunction(new Script("doc['c_field1'].value")))
-                                        .boostMode(CombineFunction.REPLACE.getName())).scoreMode(ScoreMode.Total)).get();
+                                        .boostMode(CombineFunction.REPLACE)).scoreMode(ScoreMode.Total)).get();
 
         assertThat(response.getHits().totalHits(), equalTo(3l));
         assertThat(response.getHits().hits()[0].id(), equalTo("1"));
@@ -668,7 +670,7 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
                                 "child",
                                 QueryBuilders.functionScoreQuery(matchQuery("c_field2", 0),
                                         scriptFunction(new Script("doc['c_field1'].value")))
-                                        .boostMode(CombineFunction.REPLACE.getName())).scoreMode(ScoreMode.Max)).get();
+                                        .boostMode(CombineFunction.REPLACE)).scoreMode(ScoreMode.Max)).get();
 
         assertThat(response.getHits().totalHits(), equalTo(3l));
         assertThat(response.getHits().hits()[0].id(), equalTo("3"));
@@ -685,7 +687,7 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
                                 "child",
                                 QueryBuilders.functionScoreQuery(matchQuery("c_field2", 0),
                                         scriptFunction(new Script("doc['c_field1'].value")))
-                                        .boostMode(CombineFunction.REPLACE.getName())).scoreMode(ScoreMode.Avg)).get();
+                                        .boostMode(CombineFunction.REPLACE)).scoreMode(ScoreMode.Avg)).get();
 
         assertThat(response.getHits().totalHits(), equalTo(3l));
         assertThat(response.getHits().hits()[0].id(), equalTo("3"));
@@ -702,7 +704,7 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
                                 "parent",
                                 QueryBuilders.functionScoreQuery(matchQuery("p_field1", "p_value3"),
                                         scriptFunction(new Script("doc['p_field2'].value")))
-                                        .boostMode(CombineFunction.REPLACE.getName())).score(true))
+                                        .boostMode(CombineFunction.REPLACE)).score(true))
                 .addSort(SortBuilders.fieldSort("c_field3")).addSort(SortBuilders.scoreSort()).get();
 
         assertThat(response.getHits().totalHits(), equalTo(7l));
@@ -1556,11 +1558,12 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
     private SearchResponse minMaxQuery(ScoreMode scoreMode, int minChildren, Integer maxChildren) throws SearchPhaseExecutionException {
         HasChildQueryBuilder hasChildQuery = hasChildQuery(
                 "child",
-                QueryBuilders.functionScoreQuery(constantScoreQuery(QueryBuilders.termQuery("foo", "two"))).boostMode("replace").scoreMode("sum")
-                        .add(QueryBuilders.matchAllQuery(), weightFactorFunction(1))
-                        .add(QueryBuilders.termQuery("foo", "three"), weightFactorFunction(1))
-                        .add(QueryBuilders.termQuery("foo", "four"), weightFactorFunction(1))).scoreMode(scoreMode)
-                .minChildren(minChildren);
+                QueryBuilders.functionScoreQuery(constantScoreQuery(QueryBuilders.termQuery("foo", "two")),
+                        new FunctionScoreQueryBuilder.FilterFunctionBuilder[]{
+                                new FunctionScoreQueryBuilder.FilterFunctionBuilder(weightFactorFunction(1)),
+                                new FunctionScoreQueryBuilder.FilterFunctionBuilder(QueryBuilders.termQuery("foo", "three"), weightFactorFunction(1)),
+                                new FunctionScoreQueryBuilder.FilterFunctionBuilder(QueryBuilders.termQuery("foo", "four"), weightFactorFunction(1))
+                        }).boostMode(CombineFunction.REPLACE).scoreMode(FiltersFunctionScoreQuery.ScoreMode.SUM)).scoreMode(scoreMode).minChildren(minChildren);
 
         if (maxChildren != null) {
             hasChildQuery.maxChildren(maxChildren);

@@ -34,6 +34,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.text.StringAndBytesText;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
@@ -584,6 +585,13 @@ public abstract class StreamInput extends InputStream {
      */
     public QueryBuilder readQuery() throws IOException {
         return readNamedWriteable(QueryBuilder.class);
+    }
+
+    /**
+     * Reads a {@link org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder} from the current stream
+     */
+    public ScoreFunctionBuilder<?> readScoreFunction() throws IOException {
+        return readNamedWriteable(ScoreFunctionBuilder.class);
     }
 
     public static StreamInput wrap(BytesReference reference) {

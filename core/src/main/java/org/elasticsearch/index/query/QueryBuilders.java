@@ -372,19 +372,34 @@ public abstract class QueryBuilders {
     }
 
     /**
-     * A query that allows to define a custom scoring function.
+     * A function_score query with no functions.
      *
      * @param queryBuilder The query to custom score
+     * @return the function score query
      */
     public static FunctionScoreQueryBuilder functionScoreQuery(QueryBuilder queryBuilder) {
         return new FunctionScoreQueryBuilder(queryBuilder);
     }
 
     /**
-     * A query that allows to define a custom scoring function.
+     * A query that allows to define a custom scoring function
+     *
+     * @param queryBuilder The query to custom score
+     * @param filterFunctionBuilders the filters and functions to execute
+     * @return the function score query
      */
-    public static FunctionScoreQueryBuilder functionScoreQuery() {
-        return new FunctionScoreQueryBuilder();
+    public static FunctionScoreQueryBuilder functionScoreQuery(QueryBuilder queryBuilder, FunctionScoreQueryBuilder.FilterFunctionBuilder[] filterFunctionBuilders) {
+        return new FunctionScoreQueryBuilder(queryBuilder, filterFunctionBuilders);
+    }
+
+    /**
+     * A query that allows to define a custom scoring function
+     *
+     * @param filterFunctionBuilders the filters and functions to execute
+     * @return the function score query
+     */
+    public static FunctionScoreQueryBuilder functionScoreQuery(FunctionScoreQueryBuilder.FilterFunctionBuilder[] filterFunctionBuilders) {
+        return new FunctionScoreQueryBuilder(filterFunctionBuilders);
     }
 
     /**
@@ -403,7 +418,7 @@ public abstract class QueryBuilders {
      * @param function     The function builder used to custom score
      */
     public static FunctionScoreQueryBuilder functionScoreQuery(QueryBuilder queryBuilder, ScoreFunctionBuilder function) {
-        return (new FunctionScoreQueryBuilder(queryBuilder)).add(function);
+        return (new FunctionScoreQueryBuilder(queryBuilder, function));
     }
 
     /**

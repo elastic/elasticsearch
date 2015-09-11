@@ -19,11 +19,11 @@
 
 package org.elasticsearch.index.query.functionscore.exp;
 
-import org.apache.lucene.search.Explanation;
-import org.elasticsearch.index.query.functionscore.DecayFunction;
 import org.elasticsearch.index.query.functionscore.DecayFunctionParser;
 
-public class ExponentialDecayFunctionParser extends DecayFunctionParser {
+public class ExponentialDecayFunctionParser extends DecayFunctionParser<ExponentialDecayFunctionBuilder> {
+
+    private static final ExponentialDecayFunctionBuilder PROTOTYPE = new ExponentialDecayFunctionBuilder("", "", "", "");
 
     public static final String[] NAMES = { "exp" };
 
@@ -32,31 +32,8 @@ public class ExponentialDecayFunctionParser extends DecayFunctionParser {
         return NAMES;
     }
 
-    static final DecayFunction decayFunction = new ExponentialDecayScoreFunction();
-
     @Override
-    public DecayFunction getDecayFunction() {
-        return decayFunction;
-    }
-
-    final static class ExponentialDecayScoreFunction implements DecayFunction {
-
-        @Override
-        public double evaluate(double value, double scale) {
-            return Math.exp(scale * value);
-        }
-
-        @Override
-        public Explanation explainFunction(String valueExpl, double value, double scale) {
-            return Explanation.match(
-                    (float) evaluate(value, scale),
-                    "exp(- " + valueExpl + " * " + -1 * scale + ")");
-        }
-
-        @Override
-        public double processScale(double scale, double decay) {
-            return Math.log(decay) / scale;
-        }
-
+    public ExponentialDecayFunctionBuilder getBuilderPrototype() {
+        return PROTOTYPE;
     }
 }

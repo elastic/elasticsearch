@@ -28,7 +28,7 @@ import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class ShapeRalationTests extends ESTestCase {
+public class ShapeRelationTests extends ESTestCase {
 
     public void testValidOrdinals() {
         assertThat(ShapeRelation.INTERSECTS.ordinal(), equalTo(0));

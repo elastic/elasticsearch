@@ -2,92 +2,99 @@
 apply plugin: 'java'
 apply plugin: 'org.elasticsearch.devtools.build'
 
-sourceCompatibility = '1.8'
+jar {
+  baseName = 'elasticsearch'
+}
 
 configurations {
-  restSpec
+  optional // these are used at compile time (and test) but excluded from runtime
+  restSpec // the rest spec is copied independently to the test classes dir
 }
 
-def luceneSnapshot = '1701068'
-def luceneVersion = "5.4.0-snapshot-$luceneSnapshot"
-def jacksonVersion = '2.5.3'
-def log4jVersion = '1.2.17'
-def slf4jVersion = '1.6.2'
-
-repositories {
-  mavenCentral()
-  mavenLocal()
-  maven {
-    url "http://download.elasticsearch.org/lucenesnapshots/$luceneSnapshot"
-  }
-}
+versions << [
+  jackson:  '2.5.3',
+  log4j:    '1.2.17',
+  slf4j:    '1.6.2' 
+]
 
 dependencies {
 
   // lucene
-  compile group: 'org.apache.lucene', name: 'lucene-core', version: luceneVersion
-  compile group: 'org.apache.lucene', name: 'lucene-backward-codecs', version: luceneVersion
-  compile group: 'org.apache.lucene', name: 'lucene-analyzers-common', version: luceneVersion
-  compile group: 'org.apache.lucene', name: 'lucene-queries', version: luceneVersion
-  compile group: 'org.apache.lucene', name: 'lucene-memory', version: luceneVersion
-  compile group: 'org.apache.lucene', name: 'lucene-highlighter', version: luceneVersion
-  compile group: 'org.apache.lucene', name: 'lucene-queryparser', version: luceneVersion
-  compile group: 'org.apache.lucene', name: 'lucene-suggest', version: luceneVersion
-  compile group: 'org.apache.lucene', name: 'lucene-join', version: luceneVersion
-  compile group: 'org.apache.lucene', name: 'lucene-spatial', version: luceneVersion
-  // TODO: make optional?
-  compile group: 'org.apache.lucene', name: 'lucene-expressions', version: luceneVersion
+  compile "org.apache.lucene:lucene-core:${versions.lucene}"
+  compile "org.apache.lucene:lucene-backward-codecs:${versions.lucene}"
+  compile "org.apache.lucene:lucene-analyzers-common:${versions.lucene}"
+  compile "org.apache.lucene:lucene-queries:${versions.lucene}"
+  compile "org.apache.lucene:lucene-memory:${versions.lucene}"
+  compile "org.apache.lucene:lucene-highlighter:${versions.lucene}"
+  compile "org.apache.lucene:lucene-queryparser:${versions.lucene}"
+  compile "org.apache.lucene:lucene-suggest:${versions.lucene}"
+  compile "org.apache.lucene:lucene-join:${versions.lucene}"
+  compile "org.apache.lucene:lucene-spatial:${versions.lucene}"
 
-  // TODO: make optional?
   // lucene spatial
-  compile group: 'com.spatial4j', name: 'spatial4j', version: '0.4.1'
-  compile group: 'com.vividsolutions', name: 'jts', version: '1.13'
-  // needed for templating
-  compile group: 'com.github.spullara.mustache.java', name: 'compiler', version: '0.8.13'
+  optional 'com.spatial4j:spatial4j:0.4.1'
+  optional 'com.vividsolutions:jts:1.13'
 
-  // START: dependencies that might be shaded
-  compile group: 'com.google.guava', name: 'guava', version: '18.0'
-  compile group: 'com.carrotsearch', name: 'hppc', version: '0.7.1'
+  compile 'com.google.guava:guava:18.0'
+  compile 'org.apache.commons:commons-lang3:3.3.2'
+  compile 'commons-cli:commons-cli:1.3.1'
+  compile 'com.carrotsearch:hppc:0.7.1'
+  optional 'net.java.dev.jna:jna:4.1.0'
+
+  // time handling, remove with java 8 time
+  compile 'joda-time:joda-time:2.8'
   // joda 2.0 moved to using volatile fields for datetime
   // When updating to a new version, make sure to update our copy of BaseDateTime
-  compile group: 'joda-time', name: 'joda-time', version: '2.8'
-  compile group: 'org.joda', name: 'joda-convert', version: '1.2'
-  compile group: 'com.fasterxml.jackson.core', name: 'jackson-core', version: jacksonVersion
-  compile group: 'com.fasterxml.jackson.dataformat', name: 'jackson-dataformat-smile', version: jacksonVersion
-  compile(group: 'com.fasterxml.jackson.dataformat', name: 'jackson-dataformat-yaml', version: jacksonVersion) {
+  compile 'org.joda:joda-convert:1.2'
+
+  // json and yaml
+  compile "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+  compile "com.fasterxml.jackson.dataformat:jackson-dataformat-smile:${versions.jackson}"
+  compile "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:${versions.jackson}"
+  compile(group: 'com.fasterxml.jackson.dataformat', name: 'jackson-dataformat-yaml', version: versions.jackson) {
     exclude group: 'com.fasterxml.jackson.core', module: 'jackson-databind'
   }
-  compile group: 'com.fasterxml.jackson.dataformat', name: 'jackson-dataformat-cbor', version: jacksonVersion
-  compile group: 'io.netty', name: 'netty', version: '3.10.3.Final'
-  compile group: 'com.ning', name: 'compress-lzf', version: '1.0.2'
-  compile group: 'com.tdunning', name: 't-digest', version: '3.0'
-  compile group: 'org.hdrhistogram', name: 'HdrHistogram', version: '2.1.6'
-  compile group: 'org.apache.commons', name: 'commons-lang3', version: '3.3.2'
-  compile group: 'commons-cli', name: 'commons-cli', version: '1.3.1'
-  // END: dependencies that might be shaded
+  compile "com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:${versions.jackson}"
 
-  // TODO: make optional?
-  compile group: 'org.codehaus.groovy', name: 'groovy-all', version: '2.4.4', classifier: 'indy'
-  compile group: 'log4j', name: 'log4j', version: log4jVersion
-  compile group: 'log4j', name: 'apache-log4j-extras', version: log4jVersion
-  compile group: 'org.slf4j', name: 'slf4j-api', version: slf4jVersion
-  compile group: 'net.java.dev.jna', name: 'jna', version: '4.1.0'
+  compile 'io.netty:netty:3.10.3.Final'
+  compile 'com.ning:compress-lzf:1.0.2'
+  compile 'com.tdunning:t-digest:3.0'
+  compile 'org.hdrhistogram:HdrHistogram:2.1.6'
+
+  // scripting
+  optional 'org.codehaus.groovy:groovy-all:2.4.4:indy'
+  optional "org.apache.lucene:lucene-expressions:${versions.lucene}"
+  // templating
+  optional 'com.github.spullara.mustache.java:compiler:0.8.13'
+
+  // logging
+  optional "log4j:log4j:${versions.log4j}"
+  optional "log4j:apache-log4j-extras:${versions.log4j}"
+  optional "org.slf4j:slf4j-api:${versions.slf4j}"
+
   // remove this for java 8
   compile group: 'com.twitter', name: 'jsr166e', version: '1.1.0'
 
+  // TODO: move junit and carrotsearch completely to plugin
   testCompile(group: 'junit', name: 'junit', version: '4.11') {
     transitive = false
   }
   //testCompile group: 'com.carrotsearch.randomizedtesting', name: 'randomizedtesting-runner', version: '2.1.16'
-  testCompile group: 'org.apache.lucene', name: 'lucene-test-framework', version: luceneVersion
+
+  testCompile "org.apache.lucene:lucene-test-framework:${versions.lucene}"
   testCompile(group: 'org.hamcrest', name: 'hamcrest-all', version: '1.3') {
     exclude group: 'org.hamcrest', module: 'hamcrest-core'
   }
-  testCompile group: 'com.google.jimfs', name: 'jimfs', version: '1.0'
-  testCompile group: 'org.apache.httpcomponents', name: 'httpclient', version: '4.3.6'
+  testCompile 'com.google.jimfs:jimfs:1.0'
+  testCompile 'org.apache.httpcomponents:httpclient:4.3.6'
+
+  testCompile configurations.optional // optional deps are pulled into tests
 
   restSpec project(':rest-api-spec') // for rest tests
 }
+
+// add optional dependencies to compile classpath only
+sourceSets.main.compileClasspath += [configurations.optional]
 
 compileJava.options.compilerArgs << "-Xlint:-cast,-deprecation,-fallthrough,-overrides,-rawtypes,-serial,-try,-unchecked"
 compileTestJava.options.compilerArgs << "-Xlint:-cast,-deprecation,-fallthrough,-overrides,-rawtypes,-serial,-try,-unchecked"
@@ -97,43 +104,23 @@ task sourcesJar(type: Jar, dependsOn: classes) {
     from sourceSets.main.java
 }
 
+artifacts {
+    archives sourcesJar
+}
+
 forbiddenPatterns {
   exclude '**/*.json'
   exclude '**/*.jmx'
   exclude '**/org/elasticsearch/cluster/routing/shard_routes.txt'
 }
 
-/*
- * A hack because the rest test framework apparently cannot read spec files directly
- * from a jar, but need them to be on the local filesystem.
- * NOTE: the failure looks like this:
- * [ant:junit4]    > Throwable #1: java.lang.RuntimeException: couldn't retrieve URL: jar:file:/Users/rjernst/Code/es-gradle/rest-api-spec/build/libs/rest-api-spec-2.0.0-SNAPSHOT.jar!/rest-api-spec/test/get
-[ant:junit4]    >   at __randomizedtesting.SeedInfo.seed([AEA98D31B204924E:364AFBD58E86E8E5]:0)
-[ant:junit4]    >   at org.elasticsearch.test.rest.support.FileUtils.resolveFile(FileUtils.java:119)
-[ant:junit4]    >   at org.elasticsearch.test.rest.support.FileUtils.findYamlSuites(FileUtils.java:86)
-[ant:junit4]    >   at org.elasticsearch.test.rest.test.FileUtilsTests.testLoadMultipleYamlSuites(FileUtilsTests.java:53)
-   ...
-  [ant:junit4]    > Caused by: java.nio.file.FileSystemNotFoundException
-[ant:junit4]    >   at com.sun.nio.zipfs.ZipFileSystemProvider.getFileSystem(ZipFileSystemProvider.java:171)
-[ant:junit4]    >   at com.sun.nio.zipfs.ZipFileSystemProvider.getPath(ZipFileSystemProvider.java:157)
-[ant:junit4]    >   at java.nio.file.Paths.get(Paths.java:143)
-[ant:junit4]    >   at org.elasticsearch.common.io.PathUtils.get(PathUtils.java:75)
-[ant:junit4]    >   at org.elasticsearch.test.rest.support.FileUtils.resolveFile(FileUtils.java:115)
- */
 task copyRestSpec(type: Copy, dependsOn: configurations.restSpec.buildDependencies) {
   from zipTree(configurations.restSpec.asPath)
   into sourceSets.test.output.classesDir
 }
 
-
 test {
   dependsOn copyRestSpec
 }
 
-artifacts {
-    archives sourcesJar
-}
 
-jar {
-  baseName = 'elasticsearch'
-}

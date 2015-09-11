@@ -1,0 +1,54 @@
+
+apply plugin: 'java'
+
+dependencies {
+  // TODO: change to elasticsearch core jar dep, and use dependnecy subs to point at core project
+  compile project(':core')
+
+  compile(group: 'junit', name: 'junit', version: '4.11') {
+    transitive = false
+  }
+  compile group: 'com.carrotsearch.randomizedtesting', name: 'randomizedtesting-runner', version: '2.1.13'
+
+  compile "org.apache.lucene:lucene-test-framework:${versions.lucene}"
+  compile(group: 'org.hamcrest', name: 'hamcrest-all', version: '1.3') {
+    exclude group: 'org.hamcrest', module: 'hamcrest-core'
+  }
+  compile 'com.google.jimfs:jimfs:1.0'
+  compile 'org.apache.httpcomponents:httpclient:4.3.6'
+
+  runtime project(':rest-api-spec')
+}
+
+// HACK: this is temporary until we have moved to gradle, at which
+// point we can physically move the test framework files to this project
+sourceSets {
+  main {
+    java {
+      srcDirs = project.rootProject.project(':core').sourceSets.test.java.srcDirs
+      include 'org/elasticsearch/test/**/*'
+      include 'org/elasticsearch/bootstrap/BootstrapForTesting.java'
+      include 'org/elasticsearch/bootstrap/XTestSecurityManager.java'
+      include 'org/elasticsearch/common/cli/CliToolTestCase.java'
+      include 'org/elasticsearch/cluster/MockInternalClusterInfoService.java'
+      include 'org/elasticsearch/index/shard/MockEngineFactoryPlugin.java'
+      include 'org/elasticsearch/search/MockSearchService.java'
+      include 'org/elasticsearch/cache/recycler/MockPageCacheRecycler.java'
+      include 'org/elasticsearch/common/util/MockBigArrays.java'
+      include 'org/elasticsearch/node/NodeMocksPlugin.java'
+      include 'org/elasticsearch/node/MockNode.java'
+      // unit tests for yaml suite parser & rest spec parser need to be excluded
+      exclude 'org/elasticsearch/test/rest/test/**/*'
+      // unit tests for test framework classes
+      exclude 'org/elasticsearch/test/test/**/*'
+
+      // no geo (requires optional deps)
+      exclude 'org/elasticsearch/test/hamcrest/ElasticsearchGeoAssertions.java'
+      exclude 'org/elasticsearch/test/geo/RandomShapeGenerator.java'
+      // this mock is just for a single logging test
+      exclude 'org/elasticsearch/test/MockLogAppender.java'
+    }
+  }
+}
+
+compileJava.options.compilerArgs << "-Xlint:-cast,-deprecation,-fallthrough,-overrides,-rawtypes,-serial,-try,-unchecked"

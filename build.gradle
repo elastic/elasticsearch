@@ -1,9 +1,39 @@
 apply plugin: 'idea'
 
+
 allprojects {
-    gradle.projectsEvaluated {
-        tasks.withType(JavaCompile) {
-            options.compilerArgs << "-Werror" << "-Xlint:all" 
-        }
+
+  // injecting groovy property variables into all projects
+  project.ext {
+    // minimum java 8
+    sourceCompatibility = '1.8'
+    targetCompatibility = '1.8'
+
+    luceneSnapshotRevision = '1701068'
+    // dependnecy versions that are used in more than one place
+    versions = [
+      elasticsearch:  '3.0.0-beta1-SNAPSHOT',
+      lucene:         "5.4.0-snapshot-${luceneSnapshotRevision}"
+    ]
+  }
+
+  repositories {
+    mavenLocal()
+    mavenCentral()
+    // Sonatype Snapshots (Elasticsearch)
+    maven {
+      url "https://oss.sonatype.org/content/repositories/snapshots/"
     }
+    maven {
+      url "https://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/${luceneSnapshotRevision}"
+    }
+  }
+
+  // fail on all javac warnings
+  gradle.projectsEvaluated {
+    tasks.withType(JavaCompile) {
+      options.compilerArgs << "-Werror" << "-Xlint:all" 
+    }
+  }
 }
+

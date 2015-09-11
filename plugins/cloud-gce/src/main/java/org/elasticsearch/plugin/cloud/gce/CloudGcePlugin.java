@@ -25,6 +25,7 @@ import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.gce.GceDiscovery;
+import org.elasticsearch.discovery.gce.GceUnicastHostsProvider;
 import org.elasticsearch.plugins.Plugin;
 
 import java.util.ArrayList;
@@ -72,6 +73,7 @@ public class CloudGcePlugin extends Plugin {
 
     public void onModule(DiscoveryModule discoveryModule) {
         discoveryModule.addDiscoveryType("gce", GceDiscovery.class);
+        discoveryModule.addUnicastHostProvider(GceUnicastHostsProvider.class);
     }
 
 }

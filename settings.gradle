@@ -4,4 +4,5 @@ include 'dev-tools'
 include 'rest-api-spec'
 include 'core'
 include 'test-framework'
+include 'plugins:jvm-example'
 

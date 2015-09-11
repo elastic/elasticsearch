@@ -1,4 +1,4 @@
-package org.elasticsearch.devtools.randomizedtesting
+package org.elasticsearch.gradle.randomizedtesting
 
 import org.gradle.util.ConfigureUtil
 

@@ -1,4 +1,4 @@
-package org.elasticsearch.devtools.randomizedtesting
+package org.elasticsearch.gradle.randomizedtesting
 
 import com.carrotsearch.ant.tasks.junit4.JUnit4
 import org.gradle.api.AntBuilder

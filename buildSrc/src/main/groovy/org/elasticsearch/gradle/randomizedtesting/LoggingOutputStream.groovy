@@ -1,4 +1,4 @@
-package org.elasticsearch.devtools.randomizedtesting
+package org.elasticsearch.gradle.randomizedtesting
 
 import org.gradle.api.logging.LogLevel
 import org.gradle.api.logging.Logger

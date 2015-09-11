@@ -1,0 +1,4 @@
+
+
+compileJava.options.compilerArgs << "-Xlint:-rawtypes"
+

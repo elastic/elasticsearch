@@ -1,4 +1,5 @@
-apply from: '../gradle.properties'
+import org.apache.tools.ant.filters.ReplaceTokens
+
 apply plugin: 'groovy'
 
 repositories {
@@ -14,9 +15,13 @@ dependencies {
   }
 }
 
+Properties props = new Properties()
+props.load(project.file('../gradle.properties').newDataInputStream())
+
 processResources {
+    inputs.file('../gradle.properties')
     filter ReplaceTokens, tokens: [
-        'version': version
+        'version': props.getProperty('version')
     ]
 }
 

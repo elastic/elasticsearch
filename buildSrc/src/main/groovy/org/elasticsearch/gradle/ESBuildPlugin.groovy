@@ -1,23 +1,24 @@
-package org.elasticsearch.devtools
+package org.elasticsearch.gradle
 
-import org.elasticsearch.devtools.randomizedtesting.RandomizedTestingTask
+import org.elasticsearch.gradle.randomizedtesting.RandomizedTestingTask
 import org.gradle.api.JavaVersion
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.Task
 import org.gradle.api.plugins.JavaBasePlugin
+import org.gradle.api.tasks.Copy
 import org.gradle.api.tasks.TaskContainer
 
 /**
  * Encapsulates adding all build logic and configuration for elasticsearch projects.
  */
-class ElasticsearchBuildPlugin implements Plugin<Project> {
+class ESBuildPlugin implements Plugin<Project> {
 
     @Override
     void apply(Project project) {
         // Depends on Java to add
         project.pluginManager.apply('java')
-        project.pluginManager.apply('org.elasticsearch.devtools.randomizedtesting')
+        project.pluginManager.apply('org.elasticsearch.randomizedtesting')
 
         Closure testConfig = createSharedTestConfig(project)
         Task test = configureTest(project.tasks, testConfig)
@@ -36,6 +37,11 @@ class ElasticsearchBuildPlugin implements Plugin<Project> {
         test.mustRunAfter(precommit)
         integTest.mustRunAfter(precommit)
         project.tasks.getByName('check').dependsOn(precommit, integTest)
+
+        // copy the rest spec for tests because there are bugs reading the spec tests from the classpath
+        Task copyRestSpec = createRestSpecHack(project)
+        test.dependsOn(copyRestSpec)
+        integTest.dependsOn(copyRestSpec)
         /*
          ====== PLAN ======
          - install tasks
@@ -47,6 +53,21 @@ class ElasticsearchBuildPlugin implements Plugin<Project> {
            [x] test and integ test common config
            [x] integ test additional/override (eg include pattern)
          */
+    }
+
+    static Task createRestSpecHack(Project project) {
+        project.configurations.create('restSpec')
+        project.dependencies {
+            restSpec 'org.elasticsearch:rest-api-spec:3.0.0-SNAPSHOT'
+        }
+        Map copyRestSpecOptions = [
+            type: Copy,
+            dependsOn: project.configurations.restSpec.buildDependencies
+        ]
+        return project.task(copyRestSpecOptions, 'copyRestSpec') {
+            from project.zipTree(project.configurations.restSpec.asPath)
+            into project.sourceSets.test.output.classesDir
+        }
     }
 
     static Closure createSharedTestConfig(Project project) {

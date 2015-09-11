@@ -1,0 +1,11 @@
+
+subprojects {
+  apply plugin: 'org.elasticsearch.pluginbuild'
+
+  //copyPluginRestSpec(type: Copy, dependsOn: project.tasks.getByName('copyRestSpec')) {
+  copyRestSpec {
+    from(project.rootDir) {
+      include 'rest-api-spec/**'
+    }
+  }
+}

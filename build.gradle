@@ -37,3 +37,20 @@ allprojects {
   }
 }
 
+// substitute local projects
+subprojects {
+  configurations {
+    all {
+      resolutionStrategy {
+        //failOnVersionConflict()
+
+        dependencySubstitution {
+          substitute module('org.elasticsearch:elasticsearch') with project(':core')
+          substitute module('org.elasticsearch:test-framework') with project(':test-framework')
+          substitute module('org.elasticsearch:rest-api-spec') with project(':rest-api-spec')
+        }
+      }
+    }
+  }
+}
+

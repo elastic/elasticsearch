@@ -16,8 +16,6 @@ dependencies {
   }
   compile 'com.google.jimfs:jimfs:1.0'
   compile 'org.apache.httpcomponents:httpclient:4.3.6'
-
-  runtime project(':rest-api-spec')
 }
 
 // HACK: this is temporary until we have moved to gradle, at which

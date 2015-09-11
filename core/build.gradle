@@ -1,6 +1,5 @@
 
-apply plugin: 'java'
-apply plugin: 'org.elasticsearch.devtools.build'
+apply plugin: 'org.elasticsearch.build'
 
 jar {
   baseName = 'elasticsearch'
@@ -8,7 +7,6 @@ jar {
 
 configurations {
   optional // these are used at compile time (and test) but excluded from runtime
-  restSpec // the rest spec is copied independently to the test classes dir
 }
 
 versions << [
@@ -90,7 +88,7 @@ dependencies {
 
   testCompile configurations.optional // optional deps are pulled into tests
 
-  restSpec project(':rest-api-spec') // for rest tests
+  //restSpec project(':rest-api-spec') // for rest tests
 }
 
 // add optional dependencies to compile classpath only
@@ -112,15 +110,6 @@ forbiddenPatterns {
   exclude '**/*.json'
   exclude '**/*.jmx'
   exclude '**/org/elasticsearch/cluster/routing/shard_routes.txt'
-}
-
-task copyRestSpec(type: Copy, dependsOn: configurations.restSpec.buildDependencies) {
-  from zipTree(configurations.restSpec.asPath)
-  into sourceSets.test.output.classesDir
-}
-
-test {
-  dependsOn copyRestSpec
 }
 
 

@@ -24,7 +24,6 @@ import org.elasticsearch.common.inject.multibindings.Multibinder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionParser;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionParserMapper;
-import org.elasticsearch.index.search.morelikethis.MoreLikeThisFetchService;
 import org.elasticsearch.search.action.SearchServiceTransportAction;
 import org.elasticsearch.search.aggregations.AggregationParseElement;
 import org.elasticsearch.search.aggregations.AggregationPhase;
@@ -339,8 +338,6 @@ public class SearchModule extends AbstractModule {
         bind(SearchPhaseController.class).asEagerSingleton();
         bind(FetchPhase.class).asEagerSingleton();
         bind(SearchServiceTransportAction.class).asEagerSingleton();
-        bind(MoreLikeThisFetchService.class).asEagerSingleton();
-
         if (searchServiceImpl == SearchService.class) {
             bind(SearchService.class).asEagerSingleton();
         } else {

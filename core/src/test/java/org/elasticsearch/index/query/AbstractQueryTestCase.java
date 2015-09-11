@@ -28,6 +28,8 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
+import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -634,6 +636,13 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                         return delegate.executeGet((GetRequest) args[0]);
                     }
                 };
+            } else if (method.equals(Client.class.getDeclaredMethod("multiTermVectors", MultiTermVectorsRequest.class))) {
+                    return new PlainActionFuture<MultiTermVectorsResponse>() {
+                        @Override
+                        public MultiTermVectorsResponse get() throws InterruptedException, ExecutionException {
+                            return delegate.executeMultiTermVectors((MultiTermVectorsRequest) args[0]);
+                        }
+                    };
             } else if (method.equals(Object.class.getDeclaredMethod("toString"))) {
                 return "MockClient";
             }
@@ -647,6 +656,13 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
      */
     protected GetResponse executeGet(GetRequest getRequest) {
         throw new UnsupportedOperationException("this test can't handle GET requests");
+    }
+
+    /**
+     * Override this to handle {@link Client#get(GetRequest)} calls from parsers / builders
+     */
+    protected MultiTermVectorsResponse executeMultiTermVectors(MultiTermVectorsRequest mtvRequest) {
+        throw new UnsupportedOperationException("this test can't handle MultiTermVector requests");
     }
 
 }

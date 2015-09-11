@@ -21,25 +21,23 @@ package org.elasticsearch.index.query;
 
 import com.google.common.collect.Sets;
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.index.Fields;
 import org.apache.lucene.queries.TermsQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
-import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
-import org.elasticsearch.action.termvectors.TermVectorsRequest;
+import org.elasticsearch.action.termvectors.*;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.MoreLikeThisQuery;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.Analysis;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.query.MoreLikeThisQueryBuilder.Item;
-import org.elasticsearch.index.search.morelikethis.MoreLikeThisFetchService;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -53,8 +51,6 @@ import static org.elasticsearch.index.mapper.Uid.createUidAsBytes;
  * The documents are provided as a set of strings and/or a list of {@link Item}.
  */
 public class MoreLikeThisQueryParser extends BaseQueryParserTemp {
-
-    private MoreLikeThisFetchService fetchService = null;
 
     public interface Field {
         ParseField FIELDS = new ParseField("fields");
@@ -75,15 +71,6 @@ public class MoreLikeThisQueryParser extends BaseQueryParserTemp {
         ParseField BOOST_TERMS = new ParseField("boost_terms");
         ParseField INCLUDE = new ParseField("include");
         ParseField FAIL_ON_UNSUPPORTED_FIELD = new ParseField("fail_on_unsupported_field");
-    }
-
-    public MoreLikeThisQueryParser() {
-
-    }
-
-    @Inject(optional = true)
-    public void setFetchService(@Nullable MoreLikeThisFetchService fetchService) {
-        this.fetchService = fetchService;
     }
 
     @Override
@@ -251,7 +238,7 @@ public class MoreLikeThisQueryParser extends BaseQueryParserTemp {
 
         // handle items
         if (!likeItems.isEmpty()) {
-            return handleItems(parseContext, mltQuery, likeItems, unlikeItems, include, moreLikeFields, useDefaultField);
+            return handleItems(context, mltQuery, likeItems, unlikeItems, include, moreLikeFields, useDefaultField);
         } else {
             return mltQuery;
         }
@@ -282,8 +269,10 @@ public class MoreLikeThisQueryParser extends BaseQueryParserTemp {
         return moreLikeFields;
     }
 
-    private Query handleItems(QueryParseContext parseContext, MoreLikeThisQuery mltQuery, List<Item> likeItems, List<Item> unlikeItems,
+    private Query handleItems(QueryShardContext context, MoreLikeThisQuery mltQuery, List<Item> likeItems, List<Item> unlikeItems,
                               boolean include, List<String> moreLikeFields, boolean useDefaultField) throws IOException {
+
+        QueryParseContext parseContext = context.parseContext();
         // set default index, type and fields if not specified
         for (Item item : likeItems) {
             setDefaultIndexTypeFields(parseContext, item, moreLikeFields, useDefaultField);
@@ -293,14 +282,14 @@ public class MoreLikeThisQueryParser extends BaseQueryParserTemp {
         }
 
         // fetching the items with multi-termvectors API
-        MultiTermVectorsResponse responses = fetchService.fetchResponse(likeItems, unlikeItems, SearchContext.current());
+        MultiTermVectorsResponse responses = fetchResponse(context.getClient(), likeItems, unlikeItems, SearchContext.current());
 
         // getting the Fields for liked items
-        mltQuery.setLikeText(MoreLikeThisFetchService.getFieldsFor(responses, likeItems));
+        mltQuery.setLikeText(getFieldsFor(responses, likeItems));
 
         // getting the Fields for unliked items
         if (!unlikeItems.isEmpty()) {
-            org.apache.lucene.index.Fields[] unlikeFields = MoreLikeThisFetchService.getFieldsFor(responses, unlikeItems);
+            org.apache.lucene.index.Fields[] unlikeFields = getFieldsFor(responses, unlikeItems);
             if (unlikeFields.length > 0) {
                 mltQuery.setUnlikeText(unlikeFields);
             }
@@ -357,5 +346,48 @@ public class MoreLikeThisQueryParser extends BaseQueryParserTemp {
     @Override
     public MoreLikeThisQueryBuilder getBuilderPrototype() {
         return MoreLikeThisQueryBuilder.PROTOTYPE;
+    }
+
+    private MultiTermVectorsResponse fetchResponse(Client client, List<Item> likeItems, @Nullable List<Item> unlikeItems,
+                                                  SearchContext searchContext) throws IOException {
+        MultiTermVectorsRequest request = new MultiTermVectorsRequest();
+        for (Item item : likeItems) {
+            request.add(item.toTermVectorsRequest());
+        }
+        if (unlikeItems != null) {
+            for (Item item : unlikeItems) {
+                request.add(item.toTermVectorsRequest());
+            }
+        }
+        request.copyContextAndHeadersFrom(searchContext);
+        return client.multiTermVectors(request).actionGet();
+    }
+
+    private static Fields[] getFieldsFor(MultiTermVectorsResponse responses, List<Item> items) throws IOException {
+        List<Fields> likeFields = new ArrayList<>();
+
+        Set<Item> selectedItems = new HashSet<>();
+        for (Item request : items) {
+            selectedItems.add(new Item(request.index(), request.type(), request.id()));
+        }
+
+        for (MultiTermVectorsItemResponse response : responses) {
+            if (!hasResponseFromRequest(response, selectedItems)) {
+                continue;
+            }
+            if (response.isFailed()) {
+                continue;
+            }
+            TermVectorsResponse getResponse = response.getResponse();
+            if (!getResponse.isExists()) {
+                continue;
+            }
+            likeFields.add(getResponse.getFields());
+        }
+        return likeFields.toArray(Fields.EMPTY_ARRAY);
+    }
+
+    private static boolean hasResponseFromRequest(MultiTermVectorsItemResponse response, Set<Item> selectedItems) {
+        return selectedItems.contains(new Item(response.getIndex(), response.getType(), response.getId()));
     }
 }

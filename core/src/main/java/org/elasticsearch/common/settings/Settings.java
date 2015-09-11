@@ -21,7 +21,6 @@ package org.elasticsearch.common.settings;
 
 import com.google.common.base.Charsets;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSortedMap;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
@@ -71,13 +70,12 @@ public final class Settings implements ToXContent {
         return settingsRequireUnits;
     }
 
-    private ImmutableMap<String, String> settings;
+    private SortedMap<String, String> settings;
     private final ImmutableMap<String, String> forcedUnderscoreSettings;
 
     Settings(Map<String, String> settings) {
         // we use a sorted map for consistent serialization when using getAsMap()
-        // TODO: use Collections.unmodifiableMap with a TreeMap
-        this.settings = ImmutableSortedMap.copyOf(settings);
+        this.settings = Collections.unmodifiableSortedMap(new TreeMap<>(settings));
         Map<String, String> forcedUnderscoreSettings = null;
         for (Map.Entry<String, String> entry : settings.entrySet()) {
             String toUnderscoreCase = Strings.toUnderscoreCase(entry.getKey());

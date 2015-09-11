@@ -26,6 +26,7 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.azure.AzureDiscovery;
+import org.elasticsearch.discovery.azure.AzureUnicastHostsProvider;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardRepository;
 import org.elasticsearch.index.store.IndexStoreModule;
 import org.elasticsearch.index.store.smbmmapfs.SmbMmapFsIndexStore;
@@ -79,7 +80,10 @@ public class CloudAzurePlugin extends Plugin {
     }
 
     public void onModule(DiscoveryModule discoveryModule) {
-        discoveryModule.addDiscoveryType("azure", AzureDiscovery.class);
+        if (AzureModule.isDiscoveryReady(settings, logger)) {
+            discoveryModule.addDiscoveryType("azure", AzureDiscovery.class);
+            discoveryModule.addUnicastHostProvider(AzureUnicastHostsProvider.class);
+        }
     }
 
     public void onModule(IndexStoreModule storeModule) {

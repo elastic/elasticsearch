@@ -26,6 +26,7 @@ import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Requests;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -320,7 +321,7 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
 
 
         //SearchResponse searchResponse = client().search(searchRequest("test").source(source).searchType(DFS_QUERY_AND_FETCH).scroll(new Scroll(timeValueMinutes(10)))).actionGet();
-        SearchResponse searchResponse = client().prepareSearch("test").setSearchType(DFS_QUERY_AND_FETCH).setScroll("10m").setSource(source.buildAsBytes()).get();
+        SearchResponse searchResponse = client().prepareSearch("test").setSearchType(DFS_QUERY_AND_FETCH).setScroll("10m").setSource(source).get();
         assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(100l));
         assertThat(searchResponse.getHits().hits().length, equalTo(60)); // 20 per shard
@@ -377,7 +378,7 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
 
         logger.info("Start Testing failed search with wrong query");
         try {
-            SearchResponse searchResponse = client().search(searchRequest("test").source("{ xxx }".getBytes(Charsets.UTF_8))).actionGet();
+            SearchResponse searchResponse = client().search(searchRequest("test").source(new BytesArray("{ xxx }"))).actionGet();
             assertThat(searchResponse.getTotalShards(), equalTo(test.numPrimaries));
             assertThat(searchResponse.getSuccessfulShards(), equalTo(0));
             assertThat(searchResponse.getFailedShards(), equalTo(test.numPrimaries));

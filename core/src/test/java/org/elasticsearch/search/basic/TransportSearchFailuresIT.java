@@ -30,6 +30,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
@@ -66,7 +67,7 @@ public class TransportSearchFailuresIT extends ESIntegTestCase {
         assertThat(refreshResponse.getFailedShards(), equalTo(0));
         for (int i = 0; i < 5; i++) {
             try {
-                SearchResponse searchResponse = client().search(searchRequest("test").source("{ xxx }".getBytes(Charsets.UTF_8))).actionGet();
+                SearchResponse searchResponse = client().search(searchRequest("test").source(new BytesArray("{ xxx }"))).actionGet();
                 assertThat(searchResponse.getTotalShards(), equalTo(test.numPrimaries));
                 assertThat(searchResponse.getSuccessfulShards(), equalTo(0));
                 assertThat(searchResponse.getFailedShards(), equalTo(test.numPrimaries));
@@ -95,7 +96,7 @@ public class TransportSearchFailuresIT extends ESIntegTestCase {
 
         for (int i = 0; i < 5; i++) {
             try {
-                SearchResponse searchResponse = client().search(searchRequest("test").source("{ xxx }".getBytes(Charsets.UTF_8))).actionGet();
+                SearchResponse searchResponse = client().search(searchRequest("test").source(new BytesArray("{ xxx }"))).actionGet();
                 assertThat(searchResponse.getTotalShards(), equalTo(test.numPrimaries));
                 assertThat(searchResponse.getSuccessfulShards(), equalTo(0));
                 assertThat(searchResponse.getFailedShards(), equalTo(test.numPrimaries));

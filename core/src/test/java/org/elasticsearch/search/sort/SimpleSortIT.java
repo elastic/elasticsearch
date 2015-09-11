@@ -30,6 +30,7 @@ import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.text.StringAndBytesText;
@@ -1907,7 +1908,7 @@ public class SimpleSortIT extends ESIntegTestCase {
         searchSourceBuilder.endArray();
         searchSourceBuilder.endObject();
 
-        searchResponse = client().prepareSearch().setSource(searchSourceBuilder).execute().actionGet();
+        searchResponse = client().prepareSearch().setSource(searchSourceBuilder.bytes()).execute().actionGet();
         assertOrderedSearchHits(searchResponse, "d1", "d2");
         assertThat((Double) searchResponse.getHits().getAt(0).getSortValues()[0], closeTo(GeoDistance.PLANE.calculate(2.5, 1, 2, 1, DistanceUnit.KILOMETERS), 1.e-4));
         assertThat((Double) searchResponse.getHits().getAt(1).getSortValues()[0], closeTo(GeoDistance.PLANE.calculate(4.5, 1, 2, 1, DistanceUnit.KILOMETERS), 1.e-4));
@@ -1956,7 +1957,7 @@ public class SimpleSortIT extends ESIntegTestCase {
                 .field("distance_type", "plane")
                 .endObject()
                 .endObject().endArray().string();
-        searchResponse = client().prepareSearch().setSource(geoSortRequest)
+        searchResponse = client().prepareSearch().setSource(new BytesArray(geoSortRequest))
                 .execute().actionGet();
         checkCorrectSortOrderForGeoSort(searchResponse);
 
@@ -1967,7 +1968,7 @@ public class SimpleSortIT extends ESIntegTestCase {
                 .field("distance_type", "plane")
                 .endObject()
                 .endObject().endArray().string();
-        searchResponse = client().prepareSearch().setSource(geoSortRequest)
+        searchResponse = client().prepareSearch().setSource(new BytesArray(geoSortRequest))
                 .execute().actionGet();
         checkCorrectSortOrderForGeoSort(searchResponse);
 
@@ -1981,7 +1982,7 @@ public class SimpleSortIT extends ESIntegTestCase {
                 .field("distance_type", "plane")
                 .endObject()
                 .endObject().endArray().string();
-        searchResponse = client().prepareSearch().setSource(geoSortRequest)
+        searchResponse = client().prepareSearch().setSource(new BytesArray(geoSortRequest))
                 .execute().actionGet();
         checkCorrectSortOrderForGeoSort(searchResponse);
     }

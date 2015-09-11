@@ -6,6 +6,7 @@
 package org.elasticsearch.shield.audit.index;
 
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsAction;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.shield.User;
@@ -27,6 +28,7 @@ public class IndexAuditUserHolder {
         .add(Privilege.Index.INDEX, IndexAuditTrail.INDEX_NAME_PREFIX + "*")
         .add(Privilege.Index.action(IndicesExistsAction.NAME), IndexAuditTrail.INDEX_NAME_PREFIX + "*")
         .add(Privilege.Index.action(BulkAction.NAME), IndexAuditTrail.INDEX_NAME_PREFIX + "*")
+        .add(Privilege.Index.action(PutMappingAction.NAME), IndexAuditTrail.INDEX_NAME_PREFIX + "*")
         .build();
 
     public IndexAuditUserHolder() {

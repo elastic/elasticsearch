@@ -26,6 +26,7 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 
 import java.io.IOException;
+import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.nio.file.FileVisitResult;
@@ -70,21 +71,43 @@ public class JarHell {
     }
 
     /**
-     * Checks the current classloader for duplicate classes
+     * Checks the current classpath for duplicate classes
      * @throws IllegalStateException if jar hell was found
      */
     public static void checkJarHell() throws Exception {
         ClassLoader loader = JarHell.class.getClassLoader();
-        if (loader instanceof URLClassLoader == false) {
-           return;
-        }
         ESLogger logger = Loggers.getLogger(JarHell.class);
         if (logger.isDebugEnabled()) {
             logger.debug("java.class.path: {}", System.getProperty("java.class.path"));
             logger.debug("sun.boot.class.path: {}", System.getProperty("sun.boot.class.path"));
-            logger.debug("classloader urls: {}", Arrays.toString(((URLClassLoader)loader).getURLs()));
+            if (loader instanceof URLClassLoader ) {
+                logger.debug("classloader urls: {}", Arrays.toString(((URLClassLoader)loader).getURLs()));
+             }
         }
-        checkJarHell(((URLClassLoader) loader).getURLs());
+        checkJarHell(parseClassPath());
+    }
+    
+    /**
+     * Parses the classpath into a set of URLs
+     */
+    @SuppressForbidden(reason = "resolves against CWD because that is how classpaths work")
+    public static URL[] parseClassPath()  {
+        String elements[] = System.getProperty("java.class.path").split(System.getProperty("path.separator"));
+        URL urlElements[] = new URL[elements.length];
+        for (int i = 0; i < elements.length; i++) {
+            String element = elements[i];
+            // empty classpath element behaves like CWD.
+            if (element.isEmpty()) {
+                element = System.getProperty("user.dir");
+            }
+            try {
+                urlElements[i] = PathUtils.get(element).toUri().toURL();
+            } catch (MalformedURLException e) {
+                // should not happen, as we use the filesystem API
+                throw new RuntimeException(e);
+            }
+        }
+        return urlElements;
     }
 
     /**

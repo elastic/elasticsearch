@@ -322,6 +322,7 @@
         <module>shield-example-realm</module>
         <module>shield-tribe-node-tests</module>
         <module>shield-client-tests</module>
+        <module>shield-audit-tests</module>
     </modules>
 
     <profiles>

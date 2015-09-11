@@ -2,28 +2,24 @@
 === Post filter
 
 The `post_filter` is applied to the search `hits` at the very end of a search
-request,  after aggregations have already been calculated. It's purpose is
+request,  after aggregations have already been calculated. Its purpose is
 best explained by example:
 
 Imagine that you are selling shirts, and the user has specified two filters:
 `color:red` and `brand:gucci`.  You only want to show them red shirts made by
 Gucci in the search results.  Normally you would do this with a 
-<<query-dsl-filtered-query,`filtered` query>>:
+<<query-dsl-bool-query,`bool` query>>:
 
 [source,js]
 --------------------------------------------------
 curl -XGET localhost:9200/shirts/_search -d '
 {
   "query": {
-    "filtered": {
-      "filter": {
-        "bool": {
-          "must": [
-            { "term": { "color": "red"   }},
-            { "term": { "brand": "gucci" }}
-          ]
-        }
-      }
+    "bool": {
+      "filter": [
+        { "term": { "color": "red"   }},
+        { "term": { "brand": "gucci" }}
+      ]
     }
   }
 }
@@ -43,15 +39,11 @@ This can be done with a
 curl -XGET localhost:9200/shirts/_search -d '
 {
   "query": {
-    "filtered": {
-      "filter": {
-        "bool": {
-          "must": [
-            { "term": { "color": "red"   }},
-            { "term": { "brand": "gucci" }}
-          ]
-        }
-      }
+    "bool": {
+      "filter": [
+        { "term": { "color": "red"   }},
+        { "term": { "brand": "gucci" }}
+      ]
     }
   },
   "aggs": {
@@ -78,7 +70,7 @@ the `post_filter`:
 curl -XGET localhost:9200/shirts/_search -d '
 {
   "query": {
-    "filtered": {
+    "bool": {
       "filter": {
         { "term": { "brand": "gucci" }} <1>
       }

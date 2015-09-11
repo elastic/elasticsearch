@@ -6,8 +6,8 @@ A query that filters out matched documents using a query. For example:
 [source,js]
 --------------------------------------------------
 {
-    "filtered" : {
-        "query" : {
+    "bool" : {
+        "must" : {
             "term" : { "name.first" : "shay" }
         },
         "filter" : {
@@ -29,8 +29,8 @@ Or, in a longer form with a `filter` element:
 [source,js]
 --------------------------------------------------
 {
-    "filtered" : {
-        "query" : {
+    "bool" : {
+        "must" : {
             "term" : { "name.first" : "shay" }
         },
         "filter" : {

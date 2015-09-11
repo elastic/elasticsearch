@@ -227,6 +227,7 @@ public class OsStats implements Streamable, ToXContent {
         }
     }
 
+    // TODO: if values are -1, this should return -1 to show its unsupported?
     private static short calculatePercentage(long used, long max) {
         return max <= 0 ? 0 : (short) (Math.round((100d * used) / max));
     }

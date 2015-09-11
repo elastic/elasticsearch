@@ -23,10 +23,10 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.junit.Test;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static com.google.common.collect.Maps.newHashMap;
 import static org.elasticsearch.index.query.QueryBuilders.scriptQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.equalTo;
@@ -72,7 +72,7 @@ public class IsPrimeSearchScriptTests extends AbstractSearchScriptTestCase {
 
         indexRandom(true, indexBuilders);
 
-        Map<String, Object> params = newHashMap();
+        Map<String, Object> params = new HashMap();
         params.put("field", "number");
         // Retrieve first 10 prime records
         SearchResponse searchResponse = client().prepareSearch("test")
@@ -92,7 +92,7 @@ public class IsPrimeSearchScriptTests extends AbstractSearchScriptTestCase {
             assertThat(searchResponse.getHits().getAt(i).field("name").getValue().toString(), equalTo("rec " + PRIMES_10[i]));
         }
 
-        params = newHashMap();
+        params = new HashMap();
         params.put("field", "number");
         params.put("certainty", 0);
         // Check certainty parameter - with certainty == 0, it should return all numbers, but only if numbers are present

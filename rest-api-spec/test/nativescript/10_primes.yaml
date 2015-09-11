@@ -37,7 +37,7 @@ setup:
         search:
             body:
                 query:
-                    filtered:
+                    constant_score:
                         filter:
                             script:
                                 script: is_prime

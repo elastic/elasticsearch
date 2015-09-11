@@ -32,7 +32,7 @@ if [ "x$ES_INCLUDE" = "x" ]; then
                    /opt/elasticsearch/elasticsearch.in.sh \
                    ~/.elasticsearch.in.sh \
                    "`dirname "$0"`"/../elasticsearch.in.sh \
-                   $ES_HOME/bin/elasticsearch.in.sh; do
+                   "$ES_HOME/bin/elasticsearch.in.sh"; do
         if [ -r "$include" ]; then
             . "$include"
             break
@@ -116,7 +116,7 @@ export HOSTNAME=`hostname -s`
 # include watcher jars in classpath
 ES_CLASSPATH="$ES_CLASSPATH:$ES_HOME/plugins/watcher/*"
 
-cd $ES_HOME > /dev/null
+cd "$ES_HOME" > /dev/null
 $JAVA $ES_JAVA_OPTS -cp "$ES_CLASSPATH" org.elasticsearch.watcher.trigger.schedule.tool.CronEvalTool "$@" $properties
 status=$?
 cd - > /dev/null

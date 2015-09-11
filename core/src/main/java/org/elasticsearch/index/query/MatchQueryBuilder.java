@@ -189,10 +189,12 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
     }
 
     /**
-     * When using fuzzy or prefix type query, the number of term expansions to use. Defaults to unbounded
-     * so its recommended to set it to a reasonable value for faster execution.
+     * When using fuzzy or prefix type query, the number of term expansions to use.
      */
     public MatchQueryBuilder maxExpansions(int maxExpansions) {
+        if (maxExpansions < 0 ) {
+            throw new IllegalArgumentException("No negative maxExpansions allowed.");
+        }
         this.maxExpansions = maxExpansions;
         return this;
     }
@@ -291,6 +293,9 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
      * {@link MatchQuery.ZeroTermsQuery#ALL} instead.
      */
     public MatchQueryBuilder zeroTermsQuery(MatchQuery.ZeroTermsQuery zeroTermsQuery) {
+        if (zeroTermsQuery == null) {
+            throw new IllegalArgumentException("[" + NAME + "] requires zeroTermsQuery to be non-null");
+        }
         this.zeroTermsQuery = zeroTermsQuery;
         return this;
     }

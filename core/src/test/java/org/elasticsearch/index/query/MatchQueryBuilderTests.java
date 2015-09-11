@@ -163,10 +163,56 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
         }
     }
 
-    @Test(expected = IllegalArgumentException.class)
-    public void testNegativePrefixLengthException() {
+    public void testIllegalValues() {
+        try {
+            new MatchQueryBuilder(null, "value");
+            fail("value must not be non-null");
+        } catch (IllegalArgumentException ex) {
+            // expected
+        }
+
+        try {
+            new MatchQueryBuilder("fieldName", null);
+            fail("value must not be non-null");
+        } catch (IllegalArgumentException ex) {
+            // expected
+        }
+
         MatchQueryBuilder matchQuery = new MatchQueryBuilder("fieldName", "text");
-        matchQuery.prefixLength(-1); // not allowed, should trigger expection
+        try {
+            matchQuery.prefixLength(-1);
+            fail("must not be positive");
+        } catch (IllegalArgumentException ex) {
+            // expected
+        }
+
+        try {
+            matchQuery.maxExpansions(-1);
+            fail("must not be positive");
+        } catch (IllegalArgumentException ex) {
+            // expected
+        }
+
+        try {
+            matchQuery.operator(null);
+            fail("must not be non-null");
+        } catch (IllegalArgumentException ex) {
+            // expected
+        }
+
+        try {
+            matchQuery.type(null);
+            fail("must not be non-null");
+        } catch (IllegalArgumentException ex) {
+            // expected
+        }
+
+        try {
+            matchQuery.zeroTermsQuery(null);
+            fail("must not be non-null");
+        } catch (IllegalArgumentException ex) {
+            // expected
+        }
     }
 
     @Test(expected = QueryShardException.class)

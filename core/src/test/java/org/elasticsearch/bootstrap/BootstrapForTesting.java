@@ -86,7 +86,7 @@ public class BootstrapForTesting {
                 // initialize paths the same exact way as bootstrap.
                 Permissions perms = new Permissions();
                 // add permissions to everything in classpath
-                for (URL url : ((URLClassLoader)BootstrapForTesting.class.getClassLoader()).getURLs()) {
+                for (URL url : JarHell.parseClassPath()) {
                     Path path = PathUtils.get(url.toURI());
                     // resource itself
                     perms.add(new FilePermission(path.toString(), "read,readlink"));

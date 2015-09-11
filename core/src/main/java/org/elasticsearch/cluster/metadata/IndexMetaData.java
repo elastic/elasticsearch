@@ -22,7 +22,6 @@ package org.elasticsearch.cluster.metadata;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.Diff;
@@ -33,7 +32,6 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.node.DiscoveryNodeFilters;
 import org.elasticsearch.cluster.routing.HashFunction;
 import org.elasticsearch.cluster.routing.Murmur3HashFunction;
-import org.elasticsearch.common.Classes;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -218,19 +216,19 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
         this.totalNumberOfShards = numberOfShards() * (numberOfReplicas() + 1);
         this.aliases = aliases;
 
-        ImmutableMap<String, String> requireMap = settings.getByPrefix("index.routing.allocation.require.").getAsMap();
+        Map<String, String> requireMap = settings.getByPrefix("index.routing.allocation.require.").getAsMap();
         if (requireMap.isEmpty()) {
             requireFilters = null;
         } else {
             requireFilters = DiscoveryNodeFilters.buildFromKeyValue(AND, requireMap);
         }
-        ImmutableMap<String, String> includeMap = settings.getByPrefix("index.routing.allocation.include.").getAsMap();
+        Map<String, String> includeMap = settings.getByPrefix("index.routing.allocation.include.").getAsMap();
         if (includeMap.isEmpty()) {
             includeFilters = null;
         } else {
             includeFilters = DiscoveryNodeFilters.buildFromKeyValue(OR, includeMap);
         }
-        ImmutableMap<String, String> excludeMap = settings.getByPrefix("index.routing.allocation.exclude.").getAsMap();
+        Map<String, String> excludeMap = settings.getByPrefix("index.routing.allocation.exclude.").getAsMap();
         if (excludeMap.isEmpty()) {
             excludeFilters = null;
         } else {

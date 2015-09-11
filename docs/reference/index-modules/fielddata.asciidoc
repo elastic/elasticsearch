@@ -122,8 +122,9 @@ field data format.
     the indices of the terms they contain in this large buffer.
 
 `fst`::
-    Stores terms in a FST. Slower to build than `paged_bytes` but can help lower
-    memory usage if many terms share common prefixes and/or suffixes.
+    Stores terms in a FST (finite state transducer). Slower to build than
+    `paged_bytes` but can help lower memory usage if many terms share common
+    prefixes and/or suffixes.
 
 `doc_values`::
     Computes and stores field data data-structures on disk at indexing time.

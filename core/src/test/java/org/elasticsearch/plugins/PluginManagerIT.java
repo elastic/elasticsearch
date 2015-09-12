@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.plugins;
 
-import com.google.common.base.Charsets;
+import java.nio.charset.StandardCharsets;
 import com.google.common.hash.Hashing;
 
 import org.apache.http.impl.client.HttpClients;
@@ -28,7 +28,6 @@ import org.elasticsearch.common.Base64;
 import org.elasticsearch.common.cli.CliTool;
 import org.elasticsearch.common.cli.CliTool.ExitStatus;
 import org.elasticsearch.common.cli.CliToolTestCase.CaptureOutputTerminal;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
@@ -57,7 +56,6 @@ import java.io.BufferedWriter;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -112,7 +110,7 @@ public class PluginManagerIT extends ESIntegTestCase {
 
     private void writeSha1(Path file, boolean corrupt) throws IOException {
         String sha1Hex = Hashing.sha1().hashBytes(Files.readAllBytes(file)).toString();
-        try (BufferedWriter out = Files.newBufferedWriter(file.resolveSibling(file.getFileName() + ".sha1"), Charsets.UTF_8)) {
+        try (BufferedWriter out = Files.newBufferedWriter(file.resolveSibling(file.getFileName() + ".sha1"), StandardCharsets.UTF_8)) {
             out.write(sha1Hex);
             if (corrupt) {
                 out.write("bad");
@@ -122,7 +120,7 @@ public class PluginManagerIT extends ESIntegTestCase {
 
     private void writeMd5(Path file, boolean corrupt) throws IOException {
         String md5Hex = Hashing.md5().hashBytes(Files.readAllBytes(file)).toString();
-        try (BufferedWriter out = Files.newBufferedWriter(file.resolveSibling(file.getFileName() + ".md5"), Charsets.UTF_8)) {
+        try (BufferedWriter out = Files.newBufferedWriter(file.resolveSibling(file.getFileName() + ".md5"), StandardCharsets.UTF_8)) {
             out.write(md5Hex);
             if (corrupt) {
                 out.write("bad");
@@ -618,7 +616,7 @@ public class PluginManagerIT extends ESIntegTestCase {
             assertThat(requests, hasSize(1));
             String msg = String.format(Locale.ROOT, "Request header did not contain Authorization header, terminal output was: %s", terminal.getTerminalOutput());
             assertThat(msg, requests.get(0).headers().contains("Authorization"), is(true));
-            assertThat(msg, requests.get(0).headers().get("Authorization"), is("Basic " + Base64.encodeBytes("user:pass".getBytes(Charsets.UTF_8))));
+            assertThat(msg, requests.get(0).headers().get("Authorization"), is("Basic " + Base64.encodeBytes("user:pass".getBytes(StandardCharsets.UTF_8))));
         } finally {
             HttpsURLConnection.setDefaultSSLSocketFactory(defaultSocketFactory);
             serverBootstrap.releaseExternalResources();

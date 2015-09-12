@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.bytes;
 
-import com.google.common.base.Charsets;
+import java.nio.charset.StandardCharsets;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
@@ -148,7 +148,7 @@ public class ByteBufferBytesReference implements BytesReference {
         if (!buffer.hasRemaining()) {
             return "";
         }
-        final CharsetDecoder decoder = CharsetUtil.getDecoder(Charsets.UTF_8);
+        final CharsetDecoder decoder = CharsetUtil.getDecoder(StandardCharsets.UTF_8);
         final CharBuffer dst = CharBuffer.allocate(
                 (int) ((double) buffer.remaining() * decoder.maxCharsPerByte()));
         try {

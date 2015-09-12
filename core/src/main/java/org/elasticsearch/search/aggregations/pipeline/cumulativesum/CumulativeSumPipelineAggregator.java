@@ -40,21 +40,19 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
-import static org.elasticsearch.common.util.CollectionUtils.eagerTransform;
 import static org.elasticsearch.search.aggregations.pipeline.BucketHelpers.resolveBucketValue;
 
 public class CumulativeSumPipelineAggregator extends PipelineAggregator {
 
     public final static Type TYPE = new Type("cumulative_sum");
 
-    public final static PipelineAggregatorStreams.Stream STREAM = new PipelineAggregatorStreams.Stream() {
-        @Override
-        public CumulativeSumPipelineAggregator readResult(StreamInput in) throws IOException {
-            CumulativeSumPipelineAggregator result = new CumulativeSumPipelineAggregator();
-            result.readFrom(in);
-            return result;
-        }
+    public final static PipelineAggregatorStreams.Stream STREAM = in -> {
+        CumulativeSumPipelineAggregator result = new CumulativeSumPipelineAggregator();
+        result.readFrom(in);
+        return result;
     };
 
     public static void registerStreams() {
@@ -88,8 +86,9 @@ public class CumulativeSumPipelineAggregator extends PipelineAggregator {
         for (InternalHistogram.Bucket bucket : buckets) {
             Double thisBucketValue = resolveBucketValue(histo, bucket, bucketsPaths()[0], GapPolicy.INSERT_ZEROS);
             sum += thisBucketValue;
-            List<InternalAggregation> aggs = new ArrayList<>(eagerTransform(bucket.getAggregations().asList(),
-                    AGGREGATION_TRANFORM_FUNCTION));
+            List<InternalAggregation> aggs = StreamSupport.stream(bucket.getAggregations().spliterator(), false).map((p) -> {
+                return (InternalAggregation) p;
+            }).collect(Collectors.toList());
             aggs.add(new InternalSimpleValue(name(), sum, formatter, new ArrayList<PipelineAggregator>(), metaData()));
             InternalHistogram.Bucket newBucket = factory.createBucket(bucket.getKey(), bucket.getDocCount(),
                     new InternalAggregations(aggs), bucket.getKeyed(), bucket.getFormatter());

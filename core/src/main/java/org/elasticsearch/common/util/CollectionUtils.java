@@ -23,7 +23,6 @@ import com.carrotsearch.hppc.DoubleArrayList;
 import com.carrotsearch.hppc.FloatArrayList;
 import com.carrotsearch.hppc.LongArrayList;
 import com.carrotsearch.hppc.ObjectArrayList;
-import com.google.common.base.Function;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterators;
 import org.apache.lucene.util.BytesRef;
@@ -392,20 +391,6 @@ public enum CollectionUtils {
             }
             return list;
         }
-    }
-
-    public static <E, T> List<T> eagerTransform(List<E> list, Function<E, T> transform) {
-        if (list == null) {
-            throw new NullPointerException("list");
-        }
-        if (transform == null) {
-            throw new NullPointerException("transform");
-        }
-        List<T> result = new ArrayList<>(list.size());
-        for (E element : list) {
-            result.add(transform.apply(element));
-        }
-        return result;
     }
 
     public static <E> ArrayList<E> arrayAsArrayList(E... elements) {

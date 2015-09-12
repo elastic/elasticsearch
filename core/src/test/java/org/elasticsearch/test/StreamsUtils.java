@@ -19,7 +19,7 @@
 
 package org.elasticsearch.test;
 
-import com.google.common.base.Charsets;
+import java.nio.charset.StandardCharsets;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 
@@ -35,7 +35,7 @@ public class StreamsUtils {
         if (is == null) {
             throw new FileNotFoundException("Resource [" + path + "] not found in classpath with class loader [" + classLoader + "]");
         }
-        return Streams.copyToString(new InputStreamReader(is, Charsets.UTF_8));
+        return Streams.copyToString(new InputStreamReader(is, StandardCharsets.UTF_8));
     }
 
     public static String copyToStringFromClasspath(String path) throws IOException {
@@ -43,7 +43,7 @@ public class StreamsUtils {
         if (is == null) {
             throw new FileNotFoundException("Resource [" + path + "] not found in classpath");
         }
-        return Streams.copyToString(new InputStreamReader(is, Charsets.UTF_8));
+        return Streams.copyToString(new InputStreamReader(is, StandardCharsets.UTF_8));
     }
 
     public static byte[] copyToBytesFromClasspath(String path) throws IOException {

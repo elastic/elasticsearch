@@ -19,11 +19,8 @@
 
 package org.elasticsearch.indices;
 
-import com.google.common.base.Function;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Iterables;
-import com.google.common.collect.Iterators;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.IOUtils;
@@ -97,6 +94,8 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
@@ -277,12 +276,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
 
     @Override
     public Iterator<IndexService> iterator() {
-        return Iterators.transform(indices.values().iterator(), new Function<IndexServiceInjectorPair, IndexService>() {
-            @Override
-            public IndexService apply(IndexServiceInjectorPair input) {
-                return input.getIndexService();
-            }
-        });
+        return indices.values().stream().map((p) -> p.getIndexService()).iterator();
     }
 
     public boolean hasIndex(String index) {
@@ -404,12 +398,8 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
             if (delete) {
                 indicesLifecycle.beforeIndexDeleted(indexService);
             }
-            IOUtils.close(Iterables.transform(pluginsService.indexServices(), new Function<Class<? extends Closeable>, Closeable>() {
-                @Override
-                public Closeable apply(Class<? extends Closeable> input) {
-                    return indexInjector.getInstance(input);
-                }
-            }));
+            Stream<Closeable> closeables = pluginsService.indexServices().stream().map(p -> indexInjector.getInstance(p));
+            IOUtils.close(closeables::iterator);
 
             logger.debug("[{}] closing index service (reason [{}])", index, reason);
             indexService.close(reason, delete);

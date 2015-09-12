@@ -19,7 +19,7 @@
 
 package org.elasticsearch.document;
 
-import com.google.common.base.Charsets;
+import java.nio.charset.StandardCharsets;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.alias.Alias;
@@ -578,7 +578,7 @@ public class BulkIT extends ESIntegTestCase {
                 "{\"index\": {\"_id\": \"2\"}}\n" +
                 "{\"name\": \"Good\", \"last_modified\" : \"2013-04-05\"}\n";
 
-        BulkResponse bulkResponse = client().prepareBulk().add(brokenBuildRequestData.getBytes(Charsets.UTF_8), 0, brokenBuildRequestData.length(), "test", "type").setRefresh(true).get();
+        BulkResponse bulkResponse = client().prepareBulk().add(brokenBuildRequestData.getBytes(StandardCharsets.UTF_8), 0, brokenBuildRequestData.length(), "test", "type").setRefresh(true).get();
         assertThat(bulkResponse.getItems().length, is(2));
         assertThat(bulkResponse.getItems()[0].isFailed(), is(true));
         assertThat(bulkResponse.getItems()[1].isFailed(), is(false));
@@ -605,7 +605,7 @@ public class BulkIT extends ESIntegTestCase {
                 "{\"index\": { \"_id\" : \"24000\" } }\n" +
                 "{\"name\": \"Good\", \"my_routing\" : \"48000\"}\n";
 
-        BulkResponse bulkResponse = client().prepareBulk().add(brokenBuildRequestData.getBytes(Charsets.UTF_8), 0, brokenBuildRequestData.length(), "test", "type").setRefresh(true).get();
+        BulkResponse bulkResponse = client().prepareBulk().add(brokenBuildRequestData.getBytes(StandardCharsets.UTF_8), 0, brokenBuildRequestData.length(), "test", "type").setRefresh(true).get();
         assertThat(bulkResponse.getItems().length, is(2));
         assertThat(bulkResponse.getItems()[0].isFailed(), is(true));
         assertThat(bulkResponse.getItems()[1].isFailed(), is(false));
@@ -632,7 +632,7 @@ public class BulkIT extends ESIntegTestCase {
                 "{\"index\": {} }\n" +
                 "{\"name\": \"Good\", \"my_id\" : \"48\"}\n";
 
-        BulkResponse bulkResponse = client().prepareBulk().add(brokenBuildRequestData.getBytes(Charsets.UTF_8), 0, brokenBuildRequestData.length(), "test", "type").setRefresh(true).get();
+        BulkResponse bulkResponse = client().prepareBulk().add(brokenBuildRequestData.getBytes(StandardCharsets.UTF_8), 0, brokenBuildRequestData.length(), "test", "type").setRefresh(true).get();
         assertThat(bulkResponse.getItems().length, is(2));
         assertThat(bulkResponse.getItems()[0].isFailed(), is(true));
         assertThat(bulkResponse.getItems()[1].isFailed(), is(false));

@@ -21,7 +21,7 @@ package org.elasticsearch.cluster.metadata;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import com.google.common.base.Charsets;
+import java.nio.charset.StandardCharsets;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
@@ -489,7 +489,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                 }
                 int lastDotIndex = fileName.lastIndexOf('.');
                 String mappingType = lastDotIndex != -1 ? mappingFile.getFileName().toString().substring(0, lastDotIndex) : mappingFile.getFileName().toString();
-                try (BufferedReader reader = Files.newBufferedReader(mappingFile, Charsets.UTF_8)) {
+                try (BufferedReader reader = Files.newBufferedReader(mappingFile, StandardCharsets.UTF_8)) {
                     String mappingSource = Streams.copyToString(reader);
                     if (mappings.containsKey(mappingType)) {
                         XContentHelper.mergeDefaults(mappings.get(mappingType), parseMapping(mappingSource));

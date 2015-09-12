@@ -19,7 +19,6 @@
 
 package org.elasticsearch.plugins;
 
-import com.google.common.base.Function;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsInfo;
 import org.elasticsearch.test.ESTestCase;
@@ -30,8 +29,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Properties;
+import java.util.stream.Collectors;
 
-import static org.elasticsearch.common.util.CollectionUtils.eagerTransform;
 import static org.hamcrest.Matchers.contains;
 
 public class PluginInfoTests extends ESTestCase {
@@ -260,10 +259,10 @@ public class PluginInfoTests extends ESTestCase {
     public void testReadFromPropertiesSitePluginWithoutSite() throws Exception {
         Path pluginDir = createTempDir().resolve("fake-plugin");
         writeProperties(pluginDir,
-            "description", "fake desc",
-            "name", "my_plugin",
-            "version", "1.0",
-            "site", "true");
+                "description", "fake desc",
+                "name", "my_plugin",
+                "version", "1.0",
+                "site", "true");
         try {
             PluginInfo.readFromProperties(pluginDir);
             fail("didn't get expected exception");
@@ -281,12 +280,7 @@ public class PluginInfoTests extends ESTestCase {
         pluginsInfo.add(new PluginInfo("d", "foo", true, "dummy", true, "dummyclass", true));
 
         final List<PluginInfo> infos = pluginsInfo.getInfos();
-        List<String> names = eagerTransform(infos, new Function<PluginInfo, String>() {
-            @Override
-            public String apply(PluginInfo input) {
-                return input.getName();
-            }
-        });
+        List<String> names = infos.stream().map((input) -> input.getName()).collect(Collectors.toList());
         assertThat(names, contains("a", "b", "c", "d", "e"));
     }
 }

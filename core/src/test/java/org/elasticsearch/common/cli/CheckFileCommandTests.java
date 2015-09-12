@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.cli;
 
-import com.google.common.base.Charsets;
+import java.nio.charset.StandardCharsets;
 import com.google.common.jimfs.Configuration;
 import com.google.common.jimfs.Jimfs;
 import org.elasticsearch.common.settings.Settings;
@@ -153,7 +153,7 @@ public class CheckFileCommandTests extends ESTestCase {
 
         try (FileSystem fs = Jimfs.newFileSystem(configuration)) {
             Path path = fs.getPath(randomAsciiOfLength(10));
-            Files.write(path, "anything".getBytes(Charsets.UTF_8));
+            Files.write(path, "anything".getBytes(StandardCharsets.UTF_8));
 
             Settings settings = Settings.builder()
                     .put("path.home", createTempDir().toString())
@@ -195,7 +195,7 @@ public class CheckFileCommandTests extends ESTestCase {
 
         private Path writePath(FileSystem fs, String name, String content) throws IOException {
             Path path = fs.getPath(name);
-            Files.write(path, content.getBytes(Charsets.UTF_8));
+            Files.write(path, content.getBytes(StandardCharsets.UTF_8));
             return path;
         }
 
@@ -220,11 +220,11 @@ public class CheckFileCommandTests extends ESTestCase {
             Path randomPath = paths[randomInt];
             switch (mode) {
                 case CHANGE:
-                    Files.write(randomPath, randomAsciiOfLength(10).getBytes(Charsets.UTF_8));
+                    Files.write(randomPath, randomAsciiOfLength(10).getBytes(StandardCharsets.UTF_8));
                     Files.setPosixFilePermissions(randomPath, Sets.newHashSet(PosixFilePermission.OWNER_EXECUTE, PosixFilePermission.OTHERS_EXECUTE, PosixFilePermission.GROUP_EXECUTE));
                     break;
                 case KEEP:
-                    Files.write(randomPath, randomAsciiOfLength(10).getBytes(Charsets.UTF_8));
+                    Files.write(randomPath, randomAsciiOfLength(10).getBytes(StandardCharsets.UTF_8));
                     Set<PosixFilePermission> posixFilePermissions = Files.getPosixFilePermissions(randomPath);
                     Files.setPosixFilePermissions(randomPath, posixFilePermissions);
                     break;
@@ -249,12 +249,12 @@ public class CheckFileCommandTests extends ESTestCase {
             Path randomPath = paths[randomInt];
             switch (mode) {
                 case CHANGE:
-                    Files.write(randomPath, randomAsciiOfLength(10).getBytes(Charsets.UTF_8));
+                    Files.write(randomPath, randomAsciiOfLength(10).getBytes(StandardCharsets.UTF_8));
                     UserPrincipal randomOwner = fs.getUserPrincipalLookupService().lookupPrincipalByName(randomAsciiOfLength(10));
                     Files.setOwner(randomPath, randomOwner);
                     break;
                 case KEEP:
-                    Files.write(randomPath, randomAsciiOfLength(10).getBytes(Charsets.UTF_8));
+                    Files.write(randomPath, randomAsciiOfLength(10).getBytes(StandardCharsets.UTF_8));
                     UserPrincipal originalOwner = Files.getOwner(randomPath);
                     Files.setOwner(randomPath, originalOwner);
                     break;
@@ -279,12 +279,12 @@ public class CheckFileCommandTests extends ESTestCase {
             Path randomPath = paths[randomInt];
             switch (mode) {
                 case CHANGE:
-                    Files.write(randomPath, randomAsciiOfLength(10).getBytes(Charsets.UTF_8));
+                    Files.write(randomPath, randomAsciiOfLength(10).getBytes(StandardCharsets.UTF_8));
                     GroupPrincipal randomPrincipal = fs.getUserPrincipalLookupService().lookupPrincipalByGroupName(randomAsciiOfLength(10));
                     Files.getFileAttributeView(randomPath, PosixFileAttributeView.class).setGroup(randomPrincipal);
                     break;
                 case KEEP:
-                    Files.write(randomPath, randomAsciiOfLength(10).getBytes(Charsets.UTF_8));
+                    Files.write(randomPath, randomAsciiOfLength(10).getBytes(StandardCharsets.UTF_8));
                     GroupPrincipal groupPrincipal = Files.readAttributes(randomPath, PosixFileAttributes.class).group();
                     Files.getFileAttributeView(randomPath, PosixFileAttributeView.class).setGroup(groupPrincipal);
                     break;
@@ -308,7 +308,7 @@ public class CheckFileCommandTests extends ESTestCase {
 
         @Override
         public CliTool.ExitStatus doExecute(Settings settings, Environment env) throws Exception {
-            Files.write(pathToCreate, "anything".getBytes(Charsets.UTF_8));
+            Files.write(pathToCreate, "anything".getBytes(StandardCharsets.UTF_8));
             return CliTool.ExitStatus.OK;
         }
 

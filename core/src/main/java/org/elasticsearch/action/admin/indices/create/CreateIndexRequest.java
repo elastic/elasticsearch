@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.create;
 
-import com.google.common.base.Charsets;
+import java.nio.charset.StandardCharsets;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionRequest;
@@ -338,7 +338,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
      * Sets the settings and mappings as a single source.
      */
     public CreateIndexRequest source(String source) {
-        return source(source.getBytes(Charsets.UTF_8));
+        return source(source.getBytes(StandardCharsets.UTF_8));
     }
 
     /**
@@ -374,7 +374,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
                 throw new ElasticsearchParseException("failed to parse source for create index", e);
             }
         } else {
-            settings(new String(source.toBytes(), Charsets.UTF_8));
+            settings(new String(source.toBytes(), StandardCharsets.UTF_8));
         }
         return this;
     }

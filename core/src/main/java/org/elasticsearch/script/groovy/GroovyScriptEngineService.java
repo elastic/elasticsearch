@@ -19,7 +19,7 @@
 
 package org.elasticsearch.script.groovy;
 
-import com.google.common.base.Charsets;
+import java.nio.charset.StandardCharsets;
 import com.google.common.hash.Hashing;
 import groovy.lang.Binding;
 import groovy.lang.GroovyClassLoader;
@@ -111,7 +111,7 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
     @Override
     public Object compile(String script) {
         try {
-            return loader.parseClass(script, Hashing.sha1().hashString(script, Charsets.UTF_8).toString());
+            return loader.parseClass(script, Hashing.sha1().hashString(script, StandardCharsets.UTF_8).toString());
         } catch (Throwable e) {
             if (logger.isTraceEnabled()) {
                 logger.trace("exception compiling Groovy script:", e);

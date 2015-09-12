@@ -19,7 +19,6 @@
 package org.elasticsearch.gateway;
 
 import com.google.common.base.Preconditions;
-import com.google.common.collect.Collections2;
 
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.CorruptIndexException;

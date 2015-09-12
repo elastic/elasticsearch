@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.common.util;
 
-import com.google.common.base.Charsets;
+import java.nio.charset.StandardCharsets;
 import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TestUtil;
@@ -76,14 +76,14 @@ public class MultiDataPathUpgraderTests extends ESTestCase {
                 int numFiles = randomIntBetween(1, 10);
                 for (int i = 0; i < numFiles; i++, numIdxFiles++) {
                     String filename = Integer.toString(numIdxFiles);
-                    try (BufferedWriter w = Files.newBufferedWriter(idx.resolve(filename + ".tst"), Charsets.UTF_8)) {
+                    try (BufferedWriter w = Files.newBufferedWriter(idx.resolve(filename + ".tst"), StandardCharsets.UTF_8)) {
                         w.write(filename);
                     }
                 }
                 numFiles = randomIntBetween(1, 10);
                 for (int i = 0; i < numFiles; i++, numTranslogFiles++) {
                     String filename = Integer.toString(numTranslogFiles);
-                    try (BufferedWriter w = Files.newBufferedWriter(translog.resolve(filename + ".translog"), Charsets.UTF_8)) {
+                    try (BufferedWriter w = Files.newBufferedWriter(translog.resolve(filename + ".translog"), StandardCharsets.UTF_8)) {
                         w.write(filename);
                     }
                 }
@@ -124,14 +124,14 @@ public class MultiDataPathUpgraderTests extends ESTestCase {
                 final String name = Integer.toString(i);
                 translogFiles.contains(translog.resolve(name + ".translog"));
                 byte[] content = Files.readAllBytes(translog.resolve(name + ".translog"));
-                assertEquals(name , new String(content, Charsets.UTF_8));
+                assertEquals(name , new String(content, StandardCharsets.UTF_8));
             }
             final HashSet<Path> idxFiles = Sets.newHashSet(FileSystemUtils.files(idx));
             for (int i = 0; i < numIdxFiles; i++) {
                 final String name = Integer.toString(i);
                 idxFiles.contains(idx.resolve(name + ".tst"));
                 byte[] content = Files.readAllBytes(idx.resolve(name + ".tst"));
-                assertEquals(name , new String(content, Charsets.UTF_8));
+                assertEquals(name , new String(content, StandardCharsets.UTF_8));
             }
         }
     }

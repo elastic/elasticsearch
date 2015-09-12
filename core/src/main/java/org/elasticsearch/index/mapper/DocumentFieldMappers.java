@@ -19,8 +19,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import com.google.common.base.Function;
-import com.google.common.collect.Collections2;
 import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.common.collect.CopyOnWriteHashMap;
 import org.elasticsearch.common.regex.Regex;
@@ -65,28 +63,19 @@ public final class DocumentFieldMappers implements Iterable<FieldMapper> {
         for (FieldMapper fieldMapper : newMappers) {
             map = map.copyAndPut(fieldMapper.fieldType().names().fullName(), fieldMapper);
         }
-        FieldNameAnalyzer indexAnalyzer = this.indexAnalyzer.copyAndAddAll(Collections2.transform(newMappers, new Function<FieldMapper, Map.Entry<String, Analyzer>>() {
-            @Override
-            public Map.Entry<String, Analyzer> apply(FieldMapper input) {
-                return new AbstractMap.SimpleImmutableEntry<>(input.fieldType().names().indexName(), (Analyzer)input.fieldType().indexAnalyzer());
-            }
-        }));
-        FieldNameAnalyzer searchAnalyzer = this.searchAnalyzer.copyAndAddAll(Collections2.transform(newMappers, new Function<FieldMapper, Map.Entry<String, Analyzer>>() {
-            @Override
-            public Map.Entry<String, Analyzer> apply(FieldMapper input) {
-                return new AbstractMap.SimpleImmutableEntry<>(input.fieldType().names().indexName(), (Analyzer)input.fieldType().searchAnalyzer());
-            }
-        }));
-        FieldNameAnalyzer searchQuoteAnalyzer = this.searchQuoteAnalyzer.copyAndAddAll(Collections2.transform(newMappers, new Function<FieldMapper, Map.Entry<String, Analyzer>>() {
-            @Override
-            public Map.Entry<String, Analyzer> apply(FieldMapper input) {
-                return new AbstractMap.SimpleImmutableEntry<>(input.fieldType().names().indexName(), (Analyzer)input.fieldType().searchQuoteAnalyzer());
-            }
-        }));
-        return new DocumentFieldMappers(map, indexAnalyzer, searchAnalyzer, searchQuoteAnalyzer);
+        FieldNameAnalyzer indexAnalyzer = this.indexAnalyzer.copyAndAddAll(newMappers.stream().map((input) ->
+                new AbstractMap.SimpleImmutableEntry<>(input.fieldType().names().indexName(), (Analyzer)input.fieldType().indexAnalyzer())
+        ));
+        FieldNameAnalyzer searchAnalyzer = this.searchAnalyzer.copyAndAddAll(newMappers.stream().map((input) ->
+                new AbstractMap.SimpleImmutableEntry<>(input.fieldType().names().indexName(), (Analyzer)input.fieldType().searchAnalyzer())
+        ));
+        FieldNameAnalyzer searchQuoteAnalyzer = this.searchQuoteAnalyzer.copyAndAddAll(newMappers.stream().map((input) ->
+                new AbstractMap.SimpleImmutableEntry<>(input.fieldType().names().indexName(), (Analyzer) input.fieldType().searchQuoteAnalyzer())
+        ));
+        return new DocumentFieldMappers(map,indexAnalyzer,searchAnalyzer,searchQuoteAnalyzer);
     }
 
-    /** Returns the mapper for the given field */
+/** Returns the mapper for the given field */
     public FieldMapper getMapper(String field) {
         return fieldMappers.get(field);
     }

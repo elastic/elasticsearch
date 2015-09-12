@@ -19,7 +19,7 @@
 
 package org.elasticsearch.script;
 
-import com.google.common.base.Charsets;
+import java.nio.charset.StandardCharsets;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.RemovalListener;
@@ -543,7 +543,7 @@ public class ScriptService extends AbstractComponent implements Closeable {
                         // with file scripts are disabled, it makes no sense to even compile it and cache it.
                         if (isAnyScriptContextEnabled(engineService.types()[0], engineService, ScriptType.FILE)) {
                             logger.info("compiling script file [{}]", file.toAbsolutePath());
-                            try(InputStreamReader reader = new InputStreamReader(Files.newInputStream(file), Charsets.UTF_8)) {
+                            try(InputStreamReader reader = new InputStreamReader(Files.newInputStream(file), StandardCharsets.UTF_8)) {
                                 String script = Streams.copyToString(reader);
                                 String cacheKey = getCacheKey(engineService, scriptNameExt.v1(), null);
                                 staticCache.put(cacheKey, new CompiledScript(ScriptType.FILE, scriptNameExt.v1(), engineService.types()[0], engineService.compile(script)));

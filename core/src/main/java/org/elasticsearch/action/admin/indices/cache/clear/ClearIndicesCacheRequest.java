@@ -37,7 +37,7 @@ public class ClearIndicesCacheRequest extends BroadcastRequest<ClearIndicesCache
     private String[] fields = null;
     
 
-    ClearIndicesCacheRequest() {
+    public ClearIndicesCacheRequest() {
     }
 
     public ClearIndicesCacheRequest(String... indices) {

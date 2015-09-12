@@ -37,7 +37,7 @@ public class BulkShardRequest extends ReplicationRequest<BulkShardRequest> {
 
     private boolean refresh;
 
-    BulkShardRequest() {
+    public BulkShardRequest() {
     }
 
     BulkShardRequest(BulkRequest bulkRequest, String index, int shardId, boolean refresh, BulkItemRequest[] items) {

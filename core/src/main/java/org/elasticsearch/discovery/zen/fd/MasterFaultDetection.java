@@ -386,14 +386,14 @@ public class MasterFaultDetection extends FaultDetection {
     }
 
 
-    private static class MasterPingRequest extends TransportRequest {
+    public static class MasterPingRequest extends TransportRequest {
 
         private String nodeId;
 
         private String masterNodeId;
         private ClusterName clusterName;
 
-        private MasterPingRequest() {
+        public MasterPingRequest() {
         }
 
         private MasterPingRequest(String nodeId, String masterNodeId, ClusterName clusterName) {

@@ -49,7 +49,7 @@ public abstract class SingleShardRequest<T extends SingleShardRequest> extends A
     ShardId internalShardId;
     private boolean threadedOperation = true;
 
-    protected SingleShardRequest() {
+    public SingleShardRequest() {
     }
 
     protected SingleShardRequest(String index) {

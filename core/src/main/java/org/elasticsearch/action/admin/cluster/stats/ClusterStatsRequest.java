@@ -30,7 +30,7 @@ import java.io.IOException;
  */
 public class ClusterStatsRequest extends BaseNodesRequest<ClusterStatsRequest> {
 
-    ClusterStatsRequest() {
+    public ClusterStatsRequest() {
     }
 
     /**

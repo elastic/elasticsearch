@@ -79,7 +79,7 @@ public class NodeMappingRefreshAction extends AbstractComponent {
         private String[] types;
         private String nodeId;
 
-        NodeMappingRefreshRequest() {
+        public NodeMappingRefreshRequest() {
         }
 
         public NodeMappingRefreshRequest(String index, String indexUUID, String[] types, String nodeId) {

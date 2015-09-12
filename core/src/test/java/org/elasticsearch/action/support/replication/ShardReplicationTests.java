@@ -551,12 +551,12 @@ public class ShardReplicationTests extends ESTestCase {
         };
     }
 
-    static class Request extends ReplicationRequest<Request> {
+    public static class Request extends ReplicationRequest<Request> {
         int shardId;
         public AtomicBoolean processedOnPrimary = new AtomicBoolean();
         public AtomicInteger processedOnReplicas = new AtomicInteger();
 
-        Request() {
+        public Request() {
         }
 
         Request(ShardId shardId) {

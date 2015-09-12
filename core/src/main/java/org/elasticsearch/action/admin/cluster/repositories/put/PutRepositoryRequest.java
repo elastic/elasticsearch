@@ -55,7 +55,7 @@ public class PutRepositoryRequest extends AcknowledgedRequest<PutRepositoryReque
 
     private Settings settings = EMPTY_SETTINGS;
 
-    PutRepositoryRequest() {
+    public PutRepositoryRequest() {
     }
 
     /**

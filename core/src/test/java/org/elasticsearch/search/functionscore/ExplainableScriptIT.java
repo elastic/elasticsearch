@@ -96,7 +96,7 @@ public class ExplainableScriptIT extends ESIntegTestCase {
         }
     }
 
-    static class MyNativeScriptFactory implements NativeScriptFactory {
+    public static class MyNativeScriptFactory implements NativeScriptFactory {
         @Override
         public ExecutableScript newScript(@Nullable Map<String, Object> params) {
             return new MyScript();

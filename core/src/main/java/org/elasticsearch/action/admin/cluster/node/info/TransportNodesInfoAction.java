@@ -88,11 +88,11 @@ public class TransportNodesInfoAction extends TransportNodesAction<NodesInfoRequ
         return false;
     }
 
-    static class NodeInfoRequest extends BaseNodeRequest {
+    public static class NodeInfoRequest extends BaseNodeRequest {
 
         NodesInfoRequest request;
 
-        NodeInfoRequest() {
+        public NodeInfoRequest() {
         }
 
         NodeInfoRequest(String nodeId, NodesInfoRequest request) {

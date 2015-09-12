@@ -271,7 +271,7 @@ public class NodesFaultDetection extends FaultDetection {
 
         private long clusterStateVersion = ClusterState.UNKNOWN_VERSION;
 
-        PingRequest() {
+        public PingRequest() {
         }
 
         PingRequest(String nodeId, ClusterName clusterName, DiscoveryNode masterNode, long clusterStateVersion) {

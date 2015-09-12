@@ -742,7 +742,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     }
 
 
-    static class StringMessageRequest extends TransportRequest {
+    public static class StringMessageRequest extends TransportRequest {
 
         private String message;
         private long timeout;
@@ -752,7 +752,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             this.timeout = timeout;
         }
 
-        StringMessageRequest() {
+        public StringMessageRequest() {
         }
 
         public StringMessageRequest(String message) {
@@ -803,7 +803,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     }
 
 
-    static class Version0Request extends TransportRequest {
+    public static class Version0Request extends TransportRequest {
 
         int value1;
 
@@ -821,7 +821,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         }
     }
 
-    static class Version1Request extends Version0Request {
+    public static class Version1Request extends Version0Request {
 
         int value2;
 
@@ -1213,7 +1213,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         assertTrue(nodeB.address().sameHost(addressB.get()));
     }
 
-    private static class TestRequest extends TransportRequest {
+    public static class TestRequest extends TransportRequest {
     }
 
     private static class TestResponse extends TransportResponse {

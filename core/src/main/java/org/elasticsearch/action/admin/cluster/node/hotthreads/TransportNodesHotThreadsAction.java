@@ -94,11 +94,11 @@ public class TransportNodesHotThreadsAction extends TransportNodesAction<NodesHo
         return false;
     }
 
-    static class NodeRequest extends BaseNodeRequest {
+    public static class NodeRequest extends BaseNodeRequest {
 
         NodesHotThreadsRequest request;
 
-        NodeRequest() {
+        public NodeRequest() {
         }
 
         NodeRequest(String nodeId, NodesHotThreadsRequest request) {

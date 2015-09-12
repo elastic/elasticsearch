@@ -396,13 +396,13 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
         }
     }
 
-    private static class ShardActiveRequest extends TransportRequest {
+    public static class ShardActiveRequest extends TransportRequest {
         protected TimeValue timeout = null;
         private ClusterName clusterName;
         private String indexUUID;
         private ShardId shardId;
 
-        ShardActiveRequest() {
+        public ShardActiveRequest() {
         }
 
         ShardActiveRequest(ClusterName clusterName, String indexUUID, ShardId shardId, TimeValue timeout) {

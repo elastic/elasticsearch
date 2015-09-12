@@ -405,14 +405,14 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
         }
     }
 
-    protected class NodeRequest extends TransportRequest implements IndicesRequest {
+    public class NodeRequest extends TransportRequest implements IndicesRequest {
         private String nodeId;
 
         private List<ShardRouting> shards;
 
         protected Request indicesLevelRequest;
 
-        protected NodeRequest() {
+        public NodeRequest() {
         }
 
         public NodeRequest(String nodeId, Request request, List<ShardRouting> shards) {

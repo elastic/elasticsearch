@@ -39,7 +39,7 @@ public class PercolateShardRequest extends BroadcastShardRequest {
     private int numberOfShards;
     private long startTime;
 
-    PercolateShardRequest() {
+    public PercolateShardRequest() {
     }
 
     PercolateShardRequest(ShardId shardId, int numberOfShards, PercolateRequest request) {

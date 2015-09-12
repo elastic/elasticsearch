@@ -227,10 +227,10 @@ public class SearchServiceTransportAction extends AbstractComponent {
         });
     }
 
-    static class ScrollFreeContextRequest extends TransportRequest {
+    public static class ScrollFreeContextRequest extends TransportRequest {
         private long id;
 
-        ScrollFreeContextRequest() {
+        public ScrollFreeContextRequest() {
         }
 
         ScrollFreeContextRequest(ClearScrollRequest request, long id) {
@@ -259,10 +259,10 @@ public class SearchServiceTransportAction extends AbstractComponent {
         }
     }
 
-    static class SearchFreeContextRequest extends ScrollFreeContextRequest implements IndicesRequest {
+    public static class SearchFreeContextRequest extends ScrollFreeContextRequest implements IndicesRequest {
         private OriginalIndices originalIndices;
 
-        SearchFreeContextRequest() {
+        public SearchFreeContextRequest() {
         }
 
         SearchFreeContextRequest(SearchRequest request, long id) {
@@ -335,9 +335,9 @@ public class SearchServiceTransportAction extends AbstractComponent {
         }
     }
 
-    static class ClearScrollContextsRequest extends TransportRequest {
+    public static class ClearScrollContextsRequest extends TransportRequest {
 
-        ClearScrollContextsRequest() {
+        public ClearScrollContextsRequest() {
         }
 
         ClearScrollContextsRequest(TransportRequest request) {

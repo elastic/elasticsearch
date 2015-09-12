@@ -121,12 +121,12 @@ public class VerifyNodeRepositoryAction  extends AbstractComponent {
         blobStoreIndexShardRepository.verify(verificationToken);
     }
 
-    static class VerifyNodeRepositoryRequest extends TransportRequest {
+    public static class VerifyNodeRepositoryRequest extends TransportRequest {
 
         private String repository;
         private String verificationToken;
 
-        VerifyNodeRepositoryRequest() {
+        public VerifyNodeRepositoryRequest() {
         }
 
         VerifyNodeRepositoryRequest(String repository, String verificationToken) {

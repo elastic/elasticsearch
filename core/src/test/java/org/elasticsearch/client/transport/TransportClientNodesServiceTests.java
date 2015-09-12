@@ -173,7 +173,7 @@ public class TransportClientNodesServiceTests extends ESTestCase {
         }
     }
 
-    private static class TestRequest extends TransportRequest {
+    public static class TestRequest extends TransportRequest {
 
     }
 

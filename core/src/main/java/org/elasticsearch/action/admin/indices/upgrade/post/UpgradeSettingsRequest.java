@@ -39,7 +39,7 @@ public class UpgradeSettingsRequest extends AcknowledgedRequest<UpgradeSettingsR
 
     private Map<String, Tuple<Version, String>> versions;
 
-    UpgradeSettingsRequest() {
+    public UpgradeSettingsRequest() {
     }
 
     /**

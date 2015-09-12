@@ -29,7 +29,7 @@ import static org.elasticsearch.cloud.azure.management.AzureComputeService.Manag
 public class AzureComputeSettingsFilter extends AbstractComponent {
 
     @Inject
-    protected AzureComputeSettingsFilter(Settings settings, SettingsFilter settingsFilter) {
+    public AzureComputeSettingsFilter(Settings settings, SettingsFilter settingsFilter) {
         super(settings);
         // Cloud management API settings we need to hide
         settingsFilter.addFilter(KEYSTORE_PATH);

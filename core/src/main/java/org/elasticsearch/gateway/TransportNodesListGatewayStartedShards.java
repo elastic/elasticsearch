@@ -160,7 +160,7 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
         return true;
     }
 
-    static class Request extends BaseNodesRequest<Request> {
+    public static class Request extends BaseNodesRequest<Request> {
 
         private ShardId shardId;
         private String indexUUID;
@@ -233,12 +233,12 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
     }
 
 
-    static class NodeRequest extends BaseNodeRequest {
+    public static class NodeRequest extends BaseNodeRequest {
 
         private ShardId shardId;
         private String indexUUID;
 
-        NodeRequest() {
+        public NodeRequest() {
         }
 
         NodeRequest(String nodeId, TransportNodesListGatewayStartedShards.Request request) {
@@ -275,7 +275,7 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
         private long version = -1;
         private Throwable storeException = null;
 
-        NodeGatewayStartedShards() {
+        public NodeGatewayStartedShards() {
         }
         public NodeGatewayStartedShards(DiscoveryNode node, long version) {
             this(node, version, null);

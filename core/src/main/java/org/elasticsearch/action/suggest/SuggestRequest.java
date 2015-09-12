@@ -58,7 +58,7 @@ public final class SuggestRequest extends BroadcastRequest<SuggestRequest> {
 
     private BytesReference suggestSource;
 
-    SuggestRequest() {
+    public SuggestRequest() {
     }
 
     /**

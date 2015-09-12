@@ -64,7 +64,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
     private Settings indexSettings = EMPTY_SETTINGS;
     private String[] ignoreIndexSettings = Strings.EMPTY_ARRAY;
 
-    RestoreSnapshotRequest() {
+    public RestoreSnapshotRequest() {
     }
 
     /**

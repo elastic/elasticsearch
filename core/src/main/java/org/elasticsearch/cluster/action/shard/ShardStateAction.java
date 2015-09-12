@@ -244,7 +244,7 @@ public class ShardStateAction extends AbstractComponent {
         }
     }
 
-    static class ShardRoutingEntry extends TransportRequest {
+    public static class ShardRoutingEntry extends TransportRequest {
 
         ShardRouting shardRouting;
         String indexUUID = IndexMetaData.INDEX_UUID_NA_VALUE;
@@ -253,7 +253,7 @@ public class ShardStateAction extends AbstractComponent {
 
         volatile boolean processed; // state field, no need to serialize
 
-        ShardRoutingEntry() {
+        public ShardRoutingEntry() {
         }
 
         ShardRoutingEntry(ShardRouting shardRouting, String indexUUID, String message, @Nullable Throwable failure) {

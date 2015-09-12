@@ -74,7 +74,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
 
     private boolean updateAllTypes = false;
 
-    CreateIndexRequest() {
+    public CreateIndexRequest() {
     }
 
     /**

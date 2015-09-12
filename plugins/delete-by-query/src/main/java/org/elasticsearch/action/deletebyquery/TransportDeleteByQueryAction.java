@@ -57,7 +57,7 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
     private final Client client;
 
     @Inject
-    protected TransportDeleteByQueryAction(Settings settings, ThreadPool threadPool, Client client,
+    public TransportDeleteByQueryAction(Settings settings, ThreadPool threadPool, Client client,
                                            TransportSearchAction transportSearchAction,
                                            TransportSearchScrollAction transportSearchScrollAction,
                                            TransportService transportService, ActionFilters actionFilters,

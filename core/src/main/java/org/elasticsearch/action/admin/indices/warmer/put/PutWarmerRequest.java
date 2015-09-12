@@ -44,7 +44,7 @@ public class PutWarmerRequest extends AcknowledgedRequest<PutWarmerRequest> impl
 
     private SearchRequest searchRequest;
 
-    PutWarmerRequest() {
+    public PutWarmerRequest() {
     }
 
     /**

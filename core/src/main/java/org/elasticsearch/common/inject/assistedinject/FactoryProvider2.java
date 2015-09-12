@@ -53,7 +53,7 @@ import static org.elasticsearch.common.inject.internal.Annotations.getKey;
  * @author jessewilson@google.com (Jesse Wilson)
  * @author dtm@google.com (Daniel Martin)
  */
-final class FactoryProvider2<F> implements InvocationHandler, Provider<F> {
+public final class FactoryProvider2<F> implements InvocationHandler, Provider<F> {
 
     /**
      * if a factory method parameter isn't annotated, it gets this annotation.
@@ -173,7 +173,7 @@ final class FactoryProvider2<F> implements InvocationHandler, Provider<F> {
      * all factory methods will be able to build the target types.
      */
     @Inject
-    void initialize(Injector injector) {
+    public void initialize(Injector injector) {
         if (this.injector != null) {
             throw new ConfigurationException(Collections.singletonList(new Message(FactoryProvider2.class,
                 "Factories.create() factories may only be used in one Injector!")));

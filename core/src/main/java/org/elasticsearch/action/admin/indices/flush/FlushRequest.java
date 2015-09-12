@@ -42,7 +42,7 @@ public class FlushRequest extends BroadcastRequest<FlushRequest> {
     private boolean force = false;
     private boolean waitIfOngoing = false;
 
-    FlushRequest() {
+    public FlushRequest() {
     }
 
     /**

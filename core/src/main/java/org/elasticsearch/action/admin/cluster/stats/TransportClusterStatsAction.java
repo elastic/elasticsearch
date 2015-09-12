@@ -145,11 +145,11 @@ public class TransportClusterStatsAction extends TransportNodesAction<ClusterSta
         return false;
     }
 
-    static class ClusterStatsNodeRequest extends BaseNodeRequest {
+    public static class ClusterStatsNodeRequest extends BaseNodeRequest {
 
         ClusterStatsRequest request;
 
-        ClusterStatsNodeRequest() {
+        public ClusterStatsNodeRequest() {
         }
 
         ClusterStatsNodeRequest(String nodeId, ClusterStatsRequest request) {

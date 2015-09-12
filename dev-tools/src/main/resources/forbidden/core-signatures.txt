@@ -84,9 +84,6 @@ java.util.concurrent.Future#cancel(boolean)
 org.elasticsearch.common.io.PathUtils#get(java.lang.String, java.lang.String[])
 org.elasticsearch.common.io.PathUtils#get(java.net.URI)
 
-@defaultMessage avoid adding additional dependencies on Guava
-com.google.common.collect.Lists
-com.google.common.collect.ImmutableList
-com.google.common.base.Objects
-com.google.common.base.Strings
-com.google.common.base.Throwables
+@defaultMessage Do not violate java's access system
+java.lang.reflect.AccessibleObject#setAccessible(boolean)
+java.lang.reflect.AccessibleObject#setAccessible(java.lang.reflect.AccessibleObject[], boolean)

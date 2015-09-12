@@ -352,13 +352,13 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
         }
     }
 
-    static class MulticastPingResponse extends TransportRequest {
+    public static class MulticastPingResponse extends TransportRequest {
 
         int id;
 
         PingResponse pingResponse;
 
-        MulticastPingResponse() {
+        public MulticastPingResponse() {
         }
 
         @Override

@@ -30,7 +30,7 @@ import java.io.IOException;
  */
 public abstract class ActionRequest<T extends ActionRequest> extends TransportRequest {
 
-    protected ActionRequest() {
+    public ActionRequest() {
         super();
     }
 

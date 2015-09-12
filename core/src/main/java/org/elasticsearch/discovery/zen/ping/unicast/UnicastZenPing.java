@@ -523,13 +523,13 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
         }
     }
 
-    static class UnicastPingRequest extends TransportRequest {
+    public static class UnicastPingRequest extends TransportRequest {
 
         int id;
         TimeValue timeout;
         PingResponse pingResponse;
 
-        UnicastPingRequest() {
+        public UnicastPingRequest() {
         }
 
         @Override

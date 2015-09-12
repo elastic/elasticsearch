@@ -17,6 +17,7 @@
 package org.elasticsearch.common.inject.multibindings;
 
 import com.google.common.collect.ImmutableSet;
+
 import org.elasticsearch.common.inject.*;
 import org.elasticsearch.common.inject.binder.LinkedBindingBuilder;
 import org.elasticsearch.common.inject.multibindings.Multibinder.RealMultibinder;
@@ -227,7 +228,7 @@ public abstract class MapBinder<K, V> {
      * <p/>
      * <p>We use a subclass to hide 'implements Module' from the public API.
      */
-    private static final class RealMapBinder<K, V> extends MapBinder<K, V> implements Module {
+    public static final class RealMapBinder<K, V> extends MapBinder<K, V> implements Module {
         private final TypeLiteral<V> valueType;
         private final Key<Map<K, V>> mapKey;
         private final Key<Map<K, Provider<V>>> providerMapKey;
@@ -260,8 +261,48 @@ public abstract class MapBinder<K, V> {
                     binder.getProvider(valueKey)));
             return binder.bind(valueKey);
         }
+        
+        public static class MapBinderProviderWithDependencies<K,V> implements ProviderWithDependencies<Map<K, Provider<V>>> {
+            private Map<K, Provider<V>> providerMap;
+            
+            @SuppressWarnings("rawtypes") // code is silly stupid with generics
+            private final RealMapBinder binder;
+            private final Set<Dependency<?>> dependencies;
+            private final Provider<Set<Entry<K, Provider<V>>>> provider;
+            
+            @SuppressWarnings("rawtypes") // code is silly stupid with generics
+            MapBinderProviderWithDependencies(RealMapBinder binder, Set<Dependency<?>> dependencies, Provider<Set<Entry<K, Provider<V>>>> provider) {
+                this.binder = binder;
+                this.dependencies = dependencies;
+                this.provider = provider;
+            }
 
-        @Override
+            @SuppressWarnings({"unchecked", "unused"}) // code is silly stupid with generics
+            @Inject
+            public void initialize() {
+                binder.binder = null;
+
+                Map<K, Provider<V>> providerMapMutable = new LinkedHashMap<>();
+                for (Entry<K, Provider<V>> entry : provider.get()) {
+                    Multibinder.checkConfiguration(providerMapMutable.put(entry.getKey(), entry.getValue()) == null,
+                            "Map injection failed due to duplicated key \"%s\"", entry.getKey());
+                }
+
+                providerMap = Collections.unmodifiableMap(providerMapMutable);
+            }
+
+            @Override
+            public Map<K, Provider<V>> get() {
+                return providerMap;
+            }
+
+            @Override
+            public Set<Dependency<?>> getDependencies() {
+                return dependencies;
+            }
+        }
+
+        @Override @SuppressWarnings({"rawtypes", "unchecked"}) // code is silly stupid with generics
         public void configure(Binder binder) {
             Multibinder.checkConfiguration(!isInitialized(), "MapBinder was already initialized");
 
@@ -271,33 +312,7 @@ public abstract class MapBinder<K, V> {
             // binds a Map<K, Provider<V>> from a collection of Map<Entry<K, Provider<V>>
             final Provider<Set<Entry<K, Provider<V>>>> entrySetProvider = binder
                     .getProvider(entrySetBinder.getSetKey());
-            binder.bind(providerMapKey).toProvider(new ProviderWithDependencies<Map<K, Provider<V>>>() {
-                private Map<K, Provider<V>> providerMap;
-
-                @SuppressWarnings("unused")
-                @Inject
-                void initialize() {
-                    RealMapBinder.this.binder = null;
-
-                    Map<K, Provider<V>> providerMapMutable = new LinkedHashMap<>();
-                    for (Entry<K, Provider<V>> entry : entrySetProvider.get()) {
-                        Multibinder.checkConfiguration(providerMapMutable.put(entry.getKey(), entry.getValue()) == null,
-                                "Map injection failed due to duplicated key \"%s\"", entry.getKey());
-                    }
-
-                    providerMap = Collections.unmodifiableMap(providerMapMutable);
-                }
-
-                @Override
-                public Map<K, Provider<V>> get() {
-                    return providerMap;
-                }
-
-                @Override
-                public Set<Dependency<?>> getDependencies() {
-                    return dependencies;
-                }
-            });
+            binder.bind(providerMapKey).toProvider(new MapBinderProviderWithDependencies(RealMapBinder.this, dependencies, entrySetProvider));
 
             final Provider<Map<K, Provider<V>>> mapProvider = binder.getProvider(providerMapKey);
             binder.bind(mapKey).toProvider(new ProviderWithDependencies<Map<K, V>>() {

@@ -32,7 +32,7 @@ public abstract class BaseNodeRequest extends TransportRequest {
 
     private String nodeId;
 
-    protected BaseNodeRequest() {
+    public BaseNodeRequest() {
 
     }
 

@@ -38,7 +38,7 @@ public abstract class BroadcastShardRequest extends TransportRequest implements 
 
     protected OriginalIndices originalIndices;
 
-    protected BroadcastShardRequest() {
+    public BroadcastShardRequest() {
     }
 
     protected BroadcastShardRequest(ShardId shardId, BroadcastRequest request) {

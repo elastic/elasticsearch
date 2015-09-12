@@ -36,7 +36,7 @@ public class GetRepositoriesRequest extends MasterNodeReadRequest<GetRepositorie
 
     private String[] repositories = Strings.EMPTY_ARRAY;
 
-    GetRepositoriesRequest() {
+    public GetRepositoriesRequest() {
     }
 
     /**

@@ -120,7 +120,7 @@ public class TransportNodesListGatewayMetaState extends TransportNodesAction<Tra
         return true;
     }
 
-    static class Request extends BaseNodesRequest<Request> {
+    public static class Request extends BaseNodesRequest<Request> {
 
         public Request() {
         }
@@ -177,9 +177,9 @@ public class TransportNodesListGatewayMetaState extends TransportNodesAction<Tra
     }
 
 
-    static class NodeRequest extends BaseNodeRequest {
+    public static class NodeRequest extends BaseNodeRequest {
 
-        NodeRequest() {
+        public NodeRequest() {
         }
 
         NodeRequest(String nodeId, TransportNodesListGatewayMetaState.Request request) {

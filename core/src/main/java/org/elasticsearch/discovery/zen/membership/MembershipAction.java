@@ -105,11 +105,11 @@ public class MembershipAction extends AbstractComponent {
                 .txGet(timeout.millis(), TimeUnit.MILLISECONDS);
     }
 
-    static class JoinRequest extends TransportRequest {
+    public static class JoinRequest extends TransportRequest {
 
         DiscoveryNode node;
 
-        private JoinRequest() {
+        public JoinRequest() {
         }
 
         private JoinRequest(DiscoveryNode node) {
@@ -156,9 +156,9 @@ public class MembershipAction extends AbstractComponent {
         }
     }
 
-    static class ValidateJoinRequest extends TransportRequest {
+    public static class ValidateJoinRequest extends TransportRequest {
 
-        ValidateJoinRequest() {
+        public ValidateJoinRequest() {
         }
     }
 
@@ -171,11 +171,11 @@ public class MembershipAction extends AbstractComponent {
         }
     }
 
-    static class LeaveRequest extends TransportRequest {
+    public static class LeaveRequest extends TransportRequest {
 
         private DiscoveryNode node;
 
-        private LeaveRequest() {
+        public LeaveRequest() {
         }
 
         private LeaveRequest(DiscoveryNode node) {

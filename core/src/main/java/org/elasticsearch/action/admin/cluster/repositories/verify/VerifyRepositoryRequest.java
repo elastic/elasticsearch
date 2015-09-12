@@ -37,7 +37,7 @@ public class VerifyRepositoryRequest extends AcknowledgedRequest<VerifyRepositor
 
     private String name;
 
-    VerifyRepositoryRequest() {
+    public VerifyRepositoryRequest() {
     }
 
     /**

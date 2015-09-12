@@ -29,11 +29,11 @@ import org.elasticsearch.search.internal.ShardSearchTransportRequest;
 
 import java.io.IOException;
 
-class ShardDfsOnlyRequest extends BroadcastShardRequest {
+public class ShardDfsOnlyRequest extends BroadcastShardRequest {
 
     private ShardSearchTransportRequest shardSearchRequest = new ShardSearchTransportRequest();
 
-    ShardDfsOnlyRequest() {
+    public ShardDfsOnlyRequest() {
 
     }
 

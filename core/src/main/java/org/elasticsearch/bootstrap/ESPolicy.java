@@ -61,7 +61,35 @@ final class ESPolicy extends Policy {
             }
         }
 
+        // Special handling for broken AWS code which destroys all SSL security
+        // REMOVE THIS when https://github.com/aws/aws-sdk-java/pull/432 is fixed
+        if (permission instanceof RuntimePermission && "accessClassInPackage.sun.security.ssl".equals(permission.getName())) {
+            for (StackTraceElement element : Thread.currentThread().getStackTrace()) {
+                if ("com.amazonaws.http.conn.ssl.SdkTLSSocketFactory".equals(element.getClassName()) &&
+                      "verifyMasterSecret".equals(element.getMethodName())) {
+                    // we found the horrible method: the hack begins!
+                    // force the aws code to back down, by throwing an exception that it catches.
+                    rethrow(new IllegalAccessException("no amazon, you cannot do this."));
+                }
+            }
+        }
         // otherwise defer to template + dynamic file permissions
         return template.implies(domain, permission) || dynamic.implies(permission);
+    }
+
+    /**
+     * Classy puzzler to rethrow any checked exception as an unchecked one.
+     */
+    private static class Rethrower<T extends Throwable> {
+        private void rethrow(Throwable t) throws T {
+            throw (T) t;
+        }
+    }
+
+    /**
+     * Rethrows <code>t</code> (identical object).
+     */
+    private void rethrow(Throwable t) {
+        new Rethrower<Error>().rethrow(t);
     }
 }

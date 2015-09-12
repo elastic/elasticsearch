@@ -86,8 +86,6 @@ grant {
   // reflection hacks:
   // needed by groovy engine
   permission java.lang.RuntimePermission "accessClassInPackage.sun.reflect";
-  // needed by aws core sdk (TODO: look into this)
-  permission java.lang.RuntimePermission "accessClassInPackage.sun.security.ssl";
   
   // needed by RandomizedRunner
   permission java.lang.RuntimePermission "accessDeclaredMembers";

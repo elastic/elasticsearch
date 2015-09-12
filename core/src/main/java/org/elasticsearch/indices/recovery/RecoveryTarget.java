@@ -304,6 +304,7 @@ public class RecoveryTarget extends AbstractComponent {
                 assert recoveryStatus.indexShard().recoveryState() == recoveryStatus.state();
                 try {
                     recoveryStatus.indexShard().performBatchRecovery(request.operations());
+                    channel.sendResponse(TransportResponse.Empty.INSTANCE);
                 } catch (TranslogRecoveryPerformer.BatchOperationException exception) {
                     MapperException mapperException = (MapperException) ExceptionsHelper.unwrap(exception, MapperException.class);
                     if (mapperException == null) {
@@ -346,8 +347,6 @@ public class RecoveryTarget extends AbstractComponent {
                     });
                 }
             }
-            channel.sendResponse(TransportResponse.Empty.INSTANCE);
-
         }
     }
 

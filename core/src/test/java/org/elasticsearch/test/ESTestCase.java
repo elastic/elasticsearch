@@ -34,6 +34,7 @@ import com.google.common.base.Predicate;
 import org.apache.lucene.uninverting.UninvertingReader;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
+import org.apache.lucene.util.TestRuleMarkFailure;
 import org.apache.lucene.util.TestUtil;
 import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.Version;
@@ -612,5 +613,10 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
         sb.append("]");
         assertThat(count + " files exist that should have been cleaned:\n" + sb.toString(), count, equalTo(0));
+    }
+    
+    /** Returns the suite failure marker: internal use only! */
+    public static TestRuleMarkFailure getSuiteFailureMarker() {
+        return suiteFailureMarker;
     }
 }

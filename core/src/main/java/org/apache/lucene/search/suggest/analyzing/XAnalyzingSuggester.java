@@ -259,6 +259,10 @@ public class XAnalyzingSuggester extends Lookup {
 public long ramBytesUsed() {
     return fst == null ? 0 : fst.ramBytesUsed();
   }
+  
+  public int getMaxAnalyzedPathsForOneInput() {
+      return maxAnalyzedPathsForOneInput;
+  }
 
   // Replaces SEP with epsilon or remaps them if
   // we were asked to preserve them:

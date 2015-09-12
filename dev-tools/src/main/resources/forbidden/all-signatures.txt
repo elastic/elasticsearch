@@ -86,3 +86,7 @@ java.net.InetAddress#getHostName()
 java.net.InetAddress#getCanonicalHostName()
 
 java.net.InetSocketAddress#getHostName() @ Use getHostString() instead, which avoids a DNS lookup
+
+@defaultMessage Do not violate java's access system
+java.lang.reflect.AccessibleObject#setAccessible(boolean)
+java.lang.reflect.AccessibleObject#setAccessible(java.lang.reflect.AccessibleObject[], boolean)

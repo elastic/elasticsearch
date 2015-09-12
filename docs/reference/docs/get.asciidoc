@@ -73,8 +73,6 @@ to fetch the first document matching the id across all types.
 [[get-source-filtering]]
 === Source filtering
 
-added[1.0.0.Beta1]
-
 By default, the get operation returns the contents of the `_source` field unless
 you have used the `fields` parameter or if the `_source` field is disabled. 
 You can turn off `_source` retrieval by using the `_source` parameter:
@@ -123,6 +121,13 @@ Field values fetched from the document it self are always returned as an array. 
 
 Also only leaf fields can be returned via the `field` option. So object fields can't be returned and such requests
 will fail.
+
+[float]
+[[generated-fields]]
+=== Generated fields
+If no refresh occurred between indexing and refresh, GET will access the transaction log to fetch the document. However, some fields are generated only when indexing. 
+If you try to access a field that is only generated when indexing, you will get an exception (default). You can choose to ignore field that are generated if the transaction log is accessed by setting `ignore_errors_on_generated_fields=true`.
+
 
 [float]
 [[_source]]
@@ -223,4 +228,7 @@ it's current version is equal to the specified one. This behavior is the same
 for all version types with the exception of version type `FORCE` which always
 retrieves the document.
 
-Note that Elasticsearch do not store older versions of documents. Only the current version can be retrieved.
+Internally, Elasticsearch has marked the old document as deleted and added an
+entirely new document. The old version of the document doesn’t disappear
+immediately, although you won’t be able to access it. Elasticsearch cleans up
+deleted documents in the background as you continue to index more data.

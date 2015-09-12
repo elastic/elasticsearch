@@ -1,78 +1,352 @@
 [[mapping-all-field]]
-=== `_all`
+=== `_all` field
 
-The idea of the `_all` field is that it includes the text of one or more
-other fields within the document indexed. It can come very handy
-especially for search requests, where we want to execute a search query
-against the content of a document, without knowing which fields to
-search on. This comes at the expense of CPU cycles and index size.
+The `_all` field is a special _catch-all_ field which concatenates the values
+of all of the other fields into one big string, which is then
+<<analysis,analyzed>> and indexed, but not stored.  This means that it can be
+searched, but not retrieved.
 
-The `_all` fields can be completely disabled. Explicit field mappings and
-object mappings can be excluded / included in the `_all` field. By
-default, it is enabled and all fields are included in it for ease of
-use.
-
-When disabling the `_all` field, it is a good practice to set
-`index.query.default_field` to a different value (for example, if you
-have a main "message" field in your data, set it to `message`).
-
-One of the nice features of the `_all` field is that it takes into
-account specific fields boost levels. Meaning that if a title field is
-boosted more than content, the title (part) in the `_all` field will
-mean more than the content (part) in the `_all` field.
-
-Here is a sample mapping:
+The `_all` field allows you to search for values in documents without knowing
+which field contains the value.  This makes it a useful option when getting
+started with a new dataset. For instance:
 
 [source,js]
---------------------------------------------------
+--------------------------------
+PUT my_index/user/1 <1>
 {
-    "person" : {
-        "_all" : {"enabled" : true},
-        "properties" : {
-            "name" : {
-                "type" : "object",
-                "dynamic" : false,
-                "properties" : {
-                    "first" : {"type" : "string", "store" : true , "include_in_all" : false},
-                    "last" : {"type" : "string", "index" : "not_analyzed"}
-                }
-            },
-            "address" : {
-                "type" : "object",
-                "include_in_all" : false,
-                "properties" : {
-                    "first" : {
-                        "properties" : {
-                            "location" : {"type" : "string", "store" : true, "index_name" : "firstLocation"}
-                        }
-                    },
-                    "last" : {
-                        "properties" : {
-                            "location" : {"type" : "string"}
-                        }
-                    }
-                }
-            },
-            "simple1" : {"type" : "long", "include_in_all" : true},
-            "simple2" : {"type" : "long", "include_in_all" : false}
-        }
-    }
+  "first_name":    "John",
+  "last_name":     "Smith",
+  "date_of_birth": "1970-10-24"
 }
---------------------------------------------------
 
-The `_all` fields allows for `store`, `term_vector` and `analyzer` (with
-specific `index_analyzer` and `search_analyzer`) to be set.
+GET my_index/_search
+{
+  "query": {
+    "match": {
+      "_all": "john smith 1970"
+    }
+  }
+}
+--------------------------------
+// AUTOSENSE
+<1> The `_all` field will contain the terms: [ `"john"`, `"smith"`, `"1970"`, `"10"`, `"24"` ]
 
-[float]
-[[highlighting]]
-==== Highlighting
+[NOTE]
+.All values treated as strings
+=============================================================================
 
-For any field to allow
-<<search-request-highlighting,highlighting>> it has
-to be either stored or part of the `_source` field. By default the `_all`
-field does not qualify for either, so highlighting for it does not yield
-any data.
+The `date_of_birth` field in the above example is recognised as a `date` field
+and so will index a single term representing `1970-10-24 00:00:00 UTC`. The
+`_all` field, however, treats all values as strings, so the date value is
+indexed as the three string terms: `"1970"`, `"24"`, `"10"`.
 
-Although it is possible to `store` the `_all` field, it is basically an
-aggregation of all fields, which means more data will be stored, and
-highlighting it might produce strange results.
+It is important to note that the `_all` field combines the original values
+from each field as a string. It does not combine the _terms_ from each field.
+
+=============================================================================
+
+The `_all` field is just a <<string,`string`>> field, and accepts the same
+parameters that  other string fields accept, including `analyzer`,
+`term_vectors`, `index_options`, and `store`.
+
+The `_all` field can be useful, especially when exploring new data using
+simple filtering.  However, by concatenating field values into one big string,
+the `_all` field loses the distinction between short fields (more relevant)
+and long fields (less relevant). For use cases where search relevance is
+important, it is better to query individual fields specifically.
+
+The `_all` field is not free: it requires extra CPU cycles and uses more disk
+space. If not needed, it can be completely <<disabling-all-field,disabled>> or
+customised on a <<include-in-all,per-field basis>>.
+
+[[querying-all-field]]
+==== Using the `_all` field in queries
+
+The <<query-dsl-query-string-query,`query_string`>> and
+<<query-dsl-simple-query-string-query,`simple_query_string`>> queries query
+the `_all` field by default, unless another field is specified:
+
+[source,js]
+--------------------------------
+GET _search
+{
+  "query": {
+    "query_string": {
+      "query": "john smith 1970"
+    }
+  }
+}
+--------------------------------
+// AUTOSENSE
+
+The same goes for the `?q=` parameter in <<search-uri-request, URI search
+requests>> (which is rewritten to a `query_string` query internally):
+
+[source,js]
+--------------------------------
+GET _search?q=john+smith+1970
+--------------------------------
+
+Other queries, such as the <<query-dsl-match-query,`match`>> and
+<<query-dsl-term-query,`term`>> queries require you to specify
+the `_all` field explicitly, as per the
+<<mapping-all-field,first example>>.
+
+[[disabling-all-field]]
+==== Disabling the `_all` field
+
+The `_all` field can be completely disabled per-type by setting `enabled` to
+`false`:
+
+[source,js]
+--------------------------------
+PUT my_index
+{
+  "mappings": {
+    "type_1": { <1>
+      "properties": {...}
+    },
+    "type_2": { <2>
+      "_all": {
+        "enabled": false
+      },
+      "properties": {...}
+    }
+  }
+}
+--------------------------------
+// AUTOSENSE
+
+<1> The `_all` field in `type_1` is enabled.
+<2> The `_all` field in `type_2` is completely disabled.
+
+If the `_all` field is disabled, then URI search requests and the
+`query_string` and `simple_query_string` queries will not be able to use it
+for queries (see <<querying-all-field>>).  You can configure them to use a
+different field with the `index.query.default_field` setting:
+
+[source,js]
+--------------------------------
+PUT my_index
+{
+  "mappings": {
+    "my_type": {
+      "_all": {
+        "enabled": false <1>
+      },
+      "properties": {
+        "content": {
+          "type": "string"
+        }
+      }
+    }
+  },
+  "settings": {
+    "index.query.default_field": "content" <2>
+  },
+}
+--------------------------------
+// AUTOSENSE
+
+<1> The `_all` field is disabled for the `my_type` type.
+<2> The `query_string` query will default to querying the `content` field in this index.
+
+[[excluding-from-all]]
+==== Excluding fields from `_all`
+
+Individual fields can be included or excluded from the `_all` field with the
+<<include-in-all,`include_in_all`>> setting.
+
+
+[[all-field-and-boosting]]
+==== Index boosting and the `_all` field
+
+Individual fields can be _boosted_ at index time, with the <<index-boost,`boost`>>
+parameter. The `_all` field takes these boosts into account:
+
+[source,js]
+--------------------------------
+PUT myindex
+{
+  "mappings": {
+    "mytype": {
+      "properties": {
+        "title": { <1>
+          "type": "string",
+          "boost": 2
+        },
+        "content": { <1>
+          "type": "string"
+        }
+      }
+    }
+  }
+}
+--------------------------------
+// AUTOSENSE
+
+<1> When querying the `_all` field, words that originated in the
+    `title` field are twice as relevant as words that originated in
+    the `content` field.
+
+WARNING: Using index-time boosting with the `_all` field has a significant
+impact on query performance. Usually the better solution is to query fields
+individually, with optional query time boosting.
+
+
+[[custom-all-fields]]
+==== Custom `_all` fields
+
+While there is only a single `_all` field per index, the <<copy-to,`copy_to`>>
+parameter allows the creation of multiple __custom `_all` fields__. For
+instance, `first_name` and `last_name` fields can be combined together into
+the `full_name` field:
+
+[source,js]
+--------------------------------
+PUT myindex
+{
+  "mappings": {
+    "mytype": {
+      "properties": {
+        "first_name": {
+          "type":    "string",
+          "copy_to": "full_name" <1>
+        },
+        "last_name": {
+          "type":    "string",
+          "copy_to": "full_name" <1>
+        },
+        "full_name": {
+          "type":    "string"
+        }
+      }
+    }
+  }
+}
+
+PUT myindex/mytype/1
+{
+  "first_name": "John",
+  "last_name": "Smith"
+}
+
+GET myindex/_search
+{
+  "query": {
+    "match": {
+      "full_name": "John Smith"
+    }
+  }
+}
+--------------------------------
+// AUTOSENSE
+
+<1> The `first_name` and `last_name` values are copied to the `full_name` field.
+
+[[highlighting-all-field]]
+==== Highlighting and the `_all` field
+
+A field can only be used for <<search-request-highlighting,highlighting>>  if
+the original string value is available, either from the
+<<mapping-source-field,`_source`>>  field or as a stored field.
+
+The `_all` field is not present in the `_source` field and it is not stored by
+default, and so cannot be highlighted. There are two options. Either
+<<all-field-store,store the `_all` field>> or highlight the
+<<all-highlight-fields,original fields>>.
+
+[[all-field-store]]
+===== Store the `_all` field
+
+If `store` is set to `true`, then the original field value is retrievable and
+can be highlighted:
+
+[source,js]
+--------------------------------
+PUT myindex
+{
+  "mappings": {
+    "mytype": {
+      "_all": {
+        "store": true
+      }
+    }
+  }
+}
+
+PUT myindex/mytype/1
+{
+  "first_name": "John",
+  "last_name": "Smith"
+}
+
+GET _search
+{
+  "query": {
+    "match": {
+      "_all": "John Smith"
+    }
+  },
+  "highlight": {
+    "fields": {
+      "_all": {}
+    }
+  }
+}
+--------------------------------
+// AUTOSENSE
+
+Of course, storing the `_all` field will use significantly more disk space
+and, because it is a combination of other fields, it may result in odd
+highlighting results.
+
+The `_all` field also accepts the `term_vector` and `index_options`
+parameters, allowing the use of the fast vector highlighter and the postings
+highlighter.
+
+[[all-highlight-fields]]
+===== Highlight original fields
+
+You can query the `_all` field, but use the original fields for highlighting as follows:
+
+[source,js]
+--------------------------------
+PUT myindex
+{
+  "mappings": {
+    "mytype": {
+      "_all": {}
+    }
+  }
+}
+
+PUT myindex/mytype/1
+{
+  "first_name": "John",
+  "last_name": "Smith"
+}
+
+GET _search
+{
+  "query": {
+    "match": {
+      "_all": "John Smith" <1>
+    }
+  },
+  "highlight": {
+    "fields": {
+      "*_name": { <2>
+        "require_field_match": "false"  <3>
+      }
+    }
+  }
+}
+--------------------------------
+// AUTOSENSE
+
+<1> The query inspects the `_all` field to find matching documents.
+<2> Highlighting is performed on the two name fields, which are available from the `_source`.
+<3> The query wasn't run against the name fields, so set `require_field_match` to `false`.
+
+

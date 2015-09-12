@@ -16,27 +16,27 @@ ignored: "//hello---there, 'dude'" -> "hello", "there", "dude"
 
 Parameters include:
 
-`generate_word_parts`:: 
+`generate_word_parts`::
     If `true` causes parts of words to be
     generated: "PowerShot" => "Power" "Shot". Defaults to `true`.
 
-`generate_number_parts`:: 
+`generate_number_parts`::
     If `true` causes number subwords to be
     generated: "500-42" => "500" "42". Defaults to `true`.
 
-`catenate_words`:: 
+`catenate_words`::
     If `true` causes maximum runs of word parts to be
     catenated: "wi-fi" => "wifi". Defaults to `false`.
 
-`catenate_numbers`:: 
+`catenate_numbers`::
     If `true` causes maximum runs of number parts to
     be catenated: "500-42" => "50042". Defaults to `false`.
 
-`catenate_all`:: 
+`catenate_all`::
     If `true` causes all subword parts to be catenated:
     "wi-fi-4000" => "wifi4000". Defaults to `false`.
 
-`split_on_case_change`:: 
+`split_on_case_change`::
     If `true` causes "PowerShot" to be two tokens;
     ("Power-Shot" remains two parts regards). Defaults to `true`.
 
@@ -44,29 +44,29 @@ Parameters include:
     If `true` includes original words in subwords:
     "500-42" => "500-42" "500" "42". Defaults to `false`.
 
-`split_on_numerics`:: 
+`split_on_numerics`::
     If `true` causes "j2se" to be three tokens; "j"
     "2" "se". Defaults to `true`.
 
-`stem_english_possessive`:: 
+`stem_english_possessive`::
     If `true` causes trailing "'s" to be
     removed for each subword: "O'Neil's" => "O", "Neil". Defaults to `true`.
 
 Advance settings include:
 
-`protected_words`:: 
+`protected_words`::
     A list of protected words from being delimiter.
     Either an array, or also can set `protected_words_path` which resolved
     to a file configured with protected words (one on each line).
     Automatically resolves to `config/` based location if exists.
 
-`type_table`:: 
+`type_table`::
     A custom type mapping table, for example (when configured
     using `type_table_path`):
 
 [source,js]
 --------------------------------------------------
-    # Map the $, %, '.', and ',' characters to DIGIT 
+    # Map the $, %, '.', and ',' characters to DIGIT
     # This might be useful for financial data.
     $ => DIGIT
     % => DIGIT
@@ -78,3 +78,9 @@ Advance settings include:
     # see http://en.wikipedia.org/wiki/Zero-width_joiner
     \\u200D => ALPHANUM
 --------------------------------------------------
+
+NOTE: Using a tokenizer like the `standard` tokenizer may interfere with
+the `catenate_*` and `preserve_original` parameters, as the original
+string may already have lost punctuation during tokenization.  Instead,
+you may want to use the `whitespace` tokenizer.
+

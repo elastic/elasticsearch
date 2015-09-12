@@ -1,0 +1,17 @@
+[[java-query-dsl-filtered-query]]
+==== Filtered Query
+
+deprecated[2.0.0, Use the `bool` query instead with a `must` clause for the query and a `filter` clause for the filter]
+
+See {ref}/query-dsl-filtered-query.html[Filtered Query].
+
+[source,java]
+--------------------------------------------------
+QueryBuilder qb = filteredQuery(
+        matchQuery("name", "kimchy"),                       <1>
+        rangeQuery("dateOfBirth").from("1900").to("2100")   <2>
+);
+--------------------------------------------------
+<1> query which will be used for scoring
+<2> query which will only be used for filtering the result set
+

@@ -1,0 +1,76 @@
+[[disk-allocator]]
+=== Disk-based Shard Allocation
+
+Elasticsearch factors in the available disk space on a node before deciding
+whether to allocate new shards to that node or to actively relocate shards
+away from that node.
+
+Below are the settings that can be configured in the `elasticsearch.yml` config
+file or updated dynamically on a live cluster with the
+<<cluster-update-settings,cluster-update-settings>> API:
+
+`cluster.routing.allocation.disk.threshold_enabled`::
+
+    Defaults to `true`.  Set to `false` to disable the disk allocation decider.
+
+`cluster.routing.allocation.disk.watermark.low`::
+
+    Controls the low watermark for disk usage. It defaults to 85%, meaning ES will
+    not allocate new shards to nodes once they have more than 85% disk used. It
+    can also be set to an absolute byte value (like 500mb) to prevent ES from
+    allocating shards if less than the configured amount of space is available.
+
+`cluster.routing.allocation.disk.watermark.high`::
+
+    Controls the high watermark. It defaults to 90%, meaning ES will attempt to
+    relocate shards to another node if the node disk usage rises above 90%. It can
+    also be set to an absolute byte value (similar to the low watermark) to
+    relocate shards once less than the configured amount of space is available on
+    the node.
+
+NOTE: Percentage values refer to used disk space, while byte values refer to
+free disk space. This can be confusing, since it flips the meaning of high and
+low. For example, it makes sense to set the low watermark to 10gb and the high
+watermark to 5gb, but not the other way around.
+
+
+`cluster.info.update.interval`::
+
+    How often Elasticsearch should check on disk usage for each node in the
+    cluster. Defaults to `30s`.
+
+`cluster.routing.allocation.disk.include_relocations`::
+
+    Defaults to +true+, which means that Elasticsearch will take into account
+    shards that are currently being relocated to the target node when computing a
+    node's disk usage. Taking relocating shards' sizes into account may, however,
+    mean that the disk usage for a node is incorrectly estimated on the high side,
+    since the relocation could be 90% complete and a recently retrieved disk usage
+    would include the total size of the relocating shard as well as the space
+    already used by the running relocation.
+
+
+An example of updating the low watermark to no more than 80% of the disk size, a
+high watermark of at least 50 gigabytes free, and updating the information about
+the cluster every minute:
+
+[source,js]
+--------------------------------------------------
+PUT /_cluster/settings
+{
+  "transient": {
+    "cluster.routing.allocation.disk.watermark.low": "80%",
+    "cluster.routing.allocation.disk.watermark.high": "50gb",
+    "cluster.info.update.interval": "1m"
+  }
+}
+--------------------------------------------------
+// AUTOSENSE
+
+NOTE: Prior to 2.0.0, when using multiple data paths, the disk threshold
+decider only factored in the usage across all data paths (if you had two
+data paths, one with 50b out of 100b free (50% used) and another with
+40b out of 50b free (80% used) it would see the node's disk usage as 90b
+out of 150b). In 2.0.0, the minimum and maximum disk usages are tracked
+separately.
+

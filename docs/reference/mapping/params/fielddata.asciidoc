@@ -1,0 +1,229 @@
+[[fielddata]]
+=== `fielddata`
+
+Most fields are <<mapping-index,indexed>> by default, which makes them
+searchable. The inverted index allows queries to look up the search term in
+unique sorted list of terms, and from that immediately have access to the list
+of documents that contain the term.
+
+Sorting, aggregations, and access to field values in scripts requires a
+different data access pattern.  Instead of lookup up the term and finding
+documents, we need to be able to look up the document and find the terms that
+is has in a field.
+
+Most fields can use index-time, on-disk <<doc-values,`doc_values`>> to support
+this type of data access pattern, but `analyzed` string fields do not support
+`doc_values`.
+
+Instead, `analyzed` strings use a query-time data structure called
+`fielddata`.  This data structure is built on demand the first time that a
+field is used for aggregations, sorting, or is accessed in a script.  It is built
+by reading the entire inverted index for each segment from disk, inverting the
+term ↔︎ document relationship, and storing the result in memory, in the
+JVM heap.
+
+Loading fielddata is an expensive process so, once it has been loaded, it
+remains in memory for the lifetime of the segment.
+
+[WARNING]
+.Fielddata can fill up your heap space
+==============================================================================
+Fielddata can consume a lot of heap space, especially when loading high
+cardinality `analyzed` string fields.  Most of the time, it doesn't make sense
+to sort or aggregate on `analyzed` string fields (with the notable exception
+of the
+<<search-aggregations-bucket-significantterms-aggregation,`significant_terms`>>
+aggregation).  Always think about whether a `not_analyzed` field (which can
+use `doc_values`) would be  a better fit for your use case.
+==============================================================================
+
+TIP: The `fielddata.*` settings must have the same settings for fields of the
+same name in the same index.  Its value can be updated on existing fields
+using the <<indices-put-mapping,PUT mapping API>>.
+
+
+[[fielddata-format]]
+==== `fielddata.format`
+
+For `analyzed` string fields, the fielddata `format` controls whether
+fielddata should be enabled or not.  It accepts: `disabled` and `paged_bytes`
+(enabled, which is the default).  To disable fielddata loading, you can use
+the following mapping:
+
+[source,js]
+--------------------------------------------------
+PUT my_index
+{
+  "mappings": {
+    "my_type": {
+      "properties": {
+        "text": {
+          "type": "string",
+          "fielddata": {
+            "format": "disabled" <1>
+          }
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// AUTOSENSE
+<1> The `text` field cannot be used for sorting, aggregations, or in scripts.
+
+.Fielddata and other datatypes
+[NOTE]
+==================================================
+
+Historically, other field datatypes also used fielddata, but this has been replaced
+by index-time, disk-based <<doc-values,`doc_values`>>.
+
+==================================================
+
+
+[[fielddata-loading]]
+==== `fielddata.loading`
+
+This per-field setting controls when fielddata is loaded into memory. It
+accepts three options:
+
+[horizontal]
+`lazy`::
+
+    Fielddata is only loaded into memory when it is needed. (default)
+
+`eager`::
+
+    Fielddata is loaded into memory before a new search segment becomes
+    visible to search.  This can reduce the latency that a user may experience
+    if their search request has to trigger lazy loading from a big segment.
+
+`eager_global_ordinals`::
+
+    Loading fielddata into memory is only part of the work that is required.
+    After loading the fielddata for each segment, Elasticsearch builds the
+    <<global-ordinals>> data structure to make a list of all unique terms
+    across all the segments in a shard.  By default, global ordinals are built
+    lazily.  If the field has a very high cardinality, global ordinals may
+    take some time to build, in which case you can use eager loading instead.
+
+[[global-ordinals]]
+.Global ordinals
+*****************************************
+
+Global ordinals is a data-structure on top of fielddata and doc values, that
+maintains an incremental numbering for each unique term in a lexicographic
+order. Each term has a unique number and the number of term 'A' is lower than
+the number of term 'B'. Global ordinals are only supported on string fields.
+
+Fielddata and doc values also have ordinals, which is a unique numbering for all terms
+in a particular segment and field. Global ordinals just build on top of this,
+by providing a mapping between the segment ordinals and the global ordinals,
+the latter being unique across the entire shard.
+
+Global ordinals are used for features that use segment ordinals, such as
+sorting and the terms aggregation, to improve the execution time. A terms
+aggregation relies purely on global ordinals to perform the aggregation at the
+shard level, then converts global ordinals to the real term only for the final
+reduce phase, which combines results from different shards.
+
+Global ordinals for a specified field are tied to _all the segments of a
+shard_, while fielddata and doc values ordinals are tied to a single segment.
+which is different than for field data for a specific field which is tied to a
+single segment. For this reason global ordinals need to be entirely rebuilt
+whenever a once new segment becomes visible.
+
+The loading time of global ordinals depends on the number of terms in a field, but in general
+it is low, since it source field data has already been loaded. The memory overhead of global
+ordinals is a small because it is very efficiently compressed. Eager loading of global ordinals
+can move the loading time from the first search request, to the refresh itself.
+
+*****************************************
+
+[[field-data-filtering]]
+==== `fielddata.filter`
+
+Fielddata filtering can be used to reduce the number of terms loaded into
+memory, and thus reduce memory usage. Terms can be filtered by _frequency_ or
+by _regular expression_, or a combination of the two:
+
+Filtering by frequency::
++
+--
+
+The frequency filter allows you to only load terms whose term frequency falls
+between a `min` and `max` value, which can be expressed an absolute
+number (when the number is bigger than 1.0) or as a percentage
+(eg `0.01` is `1%` and `1.0` is `100%`). Frequency is calculated
+*per segment*. Percentages are based on the number of docs which have a
+value for the field, as opposed to all docs in the segment.
+
+Small segments can be excluded completely by specifying the minimum
+number of docs that the segment should contain with `min_segment_size`:
+
+[source,js]
+--------------------------------------------------
+PUT my_index
+{
+  "mappings": {
+    "my_type": {
+      "properties": {
+        "tag": {
+          "type": "string",
+          "fielddata": {
+            "filter": {
+              "frequency": {
+                "min": 0.001,
+                "max": 0.1,
+                "min_segment_size": 500
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// AUTOSENSE
+--
+
+Filtering by regex::
++
+--
+Terms can also be filtered by regular expression - only values which
+match the regular expression are loaded. Note: the regular expression is
+applied to each term in the field, not to the whole field value. For
+instance, to only load hashtags from a tweet, we can use a regular
+expression which matches terms beginning with `#`:
+
+[source,js]
+--------------------------------------------------
+PUT my_index
+{
+  "mappings": {
+    "my_type": {
+      "properties": {
+        "tweet": {
+          "type": "string",
+          "analyzer": "whitespace",
+          "fielddata": {
+            "filter": {
+              "regex": {
+                "pattern": "^#.*"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// AUTOSENSE
+--
+
+These filters can be updated on an existing field mapping and will take
+effect the next time the fielddata for a segment is loaded. Use the
+<<indices-clearcache,Clear Cache>> API
+to reload the fielddata using the new filters.

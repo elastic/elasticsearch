@@ -1,0 +1,47 @@
+---
+"Parent":
+
+ - do:
+      indices.create:
+          index: test_1
+          body:
+            mappings:
+              test:
+                _parent: { type: "foo" }
+            settings:
+              number_of_shards: 5
+              number_of_replicas: 0
+
+ - do:
+      cluster.health:
+          wait_for_status: green
+
+ - do:
+      index:
+          index:   test_1
+          type:    test
+          id:      1
+          parent:  4
+          routing: 5
+          body:    { foo: bar }
+
+ - do:
+      mget:
+        index:  test_1
+        type:   test
+        fields:  [ _routing , _parent]
+        body:
+          docs:
+            - { _id: 1 }
+            - { _id: 1, parent: 4 }
+            - { _id: 1, parent: 4, routing: 5 }
+
+ - is_false:  docs.0.found
+ - is_false:  docs.1.found
+
+ - is_true:   docs.2.found
+ - match:   { docs.2._index:   test_1 }
+ - match:   { docs.2._type:    test   }
+ - match:   { docs.2._id:      "1"    }
+ - match:   { docs.2._parent:  "4"    }
+ - match:   { docs.2._routing: "5"    }

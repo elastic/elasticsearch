@@ -1,239 +1,36 @@
 [[modules-cluster]]
 == Cluster
 
-[float]
-[[shards-allocation]]
-=== Shards Allocation
+One of the main roles of the master is to decide which shards to allocate to
+which nodes, and when to move shards between nodes in order to rebalance the
+cluster.
 
-Shards allocation is the process of allocating shards to nodes. This can
-happen during initial recovery, replica allocation, rebalancing, or
-handling nodes being added or removed.
+There are a number of settings available to control the shard allocation process:
 
-The following settings may be used:
+*   <<shards-allocation>> lists the settings to control the allocation an
+    rebalancing operations.
 
-`cluster.routing.allocation.allow_rebalance`::
-        Allow to control when rebalancing will happen based on the total
-        state of all the indices shards in the cluster. `always`,
-        `indices_primaries_active`, and `indices_all_active` are allowed,
-        defaulting to `indices_all_active` to reduce chatter during
-        initial recovery.
+*   <<disk-allocator>> explains how Elasticsearch takes available disk space
+    into account, and the related settings.
 
+*   <<allocation-awareness>> and <<forced-awareness>> control how shards can
+    be distributed across different racks or availability zones.
 
-`cluster.routing.allocation.cluster_concurrent_rebalance`::
-      Allow to control how many concurrent rebalancing of shards are
-      allowed cluster wide, and default it to `2`.
+*   <<allocation-filtering>> allows certain nodes or groups of nodes excluded
+    from allocation so that they can be decommisioned.
 
+Besides these, there are a few other <<misc-cluster,miscellaneous cluster-level settings>>.
 
-`cluster.routing.allocation.node_initial_primaries_recoveries`::
-       Allow to control specifically the number of initial recoveries
-       of primaries that are allowed per node. Since most times local
-       gateway is used, those should be fast and we can handle more of
-       those per node without creating load.
+All of the settings in this section are _dynamic_ settings which can be
+updated on a live cluster with the
+<<cluster-update-settings,cluster-update-settings>> API.
 
+include::cluster/shards_allocation.asciidoc[]
 
-`cluster.routing.allocation.node_concurrent_recoveries`::
-     How many concurrent recoveries are allowed to happen on a node.
-     Defaults to `2`.
+include::cluster/disk_allocator.asciidoc[]
 
-`cluster.routing.allocation.enable`::
-    Controls shard allocation for all indices, by allowing specific
-    kinds of shard to be allocated.
-    added[1.0.0.RC1,Replaces `cluster.routing.allocation.disable*`]
-    Can be set to:
-    * `all` (default) - Allows shard allocation for all kinds of shards.
-    * `primaries` - Allows shard allocation only for primary shards.
-    * `new_primaries` - Allows shard allocation only for primary shards for new indices.
-    * `none` - No shard allocations of any kind are allowed for all indices.
+include::cluster/allocation_awareness.asciidoc[]
 
-`cluster.routing.allocation.disable_new_allocation`::
-    deprecated[1.0.0.RC1,Replaced by `cluster.routing.allocation.enable`]
+include::cluster/allocation_filtering.asciidoc[]
 
-`cluster.routing.allocation.disable_allocation`::
-    deprecated[1.0.0.RC1,Replaced by `cluster.routing.allocation.enable`]
-
-
-`cluster.routing.allocation.disable_replica_allocation`::
-    deprecated[1.0.0.RC1,Replaced by `cluster.routing.allocation.enable`]
-
-`cluster.routing.allocation.same_shard.host`::
-      Allows to perform a check to prevent allocation of multiple instances
-      of the same shard on a single host, based on host name and host address.
-      Defaults to `false`, meaning that no check is performed by default. This
-      setting only applies if multiple nodes are started on the same machine.
-
-`indices.recovery.concurrent_streams`::
-       The number of streams to open (on a *node* level) to recover a
-       shard from a peer shard. Defaults to `3`.
-
-[float]
-[[allocation-awareness]]
-=== Shard Allocation Awareness
-
-Cluster allocation awareness allows to configure shard and replicas
-allocation across generic attributes associated the nodes. Lets explain
-it through an example:
-
-Assume we have several racks. When we start a node, we can configure an
-attribute called `rack_id` (any attribute name works), for example, here
-is a sample config:
-
-----------------------
-node.rack_id: rack_one
-----------------------
-
-The above sets an attribute called `rack_id` for the relevant node with
-a value of `rack_one`. Now, we need to configure the `rack_id` attribute
-as one of the awareness allocation attributes (set it on *all* (master
-eligible) nodes config):
-
---------------------------------------------------------
-cluster.routing.allocation.awareness.attributes: rack_id
---------------------------------------------------------
-
-The above will mean that the `rack_id` attribute will be used to do
-awareness based allocation of shard and its replicas. For example, lets
-say we start 2 nodes with `node.rack_id` set to `rack_one`, and deploy a
-single index with 5 shards and 1 replica. The index will be fully
-deployed on the current nodes (5 shards and 1 replica each, total of 10
-shards).
-
-Now, if we start two more nodes, with `node.rack_id` set to `rack_two`,
-shards will relocate to even the number of shards across the nodes, but,
-a shard and its replica will not be allocated in the same `rack_id`
-value.
-
-The awareness attributes can hold several values, for example:
-
--------------------------------------------------------------
-cluster.routing.allocation.awareness.attributes: rack_id,zone
--------------------------------------------------------------
-
-*NOTE*: When using awareness attributes, shards will not be allocated to
-nodes that don't have values set for those attributes.
-
-[float]
-[[forced-awareness]]
-=== Forced Awareness
-
-Sometimes, we know in advance the number of values an awareness
-attribute can have, and more over, we would like never to have more
-replicas then needed allocated on a specific group of nodes with the
-same awareness attribute value. For that, we can force awareness on
-specific attributes.
-
-For example, lets say we have an awareness attribute called `zone`, and
-we know we are going to have two zones, `zone1` and `zone2`. Here is how
-we can force awareness on a node:
-
-[source,js]
--------------------------------------------------------------------
-cluster.routing.allocation.awareness.force.zone.values: zone1,zone2
-cluster.routing.allocation.awareness.attributes: zone
--------------------------------------------------------------------
-
-Now, lets say we start 2 nodes with `node.zone` set to `zone1` and
-create an index with 5 shards and 1 replica. The index will be created,
-but only 5 shards will be allocated (with no replicas). Only when we
-start more shards with `node.zone` set to `zone2` will the replicas be
-allocated.
-
-[float]
-==== Automatic Preference When Searching / GETing
-
-When executing a search, or doing a get, the node receiving the request
-will prefer to execute the request on shards that exists on nodes that
-have the same attribute values as the executing node.
-
-[float]
-==== Realtime Settings Update
-
-The settings can be updated using the <<cluster-update-settings,cluster update settings API>> on a live cluster.
-
-[float]
-[[allocation-filtering]]
-=== Shard Allocation Filtering
-
-Allow to control allocation of indices on nodes based on include/exclude
-filters. The filters can be set both on the index level and on the
-cluster level. Lets start with an example of setting it on the cluster
-level:
-
-Lets say we have 4 nodes, each has specific attribute called `tag`
-associated with it (the name of the attribute can be any name). Each
-node has a specific value associated with `tag`. Node 1 has a setting
-`node.tag: value1`, Node 2 a setting of `node.tag: value2`, and so on.
-
-We can create an index that will only deploy on nodes that have `tag`
-set to `value1` and `value2` by setting
-`index.routing.allocation.include.tag` to `value1,value2`. For example:
-
-[source,js]
---------------------------------------------------
-curl -XPUT localhost:9200/test/_settings -d '{
-      "index.routing.allocation.include.tag" : "value1,value2"
-}'
---------------------------------------------------
-
-On the other hand, we can create an index that will be deployed on all
-nodes except for nodes with a `tag` of value `value3` by setting
-`index.routing.allocation.exclude.tag` to `value3`. For example:
-
-[source,js]
---------------------------------------------------
-curl -XPUT localhost:9200/test/_settings -d '{
-      "index.routing.allocation.exclude.tag" : "value3"
-}'
---------------------------------------------------
-
-`index.routing.allocation.require.*` can be used to
-specify a number of rules, all of which MUST match in order for a shard
-to be  allocated to a node. This is in contrast to `include` which will
-include a node if ANY rule matches.
-
-The `include`, `exclude` and `require` values can have generic simple
-matching wildcards, for example, `value1*`. A special attribute name
-called `_ip` can be used to match on node ip values. In addition `_host`
-attribute can be used to match on either the node's hostname or its ip
-address. Similarly `_name` and `_id` attributes can be used to match on
-node name and node id accordingly.
-
-Obviously a node can have several attributes associated with it, and
-both the attribute name and value are controlled in the setting. For
-example, here is a sample of several node configurations:
-
-[source,js]
---------------------------------------------------
-node.group1: group1_value1
-node.group2: group2_value4
---------------------------------------------------
-
-In the same manner, `include`, `exclude` and `require` can work against
-several attributes, for example:
-
-[source,js]
---------------------------------------------------
-curl -XPUT localhost:9200/test/_settings -d '{
-    "index.routing.allocation.include.group1" : "xxx"
-    "index.routing.allocation.include.group2" : "yyy",
-    "index.routing.allocation.exclude.group3" : "zzz",
-    "index.routing.allocation.require.group4" : "aaa"
-}'
---------------------------------------------------
-
-The provided settings can also be updated in real time using the update
-settings API, allowing to "move" indices (shards) around in realtime.
-
-Cluster wide filtering can also be defined, and be updated in real time
-using the cluster update settings API. This setting can come in handy
-for things like decommissioning nodes (even if the replica count is set
-to 0). Here is a sample of how to decommission a node based on `_ip`
-address:
-
-[source,js]
---------------------------------------------------
-curl -XPUT localhost:9200/_cluster/settings -d '{
-    "transient" : {
-        "cluster.routing.allocation.exclude._ip" : "10.0.0.1"
-    }
-}'
---------------------------------------------------
+include::cluster/misc.asciidoc[]

@@ -1,0 +1,76 @@
+[[query-dsl-exists-query]]
+=== Exists Query
+
+Returns documents that have at least one non-`null` value in the original field:
+
+[source,js]
+--------------------------------------------------
+{
+    "constant_score" : {
+        "filter" : {
+            "exists" : { "field" : "user" }
+        }
+    }
+}
+--------------------------------------------------
+
+For instance, these documents would all match the above query:
+
+[source,js]
+--------------------------------------------------
+{ "user": "jane" }
+{ "user": "" } <1>
+{ "user": "-" } <2>
+{ "user": ["jane"] }
+{ "user": ["jane", null ] } <3>
+--------------------------------------------------
+<1> An empty string is a non-`null` value.
+<2> Even though the `standard` analyzer would emit zero tokens, the original field is non-`null`.
+<3> At least one non-`null` value is required.
+
+These documents would *not* match the above query:
+
+[source,js]
+--------------------------------------------------
+{ "user": null }
+{ "user": [] } <1>
+{ "user": [null] } <2>
+{ "foo":  "bar" } <3>
+--------------------------------------------------
+<1> This field has no values.
+<2> At least one non-`null` value is required.
+<3> The `user` field is missing completely.
+
+[float]
+===== `null_value` mapping
+
+If the field mapping includes the <<null-value,`null_value`>> setting
+then explicit `null` values are replaced with the specified `null_value`.  For
+instance, if the `user` field were mapped as follows:
+
+[source,js]
+--------------------------------------------------
+  "user": {
+    "type": "string",
+    "null_value": "_null_"
+  }
+--------------------------------------------------
+
+then explicit `null` values would be indexed as the string `_null_`, and the
+following docs would match the `exists` filter:
+
+[source,js]
+--------------------------------------------------
+{ "user": null }
+{ "user": [null] }
+--------------------------------------------------
+
+However, these docs--without explicit `null` values--would still have
+no values in the `user` field and thus would not match the `exists` filter:
+
+[source,js]
+--------------------------------------------------
+{ "user": [] }
+{ "foo": "bar" }
+--------------------------------------------------
+

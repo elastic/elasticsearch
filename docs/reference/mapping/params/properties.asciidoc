@@ -1,0 +1,105 @@
+[[properties]]
+=== `properties`
+
+Type mappings, <<object,`object` fields>> and <<nested,`nested` fields>>
+contain sub-fields, called `properties`. These properties may be of any
+<<mapping-types,datatype>>, including `object` and `nested`.  Properties can
+be added:
+
+* explicitly by defining them when <<indices-create-index,creating an index>>.
+* explicitily by defining them when adding or updating a mapping type with the <<indices-put-mapping,PUT mapping>> API.
+* <<dynamic-mapping,dynamically>> just by indexing documents containing new fields.
+
+Below is an example of adding `properties` to a mapping type, an `object`
+field, and a `nested` field:
+
+[source,js]
+--------------------------------------------------
+PUT my_index
+{
+  "mappings": {
+    "my_type": { <1>
+      "properties": {
+        "manager": { <2>
+          "properties": {
+            "age":  { "type": "integer" },
+            "name": { "type": "string"  }
+          }
+        },
+        "employees": { <3>
+          "type": "nested",
+          "properties": {
+            "age":  { "type": "integer" },
+            "name": { "type": "string"  }
+          }
+        }
+      }
+    }
+  }
+}
+
+PUT my_index/my_type/1 <4>
+{
+  "region": "US",
+  "manager": {
+    "name": "Alice White",
+    "age": 30
+  },
+  "employees": [
+    {
+      "name": "John Smith",
+      "age": 34
+    },
+    {
+      "name": "Peter Brown",
+      "age": 26
+    }
+  ]
+}
+--------------------------------------------------
+// AUTOSENSE
+<1> Properties under the `my_type` mapping type.
+<2> Properties under the `manager` object field.
+<3> Properties under the `employees` nested field.
+<4> An example document which corresponds to the above mapping.
+
+TIP: The `properties` setting is allowed to have different settings for fields
+of the same name in the same index.  New properties can be added to existing
+fields using the <<indices-put-mapping,PUT mapping API>>.
+
+==== Dot notation
+
+Inner fields can be referred to in queries, aggregations, etc., using _dot
+notation_:
+
+[source,js]
+--------------------------------------------------
+GET my_index/_search
+{
+  "query": {
+    "match": {
+      "manager.name": "Alice White" <1>
+    }
+  },
+  "aggs": {
+    "Employees": {
+      "nested": {
+        "path": "employees"
+      },
+      "aggs": {
+        "Employee Ages": {
+          "histogram": {
+            "field": "employees.age", <2>
+            "interval": 5
+          }
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// AUTOSENSE
+
+IMPORTANT: The full path to the inner field must be specified.
+
+

@@ -1,0 +1,120 @@
+[[indices-shadow-replicas]]
+== Shadow replica indices
+
+experimental[]
+
+If you would like to use a shared filesystem, you can use the shadow replicas
+settings to choose where on disk the data for an index should be kept, as well
+as how Elasticsearch should replay operations on all the replica shards of an
+index.
+
+In order to fully utilize the `index.data_path` and `index.shadow_replicas`
+settings, you need to allow Elasticsearch to use the same data directory for
+multiple instances by setting `node.add_id_to_custom_path` to false in
+elasticsearch.yml:
+
+[source,yaml]
+--------------------------------------------------
+node.add_id_to_custom_path: false
+--------------------------------------------------
+
+You will also need to indicate to the security manager where the custom indices
+will be, so that the correct permissions can be applied. You can do this by
+setting the `path.shared_data` setting in elasticsearch.yml:
+
+[source,yaml]
+--------------------------------------------------
+path.shared_data: /opt/data
+--------------------------------------------------
+
+This means that Elasticsearch can read and write to files in any subdirectory of
+the `path.shared_data` setting.
+
+You can then create an index with a custom data path, where each node will use
+this path for the data:
+
+[WARNING]
+========================
+Because shadow replicas do not index the document on replica shards, it's
+possible for the replica's known mapping to be behind the index's known mapping
+if the latest cluster state has not yet been processed on the node containing
+the replica. Because of this, it is highly recommended to use pre-defined
+mappings when using shadow replicas.
+========================
+
+[source,js]
+--------------------------------------------------
+curl -XPUT 'localhost:9200/my_index' -d '
+{
+    "index" : {
+        "number_of_shards" : 1,
+        "number_of_replicas" : 4,
+        "data_path": "/opt/data/my_index",
+        "shadow_replicas": true
+    } 
+}'
+--------------------------------------------------
+
+[WARNING]
+========================
+In the above example, the "/opt/data/my_index" path is a shared filesystem that
+must be available on every node in the Elasticsearch cluster. You must also
+ensure that the Elasticsearch process has the correct permissions to read from
+and write to the directory used in the `index.data_path` setting.
+========================
+
+An index that has been created with the `index.shadow_replicas` setting set to
+"true" will not replicate document operations to any of the replica shards,
+instead, it will only continually refresh. Once segments are available on the
+filesystem where the shadow replica resides (after an Elasticsearch "flush"), a
+regular refresh (governed by the `index.refresh_interval`) can be used to make
+the new data searchable.
+
+NOTE: Since documents are only indexed on the primary shard, realtime GET
+requests could fail to return a document if executed on the replica shard,
+therefore, GET API requests automatically have the `?preference=_primary` flag
+set if there is no preference flag already set.
+
+In order to ensure the data is being synchronized in a fast enough manner, you
+may need to tune the flush threshold for the index to a desired number. A flush
+is needed to fsync segment files to disk, so they will be visible to all other
+replica nodes. Users should test what flush threshold levels they are
+comfortable with, as increased flushing can impact indexing performance.
+
+The Elasticsearch cluster will still detect the loss of a primary shard, and
+transform the replica into a primary in this situation. This transformation will
+take slightly longer, since no `IndexWriter` is maintained for each shadow
+replica.
+
+Below is the list of settings that can be changed using the update
+settings API:
+
+`index.data_path` (string)::
+    Path to use for the index's data. Note that by default Elasticsearch will
+    append the node ordinal by default to the path to ensure multiple instances
+    of Elasticsearch on the same machine do not share a data directory.
+
+`index.shadow_replicas`::
+    Boolean value indicating this index should use shadow replicas. Defaults to
+    `false`.
+
+`index.shared_filesystem`::
+    Boolean value indicating this index uses a shared filesystem. Defaults to
+    the `true` if `index.shadow_replicas` is set to true, `false` otherwise.
+
+`index.shared_filesystem.recover_on_any_node`::
+    Boolean value indicating whether the primary shards for the index should be
+    allowed to recover on any node in the cluster, regardless of the number of
+    replicas or whether the node has previously had the shard allocated to it
+    before. Defaults to `false`.
+
+=== Node level settings related to shadow replicas
+
+These are non-dynamic settings that need to be configured in `elasticsearch.yml`
+
+`node.add_id_to_custom_path`::
+    Boolean setting indicating whether Elasticsearch should append the node's
+    ordinal to the custom data path. For example, if this is enabled and a path
+    of "/tmp/foo" is used, the first locally-running node will use "/tmp/foo/0",
+    the second will use "/tmp/foo/1", the third "/tmp/foo/2", etc. Defaults to
+    `true`.

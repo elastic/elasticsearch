@@ -1,0 +1,55 @@
+[[plugin-authors]]
+== Help for plugin authors
+
+The Elasticsearch repository contains examples of:
+
+* a https://github.com/elastic/elasticsearch/tree/master/plugins/site-example[site plugin]
+  for serving static HTML, JavaScript, and CSS.
+* a https://github.com/elastic/elasticsearch/tree/master/plugins/jvm-example[Java plugin]
+  which contains Java code.
+
+These examples provide the bare bones needed to get started.  For more
+information about how to write a plugin, we recommend looking at the plugins
+listed in this documentation for inspiration.
+
+[NOTE]
+.Site plugins
+====================================
+
+The example site plugin mentioned above contains all of the scaffolding needed
+for integrating with Maven builds.  If you don't plan on using Maven, then all
+you really need in your plugin is:
+
+* The `plugin-descriptor.properties` file
+* The `_site/` directory
+* The `_site/index.html` file
+
+====================================
+
+[float]
+=== Plugin descriptor file
+
+All plugins, be they site or Java plugins, must contain a file called
+`plugin-descriptor.properties` in the root directory. The format for this file
+is described in detail  here:
+
+https://github.com/elastic/elasticsearch/blob/master/dev-tools/src/main/resources/plugin-metadata/plugin-descriptor.properties[`dev-tools/src/main/resources/plugin-metadata/plugin-descriptor.properties`].
+
+Either fill in this template yourself (see
+https://github.com/lmenezes/elasticsearch-kopf/blob/master/plugin-descriptor.properties[elasticsearch-kopf]
+as an example) or, if you are using Elasticsearch's Maven build system, you
+can fill in the necessary values in the `pom.xml` for your plugin. For
+instance, see
+https://github.com/elastic/elasticsearch/blob/master/plugins/site-example/pom.xml[`plugins/site-example/pom.xml`].
+
+[float]
+=== Testing your plugin
+
+When testing a Java plugin, it will only be auto-loaded if it is in the
+`plugins/` directory.  Use `bin/plugin install file://path/to/your/plugin`
+to install your plugin for testing.
+
+You may also load your plugin within the test framework for integration tests.
+Read more in {ref}/integration-tests.html#changing-node-configuration[Changing Node Configuration].
+
+

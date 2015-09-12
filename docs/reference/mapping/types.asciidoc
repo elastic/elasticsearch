@@ -1,24 +1,86 @@
 [[mapping-types]]
-== Types
+== Field datatypes
 
-The datatype for each field in a document (eg strings, numbers, 
-objects etc) can be controlled via the type mapping.
+Elasticsearch supports a number of different datatypes for the fields in a
+document:
 
-include::types/core-types.asciidoc[]
+[float]
+=== Core datatypes
 
-include::types/array-type.asciidoc[]
+<<string>>::    `string`
+<<number>>::    `long`, `integer`, `short`, `byte`, `double`, `float`
+<<date>>::      `date`
+<<boolean>>::   `boolean`
+<<binary>>::    `binary`
 
-include::types/object-type.asciidoc[]
+[float]
+=== Complex datatypes
 
-include::types/root-object-type.asciidoc[]
+<<array>>::     Array support does not require a dedicated `type`
+<<object>>::    `object` for single JSON objects
+<<nested>>::    `nested` for arrays of JSON objects
 
-include::types/nested-type.asciidoc[]
+[float]
+=== Geo dataypes
 
-include::types/ip-type.asciidoc[]
+<<geo-point>>::     `geo_point` for lat/lon points
+<<geo-shape>>::     `geo_shape` for complex shapes like polygons
 
-include::types/geo-point-type.asciidoc[]
+[float]
+=== Specialised datatypes
 
-include::types/geo-shape-type.asciidoc[]
+<<ip>>::            `ip` for IPv4 addresses
+<<search-suggesters-completion,Completion datatype>>::
+                    `completion` to provide auto-complete suggestions
+<<token-count>>::   `token_count` to count the number of tokens in a string
+{plugins}/mapper-size.html[`mapper-murmur3`]:: `murmur3` to compute hashes of values at index-time and store them in the index
 
-include::types/attachment-type.asciidoc[]
+Attachment datatype::
+
+    See the https://github.com/elastic/elasticsearch-mapper-attachments[mapper attachment plugin]
+    which supports indexing ``attachments'' like Microsoft Office formats, Open
+    Document formats, ePub, HTML, etc. into an `attachment` datatype.
+
+[float]
+=== Multi-fields
+
+It is often useful to index the same field in different ways for different
+purposes. For instance, a `string` field could be <<mapping-index,indexed>> as
+an `analyzed` field for full-text search, and as a `not_analyzed` field for
+sorting or aggregations.  Alternatively, you could index a string field with
+the <<analysis-standard-analyzer,`standard` analyzer>>, the
+<<english-analyzer,`english`>> analyzer, and the
+<<french-analyzer,`french` analyzer>>.
+
+This is the purpose of _multi-fields_.  Most datatypes support multi-fields
+via the <<multi-fields>> parameter.
+
+include::types/array.asciidoc[]
+
+include::types/binary.asciidoc[]
+
+include::types/boolean.asciidoc[]
+
+include::types/date.asciidoc[]
+
+include::types/geo-point.asciidoc[]
+
+include::types/geo-shape.asciidoc[]
+
+include::types/ip.asciidoc[]
+
+include::types/nested.asciidoc[]
+
+include::types/numeric.asciidoc[]
+
+include::types/object.asciidoc[]
+
+include::types/string.asciidoc[]
+
+include::types/token-count.asciidoc[]
+
+
+
+
+
 

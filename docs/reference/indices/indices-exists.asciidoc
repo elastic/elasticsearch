@@ -5,7 +5,7 @@ Used to check if the index (indices) exists or not. For example:
 
 [source,js]
 --------------------------------------------------
-curl -XHEAD 'http://localhost:9200/twitter'
+curl -XHEAD -i 'http://localhost:9200/twitter'
 --------------------------------------------------
 
 The HTTP status code indicates if the index exists or not. A `404` means

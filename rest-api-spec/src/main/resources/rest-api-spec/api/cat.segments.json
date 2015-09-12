@@ -1,0 +1,33 @@
+{
+  "cat.segments": {
+    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/cat-segments.html",
+    "methods": ["GET"],
+    "url": {
+      "path": "/_cat/segments",
+      "paths": ["/_cat/segments", "/_cat/segments/{index}"],
+      "parts": {
+        "index": {
+          "type" : "list",
+          "description": "A comma-separated list of index names to limit the returned information"
+        }
+      },
+      "params": {
+        "h": {
+            "type": "list",
+            "description" : "Comma-separated list of column names to display"
+        },
+        "help": {
+          "type": "boolean",
+          "description": "Return help information",
+          "default": false
+        },
+        "v": {
+          "type": "boolean",
+          "description": "Verbose mode. Display column headers",
+          "default": false
+        }
+      }
+    },
+    "body": null
+  }
+}

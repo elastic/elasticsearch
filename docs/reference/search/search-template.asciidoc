@@ -1,8 +1,6 @@
 [[search-template]]
 == Search Template
 
-added[1.1.0]
-
 The `/_search/template` endpoint allows to use the mustache language to pre render search requests,
 before they are executed and fill existing templates with template parameters.
 
@@ -10,7 +8,7 @@ before they are executed and fill existing templates with template parameters.
 ------------------------------------------
 GET /_search/template
 {
-    "template" : {
+    "inline" : {
       "query": { "match" : { "{{my_field}}" : "{{my_value}}" } },
       "size" : "{{my_size}}"
     },
@@ -27,6 +25,11 @@ For more information on how Mustache templating and what kind of templating you
 can do with it check out the http://mustache.github.io/mustache.5.html[online
 documentation of the mustache project].
 
+NOTE: The mustache language is implemented in elasticsearch as a sandboxed
+scripting language, hence it obeys settings that may be used to enable or
+disable scripts per language, source and operation as described in
+<<enable-dynamic-scripting, scripting docs>>
+
 [float]
 ==== More template examples
 
@@ -37,7 +40,7 @@ documentation of the mustache project].
 ------------------------------------------
 GET /_search/template
 {
-    "template": {
+    "inline": {
         "query": {
             "match": {
                 "title": "{{query_string}}"
@@ -57,7 +60,7 @@ GET /_search/template
 ------------------------------------------
 GET /_search/template
 {
-  "template": {
+  "inline": {
     "query": {
       "terms": {
         "status": [
@@ -94,7 +97,7 @@ A default value is written as `{{var}}{{^var}}default{{/var}}` for instance:
 [source,js]
 ------------------------------------------
 {
-  "template": {
+  "inline": {
     "query": {
       "range": {
         "line_no": {
@@ -165,8 +168,9 @@ We could write the query as:
 [source,js]
 ------------------------------------------
 {
-    "filtered": {
-      "query": {
+  "query": {
+    "bool": {
+      "must": {
         "match": {
           "line": "{{text}}" <1>
         }
@@ -181,12 +185,13 @@ We could write the query as:
               {{/start}} <3>
               {{#end}} <6>
                 "lte": "{{end}}" <7>
-              {{/end}} </6>
+              {{/end}} <6>
             }
           }
         {{/line_no}} <2>
       }
     }
+  }
 }
 ------------------------------------------
 <1> Fill in the value of param `text`
@@ -198,11 +203,22 @@ We could write the query as:
 <6> Include the `lte` clause only if `line_no.end` is specified
 <7> Fill in the value of param `line_no.end`
 
+[NOTE]
+==================================
 As written above, this template is not valid JSON because it includes the
-_section_ markers like `{{#line_no}}`.  For this reason, the template
-can only be written as a string.
+_section_ markers like `{{#line_no}}`.  For this reason, the template should
+either be stored in a file (see <<pre-registered-templates>>) or, when used 
+via the REST API, should be written as a string:
+
+[source,js]
+--------------------
+"inline": "{\"query\":{\"bool\":{\"must\":{\"match\":{\"line\":\"{{text}}\"}},\"filter\":{{{#line_no}}\"range\":{\"line_no\":{{{#start}}\"gte\":\"{{start}}\"{{#end}},{{/end}}{{/start}}{{#end}}\"lte\":\"{{end}}\"{{/end}}}}{{/line_no}}}}}}"
+--------------------
+
+==================================
 
 [float]
+[[pre-registered-templates]]
 ===== Pre-registered template
 
 You can register search templates by storing it in the `config/scripts` directory, in a file using the `.mustache` extension.
@@ -213,7 +229,7 @@ In order to execute the stored template, reference it by it's name under the `te
 ------------------------------------------
 GET /_search/template
 {
-    "template": "storedTemplate" <1>,
+    "file": "storedTemplate", <1>
     "params": {
         "query_string": "search for these words"
     }
@@ -221,3 +237,135 @@ GET /_search/template
 ------------------------------------------
 
 <1> Name of the the query template in `config/scripts/`, i.e., `storedTemplate.mustache`.
+
+You can also register search templates by storing it in the elasticsearch cluster in a special index named `.scripts`.
+There are REST APIs to manage these indexed templates.
+
+[source,js]
+------------------------------------------
+POST /_search/template/<templatename>
+{
+    "template": {
+        "query": {
+            "match": {
+                "title": "{{query_string}}"
+            }
+        }
+    }
+}
+------------------------------------------
+
+This template can be retrieved by
+
+[source,js]
+------------------------------------------
+GET /_search/template/<templatename>
+------------------------------------------
+
+which is rendered as:
+
+[source,js]
+------------------------------------------
+{
+    "template": {
+        "query": {
+            "match": {
+                "title": "{{query_string}}"
+            }
+        }
+    }
+}
+------------------------------------------
+
+This template can be deleted by
+
+[source,js]
+------------------------------------------
+DELETE /_search/template/<templatename>
+------------------------------------------
+
+To use an indexed template at search time use:
+
+
+[source,js]
+------------------------------------------
+GET /_search/template
+{
+    "id": "templateName", <1>
+    "params": {
+        "query_string": "search for these words"
+    }
+}
+------------------------------------------
+<1> Name of the the query template stored in the `.scripts` index.
+
+[float]
+==== Validating templates
+
+A template can be rendered in a response with given parameters using
+
+[source,js]
+------------------------------------------
+GET /_render/template
+{
+  "inline": {
+    "query": {
+      "terms": {
+        "status": [
+          "{{#status}}",
+          "{{.}}",
+          "{{/status}}"
+        ]
+      }
+    }
+  },
+  "params": {
+    "status": [ "pending", "published" ]
+  }
+}
+------------------------------------------
+
+This call will return the rendered template:
+
+[source,js]
+------------------------------------------
+{
+  "template_output": {
+    "query": {
+      "terms": {
+        "status": [ <1>
+          "pending",
+          "published"
+        ]
+      }
+    }
+  }
+}
+------------------------------------------
+<1> `status` array has been populated with values from the `params` object.
+
+File and indexed templates can also be rendered by replacing `inline` with 
+`file` or `id` respectively. For example, to render a file template
+
+[source,js]
+------------------------------------------
+GET /_render/template
+{
+  "file": "my_template",
+  "params": {
+    "status": [ "pending", "published" ]
+  }
+}
+------------------------------------------
+
+Pre-registered templates can also be rendered using
+
+[source,js]
+------------------------------------------
+GET /_render/template/<template_name>
+{
+  "params": {
+    "...
+  }
+}
+------------------------------------------

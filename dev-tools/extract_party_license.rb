@@ -32,7 +32,7 @@ def all_installed_gems
 end
 
 all_installed_gems.select {|y| y.gem_dir.include?('vendor') }.sort {|v, u| v.name  <=> u.name }.each do |x|
-  puts '='*80 #seperator
+  puts '='*80 #separator
   if(x.license) #ah gem has license information
     puts "%s,%s,%s,%s,%s"%[x.name, x.version, x.license, x.homepage, x.email] 
   else

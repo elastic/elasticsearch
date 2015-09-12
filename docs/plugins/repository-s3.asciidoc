@@ -1,0 +1,374 @@
+[[repository-s3]]
+=== S3 Repository Plugin
+
+The S3 repository plugin adds support for using S3 as a repository for
+{ref}/modules-snapshots.html[Snapshot/Restore].
+
+[[repository-s3-install]]
+[float]
+==== Installation
+
+This plugin can be installed using the plugin manager:
+
+[source,sh]
+----------------------------------------------------------------
+sudo bin/plugin install repository-s3
+----------------------------------------------------------------
+
+The plugin must be installed on every node in the cluster, and each node must
+be restarted after installation.
+
+[[repository-s3-remove]]
+[float]
+==== Removal
+
+The plugin can be removed with the following command:
+
+[source,sh]
+----------------------------------------------------------------
+sudo bin/plugin remove repository-s3
+----------------------------------------------------------------
+
+The node must be stopped before removing the plugin.
+
+[[repository-s3-usage]]
+==== Getting started with AWS
+
+The plugin will default to using
+http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/iam-roles-for-amazon-ec2.html[IAM Role]
+credentials for authentication. These can be overridden by, in increasing
+order of precedence, system properties `aws.accessKeyId` and `aws.secretKey`,
+environment variables `AWS_ACCESS_KEY_ID` and `AWS_SECRET_KEY`, or the
+elasticsearch config using `cloud.aws.access_key` and `cloud.aws.secret_key`:
+
+[source,yaml]
+----
+cloud:
+    aws:
+        access_key: AKVAIQBF2RECL7FJWGJQ
+        secret_key: vExyMThREXeRMm/b/LRzEB8jWwvzQeXgjqMX+6br
+----
+
+[[repository-s3-usage-security]]
+===== Transport security
+
+By default this plugin uses HTTPS for all API calls to AWS endpoints. If you wish to configure HTTP you can set
+`cloud.aws.protocol` in the elasticsearch config. You can optionally override this setting per individual service
+via: `cloud.aws.ec2.protocol` or `cloud.aws.s3.protocol`.
+
+[source,yaml]
+----
+cloud:
+    aws:
+        protocol: https
+        s3:
+            protocol: http
+        ec2:
+            protocol: https
+----
+
+In addition, a proxy can be configured with the `proxy_host` and `proxy_port` settings (note that protocol can be
+`http` or `https`):
+
+[source,yaml]
+----
+cloud:
+    aws:
+        protocol: https
+        proxy_host: proxy1.company.com
+        proxy_port: 8083
+----
+
+You can also set different proxies for `ec2` and `s3`:
+
+[source,yaml]
+----
+cloud:
+    aws:
+        s3:
+            proxy_host: proxy1.company.com
+            proxy_port: 8083
+        ec2:
+            proxy_host: proxy2.company.com
+            proxy_port: 8083
+----
+
+[[repository-s3-usage-region]]
+===== Region
+
+The `cloud.aws.region` can be set to a region and will automatically use the relevant settings for both `ec2` and `s3`.
+The available values are:
+
+* `us-east` (`us-east-1`)
+* `us-west` (`us-west-1`)
+* `us-west-1`
+* `us-west-2`
+* `ap-southeast` (`ap-southeast-1`)
+* `ap-southeast-1`
+* `ap-southeast-2`
+* `ap-northeast` (`ap-northeast-1`)
+* `eu-west` (`eu-west-1`)
+* `eu-central` (`eu-central-1`)
+* `sa-east` (`sa-east-1`)
+* `cn-north` (`cn-north-1`)
+
+[[repository-s3-usage-signer]]
+===== S3 Signer API
+
+If you are using a S3 compatible service, they might be using an older API to sign the requests.
+You can set your compatible signer API using `cloud.aws.signer` (or `cloud.aws.s3.signer`) with the right
+signer to use.
+
+If you are using a compatible S3 service which do not support Version 4 signing process, you may need to
+use `S3SignerType`, which is Signature Version 2.
+
+[[repository-s3-repository]]
+==== S3 Repository
+
+The S3 repository is using S3 to store snapshots. The S3 repository can be created using the following command:
+
+[source,json]
+----
+PUT _snapshot/my_s3_repository
+{
+  "type": "s3",
+  "settings": {
+    "bucket": "my_bucket_name",
+    "region": "us-west"
+  }
+}
+----
+// AUTOSENSE
+
+The following settings are supported:
+
+`bucket`::
+
+    The name of the bucket to be used for snapshots. (Mandatory)
+
+`region`::
+
+    The region where bucket is located. Defaults to US Standard
+
+`endpoint`::
+
+    The endpoint to the S3 API. Defaults to AWS's default S3 endpoint. Note
+    that setting a region overrides the endpoint setting.
+
+`protocol`::
+
+    The protocol to use (`http` or `https`). Defaults to value of
+    `cloud.aws.protocol` or `cloud.aws.s3.protocol`.
+
+`base_path`::
+
+    Specifies the path within bucket to repository data. Defaults to
+    value of `repositories.s3.base_path` or to root directory if not set.
+
+`access_key`::
+
+    The access key to use for authentication. Defaults to value of
+    `cloud.aws.access_key`.
+
+`secret_key`::
+
+    The secret key to use for authentication. Defaults to value of
+    `cloud.aws.secret_key`.
+
+`chunk_size`::
+
+    Big files can be broken down into chunks during snapshotting if needed.
+    The chunk size can be specified in bytes or by using size value notation,
+    i.e. `1g`, `10m`, `5k`. Defaults to `100m`.
+
+`compress`::
+
+    When set to `true` metadata files are stored in compressed format. This
+    setting doesn't affect index files that are already compressed by default.
+    Defaults to `false`.
+
+`server_side_encryption`::
+
+    When set to `true` files are encrypted on server side using AES256
+    algorithm. Defaults to `false`.
+
+`buffer_size`::
+
+    Minimum threshold below which the chunk is uploaded using a single
+    request. Beyond this threshold, the S3 repository will use the
+    http://docs.aws.amazon.com/AmazonS3/latest/dev/uploadobjusingmpu.html[AWS Multipart Upload API]
+    to split the chunk into several parts, each of `buffer_size` length, and
+    to upload each part in its own request. Note that positioning a buffer
+    size lower than `5mb` is not allowed since it will prevents the use of the
+    Multipart API and may result in upload errors. Defaults to `5mb`.
+
+`max_retries`::
+
+    Number of retries in case of S3 errors. Defaults to `3`.
+
+`read_only`::
+
+    Makes repository read-only. coming[2.1.0]  Defaults to `false`.
+
+The S3 repositories use the same credentials as the rest of the AWS services
+provided by this plugin (`discovery`). See <<repository-s3-usage>> for details.
+
+Multiple S3 repositories can be created. If the buckets require different
+credentials, then define them as part of the repository settings.
+
+[[repository-s3-permissions]]
+===== Recommended S3 Permissions
+
+In order to restrict the Elasticsearch snapshot process to the minimum required resources, we recommend using Amazon
+IAM in conjunction with pre-existing S3 buckets. Here is an example policy which will allow the snapshot access to an
+ S3 bucket named "snaps.example.com". This may be configured through the AWS IAM console, by creating a Custom Policy,
+ and using a Policy Document similar to this (changing snaps.example.com to your bucket name).
+
+[source,js]
+----
+{
+  "Statement": [
+    {
+      "Action": [
+        "s3:ListBucket",
+        "s3:GetBucketLocation",
+        "s3:ListBucketMultipartUploads",
+        "s3:ListBucketVersions"
+      ],
+      "Effect": "Allow",
+      "Resource": [
+        "arn:aws:s3:::snaps.example.com"
+      ]
+    },
+    {
+      "Action": [
+        "s3:GetObject",
+        "s3:PutObject",
+        "s3:DeleteObject",
+        "s3:AbortMultipartUpload",
+        "s3:ListMultipartUploadParts"
+      ],
+      "Effect": "Allow",
+      "Resource": [
+        "arn:aws:s3:::snaps.example.com/*"
+      ]
+    }
+  ],
+  "Version": "2012-10-17"
+}
+----
+
+You may further restrict the permissions by specifying a prefix within the bucket, in this example, named "foo".
+
+[source,js]
+----
+{
+  "Statement": [
+    {
+      "Action": [
+        "s3:ListBucket",
+        "s3:GetBucketLocation",
+        "s3:ListBucketMultipartUploads",
+        "s3:ListBucketVersions"
+      ],
+      "Condition": {
+        "StringLike": {
+          "s3:prefix": [
+            "foo/*"
+          ]
+        }
+      },
+      "Effect": "Allow",
+      "Resource": [
+        "arn:aws:s3:::snaps.example.com"
+      ]
+    },
+    {
+      "Action": [
+        "s3:GetObject",
+        "s3:PutObject",
+        "s3:DeleteObject",
+        "s3:AbortMultipartUpload",
+        "s3:ListMultipartUploadParts"
+      ],
+      "Effect": "Allow",
+      "Resource": [
+        "arn:aws:s3:::snaps.example.com/foo/*"
+      ]
+    }
+  ],
+  "Version": "2012-10-17"
+}
+----
+
+The bucket needs to exist to register a repository for snapshots. If you did not create the bucket then the repository
+registration will fail. If you want elasticsearch to create the bucket instead, you can add the permission to create a
+specific bucket like this:
+
+[source,js]
+----
+{
+   "Action": [
+      "s3:CreateBucket"
+   ],
+   "Effect": "Allow",
+   "Resource": [
+      "arn:aws:s3:::snaps.example.com"
+   ]
+}
+----
+
+[[repository-s3-endpoint]]
+===== Using other S3 endpoint
+
+If you are using any S3 api compatible service, you can set a global endpoint by setting `cloud.aws.s3.endpoint`
+to your URL provider. Note that this setting will be used for all S3 repositories.
+
+Different `endpoint`, `region` and `protocol` settings can be set on a per-repository basis
+See <<repository-s3-repository>> for details.
+
+[[repository-s3-testing]]
+==== Testing AWS
+
+Integrations tests in this plugin require working AWS configuration and therefore disabled by default. Three buckets
+and two iam users have to be created. The first iam user needs access to two buckets in different regions and the final
+bucket is exclusive for the other iam user. To enable tests prepare a config file elasticsearch.yml with the following
+content:
+
+[source,yaml]
+----
+cloud:
+    aws:
+        access_key: AKVAIQBF2RECL7FJWGJQ
+        secret_key: vExyMThREXeRMm/b/LRzEB8jWwvzQeXgjqMX+6br
+
+repositories:
+    s3:
+        bucket: "bucket_name"
+        region: "us-west-2"
+        private-bucket:
+            bucket: <bucket not accessible by default key>
+            access_key: <access key>
+            secret_key: <secret key>
+        remote-bucket:
+            bucket: <bucket in other region>
+            region: <region>
+	external-bucket:
+	    bucket: <bucket>
+	    access_key: <access key>
+	    secret_key: <secret key>
+	    endpoint: <endpoint>
+	    protocol: <protocol>
+
+----
+
+Replace all occurrences of `access_key`, `secret_key`, `endpoint`, `protocol`, `bucket` and `region` with your settings.
+Please, note that the test will delete all snapshot/restore related files in the specified buckets.
+
+To run test:
+
+[source,sh]
+----
+mvn -Dtests.aws=true -Dtests.config=/path/to/config/file/elasticsearch.yml clean test
+----
+

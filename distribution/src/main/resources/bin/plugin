@@ -1,0 +1,111 @@
+#!/bin/sh
+
+CDPATH=""
+SCRIPT="$0"
+
+# SCRIPT may be an arbitrarily deep series of symlinks. Loop until we have the concrete path.
+while [ -h "$SCRIPT" ] ; do
+  ls=`ls -ld "$SCRIPT"`
+  # Drop everything prior to ->
+  link=`expr "$ls" : '.*-> \(.*\)$'`
+  if expr "$link" : '/.*' > /dev/null; then
+    SCRIPT="$link"
+  else
+    SCRIPT=`dirname "$SCRIPT"`/"$link"
+  fi
+done
+
+# determine elasticsearch home
+ES_HOME=`dirname "$SCRIPT"`/..
+
+# make ELASTICSEARCH_HOME absolute
+ES_HOME=`cd "$ES_HOME"; pwd`
+
+# Sets the default values for elasticsearch variables used in this script
+if [ -z "$CONF_DIR" ]; then
+  CONF_DIR="${packaging.plugin.default.config.dir}"
+
+  if [ -z "$CONF_FILE" ]; then
+    CONF_FILE="$CONF_DIR/elasticsearch.yml"
+  fi
+fi
+
+if [ -z "$CONF_FILE" ]; then
+  CONF_FILE="${packaging.plugin.default.config.file}"
+fi
+
+# The default env file is defined at building/packaging time.
+# For a ${packaging.type} package, the value is "${packaging.env.file}".
+ES_ENV_FILE="${packaging.env.file}"
+
+# If an include is specified with the ES_INCLUDE environment variable, use it
+if [ -n "$ES_INCLUDE" ]; then
+    ES_ENV_FILE="$ES_INCLUDE"
+fi
+
+# Source the environment file
+if [ -n "$ES_ENV_FILE" ]; then
+
+  # If the ES_ENV_FILE is not found, try to resolve the path
+  # against the ES_HOME directory
+  if [ ! -f "$ES_ENV_FILE" ]; then
+      ES_ENV_FILE="$ELASTIC_HOME/$ES_ENV_FILE"
+  fi
+
+  . "$ES_ENV_FILE"
+  if [ $? -ne 0 ]; then
+      echo "Unable to source environment file: $ES_ENV_FILE" >&2
+      exit 1
+  fi
+fi
+
+if [ -x "$JAVA_HOME/bin/java" ]; then
+    JAVA=$JAVA_HOME/bin/java
+else
+    JAVA=`which java`
+fi
+
+# real getopt cannot be used because we need to hand options over to the PluginManager
+while [ $# -gt 0 ]; do
+  case $1 in
+    -D*=*)
+      properties="$properties \"$1\""
+      ;;
+    -D*)
+      var=$1
+      shift
+      properties="$properties \"$var\"=\"$1\""
+      ;;
+    *)
+      args="$args \"$1\""
+  esac
+  shift
+done
+
+# check if properties already has a config file or config dir
+if [ -e "$CONF_DIR" ]; then
+  case "$properties" in
+    *-Des.default.path.conf=*|*-Des.path.conf=*)
+    ;;
+    *)
+      properties="$properties -Des.default.path.conf=\"$CONF_DIR\""
+    ;;
+  esac
+fi
+
+if [ -e "$CONF_FILE" ]; then
+  case "$properties" in
+    *-Des.default.config=*|*-Des.config=*)
+    ;;
+    *)
+      properties="$properties -Des.default.config=\"$CONF_FILE\""
+    ;;
+  esac
+fi
+
+# full hostname passed through cut for portability on systems that do not support hostname -s
+# export on separate line for shells that do not support combining definition and export
+HOSTNAME=`hostname | cut -d. -f1`
+export HOSTNAME
+
+eval "$JAVA" $JAVA_OPTS $ES_JAVA_OPTS -Xmx64m -Xms16m -Delasticsearch -Des.path.home="\"$ES_HOME\"" $properties -cp "\"$ES_HOME/lib/*\"" org.elasticsearch.plugins.PluginManagerCliParser $args

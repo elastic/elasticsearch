@@ -1,52 +1,44 @@
 [[mapping-id-field]]
-=== `_id`
+=== `_id` field
 
-Each document indexed is associated with an id and a type. The `_id`
-field can be used to index just the id, and possible also store it. By
-default it is not indexed and not stored (thus, not created).
+Each document indexed is associated with a <<mapping-type-field,`_type`>> (see
+<<mapping-type>>) and an <<mapping-id-field,`_id`>>.  The `_id` field is not
+indexed as its value can be derived automatically from the
+<<mapping-uid-field,`_uid`>> field.
 
-Note, even though the `_id` is not indexed, all the APIs still work
-(since they work with the `_uid` field), as well as fetching by ids
-using `term`, `terms` or `prefix` queries/filters (including the
-specific `ids` query/filter).
-
-The `_id` field can be enabled to be indexed, and possibly stored,
-using:
+The value of the `_id` field is accessible in queries and scripts, but _not_
+in aggregations or when sorting, where the <<mapping-uid-field,`_uid`>> field
+should be used instead:
 
 [source,js]
---------------------------------------------------
+--------------------------
+# Example documents
+PUT my_index/my_type/1
 {
-    "tweet" : {
-        "_id" : {"index": "not_analyzed", "store" : false }
+  "text": "Document with ID 1"
+}
+
+PUT my_index/my_type/2
+{
+  "text": "Document with ID 2"
+}
+
+GET my_index/_search
+{
+  "query": {
+    "terms": {
+      "_id": [ "1", "2" ] <1>
     }
-}
---------------------------------------------------
-
-The `_id` mapping can also be associated with a `path` that will be used
-to extract the id from a different location in the source document. For
-example, having the following mapping:
-
-[source,js]
---------------------------------------------------
-{
-    "tweet" : {
-        "_id" : {
-            "path" : "post_id"
-        }
+  },
+  "script_fields": {
+    "UID": {
+      "script": "doc['_id']" <2>
     }
+  }
 }
---------------------------------------------------
+--------------------------
+// AUTOSENSE
 
-Will cause `1` to be used as the id for:
+<1> Querying on the `_id` field (also see the <<query-dsl-ids-query,`ids` query>>)
+<2> Accessing the `_id` field in scripts (inline scripts must be <<enable-dynamic-scripting,enabled>> for this example to work)
 
-[source,js]
---------------------------------------------------
-{
-    "message" : "You know, for Search",
-    "post_id" : "1"
-}
---------------------------------------------------
-
-This does require an additional lightweight parsing step while indexing,
-in order to extract the id to decide which shard the index operation
-will be executed on.

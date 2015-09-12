@@ -1,0 +1,22 @@
+{
+    "more_like_this" : {
+        "fields" : ["name.first", "name.last"],
+        "like_text": "Apache Lucene",
+        "like" : [
+        {
+            "_index" : "test",
+            "_type" : "person",
+            "_id" : "1"
+        },
+        {
+            "_index" : "test",
+            "_type" : "person",
+            "_id" : "2"
+        }
+        ],
+        "ids" : ["3", "4"],
+        "include" : true,
+        "min_term_freq" : 1,
+        "max_query_terms" : 12
+    }
+}

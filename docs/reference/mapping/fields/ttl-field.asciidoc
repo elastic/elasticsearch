@@ -1,70 +1,112 @@
 [[mapping-ttl-field]]
-=== `_ttl`
+=== `_ttl` field
 
-A lot of documents naturally come with an expiration date. Documents can
-therefore have a `_ttl` (time to live), which will cause the expired
-documents to be deleted automatically.
+deprecated[2.0.0,The current `_ttl` implementation is deprecated and will be replaced with a different implementation in a future version]
 
-[float]
-==== enabled
+Some types of documents, such as session data or special offers, come with an
+expiration date. The `_ttl` field allows you to specify the minimum time a
+document should live, after which time the document is deleted automatically.
 
-By default it is disabled, in order to enable it, the following mapping
-should be defined:
+[TIP]
+.Prefer index-per-timeframe to TTL
+======================================================
 
-[source,js]
---------------------------------------------------
-{
-    "tweet" : {
-        "_ttl" : { "enabled" : true }
-    }
-}
---------------------------------------------------
+With TTL , expired documents first have to be marked as deleted then later
+purged from the index when segments are merged.  For append-only time-based
+data such as log events, it is much more efficient to use an index-per-day /
+week / month instead of TTLs.  Old log data can be removed by simply deleting
+old indices.
 
-[float]
-==== store / index
+======================================================
 
-By default the `_ttl` field has `store` set to `true` and `index` set to
-`not_analyzed`. Note that `index` property has to be set to
-`not_analyzed` in order for the purge process to work.
-
-[float]
-==== default
-
-You can provide a per index/type default `_ttl` value as follows:
+The `_ttl` field may be enabled as follows:
 
 [source,js]
---------------------------------------------------
+-------------------------------
+PUT my_index
 {
-    "tweet" : {
-        "_ttl" : { "enabled" : true, "default" : "1d" }
+  "mappings": {
+    "my_type": {
+      "_ttl": {
+        "enabled": true
+      }
     }
+  }
 }
---------------------------------------------------
 
-In this case, if you don't provide a `_ttl` value in your query or in
-the `_source` all tweets will have a `_ttl` of one day.
+PUT my_index/my_type/1?ttl=10m <1>
+{
+  "text": "Will expire in 10 minutes"
+}
 
-In case you do not specify a time unit like `d` (days), `m` (minutes),
-`h` (hours), `ms` (milliseconds) or `w` (weeks), milliseconds is used as
-default unit.
+PUT my_index/my_type/2 <2>
+{
+  "text": "Will not expire"
+}
+-------------------------------
+// AUTOSENSE
+<1> This document will expire 10 minutes after being indexed.
+<2> This document has no TTL set and will not expire.
 
-If no `default` is set and no `_ttl` value is given then the document
-has an infinite `_ttl` and will not expire.
+The expiry time is calculated as the value of the
+<<mapping-timestamp-field,`_timestamp`>> field (or `now()` if the `_timestamp`
+is not enabled) plus the `ttl` specified in the indexing request.
+
+==== Default TTL
+
+You can provide a default `_ttl`, which will be applied to indexing requests where the `ttl` is not specified:
+
+[source,js]
+-------------------------------
+PUT my_index
+{
+  "mappings": {
+    "my_type": {
+      "_ttl": {
+        "enabled": true,
+        "defaut": "5m"
+      }
+    }
+  }
+}
+
+PUT my_index/my_type/1?ttl=10m <1>
+{
+  "text": "Will expire in 10 minutes"
+}
+
+PUT my_index/my_type/2 <2>
+{
+  "text": "Will expire in 5 minutes"
+}
+-------------------------------
+// AUTOSENSE
+<1> This document will expire 10 minutes after being indexed.
+<2> This document has no TTL set and so will expire after the default 5 minutes.
+
+The `default` value can use <<time-units,time units>> like `d` for days, and
+will use `ms` as the default unit if no time unit is provided.
 
 You can dynamically update the `default` value using the put mapping
 API. It won't change the `_ttl` of already indexed documents but will be
 used for future documents.
 
-[float]
 ==== Note on documents expiration
 
-Expired documents will be automatically deleted regularly. You can
-dynamically set the `indices.ttl.interval` to fit your needs. The
-default value is `60s`.
+Expired documents will be automatically deleted periodoically. The following
+settings control the expiry process:
 
-The deletion orders are processed by bulk. You can set
-`indices.ttl.bulk_size` to fit your needs. The default value is `10000`.
+`indices.ttl.interval`::
 
-Note that the expiration procedure handle versioning properly so if a
-document is updated between the collection of documents to expire and
-the delete order, the document won't be deleted.
+How often the purge process should run. Defaults to `60s`. Expired documents
+may still be retrieved before they are purged.
+
+`indices.ttl.bulk_size`::
+
+How many deletions are handled by a single <<docs-bulk,`bulk`>> request. The
+default value is `10000`.
+
+==== Note on `detect_noop`
+If an update tries to update just the `_ttl` without changing the `_source` of
+the document it's expiration time won't be updated if `detect_noop` is `true`.
+In 2.1 `detect_noop` defaults to `true`.

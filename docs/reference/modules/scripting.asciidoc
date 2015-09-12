@@ -6,29 +6,91 @@ expressions. For example, scripts can be used to return "script fields"
 as part of a search request, or can be used to evaluate a custom score
 for a query and so on.
 
-deprecated[1.3.0,Groovy has replaced Mvel as the default scripting language]
+The scripting module uses by default http://groovy-lang.org/[groovy]
+(previously http://mvel.codehaus.org/[mvel] in 1.3.x and earlier) as the
+scripting language with some extensions. Groovy is used since it is extremely
+fast and very simple to use.
 
-The scripting module uses by default http://groovy.codehaus.org/[groovy]
-(previously http://mvel.codehaus.org/[mvel]) as the scripting language with some
-extensions. Groovy is used since it is extremely fast and very simple to use.
+.Groovy dynamic scripting off by default from v1.4.3
+[IMPORTANT]
+===================================================
+
+Groovy dynamic scripting is off by default, preventing dynamic Groovy scripts
+from being accepted as part of a request or retrieved from the special
+`.scripts` index. You will still be able to use Groovy scripts stored in files
+in the `config/scripts/` directory on every node.
+
+To convert an inline script to a file, take this simple script
+as an example:
+
+[source,js]
+-----------------------------------
+GET /_search
+{
+    "script_fields": {
+        "my_field": {
+            "inline": "1 + my_var",
+            "params": {
+              "my_var": 2
+            }
+        }
+    }
+}
+-----------------------------------
+
+Save the contents of the `inline` field as a file called `config/scripts/my_script.groovy`
+on every data node in the cluster:
+
+[source,js]
+-----------------------------------
+1 + my_var
+-----------------------------------
+
+Now you can access the script by file name (without the extension):
+
+[source,js]
+-----------------------------------
+GET /_search
+{
+    "script_fields": {
+        "my_field": {
+            "file": "my_script",
+            "params": {
+              "my_var": 2
+            }
+        }
+    }
+}
+-----------------------------------
+
+===================================================
+
 
 Additional `lang` plugins are provided to allow to execute scripts in
-different languages. Currently supported plugins are `lang-javascript`
-for JavaScript, `lang-mvel` for Mvel, and `lang-python` for Python.
-All places where a `script` parameter can be used, a `lang` parameter
-(on the same level) can be provided to define the language of the
-script. The `lang` options are `groovy`, `js`, `mvel`, `python`, and
-`native`.
+different languages. All places where a script can be used, a `lang` parameter
+can be provided to define the language of the script. The following are the
+supported scripting languages:
 
-added[1.2.0, Dynamic scripting is disabled for non-sandboxed languages by default since version 1.2.0]
+[cols="<,<,<",options="header",]
+|=======================================================================
+|Language   |Sandboxed |Required plugin
+|groovy     |no        |built-in
+|expression |yes       |built-in
+|mustache   |yes       |built-in
+|mvel       |no        |https://github.com/elastic/elasticsearch-lang-mvel[elasticsearch-lang-mvel]
+|javascript |no        |https://github.com/elastic/elasticsearch-lang-javascript[elasticsearch-lang-javascript]
+|python     |no        |https://github.com/elastic/elasticsearch-lang-python[elasticsearch-lang-python]
+|=======================================================================
 
 To increase security, Elasticsearch does not allow you to specify scripts for
 non-sandboxed languages with a request. Instead, scripts must be placed in the
 `scripts` directory inside the configuration directory (the directory where
-elasticsearch.yml is). Scripts placed into this directory will automatically be
-picked up and be available to be used. Once a script has been placed in this
-directory, it can be referenced by name. For example, a script called
-`calculate-score.groovy` can be referenced in a request like this:
+elasticsearch.yml is). The default location of this `scripts` directory can be
+changed by setting `path.scripts` in elasticsearch.yml. Scripts placed into
+this directory will automatically be picked up and be available to be used.
+Once a script has been placed in this directory, it can be referenced by name.
+For example, a script called `calculate-score.groovy` can be referenced in a
+request like this:
 
 [source,sh]
 --------------------------------------------------
@@ -59,7 +121,8 @@ curl -XPOST localhost:9200/_search -d '{
       "functions": [
         {
           "script_score": {
-            "script": "calculate-score",
+            "lang": "groovy",
+            "file": "calculate-score",
             "params": {
               "my_modifier": 8
             }
@@ -77,42 +140,195 @@ a script placed under `config/scripts/group1/group2/test.py` will be
 named `group1_group2_test`.
 
 [float]
+=== Indexed Scripts
+Elasticsearch allows you to store scripts in an internal index known as
+`.scripts` and reference them by id. There are REST endpoints to manage
+indexed scripts as follows:
+
+Requests to the scripts endpoint look like :
+[source,js]
+-----------------------------------
+/_scripts/{lang}/{id}
+-----------------------------------
+Where the `lang` part is the language the script is in and the `id` part is the id
+of the script. In the `.scripts` index the type of the document will be set to the `lang`.
+
+
+[source,js]
+-----------------------------------
+curl -XPOST localhost:9200/_scripts/groovy/indexedCalculateScore -d '{
+     "script": "log(_score * 2) + my_modifier"
+}'
+-----------------------------------
+
+This will create a document with id: `indexedCalculateScore` and type: `groovy` in the
+`.scripts` index. The type of the document is the language used by the script.
+
+This script can be accessed at query time by using the `id` script parameter and passing
+the script id:
+
+[source,js]
+--------------------------------------------------
+curl -XPOST localhost:9200/_search -d '{
+  "query": {
+    "function_score": {
+      "query": {
+        "match": {
+          "body": "foo"
+        }
+      },
+      "functions": [
+        {
+          "script_score": {
+            "id": "indexedCalculateScore",
+            "lang" : "groovy",
+            "params": {
+              "my_modifier": 8
+            }
+          }
+        }
+      ]
+    }
+  }
+}'
+--------------------------------------------------
+
+The script can be viewed by:
+[source,js]
+-----------------------------------
+curl -XGET localhost:9200/_scripts/groovy/indexedCalculateScore
+-----------------------------------
+
+This is rendered as:
+
+[source,js]
+-----------------------------------
+'{
+     "script": "log(_score * 2) + my_modifier"
+}'
+-----------------------------------
+
+Indexed scripts can be deleted by:
+[source,js]
+-----------------------------------
+curl -XDELETE localhost:9200/_scripts/groovy/indexedCalculateScore
+-----------------------------------
+
+
+
+[float]
+[[enable-dynamic-scripting]]
 === Enabling dynamic scripting
 
 We recommend running Elasticsearch behind an application or proxy, which
 protects Elasticsearch from the outside world. If users are allowed to run
-dynamic scripts (even in a search request), then they have the same access to
-your box as the user that Elasticsearch is running as. For this reason dynamic
-scripting is allowed only for sandboxed languages by default.
+inline scripts (even in a search request) or indexed scripts, then they have
+the same access to your box as the user that Elasticsearch is running as. For
+this reason dynamic scripting is allowed only for sandboxed languages by default.
 
 First, you should not run Elasticsearch as the `root` user, as this would allow
 a script to access or do *anything* on your server, without limitations. Second,
 you should not expose Elasticsearch directly to users, but instead have a proxy
 application inbetween. If you *do* intend to expose Elasticsearch directly to
 your users, then you have to decide whether you trust them enough to run scripts
-on your box or not. If you do, you can enable dynamic scripting by adding the
-following setting to the `config/elasticsearch.yml` file on every node:
+on your box or not.
+
+It is possible to enable scripts based on their source, for
+every script engine, through the following settings that need to be added to the
+`config/elasticsearch.yml` file on every node.
 
 [source,yaml]
 -----------------------------------
-script.disable_dynamic: false
+script.inline: on
+script.indexed: on
+
 -----------------------------------
 
 While this still allows execution of named scripts provided in the config, or
 _native_ Java scripts registered through plugins, it also allows users to run
 arbitrary scripts via the API. Instead of sending the name of the file as the
-script, the body of the script can be sent instead.
+script, the body of the script can be sent instead or retrieved from the
+`.scripts` indexed if previously stored.
 
-There are three possible configuration values for the `script.disable_dynamic`
-setting, the default value is `sandbox`:
+There are three possible configuration values for any of the fine-grained
+script settings:
 
 [cols="<,<",options="header",]
 |=======================================================================
 |Value |Description
-| `true` |all dynamic scripting is disabled, scripts must be placed in the `config/scripts` directory.
-| `false` |all dynamic scripting is enabled, scripts may be sent as strings in requests.
-| `sandbox` |scripts may be sent as strings for languages that are sandboxed.
+| `off` |scripting is turned off completely, in the context of the setting being set.
+| `on`  |scripting is turned on, in the context of the setting being set.
+| `sandbox` |scripts may be executed only for languages that are sandboxed
 |=======================================================================
+
+The default values are the following:
+
+[source,yaml]
+-----------------------------------
+script.inline: sandbox
+script.indexed: sandbox
+script.file: on
+
+-----------------------------------
+
+NOTE: Global scripting settings affect the `mustache` scripting language.
+<<search-template,Search templates>> internally use the `mustache` language,
+and will still be enabled by default as the `mustache` engine is sandboxed,
+but they will be enabled/disabled according to fine-grained settings
+specified in `elasticsearch.yml`.
+
+It is also possible to control which operations can execute scripts. The
+supported operations are:
+
+[cols="<,<",options="header",]
+|=======================================================================
+|Value |Description
+| `aggs`    |Aggregations (wherever they may be used)
+| `search`  |Search api, Percolator api and Suggester api (e.g filters, script_fields)
+| `update`  |Update api
+| `plugin`  |Any plugin that makes use of scripts under the generic `plugin` category
+|=======================================================================
+
+Plugins can also define custom operations that they use scripts for instead
+of using the generic `plugin` category. Those operations can be referred to
+in the following form: `${pluginName}_${operation}`.
+
+The following example disables scripting for `update` and `mapping` operations,
+regardless of the script source, for any engine. Scripts can still be
+executed from sandboxed languages as part of `aggregations`, `search`
+and plugins execution though, as the above defaults still get applied.
+
+[source,yaml]
+-----------------------------------
+script.update: off
+script.mapping: off
+
+-----------------------------------
+
+Generic settings get applied in order, operation based ones have precedence
+over source based ones. Language specific settings are supported too. They
+need to be prefixed with the `script.engine.<engine>` prefix and have
+precedence over any other generic settings.
+
+[source,yaml]
+-----------------------------------
+script.engine.groovy.file.aggs: on
+script.engine.groovy.file.mapping: on
+script.engine.groovy.file.search: on
+script.engine.groovy.file.update: on
+script.engine.groovy.file.plugin: on
+script.engine.groovy.indexed.aggs: on
+script.engine.groovy.indexed.mapping: off
+script.engine.groovy.indexed.search: on
+script.engine.groovy.indexed.update: off
+script.engine.groovy.indexed.plugin: off
+script.engine.groovy.inline.aggs: on
+script.engine.groovy.inline.mapping: off
+script.engine.groovy.inline.search: off
+script.engine.groovy.inline.update: off
+script.engine.groovy.inline.plugin: off
+
+-----------------------------------
 
 [float]
 === Default Scripting Language
@@ -122,45 +338,16 @@ The default scripting language (assuming no `lang` parameter is provided) is
 appropriate language.
 
 [float]
-=== Groovy Sandboxing
-
-Elasticsearch sandboxes Groovy scripts that are compiled and executed in order
-to ensure they don't perform unwanted actions. There are a number of options
-that can be used for configuring this sandbox:
-
-`script.groovy.sandbox.receiver_whitelist`::
-
-    Comma-separated list of string classes for objects that may have methods
-    invoked.
-
-`script.groovy.sandbox.package_whitelist`::
-
-    Comma-separated list of packages under which new objects may be constructed.
-
-`script.groovy.sandbox.class_whitelist`::
-
-    Comma-separated list of classes that are allowed to be constructed.
-
-`script.groovy.sandbox.method_blacklist`::
-
-    Comma-separated list of methods that are never allowed to be invoked,
-    regardless of target object.
-
-`script.groovy.sandbox.enabled`::
-
-    Flag to disable the sandbox (defaults to `true` meaning the sandbox is
-    enabled).
-
-[float]
 === Automatic Script Reloading
 
 The `config/scripts` directory is scanned periodically for changes.
 New and changed scripts are reloaded and deleted script are removed
 from preloaded scripts cache. The reload frequency can be specified
-using `watcher.interval` setting, which defaults to `60s`.
+using `resource.reload.interval` setting, which defaults to `60s`.
 To disable script reloading completely set `script.auto_reload_enabled`
 to `false`.
 
+[[native-java-scripts]]
 [float]
 === Native (Java) Scripts
 
@@ -184,14 +371,53 @@ the name of the script as the `script`.
 
 Note, the scripts need to be in the classpath of elasticsearch. One
 simple way to do it is to create a directory under plugins (choose a
-descriptive name), and place the jar / classes files there, they will be
+descriptive name), and place the jar / classes files there. They will be
 automatically loaded.
+
+[float]
+=== Lucene Expressions Scripts
+
+experimental[The Lucene expressions module is undergoing significant development and the exposed functionality is likely to change in the future]
+
+Lucene's expressions module provides a mechanism to compile a
+`javascript` expression to bytecode.  This allows very fast execution,
+as if you had written a `native` script.  Expression scripts can be
+used in `script_score`, `script_fields`, sort scripts and numeric aggregation scripts.
+
+See the link:http://lucene.apache.org/core/4_9_0/expressions/index.html?org/apache/lucene/expressions/js/package-summary.html[expressions module documentation]
+for details on what operators and functions are available.
+
+Variables in `expression` scripts are available to access:
+
+* Single valued document fields, e.g. `doc['myfield'].value`
+* Single valued document fields can also be accessed without `.value` e.g. `doc['myfield']`
+* Parameters passed into the script, e.g. `mymodifier`
+* The current document's score, `_score` (only available when used in a `script_score`)
+
+Variables in `expression` scripts that are of type `date` may use the following member methods:
+
+* getYear()
+* getMonth()
+* getDayOfMonth()
+* getHourOfDay()
+* getMinutes()
+* getSeconds()
+
+The following example shows the difference in years between the `date` fields date0 and date1:
+
+`doc['date1'].getYear() - doc['date0'].getYear()`
+
+There are a few limitations relative to other script languages:
+
+* Only numeric fields may be accessed
+* Stored fields are not available
+* If a field is sparse (only some documents contain a value), documents missing the field will have a value of `0`
 
 [float]
 === Score
 
-In all scripts that can be used in facets, allow to access the current
-doc score using `doc.score`.
+In all scripts that can be used in aggregations, the current
+document's score is accessible in `_score`.
 
 [float]
 === Computing scores based on terms in scripts
@@ -206,7 +432,9 @@ The `doc['field_name']` can be used to access specific field data within
 a document (the document in question is usually derived by the context
 the script is used). Document fields are very fast to access since they
 end up being loaded into memory (all the relevant field values/tokens
-are loaded to memory).
+are loaded to memory). Note, however, that the `doc[...]` notation only
+allows for simple valued fields (can’t return a json object from it)
+and makes sense only on non-analyzed or single term based fields.
 
 The following data can be extracted from a field:
 
@@ -294,6 +522,13 @@ loaded into memory. They can be simply accessed using
 `_fields['my_field_name'].value` or `_fields['my_field_name'].values`.
 
 [float]
+=== Accessing the score of a document within a script
+
+When using scripting for calculating the score of a document (for instance, with
+the `function_score` query), you can access the score using the `_score`
+variable inside of a Groovy script.
+
+[float]
 === Source Field
 
 The source field can also be accessed when executing a script. The
@@ -301,7 +536,7 @@ source field is loaded per doc, parsed, and then provided to the script
 for evaluation. The `_source` forms the context under which the source
 field can be accessed, for example `_source.obj2.obj1.field3`.
 
-Accessing `_source` is much slower compared to using `_doc`
+Accessing `_source` is much slower compared to using `doc`
 but the data is not loaded into memory. For a single field access `_fields` may be
 faster than using `_source` due to the extra overhead of potentially parsing large documents.
 However, `_source` may be faster if you access multiple fields or if the source has already been

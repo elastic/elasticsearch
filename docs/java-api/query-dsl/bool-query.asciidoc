@@ -1,0 +1,18 @@
+[[java-query-dsl-bool-query]]
+==== Bool Query
+
+See {ref}/query-dsl-bool-query.html[Bool Query]
+
+[source,java]
+--------------------------------------------------
+QueryBuilder qb = boolQuery()
+    .must(termQuery("content", "test1"))    <1>
+    .must(termQuery("content", "test4"))    <1>
+    .mustNot(termQuery("content", "test2")) <2>
+    .should(termQuery("content", "test3")); <3>
+--------------------------------------------------
+<1> must query
+<2> must not query
+<3> should query
+
+

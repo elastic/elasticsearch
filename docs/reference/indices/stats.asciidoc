@@ -39,20 +39,33 @@ specified as well in the URI. Those stats can be any of:
                 groups). The `groups` parameter accepts a comma separated list of group names.
                 Use `_all` to return statistics for all groups.
 
-`warmer`:: 		Warmer statistics.
-`merge`:: 		Merge statistics.
-`fielddata`:: 		Fielddata statistics.
-`flush`:: 		Flush statistics.
-`completion`:: 		Completion suggest statistics.
-`refresh`:: 	Refresh statistics.
-`suggest`:: 	Suggest statistics.
+`completion`::  Completion suggest statistics.
+`fielddata`::   Fielddata statistics.
+`flush`::       Flush statistics.
+`merge`::       Merge statistics.
+`request_cache`:: <<shard-request-cache,Shard request cache>> statistics.
+`refresh`::     Refresh statistics.
+`suggest`::     Suggest statistics.
+`warmer`::      Warmer statistics.
+`translog`::    Translog statistics.
 
-Some statistics allow per field granularity which accepts a list comma-separated list of included fields. By default all fields are included:
+Some statistics allow per field granularity which accepts a list
+comma-separated list of included fields. By default all fields are included:
 
 [horizontal]
-`fields`::	List of fields to be included in the statistics. This is used as the default list unless a more specific field list is provided (see below).
-`completion_fields`::	List of fields to be included in the Completion Suggest statistics
-`fielddata_fields`:: 	List of fields to be included in the Fielddata statistics
+`fields`::
+
+    List of fields to be included in the statistics. This is used as the
+    default list unless a more specific field list is provided (see below).
+
+`completion_fields`::
+
+    List of fields to be included in the Completion Suggest statistics.
+
+`fielddata_fields`::
+
+    List of fields to be included in the Fielddata statistics.
+
 
 Here are some samples:
 
@@ -67,8 +80,10 @@ curl 'localhost:9200/_stats/search?groups=group1,group2
 --------------------------------------------------
 
 The stats returned are aggregated on the index level, with
-`primaries` and `total` aggregations. In order to get back shard level
-stats, set the `level` parameter to `shards`.
+`primaries` and `total` aggregations, where `primaries` are the values for only the
+primary shards, and `total` are the cumulated values for both primary and replica shards.
+
+In order to get back shard level stats, set the `level` parameter to `shards`.
 
 Note, as shards move around the cluster, their stats will be cleared as
 they are created on other nodes. On the other hand, even though a shard

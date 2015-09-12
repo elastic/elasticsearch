@@ -1,0 +1,30 @@
+[[query-dsl-geo-distance-range-query]]
+=== Geo Distance Range Query
+
+Filters documents that exists within a range from a specific point:
+
+[source,js]
+--------------------------------------------------
+{
+    "boost" : {
+        "must" : {
+            "match_all" : {}
+        },
+        "filter" : {
+            "geo_distance_range" : {
+                "from" : "200km",
+                "to" : "400km",
+                "pin.location" : {
+                    "lat" : 40,
+                    "lon" : -70
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+Supports the same point location parameter and query options as the
+<<query-dsl-geo-distance-query,geo_distance>>
+filter. And also support the common parameters for range (lt, lte, gt,
+gte, from, to, include_upper and include_lower).

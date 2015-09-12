@@ -1,0 +1,72 @@
+[[query-dsl-bool-query]]
+=== Bool Query
+
+A query that matches documents matching boolean combinations of other
+queries. The bool query maps to Lucene `BooleanQuery`. It is built using
+one or more boolean clauses, each clause with a typed occurrence. The
+occurrence types are:
+
+[cols="<,<",options="header",]
+|=======================================================================
+|Occur |Description
+|`must` |The clause (query) must appear in matching documents and will
+contribute to the score.
+
+|`filter` |The clause (query) must appear in matching documents. However unlike
+`must` the score of the query will be ignored.
+
+|`should` |The clause (query) should appear in the matching document. In
+a boolean query with no `must` clauses, one or more `should` clauses
+must match a document. The minimum number of should clauses to match can
+be set using the
+<<query-dsl-minimum-should-match,`minimum_should_match`>>
+parameter.
+
+|`must_not` |The clause (query) must not appear in the matching
+documents.
+|=======================================================================
+
+[IMPORTANT]
+.Bool query in filter context
+========================================================================
+If this query is used in a filter context and it has `should`
+clauses then at least one `should` clause is required to match.
+========================================================================
+
+The bool query also supports `disable_coord` parameter (defaults to
+`false`). Basically the coord similarity computes a score factor based
+on the fraction of all query terms that a document contains. See Lucene
+`BooleanQuery` for more details.
+
+The `bool` query takes a _more-matches-is-better_ approach, so the score from
+each matching `must` or `should` clause will be added together to provide the 
+final `_score` for each document.
+
+[source,js]
+--------------------------------------------------
+{
+    "bool" : {
+        "must" : {
+            "term" : { "user" : "kimchy" }
+        },
+        "filter": {
+            "term" : { "tag" : "tech" }
+        }
+        "must_not" : {
+            "range" : {
+                "age" : { "from" : 10, "to" : 20 }
+            }
+        },
+        "should" : [
+            {
+                "term" : { "tag" : "wow" }
+            },
+            {
+                "term" : { "tag" : "elasticsearch" }
+            }
+        ],
+        "minimum_should_match" : 1,
+        "boost" : 1.0
+    }
+}
+--------------------------------------------------

@@ -1,0 +1,28 @@
+{
+    "person":{
+        "properties":{
+            "name1":{
+                "type":"object",
+                "properties":{
+                    "first1":{
+                        "type":"string"
+                    },
+                    "last1":{
+                        "type":"string"
+                    }
+                }
+            },
+            "name2":{
+                "type":"object",
+                "properties":{
+                    "first2":{
+                        "type":"string"
+                    },
+                    "last2":{
+                        "type":"string"
+                    }
+                }
+            }
+        }
+    }
+}

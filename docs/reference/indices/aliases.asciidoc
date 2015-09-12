@@ -63,6 +63,23 @@ curl -XPOST 'http://localhost:9200/_aliases' -d '
 }'
 --------------------------------------------------
 
+Alternatively, you can use a glob pattern to associate an alias to
+more than one index that share a common name:
+
+[source,js]
+--------------------------------------------------
+curl -XPOST 'http://localhost:9200/_aliases' -d '
+{
+    "actions" : [
+        { "add" : { "index" : "test*", "alias" : "all_test_indices" } }
+    ]
+}'
+--------------------------------------------------
+
+In this case, the alias is a point-in-time alias that will group all
+current indices that match, it will not automatically update as new
+indices that match this pattern are added/removed.
+
 It is an error to index to an alias which points to more than one index.
 
 [float]
@@ -72,12 +89,32 @@ It is an error to index to an alias which points to more than one index.
 Aliases with filters provide an easy way to create different "views" of
 the same index. The filter can be defined using Query DSL and is applied
 to all Search, Count, Delete By Query and More Like This operations with
-this alias. Here is an example:
+this alias.
+
+To create a filtered alias, first we need to ensure that the fields already
+exist in the mapping:
 
 [source,js]
 --------------------------------------------------
-curl -XPOST 'http://localhost:9200/_aliases' -d '
-{
+curl -XPUT 'http://localhost:9200/test1' -d '{
+  "mappings": {
+    "type1": {
+      "properties": {
+        "user" : {
+          "type": "string",
+          "index": "not_analyzed"
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+
+Now we can create an alias that uses a filter on field `user`:
+
+[source,js]
+--------------------------------------------------
+curl -XPOST 'http://localhost:9200/_aliases' -d '{
     "actions" : [
         {
             "add" : {
@@ -163,7 +200,7 @@ An alias can also be added with the endpoint
 where
 
 [horizontal]
-`index`::   The index the alias refers to. Can be any of `blank | * | _all | glob pattern | name1, name2, …`
+`index`::   The index the alias refers to. Can be any of `* | _all | glob pattern | name1, name2, …`
 `name`::   The name of the alias. This is a required option.
 `routing`:: An optional routing that can be associated with an alias.
 `filter`::  An optional filter that can be associated with an alias.
@@ -173,14 +210,34 @@ You can also use the plural `_aliases`.
 [float]
 ==== Examples:
 
-Adding time based alias:
-
+Adding time based alias::
++
+--
 [source,js]
 --------------------------------------------------
 curl -XPUT 'localhost:9200/logs_201305/_alias/2013'
 --------------------------------------------------
+--
 
-Adding user alias:
+Adding a user alias::
++
+--
+First create the index and add a mapping for the `user_id` field:
+
+[source,js]
+--------------------------------------------------
+curl -XPUT 'localhost:9200/users' -d '{
+    "mappings" : {
+        "user" : {
+            "properties" : {
+                "user_id" : {"type" : "integer"}
+            }
+        }
+    }
+}'
+--------------------------------------------------
+
+Then add the alias for a specific user:
 
 [source,js]
 --------------------------------------------------
@@ -194,17 +251,24 @@ curl -XPUT 'localhost:9200/users/_alias/user_12' -d '{
 }'
 --------------------------------------------------
 
+--
+
 [float]
 [[alias-index-creation]]
 === Aliases during index creation
-
-added[1.1.0]
 
 Aliases can also be specified during <<create-index-aliases,index creation>>:
 
 [source,js]
 --------------------------------------------------
 curl -XPUT localhost:9200/logs_20142801 -d '{
+    "mappings" : {
+        "type" : {
+            "properties" : {
+                "year" : {"type" : "integer"}
+            }
+        }
+    },
     "aliases" : {
         "current_day" : {},
         "2014" : {
@@ -363,7 +427,7 @@ option as the get indices aliases api. Examples:
 
 [source,js]
 --------------------------------------------------
-curl -XHEAD 'localhost:9200/_alias/2013'
-curl -XHEAD 'localhost:9200/_alias/2013_01*'
-curl -XHEAD 'localhost:9200/users/_alias/*'
+curl -XHEAD -i 'localhost:9200/_alias/2013'
+curl -XHEAD -i 'localhost:9200/_alias/2013_01*'
+curl -XHEAD -i 'localhost:9200/users/_alias/*'
 --------------------------------------------------

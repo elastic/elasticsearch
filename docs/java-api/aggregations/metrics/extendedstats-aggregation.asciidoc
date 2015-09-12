@@ -1,0 +1,44 @@
+[[java-aggs-metrics-extendedstats]]
+==== Extended Stats Aggregation
+
+Here is how you can use
+{ref}/search-aggregations-metrics-extendedstats-aggregation.html[Extended Stats Aggregation]
+with Java API.
+
+
+===== Prepare aggregation request
+
+Here is an example on how to create the aggregation request:
+
+[source,java]
+--------------------------------------------------
+MetricsAggregationBuilder aggregation =
+        AggregationBuilders
+                .extendedStats("agg")
+                .field("height");
+--------------------------------------------------
+
+
+===== Use aggregation response
+
+Import Aggregation definition classes:
+
+[source,java]
+--------------------------------------------------
+import org.elasticsearch.search.aggregations.metrics.stats.extended.ExtendedStats;
+--------------------------------------------------
+
+[source,java]
+--------------------------------------------------
+// sr is here your SearchResponse object
+ExtendedStats agg = sr.getAggregations().get("agg");
+double min = agg.getMin();
+double max = agg.getMax();
+double avg = agg.getAvg();
+double sum = agg.getSum();
+long count = agg.getCount();
+double stdDeviation = agg.getStdDeviation();
+double sumOfSquares = agg.getSumOfSquares();
+double variance = agg.getVariance();
+--------------------------------------------------
+

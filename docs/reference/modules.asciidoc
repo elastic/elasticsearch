@@ -1,6 +1,75 @@
 [[modules]]
 = Modules
 
+[partintro]
+--
+This section contains modules responsible for various aspects of the functionality in Elasticsearch.  Each module has settings which may be:
+
+_static_::
+
+These settings must be set at the node level, either in the
+`elasticsearch.yml` file, or as an environment variable or on the command line
+when starting a node.  They must be set on every relevant node in the cluster.
+
+_dynamic_::
+
+These settings can be dynamically updated on a live cluster with the
+<<cluster-update-settings,cluster-update-settings>> API.
+
+The modules in this section are:
+
+<<modules-cluster,Cluster-level routing and shard allocation>>::
+
+    Settings to control where, when, and how shards are allocated to nodes.
+
+<<modules-discovery,Discovery>>::
+
+    How nodes discover each other to form a cluster.
+
+<<modules-gateway,Gateway>>::
+
+    How many nodes need to join the cluster before recovery can start.
+
+<<modules-http,HTTP>>::
+
+    Settings to control the HTTP REST interface.
+
+<<modules-indices,Indices>>::
+
+    Global index-related settings.
+
+<<modules-network,Network>>::
+
+    Controls default network settings.
+
+<<modules-node,Node client>>::
+
+    A Java node client joins the cluster, but doesn't hold data or act as a master node.
+
+<<modules-plugins,Plugins>>::
+
+    Using plugins to extend Elasticsearch.
+
+<<modules-scripting,Scripting>>::
+
+    Custom scripting available in Lucene Expressions, Groovy, Python, and
+    Javascript.
+
+<<modules-snapshots,Snapshot/Restore>>::
+
+    Backup your data with snapshot/restore.
+
+<<modules-threadpool,Thread pools>>::
+
+    Information about the dedicated thread pools used in Elasticsearch.
+
+<<modules-transport,Transport>>::
+
+    Configure the transport networking layer, used internally by Elasticsearch
+    to communicate between nodes.
+--
+
+
 include::modules/cluster.asciidoc[]
 
 include::modules/discovery.asciidoc[]
@@ -11,13 +80,9 @@ include::modules/http.asciidoc[]
 
 include::modules/indices.asciidoc[]
 
-include::modules/memcached.asciidoc[]
-
 include::modules/network.asciidoc[]
 
 include::modules/node.asciidoc[]
-
-include::modules/tribe.asciidoc[]
 
 include::modules/plugins.asciidoc[]
 
@@ -25,13 +90,14 @@ include::modules/scripting.asciidoc[]
 
 include::modules/advanced-scripting.asciidoc[]
 
-include::modules/threadpool.asciidoc[]
+include::modules/snapshots.asciidoc[]
 
-include::modules/thrift.asciidoc[]
+include::modules/threadpool.asciidoc[]
 
 include::modules/transport.asciidoc[]
 
-include::modules/snapshots.asciidoc[]
+include::modules/tribe.asciidoc[]
+
 
 
 

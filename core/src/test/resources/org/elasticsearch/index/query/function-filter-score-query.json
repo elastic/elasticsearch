@@ -1,0 +1,24 @@
+
+
+{
+    "function_score":{
+        "query":{
+            "term":{
+                "name.last":"banon"
+            }
+        },
+        "functions":  [
+            {
+                "weight": 3,
+                "filter": {
+                    "term":{
+                        "name.last":"banon"
+                    }
+                }
+            }
+        ],
+        "boost" : 3,
+        "score_mode" : "avg",
+        "max_boost" : 10
+    }
+}

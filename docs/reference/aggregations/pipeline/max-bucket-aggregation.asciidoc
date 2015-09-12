@@ -1,0 +1,108 @@
+[[search-aggregations-pipeline-max-bucket-aggregation]]
+=== Max Bucket Aggregation
+
+coming[2.0.0-beta1]
+
+experimental[]
+
+A sibling pipeline aggregation which identifies the bucket(s) with the maximum value of a specified metric in a sibling aggregation
+and outputs both the value and the key(s) of the bucket(s). The specified metric must be numeric and the sibling aggregation must 
+be a multi-bucket aggregation.
+
+==== Syntax
+
+A `max_bucket` aggregation looks like this in isolation:
+
+[source,js]
+--------------------------------------------------
+{
+    "max_bucket": {
+        "buckets_path": "the_sum"
+    }
+}
+--------------------------------------------------
+
+.`max_bucket` Parameters
+|===
+|Parameter Name |Description |Required |Default Value
+|`buckets_path` |The path to the buckets we wish to find the maximum for (see <<buckets-path-syntax>> for more
+ details) |Required |
+ |`gap_policy` |The policy to apply when gaps are found in the data (see <<gap-policy>> for more
+ details)|Optional, defaults to `skip` |
+ |`format` |format to apply to the output value of this aggregation |Optional, defaults to `null` |
+|===
+
+The following snippet calculates the maximum of the total monthly `sales`:
+
+[source,js]
+--------------------------------------------------
+{
+    "aggs" : {
+        "sales_per_month" : {
+            "date_histogram" : {
+                "field" : "date",
+                "interval" : "month"
+            },
+            "aggs": {
+                "sales": {
+                    "sum": {
+                        "field": "price"
+                    }
+                }
+            }
+        },
+        "max_monthly_sales": {
+            "max_bucket": {
+                "buckets_path": "sales_per_month>sales" <1>
+            }
+        }
+    }
+}
+--------------------------------------------------
+<1> `buckets_path` instructs this max_bucket aggregation that we want the maximum value of the `sales` aggregation in the 
+`sales_per_month` date histogram.
+
+And the following may be the response:
+
+[source,js]
+--------------------------------------------------
+{
+   "aggregations": {
+      "sales_per_month": {
+         "buckets": [
+            {
+               "key_as_string": "2015/01/01 00:00:00",
+               "key": 1420070400000,
+               "doc_count": 3,
+               "sales": {
+                  "value": 550
+               }
+            },
+            {
+               "key_as_string": "2015/02/01 00:00:00",
+               "key": 1422748800000,
+               "doc_count": 2,
+               "sales": {
+                  "value": 60
+               }
+            },
+            {
+               "key_as_string": "2015/03/01 00:00:00",
+               "key": 1425168000000,
+               "doc_count": 2,
+               "sales": {
+                  "value": 375
+               }
+            }
+         ]
+      },
+      "max_monthly_sales": {
+          "keys": ["2015/01/01 00:00:00"], <1>
+          "value": 550
+      }
+   }
+}
+--------------------------------------------------
+
+<1> `keys` is an array of strings since the maximum value may be present in multiple buckets
+

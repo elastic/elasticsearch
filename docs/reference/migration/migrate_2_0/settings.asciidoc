@@ -1,0 +1,147 @@
+=== Setting changes
+
+[[migration-script-settings]]
+==== Scripting settings
+
+The `script.disable_dynamic` node setting has been replaced by fine-grained
+script settings described in the <<enable-dynamic-scripting,scripting docs>>.
+The following setting previously used to enable dynamic or inline scripts:
+
+[source,yaml]
+---------------
+script.disable_dynamic: false
+---------------
+
+It should be replaced with the following two settings in `elasticsearch.yml` that
+achieve the same result:
+
+[source,yaml]
+---------------
+script.inline: on
+script.indexed: on
+---------------
+
+==== Units required for time and byte-sized settings
+
+Any settings which accept time or byte values must now be specified with
+units.  For instance, it is too easy to set the `refresh_interval` to 1
+*millisecond* instead of 1 second:
+
+[source,js]
+---------------
+PUT _settings
+{
+  "index.refresh_interval": 1
+}
+---------------
+
+In 2.0, the above request will throw an exception. Instead the refresh
+interval should be set to `"1s"` for one second.
+
+==== Merge and merge throttling settings
+
+The tiered merge policy is now the only supported merge policy. These settings
+have been removed:
+
+* `index.merge.policy.type`
+* `index.merge.policy.min_merge_size`
+* `index.merge.policy.max_merge_size`
+* `index.merge.policy.merge_factor`
+* `index.merge.policy.max_merge_docs`
+* `index.merge.policy.calibrate_size_by_deletes`
+* `index.merge.policy.min_merge_docs`
+* `index.merge.policy.max_merge_docs`
+
+Merge throttling now uses a feedback loop to auto-throttle.  These settings
+have been removed:
+
+* `indices.store.throttle.type`
+* `indices.store.throttle.max_bytes_per_sec`
+* `index.store.throttle.type`
+* `index.store.throttle.max_bytes_per_sec`
+
+==== Shadow replica settings
+
+The `node.enable_custom_paths` setting has been removed and replaced by the
+`path.shared_data` setting to allow shadow replicas with custom paths to work
+with the security manager. For example, if your previous configuration had:
+
+[source,yaml]
+------
+node.enable_custom_paths: true
+------
+
+And you created an index using shadow replicas with `index.data_path` set to
+`/opt/data/my_index` with the following:
+
+[source,js]
+--------------------------------------------------
+PUT /my_index
+{
+  "index": {
+    "number_of_shards": 1,
+    "number_of_replicas": 4,
+    "data_path": "/opt/data/my_index",
+    "shadow_replicas": true
+  }
+}
+--------------------------------------------------
+
+For 2.0, you will need to set `path.shared_data` to a parent directory of the
+index's data_path, so:
+
+[source,yaml]
+-----------
+path.shared_data: /opt/data
+-----------
+
+==== Resource watcher settings renamed
+
+The setting names for configuring the resource watcher have been renamed
+to prevent clashes with the watcher plugin
+
+* `watcher.enabled` is now `resource.reload.enabled`
+* `watcher.interval` is now `resource.reload.interval`
+* `watcher.interval.low` is now `resource.reload.interval.low`
+* `watcher.interval.medium` is now `resource.reload.interval.medium`
+* `watcher.interval.high` is now `resource.reload.interval.high`
+
+==== Hunspell dictionary configuration
+
+The parameter `indices.analysis.hunspell.dictionary.location` has been
+removed, and `<path.conf>/hunspell` is always used.
+
+==== CORS allowed origins
+
+The CORS allowed origins setting, `http.cors.allow-origin`, no longer has a default value. Previously, the default value
+was `*`, which would allow CORS requests from any origin and is considered insecure. The `http.cors.allow-origin` setting
+should be specified with only the origins that should be allowed, like so:
+
+[source,yaml]
+---------------
+http.cors.allow-origin: /https?:\/\/localhost(:[0-9]+)?/
+---------------
+
+==== JSONP support
+
+JSONP callback support has now been removed. CORS should be used to access Elasticsearch
+over AJAX instead:
+
+[source,yaml]
+---------------
+http.cors.enabled: true
+http.cors.allow-origin: /https?:\/\/localhost(:[0-9]+)?/
+---------------
+
+==== In memory indices
+
+The `memory` / `ram` store (`index.store.type`) option was removed in
+Elasticsearch.  In-memory indices are no longer supported.
+
+==== Log messages truncated
+
+Log messages are now truncated at 10,000 characters. This can be changed in
+the `logging.yml` configuration file with the `file.layout.conversionPattern`
+setting.
+
+Remove mapping.date.round_ceil setting for date math parsing #8889 (issues: #8556, #8598)

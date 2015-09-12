@@ -1,0 +1,119 @@
+[[boolean]]
+=== Boolean datatype
+
+Boolean fields accept JSON `true` and `false` values, but can also accept
+strings and numbers which are interpreted as either true or false:
+
+[horizontal]
+False values::
+
+    `false`, `"false"`, `"off"`, `"no"`, `"0"`, `""` (empty string), `0`, `0.0`
+
+True values::
+
+    Anything that isn't false.
+
+For example:
+
+[source,js]
+--------------------------------------------------
+PUT my_index
+{
+  "mappings": {
+    "my_type": {
+      "properties": {
+        "is_published": {
+          "type": "boolean"
+        }
+      }
+    }
+  }
+}
+
+POST my_index/my_type/1
+{
+  "is_published": true <1>
+}
+
+GET my_index/_search
+{
+  "query": {
+    "term": {
+      "is_published": 1 <2>
+    }
+  }
+}
+--------------------------------------------------
+// AUTOSENSE
+<1> Indexing a document with a JSON `true`.
+<2> Querying for the document with `1`, which is interpreted as `true`.
+
+Aggregations like the <<search-aggregations-bucket-terms-aggregation,`terms`
+aggregation>>  use `1` and `0` for the `key`, and the strings `"true"` and
+`"false"` for the `key_as_string`. Boolean fields  when used in scripts,
+return `1` and `0`:
+
+[source,js]
+--------------------------------------------------
+POST my_index/my_type/1
+{
+  "is_published": true
+}
+
+POST my_index/my_type/2
+{
+  "is_published": false
+}
+
+GET my_index/_search
+{
+  "aggs": {
+    "publish_state": {
+      "terms": {
+        "field": "is_published"
+      }
+    }
+  },
+  "script_fields": {
+    "is_published": {
+      "script": "doc['is_published'].value" <1>
+    }
+  }
+}
+--------------------------------------------------
+// AUTOSENSE
+<1> Inline scripts must be <<enable-dynamic-scripting,enabled>> for this example to work.
+
+[[boolean-params]]
+==== Parameters for `boolean` fields
+
+The following parameters are accepted by `boolean` fields:
+
+[horizontal]
+
+<<index-boost,`boost`>>::
+
+    Field-level index time boosting. Accepts a floating point number, defaults
+    to `1.0`.
+
+<<doc-values,`doc_values`>>::
+
+    Can the field value be used for sorting, aggregations, or scripting?
+    Accepts `true` (default) or `false`.
+
+<<mapping-index,`index`>>::
+
+    Should the field be searchable? Accepts `not_analyzed` (default) and `no`.
+
+<<null-value,`null_value`>>::
+
+    Accepts any of the true or false values listed above. The value is
+    substituted for any explicit `null` values.  Defaults to `null`, which
+    means the field is treated as missing.
+
+<<mapping-store,`store`>>::
+
+    Whether the field value should be stored and retrievable separately from
+    the <<mapping-source-field,`_source`>> field. Accepts `true` or `false`
+    (default).
+

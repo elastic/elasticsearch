@@ -1,0 +1,142 @@
+[[date]]
+=== Date datatype
+
+JSON doesn't have a date datatype, so dates in Elasticsearch can either be:
+
+* strings containing formatted dates, e.g. `"2015-01-01"` or `"2015/01/01 12:10:30"`.
+* a long number representing _milliseconds-since-the-epoch_.
+* an integer representing _seconds-since-the-epoch_.
+
+Internally, dates are converted to UTC (if the time-zone is specified) and
+stored as a long number representing milliseconds-since-the-epoch.
+
+Date formats can be customised, but if no `format` is specified then it uses
+the default:
+
+    "strict_date_optional_time||epoch_millis"
+
+This means that it will accept dates with optional timestamps, which conform
+to the formats supported by <<strict-date-time,`strict_date_optional_time`>>
+or milliseconds-since-the-epoch.
+
+For instance:
+
+[source,js]
+--------------------------------------------------
+PUT my_index
+{
+  "mappings": {
+    "my_type": {
+      "properties": {
+        "date": {
+          "type": "date" <1>
+        }
+      }
+    }
+  }
+}
+
+PUT my_index/my_type/1
+{ "date": "2015-01-01" } <2>
+
+PUT my_index/my_type/2
+{ "date": "2015-01-01T12:10:30Z" } <3>
+
+PUT my_index/my_type/3
+{ "date": 1420070400001 } <4>
+
+GET my_index/_search
+{
+  "sort": { "date": "asc"} <5>
+}
+--------------------------------------------------
+// AUTOSENSE
+<1> The `date` field uses the default `format`.
+<2> This document uses a plain date.
+<3> This document includes a time.
+<4> This document uses milliseconds-since-the-epoch.
+<5> Note that the `sort` values that are returned are all in milliseconds-since-the-epoch.
+
+[[multiple-date-formats]]
+==== Multiple date formats
+
+Multiple formats can be specified by separating them with `||` as a separator.
+Each format will be tried in turn until a matching format is found.  The first
+format will be used to convert the _milliseconds-since-the-epoch_ value back
+into a string.
+
+[source,js]
+--------------------------------------------------
+PUT my_index
+{
+  "mappings": {
+    "my_type": {
+      "properties": {
+        "date": {
+          "type":   "date",
+          "format": "yyy-MM-dd HH:mm:ss||yyyy-MM-dd||epoch_millis"
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// AUTOSENSE
+
+[[date-params]]
+==== Parameters for `date` fields
+
+The following parameters are accepted by `date` fields:
+
+[horizontal]
+
+<<index-boost,`boost`>>::
+
+    Field-level index time boosting. Accepts a floating point number, defaults
+    to `1.0`.
+
+<<doc-values,`doc_values`>>::
+
+    Can the field value be used for sorting, aggregations, or scripting?
+    Accepts `true` (default) or `false`.
+
+<<mapping-date-format,`format`>>::
+
+    The date format(s) that can be parsed.  Defaults to
+    `strict_date_optional_time||epoch_millis`.
+
+<<ignore-malformed,`ignore_malformed`>>::
+
+    If `true`, malformed numbers are ignored. If `false` (default), malformed
+    numbers throw an exception and reject the whole document.
+
+<<include-in-all,`include_in_all`>>::
+
+    Whether or not the field value should be included in the
+    <<mapping-all-field,`_all`>> field? Accepts `true` or `false`.  Defaults
+    to `false` if <<mapping-index,`index`>> is set to `no`, or if a parent
+    <<object,`object`>> field sets `include_in_all` to `false`.
+    Otherwise defaults to `true`.
+
+<<mapping-index,`index`>>::
+
+    Should the field be searchable? Accepts `not_analyzed` (default) and `no`.
+
+<<null-value,`null_value`>>::
+
+    Accepts a date value in one of the configured +format+'s as the field
+    which is substituted for any explicit `null` values.  Defaults to `null`,
+    which means the field is treated as missing.
+
+<<precision-step,`precision_step`>>::
+
+    Controls the number of extra terms that are indexed to make
+    <<query-dsl-range-query,`range` queries>> faster. Defaults to `16`.
+
+<<mapping-store,`store`>>::
+
+    Whether the field value should be stored and retrievable separately from
+    the <<mapping-source-field,`_source`>> field. Accepts `true` or `false`
+    (default).
+
+

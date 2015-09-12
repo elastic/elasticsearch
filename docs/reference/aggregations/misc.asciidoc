@@ -1,0 +1,76 @@
+
+[[caching-heavy-aggregations]]
+== Caching heavy aggregations
+
+Frequently used aggregations (e.g. for display on the home page of a website)
+can be cached for faster responses. These cached results are the same results
+that would be returned by an uncached aggregation -- you will never get stale
+results.
+
+See <<shard-request-cache>> for more details.
+
+[[returning-only-agg-results]]
+== Returning only aggregation results
+
+There are many occasions when aggregations are required but search hits are not.  For these cases the hits can be ignored by
+setting `size=0`. For example:
+
+[source,js]
+--------------------------------------------------
+$ curl -XGET 'http://localhost:9200/twitter/tweet/_search' -d '{
+  "size": 0,
+  "aggregations": {
+    "my_agg": {
+      "terms": {
+        "field": "text"
+      }
+    }
+  }
+}
+'
+--------------------------------------------------
+
+Setting `size` to `0` avoids executing the fetch phase of the search making the request more efficient.
+
+[[agg-metadata]]
+== Aggregation Metadata
+
+You can associate a piece of metadata with individual aggregations at request time that will be returned in place
+at response time.
+
+Consider this example where we want to associate the color blue with our `terms` aggregation.
+
+[source,js]
+--------------------------------------------------
+{
+    ...
+    aggs": {
+        "titles": {
+            "terms": {
+                "field": "title"
+            },
+            "meta": {
+                "color": "blue"
+            },
+        }
+    }
+}
+--------------------------------------------------
+
+Then that piece of metadata will be returned in place for our `titles` terms aggregation
+
+[source,js]
+--------------------------------------------------
+{
+    ...
+    "aggregations": {
+        "titles": {
+            "meta": {
+                "color" : "blue"
+            },
+            "buckets": [
+            ]
+        }
+    }
+}
+--------------------------------------------------

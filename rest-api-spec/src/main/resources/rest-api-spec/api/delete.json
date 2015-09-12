@@ -1,0 +1,60 @@
+{
+  "delete": {
+    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/docs-delete.html",
+    "methods": ["DELETE"],
+    "url": {
+      "path": "/{index}/{type}/{id}",
+      "paths": ["/{index}/{type}/{id}"],
+      "parts": {
+        "id": {
+          "type" : "string",
+          "required" : true,
+          "description" : "The document ID"
+        },
+        "index": {
+          "type" : "string",
+          "required" : true,
+          "description" : "The name of the index"
+        },
+        "type": {
+          "type" : "string",
+          "required" : true,
+          "description" : "The type of the document"
+        }
+      },
+      "params": {
+        "consistency": {
+          "type" : "enum",
+          "options" : ["one", "quorum", "all"],
+          "description" : "Specific write consistency setting for the operation"
+        },
+        "parent": {
+          "type" : "string",
+          "description" : "ID of parent document"
+        },
+        "refresh": {
+          "type" : "boolean",
+          "description" : "Refresh the index after performing the operation"
+        },
+        "routing": {
+          "type" : "string",
+          "description" : "Specific routing value"
+        },
+        "timeout": {
+          "type" : "time",
+          "description" : "Explicit operation timeout"
+        },
+        "version" : {
+          "type" : "number",
+          "description" : "Explicit version number for concurrency control"
+        },
+        "version_type": {
+          "type" : "enum",
+          "options" : ["internal", "external", "external_gte", "force"],
+          "description" : "Specific version type"
+        }
+      }
+    },
+    "body": null
+  }
+}

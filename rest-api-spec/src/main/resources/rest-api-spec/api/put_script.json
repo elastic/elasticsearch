@@ -1,0 +1,43 @@
+{
+  "put_script": {
+    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/modules-scripting.html",
+    "methods": ["PUT", "POST"],
+    "url": {
+      "path": "/_scripts/{lang}/{id}",
+      "paths": [ "/_scripts/{lang}/{id}" ],
+      "parts": {
+        "id": {
+          "type" : "string",
+          "description" : "Script ID",
+          "required" : true
+        },
+        "lang" : {
+          "type" : "string",
+          "description" : "Script language",
+          "required" : true
+        }
+      },
+      "params" : {
+        "op_type": {
+          "type" : "enum",
+          "options" : ["index", "create"],
+          "default" : "index",
+          "description" : "Explicit operation type"
+        },
+        "version": {
+          "type": "number",
+          "description": "Explicit version number for concurrency control"
+        },
+        "version_type": {
+          "type": "enum",
+          "options": ["internal", "external", "external_gte", "force"],
+          "description": "Specific version type"
+        }
+      }
+    },
+    "body": {
+      "description" : "The document",
+      "required" : true
+    }
+  }
+}

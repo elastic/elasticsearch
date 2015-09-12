@@ -11,15 +11,16 @@ basic `auto-complete` functionality.
 ==== Why another suggester? Why not prefix queries?
 
 The first question which comes to mind when reading about a prefix
-suggestion is, why you should use it all, if you have prefix queries
+suggestion is, why you should use it at all, if you have prefix queries
 already. The answer is simple: Prefix suggestions are fast.
 
 The data structures are internally backed by Lucenes
-`AnalyzingSuggester`, which uses FSTs to execute suggestions. Usually
-these data structures are costly to create, stored in-memory and need to
-be rebuilt every now and then to reflect changes in your indexed
-documents. The `completion` suggester circumvents this by storing the
-FST as part of your index during index time. This allows for really fast
+`AnalyzingSuggester`, which uses FSTs (finite state transducers) to
+execute suggestions. Usually these data structures are costly to
+create, stored in-memory and need to be rebuilt every now and then to
+reflect changes in your indexed documents. The `completion` suggester
+circumvents this by storing the FST (finite state transducer) as part
+of your index during index time. This allows for really fast
 loads and executions.
 
 [[completion-suggester-mapping]]
@@ -36,7 +37,7 @@ curl -X PUT localhost:9200/music/song/_mapping -d '{
         "properties" : {
             "name" : { "type" : "string" },
             "suggest" : { "type" : "completion",
-                          "index_analyzer" : "simple",
+                          "analyzer" : "simple",
                           "search_analyzer" : "simple",
                           "payloads" : true
             }
@@ -47,16 +48,15 @@ curl -X PUT localhost:9200/music/song/_mapping -d '{
 
 Mapping supports the following parameters:
 
-`index_analyzer`::
+`analyzer`::
     The index analyzer to use, defaults to `simple`.
-
-`search_analyzer`::
-    The search analyzer to use, defaults to `simple`.
     In case you are wondering why we did not opt for the `standard`
     analyzer: We try to have easy to understand behaviour here, and if you
     index the field content `At the Drive-in`, you will not get any
     suggestions for `a`, nor for `d` (the first non stopword).
 
+`search_analyzer`::
+    The search analyzer to use, defaults to value of `analyzer`.
 
 `payloads`::
     Enables the storing of payloads, defaults to `false`
@@ -107,9 +107,10 @@ The following parameters are supported:
 `output`::
     The string to return, if a suggestion matches. This is very
     useful to normalize outputs (i.e. have them always in the format
-    `artist - songname`). The result is de-duplicated if several documents
+    `artist - songname`). This is optional.
+    *Note*: The result is de-duplicated if several documents
     have the same output, i.e. only one is returned as part of the
-    suggest result. This is optional.
+    suggest result.
 
 `payload`::
     An arbitrary JSON object, which is simply returned in the
@@ -118,8 +119,9 @@ The following parameters are supported:
     might not yield any results, if `input` and `output` differ strongly).
 
 `weight`::
-    A positive integer, which defines a weight and allows you to
-    rank your suggestions. This field is optional.
+    A positive integer or a string containing a positive integer,
+    which defines a weight and allows you to rank your suggestions.
+    This field is optional.
 
 NOTE: Even though you will lose most of the features of the
 completion suggest, you can choose to use the following shorthand form.
@@ -135,8 +137,8 @@ payloads or weights. This form does still work inside of multi fields.
 
 NOTE: The suggest data structure might not reflect deletes on
 documents immediately. You may need to do an <<indices-optimize>> for that.
-You can call optimize with the `only_expunge_deletes=true` to only cater for deletes
-or alternatively call a <<index-modules-merge>> operation.
+You can call optimize with the `only_expunge_deletes=true` to only target
+deletions for merging.
 
 [[querying]]
 ==== Querying
@@ -164,7 +166,7 @@ curl -X POST 'localhost:9200/music/_suggest?pretty' -d '{
   "song-suggest" : [ {
     "text" : "n",
     "offset" : 0,
-    "length" : 4,
+    "length" : 1,
     "options" : [ {
       "text" : "Nirvana - Nevermind",
       "score" : 34.0, "payload" : {"artistId":2321}
@@ -178,6 +180,11 @@ appropriately. If you configured a weight for a suggestion, this weight
 is used as `score`. Also the `text` field uses the `output` of your
 indexed suggestion, if configured, otherwise the matched part of the
 `input` field.
+
+The basic completion suggester query supports the following two parameters:
+
+`field`:: The name of the field on which to run the query (required).
+`size`::  The number of suggestions to return (defaults to `5`).
 
 NOTE: The completion suggester considers all documents in the index.
 See <<suggester-context>> for an explanation of how to query a subset of
@@ -213,8 +220,8 @@ The following parameters are supported:
     See  <<fuzziness>> for allowed settings.
 
 `transpositions`::
-    Sets if transpositions should be counted
-    as one or two changes, defaults to `true`
+    if set to `true`, transpositions are counted
+    as one change instead of two, defaults to `true`
 
 `min_length`::
     Minimum length of the input before fuzzy

@@ -1,0 +1,45 @@
+---
+"Missing document (partial doc)":
+
+  - do:
+      catch:      missing
+      update:
+          index:  test_1
+          type:   test
+          id:     1
+          body:   { doc: { foo: bar } }
+
+  - do:
+      update:
+          index: test_1
+          type:  test
+          id:    1
+          body:  { doc: { foo: bar } }
+          ignore: 404
+
+---
+"Missing document (script)":
+
+  - skip:
+      features: groovy_scripting
+
+
+  - do:
+      catch:      missing
+      update:
+          index:  test_1
+          type:   test
+          id:     1
+          body:
+            script: "ctx._source.foo = bar"
+            params: { bar: 'xxx' }
+
+  - do:
+      update:
+          index:  test_1
+          type:   test
+          id:     1
+          ignore: 404
+          body:
+            script:       "ctx._source.foo = bar"
+            params:       { bar: 'xxx' }

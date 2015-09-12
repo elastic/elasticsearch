@@ -1,0 +1,73 @@
+[[norms]]
+=== `norms`
+
+Norms store various normalization factors -- a number to represent the
+relative field length and the <<index-boost,index time `boost`>> setting --
+that are later used at query time in order to compute the score of a document
+relatively to a query.
+
+Although useful for scoring, norms also require quite a lot of memory
+(typically in the order of one byte per document per field in your index, even
+for documents that don't have this specific field). As a consequence, if you
+don't need scoring on a specific field, you should disable norms on that
+field. In  particular, this is the case for fields that are used solely for
+filtering or aggregations.
+
+TIP: The `norms.enabled` setting must have the same setting for fields of the
+same name in the same index.  Norms can be disabled on existing fields using
+the <<indices-put-mapping,PUT mapping API>>.
+
+Norms can be disabled (but not reenabled) after the fact, using the
+<<indices-put-mapping,PUT mapping API>> like so:
+
+[source,js]
+------------
+PUT my_index/_mapping/my_type
+{
+  "properties": {
+    "title": {
+      "type": "string",
+      "norms": {
+        "enabled": false
+      }
+    }
+  }
+}
+------------
+// AUTOSENSE
+
+NOTE: Norms will not be removed instantly, but will be removed as old segments
+are merged into new segments as you continue indexing new documents. Any score
+computation on a field that has had norms removed might return inconsistent
+results since some documents won't have norms anymore while other documents
+might still have norms.
+
+
+==== Lazy loading of norms
+
+Norms can be loaded into memory eagerly (`eager`), whenever a new segment
+comes online, or they can loaded lazily (`lazy`, default), only when the field
+is queried.
+
+Eager loading can be configured as follows:
+
+[source,js]
+------------
+PUT my_index/_mapping/my_type
+{
+  "properties": {
+    "title": {
+      "type": "string",
+      "norms": {
+        "loading": "eager"
+      }
+    }
+  }
+}
+------------
+// AUTOSENSE
+
+TIP: The `norms.loading` setting must have the same setting for fields of the
+same name in the same index.  Its value can be updated on existing fields
+using the <<indices-put-mapping,PUT mapping API>>.
+

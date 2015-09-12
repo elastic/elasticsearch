@@ -1,0 +1,16 @@
+[[indices-ttl]]
+=== TTL interval
+
+Documents that have a <<mapping-ttl-field,`ttl`>> value set need to be deleted
+once they have expired.  How and how often they are deleted is controlled by
+the following dynamic cluster settings:
+
+`indices.ttl.interval`::
+
+    How often the deletion process runs.  Defaults to `60s`.
+
+`indices.ttl.bulk_size`::
+
+    The deletions are processed with a <<docs-bulk,bulk request>>.
+    The number of deletions processed can be configured with
+    this settings. Defaults to `10000`.

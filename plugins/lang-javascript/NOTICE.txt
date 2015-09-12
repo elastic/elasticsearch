@@ -1,0 +1,11 @@
+Elasticsearch
+Copyright 2009-2015 Elasticsearch
+
+This product includes software developed by The Apache Software
+Foundation (http://www.apache.org/).
+
+rhino-*.jar is licensed under the MPL 2.0.  The original source code for this
+can be found at https://github.com/mozilla/rhino.
+
+The LICENSE and NOTICE files for all dependencies may be found in the licenses/
+directory.

@@ -8,15 +8,16 @@ configuration, for example, the
 network settings allows to set common settings that will be shared among
 all network based modules (unless explicitly overridden in each module).
 
-The `network.bind_host` setting allows to control the host different
-network components will bind on. By default, the bind host will be
-`anyLocalAddress` (typically `0.0.0.0` or `::0`).
+The `network.bind_host` setting allows to control the host different network
+components will bind on. By default, the bind host will be `_local_`
+(loopback addresses such as `127.0.0.1`, `::1`).
 
-The `network.publish_host` setting allows to control the host the node
-will publish itself within the cluster so other nodes will be able to
-connect to it. Of course, this can't be the `anyLocalAddress`, and by
-default, it will be the first non loopback address (if possible), or the
-local address.
+The `network.publish_host` setting allows to control the host the node will
+publish itself within the cluster so other nodes will be able to connect to it.
+Currently an elasticsearch node may be bound to multiple addresses, but only
+publishes one.  If not specified, this defaults to the "best" address from 
+`network.bind_host`.  By default, IPv4 addresses are preferred to IPv6, and 
+ordinary addresses are preferred to site-local or link-local addresses.
 
 The `network.host` setting is a simple setting to automatically set both
 `network.bind_host` and `network.publish_host` to the same host value.
@@ -28,25 +29,29 @@ in the following table:
 [cols="<,<",options="header",]
 |=======================================================================
 |Logical Host Setting Value |Description
-|`_local_` |Will be resolved to the local ip address.
+|`_local_` |Will be resolved to loopback addresses
 
-|`_non_loopback_` |The first non loopback address.
+|`_local:ipv4_` |Will be resolved to loopback IPv4 addresses
 
-|`_non_loopback:ipv4_` |The first non loopback IPv4 address.
+|`_local:ipv6_` |Will be resolved to loopback IPv6 addresses
 
-|`_non_loopback:ipv6_` |The first non loopback IPv6 address.
+|`_non_loopback_` |Addresses of the first non loopback interface
 
-|`_[networkInterface]_` |Resolves to the ip address of the provided
+|`_non_loopback:ipv4_` |IPv4 addresses of the first non loopback interface
+
+|`_non_loopback:ipv6_` |IPv6 addresses of the first non loopback interface
+
+|`_[networkInterface]_` |Resolves to the addresses of the provided
 network interface. For example `_en0_`.
 
-|`_[networkInterface]:ipv4_` |Resolves to the ipv4 address of the
+|`_[networkInterface]:ipv4_` |Resolves to the ipv4 addresses of the
 provided network interface. For example `_en0:ipv4_`.
 
-|`_[networkInterface]:ipv6_` |Resolves to the ipv6 address of the
+|`_[networkInterface]:ipv6_` |Resolves to the ipv6 addresses of the
 provided network interface. For example `_en0:ipv6_`.
 |=======================================================================
 
-When the `cloud-aws` plugin is installed, the following are also allowed
+When the `discovery-ec2` plugin is installed, the following are also allowed
 as valid network host settings:
 
 [cols="<,<",options="header",]
@@ -74,8 +79,8 @@ share the following allowed settings:
 |`network.tcp.no_delay` |Enable or disable tcp no delay setting.
 Defaults to `true`.
 
-|`network.tcp.keep_alive` |Enable or disable tcp keep alive. By default
-not explicitly set.
+|`network.tcp.keep_alive` |Enable or disable tcp keep alive. Defaults
+to `true`.
 
 |`network.tcp.reuse_address` |Should an address be reused or not.
 Defaults to `true` on non-windows machines.

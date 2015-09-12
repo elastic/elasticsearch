@@ -1,0 +1,79 @@
+[[java-aggs-bucket-iprange]]
+==== Ip Range Aggregation
+
+Here is how you can use
+{ref}/search-aggregations-bucket-iprange-aggregation.html[Ip Range Aggregation]
+with Java API.
+
+
+===== Prepare aggregation request
+
+Here is an example on how to create the aggregation request:
+
+[source,java]
+--------------------------------------------------
+AggregationBuilder aggregation =
+        AggregationBuilders
+                .ipRange("agg")
+                .field("ip")
+                .addUnboundedTo("192.168.1.0")             // from -infinity to 192.168.1.0 (excluded)
+                .addRange("192.168.1.0", "192.168.2.0")    // from 192.168.1.0 to 192.168.2.0 (excluded)
+                .addUnboundedFrom("192.168.2.0");          // from 192.168.2.0 to +infinity
+--------------------------------------------------
+
+Note that you could also use ip masks as ranges:
+
+[source,java]
+--------------------------------------------------
+AggregationBuilder aggregation =
+        AggregationBuilders
+                .ipRange("agg")
+                .field("ip")
+                .addMaskRange("192.168.0.0/32")
+                .addMaskRange("192.168.0.0/24")
+                .addMaskRange("192.168.0.0/16");
+--------------------------------------------------
+
+===== Use aggregation response
+
+Import Aggregation definition classes:
+
+[source,java]
+--------------------------------------------------
+import org.elasticsearch.search.aggregations.bucket.range.Range;
+--------------------------------------------------
+
+[source,java]
+--------------------------------------------------
+// sr is here your SearchResponse object
+Range agg = sr.getAggregations().get("agg");
+
+// For each entry
+for (Range.Bucket entry : agg.getBuckets()) {
+    String key = entry.getKeyAsString();            // Ip range as key
+    String fromAsString = entry.getFromAsString();  // Ip bucket from as a String
+    String toAsString = entry.getToAsString();      // Ip bucket to as a String
+    long docCount = entry.getDocCount();            // Doc count
+
+    logger.info("key [{}], from [{}], to [{}], doc_count [{}]", key, fromAsString, toAsString, docCount);
+}
+--------------------------------------------------
+
+This will basically produce for the first example:
+
+[source,text]
+--------------------------------------------------
+key [*-192.168.1.0], from [null], to [192.168.1.0], doc_count [13]
+key [192.168.1.0-192.168.2.0], from [192.168.1.0], to [192.168.2.0], doc_count [14]
+key [192.168.2.0-*], from [192.168.2.0], to [null], doc_count [23]
+--------------------------------------------------
+
+And for the second one (using Ip masks):
+
+[source,text]
+--------------------------------------------------
+key [192.168.0.0/32], from [192.168.0.0], to [192.168.0.1], doc_count [0]
+key [192.168.0.0/24], from [192.168.0.0], to [192.168.1.0], doc_count [13]
+key [192.168.0.0/16], from [192.168.0.0], to [192.169.0.0], doc_count [50]
+--------------------------------------------------
+

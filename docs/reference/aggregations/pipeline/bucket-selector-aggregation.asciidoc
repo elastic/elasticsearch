@@ -1,0 +1,107 @@
+[[search-aggregations-pipeline-bucket-selector-aggregation]]
+=== Bucket Selector Aggregation
+
+coming[2.0.0-beta1]
+
+experimental[]
+
+A parent pipeline aggregation which executes a script which determines whether the current bucket will be retained 
+in the parent multi-bucket aggregation. The specified metric must be numeric and the script must return a boolean value. 
+If the script language is `expression` then a numeric return value is permitted. In this case 0.0 will be evaluated as `false` 
+and all other values will evaluate to true.
+
+Note: The bucket_selector aggregation, like all pipeline aggregations, executions after all other sibling aggregations. This means that 
+using the bucket_selector aggregation to filter the returned buckets in the response does not save on execution time running the aggregations.
+
+==== Syntax
+
+A `bucket_selector` aggregation looks like this in isolation:
+
+[source,js]
+--------------------------------------------------
+{
+    "bucket_selector": {
+        "buckets_path": {
+            "my_var1": "the_sum", <1>
+            "my_var2": "the_value_count"
+        },
+        "script": "my_var1 > my_var2"
+    }
+}
+--------------------------------------------------
+<1> Here, `my_var1` is the name of the variable for this buckets path to use in the script, `the_sum` is the path to 
+the metrics to use for that variable.
+
+
+.`bucket_selector` Parameters
+|===
+|Parameter Name |Description |Required |Default Value
+|`script` |The script to run for this aggregation. The script can be inline, file or indexed. (see <<modules-scripting>> 
+for more details) |Required |
+|`buckets_path` |A map of script variables and their associated path to the buckets we wish to use for the variable 
+(see <<buckets-path-syntax>> for more details) |Required |
+ |`gap_policy` |The policy to apply when gaps are found in the data (see <<gap-policy>> for more
+ details)|Optional, defaults to `skip` |
+|===
+
+The following snippet only retains buckets where the total sales for the month is less than or equal to 50:
+
+[source,js]
+--------------------------------------------------
+{
+    "aggs" : {
+        "sales_per_month" : {
+            "date_histogram" : {
+                "field" : "date",
+                "interval" : "month"
+            },
+            "aggs": {
+                "total_sales": {
+                    "sum": {
+                        "field": "price"
+                    }
+                }
+                "sales_bucket_filter": {
+                    "bucket_selector": {
+                        "buckets_path": {
+                          "totalSales": "total_sales"
+                        },
+                        "script": "totalSales <= 50"
+                    }
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+And the following may be the response:
+
+[source,js]
+--------------------------------------------------
+{
+   "aggregations": {
+      "sales_per_month": {
+         "buckets": [
+            {
+               "key_as_string": "2015/01/01 00:00:00",
+               "key": 1420070400000,
+               "doc_count": 3,
+               "total_sales": {
+                   "value": 50
+               }
+            },<1>
+            {
+               "key_as_string": "2015/03/01 00:00:00",
+               "key": 1425168000000,
+               "doc_count": 2,
+               "total_sales": {
+                   "value": 40
+               },
+            }
+         ]
+      }
+   }
+}
+--------------------------------------------------
+<1> Bucket for `2015/02/01 00:00:00` has been removed as its total sales exceeded 50

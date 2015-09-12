@@ -1,0 +1,65 @@
+---
+"Basic explain":
+  - do:
+      index:
+          index:  test_1
+          type:   test
+          id:     id_1
+          body:   { foo: bar, title: howdy }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      explain:
+          index:  test_1
+          type:   test
+          id:     id_1
+          body:
+            query:
+              match_all: {}
+
+  - is_true: matched
+  - match: { explanation.value: 1 }
+  - match: { _index: test_1 }
+  - match: { _type: test }
+  - match: { _id: id_1 }
+
+---
+"Basic explain with alias":
+  - do:
+      indices.create:
+          index: test_1
+          body:
+              aliases:
+                alias_1: {}
+
+  - do:
+      cluster.health:
+          wait_for_status: yellow
+
+  - do:
+      index:
+          index:  test_1
+          type:   test
+          id:     id_1
+          body:   { foo: bar, title: howdy }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      explain:
+          index:  alias_1
+          type:   test
+          id:     id_1
+          body:
+            query:
+              match_all: {}
+
+  - is_true: matched
+  - match: { explanation.value: 1 }
+  - match: { _index: test_1 }
+  - match: { _type: test }
+  - match: { _id: id_1 }
+

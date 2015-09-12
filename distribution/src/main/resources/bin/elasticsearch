@@ -1,0 +1,139 @@
+#!/bin/sh
+
+# CONTROLLING STARTUP:
+#
+# This script relies on few environment variables to determine startup
+# behavior, those variables are:
+#
+#   ES_CLASSPATH -- A Java classpath containing everything necessary to run.
+#   JAVA_OPTS    -- Additional arguments to the JVM for heap size, etc
+#   ES_JAVA_OPTS -- External Java Opts on top of the defaults set
+#
+#
+# Optionally, exact memory values can be set using the following values, note,
+# they can still be set using the `ES_JAVA_OPTS`. Sample format include "512m", and "10g".
+#
+#   ES_HEAP_SIZE -- Sets both the minimum and maximum memory to allocate (recommended)
+#
+# As a convenience, a fragment of shell is sourced in order to set one or
+# more of these variables. This so-called `include' can be placed in a
+# number of locations and will be searched for in order. The lowest
+# priority search path is the same directory as the startup script, and
+# since this is the location of the sample in the project tree, it should
+# almost work Out Of The Box.
+#
+# Any serious use-case though will likely require customization of the
+# include. For production installations, it is recommended that you copy
+# the sample to one of /usr/share/elasticsearch/elasticsearch.in.sh,
+# /usr/local/share/elasticsearch/elasticsearch.in.sh, or
+# /opt/elasticsearch/elasticsearch.in.sh and make your modifications there.
+#
+# Another option is to specify the full path to the include file in the
+# environment. For example:
+#
+#   $ ES_INCLUDE=/path/to/in.sh elasticsearch -p /var/run/es.pid
+#
+# Note: This is particularly handy for running multiple instances on a
+# single installation, or for quick tests.
+#
+# If you would rather configure startup entirely from the environment, you
+# can disable the include by exporting an empty ES_INCLUDE, or by
+# ensuring that no include files exist in the aforementioned search list.
+# Be aware that you will be entirely responsible for populating the needed
+# environment variables.
+
+
+# Maven will replace the project.name with elasticsearch below. If that
+# hasn't been done, we assume that this is not a packaged version and the
+# user has forgotten to run Maven to create a package.
+IS_PACKAGED_VERSION='${project.parent.artifactId}'
+if [ "$IS_PACKAGED_VERSION" != "distributions" ]; then
+    cat >&2 << EOF
+Error: You must build the project with Maven or download a pre-built package
+before you can run Elasticsearch. See 'Building from Source' in README.textile
+or visit https://www.elastic.co/download to get a pre-built package.
+EOF
+    exit 1
+fi
+
+CDPATH=""
+SCRIPT="$0"
+
+# SCRIPT may be an arbitrarily deep series of symlinks. Loop until we have the concrete path.
+while [ -h "$SCRIPT" ] ; do
+  ls=`ls -ld "$SCRIPT"`
+  # Drop everything prior to ->
+  link=`expr "$ls" : '.*-> \(.*\)$'`
+  if expr "$link" : '/.*' > /dev/null; then
+    SCRIPT="$link"
+  else
+    SCRIPT=`dirname "$SCRIPT"`/"$link"
+  fi
+done
+
+# determine elasticsearch home
+ES_HOME=`dirname "$SCRIPT"`/..
+
+# make ELASTICSEARCH_HOME absolute
+ES_HOME=`cd "$ES_HOME"; pwd`
+
+
+# If an include wasn't specified in the environment, then search for one...
+if [ "x$ES_INCLUDE" = "x" ]; then
+    # Locations (in order) to use when searching for an include file.
+    for include in /usr/share/elasticsearch/elasticsearch.in.sh \
+                   /usr/local/share/elasticsearch/elasticsearch.in.sh \
+                   /opt/elasticsearch/elasticsearch.in.sh \
+                   ~/.elasticsearch.in.sh \
+                   "$ES_HOME/bin/elasticsearch.in.sh" \
+                   "`dirname "$0"`"/elasticsearch.in.sh; do
+        if [ -r "$include" ]; then
+            . "$include"
+            break
+        fi
+    done
+# ...otherwise, source the specified include.
+elif [ -r "$ES_INCLUDE" ]; then
+    . "$ES_INCLUDE"
+fi
+
+if [ -x "$JAVA_HOME/bin/java" ]; then
+    JAVA="$JAVA_HOME/bin/java"
+else
+    JAVA=`which java`
+fi
+
+if [ ! -x "$JAVA" ]; then
+    echo "Could not find any executable java binary. Please install java in your PATH or set JAVA_HOME"
+    exit 1
+fi
+
+if [ -z "$ES_CLASSPATH" ]; then
+    echo "You must set the ES_CLASSPATH var" >&2
+    exit 1
+fi
+
+# Special-case path variables.
+case `uname` in
+    CYGWIN*)
+        ES_CLASSPATH=`cygpath -p -w "$ES_CLASSPATH"`
+        ES_HOME=`cygpath -p -w "$ES_HOME"`
+    ;;
+esac
+
+# full hostname passed through cut for portability on systems that do not support hostname -s
+# export on separate line for shells that do not support combining definition and export
+HOSTNAME=`hostname | cut -d. -f1`
+export HOSTNAME
+
+# manual parsing to find out, if process should be detached
+daemonized=`echo $* | grep -E -- '(^-d |-d$| -d |--daemonize$|--daemonize )'`
+if [ -z "$daemonized" ] ; then
+    exec "$JAVA" $JAVA_OPTS $ES_JAVA_OPTS -Des.path.home="$ES_HOME" -cp "$ES_CLASSPATH" \
+          org.elasticsearch.bootstrap.Elasticsearch start "$@"
+else
+    exec "$JAVA" $JAVA_OPTS $ES_JAVA_OPTS -Des.path.home="$ES_HOME" -cp "$ES_CLASSPATH" \
+          org.elasticsearch.bootstrap.Elasticsearch start "$@" <&- &
+fi
+
+exit $?

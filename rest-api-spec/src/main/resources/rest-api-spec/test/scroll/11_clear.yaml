@@ -1,0 +1,78 @@
+---
+"Clear scroll":
+  - do:
+      indices.create:
+          index:  test_scroll
+  - do:
+      index:
+          index:  test_scroll
+          type:   test
+          id:     42
+          body:   { foo: bar }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        index: test_scroll
+        scroll: 1m
+        body:
+          query:
+            match_all: {}
+
+  - set: {_scroll_id: scroll_id1}
+
+  - do:
+      clear_scroll:
+        scroll_id: $scroll_id1
+
+  - do:
+      catch: missing
+      scroll:
+        scroll_id: $scroll_id1
+        
+  - do:
+        catch: missing
+        clear_scroll:
+          scroll_id: $scroll_id1
+
+---
+"Body params override query string":
+  - do:
+      indices.create:
+          index:  test_scroll
+  - do:
+      index:
+          index:  test_scroll
+          type:   test
+          id:     42
+          body:   { foo: bar }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        index: test_scroll
+        scroll: 1m
+        body:
+          query:
+            match_all: {}
+
+  - set: {_scroll_id: scroll_id1}
+
+  - do:
+      clear_scroll:
+        scroll_id: "invalid_scroll_id"
+        body: { "scroll_id": [ "$scroll_id1" ]}
+
+  - do:
+      catch: missing
+      scroll:
+        scroll_id: $scroll_id1
+
+  - do:
+        catch: missing
+        clear_scroll:
+          scroll_id: $scroll_id1

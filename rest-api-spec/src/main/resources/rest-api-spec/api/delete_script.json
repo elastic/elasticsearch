@@ -1,0 +1,34 @@
+{
+  "delete_script": {
+    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/modules-scripting.html",
+    "methods": ["DELETE"],
+    "url": {
+      "path": "/_scripts/{lang}/{id}",
+      "paths": [ "/_scripts/{lang}/{id}" ],
+      "parts": {
+        "id": {
+          "type" : "string",
+          "description" : "Script ID",
+          "required" : true
+        },
+        "lang" : {
+          "type" : "string",
+          "description" : "Script language",
+          "required" : true
+        }
+      },
+      "params" : {
+        "version": {
+          "type": "number",
+          "description": "Explicit version number for concurrency control"
+        },
+        "version_type": {
+          "type": "enum",
+          "options": ["internal", "external", "external_gte", "force"],
+          "description": "Specific version type"
+        }
+      }
+    },
+    "body": null
+  }
+}

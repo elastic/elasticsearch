@@ -1,0 +1,10 @@
+{
+            "geo_distance":{
+                "distance":"12mi",
+                "location":{
+                    "lat":40,
+                    "lon":-70
+                },
+                "_name":"test"
+            }
+}

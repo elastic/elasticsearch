@@ -9,8 +9,27 @@ analyzers:
 
 [source,js]
 --------------------------------------------------
-curl -XGET 'localhost:9200/_analyze?analyzer=standard' -d 'this is a test'
+curl -XGET 'localhost:9200/_analyze' -d '
+{
+  "analyzer" : "standard",
+  "text" : "this is a test"
+}'
 --------------------------------------------------
+
+coming[2.0.0-beta1, body based parameters were added in 2.0.0]
+
+If text parameter is provided as array of strings, it is analyzed as a multi-valued field.
+
+[source,js]
+--------------------------------------------------
+curl -XGET 'localhost:9200/_analyze' -d '
+{
+  "analyzer" : "standard",
+  "text" : ["this is a test", "the second text"]
+}'
+--------------------------------------------------
+
+coming[2.0.0-beta1, body based parameters were added in 2.0.0]
 
 Or by building a custom transient analyzer out of tokenizers,
 token filters and char filters. Token filters can use the shorter 'filters'
@@ -18,17 +37,32 @@ parameter name:
 
 [source,js]
 --------------------------------------------------
-curl -XGET 'localhost:9200/_analyze?tokenizer=keyword&filters=lowercase' -d 'this is a test'
+curl -XGET 'localhost:9200/_analyze' -d '
+{
+  "tokenizer" : "keyword",
+  "filters" : ["lowercase"],
+  "text" : "this is a test"
+}'
 
-curl -XGET 'localhost:9200/_analyze?tokenizer=keyword&token_filters=lowercase&char_filters=html_strip' -d 'this is a <b>test</b>'
-
+curl -XGET 'localhost:9200/_analyze' -d '
+{
+  "tokenizer" : "keyword",
+  "token_filters" : ["lowercase"],
+  "char_filters" : ["html_strip"],
+  "text" : "this is a <b>test</b>"
+}'
 --------------------------------------------------
+
+coming[2.0.0-beta1, body based parameters were added in 2.0.0]
 
 It can also run against a specific index:
 
 [source,js]
 --------------------------------------------------
-curl -XGET 'localhost:9200/test/_analyze?text=this+is+a+test'
+curl -XGET 'localhost:9200/test/_analyze' -d '
+{
+  "text" : "this is a test"
+}'
 --------------------------------------------------
 
 The above will run an analysis on the "this is a test" text, using the
@@ -37,18 +71,42 @@ can also be provided to use a different analyzer:
 
 [source,js]
 --------------------------------------------------
-curl -XGET 'localhost:9200/test/_analyze?analyzer=whitespace' -d 'this is a test'
+curl -XGET 'localhost:9200/test/_analyze' -d '
+{
+  "analyzer" : "whitespace",
+  "text : "this is a test"
+}'
 --------------------------------------------------
+
+coming[2.0.0-beta1, body based parameters were added in 2.0.0]
 
 Also, the analyzer can be derived based on a field mapping, for example:
 
 [source,js]
 --------------------------------------------------
-curl -XGET 'localhost:9200/test/_analyze?field=obj1.field1' -d 'this is a test'
+curl -XGET 'localhost:9200/test/_analyze' -d '
+{
+  "field" : "obj1.field1",
+  "text" : "this is a test"
+}'
 --------------------------------------------------
+
+coming[2.0.0-beta1, body based parameters were added in 2.0.0]
 
 Will cause the analysis to happen based on the analyzer configured in the
 mapping for `obj1.field1` (and if not, the default index analyzer).
 
-Also, the text can be provided as part of the request body, and not as a
-parameter.
+All parameters can also supplied as request parameters. For example:
+
+[source,js]
+--------------------------------------------------
+curl -XGET 'localhost:9200/_analyze?tokenizer=keyword&filters=lowercase&text=this+is+a+test'
+--------------------------------------------------
+
+For backwards compatibility, we also accept the text parameter as the body of the request,
+provided it doesn't start with `{` :
+
+[source,js]
+--------------------------------------------------
+curl -XGET 'localhost:9200/_analyze?tokenizer=keyword&token_filters=lowercase&char_filters=html_strip' -d 'this is a <b>test</b>'
+--------------------------------------------------

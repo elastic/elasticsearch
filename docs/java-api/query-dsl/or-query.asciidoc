@@ -1,0 +1,16 @@
+[[java-query-dsl-or-query]]
+==== Or Query
+
+deprecated[2.0.0, Use the `bool` query instead]
+
+See {ref}/query-dsl-or-query.html[Or Query]
+
+[source,java]
+--------------------------------------------------
+QueryBuilder qb = orQuery(
+    rangeQuery("price").from(1).to(2),  <1>
+    matchQuery("name", "joe")           <1>
+);
+--------------------------------------------------
+<1> queries
+

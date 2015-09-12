@@ -1,0 +1,119 @@
+${packaging.scripts.header}
+
+#
+# This script is executed in the post-removal phase
+#
+#   On Debian,
+#       $1=remove    : indicates a removal
+#       $1=purge     : indicates an upgrade
+#
+#   On RedHat,
+#       $1=0         : indicates a removal
+#       $1=1         : indicates an upgrade
+
+
+
+SOURCE_ENV_FILE=true
+REMOVE_DIRS=false
+REMOVE_SERVICE=false
+REMOVE_USER_AND_GROUP=false
+
+case "$1" in
+
+    # Debian ####################################################
+    remove)
+        REMOVE_DIRS=true
+        REMOVE_SERVICE=true
+    ;;
+
+    purge)
+        REMOVE_USER_AND_GROUP=true
+        SOURCE_ENV_FILE=false
+    ;;
+    failed-upgrade|abort-install|abort-upgrade|disappear|upgrade|disappear)
+    ;;
+
+    # RedHat ####################################################
+    0)
+        REMOVE_DIRS=true
+        REMOVE_SERVICE=true
+        REMOVE_USER_AND_GROUP=true
+    ;;
+    1)
+        # If $1=1 this is an upgrade
+        IS_UPGRADE=true
+    ;;
+
+    *)
+        echo "post remove script called with unknown argument \`$1'" >&2
+        exit 1
+    ;;
+esac
+
+# Sets the default values for elasticsearch variables used in this script
+ES_USER="${packaging.elasticsearch.user}"
+ES_GROUP="${packaging.elasticsearch.group}"
+LOG_DIR="${packaging.elasticsearch.log.dir}"
+PLUGINS_DIR="${packaging.elasticsearch.plugins.dir}"
+PID_DIR="${packaging.elasticsearch.pid.dir}"
+DATA_DIR="${packaging.elasticsearch.data.dir}"
+
+# Source the default env file
+if [ "$SOURCE_ENV_FILE" = "true" ]; then
+    ES_ENV_FILE="${packaging.env.file}"
+    if [ -f "$ES_ENV_FILE" ]; then
+        . "$ES_ENV_FILE"
+    fi
+fi
+
+if [ "$REMOVE_SERVICE" = "true" ]; then
+    if command -v systemctl >/dev/null; then
+        systemctl disable elasticsearch.service > /dev/null 2>&1 || true
+    fi
+
+    if command -v chkconfig >/dev/null; then
+        chkconfig --del elasticsearch 2> /dev/null || true
+    fi
+
+    if command -v update-rc.d >/dev/null; then
+        update-rc.d elasticsearch remove >/dev/null || true
+    fi
+fi
+
+if [ "$REMOVE_DIRS" = "true" ]; then
+
+    if [ -d "$LOG_DIR" ]; then
+        echo -n "Deleting log directory..."
+        rm -rf "$LOG_DIR"
+        echo " OK"
+    fi
+
+    if [ -d "$PLUGINS_DIR" ]; then
+        echo -n "Deleting plugins directory..."
+        rm -rf "$PLUGINS_DIR"
+        echo " OK"
+    fi
+
+    if [ -d "$PID_DIR" ]; then
+        echo -n "Deleting PID directory..."
+        rm -rf "$PID_DIR"
+        echo " OK"
+    fi
+
+    # Delete the data directory if and only if empty
+    if [ -d "$DATA_DIR" ]; then
+        rmdir --ignore-fail-on-non-empty "$DATA_DIR"
+    fi
+fi
+
+if [ "$REMOVE_USER_AND_GROUP" = "true" ]; then
+    if id "$ES_USER" > /dev/null 2>&1 ; then
+        userdel "$ES_USER"
+    fi
+
+    if getent group "$ES_GROUP" > /dev/null 2>&1 ; then
+        groupdel "$ES_GROUP"
+    fi
+fi
+
+${packaging.scripts.footer}

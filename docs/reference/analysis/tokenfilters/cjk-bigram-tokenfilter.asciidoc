@@ -30,10 +30,10 @@ Bigrams are generated for characters in `han`, `hiragana`, `katakana` and
                     "type" : "cjk_bigram",
                     "ignore_scripts": [
                         "hiragana",
-                        "katakana"
+                        "katakana",
                         "hangul"
                     ],
-                    "output_ungirams" : true
+                    "output_unigrams" : true
                 }
             }
         }

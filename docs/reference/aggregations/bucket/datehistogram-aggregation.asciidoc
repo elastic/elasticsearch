@@ -1,0 +1,294 @@
+[[search-aggregations-bucket-datehistogram-aggregation]]
+=== Date Histogram Aggregation
+
+A multi-bucket aggregation similar to the <<search-aggregations-bucket-histogram-aggregation,histogram>> except it can
+only be applied on date values. Since dates are represented in elasticsearch internally as long values, it is possible
+to use the normal `histogram` on dates as well, though accuracy will be compromised. The reason for this is in the fact
+that time based intervals are not fixed (think of leap years and on the number of days in a month). For this reason,
+we need special support for time based data. From a functionality perspective, this histogram supports the same features
+as the normal <<search-aggregations-bucket-histogram-aggregation,histogram>>. The main difference is that the interval can be specified by date/time expressions.
+
+Requesting bucket intervals of a month.
+
+[source,js]
+--------------------------------------------------
+{
+    "aggs" : {
+        "articles_over_time" : {
+            "date_histogram" : {
+                "field" : "date",
+                "interval" : "month"
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+Available expressions for interval: `year`, `quarter`, `month`, `week`, `day`, `hour`, `minute`, `second`
+
+
+Fractional values are allowed for seconds, minutes, hours, days and weeks. For example 1.5 hours:
+
+[source,js]
+--------------------------------------------------
+{
+    "aggs" : {
+        "articles_over_time" : {
+            "date_histogram" : {
+                "field" : "date",
+                "interval" : "1.5h"
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+See <<time-units>> for accepted abbreviations.
+
+==== Keys
+
+Internally, a date is represented as a 64 bit number representing a timestamp
+in milliseconds-since-the-epoch. These timestamps are returned as the bucket
+++key++s. The `key_as_string` is the same timestamp converted to a formatted
+date string using the format specified with the `format` parameter:
+
+TIP: If no `format` is specified, then it will use the first date
+<<mapping-date-format,format>> specified in the field mapping.
+
+[source,js]
+--------------------------------------------------
+{
+    "aggs" : {
+        "articles_over_time" : {
+            "date_histogram" : {
+                "field" : "date",
+                "interval" : "1M",
+                "format" : "yyyy-MM-dd" <1>
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+<1> Supports expressive date <<date-format-pattern,format pattern>>
+
+Response:
+
+[source,js]
+--------------------------------------------------
+{
+    "aggregations": {
+        "articles_over_time": {
+            "buckets": [
+                {
+                    "key_as_string": "2013-02-02",
+                    "key": 1328140800000,
+                    "doc_count": 1
+                },
+                {
+                    "key_as_string": "2013-03-02",
+                    "key": 1330646400000,
+                    "doc_count": 2
+                },
+                ...
+            ]
+        }
+    }
+}
+--------------------------------------------------
+
+==== Time Zone
+
+Date-times are stored in Elasticsearch in UTC.  By default, all bucketing and
+rounding is also done in UTC. The `time_zone` parameter can be used to indicate
+that bucketing should use a different time zone.
+
+Time zones may either be specified as an ISO 8601 UTC offset (e.g. `+01:00` or
+`-08:00`)  or as a timezone id, an identifier used in the TZ database like
+`America\Los_Angeles` (which would need to be escaped in JSON as
+`"America\\Los_Angeles"`).
+
+Consider the following example:
+
+[source,js]
+---------------------------------
+PUT my_index/log/1
+{
+  "date": "2015-10-01T00:30:00Z"
+}
+
+PUT my_index/log/2
+{
+  "date": "2015-10-01T01:30:00Z"
+}
+
+GET my_index/_search?size=0
+{
+  "aggs": {
+    "by_day": {
+      "date_histogram": {
+        "field":     "date",
+        "interval":  "day"
+      }
+    }
+  }
+}
+---------------------------------
+
+UTC is used if no time zone is specified, which would result in both of these
+documents being placed into the same day bucket, which starts at midnight UTC
+on 1 October 2015:
+
+[source,js]
+---------------------------------
+"aggregations": {
+  "by_day": {
+    "buckets": [
+      {
+        "key_as_string": "2015-10-01T00:00:00.000Z",
+        "key":           1443657600000,
+        "doc_count":     2
+      }
+    ]
+  }
+}
+---------------------------------
+
+If a `time_zone` of `-01:00` is specified, then midnight starts at one hour before
+midnight UTC:
+
+[source,js]
+---------------------------------
+GET my_index/_search?size=0
+{
+  "aggs": {
+    "by_day": {
+      "date_histogram": {
+        "field":     "date",
+        "interval":  "day",
+        "time_zone": "-01:00"
+      }
+    }
+  }
+}
+---------------------------------
+
+Now the first document falls into the bucket for 30 September 2015, while the
+second document falls into the bucket for 1 October 2015:
+
+[source,js]
+---------------------------------
+"aggregations": {
+  "by_day": {
+    "buckets": [
+      {
+        "key_as_string": "2015-09-30T00:00:00.000-01:00", <1>
+        "key": 1443571200000,
+        "doc_count": 1
+      },
+      {
+        "key_as_string": "2015-10-01T00:00:00.000-01:00", <1>
+        "key": 1443657600000,
+        "doc_count": 1
+      }
+    ]
+  }
+}
+---------------------------------
+<1> The `key_as_string` value represents midnight on each day
+    in the specified time zone.
+
+==== Offset
+
+The `offset` parameter is used to change the start value of each bucket by the
+specified positive (`+`) or negative offset (`-`) duration, such as `1h` for
+an hour, or `1M` for a month. See <<time-units>> for more possible time
+duration options.
+
+For instance, when using an interval of `day`, each bucket runs from midnight
+to midnight.  Setting the `offset` parameter to `+6h` would change each bucket
+to run from 6am to 6am:
+
+[source,js]
+-----------------------------
+PUT my_index/log/1
+{
+  "date": "2015-10-01T05:30:00Z"
+}
+
+PUT my_index/log/2
+{
+  "date": "2015-10-01T06:30:00Z"
+}
+
+GET my_index/_search?size=0
+{
+  "aggs": {
+    "by_day": {
+      "date_histogram": {
+        "field":     "date",
+        "interval":  "day",
+        "offset":    "+6h"
+      }
+    }
+  }
+}
+-----------------------------
+
+Instead of a single bucket starting at midnight, the above request groups the
+documents into buckets starting at 6am:
+
+[source,js]
+-----------------------------
+"aggregations": {
+  "by_day": {
+    "buckets": [
+      {
+        "key_as_string": "2015-09-30T06:00:00.000Z",
+        "key": 1443592800000,
+        "doc_count": 1
+      },
+      {
+        "key_as_string": "2015-10-01T06:00:00.000Z",
+        "key": 1443679200000,
+        "doc_count": 1
+      }
+    ]
+  }
+}
+-----------------------------
+
+NOTE: The start `offset` of each bucket is calculated after the `time_zone`
+adjustments have been made.
+
+==== Scripts
+
+Like with the normal <<search-aggregations-bucket-histogram-aggregation,histogram>>, both document level scripts and
+value level scripts are supported. It is also possible to control the order of the returned buckets using the `order`
+settings and filter the returned buckets based on a `min_doc_count` setting (by default all buckets between the first
+bucket that matches documents and the last one are returned). This histogram also supports the `extended_bounds`
+setting, which enables extending the bounds of the histogram beyond the data itself (to read more on why you'd want to
+do that please refer to the explanation <<search-aggregations-bucket-histogram-aggregation-extended-bounds,here>>).
+
+==== Missing value
+
+The `missing` parameter defines how documents that are missing a value should be treated.
+By default they will be ignored but it is also possible to treat them as if they
+had a value.
+
+[source,js]
+--------------------------------------------------
+{
+    "aggs" : {
+        "publish_date" : {
+             "datehistogram" : {
+                 "field" : "publish_date",
+                 "interval": "year",
+                 "missing": "2000-01-01" <1>
+             }
+         }
+    }
+}
+--------------------------------------------------
+
+<1> Documents without a value in the `publish_date` field will fall into the same bucket as documents that have the value `2000-01-01`.

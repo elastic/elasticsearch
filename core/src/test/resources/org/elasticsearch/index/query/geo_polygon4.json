@@ -1,0 +1,11 @@
+{
+            "geo_polygon":{
+                "location":{
+                    "points":[
+                        "drn5x1g8cu2y",
+                        "30, -80",
+                        "20, -90"
+                    ]
+                }
+            }
+}

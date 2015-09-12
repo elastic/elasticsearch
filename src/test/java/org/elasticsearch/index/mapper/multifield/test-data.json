@@ -1,8 +1,0 @@
-{
-    "_id":1,
-    "age":28,
-    "name":"some name",
-    "object1":{
-        "multi1":"2010-01-01"
-    }
-}

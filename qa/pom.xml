@@ -1,0 +1,166 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>org.elasticsearch.qa</groupId>
+    <artifactId>elasticsearch-qa</artifactId>
+    <version>3.0.0-SNAPSHOT</version>
+    <packaging>pom</packaging>
+    <name>QA: Parent POM</name>
+    <inceptionYear>2015</inceptionYear>
+
+    <parent>
+        <groupId>org.elasticsearch</groupId>
+        <artifactId>parent</artifactId>
+        <version>3.0.0-SNAPSHOT</version>
+    </parent>
+
+    <properties>
+    </properties>
+
+    <dependencies>
+        <!-- elasticsearch and its test framework -->
+        <dependency>
+            <groupId>org.hamcrest</groupId>
+            <artifactId>hamcrest-all</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.lucene</groupId>
+            <artifactId>lucene-test-framework</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+    </dependencies>
+
+    <!-- typical layout -->
+    <build>
+        <resources>
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>true</filtering>
+                <includes>
+                    <include>**/*.properties</include>
+                </includes>
+            </resource>
+        </resources>
+
+        <testResources>
+            <testResource>
+                <directory>src/test/java</directory>
+                <includes>
+                    <include>**/*.json</include>
+                    <include>**/*.txt</include>
+                </includes>
+            </testResource>
+            <testResource>
+                <directory>src/test/resources</directory>
+                <excludes>
+                    <exclude>elasticsearch.yml</exclude>
+                    <exclude>**/*.properties</exclude>
+                </excludes>
+            </testResource>
+            <testResource>
+                <directory>src/test/resources</directory>
+                <filtering>true</filtering>
+                <includes>
+                    <include>elasticsearch.yml</include>
+                    <include>**/*.properties</include>
+                </includes>
+            </testResource>
+            <!-- REST API specification and test suites -->
+            <testResource>
+                <directory>${project.basedir}/rest-api-spec</directory>
+                <filtering>true</filtering>
+                <targetPath>rest-api-spec</targetPath>
+                <includes>
+                    <include>api/*.json</include>
+                    <include>test/**/*.yaml</include>
+                </includes>
+            </testResource>
+            <!-- REST API specifications copied from main Elasticsearch specs
+                 because they are required to execute the REST tests in here  -->
+            <testResource>
+                <directory>${elasticsearch.tools.directory}/rest-api-spec</directory>
+                <targetPath>rest-api-spec</targetPath>
+                <includes>
+                    <!-- required by the test framework -->
+                    <include>api/info.json</include>
+                    <include>api/cluster.health.json</include>
+                    <include>api/cluster.state.json</include>
+                    <!-- used in plugin REST tests -->
+                    <include>api/index.json</include>
+                    <include>api/get.json</include>
+                    <include>api/update.json</include>
+                    <include>api/search.json</include>
+                    <include>api/indices.analyze.json</include>
+                    <include>api/indices.create.json</include>
+                    <include>api/indices.refresh.json</include>
+                    <include>api/nodes.info.json</include>
+                    <include>api/count.json</include>
+                </includes>
+            </testResource>
+            <!-- shared test resources like log4j.properties -->
+            <testResource>
+                <directory>${elasticsearch.tools.directory}/shared-test-resources</directory>
+                <filtering>false</filtering>
+            </testResource>
+        </testResources>
+
+        <pluginManagement>
+            <plugins>
+                <plugin>
+                    <groupId>com.carrotsearch.randomizedtesting</groupId>
+                    <artifactId>junit4-maven-plugin</artifactId>
+                    <executions>
+                        <execution>
+                            <id>integ-tests</id>
+                            <configuration>
+                                <!-- currently only 1 cpu works, because integ tests don't make "unique" test directories? -->
+                                <parallelism>1</parallelism>
+                                <systemProperties>
+                                    <!-- use external cluster -->
+                                    <tests.cluster>127.0.0.1:${integ.transport.port}</tests.cluster>
+                                </systemProperties>
+                            </configuration>
+                        </execution>
+                    </executions>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-antrun-plugin</artifactId>
+                    <executions>
+                        <execution>
+                            <!-- Don't run the license checker in qa -->
+                            <id>check-license</id>
+                            <phase>none</phase>
+                        </execution>
+                    </executions>
+                </plugin>
+            </plugins>
+        </pluginManagement>
+    </build>
+
+    <modules>
+        <module>smoke-test-plugins</module>
+        <module>smoke-test-multinode</module>
+        <module>smoke-test-client</module>
+    </modules>
+
+    <profiles>
+        <profile>
+            <id>vagrant</id>
+            <activation>
+                <property>
+                    <name>tests.vagrant</name>
+                </property>
+            </activation>
+            <modules>
+                <module>vagrant</module>
+            </modules>
+        </profile>
+    </profiles>
+</project>

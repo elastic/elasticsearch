@@ -1,0 +1,136 @@
+[[multi-fields]]
+=== `fields`
+
+It is often useful to index the same field in different ways for different
+purposes.  This is the purpose of _multi-fields_. For instance, a `string`
+field could be <<mapping-index,indexed>> as an `analyzed` field for full-text
+search, and as a `not_analyzed` field for sorting or aggregations:
+
+[source,js]
+--------------------------------------------------
+PUT /my_index
+{
+  "mappings": {
+    "my_type": {
+      "properties": {
+        "city": {
+          "type": "string",
+          "fields": {
+            "raw": { <1>
+              "type":  "string",
+              "index": "not_analyzed"
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+PUT /my_index/my_type/1
+{
+  "city": "New York"
+}
+
+PUT /my_index/my_type/2
+{
+  "city": "York"
+}
+
+GET /my_index/_search
+{
+  "query": {
+    "match": {
+      "city": "york" <2>
+    }
+  },
+  "sort": {
+    "city.raw": "asc" <3>
+  },
+  "aggs": {
+    "Cities": {
+      "terms": {
+        "field": "city.raw" <3>
+      }
+    }
+  }
+}
+--------------------------------------------------
+// AUTOSENSE
+<1> The `city.raw` field is a `not_analyzed` version of the `city` field.
+<2> The analyzed `city` field can be used for full text search.
+<3> The `city.raw` field can be used for sorting and aggregations
+
+NOTE: Multi-fields do not change the original `_source` field.
+
+TIP: The `fields` setting is allowed to have different settings for fields of
+the same name in the same index.  New multi-fields can be added to existing
+fields using the <<indices-put-mapping,PUT mapping API>>.
+
+==== Multi-fields with multiple analyzers
+
+Another use case of multi-fields is to analyze the same field in different
+ways for better relevance. For instance we could index a field with the
+<<analysis-standard-analyzer,`standard` analyzer>> which breaks text up into
+words, and again with the <<english-analyzer,`english` analyzer>>
+which stems words into their root form:
+
+[source,js]
+--------------------------------------------------
+PUT my_index
+{
+  "mappings": {
+    "my_type": {
+      "properties": {
+        "text": { <1>
+          "type": "string"
+        },
+        "fields": {
+          "english": { <2>
+            "type":     "string",
+            "analyzer": "english"
+          }
+        }
+      }
+    }
+  }
+}
+
+PUT my_index/my_type/1
+{ "text": "quick brown fox" } <3>
+
+PUT my_index/my_type/2
+{ "text": "quick brown foxes" } <3>
+
+GET my_index/_search
+{
+  "query": {
+    "multi_match": {
+      "query": "quick brown foxes",
+      "fields": [ <4>
+        "text",
+        "text.english"
+      ],
+      "type": "most_fields" <4>
+    }
+  }
+}
+--------------------------------------------------
+// AUTOSENSE
+
+<1> The `text` field uses the `standard` analyzer.
+<2> The `text.english` field uses the `english` analyzer.
+<3> Index two documents, one with `fox` and the other with `foxes`.
+<4> Query both the `text` and `text.english` fields and combine the scores.
+
+The `text` field contains the term `fox` in the first document and `foxes` in
+the second document.  The `text.english` field contains `fox` for both
+documents, because `foxes` is stemmed to `fox`.
+
+The query string is also analyzed by the `standard` analyzer for the `text`
+field, and by the `english` analyzer` for the `text.english` field.  The
+stemmed field allows a query for `foxes` to also match the document containing
+just `fox`.  This allows us to match as many documents as possible.  By also
+querying the unstemmed `text` field, we improve the relevance score of the
+document which matches `foxes` exactly.
+

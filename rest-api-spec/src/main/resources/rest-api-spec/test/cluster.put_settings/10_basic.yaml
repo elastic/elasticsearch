@@ -1,0 +1,21 @@
+---
+setup:
+  - skip:
+      version:  "all"
+      reason:  leaves transient metadata behind, need to fix it
+---
+"Test put settings":
+  - do:
+      cluster.put_settings:
+        body:
+          transient:
+            discovery.zen.minimum_master_nodes: 1
+        flat_settings: true
+
+  - match: {transient: {discovery.zen.minimum_master_nodes: "1"}}
+
+  - do:
+      cluster.get_settings:
+        flat_settings: true
+
+  - match: {transient: {discovery.zen.minimum_master_nodes: "1"}}

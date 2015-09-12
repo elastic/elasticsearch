@@ -1,0 +1,73 @@
+# Will be performed before each test as a part of the test setup
+#
+setup:
+  - do:
+      ping: {}
+
+---
+"Basic test":
+    - do:
+        indices.analyze:
+          text: Foo Bar
+    - length: { tokens: 2 }
+    - match:     { tokens.0.token: foo }
+    - match:     { tokens.1.token: bar }
+
+---
+"Tokenizer and filter":
+    - do:
+        indices.analyze:
+          filters:      lowercase
+          text:         Foo Bar
+          tokenizer:    keyword
+    - length: { tokens: 1 }
+    - match:     { tokens.0.token: foo bar }
+
+---
+"Index and field":
+    - do:
+        indices.create:
+          index: test
+          body:
+            mappings:
+              test:
+                properties:
+                  text:
+                    type:     string
+                    analyzer: whitespace
+    - do:
+        cluster.health:
+          wait_for_status: yellow
+
+
+    - do:
+        indices.analyze:
+          field: text
+          index: test
+          text: Foo Bar!
+    - length: { tokens: 2 }
+    - match:     { tokens.0.token: Foo }
+    - match:     { tokens.1.token: Bar! }
+---
+"JSON in Body":
+    - do:
+        indices.analyze:
+          body: { "text": "Foo Bar", "filters": ["lowercase"], "tokenizer": keyword }
+    - length: {tokens: 1 }
+    - match:     { tokens.0.token: foo bar }
+---
+"Body params override query string":
+    - do:
+        indices.analyze:
+          text: Foo Bar
+          body: { "text": "Bar Foo", "filters": ["lowercase"], "tokenizer": keyword }
+    - length: {tokens: 1 }
+    - match:     { tokens.0.token: bar foo }
+---
+"Array text":
+    - do:
+        indices.analyze:
+          body: { "text": ["Foo Bar", "Baz"], "filters": ["lowercase"], "tokenizer": keyword }
+    - length: {tokens: 2 }
+    - match:     { tokens.0.token: foo bar }
+    - match:     { tokens.1.token: baz }

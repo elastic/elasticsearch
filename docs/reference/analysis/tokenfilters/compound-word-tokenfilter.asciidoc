@@ -16,6 +16,10 @@ filter type:
 |`word_list_path` |A path (either relative to `config` location, or
 absolute) to a list of words.
 
+|`hyphenation_patterns_path` |A path (either relative to `config` location, or
+absolute) to a FOP XML hyphenation pattern file. (See http://offo.sourceforge.net/hyphenation/)
+Required for `hyphenation_decompounder`.
+
 |`min_word_size` |Minimum word size(Integer). Defaults to 5.
 
 |`min_subword_size` |Minimum subword size(Integer). Defaults to 2.

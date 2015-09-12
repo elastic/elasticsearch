@@ -1,0 +1,36 @@
+[[misc-cluster]]
+=== Miscellaneous cluster settings
+
+[[cluster-read-only]]
+==== Metadata
+
+An entire cluster may be set to read-only with the following _dynamic_ setting:
+
+`cluster.blocks.read_only`::
+
+      Make the whole cluster read only (indices do not accept write
+      operations), metadata is not allowed to be modified (create or delete
+      indices).
+
+WARNING: Don't rely on this setting to prevent changes to your cluster. Any
+user with access to the <<cluster-update-settings,cluster-update-settings>>
+API can make the cluster read-write again.
+
+
+[[cluster-logger]]
+==== Logger
+
+The settings which control logging can be updated dynamically with the
+`logger.` prefix.  For instance, to increase the logging level of the
+`indices.recovery` module to `DEBUG`, issue this request:
+
+[source,js]
+-------------------------------
+PUT /_cluster/settings
+{
+  "transient": {
+    "logger.indices.recovery": "DEBUG"
+  }
+}
+-------------------------------
+

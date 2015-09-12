@@ -1,28 +1,109 @@
 [[index-modules-translog]]
 == Translog
 
-Each shard has a transaction log or write ahead log associated with it.
-It allows to guarantee that when an index/delete operation occurs, it is
-applied atomically, while not "committing" the internal Lucene index for
-each request. A flush ("commit") still happens based on several
-parameters:
+Changes to Lucene are only persisted to disk during a Lucene commit,
+which is a relatively heavy operation and so cannot be performed after every
+index or delete operation. Changes that happen after one commit and before another
+will be lost in the event of process exit or HW failure.
 
-[cols="<,<",options="header",]
-|=======================================================================
-|Setting |Description
-|index.translog.flush_threshold_ops |After how many operations to flush.
-Defaults to `unlimited`.
+To prevent this data loss, each shard has a _transaction log_ or write ahead
+log associated with it. Any index or delete operation is written to the
+translog after being processed by the internal Lucene index.
 
-|index.translog.flush_threshold_size |Once the translog hits this size,
-a flush will happen. Defaults to `200mb`.
+In the event of a crash, recent transactions can be replayed from the
+transaction log when the shard recovers.
 
-|index.translog.flush_threshold_period |The period with no flush
-happening to force a flush. Defaults to `30m`.
+An Elasticsearch flush is the process of performing a Lucene commit and
+starting a new translog. It is done automatically in the background in order
+to make sure the transaction log doesn't grow too large, which would make
+replaying its operations take a considerable amount of time during recovery.
+It is also exposed through an API, though its rarely needed to be performed
+manually.
 
-|index.translog.interval |How often to check if a flush is needed, randomized
-between the interval value and 2x the interval value. Defaults to `5s`.
-|=======================================================================
 
-Note: these parameters can be updated at runtime using the Index
-Settings Update API (for example, these number can be increased when
-executing bulk updates to support higher TPS)
+[float]
+=== Flush settings
+
+The following <<indices-update-settings,dynamically updatable>> settings
+control how often the in-memory buffer is flushed to disk:
+
+`index.translog.flush_threshold_size`::
+
+Once the translog hits this size, a flush will happen. Defaults to `512mb`.
+
+`index.translog.flush_threshold_ops`::
+
+After how many operations to flush. Defaults to `unlimited`.
+
+`index.translog.flush_threshold_period`::
+
+How long to wait before triggering a flush regardless of translog size. Defaults to `30m`.
+
+`index.translog.interval`::
+
+How often to check if a flush is needed, randomized between the interval value
+and 2x the interval value. Defaults to `5s`.
+
+
+[float]
+=== Translog settings
+
+The data in the transaction log is only persisted to disk when the translog is
+++fsync++ed and committed.  In the event of hardware failure, any data written
+since the previous translog commit will be lost.
+
+By default, Elasticsearch ++fsync++s and commits the translog every 5 seconds
+and at the end of every <<docs-index_,index>>, <<docs-delete,delete>>,
+<<docs-update,update>>, or  <<docs-bulk,bulk>> request.  In fact, Elasticsearch
+will only report success of an index, delete, update, or bulk request to the
+client after the transaction log has been successfully ++fsync++ed and committed
+on the primary and on every allocated replica.
+
+The following <<indices-update-settings,dynamically updatable>> per-index settings
+control the behaviour of the transaction log:
+
+`index.translog.sync_interval`::
+
+How often the translog is ++fsync++ed to disk and committed, regardless of
+write operations. Defaults to `5s`.
+
+`index.translog.durability`::
++
+--
+
+Whether or not to `fsync` and commit the translog after every index, delete,
+update, or bulk request.  This setting accepts the following parameters:
+
+`request`::
+
+    (default) `fsync` and commit after every request. In the event
+    of hardware failure, all acknowledged writes will already have been
+    commited to disk.
+
+`async`::
+
+    `fsync` and commit in the background every `sync_interval`. In
+    the event of hardware failure, all acknowledged writes since the last
+    automatic commit will be discarded.
+--
+
+`index.translog.fs.type`::
++
+--
+
+Whether to buffer writes to the transaction log in memory or not.  This
+setting accepts the following parameters:
+
+`buffered`::
+
+    (default) Translog writes first go to a 64kB buffer in memory,
+    and are only written to the disk when the buffer is full, or when an
+    `fsync` is triggered by a write request or the `sync_interval`.
+
+`simple`::
+
+    Translog writes are written to the file system immediately, without
+    buffering.  However, these writes will only be persisted to disk when an
+    `fsync` and commit is triggered by a write request or the `sync_interval`.
+
+--

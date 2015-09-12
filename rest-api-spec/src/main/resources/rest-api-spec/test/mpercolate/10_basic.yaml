@@ -1,0 +1,43 @@
+---
+"Basic multi-percolate":
+  - do:
+      index:
+        index:  percolator_index
+        type:   my_type
+        id:     1
+        body:   {foo: bar}
+
+  - do:
+      index:
+        index: percolator_index
+        type: .percolator
+        id:   test_percolator
+        body:
+          query:
+            match_all: {}
+
+  - do:
+      mpercolate:
+        body:
+          - percolate:
+              index:  percolator_index
+              type:   my_type
+          - doc:
+              foo: bar
+          - percolate:
+              index:  percolator_index1
+              type:   my_type
+          - doc:
+              foo: bar
+          - percolate:
+              index:  percolator_index
+              type:   my_type
+              id:     1
+          - doc:
+              foo: bar
+
+  - match:  { responses.0.total:     1  }
+  - match:  { responses.1.error.root_cause.0.type: index_not_found_exception }
+  - match:  { responses.1.error.root_cause.0.reason: "/no.such.index/" }
+  - match:  { responses.1.error.root_cause.0.index: percolator_index1 }
+  - match:  { responses.2.total:     1  }

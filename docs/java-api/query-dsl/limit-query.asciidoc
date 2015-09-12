@@ -1,0 +1,11 @@
+[[java-query-dsl-limit-query]]
+==== Limit Query
+
+See {ref}/query-dsl-limit-query.html[Limit Query]
+
+[source,java]
+--------------------------------------------------
+QueryBuilder qb = limitQuery(100);   <1>
+--------------------------------------------------
+<1> number of documents per shard
+

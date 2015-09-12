@@ -17,7 +17,7 @@ The second command selectively retrieves nodes information of only
 
 By default, it just returns all attributes and core settings for a node.
 It also allows to get only information on `settings`, `os`, `process`, `jvm`,
-`thread_pool`, `network`, `transport`, `http` and `plugins`:
+`thread_pool`, `transport`, `http` and `plugins`:
 
 [source,js]
 --------------------------------------------------
@@ -31,6 +31,48 @@ curl -XGET 'http://localhost:9200/_nodes/nodeId1,nodeId2/_all
 --------------------------------------------------
 
 The `_all` flag can be set to return all the information - or you can simply omit it.
+
+[float]
+[[os-info]]
+==== Operating System information
+
+The `os` flag can be set to retrieve information that concern
+the operating system:
+
+`os.refresh_interval_in_millis`::
+	Refresh interval for the OS statistics
+
+`os.name`::
+	Name of the operating system (ex: Linux, Windows, Mac OS X)
+
+`os.arch`::
+	Name of the JVM architecture (ex: amd64, x86)
+
+`os.version`::
+	Version of the operating system
+
+`os.available_processors`::
+	Number of processors available to the Java virtual machine
+
+[float]
+[[process-info]]
+==== Process information
+
+The `process` flag can be set to retrieve information that concern
+the current running process:
+
+`process.refresh_interval_in_millis`::
+	Refresh interval for the process statistics
+
+`process.id`::
+	Process identifier (PID)
+
+`process.mlockall`::
+	Indicates if the process address space has been successfully locked in memory
+
+[float]
+[[plugins-info]]
+==== Plugins information
 
 `plugins` - if set, the result will contain details about the loaded
 plugins per node:
@@ -74,20 +116,4 @@ The result will look similar to:
     }
   }
 }
---------------------------------------------------
-
-if your `plugin` data is subject to change use
-`plugins.info_refresh_interval` to change or disable the caching
-interval:
-
-[source,js]
---------------------------------------------------
-# Change cache to 20 seconds
-plugins.info_refresh_interval: 20s
-
-# Infinite cache
-plugins.info_refresh_interval: -1
-
-# Disable cache
-plugins.info_refresh_interval: 0
 --------------------------------------------------

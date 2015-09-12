@@ -1,0 +1,18 @@
+[[java-query-dsl-nested-query]]
+==== Nested Query
+
+See {ref}/query-dsl-nested-query.html[Nested Query]
+
+[source,java]
+--------------------------------------------------
+QueryBuilder qb = nestedQuery(
+        "obj1",               <1>
+        boolQuery()           <2>
+                .must(matchQuery("obj1.name", "blue"))
+                .must(rangeQuery("obj1.count").gt(5))
+    )
+    .scoreMode("avg");        <3>
+--------------------------------------------------
+<1> path to nested document
+<2> your query. Any fields referenced inside the query must use the complete path (fully qualified).
+<3> score mode could be `max`, `total`, `avg` (default) or `none`

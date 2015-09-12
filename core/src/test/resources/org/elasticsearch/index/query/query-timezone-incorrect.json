@@ -1,0 +1,6 @@
+{
+    "query_string":{
+        "time_zone":"This timezone does not exist",
+        "query":"date:[2012 TO 2014]"
+    }
+}

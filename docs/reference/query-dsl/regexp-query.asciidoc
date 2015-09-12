@@ -1,0 +1,79 @@
+[[query-dsl-regexp-query]]
+=== Regexp Query
+
+The `regexp` query allows you to use regular expression term queries.
+See <<regexp-syntax>> for details of the supported regular expression language.
+The "term queries" in that first sentence means that Elasticsearch will apply
+the regexp to the terms produced by the tokenizer for that field, and not
+to the original text of the field.
+
+*Note*: The performance of a `regexp` query heavily depends on the
+regular expression chosen. Matching everything like `.*` is very slow as
+well as using lookaround regular expressions. If possible, you should
+try to use a long prefix before your regular expression starts. Wildcard
+matchers like `.*?+` will mostly lower performance.
+
+[source,js]
+--------------------------------------------------
+{
+    "regexp":{
+        "name.first": "s.*y"
+    }
+}
+--------------------------------------------------
+
+Boosting is also supported
+
+[source,js]
+--------------------------------------------------
+{
+    "regexp":{
+        "name.first":{
+            "value":"s.*y",
+            "boost":1.2
+        }
+    }
+}
+--------------------------------------------------
+
+You can also use special flags
+
+[source,js]
+--------------------------------------------------
+{
+    "regexp":{
+        "name.first": {
+            "value": "s.*y",
+            "flags" : "INTERSECTION|COMPLEMENT|EMPTY"
+        }
+    }
+}
+--------------------------------------------------
+
+Possible flags are `ALL` (default), `ANYSTRING`, `COMPLEMENT`,
+`EMPTY`, `INTERSECTION`, `INTERVAL`, or `NONE`. Please check the
+http://lucene.apache.org/core/4_9_0/core/org/apache/lucene/util/automaton/RegExp.html[Lucene
+documentation] for their meaning
+
+Regular expressions are dangerous because it's easy to accidentally
+create an innocuous looking one that requires an exponential number of
+internal determinized automaton states (and corresponding RAM and CPU)
+for Lucene to execute.  Lucene prevents these using the
+`max_determinized_states` setting (defaults to 10000).  You can raise
+this limit to allow more complex regular expressions to execute.
+
+[source,js]
+--------------------------------------------------
+{
+    "regexp":{
+        "name.first": {
+            "value": "s.*y",
+            "flags" : "INTERSECTION|COMPLEMENT|EMPTY",
+	    "max_determinized_states": 20000
+        }
+    }
+}
+--------------------------------------------------
+
+
+include::regexp-syntax.asciidoc[]

@@ -1,0 +1,11 @@
+[[java-query-dsl-exists-query]]
+==== Exists Query
+
+See {ref}/query-dsl-exists-query.html[Exists Query].
+
+[source,java]
+--------------------------------------------------
+QueryBuilder qb = existsQuery("name");       <1>
+--------------------------------------------------
+<1> field
+

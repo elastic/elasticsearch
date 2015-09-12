@@ -1,0 +1,187 @@
+[[query-dsl-geo-distance-query]]
+=== Geo Distance Query
+
+Filters documents that include only hits that exists within a specific
+distance from a geo point. Assuming the following indexed json:
+
+[source,js]
+--------------------------------------------------
+{
+    "pin" : {
+        "location" : {
+            "lat" : 40.12,
+            "lon" : -71.34
+        }
+    }
+}
+--------------------------------------------------
+
+Then the following simple query can be executed with a `geo_distance`
+filter:
+
+[source,js]
+--------------------------------------------------
+{
+    "bool" : {
+        "must" : {
+            "match_all" : {}
+        },
+        "filter" : {
+            "geo_distance" : {
+                "distance" : "200km",
+                "pin.location" : {
+                    "lat" : 40,
+                    "lon" : -70
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+[float]
+==== Accepted Formats
+
+In much the same way the `geo_point` type can accept different
+representation of the geo point, the filter can accept it as well:
+
+[float]
+===== Lat Lon As Properties
+
+[source,js]
+--------------------------------------------------
+{
+    "bool" : {
+        "must" : {
+            "match_all" : {}
+        },
+        "filter" : {
+            "geo_distance" : {
+                "distance" : "12km",
+                "pin.location" : {
+                    "lat" : 40,
+                    "lon" : -70
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+[float]
+===== Lat Lon As Array
+
+Format in `[lon, lat]`, note, the order of lon/lat here in order to
+conform with http://geojson.org/[GeoJSON].
+
+[source,js]
+--------------------------------------------------
+{
+    "bool" : {
+        "must" : {
+            "match_all" : {}
+        },
+        "filter" : {
+            "geo_distance" : {
+                "distance" : "12km",
+                "pin.location" : [-70, 40]
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+[float]
+===== Lat Lon As String
+
+Format in `lat,lon`.
+
+[source,js]
+--------------------------------------------------
+{
+    "bool" : {
+        "must" : {
+            "match_all" : {}
+        },
+        "filter" : {
+            "geo_distance" : {
+                "distance" : "12km",
+                "pin.location" : "40,-70"
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+[float]
+===== Geohash
+
+[source,js]
+--------------------------------------------------
+{
+    "bool" : {
+        "must" : {
+            "match_all" : {}
+        },
+        "filter" : {
+            "geo_distance" : {
+                "distance" : "12km",
+                "pin.location" : "drm3btev3e86"
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+[float]
+==== Options
+
+The following are options allowed on the filter:
+
+[horizontal]
+
+`distance`::
+
+    The radius of the circle centred on the specified location. Points which
+    fall into this circle are considered to be matches. The `distance` can be
+    specified in various units. See <<distance-units>>.
+
+`distance_type`::
+
+    How to compute the distance. Can either be `sloppy_arc` (default), `arc` (slightly more precise but significantly slower) or `plane` (faster, but inaccurate on long distances and close to the poles).
+
+`optimize_bbox`::
+
+    Whether to use the optimization of first running a bounding box check
+    before the distance check. Defaults to `memory` which will do in memory
+    checks. Can also have values of `indexed` to use indexed value check (make
+    sure the `geo_point` type index lat lon in this case), or `none` which
+    disables bounding box optimization.
+
+`_name`::
+
+    Optional name field to identify the query
+
+`coerce`::
+
+    Set to `true` to normalize longitude and latitude values to a standard -180:180 / -90:90
+    coordinate system. (default is `false`).
+
+`ignore_malformed`::
+
+    Set to `true` to accept geo points with invalid latitude or
+    longitude (default is `false`).
+
+[float]
+==== geo_point Type
+
+The filter *requires* the `geo_point` type to be set on the relevant
+field.
+
+[float]
+==== Multi Location Per Document
+
+The `geo_distance` filter can work with multiple locations / points per
+document. Once a single location / point matches the filter, the
+document will be included in the filter.
+

@@ -1,0 +1,266 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>org.elasticsearch</groupId>
+        <artifactId>parent</artifactId>
+        <version>3.0.0-SNAPSHOT</version>
+    </parent>
+
+    <groupId>org.elasticsearch.distribution</groupId>
+    <artifactId>distributions</artifactId>
+    <packaging>pom</packaging>
+    <name>Distribution: Parent POM</name>
+
+    <properties>
+        <!-- Properties used for building RPM & DEB packages (see common/packaging.properties) -->
+        <packaging.elasticsearch.home.dir>/usr/share/elasticsearch</packaging.elasticsearch.home.dir>
+        <packaging.elasticsearch.bin.dir>/usr/share/elasticsearch/bin</packaging.elasticsearch.bin.dir>
+        <packaging.elasticsearch.conf.dir>/etc/elasticsearch</packaging.elasticsearch.conf.dir>
+        <packaging.elasticsearch.data.dir>/var/lib/elasticsearch</packaging.elasticsearch.data.dir>
+        <packaging.elasticsearch.user>elasticsearch</packaging.elasticsearch.user>
+        <packaging.elasticsearch.group>elasticsearch</packaging.elasticsearch.group>
+        <packaging.elasticsearch.log.dir>/var/log/elasticsearch</packaging.elasticsearch.log.dir>
+        <packaging.elasticsearch.plugins.dir>${packaging.elasticsearch.home.dir}/plugins</packaging.elasticsearch.plugins.dir>
+        <packaging.elasticsearch.pid.dir>/var/run/elasticsearch</packaging.elasticsearch.pid.dir>
+        <packaging.elasticsearch.systemd.dir>/usr/lib/systemd/system</packaging.elasticsearch.systemd.dir>
+        <packaging.elasticsearch.systemd.sysctl.dir>/usr/lib/sysctl.d</packaging.elasticsearch.systemd.sysctl.dir>
+        <packaging.elasticsearch.tmpfilesd.dir>/usr/lib/tmpfiles.d</packaging.elasticsearch.tmpfilesd.dir>
+
+        <!-- Properties for the license checker -->
+        <project.licenses.dir>${project.basedir}/../licenses</project.licenses.dir>
+        <project.licenses.check_target>${integ.scratch}</project.licenses.check_target>
+
+        <!-- we expect packaging formats to have integration tests, but not unit tests -->
+        <skip.unit.tests>true</skip.unit.tests>
+    </properties>
+
+    <!-- PUT TEST ONLY DEPS HERE. Let individual distributions figure out what they want -->
+    <dependencies>
+        <dependency>
+            <groupId>com.carrotsearch.randomizedtesting</groupId>
+            <artifactId>randomizedtesting-runner</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.hamcrest</groupId>
+            <artifactId>hamcrest-all</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.apache.lucene</groupId>
+            <artifactId>lucene-test-framework</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.elasticsearch</groupId>
+            <artifactId>elasticsearch</artifactId>
+            <scope>test</scope>
+            <type>test-jar</type>
+        </dependency>
+
+        <dependency>
+            <groupId>org.apache.httpcomponents</groupId>
+            <artifactId>httpclient</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- Embedded components in any distribution -->
+        <dependency>
+            <groupId>org.elasticsearch</groupId>
+            <artifactId>elasticsearch</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.apache.lucene</groupId>
+            <artifactId>lucene-expressions</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>com.spatial4j</groupId>
+            <artifactId>spatial4j</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>com.vividsolutions</groupId>
+            <artifactId>jts</artifactId>
+        </dependency>
+
+        <!-- needed for templating -->
+        <dependency>
+            <groupId>com.github.spullara.mustache.java</groupId>
+            <artifactId>compiler</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.codehaus.groovy</groupId>
+            <artifactId>groovy-all</artifactId>
+            <classifier>indy</classifier>
+        </dependency>
+
+        <dependency>
+            <groupId>log4j</groupId>
+            <artifactId>log4j</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>log4j</groupId>
+            <artifactId>apache-log4j-extras</artifactId>
+        </dependency>
+
+        <!-- we intentionally do not want slf4j in the distro by default, we use log4j
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+        </dependency>
+        -->
+
+        <dependency>
+            <groupId>net.java.dev.jna</groupId>
+            <artifactId>jna</artifactId>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <!-- We copy libs for deb and rpm -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-dependency-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <phase>prepare-package</phase>
+                        <goals>
+                            <goal>copy-dependencies</goal>
+                        </goals>
+                        <configuration>
+                            <outputDirectory>${project.build.directory}/lib</outputDirectory>
+                            <includeScope>runtime</includeScope>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-eclipse-plugin</artifactId>
+                <configuration>
+                    <!-- Many of the modules in this build have the artifactId "elasticsearch"
+                      which break importing into Eclipse without this. -->
+                    <projectNameTemplate>[groupId].[artifactId]</projectNameTemplate>
+                </configuration>
+            </plugin>
+        </plugins>
+
+        <pluginManagement>
+            <plugins>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-antrun-plugin</artifactId>
+                    <!-- checks integration test scratch area (where we extract the distribution) -->
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-resources-plugin</artifactId>
+                    <executions>
+                        <execution>
+                            <id>copy-resources</id>
+                            <phase>prepare-package</phase>
+                            <goals>
+                                <goal>copy-resources</goal>
+                            </goals>
+                            <configuration>
+                                <outputDirectory>${project.build.directory}/bin</outputDirectory>
+                                <resources>
+                                    <resource>
+                                        <directory>${project.basedir}/../src/main/resources/bin</directory>
+                                        <filtering>true</filtering>
+                                        <excludes>
+                                            <exclude>*.exe</exclude>
+                                        </excludes>
+                                    </resource>
+                                    <resource>
+                                        <directory>${project.basedir}/../src/main/resources/bin</directory>
+                                        <filtering>false</filtering>
+                                        <includes>
+                                            <include>*.exe</include>
+                                        </includes>
+                                    </resource>
+                                </resources>
+                            </configuration>
+                        </execution>
+                    </executions>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-jar-plugin</artifactId>
+                    <configuration>
+                        <!-- distribution modules don't provide any jar. No need to upload empty jars to maven central -->
+                        <skipIfEmpty>true</skipIfEmpty>
+                    </configuration>
+                </plugin>
+                <plugin>
+                    <groupId>com.carrotsearch.randomizedtesting</groupId>
+                    <artifactId>junit4-maven-plugin</artifactId>
+                    <executions>
+                        <execution>
+                            <id>integ-tests</id>
+                            <configuration>
+                                <!-- currently only 1 cpu works, because integ tests don't make "unique" test directories? -->
+                                <parallelism>1</parallelism>
+                                <systemProperties>
+                                    <!-- use external cluster -->
+                                    <tests.cluster>localhost:${integ.transport.port}</tests.cluster>
+                                </systemProperties>
+                            </configuration>
+                        </execution>
+                    </executions>
+                </plugin>
+            </plugins>
+        </pluginManagement>
+    </build>
+
+    <modules>
+        <module>tar</module>
+        <module>zip</module>
+        <module>deb</module>
+    </modules>
+
+    <profiles>
+        <!--
+            We include automatically RPM module when it's available in common locations.
+            If your rpmbuild is in another location (but in path), run maven with rpm profile:
+             mvn deploy -Prpm
+        -->
+        <profile>
+            <id>macos_brew</id>
+            <activation>
+                <file>
+                    <!-- Folks having /usr/local/bin/rpmbuild available will be able to build the rpm module -->
+                    <exists>/usr/local/bin/rpmbuild</exists>
+                </file>
+            </activation>
+            <modules>
+                <module>rpm</module>
+            </modules>
+        </profile>
+
+        <profile>
+            <id>rpm</id>
+            <activation>
+                <file>
+                    <!-- Folks having /usr/bin/rpmbuild available will be able to build the rpm module -->
+                    <exists>/usr/bin/rpmbuild</exists>
+                </file>
+            </activation>
+            <modules>
+                <module>rpm</module>
+            </modules>
+        </profile>
+    </profiles>
+
+</project>

@@ -1,0 +1,29 @@
+[[breaking-changes]]
+= Breaking changes
+
+[partintro]
+--
+This section discusses the changes that you need to be aware of when migrating
+your application from one version of Elasticsearch to another.
+
+As a general rule:
+
+* Migration between major versions -- e.g. `1.x` to `2.x` --
+  requires a <<restart-upgrade,full cluster restart>>.
+
+* Migration between minor versions -- e.g. `1.x` to `1.y` -- can be
+  performed by <<rolling-upgrades,upgrading one node at a time>>.
+
+See <<setup-upgrade>> for more info.
+--
+include::migrate_3_0.asciidoc[]
+
+include::migrate_2_1.asciidoc[]
+
+include::migrate_2_0.asciidoc[]
+
+include::migrate_1_6.asciidoc[]
+
+include::migrate_1_4.asciidoc[]
+
+include::migrate_1_0.asciidoc[]

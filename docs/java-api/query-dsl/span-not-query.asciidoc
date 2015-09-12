@@ -1,0 +1,14 @@
+[[java-query-dsl-span-not-query]]
+==== Span Not Query
+
+See {ref}/query-dsl-span-not-query.html[Span Not Query]
+
+[source,java]
+--------------------------------------------------
+QueryBuilder qb = spanNotQuery()
+    .include(spanTermQuery("field","value1"))   <1>
+    .exclude(spanTermQuery("field","value2"));  <2>
+--------------------------------------------------
+<1> span query whose matches are filtered
+<2> span query whose matches must not overlap those returned
+

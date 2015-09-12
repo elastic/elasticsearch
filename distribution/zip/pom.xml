@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>org.elasticsearch.distribution</groupId>
+        <artifactId>distributions</artifactId>
+        <version>3.0.0-SNAPSHOT</version>
+    </parent>
+
+    <groupId>org.elasticsearch.distribution.zip</groupId>
+    <artifactId>elasticsearch</artifactId>
+    <name>Distribution: ZIP</name>
+    <!--
+        We should use pom packaging here because we don't want to publish any jar.
+        But if you do this, then maven lifecycle does not execute any test (nor compile any test)
+     -->
+    <!--packaging>pom</packaging-->
+    <description>The ZIP distribution of Elasticsearch</description>
+
+    <build>
+        <filters>
+            <filter>${project.basedir}/../src/main/packaging/packaging.properties</filter>
+        </filters>
+
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-assembly-plugin</artifactId>
+                <configuration>
+                    <appendAssemblyId>false</appendAssemblyId>
+                    <outputDirectory>${project.build.directory}/releases/</outputDirectory>
+                    <descriptors>
+                        <descriptor>${project.basedir}/src/main/assemblies/zip-bin.xml</descriptor>
+                    </descriptors>
+                </configuration>
+                <executions>
+                    <execution>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>single</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-antrun-plugin</artifactId>
+                <executions>
+                    <!-- execution and integration tests -->
+                    <!-- start up elasticsearch in foreground -->
+                    <execution>
+                        <id>execute</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>run</goal>
+                        </goals>
+                        <configuration>
+                            <target if="${run}">
+                                <!-- use conventional port numbers -->
+                                <ant antfile="${elasticsearch.integ.antfile}" target="start-foreground">
+                                    <property name="integ.http.port" value="9200"/>
+                                    <property name="integ.transport.port" value="9300"/>
+                                </ant>
+                            </target>
+                        </configuration>
+                    </execution>
+                    <!-- start up external cluster -->
+                    <execution>
+                        <id>integ-setup</id>
+                        <phase>pre-integration-test</phase>
+                        <goals>
+                            <goal>run</goal>
+                        </goals>
+                        <configuration>
+                            <skip>${skip.integ.tests}</skip>
+                            <target>
+                                <ant antfile="${elasticsearch.integ.antfile}" target="start-external-cluster-zip">
+                                    <property name="tests.jvm.argline" value="${tests.jvm.argline}"/>
+                                </ant>
+                            </target>
+                        </configuration>
+                    </execution>
+                    <!-- shut down external cluster -->
+                    <execution>
+                        <id>integ-teardown</id>
+                        <phase>post-integration-test</phase>
+                        <goals>
+                            <goal>run</goal>
+                        </goals>
+                        <configuration>
+                            <skip>${skip.integ.tests}</skip>
+                            <target>
+                                <ant antfile="${elasticsearch.integ.antfile}" target="stop-external-cluster"/>
+                            </target>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+</project>

@@ -15,9 +15,10 @@ Currently the rescore API has only one implementation: the query
 rescorer, which uses a query to tweak the scoring. In the future, 
 alternative rescorers may be made available, for example, a pair-wise rescorer.
 
-*Note:* the `rescore` phase is not executed when
-<<search-request-search-type,`search_type`>> is set
-to `scan` or `count`.
+NOTE: when exposing pagination to your users, you should not change
+`window_size` as you step through each page (by passing different
+`from` values) since that can alter the top hits causing results to
+confusingly shift as the user steps through pages.
 
 ==== Query rescorer
 
@@ -68,7 +69,7 @@ curl -s -XPOST 'localhost:9200/_search' -d '{
 '
 --------------------------------------------------
 
-The way the scores are combined can be controled with the `score_mode`:
+The way the scores are combined can be controlled with the `score_mode`:
 [cols="<,<",options="header",]
 |=======================================================================
 |Score Mode |Description
@@ -81,8 +82,6 @@ for <<query-dsl-function-score-query,`function query`>> rescores.
 |=======================================================================
 
 ==== Multiple Rescores
-
-added[1.1.0]
 
 It is also possible to execute multiple rescores in sequence:
 [source,js]

@@ -1,0 +1,82 @@
+---
+"search_exists with query_string parameters":
+  - do:
+      indices.create:
+          index:  test
+          body:
+            mappings:
+              test:
+                _all:
+                  enabled: false
+                properties:
+                  number:
+                    type: integer
+
+  - do:
+      index:
+          index:  test
+          type:   test
+          id:     1
+          body:   { field: foo bar}
+
+  - do:
+      indices.refresh:
+        index: [test]
+
+  - do:
+      search_exists:
+        index: test
+        q: bar
+        df: field
+
+  - is_true: exists
+
+  - do:
+      search_exists:
+        index: test
+        q: field:foo field:xyz
+
+  - is_true: exists
+
+  - do:
+      catch: missing
+      search_exists:
+        index: test
+        q: field:foo field:xyz
+        default_operator: AND
+
+  - is_false: exists
+
+  - do:
+      search_exists:
+        index: test
+        q: field:bars
+        analyzer: snowball
+
+  - is_true: exists
+
+  - do:
+      catch: missing
+      search_exists:
+        index: test
+        q: field:BA*
+        lowercase_expanded_terms: false
+
+  - is_false: exists
+
+  - do:
+      search_exists:
+        index: test
+        q: field:BA*
+        analyze_wildcard: true
+
+  - is_true: exists
+
+  - do:
+      catch: missing
+      search_exists:
+        index: test
+        q: number:foo
+        lenient: true
+
+  - is_false: exists

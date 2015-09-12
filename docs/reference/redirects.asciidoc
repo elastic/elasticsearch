@@ -1,0 +1,445 @@
+["appendix",role="exclude",id="redirects"]
+= Deleted pages
+
+The following pages have moved or been deleted.
+
+[role="exclude",id="cluster-nodes-shutdown"]
+=== Nodes shutdown
+
+The `_shutdown` API has been removed.  Instead, setup Elasticsearch to run as
+a service (see <<setup-service>> or <<setup-service-win>>) or use the `-p`
+command line option to <<setup-installation-pid,write the PID to a file>>.
+
+[role="exclude",id="docs-bulk-udp"]
+=== Bulk UDP API
+
+The Bulk UDP services has been removed.  Use the standard <<docs-bulk>> instead.
+
+[role="exclude",id="indices-delete-mapping"]
+=== Delete Mapping
+
+It is no longer possible to delete the mapping for a type. Instead you should
+<<indices-delete-index,delete the index>> and recreate it with the new mappings.
+
+[role="exclude",id="indices-status"]
+=== Index Status
+
+The  index `_status` API has been replaced with the <<indices-stats>> and
+<<indices-recovery>> APIs.
+
+[role="exclude",id="mapping-analyzer-field"]
+=== `_analyzer`
+
+The `_analyzer` field in type mappings is no longer supported and will be
+automatically removed from mappings when upgrading to 2.x.
+
+[role="exclude",id="mapping-boost-field"]
+=== `_boost`
+
+The `_boost` field in type mappings is no longer supported and will be
+automatically removed from mappings when upgrading to 2.x.
+
+[role="exclude",id="mapping-conf-mappings"]
+=== Config mappings
+
+It is no longer possible to specify mappings in files in the `config`
+directory.  Instead, mappings should be created using the API with:
+
+* <<indices-create-index>>
+* <<indices-put-mapping>>
+* <<indices-templates>>
+
+[role="exclude",id="modules-memcached"]
+=== memcached
+
+The `memcached` transport is no longer supported.  Instead use the REST
+interface over <<modules-http,HTTP>> or the
+https://www.elastic.co/guide/en/elasticsearch/client/java-api/current/index.html[Java API].
+
+[role="exclude",id="modules-thrift"]
+=== Thrift
+
+The `thrift` transport is no longer supported.  Instead use the REST
+interface over <<modules-http,HTTP>> or the
+https://www.elastic.co/guide/en/elasticsearch/client/java-api/current/index.html[Java API].
+
+// QUERY DSL
+
+[role="exclude",id="query-dsl-queries"]
+=== Queries
+
+Queries and filters have been merged.  Any query clause can now be used as a query
+in ``query context'' and as a filter in ``filter context'' (see <<query-dsl>>).
+
+[role="exclude",id="query-dsl-filters"]
+=== Filters
+
+Queries and filters have been merged.  Any query clause can now be used as a query
+in ``query context'' and as a filter in ``filter context'' (see <<query-dsl>>).
+
+[role="exclude",id="query-dsl-not-filter"]
+=== Not Filter
+
+The `not` filter has been replaced by the <<query-dsl-not-query>>.  It behaves
+as a query in ``query context'' and as a filter in ``filter context'' (see
+<<query-dsl>>).
+
+[role="exclude",id="query-dsl-bool-filter"]
+=== Bool Filter
+
+The `bool` filter has been replaced by the <<query-dsl-bool-query>>.  It behaves
+as a query in ``query context'' and as a filter in ``filter context'' (see
+<<query-dsl>>).
+
+[role="exclude",id="query-dsl-exists-filter"]
+=== Exists Filter
+
+The `exists` filter has been replaced by the <<query-dsl-exists-query>>.  It behaves
+as a query in ``query context'' and as a filter in ``filter context'' (see
+<<query-dsl>>).
+
+[role="exclude",id="query-dsl-missing-filter"]
+=== Missing Filter
+
+The `missing` filter has been replaced by the <<query-dsl-missing-query>>.  It behaves
+as a query in ``query context'' and as a filter in ``filter context'' (see
+<<query-dsl>>).
+
+
+[role="exclude",id="query-dsl-geo-bounding-box-filter"]
+=== Geo Bounding Box Filter
+
+The `geo_bounding_box` filter has been replaced by the <<query-dsl-geo-bounding-box-query>>.
+It behaves as a query in ``query context'' and as a filter in ``filter
+context'' (see <<query-dsl>>).
+
+[role="exclude",id="query-dsl-geo-distance-filter"]
+=== Geo Distance Filter
+
+The `geo_distance` filter has been replaced by the <<query-dsl-geo-distance-query>>.
+It behaves as a query in ``query context'' and as a filter in ``filter
+context'' (see <<query-dsl>>).
+
+[role="exclude",id="query-dsl-geo-distance-range-filter"]
+=== Geo Distance Range Filter
+
+The `geo_distance_range` filter has been replaced by the <<query-dsl-geo-distance-range-query>>.
+It behaves as a query in ``query context'' and as a filter in ``filter
+context'' (see <<query-dsl>>).
+
+[role="exclude",id="query-dsl-geo-polygon-filter"]
+=== Geo Polygon Filter
+
+The `geo_polygon` filter has been replaced by the <<query-dsl-geo-polygon-query>>.
+It behaves as a query in ``query context'' and as a filter in ``filter
+context'' (see <<query-dsl>>).
+
+[role="exclude",id="query-dsl-geo-shape-filter"]
+=== Geo Shape Filter
+
+The `geo_shape` filter has been replaced by the <<query-dsl-geo-shape-query>>.
+It behaves as a query in ``query context'' and as a filter in ``filter
+context'' (see <<query-dsl>>).
+
+[role="exclude",id="query-dsl-geohash-cell-filter"]
+=== Geohash Cell Filter
+
+The `geohash_cell` filter has been replaced by the <<query-dsl-geohash-cell-query>>.
+It behaves as a query in ``query context'' and as a filter in ``filter
+context'' (see <<query-dsl>>).
+
+[role="exclude",id="query-dsl-has-child-filter"]
+=== Has Child Filter
+
+The `has_child` filter has been replaced by the <<query-dsl-has-child-query>>.  It behaves
+as a query in ``query context'' and as a filter in ``filter context'' (see
+<<query-dsl>>).
+
+[role="exclude",id="query-dsl-has-parent-filter"]
+=== Has Parent Filter
+
+The `has_parent` filter has been replaced by the <<query-dsl-has-parent-query>>.  It behaves
+as a query in ``query context'' and as a filter in ``filter context'' (see
+<<query-dsl>>).
+
+[role="exclude",id="query-dsl-top-children-query"]
+=== Top Children Query
+
+The `top_children` query has been removed. Use the <<query-dsl-has-child-query>> instead.
+
+[role="exclude",id="query-dsl-ids-filter"]
+=== IDs Filter
+
+The `ids` filter has been replaced by the <<query-dsl-ids-query>>.  It behaves
+as a query in ``query context'' and as a filter in ``filter context'' (see
+<<query-dsl>>).
+
+[role="exclude",id="query-dsl-indices-filter"]
+=== Indices Filter
+
+The `indices` filter has been replaced by the <<query-dsl-indices-query>>.  It behaves
+as a query in ``query context'' and as a filter in ``filter context'' (see
+<<query-dsl>>).
+
+[role="exclude",id="query-dsl-match-all-filter"]
+=== Match All Filter
+
+The `match_all` filter has been replaced by the <<query-dsl-match-all-query>>.  It behaves
+as a query in ``query context'' and as a filter in ``filter context'' (see
+<<query-dsl>>).
+
+[role="exclude",id="query-dsl-nested-filter"]
+=== Nested Filter
+
+The `nested` filter has been replaced by the <<query-dsl-nested-query>>.  It behaves
+as a query in ``query context'' and as a filter in ``filter context'' (see
+<<query-dsl>>).
+
+[role="exclude",id="query-dsl-prefix-filter"]
+=== Prefix Filter
+
+The `prefix` filter has been replaced by the <<query-dsl-prefix-query>>. It behaves
+as a query in ``query context'' and as a filter in ``filter context'' (see
+<<query-dsl>>).
+
+[role="exclude",id="query-dsl-query-filter"]
+=== Query Filter
+
+The `query` filter has been removed as queries and filters have been merged (see
+<<query-dsl>>).
+
+[role="exclude",id="query-dsl-range-filter"]
+=== Range Filter
+
+The `range` filter has been replaced by the <<query-dsl-range-query>>. It behaves
+as a query in ``query context'' and as a filter in ``filter context'' (see
+<<query-dsl>>).
+
+[role="exclude",id="query-dsl-regexp-filter"]
+=== Regexp Filter
+
+The `regexp` filter has been replaced by the <<query-dsl-regexp-query>>. It behaves
+as a query in ``query context'' and as a filter in ``filter context'' (see
+<<query-dsl>>).
+
+[role="exclude",id="query-dsl-script-filter"]
+=== Script Filter
+
+The `script` filter has been replaced by the <<query-dsl-script-query>>. It behaves
+as a query in ``query context'' and as a filter in ``filter context'' (see
+<<query-dsl>>).
+
+[role="exclude",id="query-dsl-term-filter"]
+=== Term Filter
+
+The `term` filter has been replaced by the <<query-dsl-term-query>>. It behaves
+as a query in ``query context'' and as a filter in ``filter context'' (see
+<<query-dsl>>).
+
+[role="exclude",id="query-dsl-terms-filter"]
+=== Terms Filter
+
+The `terms` filter has been replaced by the <<query-dsl-terms-query>>. It behaves
+as a query in ``query context'' and as a filter in ``filter context'' (see
+<<query-dsl>>).
+
+[role="exclude",id="query-dsl-type-filter"]
+=== Type Filter
+
+The `type` filter has been replaced by the <<query-dsl-type-query>>. It behaves
+as a query in ``query context'' and as a filter in ``filter context'' (see
+<<query-dsl>>).
+
+[role="exclude",id="query-dsl-flt-query"]
+=== Fuzzy Like This Query
+
+The `fuzzy_like_this` or `flt` query has been removed.  Instead use
+the <<query-dsl-match-query-fuzziness,`fuzziness`>> parameter with the
+<<query-dsl-match-query,`match` query>> or the <<query-dsl-mlt-query>>.
+
+
+[role="exclude",id="query-dsl-flt-field-query"]
+=== Fuzzy Like This Field Query
+
+The `fuzzy_like_this_field` or `flt_field` query has been removed.  Instead use
+the <<query-dsl-match-query-fuzziness,`fuzziness`>> parameter with the
+<<query-dsl-match-query,`match` query>> or the <<query-dsl-mlt-query>>.
+
+[role="exclude",id="search-more-like-this"]
+=== More Like This API
+
+The More Like This API has been removed. Instead, use the <<query-dsl-mlt-query>>.
+
+// FACETS
+
+[role="exclude",id="search-facets"]
+=== Facets
+
+Faceted search refers to a way to explore large amounts of data by displaying
+summaries about various partitions of the data and later allowing to narrow
+the navigation to a specific partition.
+
+In Elasticsearch, `facets` are also the name of a feature that allowed to
+compute these summaries. `facets` have been replaced by
+<<search-aggregations, aggregations>> in Elasticsearch 1.0, which are a superset
+of facets.
+
+[role="exclude",id="search-facets-filter-facet"]
+=== Filter Facet
+
+Facets have been removed. Use the
+<<search-aggregations-bucket-filter-aggregation,`filter` aggregation>> or
+<<search-aggregations-bucket-filters-aggregation,`filters` aggregation>> instead.
+
+[role="exclude",id="search-facets-query-facet"]
+=== Query Facet
+
+Facets have been removed. Use the
+<<search-aggregations-bucket-filter-aggregation,`filter` aggregation>> or
+<<search-aggregations-bucket-filters-aggregation,`filters` aggregation>> instead.
+
+[role="exclude",id="search-facets-geo-distance-facet"]
+=== Geo Distance Facet
+
+Facets have been removed. Use the
+<<search-aggregations-bucket-geodistance-aggregation,`geo_distance` aggregation>> instead.
+
+[role="exclude",id="search-facets-histogram-facet"]
+=== Histogram Facet
+
+Facets have been removed. Use the
+<<search-aggregations-bucket-histogram-aggregation,`histogram` aggregation>> instead.
+
+[role="exclude",id="search-facets-date-histogram-facet"]
+=== Date Histogram Facet
+
+Facets have been removed. Use the
+<<search-aggregations-bucket-datehistogram-aggregation,`date_histogram` aggregation>> instead.
+
+[role="exclude",id="search-facets-range-facet"]
+=== Range Facet
+
+Facets have been removed. Use the
+<<search-aggregations-bucket-range-aggregation,`range` aggregation>> instead.
+
+[role="exclude",id="search-facets-terms-facet"]
+=== Terms Facet
+
+Facets have been removed. Use the
+<<search-aggregations-bucket-terms-aggregation,`terms` aggregation>> instead.
+
+[role="exclude",id="search-facets-terms-statistical-facet"]
+=== Terms Stats Facet
+
+Facets have been removed. Use the
+<<search-aggregations-bucket-terms-aggregation,`terms` aggregation>>
+with the <<search-aggregations-metrics-stats-aggregation,`stats` aggregation>>
+or the <<search-aggregations-metrics-extendedstats-aggregation,`extended_stats` aggregation>>
+instead.
+
+[role="exclude",id="search-facets-statistical-facet"]
+=== Statistical Facet
+
+Facets have been removed. Use the
+<<search-aggregations-metrics-stats-aggregation,`stats` aggregation>>
+or the <<search-aggregations-metrics-extendedstats-aggregation,`extended_stats` aggregation>>  instead.
+
+[role="exclude",id="search-facets-migrating-to-aggs"]
+=== Migrating from facets to aggregations
+
+Facets have been removed. Use <<search-aggregations>> instead.
+
+// CACHES
+
+[role="exclude",id="shard-query-cache"]
+=== Shard request cache
+
+The shard query cache has been renamed <<shard-request-cache>>.
+
+[role="exclude",id="filter-cache"]
+=== Query cache
+
+The filter cache has been renamed <<query-cache>>.
+
+[role="exclude",id="query-dsl-filtered-query"]
+=== Filtered query
+
+The `filtered` query is replaced in favour of the <<query-dsl-bool-query,bool>> query. Instead of
+the following:
+
+[source,js]
+-------------------------
+GET _search
+{
+  "query": {
+    "filtered": {
+      "query": {
+        "match": {
+          "text": "quick brown fox"
+        }
+      },
+      "filter": {
+        "term": {
+          "status": "published"
+        }
+      }
+    }
+  }
+}
+-------------------------
+
+move the query and filter to the `must` and `filter` parameters in the `bool`
+query:
+
+[source,js]
+-------------------------
+GET _search
+{
+  "query": {
+    "bool": {
+      "must": {
+        "match": {
+          "text": "quick brown fox"
+        }
+      },
+      "filter": {
+        "term": {
+          "status": "published"
+        }
+      }
+    }
+  }
+}
+-------------------------
+
+[role="exclude",id="query-dsl-or-query"]
+=== Or query
+
+The `or` query is replaced in favour of the <<query-dsl-bool-query,bool>> query.
+
+[role="exclude",id="query-dsl-or-filter"]
+=== Or filter
+
+The `or` filter is replaced in favour of the <<query-dsl-bool-query,bool>> query.
+
+[role="exclude",id="query-dsl-and-query"]
+=== And query
+
+The `and` query is replaced in favour of the <<query-dsl-bool-query,bool>> query.
+
+[role="exclude",id="query-dsl-and-filter"]
+=== And filter
+
+The `and` filter is replaced in favour of the <<query-dsl-bool-query,bool>> query.
+
+[role="exclude",id="query-dsl-limit-query"]
+=== Limit query
+
+The `limit` query is replaced in favour of the <<search-request-body,terminate_after>>
+parameter of search requests.
+
+[role="exclude",id="query-dsl-limit-filter"]
+=== Limit filter
+
+The `limit` filter is replaced in favour of the <<search-request-body,terminate_after>>
+parameter of search requests.

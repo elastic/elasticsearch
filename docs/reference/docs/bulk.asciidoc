@@ -2,8 +2,26 @@
 == Bulk API
 
 The bulk API makes it possible to perform many index/delete operations
-in a single API call. This can greatly increase the indexing speed. The
-REST API endpoint is `/_bulk`, and it expects the following JSON
+in a single API call. This can greatly increase the indexing speed.
+
+.Client support for bulk requests
+*********************************************
+
+Some of the officially supported clients provide helpers to assist with
+bulk requests and reindexing of documents from one index to another:
+
+Perl::
+
+    See https://metacpan.org/pod/Search::Elasticsearch::Bulk[Search::Elasticsearch::Bulk]
+    and https://metacpan.org/pod/Search::Elasticsearch::Scroll[Search::Elasticsearch::Scroll]
+
+Python::
+
+    See http://elasticsearch-py.readthedocs.org/en/master/helpers.html[elasticsearch.helpers.*]
+
+*********************************************
+
+The REST API endpoint is `/_bulk`, and it expects the following JSON
 structure:
 
 [source,js]
@@ -19,7 +37,7 @@ optional_source\n
 
 *NOTE*: the final line of data must end with a newline character `\n`.
 
-The possible actions are `index`, `create`, `delete` and `update`. 
+The possible actions are `index`, `create`, `delete` and `update`.
 `index` and `create` expect a source on the next
 line, and have the same semantics as the `op_type` parameter to the
 standard index API (i.e. create will fail if a document with the same
@@ -113,6 +131,8 @@ operation based on the `_parent` / `_routing` mapping.
 [[bulk-timestamp]]
 === Timestamp
 
+deprecated[2.0.0,The `_timestamp` field is deprecated.  Instead, use a normal <<date,`date`>> field and set its value explicitly]
+
 Each bulk item can include the timestamp value using the
 `_timestamp`/`timestamp` field. It automatically follows the behavior of
 the index operation based on the `_timestamp` mapping.
@@ -120,6 +140,8 @@ the index operation based on the `_timestamp` mapping.
 [float]
 [[bulk-ttl]]
 === TTL
+
+deprecated[2.0.0,The current `_ttl` implementation is deprecated and will be replaced with a different implementation in a future version]
 
 Each bulk item can include the ttl value using the `_ttl`/`ttl` field.
 It automatically follows the behavior of the index operation based on
@@ -145,11 +167,12 @@ is the same).
 [[bulk-refresh]]
 === Refresh
 
-The `refresh` parameter can be set to `true` in order to refresh the
-relevant shards immediately after the bulk operation has occurred and
-make it searchable, instead of waiting for the normal refresh interval
-to expire. Setting it to `true` can trigger additional load, and may
-slow down indexing.
+The `refresh` parameter can be set to `true` in order to refresh the relevant
+primary and replica shards immediately after the bulk operation has occurred
+and make it searchable, instead of waiting for the normal refresh interval to
+expire. Setting it to `true` can trigger additional load, and may slow down
+indexing. Due to its costly nature, the `refresh` parameter is set on the bulk request level
+and is not supported on each individual bulk item.
 
 [float]
 [[bulk-update]]
@@ -161,7 +184,7 @@ times an update should be retried in the case of a version conflict.
 
 The `update` action payload, supports the following options: `doc`
 (partial document), `upsert`, `doc_as_upsert`, `script`, `params` (for
-script), `lang` (for script). See update documentation for details on
+script), `lang` (for script) and `fields`. See update documentation for details on
 the options. Curl example with update actions:
 
 [source,js]
@@ -169,9 +192,13 @@ the options. Curl example with update actions:
 { "update" : {"_id" : "1", "_type" : "type1", "_index" : "index1", "_retry_on_conflict" : 3} }
 { "doc" : {"field" : "value"} }
 { "update" : { "_id" : "0", "_type" : "type1", "_index" : "index1", "_retry_on_conflict" : 3} }
-{ "script" : "ctx._source.counter += param1", "lang" : "js", "params" : {"param1" : 1}, "upsert" : {"counter" : 1}}
+{ "script" : { "inline": "ctx._source.counter += param1", "lang" : "js", "params" : {"param1" : 1}}, "upsert" : {"counter" : 1}}
 { "update" : {"_id" : "2", "_type" : "type1", "_index" : "index1", "_retry_on_conflict" : 3} }
 { "doc" : {"field" : "value"}, "doc_as_upsert" : true }
+{ "update" : {"_id" : "3", "_type" : "type1", "_index" : "index1", "fields" : ["_source"]} }
+{ "doc" : {"field" : "value"} }
+{ "update" : {"_id" : "4", "_type" : "type1", "_index" : "index1"} }
+{ "doc" : {"field" : "value"}, "fields": ["_source"]}
 --------------------------------------------------
 
 [float]

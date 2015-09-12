@@ -1,0 +1,42 @@
+=== Network changes
+
+==== Bind to localhost
+
+Elasticsearch 2.x will only bind to localhost by default. It will try to bind
+to both 127.0.0.1 (IPv4) and [::1] (IPv6), but will work happily in
+environments where only IPv4 or IPv6 is available. This change prevents
+Elasticsearch from trying to connect to other nodes on your network unless you
+specifically tell it to do so. When moving to production you should configure
+the `network.host` parameter, either in the `elasticsearch.yml` config file or
+on the command line:
+
+[source,sh]
+--------------------
+bin/elasticsearch --network.host 192.168.1.5
+bin/elasticsearch --network.host _non_loopback_
+--------------------
+
+The full list of options that network.host accepts can be found in the <<modules-network>>.
+
+==== Multicast removed
+
+Multicast has been removed (although it is still
+{plugins}/discovery-multicast.html[provided as a plugin] for now). Instead,
+and only when bound to localhost, Elasticsearch will use unicast to contact
+the first 5 ports in the `transport.tcp.port` range, which defaults to
+`9300-9400`.
+
+This preserves the zero-config auto-clustering experience for the developer,
+but it means that you will have to provide a list of <<unicast,unicast hosts>>
+when moving to production, for instance:
+
+[source,yaml]
+---------------------
+discovery.zen.ping.unicast.hosts: [ 192.168.1.2,  192.168.1.3 ]
+---------------------
+
+You don’t need to list all of the nodes in your cluster as unicast hosts, but
+you should specify at least a quorum (majority) of master-eligible nodes. A
+big cluster will typically have three dedicated master nodes, in which case we
+recommend listing all three of them as unicast hosts.
+

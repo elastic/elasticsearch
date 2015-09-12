@@ -1,0 +1,10 @@
+[[java-query-dsl-wildcard-query]]
+==== Wildcard Query
+
+See {ref}/query-dsl-wildcard-query.html[Wildcard Query]
+
+[source,java]
+--------------------------------------------------
+QueryBuilder qb = wildcardQuery("user", "k?mc*");
+--------------------------------------------------
+

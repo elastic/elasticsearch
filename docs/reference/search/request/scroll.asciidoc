@@ -1,42 +1,183 @@
 [[search-request-scroll]]
 === Scroll
 
-A search request can be scrolled by specifying the `scroll` parameter.
-The `scroll` parameter is a time value parameter (for example:
-`scroll=5m`), indicating for how long the nodes that participate in the
-search will maintain relevant resources in order to continue and support
-it. This is very similar in its idea to opening a cursor against a
-database.
+While a `search` request returns a single ``page'' of results, the `scroll`
+API can be used to retrieve large numbers of results (or even all results)
+from a single search request, in much the same way as you would use a cursor
+on a traditional database.
 
-A `scroll_id` is returned from the first search request (and from
-continuous) scroll requests. The `scroll_id` should be used when
-scrolling (along with the `scroll` parameter, to stop the scroll from
-expiring). The scroll id can also be passed as part of the search
-request body.
+Scrolling is not intended for real time user requests, but rather for
+processing large amounts of data, e.g. in order to reindex the contents of one
+index into a new index with a different configuration.
 
-*Note*: the `scroll_id` changes for each scroll request and only the
-most recent one should be used.
+.Client support for scrolling and reindexing
+*********************************************
+
+Some of the officially supported clients provide helpers to assist with
+scrolled searches and reindexing of documents from one index to another:
+
+Perl::
+
+    See https://metacpan.org/pod/Search::Elasticsearch::Bulk[Search::Elasticsearch::Bulk]
+    and https://metacpan.org/pod/Search::Elasticsearch::Scroll[Search::Elasticsearch::Scroll]
+
+Python::
+
+    See http://elasticsearch-py.readthedocs.org/en/master/helpers.html[elasticsearch.helpers.*]
+
+*********************************************
+
+NOTE: The results that are returned from a scroll request reflect the state of
+the index at the time that the initial `search` request was  made, like a
+snapshot in time. Subsequent changes to documents (index, update or delete)
+will only affect later search requests.
+
+In order to use scrolling, the initial search request should specify the
+`scroll` parameter in the query string, which tells Elasticsearch how long it
+should keep the ``search context'' alive (see <<scroll-search-context>>), eg `?scroll=1m`.
 
 [source,js]
 --------------------------------------------------
-$ curl -XGET 'http://localhost:9200/twitter/tweet/_search?scroll=5m' -d '{
+curl -XGET 'localhost:9200/twitter/tweet/_search?scroll=1m' -d '
+{
     "query": {
-        "query_string" : {
-            "query" : "some query string here"
+        "match" : {
+            "title" : "elasticsearch"
         }
     }
 }
 '
 --------------------------------------------------
 
+The result from the above request includes a `_scroll_id`, which should
+be passed to the `scroll` API in order to retrieve the next batch of
+results.
+
 [source,js]
 --------------------------------------------------
-$ curl -XGET 'http://localhost:9200/_search/scroll?scroll=5m&scroll_id=c2Nhbjs2OzM0NDg1ODpzRlBLc0FXNlNyNm5JWUc1'
+curl -XGET <1> 'localhost:9200/_search/scroll' <2> -d'
+{
+    "scroll" : "1m", <3>
+    "scroll_id" : "c2Nhbjs2OzM0NDg1ODpzRlBLc0FXNlNyNm5JWUc1" <4>
+}
+'
 --------------------------------------------------
 
-Scrolling is not intended for real time user requests, it is intended
-for cases like scrolling over large portions of data that exists within
-elasticsearch to reindex it for example.
+coming[2.0.0-beta1, body based parameters were added in 2.0.0]
 
-For more information on scrolling, see the
-<<search-request-search-type,scan>> search type.
+<1> `GET` or `POST` can be used.
+<2> The URL should not include the `index` or `type` name -- these
+    are specified in the original `search` request instead.
+<3> The `scroll` parameter tells Elasticsearch to keep the search context open
+    for another `1m`.
+<4> The `scroll_id` parameter
+
+Each call to the `scroll` API returns the next batch of results until there
+are no more results left to return, ie the `hits` array is empty.
+
+For backwards compatibility, `scroll_id` and `scroll` can be passed in the query string.
+And the `scroll_id` can be passed in the request body
+
+[source,js]
+--------------------------------------------------
+curl -XGET 'localhost:9200/_search/scroll?scroll=1m' -d 'c2Nhbjs2OzM0NDg1ODpzRlBLc0FXNlNyNm5JWUc1'
+--------------------------------------------------
+
+IMPORTANT: The initial search request and each subsequent scroll request
+returns a new `_scroll_id` -- only the most recent `_scroll_id` should be
+used.
+
+NOTE: If the request specifies aggregations, only the initial search response
+will contain the aggregations results.
+
+NOTE: Scroll requests have optimizations that make them faster when the sort
+order is `_doc`. If you want to iterate over all documents regardless of the
+order, this is the most efficient option:
+
+[source,js]
+--------------------------------------------------
+curl -XGET 'localhost:9200/_search?scroll=1m' -d '
+{
+  "sort": [
+    "_doc"
+  }
+}
+'
+--------------------------------------------------
+
+[[scroll-search-context]]
+==== Keeping the search context alive
+
+The `scroll` parameter (passed to the `search` request and to every `scroll`
+request) tells Elasticsearch how long it should keep the search context alive.
+Its value (e.g. `1m`, see <<time-units>>) does not need to be long enough to
+process all data -- it just needs to be long enough to process the previous
+batch of results. Each `scroll` request (with the `scroll` parameter) sets a
+new  expiry time.
+
+Normally, the background merge process optimizes the
+index by merging together smaller segments to create new bigger segments, at
+which time the smaller segments are deleted. This process continues during
+scrolling, but an open search context prevents the old segments from being
+deleted while they are still in use.  This is how Elasticsearch is able to
+return the results of the initial search request, regardless of subsequent
+changes to documents.
+
+TIP: Keeping older segments alive means that more file handles are needed.
+Ensure that you have configured your nodes to have ample free file handles.
+See <<file-descriptors>>.
+
+You can check how many search contexts are open with the
+<<cluster-nodes-stats,nodes stats API>>:
+
+[source,js]
+---------------------------------------
+curl -XGET localhost:9200/_nodes/stats/indices/search?pretty
+---------------------------------------
+
+==== Clear scroll API
+
+Search context are automatically removed when the `scroll` timeout has been
+exceeded. However keeping scrolls open has a cost, as discussed in the
+<<scroll-search-context,previous section>> so scrolls should be explicitly
+cleared as soon as the scroll is not being used anymore using the
+`clear-scroll` API:
+
+[source,js]
+---------------------------------------
+curl -XDELETE localhost:9200/_search/scroll -d '
+{
+    "scroll_id" : ["c2Nhbjs2OzM0NDg1ODpzRlBLc0FXNlNyNm5JWUc1"]
+}'
+---------------------------------------
+
+coming[2.0.0-beta1, Body based parameters were added in 2.0.0]
+
+Multiple scroll IDs can be passed as array:
+
+[source,js]
+---------------------------------------
+curl -XDELETE localhost:9200/_search/scroll -d '
+{
+    "scroll_id" : ["c2Nhbjs2OzM0NDg1ODpzRlBLc0FXNlNyNm5JWUc1", "aGVuRmV0Y2g7NTsxOnkxaDZ"]
+}'
+---------------------------------------
+
+coming[2.0.0-beta1, Body based parameters were added in 2.0.0]
+
+All search contexts can be cleared with the `_all` parameter:
+
+[source,js]
+---------------------------------------
+curl -XDELETE localhost:9200/_search/scroll/_all
+---------------------------------------
+
+The `scroll_id` can also be passed as a query string parameter or in the request body.
+Multiple scroll IDs can be passed as comma separated values:
+
+[source,js]
+---------------------------------------
+curl -XDELETE localhost:9200/_search/scroll \
+     -d 'c2Nhbjs2OzM0NDg1ODpzRlBLc0FXNlNyNm5JWUc1,aGVuRmV0Y2g7NTsxOnkxaDZ'
+---------------------------------------
+

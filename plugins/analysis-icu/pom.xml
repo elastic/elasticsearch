@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>org.elasticsearch.plugin</groupId>
+        <artifactId>plugins</artifactId>
+        <version>3.0.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>analysis-icu</artifactId>
+    <name>Plugin: Analysis: ICU</name>
+    <description>The ICU Analysis plugin integrates Lucene ICU module into elasticsearch, adding ICU relates analysis components.</description>
+
+    <properties>
+        <elasticsearch.plugin.classname>org.elasticsearch.plugin.analysis.icu.AnalysisICUPlugin</elasticsearch.plugin.classname>
+        <tests.rest.suite>analysis_icu</tests.rest.suite>
+        <tests.rest.load_packaged>false</tests.rest.load_packaged>
+        <xlint.options>-Xlint:-deprecation</xlint.options>
+    </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.apache.lucene</groupId>
+            <artifactId>lucene-analyzers-icu</artifactId>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-assembly-plugin</artifactId>
+            </plugin>
+         </plugins>
+
+         <pluginManagement>
+            <plugins>
+                <plugin>
+                    <groupId>com.mycila</groupId>
+                    <artifactId>license-maven-plugin</artifactId>
+                    <configuration>
+                        <excludes>
+                            <!-- TODO: https://github.com/elastic/elasticsearch-analysis-icu/issues/29 -->
+                            <exclude>**/IndexableBinaryStringTools.java</exclude>
+                            <exclude>**/ICUCollationKeyFilter.java</exclude>
+                            <exclude>**/TestIndexableBinaryStringTools.java</exclude>
+                        </excludes>
+                    </configuration>
+                </plugin>
+            </plugins>
+        </pluginManagement>
+    </build>
+
+</project>

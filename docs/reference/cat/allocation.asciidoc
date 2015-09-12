@@ -1,10 +1,10 @@
 [[cat-allocation]]
 == cat allocation
 
-`allocation` provides a snapshot of how shards have located around the
-cluster and the state of disk usage.
+`allocation` provides a snapshot of how many shards are allocated to each data node
+and how much disk space they are using.
 
-[source,shell]
+[source,sh]
 --------------------------------------------------
 % curl '192.168.56.10:9200/_cat/allocation?v'
 shards diskUsed diskAvail diskRatio ip            node

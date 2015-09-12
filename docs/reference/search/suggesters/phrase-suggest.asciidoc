@@ -11,9 +11,9 @@ suggest-selection is left to the API consumer. Yet, often pre-selected
 suggestions are required in order to present to the end-user. The
 `phrase` suggester adds additional logic on top of the `term` suggester
 to select entire corrected phrases instead of individual tokens weighted
-based on `ngram-langugage` models. In practice this suggester will be
+based on `ngram-language` models. In practice this suggester will be
 able to make better decisions about which tokens to pick based on
-co-occurence and frequencies.
+co-occurrence and frequencies.
 
 ==== API Example
 
@@ -22,7 +22,7 @@ request:
 
 [source,js]
 --------------------------------------------------
-curl -XPOST 'localhost:9200/_search' -d {
+curl -XPOST 'localhost:9200/_search' -d '{
   "suggest" : {
     "text" : "Xor the Got-Jewel",
     "simple_phrase" : {
@@ -45,7 +45,7 @@ curl -XPOST 'localhost:9200/_search' -d {
       }
     }
   }
-}
+}'
 --------------------------------------------------
 
 The response contains suggestions scored by the most likely spell
@@ -106,8 +106,8 @@ can contain misspellings (See parameter descriptions below).
 
 `real_word_error_likelihood`:: 
     the likelihood of a term being a
-    misspelled even if the term exists in the dictionary. The default it
-    `0.95` corresponding to 5% or the real words are misspelled.
+    misspelled even if the term exists in the dictionary. The default is
+    `0.95` corresponding to 5% of the real words are misspelled.
 
 
 `confidence`:: 
@@ -125,7 +125,7 @@ can contain misspellings (See parameter descriptions below).
     query terms a number `>=1` as an absolute number of query terms. The
     default is set to `1.0` which corresponds to that only corrections with
     at most 1 misspelled term are returned.  Note that setting this too high
-    can negativly impact performance. Low values like `1` or `2` are recommended
+    can negatively impact performance. Low values like `1` or `2` are recommended
     otherwise the time spend in suggest calls might exceed the time spend in 
     query execution.
 
@@ -160,6 +160,58 @@ can contain misspellings (See parameter descriptions below).
     wrapped around the changed tokens.  If multiple tokens 
     in a row are changed the entire phrase of changed tokens 
     is wrapped rather than each token.
+
+`collate`::
+    Checks each suggestion against the specified `query` to prune suggestions
+    for which no matching docs exist in the index. The collate query for a
+    suggestion is run only on the local shard from which the suggestion has
+    been generated from. The `query` must be specified, and it is run as
+    a <<query-dsl-template-query,`template` query>>.
+    The current suggestion is automatically made available as the `{{suggestion}}`
+    variable, which should be used in your query.  You can still specify
+    your own template `params` -- the `suggestion` value will be added to the
+    variables you specify. Additionally, you can specify a `prune` to control
+    if all phrase suggestions will be returned, when set to `true` the suggestions
+    will have an additional option `collate_match`, which will be `true` if
+    matching documents for the phrase was found, `false` otherwise.
+    The default value for `prune` is `false`.
+
+[source,js]
+--------------------------------------------------
+curl -XPOST 'localhost:9200/_search' -d {
+   "suggest" : {
+     "text" : "Xor the Got-Jewel",
+     "simple_phrase" : {
+       "phrase" : {
+         "field" :  "bigram",
+         "size" :   1,
+         "direct_generator" : [ {
+           "field" :            "body",
+           "suggest_mode" :     "always",
+           "min_word_length" :  1
+         } ],
+         "collate": {
+           "query": { <1>
+             "match": {
+                 "{{field_name}}" : "{{suggestion}}" <2>
+             }
+           },
+           "params": {"field_name" : "title"}, <3>
+           "prune": true <4>
+         }
+       }
+     }
+   }
+ }
+--------------------------------------------------
+<1> This query will be run once for every suggestion.
+<2> The `{{suggestion}}` variable will be replaced by the text
+    of each suggestion.
+<3> An additional `field_name` variable has been specified in
+    `params` and is used by the `match` query.
+<4> All suggestions will be returned with an extra `collate_match`
+    option indicating whether the generated phrase matched any
+    document.
 
 ==== Smoothing Models
 

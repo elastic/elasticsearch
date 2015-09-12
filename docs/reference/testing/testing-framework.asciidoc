@@ -1,8 +1,6 @@
 [[testing-framework]]
 == Java Testing Framework
 
-added[1.0.0.RC1]
-
 [[testing-intro]]
 
 Testing is a crucial part of your application, and as information retrieval itself is already a complex topic, there should not be any additional complexity in setting up a testing infrastructure, which uses elasticsearch. This is the main reason why we decided to release an additional file to the release, which allows you to use the same testing infrastructure we do in the elasticsearch core. The testing framework allows you to setup clusters with multiple nodes in order to check if your code covers everything needed to run in a cluster. The framework prevents you from writing complex code yourself to start, stop or manage several test nodes in a cluster. In addition there is another very important feature called randomized testing, which you are getting for free as it is part of the elasticsearch infrastructure.
@@ -14,13 +12,13 @@ Testing is a crucial part of your application, and as information retrieval itse
 
 The key concept of randomized testing is not to use the same input values for every testcase, but still be able to reproduce it in case of a failure. This allows to test with vastly different input variables in order to make sure, that your implementation is actually independent from your provided test data.
 
-If you are interested in the implementation being used, check out the http://labs.carrotsearch.com/randomizedtesting.html[RandomizedTesting webpage].
+All of the tests are run using a custom junit runner, the `RandomizedRunner` provided by the randomized-testing project. If you are interested in the implementation being used, check out the http://labs.carrotsearch.com/randomizedtesting.html[RandomizedTesting webpage].
 
 
 [[using-elasticsearch-test-classes]]
 === Using the elasticsearch test classes
 
-First, you need to include the testing dependency in your project. If you use maven and its `pom.xml` file, it looks like this
+First, you need to include the testing dependency in your project, along with the elasticsearch dependency you have already added. If you use maven and its `pom.xml` file, it looks like this
 
 [[source,xml]]
 --------------------------------------------------
@@ -38,24 +36,22 @@ First, you need to include the testing dependency in your project. If you use ma
     <scope>test</scope>
     <type>test-jar</type>
   </dependency>
-  <dependency>
-    <groupId>org.elasticsearch</groupId>
-    <artifactId>elasticsearch</artifactId>
-    <version>${elasticsearch.version}</version>
-    <scope>test</scope>
-  </dependency>
 </dependencies>
 --------------------------------------------------
 
-Replace the elasticsearch version and the lucene versions with the current elasticsearch version and its accompanying lucene release. 
+Replace the elasticsearch version and the lucene version with the corresponding elasticsearch version and its accompanying lucene release.
 
-There are already have a couple of classes, you can inherit from in your own test classes. The advantages of doing so is having already defined loggers, the whole randomized infrastructure is set up already.
+We provide a few classes that you can inherit from in your own test classes which provide:
+
+* pre-defined loggers
+* randomized testing infrastructure
+* a number of helper methods
 
 
 [[unit-tests]]
 === unit tests
 
-In case you only need to execute a unit test, because your implementation can be isolated that good and does not require an up and running elasticsearch cluster, you can use the `ElasticsearchTestCase`. If you are testing lucene features, use `ElasticsearchLuceneTestCase` and if you are testing concrete token streams, use the `ElasticsearchTokenStreamTestCase` class. Those specific classes execute additional checks, which ensure that no resources leaks are happening, after the test has run.
+If your test is a well isolated unit test which doesn't need a running elasticsearch cluster, you can use the `ESTestCase`. If you are testing lucene features, use `ESTestCase` and if you are testing concrete token streams, use the `ESTokenStreamTestCase` class. Those specific classes execute additional checks which ensure that no resources leaks are happening, after the test has run.
 
 
 [[integration-tests]]
@@ -63,18 +59,20 @@ In case you only need to execute a unit test, because your implementation can be
 
 These kind of tests require firing up a whole cluster of nodes, before the tests can actually be run. Compared to unit tests they are obviously way more time consuming, but the test infrastructure tries to minimize the time cost by only restarting the whole cluster, if this is configured explicitly.
 
-The class your tests have to inherit from is `ElasticsearchIntegrationTest`. As soon as you inherit, there is no need for you to start any elasticsearch nodes manually in your test anymore, though you might need to ensure that at least a certain amount of nodes is up and running.
+The class your tests have to inherit from is `ESIntegTestCase`. By inheriting from this class, you will no longer need to start elasticsearch nodes manually in your test, although you might need to ensure that at least a certain number of nodes are up. The integration test behaviour can be configured heavily by specifying different system properties on test runs. See the `TESTING.asciidoc` documentation in the https://github.com/elastic/elasticsearch/blob/master/TESTING.asciidoc[source repository] for more information.
+
 
 [[number-of-shards]]
 ==== number of shards
 
 The number of shards used for indices created during integration tests is randomized between `1` and `10` unless overwritten upon index creation via index settings.
-Rule of thumb is not to specify the number of shards unless needed, so that each test will use a different one all the time.
+The rule of thumb is not to specify the number of shards unless needed, so that each test will use a different one all the time. Alternatively you can override the `numberOfShards()` method. The same applies to the `numberOfReplicas()` method.
+
 
 [[helper-methods]]
 ==== generic helper methods
 
-There are a couple of helper methods in `ElasticsearchIntegrationTest`, which will make your tests shorter and more concise.
+There are a couple of helper methods in `ESIntegTestCase`, which will make your tests shorter and more concise.
 
 [horizontal]
 `refresh()`::           Refreshes all indices in a cluster
@@ -93,7 +91,7 @@ There are a couple of helper methods in `ElasticsearchIntegrationTest`, which wi
 [[test-cluster-methods]]
 ==== test cluster methods
 
-The `TestCluster` class is the heart of the cluster functionality in a randomized test and allows you to configure a specific setting or replay certain types of outages to check, how your custom code reacts.
+The `InternalTestCluster` class is the heart of the cluster functionality in a randomized test and allows you to configure a specific setting or replay certain types of outages to check, how your custom code reacts.
 
 [horizontal]
 `ensureAtLeastNumNodes(n)`::        Ensure at least the specified number of nodes is running in the cluster
@@ -107,10 +105,30 @@ The `TestCluster` class is the heart of the cluster functionality in a randomize
 `startNode(settings)`::             Create and start a new elasticsearch node
 
 
+[[changing-node-settings]]
+==== Changing node settings
+
+If you want to ensure a certain configuration for the nodes, which are started as part of the `EsIntegTestCase`, you can override the `nodeSettings()` method
+
+[source,java]
+-----------------------------------------
+public class Mytests extends ESIntegTestCase {
+
+  @Override
+  protected Settings nodeSettings(int nodeOrdinal) {
+      return settingsBuilder().put(super.nodeSettings(nodeOrdinal))
+             .put("node.mode", "network")
+             .build();
+  }
+
+}
+-----------------------------------------
+
+
 [[accessing-clients]]
 ==== Accessing clients
 
-In order to execute any actions, you have to use a client. You can use the `ElasticsearchIntegrationTest.client()` method to get back a random client. This client can be a `TransportClient` or a `NodeClient` - and usually you do not need to care as long as the action gets executed. There are several more methods for client selection inside of the `TestCluster` class, which can be accessed using the `ElasticsearchIntegrationTest.cluster()` method.
+In order to execute any actions, you have to use a client. You can use the `ESIntegTestCase.client()` method to get back a random client. This client can be a `TransportClient` or a `NodeClient` - and usually you do not need to care as long as the action gets executed. There are several more methods for client selection inside of the `InternalTestCluster` class, which can be accessed using the `ESIntegTestCase.internalCluster()` method.
 
 [horizontal]
 `iterator()`::                  An iterator over all available clients
@@ -124,42 +142,39 @@ In order to execute any actions, you have to use a client. You can use the `Elas
 [[scoping]]
 ==== Scoping
 
-By default the tests are run without restarting the cluster between tests or test classes in order to be as fast as possible. Of course all indices and templates are deleted between each test. However, sometimes you need to start a new cluster for each test or for a whole test suite - for example, if you load a certain plugin, but you do not want to load it for every test.
+By default the tests are run with unique cluster per test suite. Of course all indices and templates are deleted between each test. However, sometimes you need to start a new cluster for each test - for example, if you load a certain plugin, but you do not want to load it for every test.
 
 You can use the `@ClusterScope` annotation at class level to configure this behaviour
 
 [source,java]
 -----------------------------------------
-@ClusterScope(scope=SUITE, numNodes=1)
-public class CustomSuggesterSearchTests extends ElasticsearchIntegrationTest {
+@ClusterScope(scope=TEST, numNodes=1)
+public class CustomSuggesterSearchTests extends ESIntegTestCase {
   // ... tests go here
 }
 -----------------------------------------
 
-The above sample configures an own cluster for this test suite, which is the class. Other values could be `GLOBAL` (the default) or `TEST` in order to spawn a new cluster for each test. The `numNodes` settings allows you to only start a certain number of nodes, which can speed up test execution, as starting a new node is a costly and time consuming operation and might not be needed for this test.
+The above sample configures the test to use a new cluster for each test method. The default scope is `SUITE` (one cluster for all test methods in the test). The `numNodes` settings allows you to only start a certain number of nodes, which can speed up test execution, as starting a new node is a costly and time consuming operation and might not be needed for this test.
 
 
 [[changing-node-configuration]]
-==== Changing node configuration
+==== Changing plugins via configuration
 
-As elasticsearch is using JUnit 4, using the `@Before` and `@After` annotations is not a problem. However you should keep in mind, that this does not have any effect in your cluster setup, as the cluster is already up and running when those methods are run. So in case you want to configure settings - like loading a plugin on node startup - before the node is actually running, you should overwrite the `nodeSettings()` method from the `ElasticsearchIntegrationTest` class and change the cluster scope to `SUITE`.
+As elasticsearch is using JUnit 4, using the `@Before` and `@After` annotations is not a problem. However you should keep in mind, that this does not have any effect in your cluster setup, as the cluster is already up and running when those methods are run. So in case you want to configure settings - like loading a plugin on node startup - before the node is actually running, you should overwrite the `nodePlugins()` method from the `ESIntegTestCase` class and return the plugin classes each node should load.
 
 [source,java]
 -----------------------------------------
 @Override
-protected Settings nodeSettings(int nodeOrdinal) {
-  return ImmutableSettings.settingsBuilder()
-           .put("plugin.types", CustomSuggesterPlugin.class.getName())
-           .put(super.nodeSettings(nodeOrdinal)).build();
+protected Collection<Class<? extends Plugin>> nodePlugins() {
+  return pluginList(CustomSuggesterPlugin.class);
 }
 -----------------------------------------
-
-
 
 [[randomized-testing]]
 === Randomized testing
 
 The code snippets you saw so far did not show any trace of randomized testing features, as they are carefully hidden under the hood. However when you are writing your own tests, you should make use of these features as well. Before starting with that, you should know, how to repeat a failed test with the same setup, how it failed. Luckily this is quite easy, as the whole mvn call is logged together with failed tests, which means you can simply copy and paste that line and run the test.
+
 
 [[generating-random-data]]
 ==== Generating random data
@@ -191,6 +206,8 @@ So, how can you create random data. The most important thing to know is, that yo
 `randomLocale()`::      Returns a random locale
 `randomTimeZone()`::    Returns a random timezone
 
+`randomFrom()`::        Returns a random element from a list/array
+
 In addition, there are a couple of helper methods, allowing you to create random ASCII and Unicode strings, see methods beginning with `randomAscii`, `randomUnicode`, and `randomRealisticUnicode` in the random test class. The latter one tries to create more realistic unicode string by not being arbitrary random.
 
 If you want to debug a specific problem with a specific random seed, you can use the `@Seed` annotation to configure a specific seed for a test. If you want to run a test more than once, instead of starting the whole test suite over and over again, you can use the `@Repeat` annotation with an arbitrary value. Each iteration than gets run with a different seed.
@@ -199,7 +216,7 @@ If you want to debug a specific problem with a specific random seed, you can use
 [[assertions]]
 === Assertions
 
-As many elasticsearch tests are checking for a similar output, like the amount of hits or the first hit or special highlighting, a couple of predefined assertions have been created. Those have been put into the `ElasticsearchAssertions` class.
+As many elasticsearch tests are checking for a similar output, like the amount of hits or the first hit or special highlighting, a couple of predefined assertions have been created. Those have been put into the `ElasticsearchAssertions` class. There is also a specific geo assertions in `ElasticsearchGeoAssertions`.
 
 [horizontal]
 `assertHitCount()`::        Checks hit count of a search or count request
@@ -210,7 +227,7 @@ As many elasticsearch tests are checking for a similar output, like the amount o
 `assertSecondHit()`::       Asserts the second hit hits the specified matcher
 `assertThirdHit()`::        Asserts the third hits hits the specified matcher
 `assertSearchHit()`::       Assert a certain element in a search response hits the specified matcher
-`assertNoFailures()`::      Asserts that no shard failures have occured in the response
+`assertNoFailures()`::      Asserts that no shard failures have occurred in the response
 `assertFailures()`::        Asserts that shard failures have happened during a search request
 `assertHighlight()`::       Assert specific highlights matched
 `assertSuggestion()`::      Assert for specific suggestions
@@ -223,6 +240,8 @@ Common matchers
 `hasId()`::     Matcher to check for a search hit id
 `hasType()`::   Matcher to check for a search hit type
 `hasIndex()`::  Matcher to check for a search hit index
+`hasScore()`::  Matcher to check for a certain score of a hit
+`hasStatus()`:: Matcher to check for a certain `RestStatus` of a response
 
 Usually, you would combine assertions and matchers in your test like this
 

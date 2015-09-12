@@ -1,0 +1,8 @@
+{
+            "geo_bounding_box":{
+                "location":{
+                    "top_right":"40, -80",
+                    "bottom_left":"30, -70"
+                }
+            }
+}

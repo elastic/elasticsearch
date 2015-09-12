@@ -21,7 +21,7 @@ $ curl -XGET 'http://localhost:9200/twitter/tweet/_count' -d '
 --------------------------------------------------
 
 NOTE: The query being sent in the body must be nested in a `query` key, same as
-the <<search-search,search api>> works added[1.0.0.RC1,The query was previously the top-level object].
+the <<search-search,search api>> works
 
 Both examples above do the same thing, which is count the number of
 tweets from the twitter index for a certain user. The result is:
@@ -56,13 +56,29 @@ parameters that can be passed:
 [cols="<,<",options="header",]
 |=======================================================================
 |Name |Description
-|df |The default field to use when no field prefix is defined within the
+|`df` |The default field to use when no field prefix is defined within the
 query.
 
-|analyzer |The analyzer name to be used when analyzing the query string.
+|`analyzer` |The analyzer name to be used when analyzing the query string.
 
-|default_operator |The default operator to be used, can be `AND` or
+|`default_operator` |The default operator to be used, can be `AND` or
 `OR`. Defaults to `OR`.
+
+|`lenient` |If set to true will cause format based failures (like
+providing text to a numeric field) to be ignored. Defaults to false.
+
+|`lowercase_expanded_terms` |Should terms be automatically lowercased or
+not. Defaults to `true`.
+
+|`analyze_wildcard` |Should wildcard and prefix queries be analyzed or
+not. Defaults to `false`.
+
+|`terminate_after` |experimental[The API for this feature may change in the future]
+The maximum count for each shard, upon
+reaching which the query execution will terminate early.
+If set, the response will have a boolean field `terminated_early` to
+indicate whether the query execution has actually terminated_early.
+Defaults to no terminate_after.
 |=======================================================================
 
 [float]

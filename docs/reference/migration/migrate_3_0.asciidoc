@@ -1,0 +1,90 @@
+[[breaking-changes-3.0]]
+== Breaking changes in 3.0
+
+This section discusses the changes that you need to be aware of when migrating
+your application to Elasticsearch 3.0.
+
+=== Search changes
+
+==== `search_type=count` removed
+
+The `count` search type was deprecated since version 2.0.0 and is now removed.
+In order to get the same benefits, you just need to set the value of the `size`
+parameter to `0`.
+
+For instance, the following request:
+[source,sh]
+---------------
+GET /my_index/_search?search_type=count
+{
+  "aggs": {
+    "my_terms": {
+       "terms": {
+         "field": "foo"
+       }
+     }
+  }
+}
+---------------
+
+can be replaced with:
+[source,sh]
+---------------
+GET /my_index/_search
+{
+  "size": 0,
+  "aggs": {
+    "my_terms": {
+       "terms": {
+         "field": "foo"
+       }
+     }
+  }
+}
+---------------
+
+==== `search_type=scan` removed
+
+The `scan` search type was deprecated since version 2.1.0 and is now removed.
+All benefits from this search type can now be achieved by doing a scroll
+request that sorts documents in `_doc` order, for instance:
+
+[source,sh]
+---------------
+GET /my_index/_search?scroll=2m
+{
+  "sort": [
+    "_doc"
+  ]
+}
+---------------
+
+Scroll requests sorted by `_doc` have been optimized to more efficiently resume
+from where the previous request stopped, so this will have the same performance
+characteristics as the former `scan` search type.
+
+=== Parent/Child changes
+
+The `children` aggregation, parent child inner hits and `has_child` and `has_parent` queries will not work on indices
+with `_parent` field mapping created before version `2.0.0`. The data of these indices need to be re-indexed into a new index.
+
+The format of the join between parent and child documents have changed with the `2.0.0` release. The old
+format can't read from version `3.0.0` and onwards. The new format allows for a much more efficient and
+scalable join between parent and child documents and the join data structures are stored on on disk
+data structures as opposed as before the join data structures were stored in the jvm heap space.
+
+==== `score_type` has been removed
+
+The `score_type` option has been removed from the `has_child` and `has_parent` queries in favour of the `score_mode` option
+which does the exact same thing.
+
+==== `sum` score mode removed
+
+The `sum` score mode has been removed in favour of the `total` mode which doesn the same and is already available in
+previous versions.
+
+==== `max_children` option
+
+When `max_children` was set to `0` on the `has_child` query then there was no upper limit on how many children documents
+are allowed to match. This has changed and `0` now really means to zero child documents are allowed. If no upper limit
+is needed then the `max_children` option shouldn't be defined at all on the `has_child` query.

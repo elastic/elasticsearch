@@ -1,8 +1,6 @@
 [[search-request-source-filtering]]
 === Source filtering
 
-added[1.0.0.Beta1]
-
 
 Allows to control how the `_source` field is returned with every hit.
 
@@ -56,8 +54,8 @@ Finally, for complete control, you can specify both include and exclude patterns
 {
     "_source": {
         "include": [ "obj1.*", "obj2.*" ],
-        "exclude": [ "*.description" ],
-    }
+        "exclude": [ "*.description" ]
+    },
     "query" : {
         "term" : { "user" : "kimchy" }
     }

@@ -1,0 +1,107 @@
+[[token-count]]
+=== Token count datatype
+
+A field of type `token_count` is really an <<number,`integer>> field which
+accepts string values, analyzes them, then indexes the number of tokens in the
+string.
+
+For instance:
+
+[source,js]
+--------------------------------------------------
+PUT my_index
+{
+  "mappings": {
+    "my_type": {
+      "properties": {
+        "name": { <1>
+          "type": "string",
+          "fields": {
+            "length": { <2>
+              "type":     "token_count",
+              "analyzer": "standard"
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+PUT my_index/my_type/1
+{ "name": "John Smith" }
+
+PUT my_index/my_type/2
+{ "name": "Rachel Alice Williams" }
+
+GET my_index/_search
+{
+  "query": {
+    "term": {
+      "name.length": 3 <3>
+    }
+  }
+}
+--------------------------------------------------
+// AUTOSENSE
+<1> The `name` field is an analyzed string field which uses the default `standard` analyzer.
+<2> The `name.length` field is a `token_count` <<multi-fields,multi-field>> which will index the number of tokens in the `name` field.
+<3> This query matches only the document containing `Rachel Alice Williams`, as it contains three tokens.
+
+[NOTE]
+===================================================================
+Technically the `token_count` type sums position increments rather than
+counting tokens. This means that even if the analyzer filters out stop
+words they are included in the count.
+===================================================================
+
+[[token-count-params]]
+==== Parameters for `token_count` fields
+
+The following parameters are accepted by `token_count` fields:
+
+[horizontal]
+
+<<analyzer,`analyzer`>>::
+
+    The <<analysis,analyzer>> which should be used to analyze the string
+    value. Required. For best performance, use an analyzer without token
+    filters.
+
+<<index-boost,`boost`>>::
+
+    Field-level index time boosting. Accepts a floating point number, defaults
+    to `1.0`.
+
+<<doc-values,`doc_values`>>::
+
+    Can the field value be used for sorting, aggregations, or scripting?
+    Accepts `true` (default) or `false`.
+
+<<mapping-index,`index`>>::
+
+    Should the field be searchable? Accepts `not_analyzed` (default) and `no`.
+
+<<include-in-all,`include_in_all`>>::
+
+    Whether or not the field value should be included in the
+    <<mapping-all-field,`_all`>> field? Accepts `true` or `false`.  Defaults
+    to `false`. Note: if `true`, it is the string value that is added to `_all`,
+    not the calculated token count.
+
+<<null-value,`null_value`>>::
+
+    Accepts a numeric value of the same `type` as the field which is
+    substituted for any explicit `null` values.  Defaults to `null`, which
+    means the field is treated as missing.
+
+<<precision-step,`precision_step`>>::
+
+    Controls the number of extra terms that are indexed to make
+    <<query-dsl-range-query,`range` queries>> faster. Defaults to `32`.
+
+<<mapping-store,`store`>>::
+
+    Whether the field value should be stored and retrievable separately from
+    the <<mapping-source-field,`_source`>> field. Accepts `true` or `false`
+    (default).

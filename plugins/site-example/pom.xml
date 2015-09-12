@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>org.elasticsearch.plugin</groupId>
+        <artifactId>plugins</artifactId>
+        <version>3.0.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>site-example</artifactId>
+    <name>Plugin: Example site</name>
+    <description>Demonstrates how to serve resources via elasticsearch.</description>
+
+    <properties>
+        <elasticsearch.assembly.descriptor>${project.basedir}/src/main/assemblies/plugin-assembly.xml</elasticsearch.assembly.descriptor>
+        <elasticsearch.plugin.site>true</elasticsearch.plugin.site>
+        <elasticsearch.plugin.classname>NA</elasticsearch.plugin.classname>
+        <elasticsearch.plugin.jvm>false</elasticsearch.plugin.jvm>
+
+        <tests.rest.suite>example</tests.rest.suite>
+        <tests.rest.load_packaged>false</tests.rest.load_packaged>
+        <skip.unit.tests>true</skip.unit.tests>
+    </properties>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-assembly-plugin</artifactId>
+            </plugin>
+            <!-- disable jar plugin, we have no jar -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>default-jar</id>
+                        <phase>none</phase>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+
+</project>

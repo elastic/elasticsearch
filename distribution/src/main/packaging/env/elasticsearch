@@ -1,0 +1,75 @@
+################################
+# Elasticsearch
+################################
+
+# Elasticsearch home directory
+#ES_HOME=${packaging.elasticsearch.home.dir}
+
+# Elasticsearch configuration directory
+#CONF_DIR=${packaging.elasticsearch.conf.dir}
+
+# Elasticsearch configuration file
+#CONF_FILE=$CONF_DIR/elasticsearch.yml
+
+# Elasticsearch data directory
+#DATA_DIR=${packaging.elasticsearch.data.dir}
+
+# Elasticsearch logs directory
+#LOG_DIR=${packaging.elasticsearch.log.dir}
+
+# Elasticsearch PID directory
+#PID_DIR=${packaging.elasticsearch.pid.dir}
+
+# Heap size defaults to ${packaging.elasticsearch.heap.min} min, ${packaging.elasticsearch.heap.max} max
+# Set ES_HEAP_SIZE to 50% of available RAM, but no more than 31g
+#ES_HEAP_SIZE=2g
+
+# Heap new generation
+#ES_HEAP_NEWSIZE=
+
+# Maximum direct memory
+#ES_DIRECT_SIZE=
+
+# Additional Java OPTS
+#ES_JAVA_OPTS=
+
+# Configure restart on package upgrade (true, every other setting will lead to not restarting)
+#ES_RESTART_ON_UPGRADE=true
+
+# Path to the GC log file
+#ES_GC_LOG_FILE=${packaging.elasticsearch.log.dir}/gc.log
+
+################################
+# Elasticsearch service
+################################
+
+# SysV init.d
+#
+# When executing the init script, this user will be used to run the elasticsearch service.
+# The default value is '${packaging.elasticsearch.user}' and is declared in the init.d file.
+# Note that this setting is only used by the init script. If changed, make sure that
+# the configured user can read and write into the data, work, plugins and log directories.
+# For systemd service, the user is usually configured in file ${packaging.elasticsearch.systemd.dir}/elasticsearch.service
+#ES_USER=${packaging.elasticsearch.user}
+#ES_GROUP=${packaging.elasticsearch.group}
+
+################################
+# System properties
+################################
+
+# Specifies the maximum file descriptor number that can be opened by this process
+# When using Systemd, this setting is ignored and the LimitNOFILE defined in
+# ${packaging.elasticsearch.systemd.dir}/elasticsearch.service takes precedence
+#MAX_OPEN_FILES=${packaging.os.max.open.files}
+
+# The maximum number of bytes of memory that may be locked into RAM
+# Set to "unlimited" if you use the 'bootstrap.mlockall: true' option
+# in elasticsearch.yml (ES_HEAP_SIZE  must also be set).
+# When using Systemd, the LimitMEMLOCK property must be set
+# in ${packaging.elasticsearch.systemd.dir}/elasticsearch.service
+#MAX_LOCKED_MEMORY=unlimited
+
+# Maximum number of VMA (Virtual Memory Areas) a process can own
+# When using Systemd, this setting is ignored and the 'vm.max_map_count'
+# property is set at boot time in ${packaging.elasticsearch.systemd.sysctl.dir}/elasticsearch.conf
+#MAX_MAP_COUNT=${packaging.os.max.map.count}

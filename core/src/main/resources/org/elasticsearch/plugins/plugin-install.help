@@ -1,0 +1,59 @@
+NAME
+
+    install - Install a plugin
+
+SYNOPSIS
+
+    plugin install <name or url>
+
+DESCRIPTION
+
+    This command installs an elasticsearch plugin. It can be used as follows:
+
+    Officially supported or commercial plugins require just the plugin name:
+
+        plugin install analysis-icu
+        plugin install shield
+
+    Plugins from GitHub require 'username/repository' or 'username/repository/version':
+
+        plugin install lmenezes/elasticsearch-kopf
+        plugin install lmenezes/elasticsearch-kopf/1.5.7
+
+    Plugins from Maven Central or Sonatype require 'groupId/artifactId/version':
+
+        plugin install org.elasticsearch/elasticsearch-mapper-attachments/2.6.0
+
+    Plugins can be installed from a custom URL or file location as follows:
+
+        plugin install http://some.domain.name//my-plugin-1.0.0.zip
+        plugin install file:/path/to/my-plugin-1.0.0.zip
+
+OFFICIAL PLUGINS
+
+    The following plugins are officially supported and can be installed by just referring to their name
+
+    - analysis-icu
+    - analysis-kuromoji
+    - analysis-phonetic
+    - analysis-smartcn
+    - analysis-stempel
+    - cloud-azure
+    - cloud-gce
+    - delete-by-query
+    - discovery-ec2
+    - discovery-multicast
+    - lang-javascript
+    - lang-python
+    - mapper-murmur3
+    - mapper-size
+    - repository-s3
+
+
+OPTIONS
+
+    -t,--timeout                 Timeout until the plugin download is abort
+
+    -v,--verbose                 Verbose output
+
+    -h,--help                    Shows this message

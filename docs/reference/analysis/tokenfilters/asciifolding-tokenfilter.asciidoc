@@ -20,7 +20,6 @@ equivalents, if one exists.  Example:
 }
 --------------------------------------------------
 
-added[1.1.0]
 Accepts `preserve_original` setting which defaults to false but if true
 will keep the original token as well as emit the folded token.  For
 example:

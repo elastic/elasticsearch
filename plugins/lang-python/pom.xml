@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>org.elasticsearch.plugin</groupId>
+        <artifactId>plugins</artifactId>
+        <version>3.0.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>lang-python</artifactId>
+    <name>Plugin: Language: Python</name>
+    <description>The Python language plugin allows to have python as the language of scripts to execute.</description>
+
+    <properties>
+        <elasticsearch.plugin.classname>org.elasticsearch.plugin.python.PythonPlugin</elasticsearch.plugin.classname>
+        <tests.rest.suite>lang_python</tests.rest.suite>
+        <tests.rest.load_packaged>false</tests.rest.load_packaged>
+        <xlint.options>-Xlint:-unchecked</xlint.options>
+    </properties>
+
+    <dependencies>
+        <!-- Jython -->
+        <dependency>
+            <groupId>org.python</groupId>
+            <artifactId>jython-standalone</artifactId>
+            <version>2.7.0</version>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-assembly-plugin</artifactId>
+            </plugin>
+        </plugins>
+    </build>
+
+</project>

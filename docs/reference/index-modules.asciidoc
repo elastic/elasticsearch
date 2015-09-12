@@ -1,58 +1,181 @@
+
 [[index-modules]]
 = Index Modules
 
 [partintro]
 --
-Index Modules are modules created per index and control all aspects
-related to an index. Since those modules lifecycle are tied to an index,
-all the relevant modules settings can be provided when creating an index
-(and it is actually the recommended way to configure an index).
+
+Index Modules are modules created per index and control all aspects related to
+an index.
 
 [float]
 [[index-modules-settings]]
 == Index Settings
 
-There are specific index level settings that are not associated with any
-specific module. These include:
+Index level settings can be set per-index.  Settings may be:
 
-[[index-compound-format]]`index.compound_format`::
+_static_::
 
-	Should the compound file format be used (boolean setting).
-	The compound format was created to reduce the number of open
-	file handles when using file based storage. However, by default it is set
-	to `false` as the non-compound format gives better performance. It is important
-	that OS is configured to give Elasticsearch ``enough'' file handles.
-    See <<file-descriptors>>.
-+
-Alternatively, `compound_format` can be set to a number between `0` and
-`1`, where `0` means `false`, `1` means `true` and a number inbetween
-represents a percentage: if the merged segment is less than this
-percentage of the total index, then it is written in compound format,
-otherwise it is written in non-compound format.
+They can only be set at index creation time or on a
+<<indices-open-close,closed index>>.
 
-[[index-compound-on-flush]]`index.compound_on_flush`::
+_dynamic_::
 
-    Should a new segment (create by indexing, not by merging) be written
-    in compound format or non-compound format? Defaults to `true`.
-    This is a dynamic setting.
+They can be changed on a live index using the
+<<indices-update-settings,update-index-settings>> API.
 
-`index.refresh_interval`::
-	A time setting controlling how often the
-	refresh operation will be executed. Defaults to `1s`. Can be set to `-1`
-	in order to disable it.
+WARNING: Changing static or dynamic index settings on a closed index could
+result in incorrect settings that are impossible to rectify without deleting
+and recreating the index.
+
+[float]
+=== Static index settings
+
+Below is a list of all _static_ index settings that are not associated with any
+specific index module:
+
+`index.number_of_shards`::
+
+    The number of primary shards that an index should have.  Defaults to 5.
+    This setting can only be set at index creation time.  It cannot be
+    changed on a closed index.
 
 `index.shard.check_on_startup`::
-        Should shard consistency be checked upon opening.
-        When `true`, the shard will be checked, preventing it from being open in
-        case some segments appear to be corrupted.
-        When `fix`, the shard will also be checked but segments that were reported
-        as corrupted will be automatically removed.
-        Default value is `false`, which doesn't check shards.
++
+--
+experimental[] Whether or not shards should be checked for corruption before opening. When
+corruption is detected, it will prevent the shard from being opened. Accepts:
 
-NOTE: Checking shards may take a lot of time on large indices.
+`false`::
 
-WARNING: Setting `index.shard.check_on_startup` to `fix` may result in data loss,
-         use with caution.
+    (default) Don't check for corruption when opening a shard.
+
+`checksum`::
+
+    Check for physical corruption.
+
+`true`::
+
+    Check for both physical and logical corruption. This is much more
+    expensive in terms of CPU and memory usage.
+
+`fix`::
+
+    Check for both physical and logical corruption.  Segments that were reported
+    as corrupted will be automatically removed. This option *may result in data loss*.
+    Use with extreme caution!
+
+Checking shards may take a lot of time on large indices.
+--
+
+[[index-codec]] `index.codec`::
+
+    experimental[] The `default` value compresses stored data with LZ4
+    compression, but this can be set to `best_compression` for a higher
+    compression ratio, at the expense of slower stored fields performance.
+
+[float]
+[[dynamic-index-settings]]
+=== Dynamic index settings
+
+Below is a list of all _dynamic_ index settings that are not associated with any
+specific index module:
+
+
+`index.number_of_replicas`::
+
+    The number of replicas each primary shard has.  Defaults to 1.
+
+`index.auto_expand_replicas`::
+
+    Auto-expand the number of replicas based on the number of available nodes.
+    Set to a dash delimited lower and upper bound (e.g. `0-5`) or use `all`
+    for the upper bound (e.g. `0-all`).  Defaults to `false` (i.e. disabled).
+
+`index.refresh_interval`::
+
+    How often to perform a refresh operation, which makes recent changes to the
+    index visible to search.  Defaults to `1s`.  Can be set to `-1` to disable
+    refresh.
+
+`index.max_result_window`::
+
+    The maximum value of `from + size` for searches to this index. Defaults to
+    `10000`. Search requests take heap memory and time proportional to
+    `from + size` and this limits that memory. See
+    {ref}/search-request-scroll.html[Scroll] for a more efficient alternative
+    to raising this.
+
+`index.blocks.read_only`::
+
+    Set to `true` to make the index and index metadata read only, `false` to
+    allow writes and metadata changes.
+
+`index.blocks.read`::
+
+    Set to `true` to disable read operations against the index.
+
+`index.blocks.write`::
+
+    Set to `true` to disable write operations against the index.
+
+`index.blocks.metadata`::
+
+    Set to `true` to disable index metadata reads and writes.
+
+`index.ttl.disable_purge`::
+
+    experimental[] Disables the purge of <<mapping-ttl-field,expired docs>> on
+    the current index.
+
+[[index.recovery.initial_shards]]`index.recovery.initial_shards`::
++
+--
+A primary shard is only recovered only if there are enough nodes available to
+allocate sufficient replicas to form a quorum. It can be set to:
+
+    * `quorum` (default)
+    * `quorum-1` (or `half`)
+    * `full`
+    * `full-1`.
+    * Number values are also supported, e.g. `1`.
+--
+
+
+[float]
+=== Settings in other index modules
+
+Other index settings are available in index modules:
+
+<<analysis,Analysis>>::
+
+    Settings to define analyzers, tokenizers, token filters and character
+    filters.
+
+<<index-modules-allocation,Index shard allocation>>::
+
+    Control over where, when, and how shards are allocated to nodes.
+
+<<index-modules-mapper,Mapping>>::
+
+    Enable or disable dynamic mapping for an index.
+
+<<index-modules-similarity,Similarities>>::
+
+    Configure custom similarity settings to customize how search results are
+    scored.
+
+<<index-modules-slowlog,Slowlog>>::
+
+    Control over how slow queries and fetch requests are logged.
+
+<<index-modules-store,Store>>::
+
+    Configure the type of filesystem used to access shard data.
+
+<<index-modules-translog,Translog>>::
+
+    Control over the transaction log and background flush operations.
 
 --
 
@@ -60,22 +183,12 @@ include::index-modules/analysis.asciidoc[]
 
 include::index-modules/allocation.asciidoc[]
 
-include::index-modules/slowlog.asciidoc[]
-
-include::index-modules/merge.asciidoc[]
-
-include::index-modules/store.asciidoc[]
-
 include::index-modules/mapper.asciidoc[]
-
-include::index-modules/translog.asciidoc[]
-
-include::index-modules/cache.asciidoc[]
-
-include::index-modules/fielddata.asciidoc[]
-
-include::index-modules/codec.asciidoc[]
 
 include::index-modules/similarity.asciidoc[]
 
+include::index-modules/slowlog.asciidoc[]
 
+include::index-modules/store.asciidoc[]
+
+include::index-modules/translog.asciidoc[]

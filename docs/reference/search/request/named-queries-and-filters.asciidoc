@@ -1,20 +1,16 @@
 [[search-request-named-queries-and-filters]]
-=== Named Queries and Filters
+=== Named Queries
 
 Each filter and query can accept a `_name` in its top level definition.
 
 [source,js]
 --------------------------------------------------
 {
-    "filtered" : {
-        "query" : {
-            "bool" : {
-                "should" : [
-                    {"match" : { "name.first" : {"query" : "shay", "_name" : "first"} }},
-                    {"match" : { "name.last" : {"query" : "banon", "_name" : "last"} }}
-                ]
-            }
-        },
+    "bool" : {
+        "should" : [
+            {"match" : { "name.first" : {"query" : "shay", "_name" : "first"} }},
+            {"match" : { "name.last" : {"query" : "banon", "_name" : "last"} }}
+        ],
         "filter" : {
             "terms" : {
                 "name.last" : ["banon", "kimchy"],
@@ -25,33 +21,6 @@ Each filter and query can accept a `_name` in its top level definition.
 }
 --------------------------------------------------
 
-The search response will include for each hit the `matched_filters` it matched on. The tagging of queries and filters
-only make sense for compound queries and filters (such as `bool` query and filter, `or` and `and` filter, `filtered` query etc.).
+The search response will include for each hit the `matched_queries` it matched on. The tagging of queries and filters
+only make sense for the `bool` query.
 
-Note, the query filter had to be enhanced in order to support this. In
-order to set a name, the `fquery` filter should be used, which wraps a
-query (just so there will be a place to set a name for it), for example:
-
-[source,js]
---------------------------------------------------
-{
-    "filtered" : {
-        "query" : {
-            "term" : { "name.first" : "shay" }
-        },
-        "filter" : {
-            "fquery" : {
-                "query" : {
-                    "term" : { "name.last" : "banon" }
-                },
-                "_name" : "test"
-            }
-        }
-    }
-}
---------------------------------------------------
-
-==== Named queries
-
-The support for the `_name` option on queries is available from version `0.90.4` and the support on filters is available
-also in versions before `0.90.4`.

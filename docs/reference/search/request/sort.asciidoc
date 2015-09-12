@@ -3,7 +3,7 @@
 
 Allows to add one or more sort on specific fields. Each sort can be
 reversed as well. The sort is defined on a per field level, with special
-field name for `_score` to sort by score.
+field name for `_score` to sort by score, and `_doc` to sort by index order.
 
 [source,js]
 --------------------------------------------------
@@ -21,10 +21,25 @@ field name for `_score` to sort by score.
 }
 --------------------------------------------------
 
+NOTE: `_doc` has no real use-case besides being the most efficient sort order.
+So if you don't care about the order in which documents are returned, then you
+should sort by `_doc`. This especially helps when <<search-request-scroll,scrolling>>.
+
 ==== Sort Values
 
 The sort values for each document returned are also returned as part of
 the response.
+
+==== Sort Order
+
+The `order` option can have the following values:
+
+[horizontal]
+`asc`:: Sort in ascending order
+`desc`:: Sort in descending order
+
+The order defaults to `desc` when sorting on the `_score`, and defaults
+to `asc` when sorting on anything else.
 
 ==== Sort mode option
 
@@ -39,6 +54,8 @@ to. The `mode` option can have the following values:
         number based array fields.
 `avg`:: Use the average of all values as sort value. Only applicable
         for number based array fields.
+`median`:: Use the median of all values as sort value.  Only applicable
+           for number based array fields.
 
 ===== Sort mode example usage
 
@@ -58,6 +75,7 @@ curl -XPOST 'localhost:9200/_search' -d '{
 }'
 --------------------------------------------------
 
+[[nested-sorting]]
 ==== Sorting within nested objects.
 
 Elasticsearch also supports sorting by
@@ -79,10 +97,8 @@ existing sort options:
 
 ===== Nested sorting example
 
-In the below example `offer` is a field of type `nested`. Because
-`offer` is the closest inherited nested field, it is picked as
-`nested_path`. Only the inner objects that have color blue will
-participate in sorting.
+In the below example `offer` is a field of type `nested`.
+The `nested_path` needs to be specified other elasticsearch doesn't on what nested level sort values need to be captured.
 
 [source,js]
 --------------------------------------------------
@@ -95,6 +111,7 @@ curl -XPOST 'localhost:9200/_search' -d '{
           "offer.price" : {
              "mode" :  "avg",
              "order" : "asc",
+             "nested_path" : "offer",
              "nested_filter" : {
                 "term" : { "offer.color" : "blue" }
              }
@@ -132,15 +149,16 @@ the `nested_filter` then a missing value is used.
 ==== Ignoring Unmapped Fields
 
 By default, the search request will fail if there is no mapping
-associated with a field. The `ignore_unmapped` option allows to ignore
-fields that have no mapping and not sort by them. Here is an example of
-how it can be used:
+associated with a field. The `unmapped_type` option allows to ignore
+fields that have no mapping and not sort by them. The value of this
+parameter is used to determine what sort values to emit. Here is an
+example of how it can be used:
 
 [source,js]
 --------------------------------------------------
 {
     "sort" : [
-        { "price" : {"ignore_unmapped" : true} },
+        { "price" : {"unmapped_type" : "long"} },
     ],
     "query" : {
         "term" : { "user" : "kimchy" }
@@ -148,6 +166,11 @@ how it can be used:
 }
 --------------------------------------------------
 
+If any of the indices that are queried doesn't have a mapping for `price`
+then Elasticsearch will handle it as if there was a mapping of type
+`long`, with all documents in this index having no value for this field.
+
+[[geo-sorting]]
 ==== Geo Distance Sorting
 
 Allow to sort by `_geo_distance`. Here is an example:
@@ -160,7 +183,9 @@ Allow to sort by `_geo_distance`. Here is an example:
             "_geo_distance" : {
                 "pin.location" : [-70, 40],
                 "order" : "asc",
-                "unit" : "km"
+                "unit" : "km",
+		"mode" : "min",
+		"distance_type" : "sloppy_arc"
             }
         }
     ],
@@ -169,6 +194,12 @@ Allow to sort by `_geo_distance`. Here is an example:
     }
 }
 --------------------------------------------------
+
+
+
+`distance_type`::
+
+    How to compute the distance. Can either be `sloppy_arc` (default), `arc` (slightly more precise but significantly slower) or `plane` (faster, but inaccurate on long distances and close to the poles).
 
 Note: the geo distance sorting supports `sort_mode` options: `min`,
 `max` and `avg`.
@@ -263,6 +294,23 @@ conform with http://geojson.org/[GeoJSON].
 }
 --------------------------------------------------
 
+
+==== Multiple reference points
+
+Multiple geo points can be passed as an array containing any `geo_point` format, for example
+
+[source,js]
+--------------------------------------------------
+"pin.location" : [[-70, 40], [-71, 42]]
+"pin.location" : [{"lat": -70, "lon": 40}, {"lat": -71, "lon": 42}]
+--------------------------------------------------
+
+and so forth.
+
+The final distance for a document will then be `min`/`max`/`avg` (defined via `mode`) distance of all points contained in the document to all points given in the sort request.
+
+
+
 ==== Script Based Sorting
 
 Allow to sort based on custom scripts, here is an example:
@@ -275,10 +323,12 @@ Allow to sort based on custom scripts, here is an example:
     },
     "sort" : {
         "_script" : {
-            "script" : "doc['field_name'].value * factor",
             "type" : "number",
-            "params" : {
-                "factor" : 1.1
+            "script" : {
+                "inline": "doc['field_name'].value * factor",
+                "params" : {
+                    "factor" : 1.1
+                }
             },
             "order" : "asc"
         }
@@ -286,8 +336,6 @@ Allow to sort based on custom scripts, here is an example:
 }
 --------------------------------------------------
 
-Note, it is recommended, for single custom based script based sorting,
-to use `function_score` query instead as sorting based on score is faster.
 
 ==== Track Scores
 
@@ -315,5 +363,5 @@ When sorting, the relevant sorted field values are loaded into memory.
 This means that per shard, there should be enough memory to contain
 them. For string based types, the field sorted on should not be analyzed
 / tokenized. For numeric types, if possible, it is recommended to
-explicitly set the type to six_hun types (like `short`, `integer` and
+explicitly set the type to narrower types (like `short`, `integer` and
 `float`).

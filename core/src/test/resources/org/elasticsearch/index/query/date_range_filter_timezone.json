@@ -1,0 +1,13 @@
+{
+    "constant_score": {
+        "filter": {
+            "range" : {
+                "born" : {
+                    "gte": "2012-01-01",
+                    "lte": "now",
+                    "time_zone": "+01:00"
+                }
+            }
+        }
+    }
+}

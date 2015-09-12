@@ -1,0 +1,261 @@
+Test Suite:
+===========
+
+A YAML test file consists of:
+* an optional `setup` section, followed by
+* one or more test sections
+
+For instance:
+
+    setup:
+      - do: ....
+      - do: ....
+
+    ---
+    "First test":
+      - do: ...
+      - match: ...
+
+    ---
+    "Second test":
+      - do: ...
+      - match: ...
+
+
+A `setup` section contains a list of commands to run before each test
+section in order to setup the same environment for each test section.
+
+A test section represents an independent test, containing multiple `do`
+statements and assertions. The contents of a test section must be run in
+order, but individual test sections may be run in any order, as follows:
+
+1. run `setup` (if any)
+2. reset the `response` var and the `stash` (see below)
+2. run test contents
+3. run teardown
+
+The `teardown` should delete all indices and all templates.
+
+Dot notation:
+-------------
+Dot notation is used for (1) method calls and (2) hierarchical data structures.  For
+instance, a method call like `cluster.health` would do the equivalent of:
+
+    client.cluster.health(...params...)
+
+A test against `_tokens.1.token` would examine the `token` key, in the second element
+of the `tokens` array, inside the `response` var (see below):
+
+    $val = $response->{tokens}[1]{token}  # Perl syntax roolz!
+
+If one of the levels (eg `tokens`) does not exist, it should return an undefined value.
+If no field name is given (ie the empty string) then return the current
+$val -- used for testing the whole response body.
+
+Use \. to specify paths that actually contain '.' in the key name, for example
+in the `indices.get_settings` API.
+
+Skipping tests:
+---------------
+If a test section should only be run on certain versions of Elasticsearch,
+then the first entry in the section (after the title) should be called
+`skip`, and should contain the range of versions to be
+skipped, and the reason why the tests are skipped.  For instance:
+
+....
+    "Parent":
+     - skip:
+          version:     "0.20.1 - 0.90.2"
+          reason:      Delete ignores the parent param
+
+     - do:
+       ... test definitions ...
+....
+
+All tests in the file following the skip statement should be skipped if:
+`min <= current <= max`.
+
+The `version` range can leave either bound empty, which means "open ended".
+For instance:
+....
+    "Parent":
+     - skip:
+          version:     "1.0.0.Beta1 - "
+          reason:      Delete ignores the parent param
+
+     - do:
+       ... test definitions ...
+....
+
+The skip section can also be used to list new features that need to be
+supported in order to run a test. This way the up-to-date runners will
+run the test, while the ones that don't support the feature yet can
+temporarily skip it, and avoid having lots of test failures in the meantime.
+Once all runners have implemented the feature, it can be declared supported
+by default, thus the related skip sections can be removed from the tests.
+
+....
+    "Parent":
+     - skip:
+          features:    regex
+
+     - do:
+       ... test definitions ...
+....
+
+The `features` field can either be a string or an array of strings.
+The skip section requires to specify either a `version` or a `features` list.
+
+Required operators:
+-------------------
+
+=== `do`
+
+The `do` operator calls a method on the client. For instance:
+
+....
+    - do:
+        cluster.health:
+            level: shards
+....
+
+The response from the `do` operator should be stored in the `response` var, which
+is reset (1) at the beginning of a file or (2) on the next `do`.
+
+If the arguments to `do` include `catch`, then we are expecting an error, which should
+be caught and tested.  For instance:
+
+....
+    - do:
+        catch:        missing
+        get:
+            index:    test
+            type:    test
+            id:        1
+....
+
+The argument to `catch` can be any of:
+
+[horizontal]
+`missing`::     a 404 response from ES
+`conflict`::    a 409 response from ES
+`request`::     a generic error response from ES
+`param`::       a client-side error indicating an unknown parameter has been passed
+                to the method
+`/foo bar/`::   the text of the error message matches this regular expression
+
+If `catch` is specified, then the `response` var must be cleared, and the test
+should fail if no error is thrown.
+
+=== `set`
+
+For some tests, it is necessary to extract a value from the previous `response`, in
+order to reuse it in a subsequent `do` and other tests.  For instance, when
+testing indexing a document without a specified ID:
+
+....
+    - do:
+        index:
+            index: test
+            type:  test
+    - set:  { _id: id }   # stash the value of `response._id` as `id`
+    - do:
+        get:
+            index: test
+            type:  test
+            id:    $id    # replace `$id` with the stashed value
+    - match: { _id: $id } # the returned `response._id` matches the stashed `id`
+....
+
+The last response obtained gets always stashed automatically as a string, called `body`.
+This is useful when needing to test apis that return text rather than json (e.g. cat api),
+as it allows to treat the whole body as an ordinary string field.
+
+Stashed values can be used in property names, eg:
+
+....
+  - do:
+      cluster.state: {}
+
+  - set: {master_node: master}
+
+  - do:
+      nodes.info:
+        metric: [ transport ]
+
+  - is_true: nodes.$master.transport.profiles
+....
+
+
+Note that not only expected values can be retrieved from the stashed values (as in the
+example above), but the same goes for actual values:
+
+....
+    - match: { $body: /^.+$/ } # the returned `body` matches the provided regex if the body is text
+    - match: { $body: {} } # the returned `body` matches the JSON object if the body is JSON
+....
+
+The stash should be reset at the beginning of each test file.
+
+=== `is_true`
+
+The specified key exists and has a true value (ie not `0`, `false`, `undefined`, `null`
+or the empty string), eg:
+
+....
+    - is_true:  fields.foo  # the foo key exists in the fields hash and is "true"
+....
+
+=== `is_false`
+
+The specified key doesn't exist or has a false value (ie `0`, `false`, `undefined`,
+`null` or the empty string), eg:
+
+....
+    - is_false:  fields._source  # the _source key doesn't exist in the fields hash or is "false"
+....
+
+=== `match`
+
+Used to compare two variables (could be scalars, arrays or hashes).  The two variables
+should be identical, eg:
+
+....
+    - match: { _source: { foo: bar }}
+....
+
+Supports also regular expressions with flag X for more readability (accepts whitespaces and comments):
+
+....
+  - match:
+      $body: >
+               /^  epoch  \s+  timestamp          \s+  count  \s+  \n
+                   \d+    \s+  \d{2}:\d{2}:\d{2}  \s+  \d+    \s+  \n  $/
+....
+
+=== `lt` and `gt`
+
+Compares two numeric values, eg:
+
+....
+    - lt: { _ttl: 10000 }  # the `_ttl` value is less than 10,000
+....
+
+=== `lte` and `gte`
+
+Compares two numeric values, eg:
+
+....
+    - lte: { _ttl: 10000 }  # the `_ttl` value is less than or equal to 10,000
+....
+
+=== `length`
+
+This depends on the datatype of the value being examined, eg:
+
+....
+    - length: { _id: 22    }   # the `_id` string is 22 chars long
+    - length: { _tokens: 3 }   # the `_tokens` array has 3 elements
+    - length: { _source: 5 }   # the `_source` hash has 5 keys
+....
+

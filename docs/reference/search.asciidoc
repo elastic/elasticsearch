@@ -11,7 +11,7 @@ exception of the <<search-explain>> endpoints.
 [[search-routing]]
 == Routing
 
-When executing a search, it will be broadcasted to all the index/indices
+When executing a search, it will be broadcast to all the index/indices
 shards (round robin between replicas). Which shards will be searched on
 can be controlled by providing the `routing` parameter. For example,
 when indexing tweets, the routing value can be the user name:
@@ -34,8 +34,8 @@ only the relevant shard:
 --------------------------------------------------
 $ curl -XGET 'http://localhost:9200/twitter/tweet/_search?routing=kimchy' -d '{
     "query": {
-        "filtered" : {
-            "query" : {
+        "bool" : {
+            "must" : {
                 "query_string" : {
                     "query" : "some query string here"
                 }
@@ -83,9 +83,7 @@ include::search/request-body.asciidoc[]
 
 include::search/search-template.asciidoc[]
 
-include::search/facets.asciidoc[]
-
-include::search/aggregations.asciidoc[]
+include::search/search-shards.asciidoc[]
 
 include::search/suggesters.asciidoc[]
 
@@ -93,13 +91,12 @@ include::search/multi-search.asciidoc[]
 
 include::search/count.asciidoc[]
 
+include::search/exists.asciidoc[]
+
 include::search/validate.asciidoc[]
 
 include::search/explain.asciidoc[]
 
 include::search/percolate.asciidoc[]
 
-include::search/more-like-this.asciidoc[]
-
-include::search/benchmark.asciidoc[]
-
+include::search/field-stats.asciidoc[]

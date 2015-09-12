@@ -3,45 +3,97 @@
 
 The directory layout of an installation is as follows:
 
-[cols="<,<,<,<",options="header",]
+[cols="<h,<,<m,<m",options="header",]
 |=======================================================================
-|Type |Description |Default Location |Setting
-|*home* |Home of elasticsearch installation | | `path.home`
+| Type | Description | Default Location | Setting
+| home | Home of elasticsearch installation. | | path.home
 
-|*bin* |Binary scripts including `elasticsearch` to start a node | `{path.home}/bin` |
+| bin | Binary scripts including `elasticsearch` to start a node. | {path.home}/bin | | conf | Configuration files including `elasticsearch.yml` | {path.home}/config | path.conf
 
-|*conf* |Configuration files including `elasticsearch.yml` |`{path.home}/config` |`path.conf`
+| data | The location of the data files of each index / shard allocated
+on the node. Can hold multiple locations. | {path.home}/data| path.data
 
-|*data* |The location of the data files of each index / shard allocated
-on the node. Can hold multiple locations. |`{path.home}/data`|`path.data`
+| logs | Log files location. | {path.home}/logs | path.logs
 
-|*work* |Temporal files that are used by different nodes. |`{path.home}/work` |`path.work`
+| plugins | Plugin files location. Each plugin will be contained in a subdirectory. | {path.home}/plugins | path.plugins
 
-|*logs* |Log files location |`{path.home}/logs` |`path.logs`
+| repo | Shared file system repository locations. Can hold multiple locations. A file system repository can be placed in to any subdirectory of any directory specified here. d| Not configured | path.repo
 
-|*plugins* |Plugin files location. Each plugin will be contained in a subdirectory. |`{path.home}/plugins` |`path.plugins`
+| script | Location of script files. | {path.conf}/scripts | path.script
+
 |=======================================================================
 
-The multiple data locations allows to stripe it. The striping is simple,
-placing whole files in one of the locations, and deciding where to place
-the file based on the value of the `index.store.distributor` setting:
+Multiple `data` paths may be specified, in order to spread data across
+multiple disks or locations, but all of the files from a single shard will be
+written to the same path. This can be configured as follows:
 
-* `least_used` (default) always selects the directory with the most
-available space +
- * `random` selects directories at random. The probability of selecting
-a particular directory is proportional to amount of available space in
-this directory.
+    ---------------------------------
+    path.data: /mnt/first,/mnt/second
+    ---------------------------------
 
-Note, there are no multiple copies of the same data, in that, its
-similar to RAID 0. Though simple, it should provide a good solution for
-people that don't want to mess with RAID. Here is how it is configured:
+ Or  in an array format:
 
----------------------------------
-path.data: /mnt/first,/mnt/second
----------------------------------
+    ----------------------------------------
+    path.data: ["/mnt/first", "/mnt/second"]
+    ----------------------------------------
 
-Or the in an array format:
+TIP:  To stripe shards across multiple disks, please use a RAID driver
+instead.
 
-----------------------------------------
-path.data: ["/mnt/first", "/mnt/second"]
-----------------------------------------
+[float]
+[[default-paths]]
+=== Default Paths
+
+Below are the default paths that elasticsearch will use, if not explicitly changed.
+
+[float]
+==== deb and rpm
+[cols="<h,<,<m,<m",options="header",]
+|=======================================================================
+| Type | Description | Location Debian/Ubuntu | Location RHEL/CentOS
+| home | Home of elasticsearch installation. | /usr/share/elasticsearch | /usr/share/elasticsearch
+
+| bin | Binary scripts including `elasticsearch` to start a node. | /usr/share/elasticsearch/bin | /usr/share/elasticsearch/bin
+
+| conf | Configuration files `elasticsearch.yml` and `logging.yml`. | /etc/elasticsearch | /etc/elasticsearch
+
+| conf | Environment variables including heap size, file descriptors. | /etc/default/elasticseach | /etc/sysconfig/elasticsearch
+
+| data | The location of the data files of each index / shard allocated
+on the node. | /var/lib/elasticsearch/data | /var/lib/elasticsearch
+
+| logs | Log files location | /var/log/elasticsearch | /var/log/elasticsearch
+
+| plugins | Plugin files location. Each plugin will be contained in a subdirectory. | /usr/share/elasticsearch/plugins | /usr/share/elasticsearch/plugins
+
+| repo | Shared file system repository locations.  d| Not configured d| Not configured
+
+| script | Location of script files. | /etc/elasticsearch/scripts | /etc/elasticsearch/scripts
+
+|=======================================================================
+
+[float]
+==== zip and tar.gz
+[cols="<h,<,<m",options="header",]
+|=======================================================================
+| Type | Description | Location
+| home | Home of elasticsearch installation | {extract.path}
+
+| bin | Binary scripts including `elasticsearch` to start a node | {extract.path}/bin
+
+| conf | Configuration files `elasticsearch.yml` and `logging.yml` | {extract.path}/config
+
+| conf | Environment variables including heap size, file descriptors | {extract.path}/config
+
+| data | The location of the data files of each index / shard allocated
+on the node | {extract.path}/data
+
+| logs | Log files location | {extract.path}/logs
+
+| plugins | Plugin files location. Each plugin will be contained in a subdirectory | {extract.path}/plugins
+
+| repo | Shared file system repository locations.  d| Not configured
+
+| script | Location of script files. | {extract.path}/config/scripts
+
+|=======================================================================

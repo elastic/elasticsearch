@@ -1,0 +1,533 @@
+[[query-dsl-function-score-query]]
+=== Function Score Query
+
+The `function_score` allows you to modify the score of documents that are
+retrieved by a query. This can be useful if, for example, a score
+function is computationally expensive and it is sufficient to compute
+the score on a filtered set of documents.
+
+To use `function_score`, the user has to define a query and one or
+more functions, that compute a new score for each document returned
+by the query.
+
+`function_score` can be used with only one function like this:
+
+[source,js]
+--------------------------------------------------
+"function_score": {
+    "query": {},
+    "boost": "boost for the whole query",
+    "FUNCTION": {}, <1>
+    "boost_mode":"(multiply|replace|...)"
+}
+--------------------------------------------------
+<1> See <<score-functions>> for a list of supported functions.
+
+Furthermore, several functions can be combined. In this case one can
+optionally choose to apply the function only if a document matches a
+given filtering query
+
+[source,js]
+--------------------------------------------------
+"function_score": {
+    "query": {},
+    "boost": "boost for the whole query",
+    "functions": [
+        {
+            "filter": {},
+            "FUNCTION": {}, <1>
+            "weight": number
+        },
+        {
+            "FUNCTION": {} <1>
+        },
+        {
+            "filter": {},
+            "weight": number
+        }
+    ],
+    "max_boost": number,
+    "score_mode": "(multiply|max|...)",
+    "boost_mode": "(multiply|replace|...)",
+    "min_score" : number
+}
+--------------------------------------------------
+<1> See <<score-functions>> for a list of supported functions.
+
+NOTE: The scores produced by the filtering query of each function do not matter.
+
+If no query is given with a function this is equivalent to specifying
+`"match_all": {}`
+
+First, each document is scored by the defined functions. The parameter
+`score_mode` specifies how the computed scores are combined:
+
+[horizontal]
+`multiply`::    scores are multiplied (default)
+`sum`::         scores are summed
+`avg`::         scores are averaged
+`first`::       the first function that has a matching filter
+                is applied
+`max`::         maximum score is used
+`min`::         minimum score is used
+
+Because scores can be on different scales (for example, between 0 and 1 for decay functions but arbitrary for `field_value_factor`) and also because sometimes a different impact of functions on the score is desirable, the score of each function can be adjusted with a user defined `weight` (). The `weight` can be defined per function in the `functions` array (example above) and is multiplied with the score computed by the respective function.
+If weight is given without any other function declaration, `weight` acts as a function that simply returns the `weight`.
+
+The new score can be restricted to not exceed a certain limit by setting
+the `max_boost` parameter. The default for `max_boost` is FLT_MAX.
+
+The newly computed score is combined with the score of the
+query. The parameter `boost_mode` defines how:
+
+[horizontal]
+`multiply`::    query score and function score is multiplied (default)
+`replace`::     only function score is used, the query score is ignored
+`sum`::         query score and function score are added
+`avg`::         average
+`max`::         max of query score and function score
+`min`::         min of query score and function score
+
+By default, modifying the score does not change which documents match. To exclude
+documents that do not meet a certain score threshold the `min_score` parameter can be set to the desired score threshold.
+
+[[score-functions]]
+
+The `function_score` query provides several types of score functions.
+
+* <<function-script-score,`script_score`>>
+* <<function-weight,`weight`>>
+* <<function-random,`random_score`>>
+* <<function-field-value-factor,`field_value_factor`>>
+* <<function-decay,decay functions>>: `gauss`, `linear`, `exp`
+
+[[function-script-score]]
+==== Script score
+
+The `script_score` function allows you to wrap another query and customize
+the scoring of it optionally with a computation derived from other numeric
+field values in the doc using a script expression. Here is a
+simple sample:
+
+[source,js]
+--------------------------------------------------
+"script_score" : {
+    "script" : "_score * doc['my_numeric_field'].value"
+}
+--------------------------------------------------
+
+On top of the different scripting field values and expression, the
+`_score` script parameter can be used to retrieve the score based on the
+wrapped query.
+
+Scripts are cached for faster execution. If the script has parameters
+that it needs to take into account, it is preferable to reuse the same
+script, and provide parameters to it:
+
+[source,js]
+--------------------------------------------------
+"script_score": {
+    "script": {
+        "lang": "lang",
+        "params": {
+            "param1": value1,
+            "param2": value2
+        },
+        "inline": "_score * doc['my_numeric_field'].value / pow(param1, param2)"
+    }
+}
+--------------------------------------------------
+
+Note that unlike the `custom_score` query, the
+score of the query is multiplied with the result of the script scoring. If
+you wish to inhibit this, set `"boost_mode": "replace"`
+
+[[function-weight]]
+==== Weight
+
+The `weight` score allows you to multiply the score by the provided
+`weight`. This can sometimes be desired since boost value set on
+specific queries gets normalized, while for this score function it does
+not.
+
+[source,js]
+--------------------------------------------------
+"weight" : number
+--------------------------------------------------
+
+[[function-random]]
+==== Random
+
+The `random_score` generates scores using a hash of the `_uid` field,
+with a `seed` for variation. If `seed` is not specified, the current
+time is used.
+
+NOTE: Using this feature will load field data for `_uid`, which can
+be a memory intensive operation since the values are unique.
+
+[source,js]
+--------------------------------------------------
+"random_score": {
+    "seed" : number
+}
+--------------------------------------------------
+
+[[function-field-value-factor]]
+==== Field Value factor
+
+The `field_value_factor` function allows you to use a field from a document to
+influence the score. It's similar to using the `script_score` function, however,
+it avoids the overhead of scripting. If used on a multi-valued field, only the
+first value of the field is used in calculations.
+
+As an example, imagine you have a document indexed with a numeric `popularity`
+field and wish to influence the score of a document with this field, an example
+doing so would look like:
+
+[source,js]
+--------------------------------------------------
+"field_value_factor": {
+  "field": "popularity",
+  "factor": 1.2,
+  "modifier": "sqrt",
+  "missing": 1
+}
+--------------------------------------------------
+
+Which will translate into the following formula for scoring:
+
+`sqrt(1.2 * doc['popularity'].value)`
+
+There are a number of options for the `field_value_factor` function:
+
+[horizontal]
+`field`::
+
+    Field to be extracted from the document.
+
+`factor`::
+
+    Optional factor to multiply the field value with, defaults to `1`.
+
+`modifier`::
+
+    Modifier to apply to the field value, can be one of: `none`, `log`,
+    `log1p`, `log2p`, `ln`, `ln1p`, `ln2p`, `square`, `sqrt`, or `reciprocal`.
+    Defaults to `none`.
+
+`missing`::
+
+    Value used if the document doesn't have that field. The modifier
+    and factor are still applied to it as though it were read from the document.
+
+
+ Keep in mind that taking the log() of 0, or the square root of a negative number
+ is an illegal operation, and an exception will be thrown. Be sure to limit the
+ values of the field with a range filter to avoid this, or use `log1p` and
+ `ln1p`.
+
+[[function-decay]]
+==== Decay functions
+
+Decay functions score a document with a function that decays depending
+on the distance of a numeric field value of the document from a user
+given origin. This is similar to a range query, but with smooth edges
+instead of boxes.
+
+To use distance scoring on a query that has numerical fields, the user
+has to define an `origin` and a `scale` for each field. The `origin`
+is needed to define the ``central point'' from which the distance
+is calculated, and the `scale` to define the rate of decay. The
+decay function is specified as
+
+[source,js]
+--------------------------------------------------
+"DECAY_FUNCTION": { <1>
+    "FIELD_NAME": { <2>
+          "origin": "11, 12",
+          "scale": "2km",
+          "offset": "0km",
+          "decay": 0.33
+    }
+}
+--------------------------------------------------
+<1> The `DECAY_FUNCTION` should be one of `linear`, `exp`, or `gauss`.
+<2> The specified field must be a numeric, date, or geo-point field.
+
+In the above example, the field is a <<geo-point,`geo_point`>> and origin can be provided in geo format. `scale` and `offset` must be given with a unit in this case. If your field is a date field, you can set `scale` and `offset` as days, weeks, and so on. Example:
+
+
+[source,js]
+--------------------------------------------------
+    "gauss": {
+        "date": {
+              "origin": "2013-09-17", <1>
+              "scale": "10d",
+              "offset": "5d", <2>
+              "decay" : 0.5 <2>
+        }
+    }
+--------------------------------------------------
+<1> The date format of the origin depends on the <<mapping-date-format,`format`>> defined in
+    your mapping. If you do not define the origin, the current time is used.
+<2> The `offset` and `decay` parameters are optional.
+
+[horizontal]
+`origin`::
+    The point of origin used for calculating distance. Must be given as a
+    number for numeric field, date for date fields and geo point for geo fields.
+    Required for geo and numeric field. For date fields the default is `now`. Date
+    math (for example `now-1h`) is supported for origin.
+
+`scale`::
+    Required for all types. Defines the distance from origin at which the computed
+    score will equal `decay` parameter. For geo fields: Can be defined as number+unit (1km, 12m,...).
+    Default unit is meters. For date fields: Can to be defined as a number+unit ("1h", "10d",...).
+    Default unit is milliseconds. For numeric field: Any number.
+
+`offset`::
+    If an `offset` is defined, the decay function will only compute the
+    decay function for documents with a distance greater that the defined
+    `offset`. The default is 0.
+
+`decay`::
+    The `decay` parameter defines how documents are scored at the distance
+    given at `scale`. If no `decay` is defined, documents at the distance
+    `scale` will be scored 0.5.
+
+In the first example, your documents might represents hotels and contain a geo
+location field. You want to compute a decay function depending on how
+far the hotel is from a given location. You might not immediately see
+what scale to choose for the gauss function, but you can say something
+like: "At a distance of 2km from the desired location, the score should
+be reduced by one third."
+The parameter "scale" will then be adjusted automatically to assure that
+the score function computes a score of 0.5 for hotels that are 2km away
+from the desired location.
+
+
+In the second example, documents with a field value between 2013-09-12 and 2013-09-22 would get a weight of 1.0 and documents which are 15 days from that date a weight of 0.5.
+
+===== Supported decay functions
+
+The `DECAY_FUNCTION` determines the shape of the decay:
+
+`gauss`::
++
+--
+Normal decay, computed as:
+
+image:images/Gaussian.png[]
+
+where image:images/sigma.png[] is computed to assure that the score takes the value `decay` at distance `scale` from `origin`+-`offset`
+
+image:images/sigma_calc.png[]
+
+See <<gauss-decay>> for graphs demonstrating the curve generated by the `gauss` function.
+
+--
+
+`exp`::
++
+--
+Exponential decay, computed as:
+
+image:images/Exponential.png[]
+
+where again the parameter image:images/lambda.png[] is computed to assure that the score takes the value `decay` at distance `scale` from `origin`+-`offset`
+
+image:images/lambda_calc.png[]
+
+See <<exp-decay>> for graphs demonstrating the curve generated by the `exp` function.
+
+--
+
+`linear`::
++
+--
+Linear decay, computed as:
+
+image:images/Linear.png[].
+
+
+where again the parameter `s` is computed to assure that the score takes the value `decay` at distance `scale` from `origin`+-`offset`
+
+image:images/s_calc.png[]
+
+In contrast to the normal and exponential decay, this function actually
+sets the score to 0 if the field value exceeds twice the user given
+scale value.
+--
+
+For single functions the three decay functions together with their parameters can be visualized like this (the field in this example called "age"):
+
+image:images/decay_2d.png[width=600]
+
+===== Multi-values fields
+
+If a field used for computing the decay contains multiple values, per default the value closest to the origin is chosen for determining the distance.
+This can be changed by setting `multi_value_mode`.
+
+[horizontal]
+`min`:: Distance is the minimum distance
+`max`:: Distance is the maximum distance
+`avg`:: Distance is the average distance
+`sum`:: Distance is the sum of all distances
+
+Example:
+
+[source,js]
+--------------------------------------------------
+    "DECAY_FUNCTION": {
+        "FIELD_NAME": {
+              "origin": ...,
+              "scale": ...
+        },
+        "multi_value_mode": "avg"
+    }
+--------------------------------------------------
+
+
+==== Detailed example
+
+Suppose you are searching for a hotel in a certain town. Your budget is
+limited. Also, you would like the hotel to be close to the town center,
+so the farther the hotel is from the desired location the less likely
+you are to check in.
+
+You would like the query results that match your criterion (for
+example, "hotel, Nancy, non-smoker") to be scored with respect to
+distance to the town center and also the price.
+
+Intuitively, you would like to define the town center as the origin and
+maybe you are willing to walk 2km to the town center from the hotel. +
+In this case your *origin* for the location field is the town center
+and the *scale* is ~2km.
+
+If your budget is low, you would probably prefer something cheap above
+something expensive.  For the price field, the *origin* would be 0 Euros
+and the *scale* depends on how much you are willing to pay, for example 20 Euros.
+
+In this example, the fields might be called "price" for the price of the
+hotel and "location" for the coordinates of this hotel.
+
+The function for `price` in this case would be
+
+[source,js]
+--------------------------------------------------
+"gauss": { <1>
+    "price": {
+          "origin": "0",
+          "scale": "20"
+    }
+}
+--------------------------------------------------
+<1> This decay function could also be `linear` or `exp`.
+
+and for `location`:
+
+[source,js]
+--------------------------------------------------
+
+"gauss": { <1>
+    "location": {
+          "origin": "11, 12",
+          "scale": "2km"
+    }
+}
+--------------------------------------------------
+<1> This decay function could also be `linear` or `exp`.
+
+Suppose you want to multiply these two functions on the original score,
+the request would look like this:
+
+[source,js]
+--------------------------------------------------
+GET /hotels/_search/
+{
+  "query": {
+    "function_score": {
+      "functions": [
+        {
+          "gauss": {
+            "price": {
+              "origin": "0",
+              "scale": "20"
+            }
+          }
+        },
+        {
+          "gauss": {
+            "location": {
+              "origin": "11, 12",
+              "scale": "2km"
+            }
+          }
+        }
+      ],
+      "query": {
+        "match": {
+          "properties": "balcony"
+        }
+      },
+      "score_mode": "multiply"
+    }
+  }
+}
+--------------------------------------------------
+// AUTOSENSE
+
+Next, we show how the computed score looks like for each of the three
+possible decay functions.
+
+[[gauss-decay]]
+===== Normal decay, keyword `gauss`
+
+When choosing `gauss` as the decay function in the above example, the
+contour and surface plot of the multiplier looks like this:
+
+image::https://f.cloud.github.com/assets/4320215/768157/cd0e18a6-e898-11e2-9b3c-f0145078bd6f.png[width="700px"]
+
+image::https://f.cloud.github.com/assets/4320215/768160/ec43c928-e898-11e2-8e0d-f3c4519dbd89.png[width="700px"]
+
+Suppose your original search results matches three hotels :
+
+* "Backback Nap"
+* "Drink n Drive"
+* "BnB Bellevue".
+
+"Drink n Drive" is pretty far from your defined location (nearly 2 km)
+and is not too cheap (about 13 Euros) so it gets a low factor a factor
+of 0.56. "BnB Bellevue" and "Backback Nap" are both pretty close to the
+defined location but "BnB Bellevue" is cheaper, so it gets a multiplier
+of 0.86 whereas "Backpack Nap" gets a value of 0.66.
+
+[[exp-decay]]
+===== Exponential decay, keyword `exp`
+
+When choosing `exp` as the decay function in the above example, the
+contour and surface plot of the multiplier looks like this:
+
+image::https://f.cloud.github.com/assets/4320215/768161/082975c0-e899-11e2-86f7-174c3a729d64.png[width="700px"]
+
+image::https://f.cloud.github.com/assets/4320215/768162/0b606884-e899-11e2-907b-aefc77eefef6.png[width="700px"]
+
+[[linear-decay]]
+===== Linear decay, keyword `linear`
+
+When choosing `linear` as the decay function in the above example, the
+contour and surface plot of the multiplier looks like this:
+
+image::https://f.cloud.github.com/assets/4320215/768164/1775b0ca-e899-11e2-9f4a-776b406305c6.png[width="700px"]
+
+image::https://f.cloud.github.com/assets/4320215/768165/19d8b1aa-e899-11e2-91bc-6b0553e8d722.png[width="700px"]
+
+==== Supported fields for decay functions
+
+Only numeric, date, and geo-point fields are supported.
+
+==== What if a field is missing?
+
+If the numeric field is missing in the document, the function will
+return 1.
+

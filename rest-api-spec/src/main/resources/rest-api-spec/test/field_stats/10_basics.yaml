@@ -1,0 +1,93 @@
+---
+"Basic field stats":
+  - do:
+      index:
+          index:  test_1
+          type:   test
+          id:     id_1
+          body:   { foo: "bar", number: 123 }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      field_stats:
+          index:  test_1
+          fields:  [foo, number]
+
+  - match: { indices._all.fields.foo.max_doc: 1 }
+  - match: { indices._all.fields.foo.doc_count: 1 }
+  - match: { indices._all.fields.foo.min_value: "bar" }
+  - match: { indices._all.fields.foo.max_value: "bar" }
+  - match: { indices._all.fields.number.max_doc: 1 }
+  - match: { indices._all.fields.number.doc_count: 1 }
+  - match: { indices._all.fields.number.min_value: 123 }
+  - match: { indices._all.fields.number.max_value: 123 }
+
+---
+"Basic field stats with level set to indices":
+  - do:
+      index:
+          index:  test_1
+          type:   test
+          id:     id_1
+          body:   { foo: "bar", number: 123 }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      field_stats:
+          index:  test_1
+          fields:  [foo, number]
+          level: indices
+
+  - match: { indices.test_1.fields.foo.max_doc: 1 }
+  - match: { indices.test_1.fields.foo.doc_count: 1 }
+  - match: { indices.test_1.fields.foo.min_value: "bar" }
+  - match: { indices.test_1.fields.foo.max_value: "bar" }
+  - match: { indices.test_1.fields.number.max_doc: 1 }
+  - match: { indices.test_1.fields.number.doc_count: 1 }
+  - match: { indices.test_1.fields.number.min_value: 123 }
+  - match: { indices.test_1.fields.number.max_value: 123 }
+
+---
+"Field stats with filtering":
+  - do:
+      index:
+          index:  test_1
+          type:   test
+          id:     id_1
+          body:   { foo: "bar", number: 123 }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      field_stats:
+          level:  indices
+          index:  test_1
+          body: { fields: ["foo"], index_constraints: { number: { min_value : { gte: 100 } } }}
+
+  - match: { indices.test_1.fields.foo.max_doc: 1 }
+  - match: { indices.test_1.fields.foo.doc_count: 1 }
+  - match: { indices.test_1.fields.foo.min_value: "bar" }
+  - match: { indices.test_1.fields.foo.max_value: "bar" }
+  - is_false: indices.test_1.fields.number
+
+  - do:
+      field_stats:
+          level:  indices
+          index:  test_1
+          body: { fields: ["foo"], index_constraints : { number: { min_value : { gte: 200} } }}
+
+  - is_false: indices.test_1
+
+---
+"Field stats both source and fields":
+  - do:
+      catch: request
+      field_stats:
+          index:  test_1
+          fields : ["foo"]
+          body: { fields: ["foo"]}

@@ -1,0 +1,85 @@
+---
+"TTL":
+
+ - do:
+      indices.create:
+          index:    test_1
+          body:
+              mappings:
+                test:
+                  _ttl:
+                    enabled:  1
+                    default:  10s
+ - do:
+      cluster.health:
+          wait_for_status: yellow
+
+# blank ttl
+ - do:
+      index:
+          index:     test_1
+          type:      test
+          id:        1
+          body:      { foo: bar }
+
+ - do:
+      get:
+          index:   test_1
+          type:    test
+          id:      1
+          fields:  _ttl
+
+ - lte:   { _ttl: 10000}
+ - gt:    { _ttl: 0}
+
+# milliseconds
+
+ - do:
+      index:
+          index:     test_1
+          type:      test
+          id:        1
+          body:      { foo: bar }
+          ttl:       100000ms
+ - do:
+      get:
+          index:   test_1
+          type:    test
+          id:      1
+          fields:  _ttl
+
+ - lte:   { _ttl: 100000}
+ - gt:    { _ttl: 10000}
+
+# duration
+
+ - do:
+      index:
+          index:     test_1
+          type:      test
+          id:        1
+          body:      { foo: bar }
+          ttl:       20s
+
+ - do:
+      get:
+          index:   test_1
+          type:    test
+          id:      1
+          fields:  _ttl
+
+ - lte:   { _ttl: 20000}
+ - gt:    { _ttl: 10000}
+
+# with timestamp
+
+ - do:
+      catch: /already_expired_exception/
+      index:
+          index:     test_1
+          type:      test
+          id:        1
+          body:      { foo: bar }
+          ttl:       20s
+          timestamp: 2013-06-23T18:14:40
+

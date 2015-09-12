@@ -1,0 +1,112 @@
+<?xml version="1.0"?>
+<project name="elasticsearch-integration-tests">
+  <target name="vagrant-test-all-boxes" depends="set-boxesToTest">
+    <echo message="Running package tests on ${boxesToTest}"/>
+    <foreach list="${boxesToTest}" trim="true" param="box"
+      target="vagrant-test" inheritall="true" inheritrefs="true"/>
+  </target>
+
+  <target name="set-boxesToTest">
+    <!-- If the user specifies the vagrant=all then try on all boxes. -->
+    <condition property="debBoxes" value="${allDebBoxes}"
+        else="${defaultDebBoxes}">
+      <equals arg1="${tests.vagrant}" arg2="all"/>
+    </condition>
+    <condition property="rpmBoxes" value="${allRpmBoxes}"
+        else="${defaultRpmBoxes}">
+      <equals arg1="${tests.vagrant}" arg2="all"/>
+    </condition>
+    <!-- By defaut only test on debian boxes because we always can build debs.
+         Only test on rpm based boxes if we can build RPM. -->
+    <condition property="proposedBoxesToTest" value="${debBoxes}, ${rpmBoxes}"
+        else="${debBoxes}">
+      <equals arg1="${rpmOk}" arg2="ok"/>
+    </condition>
+    <!-- Only use the proposedBoxesToTest list if the user did -Dtests.vagrant
+         or -Dtests.vagrant=all. Otherwise we assume they did
+         -Dtests.vagrant=somelistofboxes and we just set the boxesToTest to
+         that. If they set an rpm based box and don't have the rpm available
+         its on them. -->
+    <condition property="boxesToTest" value="${proposedBoxesToTest}"
+        else="${tests.vagrant}">
+      <or>
+        <equals arg1="${tests.vagrant}" arg2="true"/>
+        <equals arg1="${tests.vagrant}" arg2="all"/>
+      </or>
+    </condition>
+  </target>
+
+  <target name="vagrant-test" depends="vagrant-up">
+    <trycatch>
+      <try>
+        <exec executable="vagrant" failonerror="true">
+          <arg value="ssh"/>
+          <arg value="${box}"/>
+          <arg value="--command"/>
+          <arg value="
+            set -o pipefail;
+            cd $TESTROOT;
+            ${testCommand} | sed -ue 's/^/${box}: /'
+          "/>
+        </exec>
+      </try>
+      <finally>
+        <exec executable="vagrant" failonerror="true">
+          <arg value="halt"/>
+          <arg value="${box}"/>
+        </exec>
+      </finally>
+    </trycatch>
+  </target>
+
+  <target name="vagrant-up">
+    <exec executable="vagrant" failonerror="true">
+      <arg value="up"/>
+      <arg value="${box}"/>
+      <!-- Its important that we try to reprovision the box even if it already
+        exists. That way updates to the vagrant configuration take automatically.
+        That isn't to say that the updates will always be compatible. Its ok to
+        just destroy the boxes if they get busted. -->
+      <arg value="--provision"/>
+      <!-- We lock the provider to virtualbox because the Vagrantfile specifies
+        lots of boxes that only work properly in virtualbox. Virtualbox is
+        vagrant's default but its possible to change that default and folks do.
+        But the boxes that we use are unlikely to work properly with other
+        virtualization providers. Thus the lock. -->
+      <arg value="--provider"/>
+      <arg value="virtualbox"/>
+    </exec>
+  </target>
+
+  <target name="check-vagrant-version">
+    <check-version executable="vagrant" ok="^1\.[789]\..+$"
+        message="Only known to work with Vagrant 1.7+"/>
+  </target>
+
+  <macrodef name="check-version">
+    <attribute name="executable" description="The executable to check."/>
+    <attribute name="rewrite" default="(?:\S*\s)*(.+)"
+        description="Regex extracting the version from the output of the executable. Defaults to everything after the last space."/>
+    <attribute name="ok" description="The regex to check the version against."/>
+    <attribute name="message" description="The message to report on failure."/>
+    <sequential>
+      <exec executable="@{executable}" failonerror="true"
+          outputproperty="versionOutput">
+        <arg value="--version" />
+      </exec>
+      <propertyregex property="version" input="${versionOutput}"
+          regexp="@{rewrite}" select="\1" />
+      <echo message="The @{executable} version is ${version}"/>
+      <fail message="@{message}">
+        <condition>
+          <not>
+            <!-- Very simple version checking.... -->
+            <matches string="${version}" pattern="@{ok}"/>
+          </not>
+        </condition>
+      </fail>
+    </sequential>
+  </macrodef>
+
+
+</project>

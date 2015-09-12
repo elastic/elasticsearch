@@ -1,0 +1,48 @@
+---
+"Test cat recovery output":
+
+  - do:
+      cat.recovery: {}
+
+  - match:
+      $body: |
+               /^$/
+
+  - do:
+      index:
+        index:  index1
+        type:   type1
+        id:     1
+        body:   { foo: bar }
+        refresh: true
+  - do:
+       cluster.health:
+         wait_for_status: yellow
+  - do:
+      cat.recovery: {}
+
+  - match:
+      $body: |
+              /^
+              (
+                index1      \s+
+                \d          \s+                                 # shard
+                \d+         \s+                                 # time
+                (store|replica|snapshot|relocating)     \s+     # type
+                (init|index|verify_index|translog|finalize|done) \s+ # stage
+                [-\w./]+    \s+                                 # source_host
+                [-\w./]+    \s+                                 # target_host
+                [-\w./]+    \s+                                 # repository
+                [-\w./]+    \s+                                 # snapshot
+                \d+         \s+                                 # files
+                \d+\.\d+%   \s+                                 # files_percent
+                \d+         \s+                                 # bytes
+                \d+\.\d+%   \s+                                 # bytes_percent
+                \d+         \s+                                 # total_files
+                \d+         \s+                                 # total_bytes
+                \d+         \s+                                 # translog
+                -?\d+\.\d+% \s+                                 # translog_percent
+                -?\d+       \s+                                 # total_translog
+                \n
+              )+
+              $/

@@ -1,0 +1,10 @@
+{
+            "geo_distance":{
+                "distance":"12mi",
+                "unit":"km",
+                "location":{
+                    "lat":40,
+                    "lon":-70
+                }
+            }
+}

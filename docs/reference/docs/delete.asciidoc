@@ -16,6 +16,11 @@ The result of the above delete operation is:
 [source,js]
 --------------------------------------------------
 {
+    "_shards" : {
+        "total" : 10,
+        "failed" : 0,
+        "successful" : 10
+    },
     "found" : true,
     "_index" : "twitter",
     "_type" : "tweet",
@@ -53,7 +58,7 @@ document to not be deleted.
 
 Many times, the routing value is not known when deleting a document. For
 those cases, when specifying the `_routing` mapping as `required`, and
-no routing value is specified, the delete will be broadcasted
+no routing value is specified, the delete will be broadcast
 automatically to all shards.
 
 [float]
@@ -65,7 +70,7 @@ setting the routing parameter.
 
 Note that deleting a parent document does not automatically delete its
 children. One way of deleting all child documents given a parent's id is
-to perform a <<docs-delete-by-query,delete by query>> on the child 
+to use the `delete-by-query` plugin to perform a delete on the child
 index with the automatically generated (and indexed)
 field _parent, which is in the format parent_type#parent_id.
 
@@ -74,7 +79,7 @@ field _parent, which is in the format parent_type#parent_id.
 === Automatic index creation
 
 The delete operation automatically creates an index if it has not been
-created before (check out the <<indices-create-index,create index API>> 
+created before (check out the <<indices-create-index,create index API>>
 for manually creating an index), and also automatically creates a
 dynamic type mapping for the specific type if it has not been created
 before (check out the <<indices-put-mapping,put mapping>>
@@ -87,15 +92,6 @@ API for manually creating type mapping).
 The delete operation gets hashed into a specific shard id. It then gets
 redirected into the primary shard within that id group, and replicated
 (if needed) to shard replicas within that id group.
-
-[float]
-[[delete-replication]]
-=== Replication Type
-
-The replication of the operation can be done in an asynchronous manner
-to the replicas (the operation will return once it has be executed on
-the primary shard). The `replication` parameter can be set to `async`
-(defaults to `sync`) in order to enable it.
 
 [float]
 [[delete-consistency]]
@@ -117,11 +113,11 @@ is the same).
 [[delete-refresh]]
 === Refresh
 
-The `refresh` parameter can be set to `true` in order to refresh the
-relevant shard after the delete operation has occurred and make it
-searchable. Setting it to `true` should be done after careful thought
-and verification that this does not cause a heavy load on the system
-(and slows down indexing).
+The `refresh` parameter can be set to `true` in order to refresh the relevant
+primary and replica shards after the delete operation has occurred and make it
+searchable. Setting it to `true` should be done after careful thought and
+verification that this does not cause a heavy load on the system (and slows
+down indexing).
 
 [float]
 [[delete-timeout]]
@@ -129,7 +125,7 @@ and verification that this does not cause a heavy load on the system
 
 The primary shard assigned to perform the delete operation might not be
 available when the delete operation is executed. Some reasons for this
-might be that the primary shard is currently recovering from a gateway
+might be that the primary shard is currently recovering from a store
 or undergoing relocation. By default, the delete operation will wait on
 the primary shard to become available for up to 1 minute before failing
 and responding with an error. The `timeout` parameter can be used to

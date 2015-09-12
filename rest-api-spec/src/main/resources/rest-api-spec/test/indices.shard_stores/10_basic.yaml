@@ -1,0 +1,86 @@
+---
+"no indices test":
+  - do:
+      indices.shard_stores:
+        allow_no_indices: true
+
+  - match:   { indices: {}}
+
+  - do:
+      catch: missing
+      indices.shard_stores:
+        allow_no_indices: false
+
+---
+"basic index test":
+
+  - do:
+      indices.create:
+        index: index1
+        body:
+          settings:
+            number_of_shards: "1"
+            number_of_replicas: "0"
+  - do:
+      index:
+        index: index1
+        type: type
+        body: { foo: bar }
+        refresh: true
+
+  - do:
+       cluster.health:
+         wait_for_status: green
+
+  - do:
+      indices.shard_stores:
+          index: index1
+          status: "green"
+
+  - match:   { indices.index1.shards.0.stores.0.allocation: "primary" }
+  - gte:     { indices.index1.shards.0.stores.0.version: 0 }
+
+---
+"multiple indices test":
+
+  - do:
+      indices.create:
+        index: index1
+        body:
+          settings:
+            number_of_shards: "1"
+            number_of_replicas: "0"
+  - do:
+      indices.create:
+        index: index2
+        body:
+          settings:
+            number_of_shards: "2"
+            number_of_replicas: "0"
+  - do:
+      index:
+        index: index1
+        type: type
+        body: { foo: bar }
+        refresh: true
+  - do:
+      index:
+        index: index2
+        type: type
+        body: { foo: bar }
+        refresh: true
+  - do:
+       cluster.health:
+         wait_for_status: green
+
+  - do:
+      indices.shard_stores:
+          status: "green"
+
+  - match:   { indices.index1.shards.0.stores.0.allocation: "primary" }
+  - gte:     { indices.index1.shards.0.stores.0.version: 0 }
+  - match:   { indices.index2.shards.0.stores.0.allocation: "primary" }
+  - gte:     { indices.index2.shards.0.stores.0.version: 0 }
+  - match:   { indices.index2.shards.1.stores.0.allocation: "primary" }
+  - gte:     { indices.index2.shards.1.stores.0.version: 0 }
+

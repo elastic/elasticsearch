@@ -50,7 +50,7 @@ failure:
 [source,js]
 --------------------------------------------------
 indexR.success = {IndexResponse response ->
-    pritnln "Indexed $response.id into $response.index/$response.type"
+    println "Indexed $response.id into $response.index/$response.type"
 }
 indexR.failure = {Throwable t ->
     println "Failed to index: $t.message"

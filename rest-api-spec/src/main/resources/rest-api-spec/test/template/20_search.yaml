@@ -1,0 +1,43 @@
+---
+"Indexed Template query tests":
+
+  - do:
+      index:
+        index:  test
+        type:   testtype
+        id:     1
+        body:   { "text": "value1_foo" }
+  - do:
+      index:
+        index:  test
+        type:   testtype
+        id:     2
+        body:   { "text": "value2_foo value3_foo" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      put_template:
+        id: "1"
+        body: { "template": { "query": { "match" : { "text": "{{my_value}}" } }, "size": "{{my_size}}" } }
+  - match: { _id: "1" }
+
+  - do:
+      indices.refresh: {}
+
+
+  - do:
+      search_template:
+        body: { "template": { "id" : "1" }, "params" : { "my_value" : "value1_foo", "my_size" : 1 } }
+  - match: { hits.total: 1 }
+
+  - do:
+      search_template:
+        body: {  "id" : "1", "params" : { "my_value" : "value1_foo", "my_size" : 1 } }
+  - match: { hits.total: 1 }
+
+  - do:
+      catch: /Unable.to.find.on.disk.file.script.\[simple1\].using.lang.\[mustache\]/
+      search_template:
+        body: { "template" : "simple1" }
+

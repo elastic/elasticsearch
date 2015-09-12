@@ -1,0 +1,206 @@
+[[search-aggregations-bucket-filters-aggregation]]
+=== Filters Aggregation
+
+Defines a multi bucket aggregations where each bucket is associated with a
+filter. Each bucket will collect all documents that match its associated
+filter.
+
+Example:
+
+[source,js]
+--------------------------------------------------
+{
+  "aggs" : {
+    "messages" : {
+      "filters" : {
+        "filters" : {
+          "errors" :   { "term" : { "body" : "error"   }},
+          "warnings" : { "term" : { "body" : "warning" }}
+        }
+      },
+      "aggs" : {
+        "monthly" : {
+          "histogram" : {
+            "field" : "timestamp",
+            "interval" : "1M"
+          }
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+
+In the above example, we analyze log messages. The aggregation will build two
+collection (buckets) of log messages - one for all those containing an error,
+and another for all those containing a warning. And for each of these buckets
+it will break them down by month.
+
+Response:
+
+[source,js]
+--------------------------------------------------
+...
+  "aggs" : {
+    "messages" : {
+      "buckets" : {
+        "errors" : {
+          "doc_count" : 34,
+            "monthly" : {
+              "buckets" : [
+                ... // the histogram monthly breakdown
+              ]
+            }
+          },
+          "warnings" : {
+            "doc_count" : 439,
+            "monthly" : {
+              "buckets" : [
+                 ... // the histogram monthly breakdown
+              ]
+            }
+          }
+        }
+      }
+    }
+  }
+...
+--------------------------------------------------
+
+==== Anonymous filters
+
+The filters field can also be provided as an array of filters, as in the
+following request:
+
+[source,js]
+--------------------------------------------------
+{
+  "aggs" : {
+    "messages" : {
+      "filters" : {
+        "filters" : [
+          { "term" : { "body" : "error"   }},
+          { "term" : { "body" : "warning" }}
+        ]
+      },
+      "aggs" : {
+        "monthly" : {
+          "histogram" : {
+            "field" : "timestamp",
+            "interval" : "1M"
+          }
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+
+The filtered buckets are returned in the same order as provided in the
+request.  The response for this example would be:
+
+[source,js]
+--------------------------------------------------
+...
+  "aggs" : {
+    "messages" : {
+      "buckets" : [
+        {
+          "doc_count" : 34,
+          "monthly" : {
+            "buckets : [
+              ... // the histogram monthly breakdown
+            ]
+          }
+        },
+        {
+          "doc_count" : 439,
+          "monthly" : {
+            "buckets : [
+              ... // the histogram monthly breakdown
+            ]
+          }
+        }
+      ]
+    }
+  }
+...
+--------------------------------------------------
+
+==== `Other` Bucket
+
+The `other_bucket` parameter can be set to add a bucket to the response which will contain all documents that do 
+not match any of the given filters. The value of this parameter can be as follows:
+
+`false`::         Does not compute the `other` bucket
+`true`::          Returns the `other` bucket bucket either in a bucket (named `_other_` by default) if named filters are being used, 
+                  or as the last bucket if anonymous filters are being used
+
+The `other_bucket_key` parameter can be used to set the key for the `other` bucket to a value other than the default `_other_`. Seting 
+this parameter will implicitly set the `other_bucket` parameter to `true`.
+
+The following snippet shows a response where the `other` bucket is requested to be named `other_messages`.
+
+[source,js]
+--------------------------------------------------
+{
+  "aggs" : {
+    "messages" : {
+      "filters" : {
+        "other_bucket": "other_messages",
+        "filters" : {
+          "errors" :   { "term" : { "body" : "error"   }},
+          "warnings" : { "term" : { "body" : "warning" }}
+        }
+      },
+      "aggs" : {
+        "monthly" : {
+          "histogram" : {
+            "field" : "timestamp",
+            "interval" : "1M"
+          }
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+
+The response would be something like the following:
+
+[source,js]
+--------------------------------------------------
+...
+  "aggs" : {
+    "messages" : {
+      "buckets" : {
+        "errors" : {
+          "doc_count" : 34,
+            "monthly" : {
+              "buckets" : [
+                ... // the histogram monthly breakdown
+              ]
+            }
+          },
+          "warnings" : {
+            "doc_count" : 439,
+            "monthly" : {
+              "buckets" : [
+                 ... // the histogram monthly breakdown
+              ]
+            }
+          },
+          "other_messages" : {
+            "doc_count" : 237,
+            "monthly" : {
+              "buckets" : [
+                 ... // the histogram monthly breakdown
+              ]
+            }
+          }
+        }
+      }
+    }
+  }
+...
+--------------------------------------------------

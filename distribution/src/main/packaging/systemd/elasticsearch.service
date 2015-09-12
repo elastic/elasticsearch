@@ -1,0 +1,58 @@
+[Unit]
+Description=Elasticsearch
+Documentation=http://www.elastic.co
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Environment=ES_HOME=${packaging.elasticsearch.home.dir}
+Environment=CONF_DIR=${packaging.elasticsearch.conf.dir}
+Environment=CONF_FILE=${packaging.elasticsearch.conf.dir}/elasticsearch.yml
+Environment=DATA_DIR=${packaging.elasticsearch.data.dir}
+Environment=LOG_DIR=${packaging.elasticsearch.log.dir}
+Environment=PID_DIR=${packaging.elasticsearch.pid.dir}
+EnvironmentFile=-${packaging.env.file}
+
+WorkingDirectory=${packaging.elasticsearch.home.dir}
+
+User=${packaging.elasticsearch.user}
+Group=${packaging.elasticsearch.group}
+
+ExecStart=${packaging.elasticsearch.bin.dir}/elasticsearch \
+                                                -Des.pidfile=${PID_DIR}/elasticsearch.pid \
+                                                -Des.default.path.home=${ES_HOME} \
+                                                -Des.default.path.logs=${LOG_DIR} \
+                                                -Des.default.path.data=${DATA_DIR} \
+                                                -Des.default.config=${CONF_FILE} \
+                                                -Des.default.path.conf=${CONF_DIR}
+
+# Connects standard output to /dev/null
+StandardOutput=null
+
+# Connects standard error to journal
+StandardError=journal
+
+# Specifies the maximum file descriptor number that can be opened by this process
+LimitNOFILE=${packaging.os.max.open.files}
+
+# Specifies the maximum number of bytes of memory that may be locked into RAM
+# Set to "infinity" if you use the 'bootstrap.mlockall: true' option
+# in elasticsearch.yml and 'MAX_LOCKED_MEMORY=unlimited' in ${packaging.env.file}
+#LimitMEMLOCK=infinity
+
+# Disable timeout logic and wait until process is stopped
+TimeoutStopSec=0
+
+# SIGTERM signal is used to stop the Java process
+KillSignal=SIGTERM
+
+# Java process is never killed
+SendSIGKILL=no
+
+# When a JVM receives a SIGTERM signal it exits with code 143
+SuccessExitStatus=143
+
+[Install]
+WantedBy=multi-user.target
+
+# Built for ${project.name}-${project.version} (${packaging.type})

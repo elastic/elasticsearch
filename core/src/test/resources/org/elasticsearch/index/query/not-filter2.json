@@ -1,0 +1,7 @@
+{
+            "not":{
+                "term":{
+                    "name.first":"shay1"
+                }
+            }
+}

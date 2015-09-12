@@ -1,0 +1,46 @@
+[[discovery]]
+== Discovery Plugins
+
+Discovery plugins extend Elasticsearch by adding new discovery mechanisms that
+can be used instead of {ref}/modules-discovery-zen.html[Zen Discovery].
+
+[float]
+==== Core discovery plugins
+
+The core discovery plugins are:
+
+<<discovery-ec2,EC2 discovery>>::
+
+The EC2 discovery plugin uses the https://github.com/aws/aws-sdk-java[AWS API] for unicast discovery.
+
+<<cloud-azure,Azure Cloud>>::
+
+The Azure Cloud plugin uses the Azure API for unicast discovery, and adds
+support for using Azure as a repository for
+{ref}/modules-snapshots.html[Snapshot/Restore].
+
+<<cloud-gce,GCE Cloud>>::
+
+The Google Compute Engine Cloud plugin uses the GCE API for unicast discovery.
+
+<<discovery-multicast,Multicast>>::
+
+The multicast plugin sends multicast messages to discover other nodes in the cluster.
+
+[float]
+==== Community contributed discovery plugins
+
+A number of discovery plugins have been contributed by our community:
+
+* https://github.com/grantr/elasticsearch-srv-discovery[DNS SRV Discovery Plugin] (by Grant Rodgers)
+* https://github.com/shikhar/eskka[eskka Discovery Plugin] (by Shikhar Bhushan)
+* https://github.com/grmblfrz/elasticsearch-zookeeper[ZooKeeper Discovery Plugin] (by Sonian Inc.)
+
+include::discovery-ec2.asciidoc[]
+
+include::cloud-azure.asciidoc[]
+
+include::cloud-gce.asciidoc[]
+
+include::discovery-multicast.asciidoc[]
+

@@ -1,0 +1,169 @@
+---
+"Test cat thread_pool output":
+
+  - do:
+      cat.thread_pool: {}
+
+  - match:
+      $body: |
+               /  #host       ip                          bulk.active       bulk.queue       bulk.rejected       index.active       index.queue       index.rejected       search.active       search.queue       search.rejected
+               ^  (\S+   \s+  (\d{1,3}\.){3}\d{1,3}  \s+  \d+          \s+  \d+         \s+  \d+            \s+  \d+           \s+  \d+          \s+  \d+             \s+  \d+            \s+  \d+           \s+  \d+              \s+  \n)+  $/
+
+  - do:
+      cat.thread_pool:
+          v: true
+
+  - match:
+      $body: |
+               /^ host  \s+  ip                     \s+  bulk.active  \s+  bulk.queue  \s+  bulk.rejected  \s+  index.active  \s+  index.queue  \s+  index.rejected  \s+  search.active  \s+  search.queue  \s+  search.rejected  \s+  \n
+                 (\S+   \s+  (\d{1,3}\.){3}\d{1,3}  \s+  \d+          \s+  \d+         \s+  \d+            \s+  \d+           \s+  \d+          \s+  \d+             \s+  \d+            \s+  \d+           \s+  \d+              \s+  \n)+  $/
+
+  - do:
+      cat.thread_pool:
+          h: pid,id,h,i,po
+
+  - match:
+      $body: |
+               /  #pid       id          host       ip                          port
+               ^  (\d+  \s+  \S{4}  \s+  \S+   \s+  (\d{1,3}\.){3}\d{1,3}  \s+  (\d+|-) \s+ \n)+  $/
+
+  - do:
+      cat.thread_pool:
+          h: id,ba,fa,gea,ga,ia,maa,ma,oa,pa
+          v: true
+          full_id: true
+
+  - match:
+      $body: |
+               /^  id   \s+  ba   \s+  fa   \s+  gea  \s+  ga   \s+  ia   \s+  maa  \s+  oa   \s+  pa  \s+  \n
+                  (\S+  \s+  \d+  \s+  \d+  \s+  \d+  \s+  \d+  \s+  \d+  \s+  \d+  \s+  \d+  \s+  \d+ \s+  \n)+  $/
+
+  - do:
+      cat.thread_pool:
+          h: id,bulk.type,bulk.active,bulk.size,bulk.queue,bulk.queueSize,bulk.rejected,bulk.largest,bulk.completed,bulk.min,bulk.max,bulk.keepAlive
+          v: true
+
+  - match:
+      $body: |
+               /^  id  \s+  bulk.type                \s+  bulk.active  \s+  bulk.size  \s+  bulk.queue  \s+  bulk.queueSize  \s+  bulk.rejected  \s+  bulk.largest  \s+  bulk.completed  \s+  bulk.min  \s+  bulk.max  \s+  bulk.keepAlive  \s+  \n
+                  (\S+ \s+  (cached|fixed|scaling)?  \s+          \d+  \s+        \d+  \s+         \d+  \s+             \d*  \s+            \d+  \s+           \d+  \s+             \d+  \s+       \d*  \s+       \d*  \s+             \S*  \s+  \n)+  $/
+
+  - do:
+      cat.thread_pool:
+          h: id,flush.type,flush.active,flush.size,flush.queue,flush.queueSize,flush.rejected,flush.largest,flush.completed,flush.min,flush.max,flush.keepAlive
+          v: true
+
+  - match:
+      $body: |
+               /^  id  \s+  flush.type               \s+  flush.active  \s+  flush.size  \s+  flush.queue  \s+  flush.queueSize  \s+  flush.rejected  \s+  flush.largest  \s+  flush.completed  \s+  flush.min  \s+  flush.max  \s+  flush.keepAlive  \s+  \n
+                  (\S+ \s+  (cached|fixed|scaling)?  \s+           \d+  \s+         \d+  \s+          \d+  \s+              \d*  \s+             \d+  \s+            \d+  \s+              \d+  \s+        \d*  \s+        \d*  \s+              \S*  \s+  \n)+  $/
+
+  - do:
+      cat.thread_pool:
+          h: id,generic.type,generic.active,generic.size,generic.queue,generic.queueSize,generic.rejected,generic.largest,generic.completed,generic.min,generic.max,generic.keepAlive
+          v: true
+
+  - match:
+      $body: |
+               /^  id  \s+  generic.type             \s+  generic.active  \s+  generic.size  \s+  generic.queue  \s+  generic.queueSize  \s+  generic.rejected  \s+  generic.largest  \s+  generic.completed  \s+  generic.min  \s+  generic.max  \s+  generic.keepAlive  \s+  \n
+                  (\S+ \s+  (cached|fixed|scaling)?  \s+             \d+  \s+           \d+  \s+            \d+  \s+                \d*  \s+               \d+  \s+              \d+  \s+                \d+  \s+          \d*  \s+          \d*  \s+                \S*  \s+  \n)+  $/
+
+  - do:
+      cat.thread_pool:
+          h: id,get.type,get.active,get.size,get.queue,get.queueSize,get.rejected,get.largest,get.completed,get.min,get.max,get.keepAlive
+          v: true
+
+  - match:
+      $body: |
+               /^  id  \s+  get.type                 \s+  get.active  \s+  get.size  \s+  get.queue  \s+  get.queueSize  \s+  get.rejected  \s+  get.largest  \s+  get.completed  \s+  get.min  \s+  get.max  \s+  get.keepAlive  \s+  \n
+                  (\S+ \s+  (cached|fixed|scaling)?  \s+         \d+  \s+       \d+  \s+        \d+  \s+            \d*  \s+           \d+  \s+          \d+  \s+            \d+  \s+      \d*  \s+      \d*  \s+            \S*  \s+  \n)+  $/
+
+  - do:
+      cat.thread_pool:
+          h: id,index.type,index.active,index.size,index.queue,index.queueSize,index.rejected,index.largest,index.completed,index.min,index.max,index.keepAlive
+          v: true
+
+  - match:
+      $body: |
+               /^  id  \s+  index.type               \s+  index.active  \s+  index.size  \s+  index.queue  \s+  index.queueSize  \s+  index.rejected  \s+  index.largest  \s+  index.completed  \s+  index.min  \s+  index.max  \s+  index.keepAlive  \s+  \n
+                  (\S+ \s+  (cached|fixed|scaling)?  \s+           \d+  \s+         \d+  \s+          \d+  \s+              \d*  \s+             \d+  \s+            \d+  \s+              \d+  \s+        \d*  \s+        \d*  \s+              \S*  \s+  \n)+  $/
+
+  - do:
+      cat.thread_pool:
+          h: id,management.type,management.active,management.size,management.queue,management.queueSize,management.rejected,management.largest,management.completed,management.min,management.max,management.keepAlive
+          v: true
+
+  - match:
+      $body: |
+               /^  id  \s+  management.type          \s+  management.active  \s+  management.size  \s+  management.queue  \s+  management.queueSize  \s+  management.rejected  \s+  management.largest  \s+  management.completed  \s+  management.min  \s+  management.max  \s+  management.keepAlive  \s+  \n
+                  (\S+ \s+  (cached|fixed|scaling)?  \s+                \d+  \s+              \d+  \s+               \d+  \s+                   \d*  \s+                  \d+  \s+                 \d+  \s+                   \d+  \s+             \d*  \s+             \d*  \s+                   \S*  \s+  \n)+  $/
+
+  - do:
+      cat.thread_pool:
+          h: id,optimize.type,optimize.active,optimize.size,optimize.queue,optimize.queueSize,optimize.rejected,optimize.largest,optimize.completed,optimize.min,optimize.max,optimize.keepAlive
+          v: true
+
+  - match:
+      $body: |
+               /^  id  \s+  optimize.type            \s+  optimize.active  \s+  optimize.size  \s+  optimize.queue  \s+  optimize.queueSize  \s+  optimize.rejected  \s+  optimize.largest  \s+  optimize.completed  \s+  optimize.min  \s+  optimize.max  \s+  optimize.keepAlive  \s+  \n
+                  (\S+ \s+  (cached|fixed|scaling)?  \s+              \d+  \s+            \d+  \s+             \d+  \s+                 \d*  \s+                \d+  \s+               \d+  \s+                 \d+  \s+           \d*  \s+           \d*  \s+                 \S*  \s+  \n)+  $/
+
+  - do:
+      cat.thread_pool:
+          h: id,percolate.type,percolate.active,percolate.size,percolate.queue,percolate.queueSize,percolate.rejected,percolate.largest,percolate.completed,percolate.min,percolate.max,percolate.keepAlive
+          v: true
+
+  - match:
+      $body: |
+               /^  id  \s+  percolate.type           \s+  percolate.active  \s+  percolate.size  \s+  percolate.queue  \s+  percolate.queueSize  \s+  percolate.rejected  \s+  percolate.largest  \s+  percolate.completed  \s+  percolate.min  \s+  percolate.max  \s+  percolate.keepAlive  \s+  \n
+                  (\S+ \s+  (cached|fixed|scaling)?  \s+               \d+  \s+             \d+  \s+              \d+  \s+                  \d*  \s+                 \d+  \s+                \d+  \s+                  \d+  \s+            \d*  \s+            \d*  \s+                  \S*  \s+  \n)+  $/
+
+  - do:
+      cat.thread_pool:
+          h: id,refresh.type,refresh.active,refresh.size,refresh.queue,refresh.queueSize,refresh.rejected,refresh.largest,refresh.completed,refresh.min,refresh.max,refresh.keepAlive
+          v: true
+
+  - match:
+      $body: |
+               /^  id  \s+  refresh.type             \s+  refresh.active  \s+  refresh.size  \s+  refresh.queue  \s+  refresh.queueSize  \s+  refresh.rejected  \s+  refresh.largest  \s+  refresh.completed  \s+  refresh.min  \s+  refresh.max  \s+  refresh.keepAlive  \s+  \n
+                  (\S+ \s+  (cached|fixed|scaling)?  \s+             \d+  \s+           \d+  \s+            \d+  \s+                \d*  \s+               \d+  \s+              \d+  \s+                \d+  \s+          \d*  \s+          \d*  \s+                \S*  \s+  \n)+  $/
+
+  - do:
+      cat.thread_pool:
+          h: id,search.type,search.active,search.size,search.queue,search.queueSize,search.rejected,search.largest,search.completed,search.min,search.max,search.keepAlive
+          v: true
+
+  - match:
+      $body: |
+               /^  id  \s+  search.type              \s+  search.active  \s+  search.size  \s+  search.queue  \s+  search.queueSize  \s+  search.rejected  \s+  search.largest  \s+  search.completed  \s+  search.min  \s+  search.max  \s+  search.keepAlive  \s+  \n
+                  (\S+ \s+  (cached|fixed|scaling)?  \s+            \d+  \s+          \d+  \s+           \d+  \s+               \d*  \s+              \d+  \s+             \d+  \s+               \d+  \s+         \d*  \s+         \d*  \s+               \S*  \s+  \n)+  $/
+
+  - do:
+      cat.thread_pool:
+          h: id,snapshot.type,snapshot.active,snapshot.size,snapshot.queue,snapshot.queueSize,snapshot.rejected,snapshot.largest,snapshot.completed,snapshot.min,snapshot.max,snapshot.keepAlive
+          v: true
+
+  - match:
+      $body: |
+               /^  id  \s+  snapshot.type            \s+  snapshot.active  \s+  snapshot.size  \s+  snapshot.queue  \s+  snapshot.queueSize  \s+  snapshot.rejected  \s+  snapshot.largest  \s+  snapshot.completed  \s+  snapshot.min  \s+  snapshot.max  \s+  snapshot.keepAlive  \s+  \n
+                  (\S+ \s+  (cached|fixed|scaling)?  \s+              \d+  \s+            \d+  \s+             \d+  \s+                 \d*  \s+                \d+  \s+               \d+  \s+                 \d+  \s+           \d*  \s+           \d*  \s+                 \S*  \s+  \n)+  $/
+
+  - do:
+      cat.thread_pool:
+          h: id,suggest.type,suggest.active,suggest.size,suggest.queue,suggest.queueSize,suggest.rejected,suggest.largest,suggest.completed,suggest.min,suggest.max,suggest.keepAlive
+          v: true
+
+  - match:
+      $body: |
+               /^  id  \s+  suggest.type             \s+  suggest.active  \s+  suggest.size  \s+  suggest.queue  \s+  suggest.queueSize  \s+  suggest.rejected  \s+  suggest.largest  \s+  suggest.completed  \s+  suggest.min  \s+  suggest.max  \s+  suggest.keepAlive  \s+  \n
+                  (\S+ \s+  (cached|fixed|scaling)?  \s+             \d+  \s+           \d+  \s+            \d+  \s+                \d*  \s+               \d+  \s+              \d+  \s+                \d+  \s+          \d*  \s+          \d*  \s+                \S*  \s+  \n)+  $/
+
+  - do:
+      cat.thread_pool:
+          h: id,warmer.type,warmer.active,warmer.size,warmer.queue,warmer.queueSize,warmer.rejected,warmer.largest,warmer.completed,warmer.min,warmer.max,warmer.keepAlive
+          v: true
+
+  - match:
+      $body: |
+               /^  id  \s+  warmer.type              \s+  warmer.active  \s+  warmer.size  \s+  warmer.queue  \s+  warmer.queueSize  \s+  warmer.rejected  \s+  warmer.largest  \s+  warmer.completed  \s+  warmer.min  \s+  warmer.max  \s+  warmer.keepAlive  \s+  \n
+                  (\S+ \s+  (cached|fixed|scaling)?  \s+            \d+  \s+          \d+  \s+           \d+  \s+               \d*  \s+              \d+  \s+             \d+  \s+               \d+  \s+         \d*  \s+         \d*  \s+               \S*  \s+  \n)+  $/

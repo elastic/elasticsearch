@@ -1,0 +1,108 @@
+[[search-aggregations-pipeline-cumulative-sum-aggregation]]
+=== Cumulative Sum Aggregation
+
+coming[2.0.0-beta1]
+
+experimental[]
+
+A parent pipeline aggregation which calculates the cumulative sum of a specified metric in a parent histogram (or date_histogram) 
+aggregation. The specified metric must be numeric and the enclosing histogram must have `min_doc_count` set to `0` (default
+for `histogram` aggregations).
+
+==== Syntax
+
+A `cumulative_sum` aggregation looks like this in isolation:
+
+[source,js]
+--------------------------------------------------
+{
+    "cumulative_sum": {
+        "buckets_path": "the_sum"
+    }
+}
+--------------------------------------------------
+
+.`cumulative_sum` Parameters
+|===
+|Parameter Name |Description |Required |Default Value
+|`buckets_path` |The path to the buckets we wish to find the cumulative sum for (see <<buckets-path-syntax>> for more
+ details) |Required |
+ |`format` |format to apply to the output value of this aggregation |Optional, defaults to `null` |
+|===
+
+The following snippet calculates the cumulative sum of the total monthly `sales`:
+
+[source,js]
+--------------------------------------------------
+{
+    "aggs" : {
+        "sales_per_month" : {
+            "date_histogram" : {
+                "field" : "date",
+                "interval" : "month"
+            },
+            "aggs": {
+                "sales": {
+                    "sum": {
+                        "field": "price"
+                    }
+                },
+                "cumulative_sales": {
+                    "cumulative_sum": {
+                        "buckets_path": "sales" <1>
+                    }
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+<1> `buckets_path` instructs this cumulative sum aggregation to use the output of the `sales` aggregation for the cumulative sum
+
+And the following may be the response:
+
+[source,js]
+--------------------------------------------------
+{
+   "aggregations": {
+      "sales_per_month": {
+         "buckets": [
+            {
+               "key_as_string": "2015/01/01 00:00:00",
+               "key": 1420070400000,
+               "doc_count": 3,
+               "sales": {
+                  "value": 550
+               },
+               "cumulative_sales": {
+                  "value": 550
+               }
+            },
+            {
+               "key_as_string": "2015/02/01 00:00:00",
+               "key": 1422748800000,
+               "doc_count": 2,
+               "sales": {
+                  "value": 60
+               },
+               "cumulative_sales": {
+                  "value": 610 
+               }
+            },
+            {
+               "key_as_string": "2015/03/01 00:00:00",
+               "key": 1425168000000,
+               "doc_count": 2,
+               "sales": {
+                  "value": 375
+               },
+               "cumulative_sales": {
+                  "value": 985
+               }
+            }
+         ]
+      }
+   }
+}
+--------------------------------------------------

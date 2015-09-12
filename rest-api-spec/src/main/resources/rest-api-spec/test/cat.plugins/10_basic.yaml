@@ -1,0 +1,16 @@
+---
+"Help":
+  - do:
+      cat.plugins:
+        help: true
+
+  - match:
+      $body: |
+               /^   id          .+   \n
+                    name        .+   \n
+                    component   .+   \n
+                    version     .+   \n
+                    type        .+   \n
+                    url         .+   \n
+                    description .+   \n
+               $/

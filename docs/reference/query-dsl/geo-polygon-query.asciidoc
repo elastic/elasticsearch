@@ -1,0 +1,132 @@
+[[query-dsl-geo-polygon-query]]
+=== Geo Polygon Query
+
+A query allowing to include hits that only fall within a polygon of
+points. Here is an example:
+
+[source,js]
+--------------------------------------------------
+{
+    "bool" : {
+        "query" : {
+            "match_all" : {}
+        },
+        "filter" : {
+            "geo_polygon" : {
+                "person.location" : {
+                    "points" : [
+                        {"lat" : 40, "lon" : -70},
+                        {"lat" : 30, "lon" : -80},
+                        {"lat" : 20, "lon" : -90}
+                    ]
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+[float]
+==== Query Options
+
+[cols="<,<",options="header",]
+|=======================================================================
+|Option |Description
+|`_name` |Optional name field to identify the filter
+
+|`coerce` |Set to `true` to normalize longitude and latitude values to a
+standard -180:180 / -90:90 coordinate system. (default is `false`).
+
+|`ignore_malformed` |Set to `true` to accept geo points with invalid latitude or
+longitude (default is `false`).
+|=======================================================================
+
+[float]
+==== Allowed Formats
+
+[float]
+===== Lat Long as Array
+
+Format in `[lon, lat]`, note, the order of lon/lat here in order to
+conform with http://geojson.org/[GeoJSON].
+
+[source,js]
+--------------------------------------------------
+{
+    "bool" : {
+        "must" : {
+            "match_all" : {}
+        },
+        "filter" : {
+            "geo_polygon" : {
+                "person.location" : {
+                    "points" : [
+                        [-70, 40],
+                        [-80, 30],
+                        [-90, 20]
+                    ]
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+[float]
+===== Lat Lon as String
+
+Format in `lat,lon`.
+
+[source,js]
+--------------------------------------------------
+{
+    "bool" : {
+        "must" : {
+            "match_all" : {}
+        },
+        "filter" : {
+            "geo_polygon" : {
+                "person.location" : {
+                    "points" : [
+                        "40, -70",
+                        "30, -80",
+                        "20, -90"
+                    ]
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+[float]
+===== Geohash
+
+[source,js]
+--------------------------------------------------
+{
+    "bool" : {
+        "must" : {
+            "match_all" : {}
+        },
+        "filter" : {
+            "geo_polygon" : {
+                "person.location" : {
+                    "points" : [
+                        "drn5x1g8cu2y",
+                        "30, -80",
+                        "20, -90"
+                    ]
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+[float]
+==== geo_point Type
+
+The query *requires* the <<geo-point,`geo_point`>> type to be set on the
+relevant field.
+

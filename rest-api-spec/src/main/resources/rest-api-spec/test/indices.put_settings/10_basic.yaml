@@ -1,0 +1,56 @@
+setup:
+  - do:
+      indices.create:
+        index: test-index
+        body:
+          settings:
+            index:
+              number_of_replicas: 0
+
+---
+"Test indices settings":
+  - do:
+      indices.get_settings:
+        index: test-index
+        flat_settings: true
+
+  - match:
+      test-index.settings.index\.number_of_replicas: "0"
+
+  - do:
+      indices.put_settings:
+        body:
+          number_of_replicas: 1
+
+  - do:
+      indices.get_settings:
+        flat_settings: false
+
+  - match:
+      test-index.settings.index.number_of_replicas: "1"
+
+---
+"Test indices settings ignore_unavailable":
+  - do:
+      indices.put_settings:
+        ignore_unavailable: true
+        index: test-index, non-existing
+        body:
+          number_of_replicas: 1
+
+  - do:
+      indices.get_settings: {}
+
+  - match:
+      test-index.settings.index.number_of_replicas: "1"
+
+---
+"Test indices settings allow_no_indices":
+  - do:
+      indices.put_settings:
+        expand_wildcards: open
+        allow_no_indices: true
+        index: non-existing-*
+        body:
+          number_of_replicas: 1
+

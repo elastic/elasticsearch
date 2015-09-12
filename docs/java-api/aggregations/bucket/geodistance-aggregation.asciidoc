@@ -1,0 +1,60 @@
+[[java-aggs-bucket-geodistance]]
+==== Geo Distance Aggregation
+
+Here is how you can use
+{ref}/search-aggregations-bucket-geodistance-aggregation.html[Geo Distance Aggregation]
+with Java API.
+
+
+===== Prepare aggregation request
+
+Here is an example on how to create the aggregation request:
+
+[source,java]
+--------------------------------------------------
+AggregationBuilder aggregation =
+        AggregationBuilders
+                .geoDistance("agg")
+                .field("address.location")
+                .point(new GeoPoint(48.84237171118314,2.33320027692004))
+                .unit(DistanceUnit.KILOMETERS)
+                .addUnboundedTo(3.0)
+                .addRange(3.0, 10.0)
+                .addRange(10.0, 500.0);
+--------------------------------------------------
+
+
+===== Use aggregation response
+
+Import Aggregation definition classes:
+
+[source,java]
+--------------------------------------------------
+import org.elasticsearch.search.aggregations.bucket.range.Range;
+--------------------------------------------------
+
+[source,java]
+--------------------------------------------------
+// sr is here your SearchResponse object
+Range agg = sr.getAggregations().get("agg");
+
+// For each entry
+for (Range.Bucket entry : agg.getBuckets()) {
+    String key = entry.getKeyAsString();    // key as String
+    Number from = (Number) entry.getFrom(); // bucket from value
+    Number to = (Number) entry.getTo();     // bucket to value
+    long docCount = entry.getDocCount();    // Doc count
+
+    logger.info("key [{}], from [{}], to [{}], doc_count [{}]", key, from, to, docCount);
+}
+--------------------------------------------------
+
+This will basically produce:
+
+[source,text]
+--------------------------------------------------
+key [*-3.0], from [0.0], to [3.0], doc_count [161]
+key [3.0-10.0], from [3.0], to [10.0], doc_count [460]
+key [10.0-500.0], from [10.0], to [500.0], doc_count [4925]
+--------------------------------------------------
+

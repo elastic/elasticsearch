@@ -1,0 +1,19 @@
+[[java-query-dsl-span-containing-query]]
+==== Span Containing Query
+
+See {ref}/query-dsl-span-containing-query.html[Span Containing Query]
+
+[source,java]
+--------------------------------------------------
+QueryBuilder qb = spanContainingQuery()
+    .little(spanTermQuery("field1","foo"))      <1>
+    .big(spanNearQuery()                        <2>
+        .clause(spanTermQuery("field1","bar"))
+        .clause(spanTermQuery("field1","baz"))
+        .slop(5)
+        .inOrder(true)
+    );
+--------------------------------------------------
+<1> `little` part
+<2> `big` part
+

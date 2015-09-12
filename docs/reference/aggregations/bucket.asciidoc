@@ -1,0 +1,49 @@
+[[search-aggregations-bucket]]
+== Bucket Aggregations
+
+Bucket aggregations don't calculate metrics over fields like the metrics aggregations do, but instead, they create
+buckets of documents. Each bucket is associated with a criterion (depending on the aggregation type) which determines
+whether or not a document in the current context "falls" into it. In other words, the buckets effectively define document
+sets. In addition to the buckets themselves, the `bucket` aggregations also compute and return the number of documents
+that "fell in" to each bucket.
+
+Bucket aggregations, as opposed to `metrics` aggregations, can hold sub-aggregations. These sub-aggregations will be
+aggregated for the buckets created by their "parent" bucket aggregation.
+
+There are different bucket aggregators, each with a different "bucketing" strategy. Some define a single bucket, some
+define fixed number of multiple buckets, and others dynamically create the buckets during the aggregation process.
+
+include::bucket/children-aggregation.asciidoc[]
+
+include::bucket/datehistogram-aggregation.asciidoc[]
+
+include::bucket/daterange-aggregation.asciidoc[]
+
+include::bucket/filter-aggregation.asciidoc[]
+
+include::bucket/filters-aggregation.asciidoc[]
+
+include::bucket/geodistance-aggregation.asciidoc[]
+
+include::bucket/geohashgrid-aggregation.asciidoc[]
+
+include::bucket/global-aggregation.asciidoc[]
+
+include::bucket/histogram-aggregation.asciidoc[]
+
+include::bucket/iprange-aggregation.asciidoc[]
+
+include::bucket/missing-aggregation.asciidoc[]
+
+include::bucket/nested-aggregation.asciidoc[]
+
+include::bucket/range-aggregation.asciidoc[]
+
+include::bucket/reverse-nested-aggregation.asciidoc[]
+
+include::bucket/sampler-aggregation.asciidoc[]
+
+include::bucket/significantterms-aggregation.asciidoc[]
+
+include::bucket/terms-aggregation.asciidoc[]
+

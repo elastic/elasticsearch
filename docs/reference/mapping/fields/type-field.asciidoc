@@ -1,31 +1,60 @@
 [[mapping-type-field]]
-=== `_type`
+=== `_type` field
 
-Each document indexed is associated with an id and a type. The type,
-when indexing, is automatically indexed into a `_type` field. By
-default, the `_type` field is indexed (but *not* analyzed) and not
-stored. This means that the `_type` field can be queried.
+Each document indexed is associated with a <<mapping-type-field,`_type`>> (see
+<<mapping-type>>) and an <<mapping-id-field,`_id`>>.  The `_type` field is
+indexed in order to make searching by type name fast.
 
-The `_type` field can be stored as well, for example:
-
-[source,js]
---------------------------------------------------
-{
-    "tweet" : {
-        "_type" : {"store" : true}
-    }
-}
---------------------------------------------------
-
-The `_type` field can also not be indexed, and all the APIs will still
-work except for specific queries (term queries / filters) or faceting
-done on the `_type` field.
+The value of the `_type` field is accessible in queries, aggregations,
+scripts, and when sorting:
 
 [source,js]
---------------------------------------------------
+--------------------------
+# Example documents
+PUT my_index/type_1/1
 {
-    "tweet" : {
-        "_type" : {"index" : "no"}
-    }
+  "text": "Document with type 1"
 }
---------------------------------------------------
+
+PUT my_index/type_2/2
+{
+  "text": "Document with type 2"
+}
+
+GET my_index/_search/type_*
+{
+  "query": {
+    "terms": {
+      "_type": [ "type_1", "type_2" ] <1>
+    }
+  },
+  "aggs": {
+    "types": {
+      "terms": {
+        "field": "_type", <2>
+        "size": 10
+      }
+    }
+  },
+  "sort": [
+    {
+      "_type": { <3>
+        "order": "desc"
+      }
+    }
+  ],
+  "script_fields": {
+    "type": {
+      "script": "doc['_type']" <4>
+    }
+  }
+}
+
+--------------------------
+// AUTOSENSE
+
+<1> Querying on the `_type` field
+<2> Aggregating on the `_type` field
+<3> Sorting on the `_type` field
+<4> Accessing the `_type` field in scripts (inline scripts must be <<enable-dynamic-scripting,enabled>> for this example to work)
+

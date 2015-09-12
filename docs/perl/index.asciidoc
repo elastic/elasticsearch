@@ -18,7 +18,7 @@ This client provides:
 
 * Full support for all Elasticsearch APIs
 
-* HTTP backend (currently synchronous only - Any::Event support will be added later)
+* HTTP backend (blocking and asynchronous with https://metacpan.org/module/Search::Elasticsearch::Async)
 
 * Robust networking support which handles load balancing, failure detection and failover
 
@@ -63,7 +63,7 @@ $e->index(
     body    => {
         title   => 'Elasticsearch clients',
         content => 'Interesting content...',
-        date    => '2013-09-24'
+        date    => '2014-09-24'
     }
 );
 
@@ -115,7 +115,7 @@ https://github.com/elasticsearch/elasticsearch-perl/blob/master/CONTRIBUTING.asc
 
 == Copyright and License
 
-This software is Copyright (c) 2013-2014 by Elasticsearch BV.
+This software is Copyright (c) 2013-2015 by Elasticsearch BV.
 
 This is free software, licensed under:
 https://github.com/elasticsearch/elasticsearch-perl/blob/master/LICENSE.txt[The Apache License Version 2.0].

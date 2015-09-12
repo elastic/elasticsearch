@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>org.elasticsearch.plugin</groupId>
+        <artifactId>plugins</artifactId>
+        <version>3.0.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>discovery-ec2</artifactId>
+    <name>Plugin: Discovery: EC2</name>
+    <description>The EC2 discovery plugin allows to use AWS API for the unicast discovery mechanism.</description>
+
+    <properties>
+        <elasticsearch.plugin.classname>org.elasticsearch.plugin.discovery.ec2.Ec2DiscoveryPlugin</elasticsearch.plugin.classname>
+        <amazonaws.version>1.10.12</amazonaws.version>
+        <tests.jvms>1</tests.jvms>
+        <tests.rest.suite>discovery_ec2</tests.rest.suite>
+        <tests.rest.load_packaged>false</tests.rest.load_packaged>
+        <xlint.options>-Xlint:-rawtypes</xlint.options>
+    </properties>
+
+    <dependencies>
+        <!-- AWS SDK -->
+        <dependency>
+            <groupId>com.amazonaws</groupId>
+            <artifactId>aws-java-sdk-ec2</artifactId>
+            <version>${amazonaws.version}</version>
+        </dependency>
+        <!-- We need to force here the compile scope as it was defined as test scope in plugins/pom.xml -->
+        <!-- TODO: remove this dependency when we will have a REST Test module -->
+        <dependency>
+            <groupId>org.apache.httpcomponents</groupId>
+            <artifactId>httpclient</artifactId>
+            <scope>compile</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-assembly-plugin</artifactId>
+            </plugin>
+        </plugins>
+    </build>
+
+</project>

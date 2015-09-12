@@ -1,13 +1,10 @@
-[[breaking-changes]]
-= Breaking changes in 1.0
+[[breaking-changes-1.0]]
+== Breaking changes in 1.0
 
-[partintro]
---
 This section discusses the changes that you need to be aware of when migrating
 your application to Elasticsearch 1.0.
---
 
-== System and settings
+=== System and settings
 
 * Elasticsearch now runs in the foreground by default.  There is no more `-f`
   flag on the command line.  Instead, to run elasticsearch as a daemon, use
@@ -41,7 +38,7 @@ your application to Elasticsearch 1.0.
 cluster.routing.allocation.enable: all|primaries|new_primaries|none
 ---------------
 
-== Stats and Info APIs
+=== Stats and Info APIs
 
 The <<cluster-state,`cluster_state`>>, <<cluster-nodes-info,`nodes_info`>>,
 <<cluster-nodes-stats,`nodes_stats`>> and <<indices-stats,`indices_stats`>>
@@ -62,7 +59,7 @@ you now use:
 GET /_cluster/state/nodes
 ---------------
 
-Simliarly for the `nodes_stats` API, if you want the `transport` and `http`
+Similarly for the `nodes_stats` API, if you want the `transport` and `http`
 metrics only, instead of:
 
 [source,sh]
@@ -80,7 +77,7 @@ GET /_nodes/stats/transport,http
 See the links above for full details.
 
 
-== Indices APIs
+=== Indices APIs
 
 The `mapping`, `alias`, `settings`, and `warmer` index APIs are all similar
 but there are subtle differences in the order of the URL and the response
@@ -129,7 +126,7 @@ rules:
 * The response format always has the index name, then the section, then the
   element name, for instance:
 +
-[source,json]
+[source,js]
 ---------------
 {
     "my_index": {
@@ -146,16 +143,15 @@ In the future we will also provide plural versions to allow putting multiple map
 
 See <<indices-put-mapping,`put-mapping`>>, <<indices-get-mapping,`get-
 mapping`>>, <<indices-get-field-mapping,`get-field-mapping`>>,
-<<indices-delete-mapping,`delete-mapping`>>,
 <<indices-update-settings,`update-settings`>>, <<indices-get-settings,`get-settings`>>,
 <<indices-warmers,`warmers`>>, and <<indices-aliases,`aliases`>> for more details.
 
-== Index request
+=== Index request
 
 Previously a document could be indexed as itself, or wrapped in an outer
 object which specified the `type` name:
 
-[source,json]
+[source,js]
 ---------------
 PUT /my_index/my_type/1
 {
@@ -170,14 +166,14 @@ name as the `type`.  We no longer accept the outer `type` wrapper, but this
 behaviour can be reenabled on an index-by-index basis with the setting:
 `index.mapping.allow_type_wrapper`.
 
-== Search requests
+=== Search requests
 
 While the `search` API takes a top-level `query` parameter, the
-<<search-count,`count`>>, <<docs-delete-by-query,`delete-by-query`>> and
+<<search-count,`count`>>, `delete-by-query` and
 <<search-validate,`validate-query`>> requests expected the whole body to be a
 query. These now _require_ a top-level `query` parameter:
 
-[source,json]
+[source,js]
 ---------------
 GET /_count
 {
@@ -192,13 +188,13 @@ GET /_count
 Also, the top-level `filter` parameter in search has been renamed to
 <<search-request-post-filter,`post_filter`>>, to indicate that it should not
 be used as the primary way to filter search results (use a
-<<query-dsl-filtered-query,`filtered` query>> instead), but only to filter
-results AFTER facets/aggregations have been calculated.
+<<query-dsl-bool-query,`bool` query>> instead), but only to filter
+results AFTER aggregations have been calculated.
 
 This example counts the top colors in all matching docs, but only returns docs
 with color `red`:
 
-[source,json]
+[source,js]
 ---------------
 GET /_search
 {
@@ -218,14 +214,14 @@ GET /_search
 }
 ---------------
 
-== Multi-fields
+=== Multi-fields
 
 Multi-fields are dead! Long live multi-fields!  Well, the field type
 `multi_field` has been removed.  Instead, any of the core field types
 (excluding `object` and `nested`) now accept a `fields` parameter.  It's the
 same thing, but nicer. Instead of:
 
-[source,json]
+[source,js]
 ---------------
 "title": {
     "type": "multi_field",
@@ -238,7 +234,7 @@ same thing, but nicer. Instead of:
 
 you can now write:
 
-[source,json]
+[source,js]
 ---------------
 "title": {
     "type": "string",
@@ -254,14 +250,14 @@ Also, instead of having to use the arcane `path` and `index_name` parameters
 in order to index multiple fields into a single ``custom +_all+ field'', you
 can now use the <<copy-to,`copy_to` parameter>>.
 
-== Stopwords
+=== Stopwords
 
 Previously, the <<analysis-standard-analyzer,`standard`>> and
 <<analysis-pattern-analyzer,`pattern`>> analyzers used the list of English stopwords
 by default, which caused some hard to debug indexing issues.  Now they are set to
 use the empty stopwords list (ie `_none_`) instead.
 
-== Dates without years
+=== Dates without years
 
 When dates are specified without a year, for example: `Dec 15 10:00:00` they
 are treated as dates in 2000 during indexing and range searches... except for
@@ -269,7 +265,7 @@ the upper included bound `lte` where they were treated as dates in 1970!  Now,
 all https://github.com/elasticsearch/elasticsearch/issues/4451[dates without years]
 use `1970` as the default.
 
-== Parameters
+=== Parameters
 
 * Geo queries used to use `miles` as the default unit.  And we
   http://en.wikipedia.org/wiki/Mars_Climate_Orbiter[all know what
@@ -300,7 +296,7 @@ DELETE /*
 Setting `action.destructive_requires_name` to `true` provides further safety
 by disabling wildcard expansion on destructive actions.
 
-== Return values
+=== Return values
 
 * The `ok` return value has been removed from all response bodies as it added
   no useful information.
@@ -326,7 +322,7 @@ parameters instead.
 * Settings, like `index.analysis.analyzer.default` are now returned as proper
   nested JSON objects, which makes them easier to work with programatically:
 +
-[source,json]
+[source,js]
 ---------------
 {
     "index": {
@@ -345,7 +341,7 @@ in the query string.
 * The <<indices-analyze,`analyze`>> API no longer supports the text response
   format, but does support JSON and YAML.
 
-== Deprecations
+=== Deprecations
 
 * The `text` query has been removed.  Use the
   <<query-dsl-match-query,`match`>> query instead.
@@ -353,9 +349,9 @@ in the query string.
 * The `field` query has been removed.  Use the
   <<query-dsl-query-string-query,`query_string`>> query instead.
 
-* Per-document boosting with the <<mapping-boost-field,`_boost`>> field has
+* Per-document boosting with the `_boost` field has
   been removed.  You can use the
-  <<function-score-instead-of-boost,`function_score`>> instead.
+  <<query-dsl-function-score-query,`function_score`>> instead.
 
 * The `path` parameter in mappings has been deprecated. Use the
   <<copy-to,`copy_to`>> parameter instead.
@@ -363,10 +359,10 @@ in the query string.
 * The `custom_score` and `custom_boost_score` is no longer supported. You can
   use <<query-dsl-function-score-query,`function_score`>> instead.
 
-== Percolator
+=== Percolator
 
 The percolator has been redesigned and because of this the dedicated `_percolator` index is no longer used by the percolator,
-but instead the percolator works with a dedicated `.percolator` type. Read the http://www.elasticsearch.org/blog/percolator-redesign-blog-post/[redesigned percolator]
+but instead the percolator works with a dedicated `.percolator` type. Read the http://www.elastic.co/blog/percolator-redesign-blog-post[redesigned percolator]
 blog post for the reasons why the percolator has been redesigned.
 
 Elasticsearch will *not* delete the `_percolator` index when upgrading, only the percolate api will not use the queries

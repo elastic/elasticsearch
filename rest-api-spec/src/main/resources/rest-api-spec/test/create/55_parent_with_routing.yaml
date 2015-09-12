@@ -1,0 +1,55 @@
+---
+"Parent with routing":
+
+ - do:
+      indices.create:
+          index: test_1
+          body:
+            mappings:
+              test:
+                _parent: { type: "foo" }
+            settings:
+              number_of_shards: 5
+              number_of_replicas: 0
+
+ - do:
+      cluster.health:
+          wait_for_status: green
+
+ - do:
+      create:
+          index:   test_1
+          type:    test
+          id:      1
+          parent:  5
+          routing: 4
+          body:    { foo: bar }
+
+ - do:
+      get:
+          index:   test_1
+          type:    test
+          id:      1
+          parent:  5
+          routing: 4
+          fields:  [_parent, _routing]
+
+ - match:   { _id:      "1"}
+ - match:   { _parent: "5"}
+ - match:   { _routing: "4"}
+
+ - do:
+      catch: missing
+      get:
+          index:   test_1
+          type:    test
+          id:      1
+          parent:  5
+
+ - do:
+      get:
+          index:   test_1
+          type:    test
+          id:      1
+          routing: 4
+

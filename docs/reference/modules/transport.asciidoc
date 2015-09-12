@@ -31,15 +31,54 @@ is behind a proxy or firewall and the `transport.tcp.port` is not directly
 addressable from the outside. Defaults to the actual port assigned via
 `transport.tcp.port`.
 
+|`transport.bind_host` |The host address to bind the transport service to. Defaults to `transport.host` (if set) or `network.bind_host`.
+
+|`transport.publish_host` |The host address to publish for nodes in the cluster to connect to. Defaults to `transport.host` (if set) or `network.publish_host`.
+
+|`transport.host` |Used to set the `transport.bind_host` and the `transport.publish_host` Defaults to `transport.host` or `network.host`.
+
+
 |`transport.tcp.connect_timeout` |The socket connect timeout setting (in
 time setting format). Defaults to `30s`.
 
 |`transport.tcp.compress` |Set to `true` to enable compression (LZF)
 between all nodes. Defaults to `false`.
+
+|`transport.ping_schedule` | Schedule a regular ping message to ensure that connections are kept alive. Defaults to `5s` in the transport client and `-1` (disabled) elsewhere.
+
 |=======================================================================
 
 It also uses the common
 <<modules-network,network settings>>.
+
+[float]
+==== TCP Transport Profiles
+
+Elasticsearch allows you to bind to multiple ports on different interfaces by the use of transport profiles. See this example configuration
+
+[source,yaml]
+--------------
+transport.profiles.default.port: 9300-9400
+transport.profiles.default.bind_host: 10.0.0.1
+transport.profiles.client.port: 9500-9600
+transport.profiles.client.bind_host: 192.168.0.1
+transport.profiles.dmz.port: 9700-9800
+transport.profiles.dmz.bind_host: 172.16.1.2
+--------------
+
+The `default` profile is a special. It is used as fallback for any other profiles, if those do not have a specific configuration setting set.
+Note that the default profile is how other nodes in the cluster will connect to this node usually. In the future this feature will allow to enable node-to-node communication via multiple interfaces.
+
+The following parameters can be configured like that
+
+* `port`: The port to bind to
+* `bind_host`: The host to bind
+* `publish_host`: The host which is published in informational APIs
+* `tcp_no_delay`: Configures the `TCP_NO_DELAY` option for this socket
+* `tcp_keep_alive`: Configures the `SO_KEEPALIVE` option for this socket
+* `reuse_address`: Configures the `SO_REUSEADDR` option for this socket
+* `tcp_send_buffer_size`: Configures the send buffer size of the socket
+* `tcp_receive_buffer_size`: Configures the receive buffer size of the socket
 
 [float]
 === Local Transport
@@ -47,3 +86,33 @@ It also uses the common
 This is a handy transport to use when running integration tests within
 the JVM. It is automatically enabled when using
 `NodeBuilder#local(true)`.
+
+[float]
+=== Transport Tracer
+
+The transport module has a dedicated tracer logger which, when activated, logs incoming and out going requests. The log can be dynamically activated
+by settings the level of the `transport.tracer` logger to `TRACE`:
+
+[source,js]
+--------------------------------------------------
+curl -XPUT localhost:9200/_cluster/settings -d '{
+    "transient" : {
+        "logger.transport.tracer" : "TRACE"
+    }
+}'
+--------------------------------------------------
+
+You can also control which actions will be traced, using a set of include and exclude wildcard patterns. By default every request will be traced
+except for fault detection pings:
+
+[source,js]
+--------------------------------------------------
+curl -XPUT localhost:9200/_cluster/settings -d '{
+    "transient" : {
+        "transport.tracer.include" : "*"
+        "transport.tracer.exclude" : "internal:discovery/zen/fd*"
+    }
+}'
+--------------------------------------------------
+
+

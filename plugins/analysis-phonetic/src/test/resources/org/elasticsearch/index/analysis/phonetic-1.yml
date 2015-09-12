@@ -1,0 +1,30 @@
+index:
+  analysis:
+    filter:
+      doublemetaphonefilter:
+        type: phonetic
+        encoder: doublemetaphone
+      metaphonefilter:
+        type: phonetic
+        encoder: metaphone
+      soundexfilter:
+        type: phonetic
+        encoder: soundex
+      refinedsoundexfilter:
+        type: phonetic
+        encoder: refinedsoundex
+      caverphonefilter:
+        type: phonetic
+        encoder: caverphone
+      beidermorsefilter:
+        type: phonetic
+        encoder: beidermorse
+      koelnerphonetikfilter:
+        type: phonetic
+        encoder: koelnerphonetik
+      haasephonetikfilter:
+        type: phonetic
+        encoder: haasephonetik
+      nysiisfilter:
+        type: phonetic
+        encoder: nysiis

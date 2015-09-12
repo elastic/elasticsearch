@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Licensed to Elasticsearch under one or more contributor
+license agreements. See the NOTICE file distributed with this work for additional
+information regarding copyright ownership. ElasticSearch licenses this file to you
+under the Apache License, Version 2.0 (the "License"); you may not use this
+file except in compliance with the License. You may obtain a copy of the
+License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by
+applicable law or agreed to in writing, software distributed under the License
+is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+KIND, either express or implied. See the License for the specific language
+governing permissions and limitations under the License. -->
+
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>org.elasticsearch.plugin</groupId>
+        <artifactId>plugins</artifactId>
+        <version>3.0.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>delete-by-query</artifactId>
+    <name>Plugin: Delete By Query</name>
+    <description>The Delete By Query plugin allows to delete documents in Elasticsearch with a single query.</description>
+
+    <properties>
+        <elasticsearch.plugin.classname>org.elasticsearch.plugin.deletebyquery.DeleteByQueryPlugin</elasticsearch.plugin.classname>
+        <tests.ifNoTests>warn</tests.ifNoTests>
+        <tests.rest.suite>delete_by_query</tests.rest.suite>
+        <tests.rest.load_packaged>false</tests.rest.load_packaged>
+    </properties>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-assembly-plugin</artifactId>
+            </plugin>
+        </plugins>
+    </build>
+
+</project>

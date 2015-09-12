@@ -74,3 +74,42 @@ compound::   Whether the segment is stored in a compound file. When true, this
              means that Lucene merged all files from the segment in a single
              one in order to save file descriptors.
 
+=== Verbose mode
+
+To add additional information that can be used for debugging, use the `verbose` flag.
+
+experimental[The format of the additional verbose information is experimental and can change at any time]
+
+[source,js]
+--------------------------------------------------
+curl -XGET 'http://localhost:9200/test/_segments?verbose=true'
+--------------------------------------------------
+
+Response:
+
+[source,js]
+--------------------------------------------------
+{
+    ...
+        "_3": {
+            ...
+            "ram_tree": [
+                {
+                    "description": "postings [PerFieldPostings(format=1)]",
+                    "size_in_bytes": 2696,
+                    "children": [
+                        {
+                            "description": "format 'Lucene50_0' ...",
+                            "size_in_bytes": 2608,
+                            "children" :[ ... ]
+                        },
+                        ...
+                    ]
+                },
+                ...
+                ]
+
+        }
+    ...
+}
+--------------------------------------------------

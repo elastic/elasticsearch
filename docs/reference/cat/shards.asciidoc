@@ -7,7 +7,7 @@ docs, the bytes it takes on disk, and the node where it's located.
 
 Here we see a single index, with three primary shards and no replicas:
 
-[source,shell]
+[source,sh]
 --------------------------------------------------
 % curl 192.168.56.20:9200/_cat/shards
 wiki1 0 p STARTED 3014 31.1mb 192.168.56.10 Stiletto
@@ -22,7 +22,7 @@ If you have many shards, you may wish to limit which indices show up
 in the output.  You can always do this with `grep`, but you can save
 some bandwidth by supplying an index pattern to the end.
 
-[source,shell]
+[source,sh]
 --------------------------------------------------
 % curl 192.168.56.20:9200/_cat/shards/wiki2
 wiki2 0 p STARTED 197 3.2mb 192.168.56.10 Stiletto
@@ -37,7 +37,7 @@ wiki2 2 p STARTED 275 7.8mb 192.168.56.20 Commander Kraken
 Let's say you've checked your health and you see two relocating
 shards.  Where are they from and where are they going?
 
-[source,shell]
+[source,sh]
 --------------------------------------------------
 % curl 192.168.56.10:9200/_cat/health
 1384315316 20:01:56 foo green 3 3 12 6 2 0 0
@@ -52,7 +52,7 @@ wiki1 1 r RELOCATING 3013 29.6mb 192.168.56.10 Stiletto -> 192.168.56.30 Frankie
 Before a shard can be used, it goes through an `INITIALIZING` state.
 `shards` can show you which ones.
 
-[source,shell]
+[source,sh]
 --------------------------------------------------
 % curl -XPUT 192.168.56.20:9200/_settings -d'{"number_of_replicas":1}'
 {"acknowledged":true}
@@ -69,7 +69,7 @@ If a shard cannot be assigned, for example you've overallocated the
 number of replicas for the number of nodes in the cluster, they will
 remain `UNASSIGNED`.
 
-[source,shell]
+[source,sh]
 --------------------------------------------------
 % curl -XPUT 192.168.56.20:9200/_settings -d'{"number_of_replicas":3}'
 % curl 192.168.56.20:9200/_cat/health

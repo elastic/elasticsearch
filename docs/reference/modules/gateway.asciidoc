@@ -1,70 +1,51 @@
 [[modules-gateway]]
-== Gateway
+== Local Gateway
 
-The gateway module allows one to store the state of the cluster meta
-data across full cluster restarts. The cluster meta data mainly holds
-all the indices created with their respective (index level) settings and
-explicit type mappings.
+The local gateway module stores the cluster state and shard data across full
+cluster restarts.
 
-Each time the cluster meta data changes (for example, when an index is
-added or deleted), those changes will be persisted using the gateway.
-When the cluster first starts up, the state will be read from the
-gateway and applied.
+The following _static_ settings, which must be set on every data node in the
+cluster, controls how long nodes should wait before they try to recover any
+shards which are stored locally:
 
-The gateway set on the node level will automatically control the index
-gateway that will be used. For example, if the `local` gateway is used,
-then automatically, each index created on the node will also use its own
-respective index level `local` gateway. In this case, if an index should
-not persist its state, it should be explicitly set to `none` (which is
-the only other value it can be set to).
+`gateway.expected_nodes`::
 
-The default gateway used is the
-<<modules-gateway-local,local>> gateway.
+    The number of (data or master) nodes that are expected to be in the cluster.
+    Recovery of local shards will start as soon as the expected number of
+    nodes have joined the cluster. Defaults to `0`
 
-[float]
-[[recover-after]]
-=== Recovery After Nodes / Time
+`gateway.expected_master_nodes`::
 
-In many cases, the actual cluster meta data should only be recovered
-after specific nodes have started in the cluster, or a timeout has
-passed. This is handy when restarting the cluster, and each node local
-index storage still exists to be reused and not recovered from the
-gateway (which reduces the time it takes to recover from the gateway).
+    The number of master nodes that are expected to be in the cluster.
+    Recovery of local shards will start as soon as the expected number of
+    master nodes have joined the cluster. Defaults to `0`
 
-The `gateway.recover_after_nodes` setting (which accepts a number)
-controls after how many data and master eligible nodes within the
-cluster recovery will start. The `gateway.recover_after_data_nodes` and
-`gateway.recover_after_master_nodes` setting work in a similar fashion,
-except they consider only the number of data nodes and only the number
-of master nodes respectively. The `gateway.recover_after_time` setting
-(which accepts a time value) sets the time to wait till recovery happens
-once all `gateway.recover_after...nodes` conditions are met.
+`gateway.expected_data_nodes`::
 
-The `gateway.expected_nodes` allows to set how many data and master
-eligible nodes are expected to be in the cluster, and once met, the
-`recover_after_time` is ignored and recovery starts. The
-`gateway.expected_data_nodes` and `gateway.expected_master_nodes`
-settings are also supported. For example setting:
+    The number of data nodes that are expected to be in the cluster.
+    Recovery of local shards will start as soon as the expected number of
+    data nodes have joined the cluster. Defaults to `0`
 
-[source,js]
---------------------------------------------------
-gateway:
-    recover_after_nodes: 1
-    recover_after_time: 5m
-    expected_nodes: 2
---------------------------------------------------
+`gateway.recover_after_time`::
 
-In an expected 2 nodes cluster will cause recovery to start 5 minutes
-after the first node is up, but once there are 2 nodes in the cluster,
-recovery will begin immediately (without waiting).
+    If the expected number of nodes is not achieved, the recovery process waits
+    for the configured amount of time before trying to recover regardless.
+    Defaults to `5m` if one of the `expected_nodes` settings is configured.
 
-Note, once the meta data has been recovered from the gateway (which
-indices to create, mappings and so on), then this setting is no longer
-effective until the next full restart of the cluster.
+Once the `recover_after_time` duration has timed out, recovery will start
+as long as the following conditions are met:
 
-Operations are blocked while the cluster meta data has not been
-recovered in order not to mix with the actual cluster meta data that
-will be recovered once the settings has been reached.
+`gateway.recover_after_nodes`::
 
-include::gateway/local.asciidoc[]
+    Recover as long as this many data or master nodes have joined the cluster.
+
+`gateway.recover_after_master_nodes`::
+
+    Recover as long as this many master nodes have joined the cluster.
+
+`gateway.recover_after_data_nodes`::
+
+    Recover as long as this many data nodes have joined the cluster.
+
+NOTE: These settings only take effect on a full cluster restart.
 

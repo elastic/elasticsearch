@@ -1,0 +1,87 @@
+---
+"Search with response filtering":
+  - do:
+      indices.create:
+          index:  test
+  - do:
+      index:
+          index:  test
+          type:   test
+          id:     1
+          body:   { foo: bar }
+
+  - do:
+      index:
+          index:  test
+          type:   test
+          id:     2
+          body:   { foo: bar }
+
+  - do:
+      indices.refresh:
+        index: [test]
+
+  - do:
+      search:
+        index: test
+        filter_path: "*"
+        body: "{ query: { match_all: {} } }"
+
+  - is_true: took
+  - is_true: _shards.total
+  - is_true: hits.total
+  - is_true: hits.hits.0._index
+  - is_true: hits.hits.0._type
+  - is_true: hits.hits.0._id
+  - is_true: hits.hits.1._index
+  - is_true: hits.hits.1._type
+  - is_true: hits.hits.1._id
+
+  - do:
+      search:
+        index: test
+        filter_path: "took"
+        body: "{ query: { match_all: {} } }"
+
+  - is_true:  took
+  - is_false: _shards.total
+  - is_false: hits.total
+  - is_false: hits.hits.0._index
+  - is_false: hits.hits.0._type
+  - is_false: hits.hits.0._id
+  - is_false: hits.hits.1._index
+  - is_false: hits.hits.1._type
+  - is_false: hits.hits.1._id
+
+  - do:
+      search:
+        index: test
+        filter_path: "_shards.*"
+        body: "{ query: { match_all: {} } }"
+
+  - is_false: took
+  - is_true:  _shards.total
+  - is_false: hits.total
+  - is_false: hits.hits.0._index
+  - is_false: hits.hits.0._type
+  - is_false: hits.hits.0._id
+  - is_false: hits.hits.1._index
+  - is_false: hits.hits.1._type
+  - is_false: hits.hits.1._id
+
+  - do:
+      search:
+        index: test
+        filter_path: [ "hits.**._i*", "**.total" ]
+        body: "{ query: { match_all: {} } }"
+
+  - is_false: took
+  - is_true:  _shards.total
+  - is_true:  hits.total
+  - is_true:  hits.hits.0._index
+  - is_false: hits.hits.0._type
+  - is_true:  hits.hits.0._id
+  - is_true:  hits.hits.1._index
+  - is_false: hits.hits.1._type
+  - is_true:  hits.hits.1._id
+

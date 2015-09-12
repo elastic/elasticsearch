@@ -1,0 +1,8 @@
+{
+    "regexp": {
+        "name.first": {
+            "value": "s.*y",
+            "max_determinized_states": 5000
+        }
+    }
+}

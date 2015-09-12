@@ -1,0 +1,22 @@
+NAME
+
+    elasticsearch - Manages elasticsearch
+
+SYNOPSIS
+
+    elasticsearch <command>
+
+DESCRIPTION
+
+    Start an elasticsearch node
+
+COMMANDS
+
+    start      Start elasticsearch
+
+    version    Show version information and exit
+
+NOTES
+
+    [*] For usage help on specific commands please type "elasticsearch <command> -h"
+

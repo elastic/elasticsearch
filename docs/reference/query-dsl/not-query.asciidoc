@@ -1,0 +1,51 @@
+[[query-dsl-not-query]]
+=== Not Query
+
+A query that filters out matched documents using a query. For example:
+
+[source,js]
+--------------------------------------------------
+{
+    "bool" : {
+        "must" : {
+            "term" : { "name.first" : "shay" }
+        },
+        "filter" : {
+            "not" : {
+                "range" : {
+                    "postDate" : {
+                        "from" : "2010-03-01",
+                        "to" : "2010-04-01"
+                    }
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+Or, in a longer form with a `filter` element:
+
+[source,js]
+--------------------------------------------------
+{
+    "bool" : {
+        "must" : {
+            "term" : { "name.first" : "shay" }
+        },
+        "filter" : {
+            "not" : {
+                "filter" :  {
+                    "range" : {
+                        "postDate" : {
+                            "from" : "2010-03-01",
+                            "to" : "2010-04-01"
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+

@@ -1,0 +1,275 @@
+[[search-aggregations-metrics-top-hits-aggregation]]
+=== Top hits Aggregation
+
+A `top_hits` metric aggregator keeps track of the most relevant document being aggregated. This aggregator is intended
+to be used as a sub aggregator, so that the top matching documents can be aggregated per bucket.
+
+The `top_hits` aggregator can effectively be used to group result sets by certain fields via a bucket aggregator.
+One or more bucket aggregators determines by which properties a result set get sliced into.
+
+==== Options
+
+* `from` - The offset from the first result you want to fetch.
+* `size` - The maximum number of top matching hits to return per bucket. By default the top three matching hits are returned.
+* `sort` - How the top matching hits should be sorted. By default the hits are sorted by the score of the main query.
+
+==== Supported per hit features
+
+The top_hits aggregation returns regular search hits, because of this many per hit features can be supported:
+
+* <<search-request-highlighting,Highlighting>>
+* <<search-request-explain,Explain>>
+* <<search-request-named-queries-and-filters,Named filters and queries>>
+* <<search-request-source-filtering,Source filtering>>
+* <<search-request-script-fields,Script fields>>
+* <<search-request-fielddata-fields,Fielddata fields>>
+* <<search-request-version,Include versions>>
+
+==== Example
+
+In the following example we group the questions by tag and per tag we show the last active question. For each question
+only the title field is being included in the source.
+
+[source,js]
+--------------------------------------------------
+{
+    "aggs": {
+        "top-tags": {
+            "terms": {
+                "field": "tags",
+                "size": 3
+            },
+            "aggs": {
+                "top_tag_hits": {
+                    "top_hits": {
+                        "sort": [
+                            {
+                                "last_activity_date": {
+                                    "order": "desc"
+                                }
+                            }
+                        ],
+                        "_source": {
+                            "include": [
+                                "title"
+                            ]
+                        },
+                        "size" : 1
+                    }
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+Possible response snippet:
+
+[source,js]
+--------------------------------------------------
+"aggregations": {
+  "top-tags": {
+     "buckets": [
+        {
+           "key": "windows-7",
+           "doc_count": 25365,
+           "top_tags_hits": {
+              "hits": {
+                 "total": 25365,
+                 "max_score": 1,
+                 "hits": [
+                    {
+                       "_index": "stack",
+                       "_type": "question",
+                       "_id": "602679",
+                       "_score": 1,
+                       "_source": {
+                          "title": "Windows port opening"
+                       },
+                       "sort": [
+                          1370143231177
+                       ]
+                    }
+                 ]
+              }
+           }
+        },
+        {
+           "key": "linux",
+           "doc_count": 18342,
+           "top_tags_hits": {
+              "hits": {
+                 "total": 18342,
+                 "max_score": 1,
+                 "hits": [
+                    {
+                       "_index": "stack",
+                       "_type": "question",
+                       "_id": "602672",
+                       "_score": 1,
+                       "_source": {
+                          "title": "Ubuntu RFID Screensaver lock-unlock"
+                       },
+                       "sort": [
+                          1370143379747
+                       ]
+                    }
+                 ]
+              }
+           }
+        },
+        {
+           "key": "windows",
+           "doc_count": 18119,
+           "top_tags_hits": {
+              "hits": {
+                 "total": 18119,
+                 "max_score": 1,
+                 "hits": [
+                    {
+                       "_index": "stack",
+                       "_type": "question",
+                       "_id": "602678",
+                       "_score": 1,
+                       "_source": {
+                          "title": "If I change my computers date / time, what could be affected?"
+                       },
+                       "sort": [
+                          1370142868283
+                       ]
+                    }
+                 ]
+              }
+           }
+        }
+     ]
+  }
+}
+--------------------------------------------------
+
+==== Field collapse example
+
+Field collapsing or result grouping is a feature that logically groups a result set into groups and per group returns
+top documents. The ordering of the groups is determined by the relevancy of the first document in a group. In
+Elasticsearch this can be implemented via a bucket aggregator that wraps a `top_hits` aggregator as sub-aggregator.
+
+In the example below we search across crawled webpages. For each webpage we store the body and the domain the webpage
+belong to. By defining a `terms` aggregator on the `domain` field we group the result set of webpages by domain. The
+`top_docs` aggregator is then defined as sub-aggregator, so that the top matching hits are collected per bucket.
+
+Also a `max` aggregator is defined which is used by the `terms` aggregator's order feature the return the buckets by
+relevancy order of the most relevant document in a bucket.
+
+[source,js]
+--------------------------------------------------
+{
+  "query": {
+    "match": {
+      "body": "elections"
+    }
+  },
+  "aggs": {
+    "top-sites": {
+      "terms": {
+        "field": "domain",
+        "order": {
+          "top_hit": "desc"
+        }
+      },
+      "aggs": {
+        "top_tags_hits": {
+          "top_hits": {}
+        },
+        "top_hit" : {
+          "max": {
+            "script": "_score"
+          }
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+
+At the moment the `max` (or `min`) aggregator is needed to make sure the buckets from the `terms` aggregator are
+ordered according to the score of the most relevant webpage per domain. The `top_hits` aggregator isn't a metric aggregator
+and therefore can't be used in the `order` option of the `terms` aggregator.
+
+==== top_hits support in a nested or reverse_nested aggregator
+
+If the `top_hits` aggregator is wrapped in a `nested` or `reverse_nested` aggregator then nested hits are being returned.
+Nested hits are in a sense hidden mini documents that are part of regular document where in the mapping a nested field type
+has been configured. The `top_hits` aggregator has the ability to un-hide these documents if it is wrapped in a `nested`
+or `reverse_nested` aggregator. Read more about nested in the <<nested,nested type mapping>>.
+
+If nested type has been configured a single document is actually indexed as multiple Lucene documents and they share
+the same id. In order to determine the identity of a nested hit there is more needed than just the id, so that is why
+nested hits also include their nested identity. The nested identity is kept under the `_nested` field in the search hit
+and includes the array field and the offset in the array field the nested hit belongs to. The offset is zero based.
+
+Top hits response snippet with a nested hit, which resides in the third slot of array field `nested_field1` in document with id `1`:
+
+[source,js]
+--------------------------------------------------
+...
+"hits": {
+ "total": 25365,
+ "max_score": 1,
+ "hits": [
+   {
+     "_index": "a",
+     "_type": "b",
+     "_id": "1",
+     "_score": 1,
+     "_nested" : {
+       "field" : "nested_field1",
+       "offset" : 2
+     }
+     "_source": ...
+   },
+   ...
+ ]
+}
+...
+--------------------------------------------------
+
+If `_source` is requested then just the part of the source of the nested object is returned, not the entire source of the document.
+Also stored fields on the *nested* inner object level are accessible via `top_hits` aggregator residing in a `nested` or `reverse_nested` aggregator.
+
+Only nested hits will have a `_nested` field in the hit, non nested (regular) hits will not have a `_nested` field.
+
+The information in `_nested` can also be used to parse the original source somewhere else if `_source` isn't enabled.
+
+If there are multiple levels of nested object types defined in mappings then the `_nested` information can also be hierarchical
+in order to express the identity of nested hits that are two layers deep or more.
+
+In the example below a nested hit resides in the first slot of the field `nested_grand_child_field` which then resides in
+the second slow of the `nested_child_field` field:
+
+[source,js]
+--------------------------------------------------
+...
+"hits": {
+ "total": 2565,
+ "max_score": 1,
+ "hits": [
+   {
+     "_index": "a",
+     "_type": "b",
+     "_id": "1",
+     "_score": 1,
+     "_nested" : {
+       "field" : "nested_child_field",
+       "offset" : 1,
+       "_nested" : {
+         "field" : "nested_grand_child_field",
+         "offset" : 0
+       }
+     }
+     "_source": ...
+   },
+   ...
+ ]
+}
+...
+--------------------------------------------------

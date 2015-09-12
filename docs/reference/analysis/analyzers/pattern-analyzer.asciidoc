@@ -7,17 +7,13 @@ via a regular expression. Accepts the following settings:
 The following are settings that can be set for a `pattern` analyzer
 type:
 
-[cols="<,<",options="header",]
-|===================================================================
-|Setting |Description
-|`lowercase` |Should terms be lowercased or not. Defaults to `true`.
-|`pattern` |The regular expression pattern, defaults to `\W+`.
-|`flags` |The regular expression flags.
-|`stopwords` |A list of stopwords to initialize the stop filter with.
-Defaults to an 'empty' stopword list added[1.0.0.RC1, Previously 
-defaulted to the English stopwords list]. Check
-<<analysis-stop-analyzer,Stop Analyzer>> for more details.
-|===================================================================
+[horizontal]
+`lowercase`::   Should terms be lowercased or not. Defaults to `true`.
+`pattern`::     The regular expression pattern, defaults to `\W+`.
+`flags`::       The regular expression flags.
+`stopwords`::   A list of stopwords to initialize the stop filter with.
+                Defaults to an 'empty' stopword list Check
+                <<analysis-stop-analyzer,Stop Analyzer>> for more details.
 
 *IMPORTANT*: The regular expression should match the *token separators*,
 not the tokens themselves.
@@ -30,101 +26,103 @@ Pattern API] for more details about `flags` options.
 ==== Pattern Analyzer Examples
 
 In order to try out these examples, you should delete the `test` index
-before running each example:
-
-[source,js]
---------------------------------------------------
-    curl -XDELETE localhost:9200/test
---------------------------------------------------
+before running each example.
 
 [float]
 ===== Whitespace tokenizer
 
 [source,js]
 --------------------------------------------------
-    curl -XPUT 'localhost:9200/test' -d '
-    {
-        "settings":{
-            "analysis": {
-                "analyzer": {
-                    "whitespace":{
-                        "type": "pattern",
-                        "pattern":"\\\\s+"
-                    }
-                }
-            }
-        }
-    }'
+DELETE test
 
-    curl 'localhost:9200/test/_analyze?pretty=1&analyzer=whitespace' -d 'foo,bar baz'
-    # "foo,bar", "baz"
+PUT /test
+{
+  "settings": {
+    "analysis": {
+      "analyzer": {
+        "whitespace": {
+          "type": "pattern",
+          "pattern": "\\s+"
+        }
+      }
+    }
+  }
+}
+
+GET /test/_analyze?analyzer=whitespace&text=foo,bar baz
+
+# "foo,bar", "baz"
 --------------------------------------------------
+// AUTOSENSE
 
 [float]
 ===== Non-word character tokenizer
 
 [source,js]
 --------------------------------------------------
+DELETE test
 
-    curl -XPUT 'localhost:9200/test' -d '
-    {
-        "settings":{
-            "analysis": {
-                "analyzer": {
-                    "nonword":{
-                        "type": "pattern",
-                        "pattern":"[^\\\\w]+"
-                    }
-                }
-            }
+PUT /test
+{
+  "settings": {
+    "analysis": {
+      "analyzer": {
+        "nonword": {
+          "type": "pattern",
+          "pattern": "[^\\w]+" <1>
         }
-    }'
+      }
+    }
+  }
+}
 
-    curl 'localhost:9200/test/_analyze?pretty=1&analyzer=nonword' -d 'foo,bar baz'
-    # "foo,bar baz" becomes "foo", "bar", "baz"
+GET /test/_analyze?analyzer=nonword&text=foo,bar baz
+# "foo,bar baz" becomes "foo", "bar", "baz"
 
-    curl 'localhost:9200/test/_analyze?pretty=1&analyzer=nonword' -d 'type_1-type_4'
-    # "type_1","type_4"
+GET /test/_analyze?analyzer=nonword&text=type_1-type_4
+# "type_1","type_4"
 --------------------------------------------------
+// AUTOSENSE
+
 
 [float]
 ===== CamelCase tokenizer
 
 [source,js]
 --------------------------------------------------
+DELETE test
 
-    curl -XPUT 'localhost:9200/test?pretty=1' -d '
-    {
-        "settings":{
-            "analysis": {
-                "analyzer": {
-                    "camel":{
-                        "type": "pattern",
-                        "pattern":"([^\\\\p{L}\\\\d]+)|(?<=\\\\D)(?=\\\\d)|(?<=\\\\d)(?=\\\\D)|(?<=[\\\\p{L}&&[^\\\\p{Lu}]])(?=\\\\p{Lu})|(?<=\\\\p{Lu})(?=\\\\p{Lu}[\\\\p{L}&&[^\\\\p{Lu}]])"
-                    }
-                }
-            }
+PUT /test?pretty=1
+{
+  "settings": {
+    "analysis": {
+      "analyzer": {
+        "camel": {
+          "type": "pattern",
+          "pattern": "([^\\p{L}\\d]+)|(?<=\\D)(?=\\d)|(?<=\\d)(?=\\D)|(?<=[\\p{L}&&[^\\p{Lu}]])(?=\\p{Lu})|(?<=\\p{Lu})(?=\\p{Lu}[\\p{L}&&[^\\p{Lu}]])"
         }
-    }'
+      }
+    }
+  }
+}
 
-    curl 'localhost:9200/test/_analyze?pretty=1&analyzer=camel' -d '
-        MooseX::FTPClass2_beta
-    '
-    # "moose","x","ftp","class","2","beta"
+GET /test/_analyze?analyzer=camel&text=MooseX::FTPClass2_beta
+# "moose","x","ftp","class","2","beta"
 --------------------------------------------------
+// AUTOSENSE
 
 The regex above is easier to understand as:
 
 [source,js]
 --------------------------------------------------
 
-      ([^\\p{L}\\d]+)                 # swallow non letters and numbers,
-    | (?<=\\D)(?=\\d)                 # or non-number followed by number,
-    | (?<=\\d)(?=\\D)                 # or number followed by non-number,
-    | (?<=[ \\p{L} && [^\\p{Lu}]])    # or lower case
-      (?=\\p{Lu})                    #   followed by upper case,
-    | (?<=\\p{Lu})                   # or upper case
-      (?=\\p{Lu}                     #   followed by upper case
-        [\\p{L}&&[^\\p{Lu}]]          #   then lower case
-      )
+  ([^\p{L}\d]+)                 # swallow non letters and numbers,
+| (?<=\D)(?=\d)                 # or non-number followed by number,
+| (?<=\d)(?=\D)                 # or number followed by non-number,
+| (?<=[ \p{L} && [^\p{Lu}]])    # or lower case
+  (?=\p{Lu})                    #   followed by upper case,
+| (?<=\p{Lu})                   # or upper case
+  (?=\p{Lu}                     #   followed by upper case
+    [\p{L}&&[^\p{Lu}]]          #   then lower case
+  )
 --------------------------------------------------

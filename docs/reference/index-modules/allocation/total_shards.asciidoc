@@ -1,0 +1,26 @@
+[[allocation-total-shards]]
+=== Total Shards Per Node
+
+The cluster-level shard allocator tries to spread the shards of a single index
+across as many nodes as possible.  However, depending on how many shards and
+indices you have, and how big they are, it may not always be possible to spread
+shards evenly.
+
+The following _dynamic_ setting allows you to specify a hard limit on the total
+number of shards from a single index allowed per node:
+
+`index.routing.allocation.total_shards_per_node`::
+
+    The maximum number of shards (replicas and primaries) that will be
+    allocated to a single node.  Defaults to unbounded.
+
+[WARNING]
+=======================================
+This setting imposes a hard limit which can result in some shards not
+being allocated.
+
+Use with caution.
+=======================================
+
+
+

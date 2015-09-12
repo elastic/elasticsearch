@@ -1,0 +1,38 @@
+[[search-aggregations-bucket-filter-aggregation]]
+=== Filter Aggregation
+
+Defines a single bucket of all the documents in the current document set context that match a specified filter. Often this will be used to narrow down the current aggregation context to a specific set of documents.
+
+Example:
+
+[source,js]
+--------------------------------------------------
+{
+    "aggs" : {
+        "red_products" : {
+            "filter" : { "term": { "color": "red" } },
+            "aggs" : {
+                "avg_price" : { "avg" : { "field" : "price" } }
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+In the above example, we calculate the average price of all the products that are red.
+
+Response:
+
+[source,js]
+--------------------------------------------------
+{
+    ...
+
+    "aggs" : {
+        "red_products" : {
+            "doc_count" : 100,
+            "avg_price" : { "value" : 56.3 }
+        }
+    }
+}
+--------------------------------------------------

@@ -1,0 +1,50 @@
+[[geo-queries]]
+== Geo queries
+
+Elasticsearch supports two types of geo data:
+<<geo-point,`geo_point`>> fields which support lat/lon pairs, and
+<<geo-shape,`geo_shape`>> fields, which support points,
+lines, circles, polygons, multi-polygons etc.
+
+The queries in this group are:
+
+<<query-dsl-geo-shape-query,`geo_shape`>> query::
+
+    Find document with geo-shapes which either intersect, are contained by, or
+    do not interesect with the specified geo-shape.
+
+<<query-dsl-geo-bounding-box-query,`geo_bounding_box`>> query::
+
+    Finds documents with geo-points that fall into the specified rectangle.
+
+<<query-dsl-geo-distance-query,`geo_distance`>> query::
+
+    Finds document with geo-points within the specified distance of a central
+    point.
+
+<<query-dsl-geo-distance-range-query,`geo_distance_range`>> query::
+
+    Like the `geo_point` query, but the range starts at a specified distance
+    from the central point.
+
+<<query-dsl-geo-polygon-query,`geo_polygon`>> query::
+
+    Find documents with geo-points within the specified polygon.
+
+<<query-dsl-geohash-cell-query,`geohash_cell`>> query::
+
+    Find geo-points whose geohash intersects with the geohash of the specified
+    point.
+
+
+include::geo-shape-query.asciidoc[]
+
+include::geo-bounding-box-query.asciidoc[]
+
+include::geo-distance-query.asciidoc[]
+
+include::geo-distance-range-query.asciidoc[]
+
+include::geo-polygon-query.asciidoc[]
+
+include::geohash-cell-query.asciidoc[]

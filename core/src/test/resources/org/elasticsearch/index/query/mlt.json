@@ -1,0 +1,8 @@
+{
+    "more_like_this" : {
+        "fields" : ["name.first", "name.last"],
+        "like_text" : "something",
+        "min_term_freq" : 1,
+        "max_query_terms" : 12
+    }
+}

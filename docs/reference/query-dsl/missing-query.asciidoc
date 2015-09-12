@@ -1,0 +1,132 @@
+[[query-dsl-missing-query]]
+=== Missing Query
+
+Returns documents that have only `null` values or no value in the original field:
+
+[source,js]
+--------------------------------------------------
+{
+    "constant_score" : {
+        "filter" : {
+            "missing" : { "field" : "user" }
+        }
+    }
+}
+--------------------------------------------------
+
+For instance, the following docs would match the above filter:
+
+[source,js]
+--------------------------------------------------
+{ "user": null }
+{ "user": [] } <1>
+{ "user": [null] } <2>
+{ "foo":  "bar" } <3>
+--------------------------------------------------
+<1> This field has no values.
+<2> This field has no non-`null` values.
+<3> The `user` field is missing completely.
+
+These documents would *not* match the above filter:
+
+[source,js]
+--------------------------------------------------
+{ "user": "jane" }
+{ "user": "" } <1>
+{ "user": "-" } <2>
+{ "user": ["jane"] }
+{ "user": ["jane", null ] } <3>
+--------------------------------------------------
+<1> An empty string is a non-`null` value.
+<2> Even though the `standard` analyzer would emit zero tokens, the original field is non-`null`.
+<3> This field has one non-`null` value.
+
+[float]
+==== `null_value` mapping
+
+If the field mapping includes a <<null-value,`null_value`>> then explicit `null` values
+are replaced with the specified `null_value`.  For instance, if the `user` field were mapped
+as follows:
+
+[source,js]
+--------------------------------------------------
+  "user": {
+    "type": "string",
+    "null_value": "_null_"
+  }
+--------------------------------------------------
+
+then explicit `null` values would be indexed as the string `_null_`, and the
+the following docs would *not* match the `missing` filter:
+
+[source,js]
+--------------------------------------------------
+{ "user": null }
+{ "user": [null] }
+--------------------------------------------------
+
+However, these docs--without explicit `null` values--would still have
+no values in the `user` field and thus would match the `missing` filter:
+
+[source,js]
+--------------------------------------------------
+{ "user": [] }
+{ "foo": "bar" }
+--------------------------------------------------
+
+[float]
+===== `existence` and `null_value` parameters
+
+When the field being queried has a `null_value` mapping, then the behaviour of
+the `missing` filter can be altered with the `existence` and `null_value`
+parameters:
+
+[source,js]
+--------------------------------------------------
+{
+    "constant_score" : {
+        "filter" : {
+            "missing" : {
+                "field" : "user",
+                "existence" : true,
+                "null_value" : false
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+
+`existence`::
++
+--
+When the `existence` parameter is set to `true` (the default), the missing
+filter will include documents where the field has *no* values, ie:
+
+[source,js]
+--------------------------------------------------
+{ "user": [] }
+{ "foo": "bar" }
+--------------------------------------------------
+
+When set to `false`, these documents will not be included.
+--
+
+`null_value`::
++
+--
+When the `null_value` parameter is set to `true`, the missing
+filter will include documents where the field contains a `null` value, ie:
+
+[source,js]
+--------------------------------------------------
+{ "user": null }
+{ "user": [null] }
+{ "user": ["jane",null] } <1>
+--------------------------------------------------
+<1> Matches because the field contains a `null` value, even though it also contains a non-`null` value.
+
+When set to `false` (the default), these documents will not be included.
+--
+
+NOTE: Either `existence` or `null_value` or both must be set to `true`.

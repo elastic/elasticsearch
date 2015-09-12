@@ -1,0 +1,10 @@
+{
+    "fuzzy":{
+        "name.first":{
+            "value":"sh",
+            "fuzziness": "AUTO",
+            "prefix_length":1,
+            "boost":2.0
+        }
+    }
+}

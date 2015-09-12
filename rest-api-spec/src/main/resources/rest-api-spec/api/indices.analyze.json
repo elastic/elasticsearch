@@ -1,0 +1,59 @@
+{
+  "indices.analyze": {
+    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/indices-analyze.html",
+    "methods": ["GET", "POST"],
+    "url": {
+      "path": "/_analyze",
+      "paths": ["/_analyze", "/{index}/_analyze"],
+      "parts": {
+        "index": {
+          "type" : "string",
+          "description" : "The name of the index to scope the operation"
+        }
+      },
+      "params": {
+        "analyzer": {
+          "type" : "string",
+          "description" : "The name of the analyzer to use"
+        },
+        "char_filters": {
+          "type" : "list",
+          "description" : "A comma-separated list of character filters to use for the analysis"
+        },
+        "field": {
+          "type" : "string",
+          "description" : "Use the analyzer configured for this field (instead of passing the analyzer name)"
+        },
+        "filters": {
+          "type" : "list",
+          "description" : "A comma-separated list of filters to use for the analysis"
+        },
+        "index": {
+          "type" : "string",
+          "description" : "The name of the index to scope the operation"
+        },
+        "prefer_local": {
+          "type" : "boolean",
+          "description" : "With `true`, specify that a local shard should be used if available, with `false`, use a random shard (default: true)"
+        },
+        "text": {
+          "type" : "list",
+          "description" : "The text on which the analysis should be performed (when request body is not used)"
+        },
+        "tokenizer": {
+          "type" : "string",
+          "description" : "The name of the tokenizer to use for the analysis"
+        },
+        "format": {
+          "type": "enum",
+          "options" : ["detailed","text"],
+          "default": "detailed",
+          "description": "Format of the output"
+        }
+      }
+    },
+    "body": {
+      "description" : "The text on which the analysis should be performed"
+    }
+  }
+}

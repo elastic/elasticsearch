@@ -25,7 +25,7 @@ tribe:
 
 The example above configures connections to two clusters, name `t1` and `t2`
 respectively.  The tribe node will create a <<modules-node,node client>> to
-connect each cluster using <<multicast,multicast discovery>> by default. Any
+connect each cluster using <<unicast,unicast discovery>> by default. Any
 other settings for the connection can be configured under `tribe.{name}`, just
 like the `cluster.name` in the example.
 
@@ -56,8 +56,6 @@ tribe:
         metadata: true
 --------------------------------
 
-added[1.2.0]
-
 The tribe node can also configure blocks on indices explicitly:
 
 [source,yaml]
@@ -66,8 +64,6 @@ tribe:
     blocks:
         indices.write: hk*,ldn*
 --------------------------------
-
-added[1.2.0]
 
 When there is a conflict and multiple clusters hold the same index, by default
 the tribe node will pick one of them. This can be configured using the `tribe.on_conflict`

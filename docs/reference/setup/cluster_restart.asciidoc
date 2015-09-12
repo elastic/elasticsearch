@@ -1,0 +1,147 @@
+[[restart-upgrade]]
+=== Full cluster restart upgrade
+
+Elasticsearch requires a full cluster restart when upgrading across major
+versions: from 0.x to 1.x or from 1.x to 2.x.  Rolling upgrades are not
+supported across major versions.
+
+The process to perform an upgrade with a full cluster restart is as follows:
+
+==== Step 1: Disable shard allocation
+
+When you shut down a node, the allocation process will immediately try to
+replicate the shards that were on that node to other nodes in the cluster,
+causing a lot of wasted I/O.  This can be avoided by disabling allocation
+before shutting down a node:
+
+[source,js]
+--------------------------------------------------
+PUT /_cluster/settings
+{
+  "persistent": {
+    "cluster.routing.allocation.enable": "none"
+  }
+}
+--------------------------------------------------
+// AUTOSENSE
+
+If upgrading from 0.90.x to 1.x, then use these settings instead:
+
+[source,js]
+--------------------------------------------------
+PUT /_cluster/settings
+{
+  "persistent": {
+    "cluster.routing.allocation.disable_allocation": false,
+    "cluster.routing.allocation.enable": "none"
+  }
+}
+--------------------------------------------------
+// AUTOSENSE
+
+==== Step 2: Perform a synced flush
+
+Shard recovery will be much faster if you stop indexing and issue a
+<<indices-synced-flush, synced-flush>> request:
+
+[source,sh]
+--------------------------------------------------
+POST /_flush/synced
+--------------------------------------------------
+// AUTOSENSE
+
+A synced flush request is a ``best effort'' operation. It will fail if there
+are any pending indexing operations, but it is safe to reissue the request
+multiple times if necessary.
+
+==== Step 3: Shutdown and upgrade all nodes
+
+Stop all Elasticsearch services on all nodes in the cluster. Each node can be
+upgraded following the same procedure described in <<upgrade-node>>.
+
+==== Step 4: Start the cluster
+
+If you have dedicated master nodes -- nodes with `node.master` set to
+`true`(the default) and `node.data` set to `false` --  then it is a good idea
+to start them first.  Wait for them to form a cluster and to elect a master
+before proceding with the data nodes. You can check progress by looking at the
+logs.
+
+As soon as the <<master-election,minimum number of master-eligible nodes>>
+have discovered each other, they will form a cluster and elect a master.  From
+that point on, the <<cat-health,`_cat/health`>> and <<cat-nodes,`_cat/nodes`>>
+APIs can be used to monitor nodes joining the cluster:
+
+[source,sh]
+--------------------------------------------------
+GET _cat/health
+
+GET _cat/nodes
+--------------------------------------------------
+// AUTOSENSE
+
+Use these APIs to check that all nodes have successfully joined the cluster.
+
+==== Step 5: Wait for yellow
+
+As soon as each node has joined the cluster, it will start to recover any
+primary shards that are stored locally.  Initially, the
+<<cat-health,`_cat/health`>> request will report a `status` of `red`, meaning
+that not all primary shards have been allocated.
+
+Once each node has recovered its local shards, the `status` will become
+`yellow`, meaning all primary shards have been recovered, but not all replica
+shards are allocated.  This is to be expected because allocation is still
+disabled.
+
+==== Step 6: Reenable allocation
+
+Delaying the allocation of replicas until all nodes have joined the cluster
+allows the master to allocate replicas to nodes which already have local shard
+copies.   At this point, with all the nodes in the cluster, it is safe to
+reenable shard allocation:
+
+[source,js]
+------------------------------------------------------
+PUT /_cluster/settings
+{
+  "persistent": {
+    "cluster.routing.allocation.enable": "all"
+  }
+}
+------------------------------------------------------
+// AUTOSENSE
+
+If upgrading from 0.90.x to 1.x, then use these settings instead:
+
+[source,js]
+--------------------------------------------------
+PUT /_cluster/settings
+{
+  "persistent": {
+    "cluster.routing.allocation.disable_allocation": true,
+    "cluster.routing.allocation.enable": "all"
+  }
+}
+--------------------------------------------------
+// AUTOSENSE
+
+The cluster will now start allocating replica shards to all data nodes. At this
+point it is safe to resume indexing and searching, but your cluster will
+recover more quickly if you can delay indexing and searching until all shards
+have recovered.
+
+You can monitor progress with the <<cat-health,`_cat/health`>> and
+<<cat-recovery,`_cat/recovery`>> APIs:
+
+[source,sh]
+--------------------------------------------------
+GET _cat/health
+
+GET _cat/recovery
+--------------------------------------------------
+// AUTOSENSE
+
+Once the `status` column in the `_cat/health` output has reached `green`, all
+primary and replica shards have been successfully allocated.
+

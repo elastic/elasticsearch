@@ -1,0 +1,9 @@
+{
+            "geo_bounding_box":{
+                "location":{
+                    "top_left":[-70, 40],
+                    "bottom_right":[-80, 30]
+                },
+                "_name":"test"
+            }
+}

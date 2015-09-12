@@ -1,0 +1,72 @@
+[[indices-shards-stores]]
+== Indices Shard Stores
+
+Provides store information for shard copies of indices.
+Store information reports on which nodes shard copies exist, the shard
+copy version, indicating how recent they are, and any exceptions
+encountered while opening the shard index or from earlier engine failure.
+
+By default, only lists store information for shards that have at least one
+unallocated copy. When the cluster health status is yellow, this will list
+store information for shards that have at least one unassigned replica.
+When the cluster health status is red, this will list store information
+for shards, which has unassigned primaries.
+
+Endpoints include shard stores information for a specific index, several
+indices, or all:
+
+[source,js]
+--------------------------------------------------
+curl -XGET 'http://localhost:9200/test/_shard_stores'
+curl -XGET 'http://localhost:9200/test1,test2/_shard_stores'
+curl -XGET 'http://localhost:9200/_shard_stores'
+--------------------------------------------------
+
+The scope of shards to list store information can be changed through
+`status` param. Defaults to 'yellow' and 'red'. 'yellow' lists store information of
+shards with at least one unassigned replica and 'red' for shards with unassigned
+primary shard.
+Use 'green' to list store information for shards with all assigned copies.
+
+[source,js]
+--------------------------------------------------
+curl -XGET 'http://localhost:9200/_shard_stores?status=green'
+--------------------------------------------------
+
+Response:
+
+The shard stores information is grouped by indices and shard ids.
+
+[source,js]
+--------------------------------------------------
+{
+    ...
+   "0": { <1>
+        "stores": [ <2>
+            {
+                "sPa3OgxLSYGvQ4oPs-Tajw": { <3>
+                    "name": "node_t0",
+                    "transport_address": "local[1]",
+                    "attributes": {
+                        "mode": "local"
+                    }
+                },
+                "version": 4, <4>
+                "allocation" : "primary" | "replica" | "unused", <6>
+                "store_exception": ... <5>
+            },
+            ...
+        ]
+   },
+    ...
+}
+--------------------------------------------------
+<1> The key is the corresponding shard id for the store information
+<2> A list of store information for all copies of the shard
+<3> The node information that hosts a copy of the store, the key
+    is the unique node id.
+<4> The version of the store copy
+<5> The status of the store copy, whether it is used as a
+    primary, replica or not used at all
+<6> Any exception encountered while opening the shard index or
+    from earlier engine failure

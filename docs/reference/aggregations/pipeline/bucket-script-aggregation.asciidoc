@@ -1,0 +1,153 @@
+[[search-aggregations-pipeline-bucket-script-aggregation]]
+=== Bucket Script Aggregation
+
+coming[2.0.0-beta1]
+
+experimental[]
+
+A parent pipeline aggregation which executes a script which can perform per bucket computations on specified metrics 
+in the parent multi-bucket aggregation. The specified metric must be numeric and the script must return a numeric value.
+
+==== Syntax
+
+A `bucket_script` aggregation looks like this in isolation:
+
+[source,js]
+--------------------------------------------------
+{
+    "bucket_script": {
+        "buckets_path": {
+            "my_var1": "the_sum", <1>
+            "my_var2": "the_value_count"
+        },
+        "script": "my_var1 / my_var2"
+    }
+}
+--------------------------------------------------
+<1> Here, `my_var1` is the name of the variable for this buckets path to use in the script, `the_sum` is the path to 
+the metrics to use for that variable.
+
+
+.`bucket_script` Parameters
+|===
+|Parameter Name |Description |Required |Default Value
+|`script` |The script to run for this aggregation. The script can be inline, file or indexed. (see <<modules-scripting>> 
+for more details) |Required |
+|`buckets_path` |A map of script variables and their associated path to the buckets we wish to use for the variable 
+(see <<buckets-path-syntax>> for more details) |Required |
+ |`gap_policy` |The policy to apply when gaps are found in the data (see <<gap-policy>> for more
+ details)|Optional, defaults to `skip` |
+ |`format` |format to apply to the output value of this aggregation |Optional, defaults to `null` |
+|===
+
+The following snippet calculates the ratio percentage of t-shirt sales compared to total sales each month:
+
+[source,js]
+--------------------------------------------------
+{
+    "aggs" : {
+        "sales_per_month" : {
+            "date_histogram" : {
+                "field" : "date",
+                "interval" : "month"
+            },
+            "aggs": {
+                "total_sales": {
+                    "sum": {
+                        "field": "price"
+                    }
+                },
+                "t-shirts": {
+                  "filter": {
+                    "term": {
+                      "type": "t-shirt"
+                    }
+                  },
+                  "aggs": {
+                    "sales": {
+                      "sum": {
+                        "field": "price"
+                      }
+                    }
+                  }
+                },
+                "t-shirt-percentage": {
+                    "bucket_script": {
+                        "buckets_path": { 
+                          "tShirtSales": "t-shirts>sales",
+                          "totalSales": "total_sales"
+                        },
+                        "script": "tShirtSales / totalSales * 100"
+                    }
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+And the following may be the response:
+
+[source,js]
+--------------------------------------------------
+{
+   "aggregations": {
+      "sales_per_month": {
+         "buckets": [
+            {
+               "key_as_string": "2015/01/01 00:00:00",
+               "key": 1420070400000,
+               "doc_count": 3,
+               "total_sales": {
+                   "value": 50
+               },
+               "t-shirts": {
+                   "doc_count": 2,
+                   "sales": {
+                       "value": 10
+                   }
+               },
+               "t-shirt-percentage": {
+                   "value": 20
+               }
+            },
+            {
+               "key_as_string": "2015/02/01 00:00:00",
+               "key": 1422748800000,
+               "doc_count": 2
+               "total_sales": {
+                   "value": 60
+               },
+               "t-shirts": {
+                   "doc_count": 1,
+                   "sales": {
+                       "value": 15
+                   }
+               },
+               "t-shirt-percentage": {
+                   "value": 25
+               }
+            },
+            {
+               "key_as_string": "2015/03/01 00:00:00",
+               "key": 1425168000000,
+               "doc_count": 2,
+               "total_sales": {
+                   "value": 40
+               },
+               "t-shirts": {
+                   "doc_count": 1,
+                   "sales": {
+                       "value": 20
+                   }
+               },
+               "t-shirt-percentage": {
+                   "value": 50
+               }
+            }
+         ]
+      }
+   }
+}
+--------------------------------------------------
+

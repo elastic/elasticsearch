@@ -23,74 +23,78 @@ curl -XPUT localhost:9200/test/type1/1 -d '{
 }'
 --------------------------------------------------
 
+[float]
+=== Scripted updates
+
 Now, we can execute a script that would increment the counter:
 
 [source,js]
 --------------------------------------------------
 curl -XPOST 'localhost:9200/test/type1/1/_update' -d '{
-    "script" : "ctx._source.counter += count",
-    "params" : {
-        "count" : 4
+    "script" : {
+        "inline": "ctx._source.counter += count",
+        "params" : {
+            "count" : 4
+        }
     }
 }'
 --------------------------------------------------
 
-We can also add a tag to the list of tags (note, if the tag exists, it
+We can add a tag to the list of tags (note, if the tag exists, it
 will still add it, since its a list):
 
 [source,js]
 --------------------------------------------------
 curl -XPOST 'localhost:9200/test/type1/1/_update' -d '{
-    "script" : "ctx._source.tags += tag",
-    "params" : {
-        "tag" : "blue"
+    "script" : {
+        "inline": "ctx._source.tags += tag",
+        "params" : {
+            "tag" : "blue"
+        }
     }
 }'
 --------------------------------------------------
+
+In addition to `_source`, the following variables are available through
+the `ctx` map: `_index`, `_type`, `_id`, `_version`, `_routing`,
+`_parent`, `_timestamp`, `_ttl`.
 
 We can also add a new field to the document:
 
 [source,js]
 --------------------------------------------------
 curl -XPOST 'localhost:9200/test/type1/1/_update' -d '{
-    "script" : "ctx._source.text = \"some text\""
+    "script" : "ctx._source.name_of_new_field = \"value_of_new_field\""
 }'
 --------------------------------------------------
 
-We can also remove a field from the document:
+Or remove a field from the document:
 
 [source,js]
 --------------------------------------------------
 curl -XPOST 'localhost:9200/test/type1/1/_update' -d '{
-    "script" : "ctx._source.remove(\"text\")"
+    "script" : "ctx._source.remove(\"name_of_field\")"
 }'
 --------------------------------------------------
 
-And, we can delete the doc if the tags contain blue, or ignore (noop):
+And, we can even change the operation that is executed.  This example deletes
+the doc if the `tags` field contain `blue`, otherwise it does nothing
+(`noop`):
 
 [source,js]
 --------------------------------------------------
 curl -XPOST 'localhost:9200/test/type1/1/_update' -d '{
-    "script" : "ctx._source.tags.contains(tag) ? ctx.op = \"delete\" : ctx.op = \"none\"",
-    "params" : {
-        "tag" : "blue"
+    "script" : {
+        "inline": "ctx._source.tags.contains(tag) ? ctx.op = \"delete\" : ctx.op = \"none\"",
+        "params" : {
+            "tag" : "blue"
+        }
     }
 }'
 --------------------------------------------------
 
-*Note*: Be aware of MVEL and handling of ternary operators and
-assignments. Assignment operations have lower precedence than the
-ternary operator. Compare the following statements:
-
-[source,js]
---------------------------------------------------
-// Will NOT update the tags array
-ctx._source.tags.contains(tag) ? ctx.op = \"none\" : ctx._source.tags += tag
-// Will update
-ctx._source.tags.contains(tag) ? (ctx.op = \"none\") : ctx._source.tags += tag
-// Also works
-if (ctx._source.tags.contains(tag)) { ctx.op = \"none\" } else { ctx._source.tags += tag }
---------------------------------------------------
+[float]
+=== Updates with a partial document
 
 The update API also support passing a partial document,
 which will be merged into the existing document (simple recursive merge,
@@ -109,16 +113,41 @@ curl -XPOST 'localhost:9200/test/type1/1/_update' -d '{
 If both `doc` and `script` is specified, then `doc` is ignored. Best is
 to put your field pairs of the partial document in the script itself.
 
-There is also support for `upsert`. If the document does
-not already exists, the content of the `upsert` element will be used to
-index the fresh doc:
+[float]
+=== Detecting noop updates
+If `doc` is specified its value is merged with the existing `_source`. By
+default the document is only reindexed if the new `_source` field differs from
+the old. Setting `detect_noop` to `false` will cause Elasticsearch to always
+update the document even if it hasn't changed. For example:
+[source,js]
+--------------------------------------------------
+curl -XPOST 'localhost:9200/test/type1/1/_update' -d '{
+    "doc" : {
+        "name" : "new_name"
+    },
+    "detect_noop": false
+}'
+--------------------------------------------------
+
+If `name` was `new_name` before the request was sent then document is still
+reindexed.
+
+[[upserts]]
+[float]
+=== Upserts
+
+If the document does not already exist, the contents of the `upsert` element
+will be inserted as a new document.  If the document does exist, then the
+`script` will be executed instead:
 
 [source,js]
 --------------------------------------------------
 curl -XPOST 'localhost:9200/test/type1/1/_update' -d '{
-    "script" : "ctx._source.counter += count",
-    "params" : {
-        "count" : 4
+    "script" : {
+        "inline": "ctx._source.counter += count",
+        "params" : {
+            "count" : 4
+        }
     },
     "upsert" : {
         "counter" : 1
@@ -126,10 +155,37 @@ curl -XPOST 'localhost:9200/test/type1/1/_update' -d '{
 }'
 --------------------------------------------------
 
-Last it also supports `doc_as_upsert`. So that the
-provided document will be inserted if the document does not already
-exist. This will reduce the amount of data that needs to be sent to
-elasticsearch.
+[float]
+==== `scripted_upsert`
+
+If you would like your script to run regardless of whether the document exists
+or not -- i.e. the script handles initializing the document instead of the
+`upsert` element -- then set `scripted_upsert` to `true`:
+
+[source,js]
+--------------------------------------------------
+curl -XPOST 'localhost:9200/sessions/session/dh3sgudg8gsrgl/_update' -d '{
+    "scripted_upsert":true,
+    "script" : {
+        "id": "my_web_session_summariser",
+        "params" : {
+            "pageViewEvent" : {
+                "url":"foo.com/bar",
+                "response":404,
+                "time":"2014-01-01 12:32"
+            }
+        }
+    },
+    "upsert" : {}
+}'
+--------------------------------------------------
+
+[float]
+==== `doc_as_upsert`
+
+Instead of sending a partial `doc` plus an `upsert` doc, setting
+`doc_as_upsert` to `true` will use the contents of `doc` as the `upsert`
+value:
 
 [source,js]
 --------------------------------------------------
@@ -141,44 +197,58 @@ curl -XPOST 'localhost:9200/test/type1/1/_update' -d '{
 }'
 --------------------------------------------------
 
-The update operation supports similar parameters as the index API,
-including:
+
+[float]
+=== Parameters
+
+The update operation supports the following query-string parameters:
 
 [horizontal]
-`routing`::     Sets the routing that will be used to route the 
-                document to the relevant shard.
+`retry_on_conflict`::
 
-`parent`::      Simply sets the routing.
+In between the get and indexing phases of the update, it is possible that
+another process might have already updated the same document.  By default, the
+update will fail with a version conflict exception.  The `retry_on_conflict`
+parameter controls how many times to retry the update before finally throwing
+an exception.
 
-`timeout`::     Timeout waiting for a shard to become available.
+`routing`::
 
-`replication`:: The replication type for the delete/index operation
-                (sync or async).
+Routing is used to route the update request to the right shard and sets the
+routing for the upsert request if the document being updated doesn't exist.
+Can't be used to update the routing of an existing document.
 
-`consistency`:: The write consistency of the index/delete operation.
+`parent`::
 
-`refresh`::     Refresh the index immediately after the operation occurs,
-                so that the updated document appears in search results 
-                immediately.
+Parent is used to route the update request to the right shard and sets the
+parent for the upsert request if the document being updated doesn't exist.
+Can't be used to update the `parent` of an existing document.
 
-`fields`::      return the relevant fields from the updated document.
-                Support `_source` to return the full updated 
-                source.
+`timeout`::
 
-`version` & `version_type`:: the Update API uses the Elasticsearch's versioning
-                support internally to make sure the document doesn't change
-                during the update. You can use the `version` parameter to specify that the
-                document should only be updated if it's version matches the one specified.
-                By setting version type to `force` you can force the new version of the document
-                after update (use with care! with `force` there is no guaranty the document
-                didn't change).Version types `external` & `external_gte` are not supported.
+Timeout waiting for a shard to become available.
 
-                
-And also support `retry_on_conflict` which controls how many times to
-retry if there is a version conflict between getting the document and
-indexing / deleting it. Defaults to `0`.
+`consistency`::
 
-It also allows to update the `ttl` of a document using `ctx._ttl` and
-timestamp using `ctx._timestamp`. Note that if the timestamp is not
-updated and not extracted from the `_source` it will be set to the
-update date.
+The write consistency of the index/delete operation.
+
+`refresh`::
+
+Refresh the relevant primary and replica shards (not the whole index)
+immediately after the operation occurs, so that the updated document appears
+in search results  immediately.
+
+`fields`::
+
+Return the relevant fields from the updated document. Specify `_source` to
+return the full updated source.
+
+`version` & `version_type`::
+
+The update API uses the Elasticsearch's versioning support internally to make
+sure the document doesn't change during the update. You can use the `version`
+parameter to specify that the document should only be updated if it's version
+matches the one specified. By setting version type to `force` you can force
+the new version of the document after update (use with care! with `force`
+there is no guarantee the document didn't change).Version types `external` &
+`external_gte` are not supported.

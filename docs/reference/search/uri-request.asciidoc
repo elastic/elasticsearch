@@ -56,13 +56,22 @@ query.
 
 |`analyzer` |The analyzer name to be used when analyzing the query string.
 
+|`lowercase_expanded_terms` |Should terms be automatically lowercased or
+not. Defaults to `true`.
+
+|`analyze_wildcard` |Should wildcard and prefix queries be analyzed or
+not. Defaults to `false`.
+
 |`default_operator` |The default operator to be used, can be `AND` or
 `OR`. Defaults to `OR`.
+
+|`lenient` |If set to true will cause format based failures (like
+providing text to a numeric field) to be ignored. Defaults to false.
 
 |`explain` |For each hit, contain an explanation of how scoring of the
 hits was computed.
 
-|`_source`| added[1.0.0.Beta1]Set to `false` to disable retrieval of the `_source` field. You can also retrieve
+|`_source`|Set to `false` to disable retrieval of the `_source` field. You can also retrieve
 part of the document by using `_source_include` & `_source_exclude` (see the <<search-request-source-filtering, request body>>
 documentation for more details)
 
@@ -82,20 +91,21 @@ scores and return them as part of each hit.
 within the specified time value and bail with the hits accumulated up to
 that point when expired. Defaults to no timeout.
 
+|`terminate_after` |experimental[The API for this feature may change in the future]
+The maximum number of documents to collect for
+each shard, upon reaching which the query execution will terminate early.
+If set, the response will have a boolean field `terminated_early` to
+indicate whether the query execution has actually terminated_early.
+Defaults to no terminate_after.
+
 |`from` |The starting from index of the hits to return. Defaults to `0`.
 
 |`size` |The number of hits to return. Defaults to `10`.
 
 |`search_type` |The type of the search operation to perform. Can be
-`dfs_query_then_fetch`, `dfs_query_and_fetch`, `query_then_fetch`,
-`query_and_fetch`, `count`, `scan`. Defaults to `query_then_fetch`. See
+`dfs_query_then_fetch` or `query_then_fetch`.
+Defaults to `query_then_fetch`. See
 <<search-request-search-type,_Search Type_>> for
 more details on the different types of search that can be performed.
-
-|`lowercase_expanded_terms` |Should terms be automatically lowercased or
-not. Defaults to `true`.
-
-|`analyze_wildcard` |Should wildcard and prefix queries be analyzed or
-not. Defaults to `false`.
 |=======================================================================
 

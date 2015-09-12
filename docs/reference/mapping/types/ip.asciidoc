@@ -1,0 +1,89 @@
+[[ip]]
+=== IPv4 datatype
+
+An `ip` field is really a <<number,`long`>> field which accepts
+https://en.wikipedia.org/wiki/IPv4[IPv4] addresses and indexes them as long
+values:
+
+[source,js]
+--------------------------------------------------
+PUT my_index
+{
+  "mappings": {
+    "my_type": {
+      "properties": {
+        "ip_addr": {
+          "type": "ip"
+        }
+      }
+    }
+  }
+}
+
+PUT my_index/my_type/1
+{
+  "ip_addr": "192.168.1.1"
+}
+
+GET my_index/_search
+{
+  "query": {
+    "range": {
+      "ip_addr": {
+        "gte": "192.168.1.0",
+        "lt":  "192.168.2.0"
+      }
+    }
+  }
+}
+--------------------------------------------------
+// AUTOSENSE
+
+
+[[ip-params]]
+==== Parameters for `ip` fields
+
+The following parameters are accepted by `ip` fields:
+
+[horizontal]
+
+<<index-boost,`boost`>>::
+
+    Field-level index time boosting. Accepts a floating point number, defaults
+    to `1.0`.
+
+<<doc-values,`doc_values`>>::
+
+    Can the field value be used for sorting, aggregations, or scripting?
+    Accepts `true` (default) or `false`.
+
+<<include-in-all,`include_in_all`>>::
+
+    Whether or not the field value should be included in the
+    <<mapping-all-field,`_all`>> field? Accepts `true` or `false`.  Defaults
+    to `false` if <<mapping-index,`index`>> is set to `no`, or if a parent
+    <<object,`object`>> field sets `include_in_all` to `false`.
+    Otherwise defaults to `true`.
+
+<<mapping-index,`index`>>::
+
+    Should the field be searchable? Accepts `not_analyzed` (default) and `no`.
+
+<<null-value,`null_value`>>::
+
+    Accepts an IPv4 value which is substituted for any explicit `null` values.
+    Defaults to `null`, which means the field is treated as missing.
+
+<<precision-step,`precision_step`>>::
+
+    Controls the number of extra terms that are indexed to make
+    <<query-dsl-range-query,`range` queries>> faster. Defaults to `16`.
+
+<<mapping-store,`store`>>::
+
+    Whether the field value should be stored and retrievable separately from
+    the <<mapping-source-field,`_source`>> field. Accepts `true` or `false`
+    (default).
+
+
+NOTE: IPv6 addresses are not supported yet.

@@ -1,0 +1,134 @@
+[[indices-upgrade]]
+== Upgrade
+
+The upgrade API allows to upgrade one or more indices to the latest Lucene
+format through an API. The upgrade process converts any segments written with
+older formats.
+
+.When to use the `upgrade` API
+**************************************************
+
+Newer versions of Lucene often come with a new index format which provides bug
+fixes and performance improvements. In order to take advantage of these
+improvements, the segments in each shard need to be rewritten using the latest
+Lucene format.
+
+.Automatic upgrading
+
+Indices that are actively being written to will automatically write new
+segments in the latest format.  The background merge process which combines
+multiple small segments into a single bigger segment will also write the new
+merged segment in the latest format.
+
+.Optional manual upgrades
+
+Some old segments may never be merged away because they are already too big to
+be worth merging, and indices that no longer receive changes will not be
+upgraded automatically.  Upgrading segments is not required for most
+Elasticsearch upgrades because it can read older formats from the current and
+previous major version of Lucene.
+
+You can, however, choose to upgrade old segments manually to take advantage of
+the latest format. The `upgrade` API will rewrite any old segments in the
+latest Lucene format.  It can be run on one index, multiple or all indices, so
+you can control when it is run and how many indices it should upgrade.
+
+.When you must use the `upgrade` API
+
+Elasticsearch can only read formats from the current and previous major
+version of Lucene.  For instance, Elasticsearch 2.x (Lucene 5) can read disk
+formats from Elasticsearch 0.90 and 1.x (Lucene 4), but not from Elasticsearch
+0.20 and before (Lucene 3).
+
+In fact, an Elasticsearch 2.0 cluster will refuse to start if any indices
+created before Elasticsearch 0.90 are present, and it will refuse to open them
+if they are imported as dangling indices later on.  It will not be possible to
+restore an index created with Elasticsearch 0.20.x and before into a 2.0
+cluster.
+
+These ancient indices must either be deleted or upgraded before migrating to
+Elasticsearch 2.0.  Upgrading will:
+
+* Rewrite old segments in the latest Lucene format.
+* Add the `index.version.minimum_compatible` setting to the index, to mark it as
+  2.0 compatible
+
+Instead of upgrading all segments that weren't written with the most recent
+version of Lucene, you can choose to do the minimum work required before
+moving to Elasticsearch 2.0, by specifying the `only_ancient_segments` option,
+which will only rewrite segments written by Lucene 3.
+
+**************************************************
+
+[float]
+=== Start an upgrade
+
+[source,sh]
+--------------------------------------------------
+$ curl -XPOST 'http://localhost:9200/twitter/_upgrade'
+--------------------------------------------------
+
+NOTE: Upgrading is an I/O intensive operation, and is limited to processing a
+single shard per node at a time.  It also is not allowed to run at the same
+time as optimize.
+
+This call will block until the upgrade is complete. If the http connection
+is lost, the request will continue in the background, and
+any new requests will block until the previous upgrade is complete.
+
+[float]
+[[upgrade-parameters]]
+==== Request Parameters
+
+The `upgrade` API accepts the following request parameters:
+
+[horizontal]
+`only_ancient_segments`:: If true, only very old segments (from a
+previous Lucene major release) will be upgraded.  While this will do
+the minimal work to ensure the next major release of Elasticsearch can
+read the segments, it's dangerous because it can leave other very old
+segments in sub-optimal formats.  Defaults to `false`.
+
+[float]
+=== Check upgrade status
+
+Use a `GET` request to monitor how much of an index is upgraded.  This
+can also be used prior to starting an upgrade to identify which
+indices you want to upgrade at the same time.
+
+The `ancient` byte values that are returned indicate total bytes of
+segments whose version is extremely old (Lucene major version is
+different from the current version), showing how much upgrading is
+necessary when you run with `only_ancient_segments=true`.
+
+[source,sh]
+--------------------------------------------------
+curl 'http://localhost:9200/twitter/_upgrade?pretty&human'
+--------------------------------------------------
+
+[source,js]
+--------------------------------------------------
+{
+  "size": "21gb",
+  "size_in_bytes": "21000000000",
+  "size_to_upgrade": "10gb",
+  "size_to_upgrade_in_bytes": "10000000000"
+  "size_to_upgrade_ancient": "1gb",
+  "size_to_upgrade_ancient_in_bytes": "1000000000"
+  "indices": {
+    "twitter": {
+      "size": "21gb",
+      "size_in_bytes": "21000000000",
+      "size_to_upgrade": "10gb",
+      "size_to_upgrade_in_bytes": "10000000000"
+      "size_to_upgrade_ancient": "1gb",
+      "size_to_upgrade_ancient_in_bytes": "1000000000"
+    }
+  }
+}
+--------------------------------------------------
+
+The level of details in the upgrade status command can be controlled by
+setting `level` parameter to `cluster`, `index` (default) or `shard` levels.
+For example, you can run the upgrade status command with `level=shard` to
+get detailed upgrade information of each individual shard.

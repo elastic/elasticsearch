@@ -1,69 +1,134 @@
 [[mapping-routing-field]]
-=== `_routing`
+=== `_routing` field
 
-The routing field allows to control the `_routing` aspect when indexing
-data and explicit routing control is required.
+A document is routed to a particular shard in an index using the following
+formula:
 
-[float]
-==== store / index
+    shard_num = hash(_routing) % num_primary_shards
 
-The first thing the `_routing` mapping does is to store the routing
-value provided (`store` set to `false`) and index it (`index` set to
-`not_analyzed`). The reason why the routing is stored by default is so
-reindexing data will be possible if the routing value is completely
-external and not part of the docs.
+The default value used for `_routing` is the document's <<mapping-id-field,`_id`>>
+or the document's <<mapping-parent-field,`_parent`>> ID, if present.
 
-[float]
-==== required
-
-Another aspect of the `_routing` mapping is the ability to define it as
-required by setting `required` to `true`. This is very important to set
-when using routing features, as it allows different APIs to make use of
-it. For example, an index operation will be rejected if no routing value
-has been provided (or derived from the doc). A delete operation will be
-broadcasted to all shards if no routing value is provided and `_routing`
-is required.
-
-[float]
-==== path
-
-The routing value can be provided as an external value when indexing
-(and still stored as part of the document, in much the same way
-`_source` is stored). But, it can also be automatically extracted from
-the index doc based on a `path`. For example, having the following
-mapping:
+Custom routing patterns can be implemented by specifying a custom `routing`
+value per document.  For instance:
 
 [source,js]
---------------------------------------------------
+------------------------------
+PUT my_index/my_type/1?routing=user1 <1>
 {
-    "comment" : {
-        "_routing" : {
-            "required" : true,
-            "path" : "blog.post_id"
-        }
-    }
+  "title": "This is a document"
 }
---------------------------------------------------
 
-Will cause the following doc to be routed based on the `111222` value:
+GET my_index/my_type/1?routing=user1 <2>
+------------------------------
+// AUTOSENSE
+
+<1> This document uses `user1` as its routing value, instead of its ID.
+<2> The the same `routing` value needs to be provided when
+    <<docs-get,getting>>, <<docs-delete,deleting>>, or <<docs-update,updating>>
+    the document.
+
+The value of the `_routing` field is accessible in queries, aggregations, scripts,
+and when sorting:
 
 [source,js]
---------------------------------------------------
+--------------------------
+GET my_index/_search
 {
-    "text" : "the comment text"
-    "blog" : {
-        "post_id" : "111222"
+  "query": {
+    "terms": {
+      "_routing": [ "user1" ] <1>
     }
+  },
+  "aggs": {
+    "Routing values": {
+      "terms": {
+        "field": "_routing", <2>
+        "size": 10
+      }
+    }
+  },
+  "sort": [
+    {
+      "_routing": { <3>
+        "order": "desc"
+      }
+    }
+  ],
+  "script_fields": {
+    "Routing value": {
+      "script": "doc['_routing']" <4>
+    }
+  }
 }
---------------------------------------------------
+--------------------------
+// AUTOSENSE
 
-Note, using `path` without explicit routing value provided required an
-additional (though quite fast) parsing phase.
+<1> Querying on the `_routing` field (also see the <<query-dsl-ids-query,`ids` query>>)
+<2> Aggregating on the `_routing` field
+<3> Sorting on the `_routing` field
+<4> Accessing the `_routing` field in scripts (inline scripts must be <<enable-dynamic-scripting,enabled>> for this example to work)
 
-[float]
-==== id uniqueness
 
-When indexing documents specifying a custom `_routing`, the uniqueness
-of the `_id` is not guaranteed throughout all the shards that the index
-is composed of. In fact, documents with the same `_id` might end up in
-different shards if indexed with different `_routing` values.
+==== Searching with custom routing
+
+Custom routing can reduce the impact of searches.  Instead of having to fan
+out a search request to all the shards in an index, the request can be sent to
+just the shard that matches the specific routing value (or values):
+
+[source,js]
+------------------------------
+GET my_index/_search?routing=user1,user2 <1>
+{
+  "query": {
+    "match": {
+      "title": "document"
+    }
+  }
+}
+------------------------------
+// AUTOSENSE
+
+<1> This search request will only be executed on the shards associated with the `user1` and `user2` routing values.
+
+
+==== Making a routing value required
+
+When using custom routing, it is important to provide the routing value
+whenever <<docs-index_,indexing>>, <<docs-get,getting>>,
+<<docs-delete,deleting>>, or <<docs-update,updating>> a document.
+
+Forgetting the routing value can lead to a document being indexed on more than
+one shard.  As a safeguard, the `_routing` field can be configured to make a
+custom `routing` value required for all CRUD operations:
+
+[source,js]
+------------------------------
+PUT my_index
+{
+  "mappings": {
+    "my_type": {
+      "_routing": {
+        "required": true <1>
+      }
+    }
+  }
+}
+
+PUT my_index/my_type/1 <2>
+{
+  "text": "No routing value provided"
+}
+------------------------------
+// AUTOSENSE
+<1> Routing is required for `my_type` documents.
+<2> This index request throws a `routing_missing_exception`.
+
+==== Unique IDs with custom routing
+
+When indexing documents specifying a custom `_routing`, the uniqueness of the
+`_id` is not guaranteed across all of the shards in the index. In fact,
+documents with the same `_id` might end up on different shards if indexed with
+different `_routing` values.
+
+It is up to the user to ensure that IDs are unique across the index.

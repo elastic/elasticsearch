@@ -1,0 +1,74 @@
+[[query-dsl-has-child-query]]
+=== Has Child Query
+
+The `has_child` filter accepts a query and the child type to run against, and
+results in parent documents that have child docs matching the query. Here is
+an example:
+
+[source,js]
+--------------------------------------------------
+{
+    "has_child" : {
+        "type" : "blog_tag",
+        "query" : {
+            "term" : {
+                "tag" : "something"
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+[float]
+==== Scoring capabilities
+
+The `has_child` also has scoring support. The
+supported score modes are `min`, `max`, `total`, `avg` or `none`. The default is
+`none` and yields the same behaviour as in previous versions. If the
+score mode is set to another value than `none`, the scores of all the
+matching child documents are aggregated into the associated parent
+documents. The score type can be specified with the `score_mode` field
+inside the `has_child` query:
+
+[source,js]
+--------------------------------------------------
+{
+    "has_child" : {
+        "type" : "blog_tag",
+        "score_mode" : "sum",
+        "query" : {
+            "term" : {
+                "tag" : "something"
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+[float]
+==== Min/Max Children
+
+The `has_child` query allows you to specify that a minimum and/or maximum
+number of children are required to match for the parent doc to be considered
+a match:
+
+[source,js]
+--------------------------------------------------
+{
+    "has_child" : {
+        "type" : "blog_tag",
+        "score_mode" : "sum",
+        "min_children": 2, <1>
+        "max_children": 10, <1>
+        "query" : {
+            "term" : {
+                "tag" : "something"
+            }
+        }
+    }
+}
+--------------------------------------------------
+<1> Both `min_children` and `max_children` are optional.
+
+The  `min_children` and `max_children` parameters can be combined with
+the `score_mode` parameter.

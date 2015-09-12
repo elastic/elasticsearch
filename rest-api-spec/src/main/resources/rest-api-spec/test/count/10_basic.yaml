@@ -1,0 +1,37 @@
+---
+"count with body":
+  - do:
+      indices.create:
+          index:  test
+  - do:
+      index:
+          index:  test
+          type:   test
+          id:     1
+          body:   { foo: bar }
+
+  - do:
+      indices.refresh:
+        index: [test]
+
+  - do:
+      count:
+        index: test
+        type: test
+        body:
+          query:
+            match:
+              foo: bar
+
+  - match: {count : 1}
+
+  - do:
+      count:
+        index: test
+        type: test
+        body:
+          query:
+            match:
+              foo: test
+
+  - match: {count : 0}

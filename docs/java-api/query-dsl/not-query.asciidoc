@@ -1,0 +1,15 @@
+[[java-query-dsl-not-query]]
+==== Not Query
+
+See {ref}/query-dsl-not-query.html[Not Query]
+
+
+[source,java]
+--------------------------------------------------
+QueryBuilder qb = notQuery(
+    rangeQuery("price").from("1").to("2")  <1>
+);
+--------------------------------------------------
+<1> query
+
+

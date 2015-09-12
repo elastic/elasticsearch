@@ -1,0 +1,69 @@
+${packaging.scripts.header}
+
+#
+# This script is executed in the pre-remove phase
+#
+#   On Debian,
+#       $1=remove    : indicates a removal
+#       $1=upgrade   : indicates an upgrade
+#
+#   On RedHat,
+#       $1=0         : indicates a removal
+#       $1=1         : indicates an upgrade
+
+
+
+STOP_REQUIRED=false
+
+case "$1" in
+
+    # Debian ####################################################
+    remove)
+        STOP_REQUIRED=true
+    ;;
+    upgrade)
+        if [ "$RESTART_ON_UPGRADE" = "true" ]; then
+            STOP_REQUIRED=true
+        fi
+    ;;
+    deconfigure|failed-upgrade)
+    ;;
+
+    # RedHat ####################################################
+    0)
+        STOP_REQUIRED=true
+    ;;
+    1)
+        # Dont do anything on upgrade, because the preun script in redhat gets executed after the postinst (madness!)
+    ;;
+
+    *)
+        echo "pre remove script called with unknown argument \`$1'" >&2
+        exit 1
+    ;;
+esac
+
+# Stops the service
+if [ "$STOP_REQUIRED" = "true" ]; then
+    echo -n "Stopping elasticsearch service..."
+    if command -v systemctl >/dev/null; then
+        systemctl --no-reload stop elasticsearch.service
+
+    elif [ -x /etc/init.d/elasticsearch ]; then
+        if command -v invoke-rc.d >/dev/null; then
+            invoke-rc.d elasticsearch stop
+        else
+            /etc/init.d/elasticsearch stop
+        fi
+
+    # older suse linux distributions do not ship with systemd
+    # but do not have an /etc/init.d/ directory
+    # this tries to start the elasticsearch service on these
+    # as well without failing this script
+    elif [ -x /etc/rc.d/init.d/elasticsearch ] ; then
+        /etc/rc.d/init.d/elasticsearch stop
+    fi
+    echo " OK"
+fi
+
+${packaging.scripts.footer}

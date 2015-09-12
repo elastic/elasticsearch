@@ -1,5 +1,5 @@
 [[modules-advanced-scripting]]
-== Text scoring in scripts
+=== Text scoring in scripts
 
 
 Text features, such as term or document frequency for a specific term can be accessed in scripts (see <<modules-scripting, scripting documentation>> ) with the `_index` variable. This can be useful if, for example, you want to implement your own scoring model using for example a script inside a <<query-dsl-function-score-query,function score query>>.
@@ -7,7 +7,7 @@ Statistics over the document collection are computed *per shard*, not per
 index.
 
 [float]
-=== Nomenclature:
+==== Nomenclature:
 
 
 [horizontal]
@@ -33,7 +33,7 @@ depending on the shard the current document resides in.
 
 
 [float]
-=== Shard statistics:
+==== Shard statistics:
 
 `_index.numDocs()`::
 
@@ -49,7 +49,7 @@ depending on the shard the current document resides in.
 
 
 [float]
-=== Field statistics:
+==== Field statistics:
 
 Field statistics can be accessed with a subscript operator like this:
 `_index['FIELD']`.
@@ -69,18 +69,18 @@ Field statistics can be accessed with a subscript operator like this:
     documents.
 
 
-Field statistics are computed per shard and therfore these numbers can vary
+Field statistics are computed per shard and therefore these numbers can vary
 depending on the shard the current document resides in.
-The number of terms in a field cannot be accessed using the `_index` variable. See <<mapping-core-types, word count mapping type>> on how to do that.
+The number of terms in a field cannot be accessed using the `_index` variable. See <<token-count>> for how to do that.
 
 [float]
-=== Term statistics:
+==== Term statistics:
 
 Term statistics for a field can be accessed with a subscript operator like
 this: `_index['FIELD']['TERM']`. This will never return null, even if term or field does not exist.
 If you do not need the term frequency, call `_index['FIELD'].get('TERM', 0)`
-to avoid uneccesary initialization of the frequencies. The flag will have only
-affect is your set the `index_options` to `docs` (see <<mapping-core-types, mapping documentation>>).
+to avoid unnecessary initialization of the frequencies. The flag will have only
+affect is your set the <<index-options,`index_options`>> to `docs`.
 
 
 `_index['FIELD']['TERM'].df()`::
@@ -90,7 +90,7 @@ affect is your set the `index_options` to `docs` (see <<mapping-core-types, mapp
 
 `_index['FIELD']['TERM'].ttf()`::
 
-    The sum of term frequencys of term `TERM` in field `FIELD` over all
+    The sum of term frequencies of term `TERM` in field `FIELD` over all
     documents. Will be returned, even if the term is not present in the
     current document.
 
@@ -101,14 +101,14 @@ affect is your set the `index_options` to `docs` (see <<mapping-core-types, mapp
 
 
 [float]
-=== Term positions, offsets and payloads:
+==== Term positions, offsets and payloads:
 
 If you need information on the positions of terms in a field, call
 `_index['FIELD'].get('TERM', flag)` where flag can be
 
 [horizontal]
 `_POSITIONS`::      if you need the positions of the term
-`_OFFSETS`::        if you need the offests of the term
+`_OFFSETS`::        if you need the offsets of the term
 `_PAYLOADS`::       if you need the payloads of the term
 `_CACHE`::          if you need to iterate over all positions several times
 
@@ -174,9 +174,9 @@ return score;
 
 
 [float]
-=== Term vectors:
+==== Term vectors:
 
-The `_index` variable can only be used to gather statistics for single terms. If you want to use information on all terms in a field, you must store the term vectors (set `term_vector` in the mapping as described in the <<mapping-core-types,mapping documentation>>). To access them, call
+The `_index` variable can only be used to gather statistics for single terms. If you want to use information on all terms in a field, you must store the term vectors (see <<term-vector>>). To access them, call
 `_index.termVectors()` to get a
 https://lucene.apache.org/core/4_0_0/core/org/apache/lucene/index/Fields.html[Fields]
 instance. This object can then be used as described in https://lucene.apache.org/core/4_0_0/core/org/apache/lucene/index/Fields.html[lucene doc] to iterate over fields and then for each field iterate over each term in the field.

@@ -1,0 +1,13 @@
+{
+    "constant_score": {
+        "filter": {
+            "range" : {
+                "age" : {
+                    "gte": "0",
+                    "lte": "100",
+                    "time_zone": "-01:00"
+                }
+            }
+        }
+    }
+}

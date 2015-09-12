@@ -1,0 +1,124 @@
+=== Java API changes
+
+==== Transport API construction
+
+The `TransportClient` construction code has changed, it now uses the builder
+pattern. Instead of:
+
+[source,java]
+--------------------------------------------------
+Settings settings = Settings.settingsBuilder()
+        .put("cluster.name", "myClusterName").build();
+Client client = new TransportClient(settings);
+--------------------------------------------------
+
+Use the following:
+
+[source,java]
+--------------------------------------------------
+Settings settings = Settings.settingsBuilder()
+        .put("cluster.name", "myClusterName").build();
+Client client = TransportClient.builder().settings(settings).build();
+--------------------------------------------------
+
+The transport client also no longer supports loading settings from config files.
+If you have have a config file, you can load into settings yourself before
+consturcting the transport client:
+
+[source,java]
+--------------------------------------------------
+Settings settings = Settings.settingsBuilder()
+        .loadFromPath(pathToYourSettingsFile).build();
+Client client = TransportClient.builder().settings(settings).build();
+--------------------------------------------------
+
+==== Automatically thread client listeners
+
+Previously, the user had to set request listener threads to `true` when on the
+client side in order not to block IO threads on heavy operations. This proved
+to be very trappy for users, and ended up creating problems that are very hard
+to debug.
+
+In 2.0, Elasticsearch automatically threads listeners that are used from the
+client when the client is a node client or a transport client. Threading can
+no longer be manually set.
+
+
+==== Query/filter refactoring
+
+`org.elasticsearch.index.queries.FilterBuilders` has been removed as part of the merge of
+queries and filters. These filters are now available in `QueryBuilders` with the same name.
+All methods that used to accept a `FilterBuilder` now accept a `QueryBuilder` instead.
+
+In addition some query builders have been removed or renamed:
+
+* `commonTerms(...)` renamed with `commonTermsQuery(...)`
+* `queryString(...)` renamed with `queryStringQuery(...)`
+* `simpleQueryString(...)` renamed with `simpleQueryStringQuery(...)`
+* `textPhrase(...)` removed
+* `textPhrasePrefix(...)` removed
+* `textPhrasePrefixQuery(...)` removed
+* `filtered(...)` removed. Use `filteredQuery(...)` instead.
+* `inQuery(...)` removed.
+
+==== GetIndexRequest
+
+`GetIndexRequest.features()` now returns an array of Feature Enums instead of an array of String values.
+
+The following deprecated methods have been removed:
+
+* `GetIndexRequest.addFeatures(String[])` - Use
+  `GetIndexRequest.addFeatures(Feature[])` instead
+
+* `GetIndexRequest.features(String[])` - Use
+  `GetIndexRequest.features(Feature[])` instead.
+
+* `GetIndexRequestBuilder.addFeatures(String[])` - Use
+  `GetIndexRequestBuilder.addFeatures(Feature[])` instead.
+
+* `GetIndexRequestBuilder.setFeatures(String[])` - Use
+  `GetIndexRequestBuilder.setFeatures(Feature[])` instead.
+
+
+==== BytesQueryBuilder removed
+
+The redundant BytesQueryBuilder has been removed in favour of the
+WrapperQueryBuilder internally.
+
+==== TermsQueryBuilder execution removed
+
+The `TermsQueryBuilder#execution` method has been removed as it has no effect, it is ignored by the
+ corresponding parser.
+
+==== ImmutableSettings removed
+
+Use `Settings.builder()` instead of `ImmutableSettings.builder()`.
+
+==== InetSocketTransportAddress removed
+
+Use `InetSocketTransportAddress(InetSocketAddress address)` instead of `InetSocketTransportAddress(String, int)`.
+You can create an InetSocketAddress instance with `InetSocketAddress(String, int)`. For example:
+
+[source,java]
+-----------------------------
+new InetSocketTransportAddress(new InetSocketAddress("127.0.0.1", 0));
+-----------------------------
+
+==== Shading and package relocation removed
+
+Elasticsearch used to shade its dependencies and to relocate packages. We no longer use shading or relocation.
+You might need to change your imports to the original package names:
+
+* `com.google.common` was `org.elasticsearch.common` 
+* `com.carrotsearch.hppc` was `org.elasticsearch.common.hppc`
+* `jsr166e` was `org.elasticsearch.common.util.concurrent.jsr166e`
+* `com.fasterxml.jackson` was `org.elasticsearch.common.jackson`
+* `org.joda.time` was `org.elasticsearch.common.joda.time`
+* `org.joda.convert` was `org.elasticsearch.common.joda.convert`
+* `org.jboss.netty` was `org.elasticsearch.common.netty`
+* `com.ning.compress` was `org.elasticsearch.common.compress`
+* `com.github.mustachejava` was `org.elasticsearch.common.mustache`
+* `com.tdunning.math.stats` was `org.elasticsearch.common.stats`
+* `org.apache.commons.lang` was `org.elasticsearch.common.lang`
+* `org.apache.commons.cli` was `org.elasticsearch.common.cli.commons`
+ 

@@ -1,0 +1,86 @@
+[[backup]]
+=== Back Up Your Data!
+
+Always back up your data before performing an upgrade.  This will allow you to
+roll back in the event of a problem.  The upgrades sometimes include upgrades
+to the Lucene libraries used by Elasticsearch to access the index files, and
+after an index file has been updated to work with a new version of Lucene, it
+may not be accessible to the versions of Lucene present in earlier
+Elasticsearch releases.
+
+[WARNING]
+.Always back up your data before upgrading
+=========================================
+You cannot roll back to an earlier version unless you have a backup of your data.
+=========================================
+
+==== Backing up 1.0 and later
+
+To back up a running 1.0 or later system, it is simplest to use the snapshot
+feature.  See the complete instructions for
+<<modules-snapshots,backup and restore with snapshots>>.
+
+==== Backing up 0.90.x and earlier
+
+To back up a running 0.90.x system:
+
+===== Step 1: Disable index flushing
+
+This will prevent indices from being flushed to disk while the backup is in
+process:
+
+[source,js]
+-----------------------------------
+PUT /_all/_settings
+{
+  "index": {
+    "translog.disable_flush": "true"
+  }
+}
+-----------------------------------
+// AUTOSENSE
+
+===== Step 2: Disable reallocation
+
+This will prevent the cluster from moving data files from one node to another
+while the backup is in process:
+
+[source,js]
+-----------------------------------
+PUT /_cluster/settings
+{
+  "transient": {
+    "cluster.routing.allocation.enable": "none"
+  }
+}
+-----------------------------------
+// AUTOSENSE
+
+===== Step 3: Backup your data
+
+After reallocation and index flushing are disabled, initiate a backup of
+Elasticsearch's data path using your favorite backup method (tar, storage
+array snapshots, backup software).
+
+===== Step 4: Reenable allocation and flushing
+
+When the backup is complete and data no longer needs to be read from the
+Elasticsearch data path, allocation and index flushing must be re-enabled:
+
+[source,js]
+-----------------------------------
+PUT /_all/_settings
+{
+  "index": {
+    "translog.disable_flush": "false"
+  }
+}
+
+PUT /_cluster/settings
+{
+  "transient": {
+    "cluster.routing.allocation.enable": "all"
+  }
+}
+-----------------------------------
+// AUTOSENSE

@@ -1,0 +1,59 @@
+[[null-value]]
+=== `null_value`
+
+A `null` value cannot be indexed or searched.  When a field is set to `null`,
+(or an empty array or an array of `null` values)  it is treated as though that
+field has no values.
+
+The `null_value` parameter allows you to replace explicit `null` values with
+the specified value so that it can be indexed and searched.  For instance:
+
+[source,js]
+--------------------------------------------------
+PUT my_index
+{
+  "mappings": {
+    "my_type": {
+      "properties": {
+        "status_code": {
+          "type":       "string",
+          "index":      "not_analyzed",
+          "null_value": "NULL" <1>
+        }
+      }
+    }
+  }
+}
+
+PUT my_index/my_type/1
+{
+  "status_code": null
+}
+
+PUT my_index/my_type/2
+{
+  "status_code": [] <2>
+}
+
+GET my_index/_search
+{
+  "query": {
+    "term": {
+      "status_code": "NULL" <3>
+    }
+  }
+}
+--------------------------------------------------
+// AUTOSENSE
+<1> Replace explicit `null` values with the term `NULL`.
+<2> An empty array does not contain an explicit `null`, and so won't be replaced with the `null_value`.
+<3> A query for `NULL` returns document 1, but not document 2.
+
+IMPORTANT: The `null_value` needs to be the same datatype as the field.  For
+instance, a `long` field cannot have a string `null_value`.  String fields
+which are `analyzed` will also pass the `null_value` through the configured
+analyzer.
+
+Also see the <<query-dsl-missing-query,`missing` query>> for its `null_value` support.
+
+

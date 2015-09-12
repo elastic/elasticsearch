@@ -1,15 +1,56 @@
 [[mapping-index-field]]
-=== `_index`
+=== `_index` field
 
-The ability to store in a document the index it belongs to. By default
-it is disabled, in order to enable it, the following mapping should be
-defined:
+When performing queries across multiple indexes, it is sometimes desirable
+to add query clauses that are associated with documents of only certain
+indexes. The `_index` field allows matching on the index a document was
+indexed into. Its value is accessible in queries, aggregations, scripts, and when sorting:
 
 [source,js]
---------------------------------------------------
+--------------------------
+# Example documents
+PUT index_1/my_type/1
 {
-    "tweet" : {
-        "_index" : { "enabled" : true }
-    }
+  "text": "Document in index 1"
 }
---------------------------------------------------
+
+PUT index_2/my_type/2
+{
+  "text": "Document in index 2"
+}
+
+GET index_1,index_2/_search
+{
+  "query": {
+    "terms": {
+      "_index": ["index_1", "index_2"] <1>
+    }
+  },
+  "aggs": {
+    "indices": {
+      "terms": {
+        "field": "_index", <2>
+        "size": 10
+      }
+    }
+  },
+  "sort": [
+    {
+      "_index": { <3>
+        "order": "asc"
+      }
+    }
+  ],
+  "script_fields": {
+    "index_name": {
+      "script": "doc['_index']" <4>
+    }
+  }
+}
+--------------------------
+// AUTOSENSE
+
+<1> Querying on the `_index` field
+<2> Aggregating on the `_index` field
+<3> Sorting on the `_index` field
+<4> Accessing the `_index` field in scripts (inline scripts must be <<enable-dynamic-scripting,enabled>> for this example to work)

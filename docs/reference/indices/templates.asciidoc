@@ -1,7 +1,7 @@
 [[indices-templates]]
 == Index Templates
 
-Index templates allow to define templates that will automatically be
+Index templates allow you to define templates that will automatically be
 applied to new indices created. The templates include both settings and
 mappings, and a simple pattern template that controls if the template
 will be applied to the index created. For example:
@@ -26,8 +26,6 @@ curl -XPUT localhost:9200/_template/template_1 -d '
 Defines a template named template_1, with a template pattern of `te*`.
 The settings and mappings will be applied to any index name that matches
 the `te*` template.
-
-added[1.1.0]
 
 It is also possible to include aliases in an index template as follows:
 
@@ -70,7 +68,7 @@ curl -XDELETE localhost:9200/_template/template_1
 
 [float]
 [[getting]]
-=== GETting templates
+=== Getting templates
 
 Index templates are identified by a name (in the above case
 `template_1`) and can be retrieved using the following:
@@ -94,6 +92,21 @@ To get list of all index templates you can run:
 --------------------------------------------------
 curl -XGET localhost:9200/_template/
 --------------------------------------------------
+
+
+[float]
+[[indices-templates-exists]]
+=== Templates exists
+
+Used to check if the template exists or not. For example:
+
+[source,js]
+-----------------------------------------------
+curl -XHEAD -i localhost:9200/_template/template_1
+-----------------------------------------------
+
+The HTTP status code indicates if the template with the given name
+exists or not. A status code `200` means it exists, a `404` it does not.
 
 
 [float]
@@ -144,37 +157,3 @@ for indices of that start with `te*`, source will still be enabled.
 Note, for mappings, the merging is "deep", meaning that specific
 object/property based mappings can easily be added/overridden on higher
 order templates, with lower order templates providing the basis.
-
-[float]
-[[config]]
-=== Config
-
-Index templates can also be placed within the config location
-(`path.conf`) under the `templates` directory (note, make sure to place
-them on all master eligible nodes). For example, a file called
-`template_1.json` can be placed under `config/templates` and it will be
-added if it matches an index. Here is a sample of the mentioned file:
-
-[source,js]
---------------------------------------------------
-{
-    "template_1" : {
-        "template" : "*",
-        "settings" : {
-            "index.number_of_shards" : 2
-        },
-        "mappings" : {
-            "_default_" : {
-                "_source" : {
-                    "enabled" : false
-                }
-            },
-            "type1" : {
-                "_all" : {
-                    "enabled" : false
-                }
-            }
-        }
-    }
-}
---------------------------------------------------

@@ -1,0 +1,68 @@
+[[breaking-changes-2.1]]
+== Breaking changes in 2.1
+
+This section discusses the changes that you need to be aware of when migrating
+your application to Elasticsearch 2.1.
+
+=== Search changes
+
+==== `search_type=scan` deprecated
+
+The `scan` search type has been deprecated. All benefits from this search
+type can now be achieved by doing a scroll request that sorts documents in
+`_doc` order, for instance:
+
+[source,sh]
+---------------
+GET /my_index/_search?scroll=2m
+{
+  "sort": [
+    "_doc"
+  ]
+}
+---------------
+
+Scroll requests sorted by `_doc` have been optimized to more efficiently resume
+from where the previous request stopped, so this will have the same performance
+characteristics as the former `scan` search type.
+
+==== from + size limits
+
+Elasticsearch will now return an error message if a query's `from` + `size` is
+more than the `index.max_result_window` parameter. This parameter defaults to
+10,000 which is safe for almost all clusters. Values higher than can consume
+significant chunks of heap memory per search and per shard executing the
+search. It's safest to leave this value as it is an use the scroll api for any
+deep scrolling but this setting is dynamic so it can raised or lowered as
+needed.
+
+=== Update changes
+
+==== Updates now `detect_noop` by default
+
+We've switched the default value of the `detect_noop` option from `false` to
+`true`. This means that Elasticsearch will ignore updates that don't change
+source unless you explicitly set `"detect_noop": false`. `detect_noop` was
+always computationally cheap compared to the expense of the update which can be
+thought of as a delete operation followed by an index operation.
+
+=== Removed features
+
+==== `indices.fielddata.cache.expire`
+
+The experimental feature `indices.fielddata.cache.expire` has been removed.
+For indices that have this setting configured, this config will be ignored.
+
+=== More Like This
+
+The MoreLikeThisQueryBuilder#ignoreLike methods have been deprecating in favor
+to using the unlike methods.
+
+MoreLikeThisBuilder#addItem has been deprecated in favor to using
+MoreLikeThisBuilder#addLikeItem.
+
+=== Nested sorting
+
+If sorting on field inside a nested object then the `nested_path` should be specified.
+Before there was an attempt to resolve the nested path automatically, but that was sometimes incorrect.
+To avoid confusion the `nested_path` should always be specified.

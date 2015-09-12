@@ -1,0 +1,225 @@
+[[plugin-management]]
+== Plugin Management
+
+The `plugin` script is used to install, list, and remove plugins. It is
+located in the `$ES_HOME/bin` directory by default but it may be in a
+{ref}/setup-dir-layout.html[different location] if you installed Elasticsearch
+with an RPM or deb package.
+
+Run the following command to get usage instructions:
+
+[source,shell]
+-----------------------------------
+sudo bin/plugin -h
+-----------------------------------
+
+[[installation]]
+=== Installing Plugins
+
+The documentation for each plugin usually includes specific installation
+instructions for that plugin, but below we document the various available
+options:
+
+[float]
+=== Core Elasticsearch plugins
+
+Core Elasticsearch plugins can be installed as follows:
+
+[source,shell]
+-----------------------------------
+sudo bin/plugin install [plugin_name]
+-----------------------------------
+
+For instance, to install the core <<analysis-icu,ICU plugin>>, just run the
+following command:
+
+[source,shell]
+-----------------------------------
+sudo bin/plugin install analysis-icu
+-----------------------------------
+
+This command will install the version of the plugin that matches your
+Elasticsearch version.
+
+[float]
+=== Community and non-core plugins
+
+Non-core plugins provided by Elasticsearch, or plugins provided by the
+community, can be installed from `download.elastic.co`, from Maven (Central
+and Sonatype), or from GitHub.  In this case, the command is as follows:
+
+[source,shell]
+-----------------------------------
+sudo bin/plugin install [org]/[user|component]/[version]
+-----------------------------------
+
+For instance, to install the https://github.com/lmenezes/elasticsearch-kopf[Kopf]
+plugin from GitHub, run one of the following commands:
+
+[source,shell]
+-----------------------------------
+sudo bin/plugin install lmenezes/elasticsearch-kopf <1>
+sudo bin/plugin install lmenezes/elasticsearch-kopf/1.x <2>
+-----------------------------------
+<1> Installs the latest version from GitHub.
+<2> Installs the 1.x version from GitHub.
+
+When installing from Maven Central/Sonatype, `[org]` should be replaced by
+the artifact `groupId`, and `[user|component]` by the `artifactId`.  For
+instance, to install the
+https://github.com/elastic/elasticsearch-mapper-attachments[mapper attachment]
+plugin from Sonatype, run:
+
+[source,shell]
+-----------------------------------
+sudo bin/plugin install org.elasticsearch/elasticsearch-mapper-attachments/2.6.0 <1>
+-----------------------------------
+<1> When installing from `download.elastic.co` or from Maven Central/Sonatype, the
+    version is required.
+
+[float]
+=== Custom URL or file system
+
+A plugin can also be downloaded directly from a custom location by specifying the URL:
+
+[source,shell]
+-----------------------------------
+sudo bin/plugin install [url] <1>
+-----------------------------------
+<1> must be a valid URL, the plugin name is determined from its descriptor.
+
+For instance, to install a plugin from your local file system, you could run:
+
+[source,shell]
+-----------------------------------
+sudo bin/plugin install file:/path/to/plugin.zip
+-----------------------------------
+
+[[listing-removing]]
+=== Listing and Removing Installed Plugins
+
+[float]
+=== Listing plugins
+
+A list of the currently loaded plugins can be retrieved with the `list` option:
+
+[source,shell]
+-----------------------------------
+sudo bin/plugin list
+-----------------------------------
+
+Alternatively, use the {ref}/cluster-nodes-info.html[node-info API] to find
+out which plugins are installed on each node in the cluster
+
+[float]
+=== Removing plugins
+
+Plugins can be removed manually, by deleting the appropriate directory under
+`plugins/`, or using the public script:
+
+[source,shell]
+-----------------------------------
+sudo bin/plugin remove [pluginname]
+-----------------------------------
+
+=== Other command line parameters
+
+The `plugin` scripts supports a number of other command line parameters:
+
+[float]
+=== Silent/Verbose mode
+
+The `--verbose` parameter outputs more debug information, while the `--silent`
+parameter turns off all output.  The script may return the following exit
+codes:
+
+[horizontal]
+`0`:: everything was OK
+`64`:: unknown command or incorrect option parameter
+`74`:: IO error
+`70`:: any other error
+
+[float]
+=== Custom config directory
+
+If your `elasticsearch.yml` config file is in a custom location, you will need
+to specify the path to the config file when using the `plugin` script.  You
+can do this as follows:
+
+[source,sh]
+---------------------
+sudo bin/plugin -Des.path.conf=/path/to/custom/config/dir install <plugin name>
+---------------------
+
+You can also set the `CONF_DIR` environment variable to the custom config
+directory path.
+
+[float]
+=== Timeout settings
+
+By default, the `plugin` script will wait indefinitely when downloading before
+failing. The timeout parameter can be used to explicitly specify how long it
+waits. Here is some examples of setting it to different values:
+
+[source,shell]
+-----------------------------------
+# Wait for 30 seconds before failing
+sudo bin/plugin install mobz/elasticsearch-head --timeout 30s
+
+# Wait for 1 minute before failing
+sudo bin/plugin install mobz/elasticsearch-head --timeout 1m
+
+# Wait forever (default)
+sudo bin/plugin install mobz/elasticsearch-head --timeout 0
+-----------------------------------
+
+[float]
+=== Proxy settings
+
+To install a plugin via a proxy, you can pass the proxy details in with the
+Java settings `proxyHost` and `proxyPort`. On Unix based systems, these
+options can be set on the command line:
+
+[source,shell]
+-----------------------------------
+sudo bin/plugin install mobz/elasticsearch-head -DproxyHost=host_name -DproxyPort=port_number
+-----------------------------------
+
+On Windows, they need to be added to the `JAVA_OPTS` environment variable:
+
+[source,shell]
+-----------------------------------
+set JAVA_OPTS="-DproxyHost=host_name -DproxyPort=port_number"
+bin/plugin install mobz/elasticsearch-head
+-----------------------------------
+
+=== Settings related to plugins
+
+[float]
+=== Custom plugins directory
+
+The `plugins` directory can be changed from the default by adding the
+following to the `elasticsearch.yml` config file:
+
+[source,yml]
+---------------------
+path.plugins: /path/to/custom/plugins/dir
+---------------------
+
+The default location of the `plugins` directory depends on
+{ref}/setup-dir-layout.html[which package you install].
+
+[float]
+=== Mandatory Plugins
+
+If you rely on some plugins, you can define mandatory plugins by adding
+`plugin.mandatory` setting to the `config/elasticsearch.yml` file, for
+example:
+
+[source,yaml]
+--------------------------------------------------
+plugin.mandatory: mapper-attachments,lang-groovy
+--------------------------------------------------
+
+For safety reasons, a node will not start if it is missing a mandatory plugin.
+

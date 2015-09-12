@@ -12,9 +12,10 @@ curl -XGET 'http://localhost:9200/_cluster/stats?human&pretty'
 --------------------------------------------------
 
 Will return, for example:
-[source,js]
+["source","js",subs="attributes,callouts"]
 --------------------------------------------------
 {
+   "timestamp": 1439326129256,
    "cluster_name": "elasticsearch",
    "status": "green",
    "indices": {
@@ -70,7 +71,26 @@ Will return, for example:
          "size_in_bytes": 0
       },
       "segments": {
-         "count": 2
+         "count": 2,
+         "memory": "6.4kb",
+         "memory_in_bytes": 6596,
+         "index_writer_memory": "0b",
+         "index_writer_memory_in_bytes": 0,
+         "index_writer_max_memory": "275.7mb",
+         "index_writer_max_memory_in_bytes": 289194639,
+         "version_map_memory": "0b",
+         "version_map_memory_in_bytes": 0,
+         "fixed_bit_set": "0b",
+         "fixed_bit_set_memory_in_bytes": 0
+      },
+      "percolate": {
+         "total": 0,
+         "get_time": "0s",
+         "time_in_millis": 0,
+         "current": 0,
+         "memory_size_in_bytes": -1,
+         "memory_size": "-1b",
+         "queries": 0
       }
    },
    "nodes": {
@@ -82,7 +102,7 @@ Will return, for example:
          "client": 0
       },
       "versions": [
-         "0.90.8"
+         "{version}"
       ],
       "os": {
          "available_processors": 4,
@@ -90,6 +110,12 @@ Will return, for example:
             "total": "8gb",
             "total_in_bytes": 8589934592
          },
+         "names": [
+            {
+               "name": "Mac OS X",
+               "count": 1
+            }
+         ],
          "cpu": [
             {
                "vendor": "Intel",
@@ -117,7 +143,7 @@ Will return, for example:
       "jvm": {
          "max_uptime": "24s",
          "max_uptime_in_millis": 24054,
-         "version": [
+         "versions": [
             {
                "version": "1.6.0_45",
                "vm_name": "Java HotSpot(TM) 64-Bit Server VM",

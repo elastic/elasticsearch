@@ -1,0 +1,173 @@
+[[string]]
+=== String datatype
+
+Fields of type `string` accept text values.  Strings may be sub-divided into:
+
+Full text::
++
+--
+
+Full text values, like the body of an email, are typically used for text based
+relevance searches, such as: _Find the most relevant documents that match a
+query for "quick brown fox"_.
+
+These fields are `analyzed`, that is they are passed through an
+<<analysis,analyzer>> to convert the string into a list of individual terms
+before being indexed. The analysis process allows Elasticsearch to search for
+individual words _within_  each full text field.  Full text fields are not
+used for sorting and seldom used for aggregations (although the
+<<search-aggregations-bucket-significantterms-aggregation,significant terms aggregation>> is a notable exception).
+
+--
+
+Keywords::
+
+Keywords are exact values like email addresses, hostnames, status codes, or
+tags.  They are typically used for filtering (_Find me all blog posts where
+++status++ is ++published++_), for sorting, and for aggregations. Keyword
+fields are `not_analyzed`.  Instead, the exact string value is added to the
+index as a single term.
+
+Below is an example of a mapping for a full text (`analyzed`) and a keyword
+(`not_analyzed`) string field:
+
+[source,js]
+--------------------------------
+PUT my_index
+{
+  "mappings": {
+    "my_type": {
+      "properties": {
+        "full_name": { <1>
+          "type":  "string"
+        },
+        "status": {
+          "type":  "string", <2>
+          "index": "not_analyzed"
+        }
+      }
+    }
+  }
+}
+--------------------------------
+// AUTOSENSE
+<1> The `full_name` field is an `analyzed` full text field -- `index:analyzed` is the default.
+<2> The `status` field is a `not_analyzed` keyword field.
+
+Sometimes it is useful to have both a full text (`analyzed`) and a keyword
+(`not_analyzed`) version of the same field: one for full text search and the
+other for aggregations and sorting. This can be achieved with
+<<multi-fields,multi-fields>>.
+
+
+[[string-params]]
+==== Parameters for string fields
+
+The following parameters are accepted by `string` fields:
+
+[horizontal]
+
+<<analyzer,`analyzer`>>::
+
+    The <<analysis,analyzer>> which should be used for
+    <<mapping-index,`analyzed`>> string fields, both at index-time and at
+    search-time (unless overridden by the  <<search-analyzer,`search_analyzer`>>).
+    Defaults to the default index analyzer, or the
+    <<analysis-standard-analyzer,`standard` analyzer>>.
+
+<<index-boost,`boost`>>::
+
+    Field-level index time boosting. Accepts a floating point number, defaults
+    to `1.0`.
+
+<<doc-values,`doc_values`>>::
+
+    Can the field use on-disk index-time doc values for sorting, aggregations,
+    or scripting? Accepts `true` or `false`. Defaults to `true` for
+    `not_analyzed` fields. Analyzed fields do not support doc values.
+
+<<fielddata,`fielddata`>>::
+
+    Can the field use in-memory fielddata for sorting, aggregations,
+    or scripting? Accepts `disabled` or `paged_bytes` (default).
+    Not analyzed fields will use <<doc-values,doc values>> in preference
+    to fielddata.
+
+<<multi-fields,`fields`>>::
+
+    Multi-fields allow the same string value to be indexed in multiple ways for
+    different purposes, such as one field for search and a multi-field for
+    sorting and aggregations, or the same string value analyzed by different
+    analyzers.
+
+<<ignore-above,`ignore_above`>>::
+
+    Do not index or analyze any string longer than this value.  Defaults to `0` (disabled).
+
+<<include-in-all,`include_in_all`>>::
+
+    Whether or not the field value should be included in the
+    <<mapping-all-field,`_all`>> field? Accepts `true` or `false`.  Defaults
+    to `false` if <<mapping-index,`index`>> is set to `no`, or if a parent
+    <<object,`object`>> field sets `include_in_all` to `false`.
+    Otherwise defaults to `true`.
+
+<<mapping-index,`index`>>::
+
+    Should the field be searchable? Accepts `analyzed` (default, treat as full-text field),
+    `not_analyzed` (treat as keyword field) and `no`.
+
+<<index-options,`index_options`>>::
+
+    What information should be stored in the index, for search and highlighting purposes.
+    Defaults to `positions` for <<mapping-index,`analyzed`>> fields, and to `docs` for
+    `not_analyzed` fields.
+
+
+<<norms,`norms`>>::
++
+--
+
+Whether field-length should be taken into account when scoring queries.
+Defaults depend on the <<mapping-index,`index`>> setting:
+
+* `analyzed` fields default to `{ "enabled": true, "loading": "lazy" }`.
+* `not_analyzed` fields default to `{ "enabled": false }`.
+--
+
+<<null-value,`null_value`>>::
+
+    Accepts a string value which is substituted for any explicit `null`
+    values.  Defaults to `null`, which means the field is treated as missing.
+    If the field is `analyzed`, the `null_value` will also be analyzed.
+
+<<position-increment-gap,`position_increment_gap`>>::
+
+    The number of fake term positions which should be inserted between
+    each element of an array of strings. Defaults to 0.
+    The number of fake term position which should be inserted between each
+    element of an array of strings. Defaults to the position_increment_gap
+    configured on the analyzer which defaults to 100. 100 was chosen because it
+    prevents phrase queries with reasonably large slops (less than 100) from
+    matching terms across field values.
+
+<<mapping-store,`store`>>::
+
+    Whether the field value should be stored and retrievable separately from
+    the <<mapping-source-field,`_source`>> field. Accepts `true` or `false`
+    (default).
+
+<<search-analyzer,`search_analyzer`>>::
+
+    The <<analyzer,`analyzer`>> that should be used at search time on
+    <<mapping-index,`analyzed`>> fields. Defaults to the `analyzer` setting.
+
+<<similarity,`similarity`>>::
+
+    Which scoring algorithm or _similarity_ should be used. Defaults
+    to `default`, which uses TF/IDF.
+
+<<term-vector,`term_vector`>>::
+
+    Whether term vectors should be stored for an <<mapping-index,`analyzed`>>
+    field. Defaults to `no`.

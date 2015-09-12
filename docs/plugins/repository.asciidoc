@@ -1,0 +1,40 @@
+[[repository]]
+== Snapshot/Restore Repository Plugins
+
+Repository plugins extend the {ref}/modules-snapshots.html[Snapshot/Restore]
+functionality in Elasticsearch by adding repositories backed by the cloud or
+by distributed file systems:
+
+[float]
+==== Core repository plugins
+
+The core repository plugins are:
+
+<<repository-s3,S3 Repository>>::
+
+The S3 repository plugin adds support for using S3 as a repository.
+
+<<cloud-azure,Azure Cloud>>::
+
+The Azure Cloud plugin adds support for using Azure as a repository.
+
+https://github.com/elastic/elasticsearch-hadoop/tree/master/repository-hdfs[Hadoop HDFS Repository]::
+
+The Hadoop HDFS Repository plugin adds support for using an HDFS file system
+as a repository.
+
+
+[float]
+=== Community contributed repository plugins
+
+The following plugin has been contributed by our community:
+
+* https://github.com/wikimedia/search-repository-swift[Openstack Swift] (by http://en.cam4.es/youngqcmeat/Wikimedia Foundation)
+
+This community plugin appears to have been abandoned:
+
+* https://github.com/kzwang/elasticsearch-repository-gridfs[GridFS] Repository (by Kevin Wang)
+
+
+include::repository-s3.asciidoc[]
+

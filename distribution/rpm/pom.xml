@@ -1,0 +1,394 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>org.elasticsearch.distribution</groupId>
+        <artifactId>distributions</artifactId>
+        <version>3.0.0-SNAPSHOT</version>
+    </parent>
+
+    <groupId>org.elasticsearch.distribution.rpm</groupId>
+    <artifactId>elasticsearch</artifactId>
+    <name>Distribution: RPM</name>
+    <packaging>rpm</packaging>
+    <description>The RPM distribution of Elasticsearch</description>
+
+    <properties>
+        <skip.unit.tests>true</skip.unit.tests>
+        <rpm.outputDirectory>${project.build.directory}/releases/</rpm.outputDirectory>
+    </properties>
+
+    <build>
+
+        <filters>
+            <filter>${project.basedir}/src/main/packaging/packaging.properties</filter>
+        </filters>
+
+        <plugins>
+            <!-- No need to have some source jar for the RPM -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-source-plugin</artifactId>
+                <version>2.4</version>
+                <configuration><skipSource>true</skipSource></configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-resources-plugin</artifactId>
+                <executions>
+                    <!-- Filters some files and uses packaging.properties when building the .rpm package -->
+                    <execution>
+                        <id>copy-resources-rpm</id>
+                        <phase>prepare-package</phase>
+                        <goals>
+                            <goal>copy-resources</goal>
+                        </goals>
+                        <configuration>
+                            <outputDirectory>${project.build.directory}/generated-packaging/rpm/</outputDirectory>
+                            <filters>
+                                <filter>${project.basedir}/../src/main/packaging/packaging.properties</filter>
+                                <filter>${project.basedir}/src/main/packaging/packaging.properties</filter>
+                            </filters>
+                            <resources>
+                                <resource>
+                                    <directory>${project.basedir}/../src/main/packaging/</directory>
+                                    <filtering>true</filtering>
+                                    <includes>
+                                        <include>**/*</include>
+                                    </includes>
+                                    <excludes>
+                                        <exclude>packaging.properties</exclude>
+                                    </excludes>
+                                </resource>
+                                <resource>
+                                    <directory>${project.basedir}/src/main/packaging/</directory>
+                                    <filtering>true</filtering>
+                                    <includes>
+                                        <include>**/*</include>
+                                    </includes>
+                                    <excludes>
+                                        <exclude>packaging.properties</exclude>
+                                    </excludes>
+                                </resource>
+                                <resource>
+                                    <directory>${project.basedir}/../src/main/resources</directory>
+                                    <filtering>true</filtering>
+                                    <includes>
+                                        <include>bin/elasticsearch</include>
+                                        <include>bin/elasticsearch.in.sh</include>
+                                        <include>bin/plugin</include>
+                                    </includes>
+                                </resource>
+                            </resources>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <!-- Rpm Packaging -->
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>rpm-maven-plugin</artifactId>
+                <configuration>
+                    <disabled>false</disabled>
+                    <name>elasticsearch</name>
+                    <distribution>Elasticsearch</distribution>
+                    <group>Application/Internet</group>
+                    <packager>Elasticsearch</packager>
+                    <prefix>/usr</prefix>
+                    <!-- To get rpm-maven-plugin to pickup targetOS you need
+                         to specify needarch too.... If you don't specify
+                         targetOS then it'll just use whatever the current
+                         machine's OS is which means you can't build rpms for
+                         linux on OSX even if you have rpmbuild.... -->
+                    <needarch>noarch</needarch>
+                    <targetOS>linux</targetOS>
+                    <changelogFile>src/changelog</changelogFile>
+                    <defineStatements>
+                        <defineStatement>_unpackaged_files_terminate_build 0</defineStatement>
+                        <defineStatement>_binaries_in_noarch_packages_terminate_build 0</defineStatement>
+                    </defineStatements>
+                    <defaultFilemode>644</defaultFilemode>
+                    <defaultDirmode>755</defaultDirmode>
+                    <defaultUsername>root</defaultUsername>
+                    <defaultGroupname>root</defaultGroupname>
+                    <icon>${project.basedir}/src/main/resources/logo/elastic.gif</icon>
+                    <description>Elasticsearch is a distributed RESTful search engine built for the cloud. Reference documentation can be found at https://www.elastic.co/guide/en/elasticsearch/reference/current/index.html and the 'Elasticsearch: The Definitive Guide' book can be found at https://www.elastic.co/guide/en/elasticsearch/guide/current/index.html</description>
+                    <mappings>
+                        <!-- Add bin directory -->
+                        <mapping>
+                            <directory>${packaging.elasticsearch.bin.dir}/</directory>
+                            <filemode>755</filemode>
+                            <sources>
+                                <source>
+                                    <location>${project.build.directory}/generated-packaging/rpm/bin</location>
+                                    <includes>
+                                        <include>elasticsearch</include>
+                                        <include>elasticsearch.in.sh</include>
+                                        <include>plugin</include>
+                                    </includes>
+                                </source>
+                            </sources>
+                        </mapping>
+                        <!-- Add configuration files -->
+                        <mapping>
+                            <!-- Explicitly add conf.dir to the file list so
+                                 that it is removed when the package is removed.
+                                 This is required because the scripts
+                                 subdirectory is created outside of the mapping
+                                 that creates the conf.dir.-->
+                            <directory>${packaging.elasticsearch.conf.dir}</directory>
+                            <configuration>noreplace</configuration>
+                        </mapping>
+                        <mapping>
+                            <directory>${packaging.elasticsearch.conf.dir}/</directory>
+                            <configuration>noreplace</configuration>
+                            <sources>
+                                <source>
+                                    <location>${project.basedir}/../src/main/resources/config/</location>
+                                    <includes>
+                                        <include>*.yml</include>
+                                    </includes>
+                                </source>
+                            </sources>
+                        </mapping>
+                        <mapping>
+                            <directory>${packaging.elasticsearch.conf.dir}/scripts</directory>
+                            <configuration>noreplace</configuration>
+                        </mapping>
+                        <!-- Add environment vars file -->
+                        <mapping>
+                            <directory>/etc/sysconfig/</directory>
+                            <directoryIncluded>false</directoryIncluded>
+                            <configuration>noreplace</configuration>
+                            <sources>
+                                <source>
+                                    <location>${project.build.directory}/generated-packaging/rpm/env/</location>
+                                    <includes>
+                                        <include>elasticsearch</include>
+                                    </includes>
+                                </source>
+                            </sources>
+                        </mapping>
+                        <!-- Add libs -->
+                        <mapping>
+                            <directory>${packaging.elasticsearch.home.dir}/lib</directory>
+                            <sources>
+                                <source>
+                                    <location>target/lib/</location>
+                                    <excludes>
+                                        <exclude>${project.build.finalName}-sources.jar</exclude>
+                                        <exclude>${project.build.finalName}-tests.jar</exclude>
+                                        <exclude>${project.build.finalName}-test-sources.jar</exclude>
+                                        <exclude>slf4j-api-*.jar</exclude>
+                                    </excludes>
+                                </source>
+                            </sources>
+                        </mapping>
+                        <!-- Add init.d files  -->
+                        <mapping>
+                            <directory>/etc/init.d</directory>
+                            <directoryIncluded>false</directoryIncluded>
+                            <filemode>755</filemode>
+                            <configuration>true</configuration>
+                            <sources>
+                                <source>
+                                    <location>${project.build.directory}/generated-packaging/rpm/init.d</location>
+                                    <includes>
+                                        <include>elasticsearch</include>
+                                    </includes>
+                                </source>
+                            </sources>
+                        </mapping>
+                        <!-- Adds systemd file -->
+                        <mapping>
+                            <directory>${packaging.elasticsearch.systemd.dir}</directory>
+                            <directoryIncluded>false</directoryIncluded>
+                            <configuration>true</configuration>
+                            <sources>
+                                <source>
+                                    <location>${project.build.directory}/generated-packaging/rpm/systemd</location>
+                                    <includes>
+                                        <include>elasticsearch.service</include>
+                                    </includes>
+                                </source>
+                            </sources>
+                        </mapping>
+                        <!-- Adds systemd/sysctl.d configuration file -->
+                        <mapping>
+                            <directory>${packaging.elasticsearch.systemd.sysctl.dir}</directory>
+                            <configuration>true</configuration>
+                            <sources>
+                                <source>
+                                    <location>${project.build.directory}/generated-packaging/rpm/systemd/sysctl</location>
+                                    <includes>
+                                        <include>elasticsearch.conf</include>
+                                    </includes>
+                                </source>
+                            </sources>
+                        </mapping>
+                        <!-- Adds systemd/tmpfiles.d configuration file -->
+                        <mapping>
+                            <directory>${packaging.elasticsearch.tmpfilesd.dir}</directory>
+                            <configuration>true</configuration>
+                            <sources>
+                                <source>
+                                    <location>${project.build.directory}/generated-packaging/rpm/systemd/</location>
+                                    <includes>
+                                        <include>elasticsearch.conf</include>
+                                    </includes>
+                                </source>
+                            </sources>
+                        </mapping>
+                        <!-- Add readme files  -->
+                        <mapping>
+                            <directory>${packaging.elasticsearch.home.dir}</directory>
+                            <sources>
+                                <source>
+                                    <location>${project.basedir}/../src/main/resources/</location>
+                                    <includes>
+                                        <include>LICENSE.txt</include>
+                                        <include>NOTICE.txt</include>
+                                        <include>README.textile</include>
+                                    </includes>
+                                </source>
+                            </sources>
+                        </mapping>
+                        <!-- Add and sets permission on default directories -->
+                        <mapping>
+                            <directory>${packaging.elasticsearch.data.dir}</directory>
+                            <filemode>755</filemode>
+                            <username>${packaging.elasticsearch.user}</username>
+                            <groupname>${packaging.elasticsearch.group}</groupname>
+                        </mapping>
+                        <mapping>
+                            <directory>${packaging.elasticsearch.log.dir}</directory>
+                            <filemode>755</filemode>
+                            <username>${packaging.elasticsearch.user}</username>
+                            <groupname>${packaging.elasticsearch.group}</groupname>
+                        </mapping>
+                        <mapping>
+                            <directory>${packaging.elasticsearch.plugins.dir}</directory>
+                            <filemode>755</filemode>
+                            <username>${packaging.elasticsearch.user}</username>
+                            <groupname>${packaging.elasticsearch.group}</groupname>
+                        </mapping>
+                        <mapping>
+                            <directory>${packaging.elasticsearch.pid.dir}</directory>
+                            <filemode>755</filemode>
+                            <username>${packaging.elasticsearch.user}</username>
+                            <groupname>${packaging.elasticsearch.group}</groupname>
+                        </mapping>
+                    </mappings>
+                    <preinstallScriptlet>
+                        <scriptFile>${project.build.directory}/generated-packaging/rpm/scripts/preinst</scriptFile>
+                        <fileEncoding>utf-8</fileEncoding>
+                    </preinstallScriptlet>
+                    <postinstallScriptlet>
+                        <scriptFile>${project.build.directory}/generated-packaging/rpm/scripts/postinst</scriptFile>
+                        <fileEncoding>utf-8</fileEncoding>
+                    </postinstallScriptlet>
+                    <preremoveScriptlet>
+                        <scriptFile>${project.build.directory}/generated-packaging/rpm/scripts/prerm</scriptFile>
+                        <fileEncoding>utf-8</fileEncoding>
+                    </preremoveScriptlet>
+                    <postremoveScriptlet>
+                        <scriptFile>${project.build.directory}/generated-packaging/rpm/scripts/postrm</scriptFile>
+                        <fileEncoding>utf-8</fileEncoding>
+                    </postremoveScriptlet>
+                </configuration>
+            </plugin>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-dependency-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>copy-rpm</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>copy</goal>
+                        </goals>
+                        <configuration>
+                            <artifactItems>
+                                <artifactItem>
+                                    <groupId>${project.groupId}</groupId>
+                                    <artifactId>${project.artifactId}</artifactId>
+                                    <version>${project.version}</version>
+                                    <type>${project.packaging}</type>
+                                    <overWrite>true</overWrite>
+                                    <outputDirectory>${rpm.outputDirectory}</outputDirectory>
+                                </artifactItem>
+                            </artifactItems>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-antrun-plugin</artifactId>
+                <executions>
+                    <!-- start up external cluster -->
+                    <execution>
+                        <id>integ-setup</id>
+                        <phase>pre-integration-test</phase>
+                        <goals>
+                            <goal>run</goal>
+                        </goals>
+                        <configuration>
+                            <skip>${skip.integ.tests}</skip>
+                            <target>
+                                <ant antfile="${elasticsearch.integ.antfile}" target="start-external-cluster-rpm">
+                                    <property name="tests.jvm.argline" value="${tests.jvm.argline}"/>
+                                </ant>
+                            </target>
+                        </configuration>
+                    </execution>
+                    <!-- shut down external cluster -->
+                    <execution>
+                        <id>integ-teardown</id>
+                        <phase>post-integration-test</phase>
+                        <goals>
+                            <goal>run</goal>
+                        </goals>
+                        <configuration>
+                            <skip>${skip.integ.tests}</skip>
+                            <target>
+                                <ant antfile="${elasticsearch.integ.antfile}" target="stop-external-cluster"/>
+                            </target>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+
+    <profiles>
+        <profile>
+            <id>sign-rpm</id>
+            <activation>
+                <property>
+                    <name>rpm.sign</name>
+                    <value>true</value>
+                </property>
+            </activation>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>rpm-maven-plugin</artifactId>
+                        <configuration>
+                            <group>Application/Internet</group>
+                            <keyname>${gpg.key}</keyname>
+                            <keypath>${gpg.keyring}</keypath>
+                            <keyPassphrase>
+                                <passphrase>${gpg.passphrase}</passphrase>
+                            </keyPassphrase>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
+</project>

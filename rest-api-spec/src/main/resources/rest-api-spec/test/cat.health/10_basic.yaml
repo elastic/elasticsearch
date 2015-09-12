@@ -1,0 +1,52 @@
+---
+"Help":
+  - do:
+      cat.health:
+        help: true
+
+  - match:
+      $body: |
+               /^  epoch         .+ \n
+                   timestamp     .+ \n
+                   cluster       .+ \n
+                   status        .+ \n
+                   node.total    .+ \n
+                   node.data     .+ \n
+                   shards        .+ \n
+                   pri           .+ \n
+                   relo          .+ \n
+                   init          .+ \n
+                   unassign      .+ \n
+                   pending_tasks .+ \n
+                   max_task_wait_time .+ \n
+                   active_shards_percent .+ \n
+
+               $/
+
+
+---
+"Empty cluster":
+
+  - do:
+      cat.health: {}
+
+  - match:
+      $body: |
+            /^
+              ( \d+            \s+ # epoch
+                \d\d:\d\d:\d\d \s+ # timestamp
+                \S+            \s+ # cluster
+                \w+            \s+ # status
+                \d+            \s+ # node.total
+                \d+            \s+ # node.data
+                \d+            \s+ # shards
+                \d+            \s+ # pri
+                \d+            \s+ # relo
+                \d+            \s+ # init
+                \d+            \s+ # unassign
+                \d+            \s+ # pending_tasks
+                (-|\d+[.]\d+ms|s) \s+ # max task waiting time
+                \d+\.\d+%      \s+ # active shards percent
+                \n
+              )+
+            $/

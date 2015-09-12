@@ -21,14 +21,42 @@ curl -XGET 'http://localhost:9200/twitter/_validate/query?q=user:foo'
 {"valid":true,"_shards":{"total":1,"successful":1,"failed":0}}
 --------------------------------------------------
 
+[float]
+=== Request Parameters
+
+When executing exists using the query parameter `q`, the query passed is
+a query string using Lucene query parser. There are additional
+parameters that can be passed:
+
+[cols="<,<",options="header",]
+|=======================================================================
+|Name |Description
+|`df` |The default field to use when no field prefix is defined within the
+query.
+
+|`analyzer` |The analyzer name to be used when analyzing the query string.
+
+|`default_operator` |The default operator to be used, can be `AND` or
+`OR`. Defaults to `OR`.
+
+|`lenient` |If set to true will cause format based failures (like
+providing text to a numeric field) to be ignored. Defaults to false.
+
+|`lowercase_expanded_terms` |Should terms be automatically lowercased or
+not. Defaults to `true`.
+
+|`analyze_wildcard` |Should wildcard and prefix queries be analyzed or
+not. Defaults to `false`.
+|=======================================================================
+
 Or, with a request body:
 
 [source,js]
 --------------------------------------------------
 curl -XGET 'http://localhost:9200/twitter/tweet/_validate/query' -d '{
   "query" : {
-    "filtered" : {
-      "query" : {
+    "bool" : {
+      "must" : {
         "query_string" : {
           "query" : "*:*"
         }
@@ -43,7 +71,7 @@ curl -XGET 'http://localhost:9200/twitter/tweet/_validate/query' -d '{
 --------------------------------------------------
 
 NOTE: The query being sent in the body must be nested in a `query` key, same as
-the <<search-search,search api>> works added[1.0.0.RC1,The query was previously the top-level object].
+the <<search-search,search api>> works
 
 If the query is invalid, `valid` will be `false`. Here the query is
 invalid because Elasticsearch knows the post_date field should be a date
@@ -71,7 +99,88 @@ curl -XGET 'http://localhost:9200/twitter/tweet/_validate/query?q=post_date:foo&
   "explanations" : [ {
     "index" : "twitter",
     "valid" : false,
-    "error" : "org.elasticsearch.index.query.QueryParsingException: [twitter] Failed to parse; org.elasticsearch.ElasticsearchParseException: failed to parse date field [foo], tried both date format [dateOptionalTime], and timestamp number; java.lang.IllegalArgumentException: Invalid format: \"foo\""
+    "error" : "[twitter] QueryParsingException[Failed to parse]; nested: IllegalArgumentException[Invalid format: \"foo\"];; java.lang.IllegalArgumentException: Invalid format: \"foo\""
   } ]
 }
 --------------------------------------------------
+
+When the query is valid, the explanation defaults to the string
+representation of that query. With `rewrite` set to `true`, the explanation
+is more detailed showing the actual Lucene query that will be executed.
+
+For Fuzzy Queries:
+
+[source,js]
+--------------------------------------------------
+curl -XGET 'http://localhost:9200/imdb/movies/_validate/query?rewrite=true' -d '
+{
+  "query": {
+    "fuzzy": {
+      "actors": "kyle"
+    }
+  }
+}'
+--------------------------------------------------
+
+Response:
+
+[source,js]
+--------------------------------------------------
+{
+   "valid": true,
+   "_shards": {
+      "total": 1,
+      "successful": 1,
+      "failed": 0
+   },
+   "explanations": [
+      {
+         "index": "imdb",
+         "valid": true,
+         "explanation": "plot:kyle plot:kylie^0.75 plot:kyne^0.75 plot:lyle^0.75 plot:pyle^0.75 #_type:movies"
+      }
+   ]
+}
+--------------------------------------------------
+
+For More Like This:
+
+[source,js]
+--------------------------------------------------
+curl -XGET 'http://localhost:9200/imdb/movies/_validate/query?rewrite=true'
+{
+  "query": {
+    "more_like_this": {
+      "like": {
+        "_id": "88247"
+      },
+      "boost_terms": 1
+    }
+  }
+}
+--------------------------------------------------
+
+Response:
+
+[source,js]
+--------------------------------------------------
+{
+   "valid": true,
+   "_shards": {
+      "total": 1,
+      "successful": 1,
+      "failed": 0
+   },
+   "explanations": [
+      {
+         "index": "imdb",
+         "valid": true,
+         "explanation": "((title:terminator^3.71334 plot:future^2.763601 plot:human^2.8415773 plot:sarah^3.4193945 plot:kyle^3.8244398 plot:cyborg^3.9177752 plot:connor^4.040236 plot:reese^4.7133346 ... )~6) -ConstantScore(_uid:movies#88247) #_type:movies"
+      }
+   ]
+}
+--------------------------------------------------
+
+CAUTION: The request is executed on a single shard only, which is randomly
+selected. The detailed explanation of the query may depend on which shard is
+being hit, and therefore may vary from one request to another.

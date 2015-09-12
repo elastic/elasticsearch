@@ -293,7 +293,6 @@
                                 <include>org/elasticsearch/common/util/MockBigArrays$*.class</include>
                                 <include>org/elasticsearch/node/NodeMocksPlugin.class</include>
                                 <include>org/elasticsearch/node/MockNode.class</include>
-                                <include>org/elasticsearch/node/MockNode.class</include>
                                 <include>org/elasticsearch/common/io/PathUtilsForTesting.class</include>
                             </includes>
                             <excludes>

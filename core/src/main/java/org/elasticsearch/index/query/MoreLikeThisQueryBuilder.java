@@ -364,7 +364,7 @@ public class MoreLikeThisQueryBuilder extends QueryBuilder implements BoostableQ
 
     // query formation parameters
     private String minimumShouldMatch = null;
-    private float boostTerms = -1;
+    private float boostTerms = 0;  // deactivated
     private Boolean include = null;
 
     // other parameters
@@ -542,7 +542,7 @@ public class MoreLikeThisQueryBuilder extends QueryBuilder implements BoostableQ
     }
 
     /**
-     * Sets the boost factor to use when boosting terms. Defaults to <tt>1</tt>.
+     * Sets the boost factor to use when boosting terms. Defaults to <tt>0</tt> (deactivated).
      */
     public MoreLikeThisQueryBuilder boostTerms(float boostTerms) {
         this.boostTerms = boostTerms;
@@ -670,7 +670,7 @@ public class MoreLikeThisQueryBuilder extends QueryBuilder implements BoostableQ
         if (minimumShouldMatch != null) {
             builder.field(MoreLikeThisQueryParser.Field.MINIMUM_SHOULD_MATCH.getPreferredName(), minimumShouldMatch);
         }
-        if (boostTerms != -1) {
+        if (boostTerms != 0) {
             builder.field(MoreLikeThisQueryParser.Field.BOOST_TERMS.getPreferredName(), boostTerms);
         }
         if (include != null) {

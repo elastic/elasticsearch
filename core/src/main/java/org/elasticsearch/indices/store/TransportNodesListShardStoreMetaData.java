@@ -258,7 +258,7 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesAction<T
     }
 
 
-    static class Request extends BaseNodesRequest<Request> {
+    public static class Request extends BaseNodesRequest<Request> {
 
         private ShardId shardId;
 
@@ -331,13 +331,13 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesAction<T
     }
 
 
-    static class NodeRequest extends BaseNodeRequest {
+    public static class NodeRequest extends BaseNodeRequest {
 
         private ShardId shardId;
 
         private boolean unallocated;
 
-        NodeRequest() {
+        public NodeRequest() {
         }
 
         NodeRequest(String nodeId, TransportNodesListShardStoreMetaData.Request request) {

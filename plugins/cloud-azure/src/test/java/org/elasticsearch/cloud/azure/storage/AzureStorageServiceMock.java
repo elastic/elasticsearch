@@ -46,7 +46,7 @@ public class AzureStorageServiceMock extends AbstractLifecycleComponent<AzureSto
     protected Map<String, ByteArrayOutputStream> blobs = new ConcurrentHashMap<>();
 
     @Inject
-    protected AzureStorageServiceMock(Settings settings) {
+    public AzureStorageServiceMock(Settings settings) {
         super(settings);
     }
 

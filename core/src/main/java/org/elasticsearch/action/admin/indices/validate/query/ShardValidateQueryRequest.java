@@ -32,7 +32,7 @@ import java.io.IOException;
 /**
  * Internal validate request executed directly against a specific index shard.
  */
-class ShardValidateQueryRequest extends BroadcastShardRequest {
+public class ShardValidateQueryRequest extends BroadcastShardRequest {
 
     private BytesReference source;
     private String[] types = Strings.EMPTY_ARRAY;
@@ -43,7 +43,7 @@ class ShardValidateQueryRequest extends BroadcastShardRequest {
     @Nullable
     private String[] filteringAliases;
 
-    ShardValidateQueryRequest() {
+    public ShardValidateQueryRequest() {
 
     }
 

@@ -55,7 +55,7 @@ public class ValidateQueryRequest extends BroadcastRequest<ValidateQueryRequest>
 
     long nowInMillis;
 
-    ValidateQueryRequest() {
+    public ValidateQueryRequest() {
         this(Strings.EMPTY_ARRAY);
     }
 

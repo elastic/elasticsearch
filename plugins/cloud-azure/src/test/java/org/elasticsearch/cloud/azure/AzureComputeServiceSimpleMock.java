@@ -52,7 +52,7 @@ public class AzureComputeServiceSimpleMock extends AzureComputeServiceAbstractMo
     }
 
     @Inject
-    protected AzureComputeServiceSimpleMock(Settings settings) {
+    public AzureComputeServiceSimpleMock(Settings settings) {
         super(settings);
     }
 

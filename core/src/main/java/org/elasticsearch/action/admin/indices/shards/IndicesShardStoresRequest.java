@@ -46,7 +46,7 @@ public class IndicesShardStoresRequest extends MasterNodeReadRequest<IndicesShar
         this.indices = indices;
     }
 
-    IndicesShardStoresRequest() {
+    public IndicesShardStoresRequest() {
     }
 
     /**

@@ -65,7 +65,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
 
     private boolean updateAllTypes = false;
 
-    PutMappingRequest() {
+    public PutMappingRequest() {
     }
 
     /**

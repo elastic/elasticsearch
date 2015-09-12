@@ -1036,14 +1036,14 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
     /**
      * Internal class that is used to send notifications about finished shard restore operations to master node
      */
-    static class UpdateIndexShardRestoreStatusRequest extends TransportRequest {
+    public static class UpdateIndexShardRestoreStatusRequest extends TransportRequest {
         private SnapshotId snapshotId;
         private ShardId shardId;
         private ShardRestoreStatus status;
 
         volatile boolean processed; // state field, no need to serialize
 
-        private UpdateIndexShardRestoreStatusRequest() {
+        public UpdateIndexShardRestoreStatusRequest() {
 
         }
 

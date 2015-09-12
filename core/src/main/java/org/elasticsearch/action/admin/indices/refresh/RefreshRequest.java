@@ -33,7 +33,7 @@ import org.elasticsearch.action.support.broadcast.BroadcastRequest;
  */
 public class RefreshRequest extends BroadcastRequest<RefreshRequest> {
 
-    RefreshRequest() {
+    public RefreshRequest() {
     }
 
     /**

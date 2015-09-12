@@ -49,7 +49,7 @@ public class ExplainRequest extends SingleShardRequest<ExplainRequest> {
 
     long nowInMillis;
 
-    ExplainRequest() {
+    public ExplainRequest() {
     }
 
     public ExplainRequest(String index, String type, String id) {

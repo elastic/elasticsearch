@@ -83,3 +83,7 @@ java.util.concurrent.Future#cancel(boolean)
 @defaultMessage Don't try reading from paths that are not configured in Environment, resolve from Environment instead
 org.elasticsearch.common.io.PathUtils#get(java.lang.String, java.lang.String[])
 org.elasticsearch.common.io.PathUtils#get(java.net.URI)
+
+@defaultMessage Do not violate java's access system
+java.lang.reflect.AccessibleObject#setAccessible(boolean)
+java.lang.reflect.AccessibleObject#setAccessible(java.lang.reflect.AccessibleObject[], boolean)

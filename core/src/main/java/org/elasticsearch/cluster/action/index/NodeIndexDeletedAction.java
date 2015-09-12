@@ -133,12 +133,12 @@ public class NodeIndexDeletedAction extends AbstractComponent {
         }
     }
 
-    static class NodeIndexDeletedMessage extends TransportRequest {
+    public static class NodeIndexDeletedMessage extends TransportRequest {
 
         String index;
         String nodeId;
 
-        NodeIndexDeletedMessage() {
+        public NodeIndexDeletedMessage() {
         }
 
         NodeIndexDeletedMessage(String index, String nodeId) {
@@ -161,12 +161,12 @@ public class NodeIndexDeletedAction extends AbstractComponent {
         }
     }
 
-    static class NodeIndexStoreDeletedMessage extends TransportRequest {
+    public static class NodeIndexStoreDeletedMessage extends TransportRequest {
 
         String index;
         String nodeId;
 
-        NodeIndexStoreDeletedMessage() {
+        public NodeIndexStoreDeletedMessage() {
         }
 
         NodeIndexStoreDeletedMessage(String index, String nodeId) {

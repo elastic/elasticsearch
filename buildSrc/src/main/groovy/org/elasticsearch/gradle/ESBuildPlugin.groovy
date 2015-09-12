@@ -37,11 +37,6 @@ class ESBuildPlugin implements Plugin<Project> {
         test.mustRunAfter(precommit)
         integTest.mustRunAfter(precommit)
         project.tasks.getByName('check').dependsOn(precommit, integTest)
-
-        // copy the rest spec for tests because there are bugs reading the spec tests from the classpath
-        Task copyRestSpec = createRestSpecHack(project)
-        test.dependsOn(copyRestSpec)
-        integTest.dependsOn(copyRestSpec)
         /*
          ====== PLAN ======
          - install tasks
@@ -53,21 +48,6 @@ class ESBuildPlugin implements Plugin<Project> {
            [x] test and integ test common config
            [x] integ test additional/override (eg include pattern)
          */
-    }
-
-    static Task createRestSpecHack(Project project) {
-        project.configurations.create('restSpec')
-        project.dependencies {
-            restSpec 'org.elasticsearch:rest-api-spec:3.0.0-SNAPSHOT'
-        }
-        Map copyRestSpecOptions = [
-            type: Copy,
-            dependsOn: project.configurations.restSpec.buildDependencies
-        ]
-        return project.task(copyRestSpecOptions, 'copyRestSpec') {
-            from project.zipTree(project.configurations.restSpec.asPath)
-            into project.sourceSets.test.output.classesDir
-        }
     }
 
     static Closure createSharedTestConfig(Project project) {

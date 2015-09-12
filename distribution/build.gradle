@@ -1,0 +1,58 @@
+import org.apache.tools.ant.filters.ReplaceTokens
+import org.apache.tools.ant.filters.FixCrLfFilter
+
+apply plugin: 'distribution'
+
+def expansions = [
+  'project.version': version,
+  'project.parent.artifactId': 'distributions',
+  // Default values for min/max heap memory allocated to elasticsearch java process
+  'packaging.elasticsearch.heap.min': '256m',
+  'packaging.elasticsearch.heap.max': '1g',
+  'project.build.finalName': "elasticsearch-${version}",
+  // Default configuration directory and file to use in bin/plugin script
+  'packaging.plugin.default.config.dir': '$ES_HOME/config',
+  'packaging.plugin.default.config.file': '$ES_HOME/config/elasticsearch.yml',
+  'packaging.env.file': '',
+  'packaging.type': 'tar.gz',
+]
+
+// HACK: we can simply change the replace pattern to work with groovy or ant pattern
+def mavenExpansions = expansions.collectEntries() {
+  key, value -> ["{${key}".toString(), value.toString()]
+}
+
+def commonFiles = copySpec {
+  into('lib') {
+    from project(':core').jar
+    from project(':core').configurations.runtime
+    from project(':core').configurations.optional.copyRecursive().exclude(module: 'slf4j-api')
+  }
+  from('src/main/resources') {
+    filesMatching('bin/*.bat') {
+      filter(FixCrLfFilter, eol: FixCrLfFilter.CrLf.newInstance('crlf'))
+    }
+    filesMatching('bin/elasticsearch')        { it.setMode(0755) }
+    filesMatching('bin/elasticsearch.in.sh')  { it.setMode(0755) }
+    filesMatching('bin/plugin')               { it.setMode(0755) }
+    filesNotMatching('bin/*.exe') {
+      filter(ReplaceTokens, tokens: mavenExpansions, beginToken : '$', endToken : '}')
+    }
+  }
+}
+
+// this handles zip and tgz
+distributions {
+  main {
+    contents {
+      baseName 'elasticsearch'
+      with commonFiles
+    }
+  }
+}
+
+// tell tar to use gzip
+distTar {
+  compression = Compression.GZIP
+}
+

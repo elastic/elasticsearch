@@ -7,6 +7,7 @@ jar {
 
 configurations {
   optional // these are used at compile time (and test) but excluded from runtime
+  restSpec // the rest spec is copied independently to the test classes dir
 }
 
 versions << [
@@ -34,13 +35,12 @@ dependencies {
   optional 'com.vividsolutions:jts:1.13'
 
   compile 'com.google.guava:guava:18.0'
-  compile 'org.apache.commons:commons-lang3:3.3.2'
   compile 'commons-cli:commons-cli:1.3.1'
   compile 'com.carrotsearch:hppc:0.7.1'
   optional 'net.java.dev.jna:jna:4.1.0'
 
   // time handling, remove with java 8 time
-  compile 'joda-time:joda-time:2.8'
+  compile 'joda-time:joda-time:2.8.2'
   // joda 2.0 moved to using volatile fields for datetime
   // When updating to a new version, make sure to update our copy of BaseDateTime
   compile 'org.joda:joda-convert:1.2'
@@ -48,7 +48,6 @@ dependencies {
   // json and yaml
   compile "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
   compile "com.fasterxml.jackson.dataformat:jackson-dataformat-smile:${versions.jackson}"
-  compile "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:${versions.jackson}"
   compile(group: 'com.fasterxml.jackson.dataformat', name: 'jackson-dataformat-yaml', version: versions.jackson) {
     exclude group: 'com.fasterxml.jackson.core', module: 'jackson-databind'
   }
@@ -63,17 +62,16 @@ dependencies {
   optional 'org.codehaus.groovy:groovy-all:2.4.4:indy'
   optional "org.apache.lucene:lucene-expressions:${versions.lucene}"
   // templating
-  optional 'com.github.spullara.mustache.java:compiler:0.8.13'
+  optional('com.github.spullara.mustache.java:compiler:0.8.13') {
+    transitive = false
+  }
 
   // logging
   optional "log4j:log4j:${versions.log4j}"
   optional "log4j:apache-log4j-extras:${versions.log4j}"
   optional "org.slf4j:slf4j-api:${versions.slf4j}"
 
-  // remove this for java 8
-  compile group: 'com.twitter', name: 'jsr166e', version: '1.1.0'
-
-  // TODO: move junit and carrotsearch completely to plugin
+  // TODO: remove these test deps and just dpeend on test-framework
   testCompile(group: 'junit', name: 'junit', version: '4.11') {
     transitive = false
   }
@@ -88,7 +86,7 @@ dependencies {
 
   testCompile configurations.optional // optional deps are pulled into tests
 
-  //restSpec project(':rest-api-spec') // for rest tests
+  restSpec project(':rest-api-spec') // for rest tests
 }
 
 // add optional dependencies to compile classpath only
@@ -110,6 +108,15 @@ forbiddenPatterns {
   exclude '**/*.json'
   exclude '**/*.jmx'
   exclude '**/org/elasticsearch/cluster/routing/shard_routes.txt'
+}
+
+task copyRestSpec(type: Copy, dependsOn: configurations.restSpec.buildDependencies) {
+  from zipTree(configurations.restSpec.asPath)
+  into sourceSets.test.output.resourcesDir
+}
+
+test {
+  dependsOn copyRestSpec
 }
 
 

@@ -94,7 +94,7 @@ public final class FileUtils {
                 String newPath = optionalPathPrefix + "/" + path;
                 file = findFile(fileSystem, newPath, optionalFileSuffix);
                 if (!lenientExists(file)) {
-                    throw new NoSuchFileException(path);
+                    throw new NoSuchFileException("path prefix: " + optionalPathPrefix + ", path: " + path + ", file suffix: " + optionalFileSuffix);
                 }
             }
             return file;

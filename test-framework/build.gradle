@@ -23,7 +23,7 @@ dependencies {
 sourceSets {
   main {
     java {
-      srcDirs = project.rootProject.project(':core').sourceSets.test.java.srcDirs
+      srcDirs = project(':core').sourceSets.test.java.srcDirs
       include 'org/elasticsearch/test/**/*'
       include 'org/elasticsearch/bootstrap/BootstrapForTesting.java'
       include 'org/elasticsearch/bootstrap/XTestSecurityManager.java'

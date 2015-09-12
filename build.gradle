@@ -9,7 +9,7 @@ allprojects {
     sourceCompatibility = '1.8'
     targetCompatibility = '1.8'
 
-    luceneSnapshotRevision = '1701068'
+    luceneSnapshotRevision = '1702265'
     // dependnecy versions that are used in more than one place
     versions = [
       elasticsearch:  '3.0.0-beta1-SNAPSHOT',

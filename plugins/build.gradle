@@ -2,10 +2,45 @@
 subprojects {
   apply plugin: 'org.elasticsearch.pluginbuild'
 
-  //copyPluginRestSpec(type: Copy, dependsOn: project.tasks.getByName('copyRestSpec')) {
-  copyRestSpec {
-    from(project.rootDir) {
-      include 'rest-api-spec/**'
+  // HACK: rest spec api shoudld work as an included jar on the classpath
+  configurations {
+    restSpec
+  }
+  dependencies {
+    restSpec project(':rest-api-spec')
+  }
+  task copyRestSpec(type: Copy, dependsOn: [configurations.restSpec.buildDependencies, processTestResources]) {
+    from zipTree(configurations.restSpec.asPath)
+    // required by the test framework
+    include 'rest-api-spec/api/info.json'
+    include 'rest-api-spec/api/cluster.health.json'
+    include 'rest-api-spec/api/cluster.state.json'
+    include 'rest-api-spec/api/cluster.state.json'
+    // used in plugin REST tests
+    include 'rest-api-spec/api/index.json'
+    include 'rest-api-spec/api/get.json'
+    include 'rest-api-spec/api/update.json'
+    include 'rest-api-spec/api/search.json'
+    include 'rest-api-spec/api/indices.analyze.json'
+    include 'rest-api-spec/api/indices.create.json'
+    include 'rest-api-spec/api/indices.refresh.json'
+    include 'rest-api-spec/api/nodes.info.json'
+    include 'rest-api-spec/api/count.json'
+    // used in repository plugin REST tests
+    include 'rest-api-spec/api/snapshot.create_repository.json'
+    include 'rest-api-spec/api/snapshot.get_repository.json'
+    into sourceSets.test.output.resourcesDir
+  }
+  test.dependsOn copyRestSpec
+  integTest.dependsOn copyRestSpec
+
+  // HACK: rest spec should be a regular resource dir, not in the root!
+  sourceSets {
+    test {
+      resources {
+        srcDir '.'
+        include 'rest-api-spec/**'
+      }
     }
   }
 }

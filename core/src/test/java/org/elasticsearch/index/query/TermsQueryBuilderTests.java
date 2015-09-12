@@ -25,6 +25,7 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
@@ -40,10 +41,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Iterator;
-import java.util.List;
+import java.util.*;
 
 import static org.hamcrest.Matchers.*;
 
@@ -115,16 +113,22 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
         }
 
         // compare whether we have the expected list of terms returned
-        Iterator<Object> iter = terms.iterator();
+        final List<Term> booleanTerms = new ArrayList<>();
         for (BooleanClause booleanClause : booleanQuery) {
             assertThat(booleanClause.getQuery(), instanceOf(TermQuery.class));
             Term term = ((TermQuery) booleanClause.getQuery()).getTerm();
-            Object next = iter.next();
-            if (next == null) {
-                continue;
-            }
-            assertThat(term, equalTo(new Term(queryBuilder.fieldName(), next.toString())));
+            booleanTerms.add(term);
         }
+        CollectionUtil.timSort(booleanTerms);
+        List<Term> expectedTerms = new ArrayList<>();
+        for (Object term : terms) {
+            if (term != null) { // terms lookup filters this out
+                expectedTerms.add(new Term(queryBuilder.fieldName(), term.toString()));
+            }
+        }
+        CollectionUtil.timSort(expectedTerms);
+        assertEquals(expectedTerms + " vs. " + booleanTerms, expectedTerms.size(), booleanTerms.size());
+        assertEquals(expectedTerms + " vs. " + booleanTerms, expectedTerms, booleanTerms);
     }
 
     @Test
@@ -263,7 +267,7 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
         try {
             XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
             builder.startObject();
-            builder.array(termsPath, randomTerms);
+            builder.array(termsPath, randomTerms.toArray(new Object[0]));
             builder.endObject();
             json = builder.string();
         } catch (IOException ex) {

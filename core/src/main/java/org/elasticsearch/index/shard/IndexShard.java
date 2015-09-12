@@ -1350,7 +1350,8 @@ public class IndexShard extends AbstractIndexShardComponent {
     }
 
     private final EngineConfig newEngineConfig(TranslogConfig translogConfig, QueryCachingPolicy cachingPolicy) {
-        final TranslogRecoveryPerformer translogRecoveryPerformer = new TranslogRecoveryPerformer(shardId, mapperService, queryParserService, indexAliasesService, indexCache) {
+        final TranslogRecoveryPerformer translogRecoveryPerformer = new TranslogRecoveryPerformer(shardId, mapperService, queryParserService,
+                indexAliasesService, indexCache, logger) {
             @Override
             protected void operationProcessed() {
                 assert recoveryState != null;

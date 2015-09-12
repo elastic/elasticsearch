@@ -20,6 +20,7 @@
 package org.elasticsearch.indices.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.TokenStream;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -28,7 +29,7 @@ import org.elasticsearch.test.ESBackcompatTestCase;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
-import java.lang.reflect.Field;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -161,44 +162,18 @@ public class PreBuiltAnalyzerIntegrationIT extends ESIntegTestCase {
         }
     }
 
-    // the close() method of a lucene analyzer sets the storedValue field to null
-    // we simply check this via reflection - ugly but works
-    private void assertLuceneAnalyzersAreNotClosed(Map<PreBuiltAnalyzers, List<Version>> loadedAnalyzers) throws IllegalAccessException, NoSuchFieldException {
+    // ensure analyzers are still open by checking there is no ACE
+    private void assertLuceneAnalyzersAreNotClosed(Map<PreBuiltAnalyzers, List<Version>> loadedAnalyzers) throws IOException {
         for (Map.Entry<PreBuiltAnalyzers, List<Version>> preBuiltAnalyzerEntry : loadedAnalyzers.entrySet()) {
-            PreBuiltAnalyzers preBuiltAnalyzer = preBuiltAnalyzerEntry.getKey();
             for (Version version : preBuiltAnalyzerEntry.getValue()) {
                 Analyzer analyzer = preBuiltAnalyzerEntry.getKey().getCache().get(version);
-
-                Field field = getFieldFromClass("storedValue", analyzer);
-                boolean currentAccessible = field.isAccessible();
-                field.setAccessible(true);
-                Object storedValue = field.get(analyzer);
-                field.setAccessible(currentAccessible);
-
-                assertThat(String.format(Locale.ROOT, "Analyzer %s in version %s seems to be closed", preBuiltAnalyzer.name(), version), storedValue, is(notNullValue()));
+                try (TokenStream stream = analyzer.tokenStream("foo", "bar")) {
+                    stream.reset();
+                    while (stream.incrementToken()) {
+                    }
+                    stream.end();
+                }
             }
         }
     }
-
-    /**
-     * Searches for a field until it finds, loops through all superclasses
-     */
-    private Field getFieldFromClass(String fieldName, Object obj) {
-        Field field = null;
-        boolean storedValueFieldFound = false;
-        Class clazz = obj.getClass();
-        while (!storedValueFieldFound) {
-            try {
-                field = clazz.getDeclaredField(fieldName);
-                storedValueFieldFound = true;
-            } catch (NoSuchFieldException e) {
-                clazz = clazz.getSuperclass();
-            }
-
-            if (Object.class.equals(clazz)) throw new RuntimeException("Could not find storedValue field in class" + clazz);
-        }
-
-        return field;
-    }
-
 }

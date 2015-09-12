@@ -688,7 +688,7 @@ public class ElasticsearchAssertions {
         ElasticsearchAssertions.assertVersionSerializable(version, new ThrowableWrapper(t));
     }
 
-    private static final class ThrowableWrapper implements Streamable {
+    public static final class ThrowableWrapper implements Streamable {
         Throwable throwable;
         public ThrowableWrapper(Throwable t) {
             throwable = t;
@@ -716,7 +716,6 @@ public class ElasticsearchAssertions {
             Class<? extends Streamable> clazz = streamable.getClass();
             Constructor<? extends Streamable> constructor = clazz.getDeclaredConstructor();
             assertThat(constructor, Matchers.notNullValue());
-            constructor.setAccessible(true);
             Streamable newInstance = constructor.newInstance();
             return newInstance;
         } catch (Throwable e) {

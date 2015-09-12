@@ -43,8 +43,8 @@ public final class PathUtils {
     /** the actual JDK default */
     static final FileSystem ACTUAL_DEFAULT = FileSystems.getDefault();
     
-    /** can be changed by tests (via reflection) */
-    private static volatile FileSystem DEFAULT = ACTUAL_DEFAULT;
+    /** can be changed by tests */
+    static volatile FileSystem DEFAULT = ACTUAL_DEFAULT;
     
     /** 
      * Returns a {@code Path} from name components.

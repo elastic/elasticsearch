@@ -173,6 +173,10 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
         }
     }
 
+    public Object value() {
+        return value;
+    }
+
     /**
      * Adds a field to run the multi match against.
      */
@@ -203,6 +207,10 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
         return this;
     }
 
+    public Map<String, Float> fields() {
+        return fieldsBoosts;
+    }
+
     /**
      * Sets the type of the text query.
      */
@@ -225,6 +233,10 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
         return this;
     }
 
+    public Type type() {
+        return type;
+    }
+
     /**
      * Sets the operator to use when using a boolean query. Defaults to <tt>OR</tt>.
      */
@@ -236,6 +248,10 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
         return this;
     }
 
+    public Operator operator() {
+        return operator;
+    }
+
     /**
      * Explicitly set the analyzer to use. Defaults to use explicit mapping config for the field, or, if not
      * set, the default search analyzer.
@@ -243,6 +259,10 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
     public MultiMatchQueryBuilder analyzer(String analyzer) {
         this.analyzer = analyzer;
         return this;
+    }
+
+    public String analyzer() {
+        return analyzer;
     }
 
     /**
@@ -256,6 +276,10 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
         return this;
     }
 
+    public int slop() {
+        return slop;
+    }
+
     /**
      * Sets the fuzziness used when evaluated to a fuzzy query type. Defaults to "AUTO".
      */
@@ -266,12 +290,20 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
         return this;
     }
 
+    public Fuzziness fuzziness() {
+        return fuzziness;
+    }
+
     public MultiMatchQueryBuilder prefixLength(int prefixLength) {
         if (prefixLength < 0) {
             throw new IllegalArgumentException("No negative prefix length allowed.");
         }
         this.prefixLength = prefixLength;
         return this;
+    }
+
+    public int prefixLength() {
+        return prefixLength;
     }
 
     /**
@@ -283,14 +315,26 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
         return this;
     }
 
+    public int maxExpansions() {
+        return maxExpansions;
+    }
+
     public MultiMatchQueryBuilder minimumShouldMatch(String minimumShouldMatch) {
         this.minimumShouldMatch = minimumShouldMatch;
         return this;
     }
 
+    public String minimumShouldMatch() {
+        return minimumShouldMatch;
+    }
+
     public MultiMatchQueryBuilder fuzzyRewrite(String fuzzyRewrite) {
         this.fuzzyRewrite = fuzzyRewrite;
         return this;
+    }
+
+    public String fuzzyRewrite() {
+        return fuzzyRewrite;
     }
 
     /**
@@ -301,6 +345,10 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
     public MultiMatchQueryBuilder useDisMax(Boolean useDisMax) {
         this.useDisMax = useDisMax;
         return this;
+    }
+
+    public Boolean useDisMax() {
+        return useDisMax;
     }
 
     /**
@@ -337,12 +385,20 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
         return this;
     }
 
+    public Float tieBreaker() {
+        return tieBreaker;
+    }
+
     /**
      * Sets whether format based failures will be ignored.
      */
     public MultiMatchQueryBuilder lenient(boolean lenient) {
         this.lenient = lenient;
         return this;
+    }
+
+    public boolean lenient() {
+        return lenient;
     }
 
     /**
@@ -365,12 +421,20 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
         return this;
     }
 
+    public Float cutoffFrequency() {
+        return cutoffFrequency;
+    }
+
     public MultiMatchQueryBuilder zeroTermsQuery(MatchQuery.ZeroTermsQuery zeroTermsQuery) {
         if (zeroTermsQuery == null) {
             throw new IllegalArgumentException("[" + NAME + "] requires zero terms query to be non-null");
         }
         this.zeroTermsQuery = zeroTermsQuery;
         return this;
+    }
+
+    public MatchQuery.ZeroTermsQuery zeroTermsQuery() {
+        return zeroTermsQuery;
     }
 
     @Override

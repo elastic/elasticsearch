@@ -128,11 +128,11 @@ public class TransportFilterTests extends ESIntegTestCase {
         }
     }
 
-    static class Request extends TransportRequest {
+    public static class Request extends TransportRequest {
 
         private String msg;
 
-        Request() {
+        public Request() {
         }
 
         Request(String msg) {
@@ -277,7 +277,7 @@ public class TransportFilterTests extends ESIntegTestCase {
     }
 
     // Sub class the Shield transport to always inject a mock for testing
-    static class InternalPluginServerTransportService extends ShieldServerTransportService {
+    public static class InternalPluginServerTransportService extends ShieldServerTransportService {
         public static class TestPlugin extends Plugin {
             @Override
             public String name() {
@@ -297,7 +297,7 @@ public class TransportFilterTests extends ESIntegTestCase {
         }
 
         @Inject
-        InternalPluginServerTransportService(Settings settings, Transport transport, ThreadPool threadPool, AuthenticationService authcService, AuthorizationService authzService, ShieldActionMapper actionMapper, ClientTransportFilter clientTransportFilter) {
+        public InternalPluginServerTransportService(Settings settings, Transport transport, ThreadPool threadPool, AuthenticationService authcService, AuthorizationService authzService, ShieldActionMapper actionMapper, ClientTransportFilter clientTransportFilter) {
             super(settings, transport, threadPool, authcService, authzService, actionMapper, clientTransportFilter);
         }
 

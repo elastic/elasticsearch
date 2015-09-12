@@ -27,7 +27,7 @@ public class GetWatchRequest extends MasterNodeReadRequest<GetWatchRequest> {
     private VersionType versionType = VersionType.INTERNAL;
 
 
-    GetWatchRequest() {
+    public GetWatchRequest() {
     }
 
     /**

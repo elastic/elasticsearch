@@ -24,7 +24,7 @@ import org.elasticsearch.watcher.watch.Watch;
 public class RestActivateWatchAction extends WatcherRestHandler {
 
     @Inject
-    protected RestActivateWatchAction(Settings settings, RestController controller, Client client) {
+    public RestActivateWatchAction(Settings settings, RestController controller, Client client) {
         super(settings, controller, client);
         controller.registerHandler(RestRequest.Method.PUT, URI_BASE + "/watch/{id}/_activate", this);
         controller.registerHandler(RestRequest.Method.POST, URI_BASE + "/watch/{id}/_activate", this);

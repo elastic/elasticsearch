@@ -31,7 +31,7 @@ public class PutWatchRequest extends MasterNodeRequest<PutWatchRequest> {
     private BytesReference source;
     private boolean active = true;
 
-    PutWatchRequest() {
+    public PutWatchRequest() {
     }
 
     public PutWatchRequest(String id, WatchSourceBuilder source) {

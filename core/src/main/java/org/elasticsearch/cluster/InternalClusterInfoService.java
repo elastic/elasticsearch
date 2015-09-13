@@ -150,23 +150,13 @@ public class InternalClusterInfoService extends AbstractComponent implements Clu
             threadPool.schedule(updateFrequency, executorName(), new SubmitReschedulingClusterInfoUpdatedJob());
             if (clusterService.state().getNodes().getDataNodes().size() > 1) {
                 // Submit an info update job to be run immediately
-                updateOnce();
+                threadPool.executor(executorName()).execute(() -> maybeRefresh());
             }
         } catch (EsRejectedExecutionException ex) {
             if (logger.isDebugEnabled()) {
                 logger.debug("Couldn't schedule cluster info update task - node might be shutting down", ex);
             }
         }
-    }
-
-
-    // called from tests as well
-
-    /**
-     * will collect a fresh {@link ClusterInfo} from the nodes, without scheduling a future collection
-     */
-    void updateOnce() {
-        threadPool.executor(executorName()).execute(new ClusterInfoUpdateJob(false));
     }
 
     @Override
@@ -198,7 +188,7 @@ public class InternalClusterInfoService extends AbstractComponent implements Clu
             if (logger.isDebugEnabled()) {
                 logger.debug("data node was added, retrieving new cluster info");
             }
-            updateOnce();
+            threadPool.executor(executorName()).execute(() -> maybeRefresh());
         }
 
         if (this.isMaster && event.nodesRemoved()) {
@@ -233,7 +223,7 @@ public class InternalClusterInfoService extends AbstractComponent implements Clu
     }
 
     /**
-     * Class used to submit {@link ClusterInfoUpdateJob}s on the
+     * Class used to submit {@link #maybeRefresh()} on the
      * {@link InternalClusterInfoService} threadpool, these jobs will
      * reschedule themselves by placing a new instance of this class onto the
      * scheduled threadpool.
@@ -245,7 +235,22 @@ public class InternalClusterInfoService extends AbstractComponent implements Clu
                 logger.trace("Submitting new rescheduling cluster info update job");
             }
             try {
-                threadPool.executor(executorName()).execute(new ClusterInfoUpdateJob(true));
+                threadPool.executor(executorName()).execute(() -> {
+                    try {
+                        maybeRefresh();
+                    } finally { //schedule again after we refreshed
+                        if (isMaster) {
+                            if (logger.isTraceEnabled()) {
+                                logger.trace("Scheduling next run for updating cluster info in: {}", updateFrequency.toString());
+                            }
+                            try {
+                                threadPool.schedule(updateFrequency, executorName(), this);
+                            } catch (EsRejectedExecutionException ex) {
+                                logger.debug("Reschedule cluster info service was rejected", ex);
+                            }
+                        }
+                    }
+                });
             } catch (EsRejectedExecutionException ex) {
                 if (logger.isDebugEnabled()) {
                     logger.debug("Couldn't re-schedule cluster info update task - node might be shutting down", ex);
@@ -283,128 +288,106 @@ public class InternalClusterInfoService extends AbstractComponent implements Clu
         return latch;
     }
 
-    /**
-     * Runnable class that performs a {@Link NodesStatsRequest} to retrieve
-     * disk usages for nodes in the cluster and an {@link IndicesStatsRequest}
-     * to retrieve the sizes of all shards to ensure they can fit on nodes
-     * during shard balancing.
-     */
-    public class ClusterInfoUpdateJob implements Runnable {
-
-        // This boolean is used to signal to the ClusterInfoUpdateJob that it
-        // needs to reschedule itself to run again at a later time. It can be
-        // set to false to only run once
-        private final boolean reschedule;
-
-        public ClusterInfoUpdateJob(boolean reschedule) {
-            this.reschedule = reschedule;
-        }
-
-        @Override
-        public void run() {
+    private final void maybeRefresh() {
+        // Short-circuit if not enabled
+        if (enabled) {
+            refresh();
+        } else {
             if (logger.isTraceEnabled()) {
-                logger.trace("Performing ClusterInfoUpdateJob");
-            }
-
-            if (isMaster && this.reschedule) {
-                if (logger.isTraceEnabled()) {
-                    logger.trace("Scheduling next run for updating cluster info in: {}", updateFrequency.toString());
-                }
-                try {
-                    threadPool.schedule(updateFrequency, executorName(), new SubmitReschedulingClusterInfoUpdatedJob());
-                } catch (EsRejectedExecutionException ex) {
-                    logger.debug("Reschedule cluster info service was rejected", ex);
-                }
-            }
-            if (!enabled) {
-                // Short-circuit if not enabled
-                if (logger.isTraceEnabled()) {
-                    logger.trace("Skipping ClusterInfoUpdatedJob since it is disabled");
-                }
-                return;
-            }
-
-            CountDownLatch nodeLatch = updateNodeStats(new ActionListener<NodesStatsResponse>() {
-                @Override
-                public void onResponse(NodesStatsResponse nodeStatses) {
-                    Map<String, DiskUsage> newLeastAvaiableUsages = new HashMap<>();
-                    Map<String, DiskUsage> newMostAvaiableUsages = new HashMap<>();
-                    fillDiskUsagePerNode(logger, nodeStatses.getNodes(), newLeastAvaiableUsages, newMostAvaiableUsages);
-                    leastAvailableSpaceUsages = Collections.unmodifiableMap(newLeastAvaiableUsages);
-                    mostAvailableSpaceUsages = Collections.unmodifiableMap(newMostAvaiableUsages);
-                }
-
-                @Override
-                public void onFailure(Throwable e) {
-                    if (e instanceof ReceiveTimeoutTransportException) {
-                        logger.error("NodeStatsAction timed out for ClusterInfoUpdateJob (reason [{}])", e.getMessage());
-                    } else {
-                        if (e instanceof ClusterBlockException) {
-                            if (logger.isTraceEnabled()) {
-                                logger.trace("Failed to execute NodeStatsAction for ClusterInfoUpdateJob", e);
-                            }
-                        } else {
-                            logger.warn("Failed to execute NodeStatsAction for ClusterInfoUpdateJob", e);
-                        }
-                        // we empty the usages list, to be safe - we don't know what's going on.
-                        leastAvailableSpaceUsages = Collections.emptyMap();
-                        mostAvailableSpaceUsages = Collections.emptyMap();
-                    }
-                }
-            });
-
-            CountDownLatch indicesLatch = updateIndicesStats(new ActionListener<IndicesStatsResponse>() {
-                @Override
-                public void onResponse(IndicesStatsResponse indicesStatsResponse) {
-                    ShardStats[] stats = indicesStatsResponse.getShards();
-                    final HashMap<String, Long> newShardSizes = new HashMap<>();
-                    final HashMap<ShardRouting, String> newShardRoutingToDataPath = new HashMap<>();
-                    buildShardLevelInfo(logger, stats, newShardSizes, newShardRoutingToDataPath);
-                    shardSizes = Collections.unmodifiableMap(newShardSizes);
-                    shardRoutingToDataPath = Collections.unmodifiableMap(newShardRoutingToDataPath);
-                }
-
-                @Override
-                public void onFailure(Throwable e) {
-                    if (e instanceof ReceiveTimeoutTransportException) {
-                        logger.error("IndicesStatsAction timed out for ClusterInfoUpdateJob (reason [{}])", e.getMessage());
-                    } else {
-                        if (e instanceof ClusterBlockException) {
-                            if (logger.isTraceEnabled()) {
-                                logger.trace("Failed to execute IndicesStatsAction for ClusterInfoUpdateJob", e);
-                            }
-                        } else {
-                            logger.warn("Failed to execute IndicesStatsAction for ClusterInfoUpdateJob", e);
-                        }
-                        // we empty the usages list, to be safe - we don't know what's going on.
-                        shardSizes = Collections.emptyMap();
-                        shardRoutingToDataPath = Collections.emptyMap();
-                    }
-                }
-            });
-
-            try {
-                nodeLatch.await(fetchTimeout.getMillis(), TimeUnit.MILLISECONDS);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt(); // restore interrupt status
-                logger.warn("Failed to update node information for ClusterInfoUpdateJob within 15s timeout");
-            }
-
-            try {
-                indicesLatch.await(fetchTimeout.getMillis(), TimeUnit.MILLISECONDS);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt(); // restore interrupt status
-                logger.warn("Failed to update shard information for ClusterInfoUpdateJob within 15s timeout");
-            }
-
-            for (Listener l : listeners) {
-                try {
-                    l.onNewInfo(getClusterInfo());
-                } catch (Exception e) {
-                    logger.info("Failed executing ClusterInfoService listener", e);
-                }
+                logger.trace("Skipping ClusterInfoUpdatedJob since it is disabled");
             }
         }
+    }
+
+    /**
+     * Refreshes the ClusterInfo in a blocking fashion
+     * @return
+     */
+    public final ClusterInfo refresh() {
+        if (logger.isTraceEnabled()) {
+            logger.trace("Performing ClusterInfoUpdateJob");
+        }
+        final CountDownLatch nodeLatch = updateNodeStats(new ActionListener<NodesStatsResponse>() {
+            @Override
+            public void onResponse(NodesStatsResponse nodeStatses) {
+                Map<String, DiskUsage> newLeastAvaiableUsages = new HashMap<>();
+                Map<String, DiskUsage> newMostAvaiableUsages = new HashMap<>();
+                fillDiskUsagePerNode(logger, nodeStatses.getNodes(), newLeastAvaiableUsages, newMostAvaiableUsages);
+                leastAvailableSpaceUsages = Collections.unmodifiableMap(newLeastAvaiableUsages);
+                mostAvailableSpaceUsages = Collections.unmodifiableMap(newMostAvaiableUsages);
+            }
+
+            @Override
+            public void onFailure(Throwable e) {
+                if (e instanceof ReceiveTimeoutTransportException) {
+                    logger.error("NodeStatsAction timed out for ClusterInfoUpdateJob (reason [{}])", e.getMessage());
+                } else {
+                    if (e instanceof ClusterBlockException) {
+                        if (logger.isTraceEnabled()) {
+                            logger.trace("Failed to execute NodeStatsAction for ClusterInfoUpdateJob", e);
+                        }
+                    } else {
+                        logger.warn("Failed to execute NodeStatsAction for ClusterInfoUpdateJob", e);
+                    }
+                    // we empty the usages list, to be safe - we don't know what's going on.
+                    leastAvailableSpaceUsages = Collections.emptyMap();
+                    mostAvailableSpaceUsages = Collections.emptyMap();
+                }
+            }
+        });
+
+        final CountDownLatch indicesLatch = updateIndicesStats(new ActionListener<IndicesStatsResponse>() {
+            @Override
+            public void onResponse(IndicesStatsResponse indicesStatsResponse) {
+                ShardStats[] stats = indicesStatsResponse.getShards();
+                final HashMap<String, Long> newShardSizes = new HashMap<>();
+                final HashMap<ShardRouting, String> newShardRoutingToDataPath = new HashMap<>();
+                buildShardLevelInfo(logger, stats, newShardSizes, newShardRoutingToDataPath);
+                shardSizes = Collections.unmodifiableMap(newShardSizes);
+                shardRoutingToDataPath = Collections.unmodifiableMap(newShardRoutingToDataPath);
+            }
+
+            @Override
+            public void onFailure(Throwable e) {
+                if (e instanceof ReceiveTimeoutTransportException) {
+                    logger.error("IndicesStatsAction timed out for ClusterInfoUpdateJob (reason [{}])", e.getMessage());
+                } else {
+                    if (e instanceof ClusterBlockException) {
+                        if (logger.isTraceEnabled()) {
+                            logger.trace("Failed to execute IndicesStatsAction for ClusterInfoUpdateJob", e);
+                        }
+                    } else {
+                        logger.warn("Failed to execute IndicesStatsAction for ClusterInfoUpdateJob", e);
+                    }
+                    // we empty the usages list, to be safe - we don't know what's going on.
+                    shardSizes = Collections.emptyMap();
+                    shardRoutingToDataPath = Collections.emptyMap();
+                }
+            }
+        });
+
+        try {
+            nodeLatch.await(fetchTimeout.getMillis(), TimeUnit.MILLISECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt(); // restore interrupt status
+            logger.warn("Failed to update node information for ClusterInfoUpdateJob within {} timeout", fetchTimeout);
+        }
+
+        try {
+            indicesLatch.await(fetchTimeout.getMillis(), TimeUnit.MILLISECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt(); // restore interrupt status
+            logger.warn("Failed to update shard information for ClusterInfoUpdateJob within {} timeout", fetchTimeout);
+        }
+        ClusterInfo clusterInfo = getClusterInfo();
+        for (Listener l : listeners) {
+            try {
+                l.onNewInfo(clusterInfo);
+            } catch (Exception e) {
+                logger.info("Failed executing ClusterInfoService listener", e);
+            }
+        }
+        return clusterInfo;
     }
 
     static void buildShardLevelInfo(ESLogger logger, ShardStats[] stats, HashMap<String, Long> newShardSizes, HashMap<ShardRouting, String> newShardRoutingToDataPath) {

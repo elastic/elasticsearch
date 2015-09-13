@@ -42,7 +42,8 @@ public class WatcherService extends AbstractComponent {
     private final WatchLockService watchLockService;
     private final ExecutionService executionService;
     private final WatcherIndexTemplateRegistry watcherIndexTemplateRegistry;
-    private final AtomicReference<WatcherState> state = new AtomicReference<>(WatcherState.STOPPED);
+    // package-private for testing
+    final AtomicReference<WatcherState> state = new AtomicReference<>(WatcherState.STOPPED);
 
     @Inject
     public WatcherService(Settings settings, Clock clock, TriggerService triggerService, WatchStore watchStore,

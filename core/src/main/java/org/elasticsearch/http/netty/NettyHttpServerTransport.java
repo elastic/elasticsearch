@@ -130,7 +130,8 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
 
     protected volatile List<Channel> serverChannels = new ArrayList<>();
 
-    protected OpenChannelsHandler serverOpenChannels;
+    // package private for testing
+    OpenChannelsHandler serverOpenChannels;
 
     protected volatile HttpServerAdapter httpServerAdapter;
 

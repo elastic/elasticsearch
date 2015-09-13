@@ -21,8 +21,7 @@ import org.elasticsearch.common.inject.internal.Errors;
 import org.elasticsearch.common.inject.spi.Message;
 
 import java.util.Collection;
-
-import static org.elasticsearch.common.Preconditions.checkState;
+import java.util.Locale;
 
 /**
  * Thrown when a programming error such as a misplaced annotation, illegal binding, or unsupported
@@ -48,8 +47,10 @@ public final class ConfigurationException extends RuntimeException {
      * Returns a copy of this configuration exception with the specified partial value.
      */
     public ConfigurationException withPartialValue(Object partialValue) {
-        checkState(this.partialValue == null,
-                "Can't clobber existing partial value %s with %s", this.partialValue, partialValue);
+        if (this.partialValue != null) {
+            String message = String.format(Locale.ROOT, "Can't clobber existing partial value %s with %s", this.partialValue, partialValue);
+            throw new IllegalStateException(message);
+        }
         ConfigurationException result = new ConfigurationException(messages);
         result.partialValue = partialValue;
         return result;

@@ -27,8 +27,6 @@ import org.elasticsearch.common.inject.spi.TypeListener;
 import java.lang.annotation.Annotation;
 import java.util.Objects;
 
-import static org.elasticsearch.common.Preconditions.checkState;
-
 /**
  * A support class for {@link Module}s which reduces repetition and results in
  * a more readable configuration. Simply extend this class, implement {@link
@@ -54,8 +52,9 @@ public abstract class AbstractModule implements Module {
 
     @Override
     public final synchronized void configure(Binder builder) {
-        checkState(this.binder == null, "Re-entry is not allowed.");
-
+        if (this.binder != null) {
+            throw new IllegalStateException("Re-entry is not allowed.");
+        }
         this.binder = Objects.requireNonNull(builder, "builder");
         try {
             configure();

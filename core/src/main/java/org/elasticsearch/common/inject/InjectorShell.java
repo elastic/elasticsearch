@@ -25,7 +25,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.logging.Logger;
 
-import static org.elasticsearch.common.Preconditions.checkState;
 import static org.elasticsearch.common.inject.Scopes.SINGLETON;
 
 /**
@@ -112,9 +111,15 @@ class InjectorShell {
          */
         List<InjectorShell> build(Initializer initializer, BindingProcessor bindingProcessor,
                                   Stopwatch stopwatch, Errors errors) {
-            checkState(stage != null, "Stage not initialized");
-            checkState(privateElements == null || parent != null, "PrivateElements with no parent");
-            checkState(state != null, "no state. Did you remember to lock() ?");
+            if (stage == null) {
+                throw new IllegalStateException("Stage not initialized");
+            }
+            if (privateElements != null && parent == null) {
+                throw new IllegalStateException("PrivateElements with no parent");
+            }
+            if (state == null) {
+                throw new IllegalStateException("no state. Did you remember to lock() ?");
+            }
 
             InjectorImpl injector = new InjectorImpl(parent, state, initializer);
             if (privateElements != null) {

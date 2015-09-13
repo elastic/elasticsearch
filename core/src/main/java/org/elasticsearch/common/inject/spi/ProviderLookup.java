@@ -22,8 +22,6 @@ import org.elasticsearch.common.inject.Provider;
 
 import java.util.Objects;
 
-import static org.elasticsearch.common.Preconditions.checkState;
-
 /**
  * A lookup of the provider for a type. Lookups are created explicitly in a module using
  * {@link org.elasticsearch.common.inject.Binder#getProvider(Class) getProvider()} statements:
@@ -46,8 +44,9 @@ public final class ProviderLookup<T> implements Element {
 
         @Override
         public T get() {
-            checkState(lookup.delegate != null,
-                "This Provider cannot be used until the Injector has been created.");
+            if (lookup.delegate == null) {
+                throw new IllegalStateException( "This Provider cannot be used until the Injector has been created.");
+            }
             return lookup.delegate.get();
         }
 
@@ -89,7 +88,9 @@ public final class ProviderLookup<T> implements Element {
      * @throws IllegalStateException if the delegate is already set
      */
     public void initializeDelegate(Provider<T> delegate) {
-        checkState(this.delegate == null, "delegate already initialized");
+        if (this.delegate != null) {
+            throw new IllegalStateException("delegate already initialized");
+        }
         this.delegate = Objects.requireNonNull(delegate, "delegate");
     }
 

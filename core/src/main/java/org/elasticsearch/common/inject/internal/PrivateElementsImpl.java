@@ -28,7 +28,6 @@ import org.elasticsearch.common.inject.spi.PrivateElements;
 import java.util.*;
 
 import static org.elasticsearch.common.Preconditions.checkArgument;
-import static org.elasticsearch.common.Preconditions.checkState;
 
 /**
  * @author jessewilson@google.com (Jesse Wilson)
@@ -82,7 +81,9 @@ public final class PrivateElementsImpl implements PrivateElements {
     }
 
     public void initInjector(Injector injector) {
-        checkState(this.injector == null, "injector already initialized");
+        if (this.injector != null) {
+            throw new IllegalStateException("injector already initialized");
+        }
         this.injector = Objects.requireNonNull(injector, "injector");
     }
 

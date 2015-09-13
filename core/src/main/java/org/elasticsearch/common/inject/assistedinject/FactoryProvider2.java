@@ -33,7 +33,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
-import static org.elasticsearch.common.Preconditions.checkState;
 import static org.elasticsearch.common.inject.internal.Annotations.getKey;
 
 /**
@@ -182,8 +181,9 @@ public final class FactoryProvider2<F> implements InvocationHandler, Provider<F>
      * Creates a child injector that binds the args, and returns the binding for the method's result.
      */
     public Binding<?> getBindingFromNewInjector(final Method method, final Object[] args) {
-        checkState(injector != null,
-                "Factories.create() factories cannot be used until they're initialized by Guice.");
+        if (injector == null) {
+            throw new IllegalStateException("Factories.create() factories cannot be used until they're initialized by Guice.");
+        }
 
         final Key<?> returnType = returnTypesByMethod.get(method);
 

@@ -22,8 +22,6 @@ import org.elasticsearch.common.inject.TypeLiteral;
 
 import java.util.Objects;
 
-import static org.elasticsearch.common.Preconditions.checkState;
-
 /**
  * A lookup of the members injector for a type. Lookups are created explicitly in a module using
  * {@link org.elasticsearch.common.inject.Binder#getMembersInjector(Class) getMembersInjector()} statements:
@@ -68,7 +66,9 @@ public final class MembersInjectorLookup<T> implements Element {
      * @throws IllegalStateException if the delegate is already set
      */
     public void initializeDelegate(MembersInjector<T> delegate) {
-        checkState(this.delegate == null, "delegate already initialized");
+        if (this.delegate != null) {
+            throw new IllegalStateException("delegate already initialized");
+        }
         this.delegate = Objects.requireNonNull(delegate, "delegate");
     }
 
@@ -95,8 +95,9 @@ public final class MembersInjectorLookup<T> implements Element {
         return new MembersInjector<T>() {
             @Override
             public void injectMembers(T instance) {
-                checkState(delegate != null,
-                        "This MembersInjector cannot be used until the Injector has been created.");
+                if (delegate == null) {
+                    throw new IllegalStateException("This MembersInjector cannot be used until the Injector has been created.");
+                }
                 delegate.injectMembers(instance);
             }
 

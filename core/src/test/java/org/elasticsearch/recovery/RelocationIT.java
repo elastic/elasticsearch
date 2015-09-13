@@ -362,6 +362,7 @@ public class RelocationIT extends ESIntegTestCase {
     }
 
     @Test
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/13542")
     public void testMoveShardsWhileRelocation() throws Exception {
         final String indexName = "test";
 

@@ -62,9 +62,7 @@ public class WatcherServiceTests extends ESTestCase {
         clock = new ClockMock();
         WatcherIndexTemplateRegistry watcherIndexTemplateRegistry = mock(WatcherIndexTemplateRegistry.class);
         watcherService = new WatcherService(Settings.EMPTY, clock, triggerService, watchStore, watchParser, executionService, watchLockService, watcherIndexTemplateRegistry);
-        Field field = WatcherService.class.getDeclaredField("state");
-        field.setAccessible(true);
-        AtomicReference<WatcherState> state = (AtomicReference<WatcherState>) field.get(watcherService);
+        AtomicReference<WatcherState> state = watcherService.state;
         state.set(WatcherState.STARTED);
     }
 

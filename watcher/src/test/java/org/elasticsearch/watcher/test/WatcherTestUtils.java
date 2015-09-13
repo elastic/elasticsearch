@@ -243,10 +243,7 @@ public final class WatcherTestUtils {
         Set<ScriptEngineService> engineServiceSet = new HashSet<>();
         engineServiceSet.add(mustacheScriptEngineService);
         engineServiceSet.add(groovyScriptEngineService);
-        Class scriptContextRegistryClass = Class.forName("org.elasticsearch.script.ScriptContextRegistry");
-        Constructor scriptContextRegistryConstructor = scriptContextRegistryClass.getDeclaredConstructors()[0];
-        scriptContextRegistryConstructor.setAccessible(true);
-        ScriptContextRegistry registry = (ScriptContextRegistry) scriptContextRegistryConstructor.newInstance(Arrays.asList(ScriptServiceProxy.INSTANCE));
+        ScriptContextRegistry registry = new ScriptContextRegistry(Arrays.asList(ScriptServiceProxy.INSTANCE));
 
         return  ScriptServiceProxy.of(new ScriptService(settings, new Environment(settings), engineServiceSet, new ResourceWatcherService(settings, tp), registry));
     }

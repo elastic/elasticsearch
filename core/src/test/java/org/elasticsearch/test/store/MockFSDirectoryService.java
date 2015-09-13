@@ -49,7 +49,6 @@ import org.junit.Assert;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.PrintStream;
-import java.lang.reflect.Field;
 import java.nio.file.Path;
 import java.util.*;
 
@@ -237,13 +236,7 @@ public class MockFSDirectoryService extends FsDirectoryService {
 
         public CloseableDirectory(BaseDirectoryWrapper dir) {
             this.dir = dir;
-            try {
-                final Field suiteFailureMarker = LuceneTestCase.class.getDeclaredField("suiteFailureMarker");
-                suiteFailureMarker.setAccessible(true);
-                this.failureMarker = (TestRuleMarkFailure) suiteFailureMarker.get(LuceneTestCase.class);
-            } catch (Throwable e) {
-                throw new ElasticsearchException("foo", e);
-            }
+            this.failureMarker = ESTestCase.getSuiteFailureMarker();
         }
 
         @Override

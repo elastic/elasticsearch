@@ -107,3 +107,7 @@ com.google.common.util.concurrent.SettableFuture
 com.google.common.util.concurrent.Futures
 com.google.common.util.concurrent.MoreExecutors
 com.google.common.collect.ImmutableSortedMap
+
+@defaultMessage Do not violate java's access system
+java.lang.reflect.AccessibleObject#setAccessible(boolean)
+java.lang.reflect.AccessibleObject#setAccessible(java.lang.reflect.AccessibleObject[], boolean)

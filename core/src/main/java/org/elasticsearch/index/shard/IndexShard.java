@@ -985,15 +985,23 @@ public class IndexShard extends AbstractIndexShardComponent {
     }
 
     public void updateBufferSize(ByteSizeValue shardIndexingBufferSize, ByteSizeValue shardTranslogBufferSize) {
+        Engine engine = engineUnsafe();
+        if (engine == null) {
+            logger.debug("updateBufferSize: engine is closed; skipping");
+            return;
+        }
+
         final EngineConfig config = engineConfig;
         final ByteSizeValue preValue = config.getIndexingBufferSize();
+
         config.setIndexingBufferSize(shardIndexingBufferSize);
+
         // update engine if it is already started.
-        if (preValue.bytes() != shardIndexingBufferSize.bytes() && engineUnsafe() != null) {
-            // its inactive, make sure we do a refresh / full IW flush in this case, since the memory
-            // changes only after a "data" change has happened to the writer
-            // the index writer lazily allocates memory and a refresh will clean it all up.
-            if (shardIndexingBufferSize == EngineConfig.INACTIVE_SHARD_INDEXING_BUFFER && preValue != EngineConfig.INACTIVE_SHARD_INDEXING_BUFFER) {
+        if (preValue.bytes() != shardIndexingBufferSize.bytes()) {
+            if (shardIndexingBufferSize == EngineConfig.INACTIVE_SHARD_INDEXING_BUFFER) {
+                // it's inactive: make sure we do a refresh / full IW flush in this case, since the memory
+                // changes only after a "data" change has happened to the writer
+                // the index writer lazily allocates memory and a refresh will clean it all up.
                 logger.debug("updating index_buffer_size from [{}] to (inactive) [{}]", preValue, shardIndexingBufferSize);
                 try {
                     refresh("update index buffer");
@@ -1003,11 +1011,12 @@ public class IndexShard extends AbstractIndexShardComponent {
             } else {
                 logger.debug("updating index_buffer_size from [{}] to [{}]", preValue, shardIndexingBufferSize);
             }
+
+            // so we push changes these changes down to IndexWriter:
+            engine.onSettingsChanged();
         }
-        Engine engine = engineUnsafe();
-        if (engine != null) {
-            engine.getTranslog().updateBuffer(shardTranslogBufferSize);
-        }
+
+        engine.getTranslog().updateBuffer(shardTranslogBufferSize);
     }
 
     public void markAsInactive() {
@@ -1129,6 +1138,8 @@ public class IndexShard extends AbstractIndexShardComponent {
             searchService.onRefreshSettings(settings);
             indexingService.onRefreshSettings(settings);
             if (change) {
+                engine().onSettingsChanged();
+                // TODO: why force a refresh here...?
                 refresh("apply settings");
             }
         }

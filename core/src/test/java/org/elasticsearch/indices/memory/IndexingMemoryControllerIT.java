@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.engine.EngineConfig;
+import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
@@ -109,6 +110,43 @@ public class IndexingMemoryControllerIT extends ESIntegTestCase {
                             shard1.engine().config().getIndexingBufferSize().bytes() + "]"
             );
         }
+
+        // Make sure we also pushed the tiny indexing buffer down to the underlying IndexWriter:
+        assertEquals(EngineConfig.INACTIVE_SHARD_INDEXING_BUFFER.bytes(), getIWBufferSize("test1"));
+    }
+
+    private long getIWBufferSize(String indexName) {
+        return client().admin().indices().prepareStats(indexName).get().getTotal().getSegments().getIndexWriterMaxMemoryInBytes();
+    }
+
+    @Test
+    public void testIndexBufferSizeTwoShards() throws InterruptedException {
+        createNode(Settings.builder().put("indices.memory.shard_inactive_time", "100000h",
+                                          IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING, "32mb",
+                                          IndexShard.INDEX_REFRESH_INTERVAL, "-1").build());
+
+        // Create two active indices, sharing 32 MB indexing buffer:
+        prepareCreate("test3").setSettings(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1, IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0).get();
+        prepareCreate("test4").setSettings(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1, IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0).get();
+
+        ensureGreen();
+
+        index("test3", "type", "1", "f", 1);
+        index("test4", "type", "1", "f", 1);
+
+        // .. then make sure we really pushed the update (16 MB for each) down to the IndexWriter, even if refresh nor flush occurs:
+        if (awaitBusy(() -> getIWBufferSize("test3") == 16*1024*1024) == false) {
+            fail("failed to update shard indexing buffer size for test3 index to 16 MB; got: " + getIWBufferSize("test3"));
+        }
+        if (awaitBusy(() -> getIWBufferSize("test4") == 16*1024*1024) == false) {
+            fail("failed to update shard indexing buffer size for test4 index to 16 MB; got: " + getIWBufferSize("test4"));
+        }
+    }
+
+    @Test
+    public void testIndexBufferNotPercent() throws InterruptedException {
+        // #13487: Make sure you can specify non-percent sized index buffer and not hit NPE
+        createNode(Settings.builder().put(IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING, "32mb").build());
     }
 
     private void createNode(Settings settings) {

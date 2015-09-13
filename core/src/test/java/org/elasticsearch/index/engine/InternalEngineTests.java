@@ -315,6 +315,7 @@ public class InternalEngineTests extends ESTestCase {
             assertThat(segments.get(0).isCompound(), equalTo(defaultCompound));
 
             engine.config().setCompoundOnFlush(false);
+            engine.onSettingsChanged();
 
             ParsedDocument doc3 = testParsedDocument("3", "3", "test", null, -1, -1, testDocumentWithTextField(), B_3, null);
             engine.create(new Engine.Create(newUid("3"), doc3));
@@ -363,6 +364,7 @@ public class InternalEngineTests extends ESTestCase {
             assertThat(segments.get(1).isCompound(), equalTo(false));
 
             engine.config().setCompoundOnFlush(true);
+            engine.onSettingsChanged();
             ParsedDocument doc4 = testParsedDocument("4", "4", "test", null, -1, -1, testDocumentWithTextField(), B_3, null);
             engine.create(new Engine.Create(newUid("4"), doc4));
             engine.refresh("test");

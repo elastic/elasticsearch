@@ -338,6 +338,7 @@ public class ShadowEngineTests extends ESTestCase {
 
 
         primaryEngine.config().setCompoundOnFlush(false);
+        primaryEngine.onSettingsChanged();
 
         ParsedDocument doc3 = testParsedDocument("3", "3", "test", null, -1, -1, testDocumentWithTextField(), B_3, null);
         primaryEngine.create(new Engine.Create(newUid("3"), doc3));
@@ -410,6 +411,8 @@ public class ShadowEngineTests extends ESTestCase {
         replicaEngine.refresh("test");
 
         primaryEngine.config().setCompoundOnFlush(true);
+        primaryEngine.onSettingsChanged();
+
         ParsedDocument doc4 = testParsedDocument("4", "4", "test", null, -1, -1, testDocumentWithTextField(), B_3, null);
         primaryEngine.create(new Engine.Create(newUid("4"), doc4));
         primaryEngine.refresh("test");

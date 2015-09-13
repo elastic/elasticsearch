@@ -27,7 +27,7 @@ import org.elasticsearch.common.inject.spi.TypeListener;
 import java.lang.annotation.Annotation;
 import java.util.Objects;
 
-import static com.google.common.base.Preconditions.checkState;
+import static org.elasticsearch.common.Preconditions.checkState;
 
 /**
  * A support class for {@link Module}s which reduces repetition and results in

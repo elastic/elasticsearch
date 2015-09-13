@@ -22,7 +22,7 @@ import org.elasticsearch.common.inject.spi.Message;
 
 import java.util.Collection;
 
-import static com.google.common.base.Preconditions.checkArgument;
+import static org.elasticsearch.common.Preconditions.checkArgument;
 
 /**
  * Thrown when errors occur while creating a {@link Injector}. Includes a list of encountered

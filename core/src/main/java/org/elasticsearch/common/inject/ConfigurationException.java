@@ -22,7 +22,7 @@ import org.elasticsearch.common.inject.spi.Message;
 
 import java.util.Collection;
 
-import static com.google.common.base.Preconditions.checkState;
+import static org.elasticsearch.common.Preconditions.checkState;
 
 /**
  * Thrown when a programming error such as a misplaced annotation, illegal binding, or unsupported

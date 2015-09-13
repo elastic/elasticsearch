@@ -19,11 +19,10 @@
 
 package org.elasticsearch.common.cli;
 
-import com.google.common.base.Preconditions;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.DefaultParser;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.Preconditions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;

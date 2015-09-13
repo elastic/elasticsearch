@@ -19,8 +19,6 @@
 
 package org.elasticsearch.index.fielddata.plain;
 
-import com.google.common.base.Preconditions;
-
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
@@ -29,6 +27,7 @@ import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.Preconditions;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.AtomicNumericFieldData;

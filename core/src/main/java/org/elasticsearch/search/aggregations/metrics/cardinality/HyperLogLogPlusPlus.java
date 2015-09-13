@@ -19,12 +19,11 @@
 
 package org.elasticsearch.search.aggregations.metrics.cardinality;
 
-import com.google.common.base.Preconditions;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LongBitSet;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.packed.PackedInts;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.Preconditions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lease.Releasable;
@@ -37,7 +36,6 @@ import org.elasticsearch.common.util.IntArray;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.util.Arrays;
 
 /**
  * Hyperloglog++ counter, implemented based on pseudo code from

@@ -19,8 +19,8 @@
 
 package org.elasticsearch.common.unit;
 
-import com.google.common.base.Preconditions;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.Preconditions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;

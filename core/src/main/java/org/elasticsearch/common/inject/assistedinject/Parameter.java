@@ -22,7 +22,7 @@ import java.lang.annotation.Annotation;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 
-import static com.google.common.base.Preconditions.checkArgument;
+import static org.elasticsearch.common.Preconditions.checkArgument;
 
 /**
  * Models a method or constructor parameter.

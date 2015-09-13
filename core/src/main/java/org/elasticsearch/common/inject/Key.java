@@ -24,7 +24,7 @@ import java.lang.annotation.Annotation;
 import java.lang.reflect.Type;
 import java.util.Objects;
 
-import static com.google.common.base.Preconditions.checkArgument;
+import static org.elasticsearch.common.Preconditions.checkArgument;
 
 /**
  * Binding key consisting of an injection type and an optional annotation.

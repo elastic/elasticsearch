@@ -22,7 +22,7 @@ import org.elasticsearch.common.inject.TypeLiteral;
 
 import java.util.Objects;
 
-import static com.google.common.base.Preconditions.checkState;
+import static org.elasticsearch.common.Preconditions.checkState;
 
 /**
  * A lookup of the members injector for a type. Lookups are created explicitly in a module using

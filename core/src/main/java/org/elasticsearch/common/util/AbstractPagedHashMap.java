@@ -20,7 +20,7 @@
 package org.elasticsearch.common.util;
 
 import com.carrotsearch.hppc.BitMixer;
-import com.google.common.base.Preconditions;
+import org.elasticsearch.common.Preconditions;
 import org.elasticsearch.common.lease.Releasable;
 
 /**

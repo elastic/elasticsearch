@@ -27,7 +27,7 @@ import org.elasticsearch.common.inject.spi.TypeListener;
 
 import java.lang.annotation.Annotation;
 
-import static com.google.common.base.Preconditions.checkState;
+import static org.elasticsearch.common.Preconditions.checkState;
 
 /**
  * A module whose configuration information is hidden from its environment by default. Only bindings

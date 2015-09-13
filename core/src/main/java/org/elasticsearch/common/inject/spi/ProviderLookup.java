@@ -22,7 +22,7 @@ import org.elasticsearch.common.inject.Provider;
 
 import java.util.Objects;
 
-import static com.google.common.base.Preconditions.checkState;
+import static org.elasticsearch.common.Preconditions.checkState;
 
 /**
  * A lookup of the provider for a type. Lookups are created explicitly in a module using

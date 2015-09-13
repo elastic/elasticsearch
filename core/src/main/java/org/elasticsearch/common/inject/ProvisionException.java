@@ -23,7 +23,7 @@ import org.elasticsearch.common.inject.spi.Message;
 import java.util.Collection;
 import java.util.Collections;
 
-import static com.google.common.base.Preconditions.checkArgument;
+import static org.elasticsearch.common.Preconditions.checkArgument;
 
 /**
  * Indicates that there was a runtime failure while providing an instance.

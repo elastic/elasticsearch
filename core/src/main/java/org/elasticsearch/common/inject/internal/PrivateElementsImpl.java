@@ -25,16 +25,10 @@ import org.elasticsearch.common.inject.spi.Element;
 import org.elasticsearch.common.inject.spi.ElementVisitor;
 import org.elasticsearch.common.inject.spi.PrivateElements;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
 
-import static com.google.common.base.Preconditions.checkArgument;
-import static com.google.common.base.Preconditions.checkState;
+import static org.elasticsearch.common.Preconditions.checkArgument;
+import static org.elasticsearch.common.Preconditions.checkState;
 
 /**
  * @author jessewilson@google.com (Jesse Wilson)

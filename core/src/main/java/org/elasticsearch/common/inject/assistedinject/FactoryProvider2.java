@@ -18,17 +18,7 @@ package org.elasticsearch.common.inject.assistedinject;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
-import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.inject.Binder;
-import org.elasticsearch.common.inject.Binding;
-import org.elasticsearch.common.inject.ConfigurationException;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.inject.Injector;
-import org.elasticsearch.common.inject.Key;
-import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.inject.Provider;
-import org.elasticsearch.common.inject.ProvisionException;
-import org.elasticsearch.common.inject.TypeLiteral;
+import org.elasticsearch.common.inject.*;
 import org.elasticsearch.common.inject.internal.Errors;
 import org.elasticsearch.common.inject.internal.ErrorsException;
 import org.elasticsearch.common.inject.spi.Message;
@@ -43,7 +33,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
-import static com.google.common.base.Preconditions.checkState;
+import static org.elasticsearch.common.Preconditions.checkState;
 import static org.elasticsearch.common.inject.internal.Annotations.getKey;
 
 /**

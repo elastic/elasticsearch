@@ -30,7 +30,7 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 
-import static com.google.common.base.Preconditions.checkArgument;
+import static org.elasticsearch.common.Preconditions.checkArgument;
 
 /**
  * Static methods for working with types that we aren't publishing in the

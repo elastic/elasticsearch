@@ -25,7 +25,7 @@ import org.elasticsearch.common.inject.spi.InjectionPoint;
 
 import java.util.Set;
 
-import static com.google.common.base.Preconditions.checkState;
+import static org.elasticsearch.common.Preconditions.checkState;
 
 class ConstructorBindingImpl<T> extends BindingImpl<T> implements ConstructorBinding<T> {
 

@@ -19,10 +19,10 @@
 
 package org.elasticsearch.common.util;
 
-import com.google.common.base.Preconditions;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.Preconditions;
 
 import java.util.Arrays;
 

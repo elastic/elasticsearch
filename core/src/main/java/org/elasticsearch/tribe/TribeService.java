@@ -187,7 +187,7 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
                 if (e instanceof RuntimeException) {
                     throw (RuntimeException) e;
                 }
-                throw new ElasticsearchException(e.getMessage(), e);
+                throw new ElasticsearchException(e);
             }
         }
     }

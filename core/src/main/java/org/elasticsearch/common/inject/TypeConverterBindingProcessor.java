@@ -106,7 +106,7 @@ class TypeConverterBindingProcessor extends AbstractProcessor {
                             try {
                                 return Class.forName(value);
                             } catch (ClassNotFoundException e) {
-                                throw new RuntimeException(e.getMessage());
+                                throw new RuntimeException(e);
                             }
                         }
 
@@ -135,7 +135,7 @@ class TypeConverterBindingProcessor extends AbstractProcessor {
                     } catch (IllegalAccessException e) {
                         throw new AssertionError(e);
                     } catch (InvocationTargetException e) {
-                        throw new RuntimeException(e.getTargetException().getMessage());
+                        throw new RuntimeException(e.getTargetException());
                     }
                 }
 

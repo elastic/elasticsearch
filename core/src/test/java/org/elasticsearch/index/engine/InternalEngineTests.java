@@ -42,6 +42,7 @@ import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.TransportActions;
+import org.elasticsearch.bwcompat.OldIndexBackwardsCompatibilityIT;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Base64;
 import org.elasticsearch.common.Nullable;

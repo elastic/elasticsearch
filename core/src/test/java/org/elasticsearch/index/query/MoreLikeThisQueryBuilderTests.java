@@ -37,10 +37,14 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
 
     }
 
-
     @Override
     protected MoreLikeThisQueryBuilder doCreateTestQueryBuilder() {
         return null;
+    }
+
+    @Override
+    protected MultiTermVectorsResponse executeMultiTermVectors(MultiTermVectorsRequest mtvRequest) {
+        throw new UnsupportedOperationException("this test can't handle MultiTermVector requests");
     }
 
     @Override
@@ -52,10 +56,4 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
     public void testValidate() {
 
     }
-
-    @Override
-    protected MultiTermVectorsResponse executeMultiTermVectors(MultiTermVectorsRequest mtvRequest) {
-        throw new UnsupportedOperationException("this test can't handle MultiTermVector requests");
-    }
-
 }

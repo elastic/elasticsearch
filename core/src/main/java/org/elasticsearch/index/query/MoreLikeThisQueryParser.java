@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import com.google.common.collect.Sets;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.MoreLikeThisQueryBuilder.Item;
@@ -27,7 +26,6 @@ import org.elasticsearch.index.query.MoreLikeThisQueryBuilder.Item;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 
 /**
  * Parser for the The More Like This Query (MLT Query) which finds documents that are "like" a given set of documents.
@@ -71,7 +69,7 @@ public class MoreLikeThisQueryParser extends BaseQueryParser<MoreLikeThisQueryBu
         XContentParser parser = parseContext.parser();
 
         // document inputs
-        List<String> moreLikeFields = null;
+        List<String> fields = null;
         List<String> likeTexts = new ArrayList<>();
         List<String> unlikeTexts = new ArrayList<>();
         List<Item> likeItems = new ArrayList<>();
@@ -84,7 +82,7 @@ public class MoreLikeThisQueryParser extends BaseQueryParser<MoreLikeThisQueryBu
         int maxDocFreq = MoreLikeThisQueryBuilder.DEFAULT_MAX_DOC_FREQ;
         int minWordLength = MoreLikeThisQueryBuilder.DEFAULT_MIN_WORD_LENGTH;
         int maxWordLength = MoreLikeThisQueryBuilder.DEFAULT_MAX_WORD_LENGTH;
-        Set<String> stopWords = null;
+        List<String> stopWords = null;
         String analyzer = null;
 
         // query formation parameters
@@ -140,9 +138,9 @@ public class MoreLikeThisQueryParser extends BaseQueryParser<MoreLikeThisQueryBu
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if (parseContext.parseFieldMatcher().match(currentFieldName, Field.FIELDS)) {
-                    moreLikeFields = new ArrayList<>();
+                    fields = new ArrayList<>();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        moreLikeFields.add(parser.text());
+                        fields.add(parser.text());
                     }
                 } else if (parseContext.parseFieldMatcher().match(currentFieldName, Field.LIKE)) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
@@ -167,7 +165,7 @@ public class MoreLikeThisQueryParser extends BaseQueryParser<MoreLikeThisQueryBu
                         likeItems.add(Item.parse(parser, parseContext.parseFieldMatcher(), new Item()));
                     }
                 } else if (parseContext.parseFieldMatcher().match(currentFieldName, Field.STOP_WORDS)) {
-                    stopWords = Sets.newHashSet();
+                    stopWords = new ArrayList<>();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         stopWords.add(parser.text());
                     }
@@ -188,11 +186,11 @@ public class MoreLikeThisQueryParser extends BaseQueryParser<MoreLikeThisQueryBu
         if (likeTexts.isEmpty() && likeItems.isEmpty()) {
             throw new QueryParsingException(parseContext, "more_like_this requires 'like' to be specified");
         }
-        if (moreLikeFields != null && moreLikeFields.isEmpty()) {
+        if (fields != null && fields.isEmpty()) {
             throw new QueryParsingException(parseContext, "more_like_this requires 'fields' to be non-empty");
         }
 
-        return new MoreLikeThisQueryBuilder(moreLikeFields)
+        return new MoreLikeThisQueryBuilder(fields)
                 .like(likeTexts.toArray(new String[likeTexts.size()]))
                 .unlike(unlikeTexts.toArray(new String[unlikeTexts.size()]))
                 .like(likeItems.toArray(new Item[likeItems.size()]))

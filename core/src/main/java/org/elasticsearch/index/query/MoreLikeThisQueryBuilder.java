@@ -37,6 +37,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.search.MoreLikeThisQuery;
 import org.elasticsearch.common.lucene.search.XMoreLikeThis;
 import org.elasticsearch.common.lucene.uid.Versions;
@@ -69,7 +70,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
     public static final int DEFAULT_MIN_WORD_LENGTH = XMoreLikeThis.DEFAULT_MIN_WORD_LENGTH;
     public static final int DEFAULT_MAX_WORD_LENGTH = XMoreLikeThis.DEFAULT_MAX_WORD_LENGTH;
     public static final String DEFAULT_MINIMUM_SHOULD_MATCH = MoreLikeThisQuery.DEFAULT_MINIMUM_SHOULD_MATCH;
-    public static final int DEFAULT_BOOST_TERMS = 0;  // no boost terms
+    public static final float DEFAULT_BOOST_TERMS = 0;  // no boost terms
     public static final boolean DEFAULT_INCLUDE = false;
     public static final boolean DEFAULT_FAIL_ON_UNSUPPORTED_FIELDS = true;
 
@@ -87,7 +88,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
     private int maxDocFreq = DEFAULT_MAX_DOC_FREQ;
     private int minWordLength = DEFAULT_MIN_WORD_LENGTH;
     private int maxWordLength = DEFAULT_MAX_WORD_LENGTH;
-    private Set<String> stopWords;
+    private String[] stopWords;
     private String analyzer;
 
     // query formation parameters
@@ -96,14 +97,14 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
     private boolean include = DEFAULT_INCLUDE;
 
     // other parameters
-    private Boolean failOnUnsupportedField = DEFAULT_FAIL_ON_UNSUPPORTED_FIELDS;
+    private boolean failOnUnsupportedField = DEFAULT_FAIL_ON_UNSUPPORTED_FIELDS;
 
     static final MoreLikeThisQueryBuilder PROTOTYPE = new MoreLikeThisQueryBuilder();
 
     /**
      * A single item to be used for a {@link MoreLikeThisQueryBuilder}.
      */
-    public static final class Item implements ToXContent {
+    public static final class Item implements ToXContent, Writeable<Item> {
         public static final Item[] EMPTY_ARRAY = new Item[0];
 
         public interface Field {
@@ -127,6 +128,8 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         private String routing;
         private long version = Versions.MATCH_ANY;
         private VersionType versionType = VersionType.INTERNAL;
+
+        static final Item PROTOTYPE = new Item();
 
         public Item() {
 
@@ -381,6 +384,35 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         }
 
         @Override
+        public Item readFrom(StreamInput in) throws IOException {
+            Item item = new Item(in.readOptionalString(), in.readOptionalString(), in.readOptionalString());
+            item.doc = in.readBytesReference();
+            item.fields = (String[]) in.readGenericValue();
+            item.perFieldAnalyzer = (Map<String, String>) in.readGenericValue();
+            item.routing = in.readOptionalString();
+            item.version = in.readLong();
+            item.versionType = VersionType.readVersionTypeFrom(in);
+            return item;
+        }
+
+        public static Item readItemFrom(StreamInput in) throws IOException {
+            return PROTOTYPE.readFrom(in);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeOptionalString(index);
+            out.writeOptionalString(type);
+            out.writeOptionalString(id);
+            out.writeBytesReference(doc);
+            out.writeGenericValue(fields);
+            out.writeGenericValue(perFieldAnalyzer);
+            out.writeOptionalString(routing);
+            out.writeLong(version);
+            versionType.writeTo(out);
+        }
+
+        @Override
         public int hashCode() {
             return Objects.hash(index, type, id, doc, Arrays.hashCode(fields), perFieldAnalyzer, routing,
                     version, versionType);
@@ -558,18 +590,12 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
      * reasonable to assume that "a stop word is never interesting".
      */
     public MoreLikeThisQueryBuilder stopWords(String... stopWords) {
-        return stopWords(new HashSet<>(Arrays.asList(stopWords)));
+        this.stopWords = stopWords;
+        return this;
     }
 
-    /**
-     * Set the set of stopwords.
-     * <p/>
-     * <p>Any word in this set is considered "uninteresting" and ignored. Even if your Analyzer allows stopwords, you
-     * might want to tell the MoreLikeThis code to ignore them, as for the purposes of document similarity it seems
-     * reasonable to assume that "a stop word is never interesting".
-     */
-    public MoreLikeThisQueryBuilder stopWords(Set<String> stopWords) {
-        this.stopWords = stopWords;
+    public MoreLikeThisQueryBuilder stopWords(List<String> stopWords) {
+        this.stopWords = stopWords != null ? stopWords.toArray(new String[stopWords.size()]) : null;
         return this;
     }
 
@@ -588,6 +614,9 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
      * @see    org.elasticsearch.common.lucene.search.Queries#calculateMinShouldMatch(int, String)
      */
     public MoreLikeThisQueryBuilder minimumShouldMatch(String minimumShouldMatch) {
+        if (minimumShouldMatch == null) {
+            throw new IllegalArgumentException("[" + NAME + "] requires minimum should match to be non-null");
+        }
         this.minimumShouldMatch = minimumShouldMatch;
         return this;
     }
@@ -612,7 +641,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
      * Whether to fail or return no result when this query is run against a field which is not supported such as binary/numeric fields.
      */
     public MoreLikeThisQueryBuilder failOnUnsupportedField(boolean fail) {
-        failOnUnsupportedField = fail;
+        this.failOnUnsupportedField = fail;
         return this;
     }
 
@@ -686,7 +715,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         builder.field(MoreLikeThisQueryParser.Field.MAX_DOC_FREQ.getPreferredName(), maxDocFreq);
         builder.field(MoreLikeThisQueryParser.Field.MIN_WORD_LENGTH.getPreferredName(), minWordLength);
         builder.field(MoreLikeThisQueryParser.Field.MAX_WORD_LENGTH.getPreferredName(), maxWordLength);
-        if (stopWords != null && stopWords.size() > 0) {
+        if (stopWords != null && stopWords.length > 0) {
             builder.field(MoreLikeThisQueryParser.Field.STOP_WORDS.getPreferredName(), stopWords);
         }
         if (analyzer != null) {
@@ -695,9 +724,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         builder.field(MoreLikeThisQueryParser.Field.MINIMUM_SHOULD_MATCH.getPreferredName(), minimumShouldMatch);
         builder.field(MoreLikeThisQueryParser.Field.BOOST_TERMS.getPreferredName(), boostTerms);
         builder.field(MoreLikeThisQueryParser.Field.INCLUDE.getPreferredName(), include);
-        if (failOnUnsupportedField != null) {
-            builder.field(MoreLikeThisQueryParser.Field.FAIL_ON_UNSUPPORTED_FIELD.getPreferredName(), failOnUnsupportedField);
-        }
+        builder.field(MoreLikeThisQueryParser.Field.FAIL_ON_UNSUPPORTED_FIELD.getPreferredName(), failOnUnsupportedField);
         printBoostAndQueryName(builder);
         builder.endObject();
     }
@@ -714,8 +741,8 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
     }
 
     @Override
-    protected void setFinalBoost(Query query) {
-        super.setFinalBoost(query);
+    public String getWriteableName() {
+        return NAME;
     }
 
     @Override
@@ -733,7 +760,9 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         mltQuery.setMinWordLen(minWordLength);
         mltQuery.setMaxWordLen(maxWordLength);
         mltQuery.setMinimumShouldMatch(minimumShouldMatch);
-        mltQuery.setStopWords(stopWords);
+        if (stopWords != null) {
+            mltQuery.setStopWords(new HashSet<>(Arrays.asList(stopWords)));
+        }
 
         // sets boost terms
         if (boostTerms != 0) {
@@ -919,38 +948,95 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
             validationException = addValidationError("more_like_this requires 'like' to be specified.", validationException);
         }
         if (fields != null && fields.isEmpty()) {
-            validationException = addValidationError("more_like_this requires 'like' to be specified", validationException);
+            validationException = addValidationError("more_like_this requires 'fields' to be specified", validationException);
         }
         return validationException;
     }
 
     @Override
     protected MoreLikeThisQueryBuilder doReadFrom(StreamInput in) throws IOException {
-        return super.doReadFrom(in);
+        MoreLikeThisQueryBuilder moreLikeThisQueryBuilder = new MoreLikeThisQueryBuilder((List<String>) in.readGenericValue());
+        moreLikeThisQueryBuilder.likeTexts = (List<String>) in.readGenericValue();
+        moreLikeThisQueryBuilder.unlikeTexts = (List<String>) in.readGenericValue();
+        moreLikeThisQueryBuilder.likeItems = readItems(in);
+        moreLikeThisQueryBuilder.unlikeItems = readItems(in);
+        moreLikeThisQueryBuilder.maxQueryTerms = in.readVInt();
+        moreLikeThisQueryBuilder.minTermFreq = in.readVInt();
+        moreLikeThisQueryBuilder.minDocFreq = in.readVInt();
+        moreLikeThisQueryBuilder.maxDocFreq = in.readVInt();
+        moreLikeThisQueryBuilder.minWordLength = in.readVInt();
+        moreLikeThisQueryBuilder.maxWordLength = in.readVInt();
+        moreLikeThisQueryBuilder.stopWords = (String[]) in.readGenericValue();
+        moreLikeThisQueryBuilder.analyzer = in.readOptionalString();
+        moreLikeThisQueryBuilder.minimumShouldMatch = in.readString();
+        moreLikeThisQueryBuilder.boostTerms = (Float) in.readGenericValue();
+        moreLikeThisQueryBuilder.include = in.readBoolean();
+        moreLikeThisQueryBuilder.failOnUnsupportedField = in.readBoolean();
+        return moreLikeThisQueryBuilder;
+    }
+
+    private static List<Item> readItems(StreamInput in) throws IOException {
+        List<Item> items = new ArrayList<>();
+        int size = in.readVInt();
+        for (int i = 0; i < size; i++) {
+            items.add(Item.readItemFrom(in));
+        }
+        return items;
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        super.doWriteTo(out);
+        out.writeGenericValue(fields);
+        out.writeGenericValue(likeTexts);
+        out.writeGenericValue(unlikeTexts);
+        writeItems(likeItems, out);
+        writeItems(unlikeItems, out);
+        out.writeVInt(maxQueryTerms);
+        out.writeVInt(minTermFreq);
+        out.writeVInt(minDocFreq);
+        out.writeVInt(maxDocFreq);
+        out.writeVInt(minWordLength);
+        out.writeVInt(maxWordLength);
+        out.writeGenericValue(stopWords);
+        out.writeOptionalString(analyzer);
+        out.writeString(minimumShouldMatch);
+        out.writeGenericValue(boostTerms);
+        out.writeBoolean(include);
+        out.writeBoolean(failOnUnsupportedField);
     }
 
-    @Override
-    protected boolean doEquals(MoreLikeThisQueryBuilder other) {
-        return super.doEquals(other);
+    private static void writeItems(List<Item> items, StreamOutput out) throws IOException {
+        out.writeVInt(items.size());
+        for (Item item : items) {
+            item.writeTo(out);
+        }
     }
 
     @Override
     protected int doHashCode() {
-        return super.doHashCode();
+        return Objects.hash(fields, likeTexts, unlikeTexts, likeItems, unlikeItems, maxQueryTerms, minTermFreq,
+                minDocFreq, maxDocFreq, minWordLength, maxWordLength, stopWords, analyzer, minimumShouldMatch,
+                boostTerms, include, failOnUnsupportedField);
     }
 
     @Override
-    public String getName() {
-        return super.getName();
-    }
-
-    @Override
-    public String getWriteableName() {
-        return NAME;
+    protected boolean doEquals(MoreLikeThisQueryBuilder other) {
+        return Objects.equals(fields, other.fields) &&
+                Objects.equals(likeTexts, other.likeTexts) &&
+                Objects.equals(unlikeTexts, other.unlikeTexts) &&
+                Objects.equals(likeItems, other.likeItems) &&
+                Objects.equals(unlikeItems, other.unlikeItems) &&
+                Objects.equals(maxQueryTerms, other.maxQueryTerms) &&
+                Objects.equals(minTermFreq, other.minTermFreq) &&
+                Objects.equals(minDocFreq, other.minDocFreq) &&
+                Objects.equals(maxDocFreq, other.maxDocFreq) &&
+                Objects.equals(minWordLength, other.minWordLength) &&
+                Objects.equals(maxWordLength, other.maxWordLength) &&
+                Objects.equals(stopWords, other.stopWords) &&
+                Objects.equals(analyzer, other.analyzer) &&
+                Objects.equals(minimumShouldMatch, other.minimumShouldMatch) &&
+                Objects.equals(boostTerms, other.boostTerms) &&
+                Objects.equals(include, other.include) &&
+                Objects.equals(failOnUnsupportedField, other.failOnUnsupportedField);
     }
 }

@@ -62,7 +62,7 @@ public class TransportShardMultiPercolateAction extends TransportSingleShardActi
                                               TransportService transportService, PercolatorService percolatorService,
                                               ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
         super(settings, ACTION_NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
-                Request.class, ThreadPool.Names.PERCOLATE);
+                Request::new, ThreadPool.Names.PERCOLATE);
         this.percolatorService = percolatorService;
     }
 

@@ -53,7 +53,7 @@ public class TransportIndicesStatsAction extends TransportBroadcastByNodeAction<
                                        TransportService transportService, IndicesService indicesService,
                                        ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
         super(settings, IndicesStatsAction.NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
-                IndicesStatsRequest.class, ThreadPool.Names.MANAGEMENT);
+                IndicesStatsRequest::new, ThreadPool.Names.MANAGEMENT);
         this.indicesService = indicesService;
     }
 

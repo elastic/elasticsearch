@@ -76,7 +76,7 @@ public class TransportExistsAction extends TransportBroadcastAction<ExistsReques
                                 PageCacheRecycler pageCacheRecycler, BigArrays bigArrays, ActionFilters actionFilters,
                                  IndexNameExpressionResolver indexNameExpressionResolver) {
         super(settings, ExistsAction.NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
-                ExistsRequest.class, ShardExistsRequest.class, ThreadPool.Names.SEARCH);
+                ExistsRequest::new, ShardExistsRequest::new, ThreadPool.Names.SEARCH);
         this.indicesService = indicesService;
         this.scriptService = scriptService;
         this.pageCacheRecycler = pageCacheRecycler;

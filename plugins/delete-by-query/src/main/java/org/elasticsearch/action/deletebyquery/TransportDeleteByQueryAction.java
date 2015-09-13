@@ -62,7 +62,7 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
                                            TransportSearchScrollAction transportSearchScrollAction,
                                            TransportService transportService, ActionFilters actionFilters,
                                            IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, DeleteByQueryAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, DeleteByQueryRequest.class);
+        super(settings, DeleteByQueryAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, DeleteByQueryRequest::new);
         this.searchAction = transportSearchAction;
         this.scrollAction = transportSearchScrollAction;
         this.client = client;

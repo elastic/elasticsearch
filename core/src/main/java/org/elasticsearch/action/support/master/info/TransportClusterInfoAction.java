@@ -29,13 +29,15 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.function.Supplier;
+
 /**
  */
 public abstract class TransportClusterInfoAction<Request extends ClusterInfoRequest, Response extends ActionResponse> extends TransportMasterNodeReadAction<Request, Response> {
 
     public TransportClusterInfoAction(Settings settings, String actionName, TransportService transportService,
                                       ClusterService clusterService, ThreadPool threadPool, ActionFilters actionFilters,
-                                      IndexNameExpressionResolver indexNameExpressionResolver, Class<Request> request) {
+                                      IndexNameExpressionResolver indexNameExpressionResolver, Supplier<Request> request) {
         super(settings, actionName, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, request);
     }
 

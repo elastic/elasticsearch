@@ -67,7 +67,7 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
                                                   ClusterService clusterService, TransportService transportService,
                                                   ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, NodeEnvironment env) {
         super(settings, ACTION_NAME, clusterName, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
-                Request.class, NodeRequest.class, ThreadPool.Names.FETCH_SHARD_STARTED);
+                Request::new, NodeRequest::new, ThreadPool.Names.FETCH_SHARD_STARTED);
         this.nodeEnv = env;
     }
 

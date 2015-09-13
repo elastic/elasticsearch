@@ -58,7 +58,7 @@ public class TransportRecoveryAction extends TransportBroadcastByNodeAction<Reco
                                    TransportService transportService, IndicesService indicesService,
                                    ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
         super(settings, RecoveryAction.NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
-                RecoveryRequest.class, ThreadPool.Names.MANAGEMENT);
+                RecoveryRequest::new, ThreadPool.Names.MANAGEMENT);
         this.indicesService = indicesService;
     }
 

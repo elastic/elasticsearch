@@ -49,7 +49,7 @@ public class TransportMultiGetAction extends HandledTransportAction<MultiGetRequ
     public TransportMultiGetAction(Settings settings, ThreadPool threadPool, TransportService transportService,
                                    ClusterService clusterService, TransportShardMultiGetAction shardAction,
                                    ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, MultiGetAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, MultiGetRequest.class);
+        super(settings, MultiGetAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, MultiGetRequest::new);
         this.clusterService = clusterService;
         this.shardAction = shardAction;
     }

@@ -29,6 +29,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.termvectors.*;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lucene.search.MoreLikeThisQuery;
@@ -45,9 +46,13 @@ import org.junit.Test;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.stream.Stream;
 
-import static org.hamcrest.Matchers.*;
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 
 public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLikeThisQueryBuilder> {
 
@@ -78,10 +83,9 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
     }
 
     private Item generateRandomItem() {
-        Item item = new Item(
-                randomBoolean() ? getIndex().getName() : null,
-                getRandomType(),  // set to one type to avoid ambiguous types
-                randomAsciiOfLength(5))
+        Item item = new Item()
+                .index(randomBoolean() ? getIndex().getName() : null)
+                .type(getRandomType())  // set to one type to avoid ambiguous types
                 .routing(randomAsciiOfLength(10))
                 .version(randomInt(5))
                 .versionType(randomFrom(VersionType.values()));
@@ -89,8 +93,38 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
         if (randomBoolean()) {
             item.fields(randomFrom(randomFields));
         }
+        // id or artificial doc
+        if (randomBoolean()) {
+            item.id(randomAsciiOfLength(10));
+        } else {
+            item.doc(randomArtificialDoc());
+        }
+        // per field analyzer
+        if (randomBoolean()) {
+            item.perFieldAnalyzer(randomPerFieldAnalyzer());
+        }
         return item;
-        // delegate artificial documents and per field analyzers to the tests further below
+    }
+
+    private XContentBuilder randomArtificialDoc() {
+        XContentBuilder doc;
+        try {
+            doc = jsonBuilder().startObject();
+            for (String field : randomFields) {
+                doc.field(field, randomAsciiOfLength(10));
+            }
+        } catch (IOException e) {
+            throw new ElasticsearchException("Unable to generate random artificial doc!");
+        }
+        return doc;
+    }
+
+    private Map<String, String> randomPerFieldAnalyzer() {
+        Map<String, String> perFieldAnalyzer = new HashMap<>();
+        for (String field : randomFields) {
+            perFieldAnalyzer.put(field, randomAnalyzer());
+        }
+        return perFieldAnalyzer;
     }
 
     @Override
@@ -135,7 +169,7 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
             queryBuilder.stopWords(generateRandomStringArray(5, 5, false));
         }
         if (randomBoolean()) {
-            queryBuilder.analyzer(randomFrom("simple", "keyword", "whitespace"));  // fix the analyzer?
+            queryBuilder.analyzer(randomAnalyzer());  // fix the analyzer?
         }
         if (randomBoolean()) {
             queryBuilder.minimumShouldMatch(randomMinimumShouldMatch());
@@ -160,7 +194,12 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
             for (TermVectorsRequest request : mtvRequest) {
                 TermVectorsResponse response = new TermVectorsResponse(request.index(), request.type(), request.id());
                 response.setExists(true);
-                Fields generatedFields = generateFields(request.selectedFields().toArray(new String[0]), request.id());
+                Fields generatedFields;
+                if (request.doc() != null) {
+                    generatedFields = generateFields(randomFields, request.doc().toUtf8());
+                } else {
+                    generatedFields = generateFields(request.selectedFields().toArray(new String[0]), request.id());
+                }
                 EnumSet<TermVectorsRequest.Flag> flags = EnumSet.of(TermVectorsRequest.Flag.Positions, TermVectorsRequest.Flag.Offsets);
                 response.setFields(generatedFields, request.selectedFields(), flags, generatedFields);
                 responses[i++] = new MultiTermVectorsItemResponse(response, null);
@@ -186,7 +225,12 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
 
     @Override
     protected void doAssertLuceneQuery(MoreLikeThisQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
-        assertThat(query, anyOf(instanceOf(BooleanQuery.class), instanceOf(MoreLikeThisQuery.class)));
+        if (!queryBuilder.likeItems().isEmpty()) {
+            assertThat(query, instanceOf(BooleanQuery.class));
+        } else {
+            // we rely on integration tests for a deeper check here
+            assertThat(query, instanceOf(MoreLikeThisQuery.class));
+        }
     }
 
     @Test
@@ -212,23 +256,22 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
         MoreLikeThisQueryBuilder queryBuilder = new MoreLikeThisQueryBuilder("field").like("some text");
         int totalExpectedErrors = 0;
         if (randomBoolean()) {
-            queryBuilder.addLikeItem(generateRandomItem().id(null));
-            totalExpectedErrors++;
-        }
-        if (randomBoolean()) {
             queryBuilder.addLikeItem(generateRandomItem().id(null).doc((XContentBuilder) null));
             totalExpectedErrors++;
         }
         if (randomBoolean()) {
-            queryBuilder.addUnlikeItem(generateRandomItem().id(null));
+            queryBuilder.addUnlikeItem(generateRandomItem().id(null).doc((XContentBuilder) null));
+            totalExpectedErrors++;
+        }
+        if (randomBoolean()) {
+            queryBuilder.addLikeItem(generateRandomItem().id("id").doc(new BytesArray("")));
+            totalExpectedErrors++;
+        }
+        if (randomBoolean()) {
+            queryBuilder.addUnlikeItem(generateRandomItem().id("id").doc(new BytesArray("")));
             totalExpectedErrors++;
         }
         assertValidate(queryBuilder, totalExpectedErrors);
-    }
-
-    @Test
-    public void testArtificialDocument() {
-
     }
 
     @Test
@@ -258,14 +301,9 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
     @Test
     public void testItemFromXContent() throws IOException {
         Item expectedItem = generateRandomItem();
-        String json = expectedItem.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS).string();
+        String json = expectedItem.toXContent(jsonBuilder(), ToXContent.EMPTY_PARAMS).string();
         XContentParser parser = XContentFactory.xContent(json).createParser(json);
         Item newItem = Item.parse(parser, ParseFieldMatcher.STRICT, new Item());
         assertEquals(expectedItem, newItem);
-    }
-
-    @Test
-    public void testPerFieldAnalyzer() {
-
     }
 }

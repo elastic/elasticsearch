@@ -204,7 +204,9 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
          * Sets to a given artificial document, that is a document that is not present in the index.
          */
         public Item doc(XContentBuilder doc) {
-            if (doc != null) {
+            if (doc == null) {
+                this.doc = null;
+            } else {
                 this.doc(doc.bytes());
             }
             return this;
@@ -391,6 +393,10 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
             if (id == null && doc == null) {
                 validationException = new QueryValidationException();
                 validationException.addValidationError("item must either have an '_id' or be an artificial 'doc'");
+            }
+            if (id != null && doc != null) {
+                validationException = validationException == null ? new QueryValidationException() : validationException;
+                validationException.addValidationError("either 'id' or 'doc' can be specified, but not both!");
             }
             return validationException;
         }

@@ -1137,8 +1137,6 @@ public class IndexShard extends AbstractIndexShardComponent {
             indexingService.onRefreshSettings(settings);
             if (change) {
                 engine().onSettingsChanged();
-                // TODO: why force a refresh here...?
-                refresh("apply settings");
             }
         }
     }

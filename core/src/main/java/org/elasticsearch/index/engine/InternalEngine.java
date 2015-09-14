@@ -1241,6 +1241,10 @@ public class InternalEngine extends Engine {
     public void onSettingsChanged() {
         mergeScheduler.refreshConfig();
         updateIndexWriterSettings();
+        // config().getVersionMapSize() may have changed:
+        checkVersionMapRefresh();
+        // config().isEnableGcDeletes() or config.getGcDeletesInMillis() may have changed:
+        maybePruneDeletedTombstones();
     }
 
     public MergeStats getMergeStats() {

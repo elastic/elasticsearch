@@ -20,6 +20,7 @@ package org.elasticsearch.test;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.client.Client;
@@ -66,6 +67,10 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
     private static void startNode() {
         assert NODE == null;
         NODE = newNode();
+        // we must wait for the node to actually be up and running. otherwise the node might have started, elected itself master but might not yet have removed the
+        // SERVICE_UNAVAILABLE/1/state not recovered / initialized block
+        ClusterHealthResponse clusterHealthResponse = client().admin().cluster().prepareHealth().setWaitForGreenStatus().get();
+        assertFalse(clusterHealthResponse.isTimedOut());
     }
 
     private static void stopNode() {

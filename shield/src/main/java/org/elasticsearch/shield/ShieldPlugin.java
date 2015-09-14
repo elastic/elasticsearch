@@ -60,10 +60,10 @@ import java.util.Map;
 public class ShieldPlugin extends Plugin {
 
     public static final String NAME = "shield";
-
     public static final String ENABLED_SETTING_NAME = NAME + ".enabled";
-
     public static final String OPT_OUT_QUERY_CACHE = "opt_out_cache";
+
+    private static final boolean DEFAULT_ENABLED_SETTING = true;
 
     private final Settings settings;
     private final boolean enabled;
@@ -250,15 +250,20 @@ public class ShieldPlugin extends Plugin {
                 settingsBuilder.putArray(tribePrefix + "plugin.mandatory", NAME);
             } else {
                 if (!isShieldMandatory(existingMandatoryPlugins)) {
-                    String[] updatedMandatoryPlugins = new String[existingMandatoryPlugins.length + 1];
-                    System.arraycopy(existingMandatoryPlugins, 0, updatedMandatoryPlugins, 0, existingMandatoryPlugins.length);
-                    updatedMandatoryPlugins[updatedMandatoryPlugins.length - 1] = NAME;
-                    //shield is mandatory on every tribe if installed and enabled on the tribe node
-                    settingsBuilder.putArray(tribePrefix + "plugin.mandatory", updatedMandatoryPlugins);
+                    throw new IllegalStateException("when [plugin.mandatory] is explicitly configured, [" + NAME + "] must be included in this list");
                 }
             }
-            //shield must be enabled on every tribe if it's enabled on the tribe node
-            settingsBuilder.put(tribePrefix + ENABLED_SETTING_NAME, true);
+
+            final String tribeEnabledSetting = tribePrefix + ENABLED_SETTING_NAME;
+            if (settings.get(tribeEnabledSetting) != null) {
+                boolean enabled = shieldEnabled(tribeSettings.getValue());
+                if (!enabled) {
+                    throw new IllegalStateException("tribe setting [" + tribeEnabledSetting + "] must be set to true but the value is [" + settings.get(tribeEnabledSetting) + "]");
+                }
+            } else {
+                //shield must be enabled on every tribe if it's enabled on the tribe node
+                settingsBuilder.put(tribeEnabledSetting, true);
+            }
         }
     }
 
@@ -294,7 +299,7 @@ public class ShieldPlugin extends Plugin {
     }
 
     public static boolean shieldEnabled(Settings settings) {
-        return settings.getAsBoolean(ENABLED_SETTING_NAME, true);
+        return settings.getAsBoolean(ENABLED_SETTING_NAME, DEFAULT_ENABLED_SETTING);
     }
 
     private void failIfShieldQueryCacheIsNotActive(Settings settings, boolean nodeSettings) {

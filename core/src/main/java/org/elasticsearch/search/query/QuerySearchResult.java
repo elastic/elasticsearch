@@ -30,6 +30,7 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorStreams;
 import org.elasticsearch.search.aggregations.pipeline.SiblingPipelineAggregator;
+import org.elasticsearch.search.profile.InternalProfileCollector;
 import org.elasticsearch.search.profile.InternalProfileResult;
 import org.elasticsearch.search.suggest.Suggest;
 
@@ -55,7 +56,8 @@ public class QuerySearchResult extends QuerySearchResultProvider {
     private Suggest suggest;
     private boolean searchTimedOut;
     private Boolean terminatedEarly = null;
-    private InternalProfileResult profileResult;
+    private List<InternalProfileResult> profileResults;
+    private InternalProfileCollector profileCollector;
 
     public QuerySearchResult() {
 
@@ -127,16 +129,21 @@ public class QuerySearchResult extends QuerySearchResultProvider {
      * Returns the profiled results for this search, or null if it was not profiled
      * @return The profiled results, or null
      */
-    public @Nullable InternalProfileResult profileResult() {
-        return profileResult;
+    public @Nullable List<InternalProfileResult> profileResults() {
+        return profileResults;
+    }
+
+    public @Nullable InternalProfileCollector profileCollector() {
+        return profileCollector;
     }
 
     /**
      * Sets the finalized profiling results for this query
      * @param profileResults The finalized profile
      */
-    public void profileResult(InternalProfileResult profileResults) {
-        this.profileResult = profileResults;
+    public void profileResults(List<InternalProfileResult> profileResults, InternalProfileCollector collector) {
+        this.profileResults = profileResults;
+        this.profileCollector = collector;
     }
 
     public List<SiblingPipelineAggregator> pipelineAggregators() {
@@ -213,7 +220,12 @@ public class QuerySearchResult extends QuerySearchResultProvider {
 
         // nocommit TODO need version check here?
         if (in.readBoolean()) {
-            profileResult = InternalProfileResult.readProfileResult(in);
+            int numProfiles = in.readVInt();
+            profileResults = new ArrayList<>(numProfiles);
+            for (int i = 0; i < numProfiles; i++) {
+                profileResults.add(InternalProfileResult.readProfileResult(in));
+            }
+
         }
     }
 
@@ -255,11 +267,15 @@ public class QuerySearchResult extends QuerySearchResultProvider {
         out.writeOptionalBoolean(terminatedEarly);
 
         // nocommit TODO need version check here?
-        if (profileResult == null) {
+        if (profileResults == null) {
             out.writeBoolean(false);
         } else {
             out.writeBoolean(true);
-            profileResult.writeTo(out);
+            out.writeVInt(profileResults.size());
+            for (InternalProfileResult p : profileResults) {
+                p.writeTo(out);
+            }
+
         }
     }
 }

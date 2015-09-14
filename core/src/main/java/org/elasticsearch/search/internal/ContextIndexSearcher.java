@@ -66,7 +66,8 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     public Query rewrite(Query original) throws IOException {
         ProfileBreakdown profile = null;
         if (searchContext.profile()) {
-            profile = searchContext.queryProfiler().getProfileBreakDown(original);
+            int token = searchContext.queryProfiler().getRewriteToken(original);
+            profile = searchContext.queryProfiler().getRewriteProfileBreakDown(token);
             profile.startTime(InternalProfileBreakdown.TimingType.REWRITE);
         }
 
@@ -77,7 +78,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             if (searchContext.profile()) {
                 profile.stopAndRecordTime(InternalProfileBreakdown.TimingType.REWRITE);
                 if (rewritten != null) {
-                    searchContext.queryProfiler().reconcileRewrite(original, rewritten);
+                    //searchContext.queryProfiler().appendRewrittenQuery(token, rewritten);
                 }
             }
         }
@@ -104,8 +105,8 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             // createWeight() is called for each query in the tree, so we tell the queryProfiler
             // each invocation so that it can build an internal representation of the query
             // tree
-            searchContext.queryProfiler().pushQuery(query);
-            ProfileBreakdown profile = searchContext.queryProfiler().getProfileBreakDown(query);
+            int token = searchContext.queryProfiler().getToken(query);
+            ProfileBreakdown profile = searchContext.queryProfiler().getProfileBreakDown(token);
             profile.startTime(InternalProfileBreakdown.TimingType.WEIGHT);
             // nocommit: is it ok to not delegate to in?
             Weight weight = super.createWeight(query, needsScores);

@@ -37,6 +37,7 @@ import org.elasticsearch.search.aggregations.AggregationPhase;
 import org.elasticsearch.search.internal.ScrollContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.profile.CollectorResult.CollectorReason;
+import org.elasticsearch.search.profile.InternalProfileCollector;
 import org.elasticsearch.search.profile.InternalProfileResult;
 import org.elasticsearch.search.profile.InternalProfiler;
 import org.elasticsearch.search.rescore.RescorePhase;
@@ -116,8 +117,9 @@ public class QueryPhase implements SearchPhase {
         aggregationPhase.execute(searchContext);
 
         if (searchContext.profile()) {
-            InternalProfileResult result = searchContext.queryProfiler().finalizeProfileResults();
-            searchContext.queryResult().profileResult(result);
+            List<InternalProfileResult> results = searchContext.queryProfiler().finalizeProfileResults();
+            InternalProfileCollector collector = searchContext.queryProfiler().finalizeCollectors();
+            searchContext.queryResult().profileResults(results, collector);
         }
     }
 
@@ -357,7 +359,9 @@ public class QueryPhase implements SearchPhase {
             queryResult.topDocs(topDocsCallable.call());
 
             if (searchContext.profile()) {
-                searchContext.queryResult().profileResult(searchContext.queryProfiler().finalizeProfileResults());
+                List<InternalProfileResult> pResults = searchContext.queryProfiler().finalizeProfileResults();
+                InternalProfileCollector pCollector = searchContext.queryProfiler().finalizeCollectors();
+                searchContext.queryResult().profileResults(pResults, pCollector);
             }
 
             return rescore;

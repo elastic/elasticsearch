@@ -22,6 +22,7 @@ package org.elasticsearch.search.profile;
 import org.elasticsearch.search.SearchShardTarget;
 
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -35,18 +36,18 @@ public interface ProfileResults {
      * Returns the profile results as a map, where the Shard is the key and the
      * profiled results are the value
      */
-    Map<SearchShardTarget, ProfileResult> asMap();
+    Map<SearchShardTarget, List<ProfileResult>> asMap();
 
     /**
      * Returns an entrySet over the map to facilitate iterating
      */
-    Set<Map.Entry<SearchShardTarget, ProfileResult>> getEntrySet();
+    Set<Map.Entry<SearchShardTarget, List<ProfileResult>>> getEntrySet();
 
     /**
      * Returns a collection of ProfileResults.  Note: calling this
      * method does not tell you which shard is associated with which result
      */
-    Collection<ProfileResult> asCollection();
+    Collection<List<ProfileResult>> asCollection();
 
 
 }

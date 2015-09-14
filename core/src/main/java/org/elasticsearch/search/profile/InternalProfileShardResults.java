@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.profile;
 
+import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -38,11 +39,21 @@ import com.google.common.base.Function;
  */
 public class InternalProfileShardResults implements ProfileResults, Streamable, ToXContent {
 
-    private Map<SearchShardTarget, InternalProfileResult> results;
+    private Map<SearchShardTarget, List<InternalProfileResult>> results;
+
+    private Map<SearchShardTarget, InternalProfileCollector> collectors;
 
     public InternalProfileShardResults() {
         results = new HashMap<>(5);
+        collectors = new HashMap<>(5);
     }
+
+    private static final Function<List<InternalProfileResult>, List<ProfileResult>> SUPERTYPE_LIST_CAST = new Function<List<InternalProfileResult>, List<ProfileResult>>() {
+        @Override
+        public List<ProfileResult> apply(List<InternalProfileResult> input) {
+            return Lists.transform(input, SUPERTYPE_CAST);
+        }
+    };
 
     private static final Function<InternalProfileResult, ProfileResult> SUPERTYPE_CAST = new Function<InternalProfileResult, ProfileResult>() {
         @Override
@@ -56,8 +67,9 @@ public class InternalProfileShardResults implements ProfileResults, Streamable, 
      * @param shard             The shard where the results came from
      * @param profileResults    The profile results for that shard
      */
-    public void addShardResult(SearchShardTarget shard, InternalProfileResult profileResults) {
+    public void addShardResult(SearchShardTarget shard, List<InternalProfileResult> profileResults, InternalProfileCollector profileCollector) {
         results.put(shard, profileResults);
+        collectors.put(shard, profileCollector);
     }
 
     /**
@@ -72,51 +84,76 @@ public class InternalProfileShardResults implements ProfileResults, Streamable, 
     public void finalizeTimings() {
         long totalTime = 0;
         long totalCollectorTime = 0;
-        for (Map.Entry<SearchShardTarget, InternalProfileResult> entry : results.entrySet()) {
-            totalTime += entry.getValue().calculateNodeTime();
-            totalCollectorTime += entry.getValue().getCollector().getTime();
+
+        // Add up total query times
+        for (Map.Entry<SearchShardTarget, List<InternalProfileResult>> entry : results.entrySet()) {
+            for (InternalProfileResult p : entry.getValue()) {
+                totalTime += p.calculateNodeTime();
+            }
         }
 
-        for (Map.Entry<SearchShardTarget, InternalProfileResult> entry : results.entrySet()) {
-            entry.getValue().setGlobalTime(totalTime);
-            entry.getValue().getCollector().setGlobalCollectorTime(totalCollectorTime);
+        // Add up total collector times
+        for (Map.Entry<SearchShardTarget, InternalProfileCollector> entry : collectors.entrySet()) {
+            totalCollectorTime += entry.getValue().getTime();
         }
+
+        // Set global time for all profiles
+        for (Map.Entry<SearchShardTarget, List<InternalProfileResult>> entry : results.entrySet()) {
+            for (InternalProfileResult p : entry.getValue()) {
+                p.setGlobalTime(totalTime);
+            }
+        }
+
+        // Set global time for all collectors
+        for (Map.Entry<SearchShardTarget, InternalProfileCollector> entry : collectors.entrySet()) {
+            entry.getValue().setGlobalCollectorTime(totalCollectorTime);
+        }
+
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
 
-        builder = builder.startObject("profile").startArray("shards");
+        builder.startObject("profile").startArray("shards");
 
-        for (Map.Entry<SearchShardTarget, InternalProfileResult> entry : results.entrySet()) {
-            builder = builder.startObject()
+        for (Map.Entry<SearchShardTarget, List<InternalProfileResult>> entry : results.entrySet()) {
+
+            builder.startObject()
                     .field("shard_id", entry.getKey().getNodeId())
                     .startArray("query");
-            builder = entry.getValue().toXContent(builder, params)
-                    .endArray()
-                    .startArray("collector");
-            builder = entry.getValue().getCollector().toXContent(builder,params)
-                    .endArray()
-                    .endObject();
+
+            for (InternalProfileResult p : entry.getValue()) {
+                p.toXContent(builder, params);
+            }
+            builder.endArray();
+
+            InternalProfileCollector collector = collectors.get(entry.getKey());
+            if (collector != null) {
+                builder.startArray("collector");
+                collector.toXContent(builder, params);
+                builder.endArray();
+            }
+            builder.endObject();
+
         }
 
-        builder = builder.endArray().endObject();
+        builder.endArray().endObject();
         return builder;
     }
 
     @Override
-    public Map<SearchShardTarget, ProfileResult> asMap() {
-        return Maps.transformValues(results, SUPERTYPE_CAST);
+    public Map<SearchShardTarget, List<ProfileResult>> asMap() {
+        return Maps.transformValues(results, SUPERTYPE_LIST_CAST);
     }
 
     @Override
-    public Set<Map.Entry<SearchShardTarget, ProfileResult>> getEntrySet() {
+    public Set<Map.Entry<SearchShardTarget, List<ProfileResult>>> getEntrySet() {
         return asMap().entrySet();
     }
 
     @Override
-    public Collection<ProfileResult> asCollection() {
-        return Maps.transformValues(results, SUPERTYPE_CAST).values();
+    public Collection<List<ProfileResult>> asCollection() {
+        return Maps.transformValues(results, SUPERTYPE_LIST_CAST).values();
     }
 
     public static InternalProfileShardResults readProfileShardResults(StreamInput in) throws IOException {
@@ -133,17 +170,33 @@ public class InternalProfileShardResults implements ProfileResults, Streamable, 
             SearchShardTarget target = new SearchShardTarget(null, null, 0); // nocommit Urgh...
             target.readFrom(in);
 
-            InternalProfileResult profileResults = InternalProfileResult.readProfileResult(in);
+            int profileSize = in.readVInt();
+            List<InternalProfileResult> profileResults = new ArrayList<>(profileSize);
+
+            for (int j = 0; j < profileSize; j++) {
+                InternalProfileResult profileResult = InternalProfileResult.readProfileResult(in);
+                profileResults.add(profileResult);
+            }
             results.put(target, profileResults);
+
+            InternalProfileCollector collector = InternalProfileCollector.readProfileCollectorFromStream(in);
+            collectors.put(target, collector);
         }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(results.size());
-        for (Map.Entry<SearchShardTarget, InternalProfileResult> entry : results.entrySet()) {
+        for (Map.Entry<SearchShardTarget, List<InternalProfileResult>> entry : results.entrySet()) {
             entry.getKey().writeTo(out);
-            entry.getValue().writeTo(out);
+            out.writeVInt(entry.getValue().size());
+
+            for (InternalProfileResult p : entry.getValue()) {
+                p.writeTo(out);
+            }
+
+            InternalProfileCollector collector = collectors.get(entry.getKey());
+            collector.writeTo(out);
         }
     }
 }

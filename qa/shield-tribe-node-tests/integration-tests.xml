@@ -142,9 +142,15 @@
                  -->
                 <echo>Creating index1 in cluster1</echo>
                 <create-index name="index1" port="9700"/>
+                <!-- TODO: remove this after we know why on CI the shards of index1 don't get into a started state -->
+                <loadfile property="cluster1-logs" srcFile="${integ.scratch}/elasticsearch-${elasticsearch.version}/logs/cluster1.log" />
+                <echo>post index1 creation es logs: ${cluster1-logs}</echo>
 
                 <echo>Creating index2 in cluster2</echo>
                 <create-index name="index2" port="9900"/>
+                <!-- TODO: remove this after we know why on CI the shards of index2 don't get into a started state -->
+                <loadfile property="cluster2-logs" srcFile="${integ.scratch}/elasticsearch-${elasticsearch.version}/logs/cluster2.log" />
+                <echo>post index2 creation es logs: ${cluster2-logs}</echo>
             </ac:try>
             <ac:catch>
                 <echo>Failed to start tribe node with message: ${failure.message}</echo>

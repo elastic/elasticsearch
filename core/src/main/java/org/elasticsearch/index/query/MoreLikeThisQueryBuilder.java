@@ -472,6 +472,10 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         this.fields = fields;
     }
 
+    public List<String> fields() {
+        return fields;
+    }
+
     /**
      * Sets the text to use in order to find documents that are "like" this.
      *
@@ -482,6 +486,10 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         return addLikeText(likeTexts);
     }
 
+    public List<String> likeTexts() {
+        return likeTexts;
+    }
+
     /**
      * Sets the documents to use in order to find documents that are "like" this.
      *
@@ -490,6 +498,10 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
     public MoreLikeThisQueryBuilder like(Item... likeItems) {
         this.likeItems = new ArrayList<>();
         return addLikeItem(likeItems);
+    }
+
+    public List<Item> likeItems() {
+        return likeItems;
     }
 
     /**
@@ -516,12 +528,20 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         return addUnlikeText(unlikeTexts);
     }
 
+    public List<String> unlikeTexts() {
+        return unlikeTexts;
+    }
+
     /**
      * Sets the documents from which the terms should not be selected from.
      */
     public MoreLikeThisQueryBuilder unlike(Item... unlikeItems) {
         this.unlikeItems = new ArrayList<>();
         return addUnlikeItem(unlikeItems);
+    }
+
+    public List<Item> unlikeItems() {
+        return unlikeItems;
     }
 
     /**
@@ -549,6 +569,10 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         return this;
     }
 
+    public int maxQueryTerms() {
+        return maxQueryTerms;
+    }
+
     /**
      * The frequency below which terms will be ignored in the source doc. The default
      * frequency is <tt>2</tt>.
@@ -556,6 +580,10 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
     public MoreLikeThisQueryBuilder minTermFreq(int minTermFreq) {
         this.minTermFreq = minTermFreq;
         return this;
+    }
+
+    public int minTermFreq() {
+        return minTermFreq;
     }
 
     /**
@@ -567,6 +595,10 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         return this;
     }
 
+    public int minDocFreq() {
+        return minDocFreq;
+    }
+
     /**
      * Set the maximum frequency in which words may still appear. Words that appear
      * in more than this many docs will be ignored. Defaults to unbounded.
@@ -574,6 +606,10 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
     public MoreLikeThisQueryBuilder maxDocFreq(int maxDocFreq) {
         this.maxDocFreq = maxDocFreq;
         return this;
+    }
+
+    public int maxDocFreq() {
+        return maxDocFreq;
     }
 
     /**
@@ -585,6 +621,10 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         return this;
     }
 
+    public int minWordLength() {
+        return minWordLength;
+    }
+
     /**
      * Sets the maximum word length above which words will be ignored. Defaults to
      * unbounded (<tt>0</tt>).
@@ -592,6 +632,10 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
     public MoreLikeThisQueryBuilder maxWordLength(int maxWordLength) {
         this.maxWordLength = maxWordLength;
         return this;
+    }
+
+    public int maxWordLength() {
+        return maxWordLength;
     }
 
     /**
@@ -611,12 +655,20 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         return this;
     }
 
+    public String[] stopWords() {
+        return stopWords;
+    }
+
     /**
      * The analyzer that will be used to analyze the text. Defaults to the analyzer associated with the fied.
      */
     public MoreLikeThisQueryBuilder analyzer(String analyzer) {
         this.analyzer = analyzer;
         return this;
+    }
+
+    public String analyzer() {
+        return analyzer;
     }
 
     /**
@@ -633,12 +685,20 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         return this;
     }
 
+    public String minimumShouldMatch() {
+        return minimumShouldMatch;
+    }
+
     /**
      * Sets the boost factor to use when boosting terms. Defaults to <tt>0</tt> (deactivated).
      */
     public MoreLikeThisQueryBuilder boostTerms(float boostTerms) {
         this.boostTerms = boostTerms;
         return this;
+    }
+
+    public float boostTerms() {
+        return boostTerms;
     }
 
     /**
@@ -649,12 +709,20 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         return this;
     }
 
+    public boolean include() {
+        return include;
+    }
+
     /**
      * Whether to fail or return no result when this query is run against a field which is not supported such as binary/numeric fields.
      */
     public MoreLikeThisQueryBuilder failOnUnsupportedField(boolean fail) {
         this.failOnUnsupportedField = fail;
         return this;
+    }
+
+    public boolean failOnUnsupportedField() {
+        return failOnUnsupportedField;
     }
 
     /**

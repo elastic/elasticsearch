@@ -1890,7 +1890,6 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertFirstHit(searchResponse, hasId("1"));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/12822")
     @Test // https://github.com/elasticsearch/elasticsearch/issues/2416
     public void testIndicesQuerySkipParsing() throws Exception {
         createIndex("simple");
@@ -1911,7 +1910,7 @@ public class SearchQueryIT extends ESIntegTestCase {
         } catch (SearchPhaseExecutionException e) {
             assertThat(e.shardFailures().length, greaterThan(0));
             for (ShardSearchFailure shardSearchFailure : e.shardFailures()) {
-                assertThat(shardSearchFailure.reason(), containsString("No mapping for for type [child]"));
+                assertThat(shardSearchFailure.reason(), containsString("no mapping found for type [child]"));
             }
         }
 

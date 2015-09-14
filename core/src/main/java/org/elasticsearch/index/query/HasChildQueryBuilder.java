@@ -211,7 +211,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
 
         DocumentMapper childDocMapper = context.mapperService().documentMapper(type);
         if (childDocMapper == null) {
-            throw new QueryShardException(context, "[" + NAME + "] no mapping for for type [" + type + "]");
+            throw new QueryShardException(context, "[" + NAME + "] no mapping found for type [" + type + "]");
         }
         ParentFieldMapper parentFieldMapper = childDocMapper.parentFieldMapper();
         if (parentFieldMapper.active() == false) {

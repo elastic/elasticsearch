@@ -79,7 +79,7 @@ public class IndexingMemoryControllerIT extends ESIntegTestCase {
     @Test
     public void testIndexBufferSizeUpdateInactiveShard() throws InterruptedException {
 
-        createNode(Settings.builder().put("indices.memory.shard_inactive_time", "100ms").build());
+        createNode(Settings.builder().put(IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING, "100ms").build());
 
         prepareCreate("test1").setSettings(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1, IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0).get();
 
@@ -121,7 +121,7 @@ public class IndexingMemoryControllerIT extends ESIntegTestCase {
 
     @Test
     public void testIndexBufferSizeTwoShards() throws InterruptedException {
-        createNode(Settings.builder().put("indices.memory.shard_inactive_time", "100000h",
+        createNode(Settings.builder().put(IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING, "100000h",
                                           IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING, "32mb",
                                           IndexShard.INDEX_REFRESH_INTERVAL, "-1").build());
 
@@ -158,7 +158,7 @@ public class IndexingMemoryControllerIT extends ESIntegTestCase {
                         .put(EsExecutors.PROCESSORS, 1) // limit the number of threads created
                         .put("http.enabled", false)
                         .put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING, true) // make sure we get what we set :)
-                        .put("indices.memory.interval", "100ms")
+                        .put(IndexingMemoryController.SHARD_INACTIVE_INTERVAL_TIME_SETTING, "100ms")
                         .put(settings)
         );
     }

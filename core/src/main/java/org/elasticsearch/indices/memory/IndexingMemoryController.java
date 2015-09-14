@@ -51,7 +51,41 @@ import java.util.concurrent.ScheduledFuture;
  */
 public class IndexingMemoryController extends AbstractLifecycleComponent<IndexingMemoryController> {
 
+    /** How much heap (% or bytes) we will share across all actively indexing shards on this node (default: 10%). */
     public static final String INDEX_BUFFER_SIZE_SETTING = "indices.memory.index_buffer_size";
+    
+    /** Only applies when <code>indices.memory.index_buffer_size</code> is a %, to set a floor on the actual size in bytes (default: 48 MB). */
+    public static final String MIN_INDEX_BUFFER_SIZE_SETTING = "indices.memory.min_index_buffer_size";
+
+    /** Only applies when <code>indices.memory.index_buffer_size</code> is a %, to set a ceiling on the actual size in bytes (default: not set). */
+    public static final String MAX_INDEX_BUFFER_SIZE_SETTING = "indices.memory.max_index_buffer_size";
+
+    /** Sets a floor on the per-shard index buffer size (default: 4 MB). */
+    public static final String MIN_SHARD_INDEX_BUFFER_SIZE_SETTING = "indices.memory.min_shard_index_buffer_size";
+
+    /** Sets a ceiling on the per-shard index buffer size (default: 512 MB). */
+    public static final String MAX_SHARD_INDEX_BUFFER_SIZE_SETTING = "indices.memory.max_shard_index_buffer_size";
+
+    /** How much heap (% or bytes) we will share across all actively indexing shards for the translog buffer (default: 1%). */
+    public static final String TRANSLOG_BUFFER_SIZE_SETTING = "indices.memory.translog_buffer_size";
+
+    /** Only applies when <code>indices.memory.translog_buffer_size</code> is a %, to set a floor on the actual size in bytes (default: 256 KB). */
+    public static final String MIN_TRANSLOG_BUFFER_SIZE_SETTING = "indices.memory.min_translog_buffer_size";
+
+    /** Only applies when <code>indices.memory.translog_buffer_size</code> is a %, to set a ceiling on the actual size in bytes (default: not set). */
+    public static final String MAX_TRANSLOG_BUFFER_SIZE_SETTING = "indices.memory.max_translog_buffer_size";
+
+    /** Sets a floor on the per-shard translog buffer size (default: 2 KB). */
+    public static final String MIN_SHARD_TRANSLOG_BUFFER_SIZE_SETTING = "indices.memory.min_shard_translog_buffer_size";
+
+    /** Sets a ceiling on the per-shard translog buffer size (default: 64 KB). */
+    public static final String MAX_SHARD_TRANSLOG_BUFFER_SIZE_SETTING = "indices.memory.max_shard_translog_buffer_size";
+
+    /** If we see no indexing operations after this much time for a given shard, we consider that shard inactive (default: 5 minutes). */
+    public static final String SHARD_INACTIVE_TIME_SETTING = "indices.memory.shard_inactive_time";
+
+    /** How frequently we check shards to find inactive ones (default: 30 seconds). */
+    public static final String SHARD_INACTIVE_INTERVAL_TIME_SETTING = "indices.memory.interval";
 
     private final ThreadPool threadPool;
     private final IndicesService indicesService;
@@ -83,8 +117,8 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
         if (indexingBufferSetting.endsWith("%")) {
             double percent = Double.parseDouble(indexingBufferSetting.substring(0, indexingBufferSetting.length() - 1));
             indexingBuffer = new ByteSizeValue((long) (((double) JvmInfo.jvmInfo().getMem().getHeapMax().bytes()) * (percent / 100)));
-            ByteSizeValue minIndexingBuffer = this.settings.getAsBytesSize("indices.memory.min_index_buffer_size", new ByteSizeValue(48, ByteSizeUnit.MB));
-            ByteSizeValue maxIndexingBuffer = this.settings.getAsBytesSize("indices.memory.max_index_buffer_size", null);
+            ByteSizeValue minIndexingBuffer = this.settings.getAsBytesSize(MIN_INDEX_BUFFER_SIZE_SETTING, new ByteSizeValue(48, ByteSizeUnit.MB));
+            ByteSizeValue maxIndexingBuffer = this.settings.getAsBytesSize(MAX_INDEX_BUFFER_SIZE_SETTING, null);
 
             if (indexingBuffer.bytes() < minIndexingBuffer.bytes()) {
                 indexingBuffer = minIndexingBuffer;
@@ -96,17 +130,17 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
             indexingBuffer = ByteSizeValue.parseBytesSizeValue(indexingBufferSetting, INDEX_BUFFER_SIZE_SETTING);
         }
         this.indexingBuffer = indexingBuffer;
-        this.minShardIndexBufferSize = this.settings.getAsBytesSize("indices.memory.min_shard_index_buffer_size", new ByteSizeValue(4, ByteSizeUnit.MB));
+        this.minShardIndexBufferSize = this.settings.getAsBytesSize(MIN_SHARD_INDEX_BUFFER_SIZE_SETTING, new ByteSizeValue(4, ByteSizeUnit.MB));
         // LUCENE MONITOR: Based on this thread, currently (based on Mike), having a large buffer does not make a lot of sense: https://issues.apache.org/jira/browse/LUCENE-2324?focusedCommentId=13005155&page=com.atlassian.jira.plugin.system.issuetabpanels:comment-tabpanel#comment-13005155
-        this.maxShardIndexBufferSize = this.settings.getAsBytesSize("indices.memory.max_shard_index_buffer_size", new ByteSizeValue(512, ByteSizeUnit.MB));
+        this.maxShardIndexBufferSize = this.settings.getAsBytesSize(MAX_SHARD_INDEX_BUFFER_SIZE_SETTING, new ByteSizeValue(512, ByteSizeUnit.MB));
 
         ByteSizeValue translogBuffer;
-        String translogBufferSetting = this.settings.get("indices.memory.translog_buffer_size", "1%");
+        String translogBufferSetting = this.settings.get(TRANSLOG_BUFFER_SIZE_SETTING, "1%");
         if (translogBufferSetting.endsWith("%")) {
             double percent = Double.parseDouble(translogBufferSetting.substring(0, translogBufferSetting.length() - 1));
             translogBuffer = new ByteSizeValue((long) (((double) JvmInfo.jvmInfo().getMem().getHeapMax().bytes()) * (percent / 100)));
-            ByteSizeValue minTranslogBuffer = this.settings.getAsBytesSize("indices.memory.min_translog_buffer_size", new ByteSizeValue(256, ByteSizeUnit.KB));
-            ByteSizeValue maxTranslogBuffer = this.settings.getAsBytesSize("indices.memory.max_translog_buffer_size", null);
+            ByteSizeValue minTranslogBuffer = this.settings.getAsBytesSize(MIN_TRANSLOG_BUFFER_SIZE_SETTING, new ByteSizeValue(256, ByteSizeUnit.KB));
+            ByteSizeValue maxTranslogBuffer = this.settings.getAsBytesSize(MAX_TRANSLOG_BUFFER_SIZE_SETTING, null);
 
             if (translogBuffer.bytes() < minTranslogBuffer.bytes()) {
                 translogBuffer = minTranslogBuffer;
@@ -118,16 +152,19 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
             translogBuffer = ByteSizeValue.parseBytesSizeValue(translogBufferSetting, null);
         }
         this.translogBuffer = translogBuffer;
-        this.minShardTranslogBufferSize = this.settings.getAsBytesSize("indices.memory.min_shard_translog_buffer_size", new ByteSizeValue(2, ByteSizeUnit.KB));
-        this.maxShardTranslogBufferSize = this.settings.getAsBytesSize("indices.memory.max_shard_translog_buffer_size", new ByteSizeValue(64, ByteSizeUnit.KB));
+        this.minShardTranslogBufferSize = this.settings.getAsBytesSize(MIN_SHARD_TRANSLOG_BUFFER_SIZE_SETTING, new ByteSizeValue(2, ByteSizeUnit.KB));
+        this.maxShardTranslogBufferSize = this.settings.getAsBytesSize(MAX_SHARD_TRANSLOG_BUFFER_SIZE_SETTING, new ByteSizeValue(64, ByteSizeUnit.KB));
 
-        this.inactiveTime = this.settings.getAsTime("indices.memory.shard_inactive_time", TimeValue.timeValueMinutes(5));
+        this.inactiveTime = this.settings.getAsTime(SHARD_INACTIVE_TIME_SETTING, TimeValue.timeValueMinutes(5));
         // we need to have this relatively small to move a shard from inactive to active fast (enough)
-        this.interval = this.settings.getAsTime("indices.memory.interval", TimeValue.timeValueSeconds(30));
+        this.interval = this.settings.getAsTime(SHARD_INACTIVE_INTERVAL_TIME_SETTING, TimeValue.timeValueSeconds(30));
 
-        logger.debug("using index_buffer_size [{}], with min_shard_index_buffer_size [{}], max_shard_index_buffer_size [{}], shard_inactive_time [{}], indices.memory.interval [{}]",
-                     this.indexingBuffer, this.minShardIndexBufferSize, this.maxShardIndexBufferSize, this.inactiveTime, this.interval);
-
+        logger.debug("using indexing buffer size [{}], with {} [{}], {} [{}], {} [{}], {} [{}]",
+                     this.indexingBuffer,
+                     MIN_SHARD_INDEX_BUFFER_SIZE_SETTING, this.minShardIndexBufferSize,
+                     MAX_SHARD_INDEX_BUFFER_SIZE_SETTING, this.maxShardIndexBufferSize,
+                     SHARD_INACTIVE_TIME_SETTING, this.inactiveTime,
+                     SHARD_INACTIVE_INTERVAL_TIME_SETTING, this.interval);
     }
 
     @Override

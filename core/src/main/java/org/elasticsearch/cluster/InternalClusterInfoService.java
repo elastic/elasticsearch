@@ -150,7 +150,12 @@ public class InternalClusterInfoService extends AbstractComponent implements Clu
             threadPool.schedule(updateFrequency, executorName(), new SubmitReschedulingClusterInfoUpdatedJob());
             if (clusterService.state().getNodes().getDataNodes().size() > 1) {
                 // Submit an info update job to be run immediately
-                threadPool.executor(executorName()).execute(() -> maybeRefresh());
+                threadPool.executor(executorName()).execute(new Runnable() {
+                    @Override
+                    public void run() {
+                        maybeRefresh();
+                    }
+                });
             }
         } catch (EsRejectedExecutionException ex) {
             if (logger.isDebugEnabled()) {
@@ -188,7 +193,12 @@ public class InternalClusterInfoService extends AbstractComponent implements Clu
             if (logger.isDebugEnabled()) {
                 logger.debug("data node was added, retrieving new cluster info");
             }
-            threadPool.executor(executorName()).execute(() -> maybeRefresh());
+            threadPool.executor(executorName()).execute(new Runnable() {
+                @Override
+                public void run() {
+                    maybeRefresh();
+                }
+            });
         }
 
         if (this.isMaster && event.nodesRemoved()) {
@@ -235,18 +245,21 @@ public class InternalClusterInfoService extends AbstractComponent implements Clu
                 logger.trace("Submitting new rescheduling cluster info update job");
             }
             try {
-                threadPool.executor(executorName()).execute(() -> {
-                    try {
-                        maybeRefresh();
-                    } finally { //schedule again after we refreshed
-                        if (isMaster) {
-                            if (logger.isTraceEnabled()) {
-                                logger.trace("Scheduling next run for updating cluster info in: {}", updateFrequency.toString());
-                            }
-                            try {
-                                threadPool.schedule(updateFrequency, executorName(), this);
-                            } catch (EsRejectedExecutionException ex) {
-                                logger.debug("Reschedule cluster info service was rejected", ex);
+                threadPool.executor(executorName()).execute(new Runnable() {
+                    @Override
+                    public void run() {
+                        try {
+                            maybeRefresh();
+                        } finally { //schedule again after we refreshed
+                            if (isMaster) {
+                                if (logger.isTraceEnabled()) {
+                                    logger.trace("Scheduling next run for updating cluster info in: {}", updateFrequency.toString());
+                                }
+                                try {
+                                    threadPool.schedule(updateFrequency, executorName(), this);
+                                } catch (EsRejectedExecutionException ex) {
+                                    logger.debug("Reschedule cluster info service was rejected", ex);
+                                }
                             }
                         }
                     }

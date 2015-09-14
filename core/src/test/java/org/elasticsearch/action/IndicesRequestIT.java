@@ -103,6 +103,7 @@ import org.junit.Test;
 
 import java.util.*;
 import java.util.concurrent.Callable;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
@@ -851,12 +852,12 @@ public class IndicesRequestIT extends ESIntegTestCase {
         }
 
         @Override
-        public <Request extends TransportRequest> void registerRequestHandler(String action, Class<Request> request, String executor, boolean forceExecution, TransportRequestHandler<Request> handler) {
+        public <Request extends TransportRequest> void registerRequestHandler(String action, Supplier<Request> request, String executor, boolean forceExecution, TransportRequestHandler<Request> handler) {
             super.registerRequestHandler(action, request, executor, forceExecution, new InterceptingRequestHandler(action, handler));
         }
 
         @Override
-        public <Request extends TransportRequest> void registerRequestHandler(String action, Callable<Request> requestFactory, String executor, TransportRequestHandler<Request> handler) {
+        public <Request extends TransportRequest> void registerRequestHandler(String action, Supplier<Request> requestFactory, String executor, TransportRequestHandler<Request> handler) {
             super.registerRequestHandler(action, requestFactory, executor, new InterceptingRequestHandler(action, handler));
         }
 

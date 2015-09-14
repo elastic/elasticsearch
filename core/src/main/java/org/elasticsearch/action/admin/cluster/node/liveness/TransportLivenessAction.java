@@ -36,7 +36,7 @@ public final class TransportLivenessAction implements TransportRequestHandler<Li
                                    ClusterService clusterService, TransportService transportService) {
         this.clusterService = clusterService;
         this.clusterName = clusterName;
-        transportService.registerRequestHandler(NAME, LivenessRequest.class, ThreadPool.Names.SAME, this);
+        transportService.registerRequestHandler(NAME, LivenessRequest::new, ThreadPool.Names.SAME, this);
     }
 
     @Override

@@ -73,7 +73,7 @@ public class NettyScheduledPingTests extends ESTestCase {
         assertThat(nettyA.scheduledPing.failedPings.count(), equalTo(0l));
         assertThat(nettyB.scheduledPing.failedPings.count(), equalTo(0l));
 
-        serviceA.registerRequestHandler("sayHello", TransportRequest.Empty.class, ThreadPool.Names.GENERIC, new TransportRequestHandler<TransportRequest.Empty>() {
+        serviceA.registerRequestHandler("sayHello", TransportRequest.Empty::new, ThreadPool.Names.GENERIC, new TransportRequestHandler<TransportRequest.Empty>() {
             @Override
             public void messageReceived(TransportRequest.Empty request, TransportChannel channel) {
                 try {

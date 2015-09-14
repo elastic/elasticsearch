@@ -70,7 +70,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<ClusterSta
                                        NodeService nodeService, IndicesService indicesService,
                                        ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
         super(settings, ClusterStatsAction.NAME, clusterName, threadPool, clusterService, transportService, actionFilters,
-                indexNameExpressionResolver, ClusterStatsRequest.class, ClusterStatsNodeRequest.class, ThreadPool.Names.MANAGEMENT);
+                indexNameExpressionResolver, ClusterStatsRequest::new, ClusterStatsNodeRequest::new, ThreadPool.Names.MANAGEMENT);
         this.nodeService = nodeService;
         this.indicesService = indicesService;
     }

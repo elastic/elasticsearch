@@ -41,6 +41,8 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 
+import java.util.function.Supplier;
+
 import static org.elasticsearch.action.support.TransportActions.isShardNotAvailableException;
 
 /**
@@ -59,7 +61,7 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
 
     protected TransportSingleShardAction(Settings settings, String actionName, ThreadPool threadPool, ClusterService clusterService,
                                          TransportService transportService, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                         Class<Request> request, String executor) {
+                                         Supplier<Request> request, String executor) {
         super(settings, actionName, threadPool, actionFilters, indexNameExpressionResolver);
         this.clusterService = clusterService;
         this.transportService = transportService;

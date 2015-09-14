@@ -40,7 +40,7 @@ public class TransportRenderSearchTemplateAction extends HandledTransportAction<
     @Inject
     public TransportRenderSearchTemplateAction(ScriptService scriptService, Settings settings, ThreadPool threadPool,
             TransportService transportService, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, RenderSearchTemplateAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, RenderSearchTemplateRequest.class);
+        super(settings, RenderSearchTemplateAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, RenderSearchTemplateRequest::new);
         this.scriptService = scriptService;
     }
 

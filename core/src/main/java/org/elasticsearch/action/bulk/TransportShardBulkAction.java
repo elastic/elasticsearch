@@ -83,7 +83,7 @@ public class TransportShardBulkAction extends TransportReplicationAction<BulkSha
                                     IndexNameExpressionResolver indexNameExpressionResolver) {
         super(settings, ACTION_NAME, transportService, clusterService, indicesService, threadPool, shardStateAction, mappingUpdatedAction,
                 actionFilters, indexNameExpressionResolver,
-                BulkShardRequest.class, BulkShardRequest.class, ThreadPool.Names.BULK);
+                BulkShardRequest::new, BulkShardRequest::new, ThreadPool.Names.BULK);
         this.updateHelper = updateHelper;
         this.allowIdGeneration = settings.getAsBoolean("action.allow_id_generation", true);
     }

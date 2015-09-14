@@ -60,7 +60,7 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
     public TransportClusterUpdateSettingsAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                                 AllocationService allocationService, @ClusterDynamicSettings DynamicSettings dynamicSettings,
                                                 ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, ClusterUpdateSettingsAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, ClusterUpdateSettingsRequest.class);
+        super(settings, ClusterUpdateSettingsAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, ClusterUpdateSettingsRequest::new);
         this.allocationService = allocationService;
         this.dynamicSettings = dynamicSettings;
     }

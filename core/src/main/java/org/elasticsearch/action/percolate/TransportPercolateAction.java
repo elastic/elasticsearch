@@ -62,7 +62,7 @@ public class TransportPercolateAction extends TransportBroadcastAction<Percolate
                                     TransportService transportService, PercolatorService percolatorService,
                                     TransportGetAction getAction, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
         super(settings, PercolateAction.NAME, threadPool, clusterService, transportService, actionFilters,
-                indexNameExpressionResolver, PercolateRequest.class, PercolateShardRequest.class, ThreadPool.Names.PERCOLATE);
+                indexNameExpressionResolver, PercolateRequest::new, PercolateShardRequest::new, ThreadPool.Names.PERCOLATE);
         this.percolatorService = percolatorService;
         this.getAction = getAction;
     }

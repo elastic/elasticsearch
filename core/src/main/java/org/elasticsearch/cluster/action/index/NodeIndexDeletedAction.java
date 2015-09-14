@@ -57,8 +57,8 @@ public class NodeIndexDeletedAction extends AbstractComponent {
         super(settings);
         this.threadPool = threadPool;
         this.transportService = transportService;
-        transportService.registerRequestHandler(INDEX_DELETED_ACTION_NAME, NodeIndexDeletedMessage.class, ThreadPool.Names.SAME, new NodeIndexDeletedTransportHandler());
-        transportService.registerRequestHandler(INDEX_STORE_DELETED_ACTION_NAME, NodeIndexStoreDeletedMessage.class, ThreadPool.Names.SAME, new NodeIndexStoreDeletedTransportHandler());
+        transportService.registerRequestHandler(INDEX_DELETED_ACTION_NAME, NodeIndexDeletedMessage::new, ThreadPool.Names.SAME, new NodeIndexDeletedTransportHandler());
+        transportService.registerRequestHandler(INDEX_STORE_DELETED_ACTION_NAME, NodeIndexStoreDeletedMessage::new, ThreadPool.Names.SAME, new NodeIndexStoreDeletedTransportHandler());
         this.indicesService = indicesService;
     }
 

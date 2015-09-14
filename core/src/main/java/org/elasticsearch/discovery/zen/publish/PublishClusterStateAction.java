@@ -88,7 +88,7 @@ public class PublishClusterStateAction extends AbstractComponent {
         this.nodesProvider = nodesProvider;
         this.listener = listener;
         this.discoverySettings = discoverySettings;
-        transportService.registerRequestHandler(ACTION_NAME, BytesTransportRequest.class, ThreadPool.Names.SAME, new PublishClusterStateRequestHandler());
+        transportService.registerRequestHandler(ACTION_NAME, BytesTransportRequest::new, ThreadPool.Names.SAME, new PublishClusterStateRequestHandler());
     }
 
     public void close() {

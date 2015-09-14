@@ -19,12 +19,13 @@
 
 package org.elasticsearch.search.fetch.source;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.RestRequest;
 
 import java.io.IOException;
@@ -32,7 +33,7 @@ import java.util.Arrays;
 
 /**
  */
-public class FetchSourceContext implements Streamable {
+public class FetchSourceContext implements Streamable, ToXContent {
 
     public static final FetchSourceContext FETCH_SOURCE = new FetchSourceContext(true);
     public static final FetchSourceContext DO_NOT_FETCH_SOURCE = new FetchSourceContext(false);
@@ -170,6 +171,19 @@ public class FetchSourceContext implements Streamable {
             return new FetchSourceContext(fetchSource == null ? true : fetchSource, source_includes, source_excludes, transform);
         }
         return null;
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        if (fetchSource) {
+            builder.startObject();
+            builder.array("includes", includes);
+            builder.array("excludes", excludes);
+            builder.endObject();
+        } else {
+            builder.value(false);
+        }
+        return builder;
     }
 
     @Override

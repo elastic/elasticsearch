@@ -115,9 +115,6 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
-/**
- *
- */
 public class IndexShard extends AbstractIndexShardComponent {
 
     private final ThreadPool threadPool;
@@ -985,16 +982,17 @@ public class IndexShard extends AbstractIndexShardComponent {
     }
 
     public void updateBufferSize(ByteSizeValue shardIndexingBufferSize, ByteSizeValue shardTranslogBufferSize) {
-        Engine engine = engineUnsafe();
-        if (engine == null) {
-            logger.debug("updateBufferSize: engine is closed; skipping");
-            return;
-        }
 
         final EngineConfig config = engineConfig;
         final ByteSizeValue preValue = config.getIndexingBufferSize();
 
         config.setIndexingBufferSize(shardIndexingBufferSize);
+
+        Engine engine = engineUnsafe();
+        if (engine == null) {
+            logger.debug("updateBufferSize: engine is closed; skipping");
+            return;
+        }
 
         // update engine if it is already started.
         if (preValue.bytes() != shardIndexingBufferSize.bytes()) {
@@ -1278,6 +1276,8 @@ public class IndexShard extends AbstractIndexShardComponent {
         return engine;
     }
 
+    /** NOTE: returns null if engine is not yet started (e.g. recovery phase 1, copying over index files, is still running), or if engine is
+     *  closed. */
     protected Engine engineUnsafe() {
         return this.currentEngineReference.get();
     }

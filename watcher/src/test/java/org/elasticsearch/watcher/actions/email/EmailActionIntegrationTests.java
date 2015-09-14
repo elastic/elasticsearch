@@ -7,6 +7,8 @@ package org.elasticsearch.watcher.actions.email;
 
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.watcher.actions.email.service.EmailTemplate;
 import org.elasticsearch.watcher.actions.email.service.support.EmailServer;
 import org.elasticsearch.watcher.client.WatcherClient;
@@ -21,6 +23,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
+import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.elasticsearch.watcher.actions.ActionBuilders.emailAction;
 import static org.elasticsearch.watcher.client.WatchSourceBuilders.watchBuilder;
 import static org.elasticsearch.watcher.condition.ConditionBuilders.scriptCondition;
@@ -30,9 +33,8 @@ import static org.elasticsearch.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.watcher.trigger.schedule.Schedules.interval;
 import static org.hamcrest.Matchers.equalTo;
 
-/**
- *
- */
+@TestLogging("subethamail:TRACE,watcher:TRACE")
+@ESIntegTestCase.ClusterScope(scope = SUITE, numClientNodes = 0, transportClientRatio = 0, randomDynamicTemplates = false, numDataNodes = 1)
 public class EmailActionIntegrationTests extends AbstractWatcherIntegrationTestCase {
 
     static final String USERNAME = "_user";
@@ -64,7 +66,7 @@ public class EmailActionIntegrationTests extends AbstractWatcherIntegrationTestC
     @Test
     public void testArrayAccess() throws Exception {
         final CountDownLatch latch = new CountDownLatch(1);
-        EmailServer.Listener.Handle handle = server.addListener(new EmailServer.Listener() {
+        server.addListener(new EmailServer.Listener() {
             @Override
             public void on(MimeMessage message) throws Exception {
                 assertThat(message.getSubject(), equalTo("value"));

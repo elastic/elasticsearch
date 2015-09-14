@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.internal;
 
-import com.google.common.collect.Iterables;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.MultimapBuilder;
 
@@ -35,6 +34,7 @@ import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
@@ -330,7 +330,7 @@ public abstract class SearchContext extends DelegatingHasContextAndHeaders imple
                 }
                 releasables.add(clearables.removeAll(lc));
             }
-            Releasables.close(Iterables.concat(releasables));
+            Releasables.close(Iterables.flatten(releasables));
         }
     }
 

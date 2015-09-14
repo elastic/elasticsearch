@@ -17,7 +17,6 @@
 package org.elasticsearch.common.inject.assistedinject;
 
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Iterables;
 import org.elasticsearch.common.inject.*;
 import org.elasticsearch.common.inject.internal.Errors;
 import org.elasticsearch.common.inject.internal.ErrorsException;
@@ -227,7 +226,7 @@ public final class FactoryProvider2<F> implements InvocationHandler, Provider<F>
         } catch (ProvisionException e) {
             // if this is an exception declared by the factory method, throw it as-is
             if (e.getErrorMessages().size() == 1) {
-                Message onlyError = Iterables.getOnlyElement(e.getErrorMessages());
+                Message onlyError = e.getErrorMessages().iterator().next();
                 Throwable cause = onlyError.getCause();
                 if (cause != null && canRethrow(method, cause)) {
                     throw cause;

@@ -179,6 +179,8 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
         assertThat(Files.exists(indexDirectory(node_1, "test")), equalTo(true));
 
         final String node_2 = internalCluster().startDataOnlyNode(Settings.builder().build());
+        assertFalse(client().admin().cluster().prepareHealth().setWaitForNodes("2").get().isTimedOut());
+
         assertThat(Files.exists(shardDirectory(node_1, "test", 0)), equalTo(true));
         assertThat(Files.exists(indexDirectory(node_1, "test")), equalTo(true));
         assertThat(Files.exists(shardDirectory(node_2, "test", 0)), equalTo(false));

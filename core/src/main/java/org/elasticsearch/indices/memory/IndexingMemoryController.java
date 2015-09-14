@@ -207,10 +207,10 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
                     indexShard.markAsInactive();
                 } catch (EngineClosedException e) {
                     // ignore
-                    logger.debug("ignore EngineClosedException while marking shard [{}][{}] as inactive", indexShard.shardId().index().name(), indexShard.shardId().id());
+                    logger.trace("ignore EngineClosedException while marking shard [{}][{}] as inactive", indexShard.shardId().index().name(), indexShard.shardId().id());
                 } catch (FlushNotAllowedEngineException e) {
                     // ignore
-                    logger.debug("ignore FlushNotAllowedException while marking shard [{}][{}] as inactive", indexShard.shardId().index().name(), indexShard.shardId().id());
+                    logger.trace("ignore FlushNotAllowedException while marking shard [{}][{}] as inactive", indexShard.shardId().index().name(), indexShard.shardId().id());
                 }
             }
 

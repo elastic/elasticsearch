@@ -147,6 +147,8 @@ public class IndexingMemoryControllerIT extends ESIntegTestCase {
     public void testIndexBufferNotPercent() throws InterruptedException {
         // #13487: Make sure you can specify non-percent sized index buffer and not hit NPE
         createNode(Settings.builder().put(IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING, "32mb").build());
+        // ... and that it took:
+        assertEquals(32*1024*1024, internalCluster().getInstance(IndexingMemoryController.class).indexingBufferSize().bytes());
     }
 
     private void createNode(Settings settings) {

@@ -79,12 +79,12 @@ public class TransportFilterTests extends ESIntegTestCase {
         TransportService targetService = internalCluster().getInstance(TransportService.class, target);
 
         CountDownLatch latch = new CountDownLatch(2);
-        targetService.registerRequestHandler("_action", Request.class, ThreadPool.Names.SAME, new RequestHandler(new Response("trgt_to_src"), latch));
+        targetService.registerRequestHandler("_action", Request::new, ThreadPool.Names.SAME, new RequestHandler(new Response("trgt_to_src"), latch));
         sourceService.sendRequest(targetNode, "_action", new Request("src_to_trgt"), new ResponseHandler(new Response("trgt_to_src"), latch));
         await(latch);
 
         latch = new CountDownLatch(2);
-        sourceService.registerRequestHandler("_action", Request.class, ThreadPool.Names.SAME, new RequestHandler(new Response("src_to_trgt"), latch));
+        sourceService.registerRequestHandler("_action", Request::new, ThreadPool.Names.SAME, new RequestHandler(new Response("src_to_trgt"), latch));
         targetService.sendRequest(sourceNode, "_action", new Request("trgt_to_src"), new ResponseHandler(new Response("src_to_trgt"), latch));
         await(latch);
 

@@ -5,9 +5,9 @@
  */
 package org.elasticsearch.shield.authc.support;
 
-import com.google.common.base.Charsets;
 import org.elasticsearch.common.Base64;
 
+import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Locale;
@@ -211,7 +211,7 @@ public enum Hasher {
             char[] saltAndHash = hashStr.toCharArray();
             MessageDigest md = SHA256Provider.sha256();
             md.update(CharArrays.toUtf8Bytes(text.internalChars()));
-            md.update(new String(saltAndHash, 0, 8).getBytes(Charsets.UTF_8));
+            md.update(new String(saltAndHash, 0, 8).getBytes(StandardCharsets.UTF_8));
             String computedHash = Base64.encodeBytes(md.digest());
             return SecuredString.constantTimeEquals(computedHash, new String(saltAndHash, 8, saltAndHash.length - 8));
         }

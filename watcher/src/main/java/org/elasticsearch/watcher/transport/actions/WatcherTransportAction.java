@@ -18,6 +18,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.watcher.license.LicenseService;
 
+import java.util.function.Supplier;
+
 /**
  *
  */
@@ -27,7 +29,7 @@ public abstract class WatcherTransportAction<Request extends MasterNodeRequest<R
 
     public WatcherTransportAction(Settings settings, String actionName, TransportService transportService,
                                   ClusterService clusterService, ThreadPool threadPool, ActionFilters actionFilters,
-                                  IndexNameExpressionResolver indexNameExpressionResolver, LicenseService licenseService,  Class<Request> request) {
+                                  IndexNameExpressionResolver indexNameExpressionResolver, LicenseService licenseService,  Supplier<Request> request) {
         super(settings, actionName, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, request);
         this.licenseService = licenseService;
     }

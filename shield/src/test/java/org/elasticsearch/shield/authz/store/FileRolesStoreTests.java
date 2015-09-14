@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.shield.authz.store;
 
-import com.google.common.base.Charsets;
 import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -20,6 +19,7 @@ import org.junit.Test;
 
 import java.io.BufferedWriter;
 import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
@@ -192,7 +192,7 @@ public class FileRolesStoreTests extends ESTestCase {
 
             watcherService.start();
 
-            try (BufferedWriter writer = Files.newBufferedWriter(tmp, Charsets.UTF_8, StandardOpenOption.APPEND)) {
+            try (BufferedWriter writer = Files.newBufferedWriter(tmp, StandardCharsets.UTF_8, StandardOpenOption.APPEND)) {
                 writer.newLine();
                 writer.newLine();
                 writer.newLine();
@@ -221,7 +221,7 @@ public class FileRolesStoreTests extends ESTestCase {
     @Test
     public void testThatEmptyFileDoesNotResultInLoop() throws Exception {
         Path file = createTempFile();
-        Files.write(file, Collections.singletonList("#"), Charsets.UTF_8);
+        Files.write(file, Collections.singletonList("#"), StandardCharsets.UTF_8);
         Map<String, Permission.Global.Role> roles = FileRolesStore.parseFile(file, Collections.<Permission.Global.Role>emptySet(), logger);
         assertThat(roles.keySet(), is(empty()));
     }

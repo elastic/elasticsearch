@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.shield.authc.esusers;
 
-import com.google.common.base.Charsets;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
@@ -22,6 +21,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.BufferedWriter;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -66,7 +66,7 @@ public class FileUserRolesStoreTests extends ESTestCase {
         lines.add("aldlfkjldjdflkjd");
 
         // writing in utf_16 should cause a parsing error as we try to read the file in utf_8
-        Files.write(file, lines, Charsets.UTF_16);
+        Files.write(file, lines, StandardCharsets.UTF_16);
 
         Settings esusersSettings = Settings.builder()
                 .put("files.users_roles", file.toAbsolutePath())
@@ -107,7 +107,7 @@ public class FileUserRolesStoreTests extends ESTestCase {
 
         watcherService.start();
 
-        try (BufferedWriter writer = Files.newBufferedWriter(tmp, Charsets.UTF_8, StandardOpenOption.APPEND)) {
+        try (BufferedWriter writer = Files.newBufferedWriter(tmp, StandardCharsets.UTF_8, StandardOpenOption.APPEND)) {
             writer.newLine();
             writer.append("role4:user4\nrole5:user4\n");
         }
@@ -152,7 +152,7 @@ public class FileUserRolesStoreTests extends ESTestCase {
         watcherService.start();
 
         // now replacing the content of the users file with something that cannot be read
-        Files.write(tmp, Collections.singletonList("aldlfkjldjdflkjd"), Charsets.UTF_16);
+        Files.write(tmp, Collections.singletonList("aldlfkjldjdflkjd"), StandardCharsets.UTF_16);
 
         if (!latch.await(5, TimeUnit.SECONDS)) {
             fail("Waited too long for the updated file to be picked up");
@@ -205,7 +205,7 @@ public class FileUserRolesStoreTests extends ESTestCase {
         lines.add("aldlfkjldjdflkjd");
 
         // writing in utf_16 should cause a parsing error as we try to read the file in utf_8
-        Files.write(file, lines, Charsets.UTF_16);
+        Files.write(file, lines, StandardCharsets.UTF_16);
         CapturingLogger logger = new CapturingLogger(CapturingLogger.Level.INFO);
         try {
             FileUserRolesStore.parseFile(file, logger);
@@ -267,7 +267,7 @@ public class FileUserRolesStoreTests extends ESTestCase {
         lines.add("aldlfkjldjdflkjd");
 
         // writing in utf_16 should cause a parsing error as we try to read the file in utf_8
-        Files.write(file, lines, Charsets.UTF_16);
+        Files.write(file, lines, StandardCharsets.UTF_16);
         CapturingLogger logger = new CapturingLogger(CapturingLogger.Level.INFO);
         Map<String, String[]> usersRoles = FileUserRolesStore.parseFileLenient(file, logger);
         assertThat(usersRoles, notNullValue());
@@ -279,13 +279,13 @@ public class FileUserRolesStoreTests extends ESTestCase {
 
     private Path writeUsersRoles(String input) throws Exception {
         Path file = createTempFile();
-        Files.write(file, input.getBytes(Charsets.UTF_8));
+        Files.write(file, input.getBytes(StandardCharsets.UTF_8));
         return file;
     }
 
     private void assertInvalidInputIsSilentlyIgnored(String input) throws Exception {
         Path file = createTempFile();
-        Files.write(file, input.getBytes(Charsets.UTF_8));
+        Files.write(file, input.getBytes(StandardCharsets.UTF_8));
         Map<String, String[]> usersRoles = FileUserRolesStore.parseFile(file, null);
         assertThat(String.format(Locale.ROOT, "Expected userRoles to be empty, but was %s", usersRoles.keySet()), usersRoles.keySet(), hasSize(0));
     }

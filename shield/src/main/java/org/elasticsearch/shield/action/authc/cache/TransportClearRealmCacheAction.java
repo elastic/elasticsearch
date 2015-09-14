@@ -36,7 +36,7 @@ public class TransportClearRealmCacheAction extends TransportNodesAction<ClearRe
                                           ActionFilters actionFilters, Realms realms,
                                           IndexNameExpressionResolver indexNameExpressionResolver) {
         super(settings, ClearRealmCacheAction.NAME, clusterName, threadPool, clusterService, transportService, actionFilters,
-                indexNameExpressionResolver, ClearRealmCacheRequest.class, ClearRealmCacheRequest.Node.class, ThreadPool.Names.MANAGEMENT);
+                indexNameExpressionResolver, ClearRealmCacheRequest::new, ClearRealmCacheRequest.Node::new, ThreadPool.Names.MANAGEMENT);
         this.realms = realms;
     }
 

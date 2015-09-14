@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.marvel.agent.renderer.cluster;
 
-import com.google.common.base.Charsets;
 import com.google.common.hash.Hashing;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -16,6 +15,7 @@ import org.elasticsearch.marvel.agent.collector.cluster.ClusterInfoMarvelDoc;
 import org.elasticsearch.marvel.agent.renderer.AbstractRenderer;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 public class ClusterInfoRenderer extends AbstractRenderer<ClusterInfoMarvelDoc> {
@@ -64,7 +64,7 @@ public class ClusterInfoRenderer extends AbstractRenderer<ClusterInfoMarvelDoc> 
 
     public static String hash(String licenseStatus, String licenseUid, String licenseType, String licenseExpiryDate, String clusterUUID) {
         String toHash = licenseStatus + licenseUid + licenseType + licenseExpiryDate + clusterUUID;
-        return Hashing.sha256().hashString(toHash, Charsets.UTF_8).toString();
+        return Hashing.sha256().hashString(toHash, StandardCharsets.UTF_8).toString();
     }
 
     static final class Fields {

@@ -31,7 +31,7 @@ public class TransportWatcherServiceAction extends WatcherTransportAction<Watche
     public TransportWatcherServiceAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                          ThreadPool threadPool, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                          WatcherLifeCycleService lifeCycleService, LicenseService licenseService) {
-        super(settings, WatcherServiceAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, licenseService, WatcherServiceRequest.class);
+        super(settings, WatcherServiceAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, licenseService, WatcherServiceRequest::new);
         this.lifeCycleService = lifeCycleService;
     }
 

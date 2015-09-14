@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.shield.authc.support;
 
-import com.google.common.base.Charsets;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.Base64;
 import org.elasticsearch.rest.RestRequest;
@@ -14,6 +13,8 @@ import org.elasticsearch.transport.TransportRequest;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
+
+import java.nio.charset.StandardCharsets;
 
 import static org.elasticsearch.test.ShieldTestsUtils.assertAuthenticationException;
 import static org.hamcrest.Matchers.*;
@@ -36,7 +37,7 @@ public class UsernamePasswordTokenTests extends ESTestCase {
         assertThat(header, notNullValue());
         assertTrue(header.startsWith("Basic "));
         String token = header.substring("Basic ".length());
-        token = new String(Base64.decode(token), Charsets.UTF_8);
+        token = new String(Base64.decode(token), StandardCharsets.UTF_8);
         int i = token.indexOf(":");
         assertTrue(i > 0);
         String username = token.substring(0, i);
@@ -48,7 +49,7 @@ public class UsernamePasswordTokenTests extends ESTestCase {
     @Test
     public void testExtractToken() throws Exception {
         TransportRequest request = new TransportRequest() {};
-        String header = "Basic " + Base64.encodeBytes("user1:test123".getBytes(Charsets.UTF_8));
+        String header = "Basic " + Base64.encodeBytes("user1:test123".getBytes(StandardCharsets.UTF_8));
         request.putHeader(UsernamePasswordToken.BASIC_AUTH_HEADER, header);
         UsernamePasswordToken token = UsernamePasswordToken.extractToken(request, null);
         assertThat(token, notNullValue());

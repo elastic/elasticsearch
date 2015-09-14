@@ -6,7 +6,6 @@
 package org.elasticsearch.shield.authz.store;
 
 import com.fasterxml.jackson.dataformat.yaml.snakeyaml.error.YAMLException;
-import com.google.common.base.Charsets;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.ElasticsearchException;
@@ -35,6 +34,7 @@ import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
@@ -370,7 +370,7 @@ public class FileRolesStore extends AbstractLifecycleComponent<RolesStore> imple
     private static List<String> roleSegments(Path path) throws IOException {
         List<String> segments = new ArrayList<>();
         StringBuilder builder = null;
-        for (String line : Files.readAllLines(path, Charsets.UTF_8)) {
+        for (String line : Files.readAllLines(path, StandardCharsets.UTF_8)) {
             if (!SKIP_LINE.matcher(line).matches()) {
                 if (IN_SEGMENT_LINE.matcher(line).matches()) {
                     if (builder != null) {

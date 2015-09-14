@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.shield.authc.esusers;
 
-import com.google.common.base.Charsets;
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.inject.internal.Nullable;
@@ -25,6 +24,7 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -130,7 +130,7 @@ public class FileUserPasswdStore {
 
         List<String> lines;
         try {
-            lines = Files.readAllLines(path, Charsets.UTF_8);
+            lines = Files.readAllLines(path, StandardCharsets.UTF_8);
         } catch (IOException ioe) {
             throw new IllegalStateException("could not read users file [" + path.toAbsolutePath() + "]", ioe);
         }

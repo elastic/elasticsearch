@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.shield.authc.support;
 
-import com.google.common.base.Charsets;
 import com.google.common.collect.ImmutableMap;
 import com.unboundid.ldap.sdk.DN;
 import org.elasticsearch.common.settings.Settings;
@@ -22,6 +21,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.BufferedWriter;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -74,7 +74,7 @@ public class DnRoleMapperTests extends ESTestCase {
     public void testMapper_ConfiguredWithUnreadableFile() throws Exception {
         Path file = createTempFile();
         // writing in utf_16 should cause a parsing error as we try to read the file in utf_8
-        Files.write(file, Collections.singletonList("aldlfkjldjdflkjd"), Charsets.UTF_16);
+        Files.write(file, Collections.singletonList("aldlfkjldjdflkjd"), StandardCharsets.UTF_16);
 
         ResourceWatcherService watcherService = new ResourceWatcherService(settings, threadPool);
         DnRoleMapper mapper = createMapper(file, watcherService);
@@ -105,7 +105,7 @@ public class DnRoleMapperTests extends ESTestCase {
 
         watcherService.start();
 
-        try (BufferedWriter writer = Files.newBufferedWriter(file, Charsets.UTF_8, StandardOpenOption.APPEND)) {
+        try (BufferedWriter writer = Files.newBufferedWriter(file, StandardCharsets.UTF_8, StandardOpenOption.APPEND)) {
             writer.newLine();
             writer.append("fantastic_four:\n")
                     .append("  - \"cn=fantastic_four,ou=marvel,o=superheros\"");
@@ -146,7 +146,7 @@ public class DnRoleMapperTests extends ESTestCase {
         watcherService.start();
 
         // now replacing the content of the users file with something that cannot be read
-        Files.write(file, Collections.singletonList("aldlfkjldjdflkjd"), Charsets.UTF_16);
+        Files.write(file, Collections.singletonList("aldlfkjldjdflkjd"), StandardCharsets.UTF_16);
 
         if (!latch.await(5, TimeUnit.SECONDS)) {
             fail("Waited too long for the updated file to be picked up");
@@ -210,7 +210,7 @@ public class DnRoleMapperTests extends ESTestCase {
     public void testParseFile_WhenCannotReadFile() throws Exception {
         Path file = createTempFile();
         // writing in utf_16 should cause a parsing error as we try to read the file in utf_8
-        Files.write(file, Collections.singletonList("aldlfkjldjdflkjd"), Charsets.UTF_16);
+        Files.write(file, Collections.singletonList("aldlfkjldjdflkjd"), StandardCharsets.UTF_16);
         CapturingLogger logger = new CapturingLogger(CapturingLogger.Level.INFO);
         try {
             DnRoleMapper.parseFile(file, logger, "_type", "_name");
@@ -224,7 +224,7 @@ public class DnRoleMapperTests extends ESTestCase {
     public void testParseFileLenient_WhenCannotReadFile() throws Exception {
         Path file = createTempFile();
         // writing in utf_16 should cause a parsing error as we try to read the file in utf_8
-        Files.write(file, Collections.singletonList("aldlfkjldjdflkjd"), Charsets.UTF_16);
+        Files.write(file, Collections.singletonList("aldlfkjldjdflkjd"), StandardCharsets.UTF_16);
         CapturingLogger logger = new CapturingLogger(CapturingLogger.Level.INFO);
         ImmutableMap<DN, Set<String>> mappings = DnRoleMapper.parseFileLenient(file, logger, "_type", "_name");
         assertThat(mappings, notNullValue());

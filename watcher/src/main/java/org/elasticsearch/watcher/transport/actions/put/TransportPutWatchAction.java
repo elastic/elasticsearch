@@ -33,7 +33,7 @@ public class TransportPutWatchAction extends WatcherTransportAction<PutWatchRequ
     public TransportPutWatchAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                    ThreadPool threadPool, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                    WatcherService watcherService, LicenseService licenseService) {
-        super(settings, PutWatchAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, licenseService, PutWatchRequest.class);
+        super(settings, PutWatchAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, licenseService, PutWatchRequest::new);
         this.watcherService = watcherService;
     }
 

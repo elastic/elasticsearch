@@ -34,7 +34,7 @@ public class TransportAckWatchAction extends WatcherTransportAction<AckWatchRequ
     public TransportAckWatchAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                    ThreadPool threadPool, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                    WatcherService watcherService, LicenseService licenseService) {
-        super(settings, AckWatchAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, licenseService, AckWatchRequest.class);
+        super(settings, AckWatchAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, licenseService, AckWatchRequest::new);
         this.watcherService = watcherService;
     }
 

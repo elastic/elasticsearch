@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.shield.transport.ssl;
 
-import com.google.common.base.Charsets;
 import org.apache.http.auth.AuthScope;
 import org.apache.http.auth.UsernamePasswordCredentials;
 import org.apache.http.client.CredentialsProvider;
@@ -34,6 +33,7 @@ import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLHandshakeException;
 import javax.net.ssl.TrustManagerFactory;
 import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.security.KeyStore;
 import java.security.SecureRandom;
 import java.util.Locale;
@@ -99,7 +99,7 @@ public class SslIntegrationTests extends ShieldIntegTestCase {
         try (CloseableHttpClient client = HttpClients.custom().setSslcontext(service.sslContext()).setDefaultCredentialsProvider(provider).build();
             CloseableHttpResponse response = client.execute(new HttpGet(getNodeUrl()))) {
             assertThat(response.getStatusLine().getStatusCode(), is(200));
-            String data = Streams.copyToString(new InputStreamReader(response.getEntity().getContent(), Charsets.UTF_8));
+            String data = Streams.copyToString(new InputStreamReader(response.getEntity().getContent(), StandardCharsets.UTF_8));
             assertThat(data, containsString("You Know, for Search"));
         }
     }

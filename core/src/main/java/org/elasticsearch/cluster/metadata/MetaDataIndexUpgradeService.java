@@ -26,7 +26,6 @@ import org.elasticsearch.cluster.routing.DjbHashFunction;
 import org.elasticsearch.cluster.routing.HashFunction;
 import org.elasticsearch.cluster.routing.SimpleHashFunction;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
-import org.elasticsearch.common.Classes;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -219,7 +218,6 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
 
     /** All known byte-sized settings for an index. */
     public static final Set<String> INDEX_BYTES_SIZE_SETTINGS = ImmutableSet.of(
-                                    "index.buffer_size",
                                     "index.merge.policy.floor_segment",
                                     "index.merge.policy.max_merged_segment",
                                     "index.merge.policy.max_merge_size",

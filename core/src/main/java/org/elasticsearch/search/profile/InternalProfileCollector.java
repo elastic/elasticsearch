@@ -256,8 +256,8 @@ public class InternalProfileCollector extends SimpleCollector implements Collect
     public void readFrom(StreamInput in) throws IOException {
         collectorName = in.readString();
         reason = CollectorReason.fromInt(in.readVInt());
-        time = in.readVLong();
-        globalTime = in.readVLong();
+        time = in.readLong();
+        globalTime = in.readLong();
 
         int size = in.readVInt();
         children = new ArrayList<>(size);
@@ -277,8 +277,8 @@ public class InternalProfileCollector extends SimpleCollector implements Collect
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(collectorName);
         out.writeVInt(reason.getReason());
-        out.writeVLong(time);
-        out.writeVLong(globalTime);
+        out.writeLong(time);
+        out.writeLong(globalTime);
         out.writeVInt(children.size());
         for (InternalProfileCollector child : children) {
             child.writeTo(out);

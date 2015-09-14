@@ -48,28 +48,19 @@ public class InternalProfileShardResults implements ProfileResults, Streamable, 
         collectors = new HashMap<>(5);
     }
 
-    private static final Function<List<InternalProfileResult>, List<ProfileResult>> SUPERTYPE_LIST_CAST = new Function<List<InternalProfileResult>, List<ProfileResult>>() {
-        @Override
-        public List<ProfileResult> apply(List<InternalProfileResult> input) {
-            return Lists.transform(input, SUPERTYPE_CAST);
-        }
-    };
-
-    private static final Function<InternalProfileResult, ProfileResult> SUPERTYPE_CAST = new Function<InternalProfileResult, ProfileResult>() {
-        @Override
-        public ProfileResult apply(InternalProfileResult input) {
-            return input;
-        }
-    };
-
     /**
      * Add a shard's profile results to the map of all results
      * @param shard             The shard where the results came from
      * @param profileResults    The profile results for that shard
      */
     public void addShardResult(SearchShardTarget shard, List<InternalProfileResult> profileResults, InternalProfileCollector profileCollector) {
-        results.put(shard, profileResults);
-        collectors.put(shard, profileCollector);
+        if (profileResults != null) {
+            results.put(shard, profileResults);
+        }
+
+        if (profileCollector != null) {
+            collectors.put(shard, profileCollector);
+        }
     }
 
     /**
@@ -112,6 +103,36 @@ public class InternalProfileShardResults implements ProfileResults, Streamable, 
     }
 
     @Override
+    public Map<SearchShardTarget, List<ProfileResult>> queryProfilesAsMap() {
+        return Maps.transformValues(results, QUERY_SUPERTYPE_LIST_CAST);
+    }
+
+    @Override
+    public Set<Map.Entry<SearchShardTarget, List<ProfileResult>>> getQueryProfilesEntrySet() {
+        return queryProfilesAsMap().entrySet();
+    }
+
+    @Override
+    public Collection<List<ProfileResult>> queryProfilesAsCollection() {
+        return queryProfilesAsMap().values();
+    }
+
+    @Override
+    public Map<SearchShardTarget, CollectorResult> collectorProfilesAsMap() {
+        return Maps.transformValues(collectors, COLLECTOR_SUPERTYPE_CAST);
+    }
+
+    @Override
+    public Set<Map.Entry<SearchShardTarget, CollectorResult>> getCollectorProfilesEntrySet() {
+        return collectorProfilesAsMap().entrySet();
+    }
+
+    @Override
+    public Collection<CollectorResult> collectorProfilesAsCollection() {
+        return collectorProfilesAsMap().values();
+    }
+
+    @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
 
         builder.startObject("profile").startArray("shards");
@@ -141,21 +162,6 @@ public class InternalProfileShardResults implements ProfileResults, Streamable, 
         return builder;
     }
 
-    @Override
-    public Map<SearchShardTarget, List<ProfileResult>> asMap() {
-        return Maps.transformValues(results, SUPERTYPE_LIST_CAST);
-    }
-
-    @Override
-    public Set<Map.Entry<SearchShardTarget, List<ProfileResult>>> getEntrySet() {
-        return asMap().entrySet();
-    }
-
-    @Override
-    public Collection<List<ProfileResult>> asCollection() {
-        return Maps.transformValues(results, SUPERTYPE_LIST_CAST).values();
-    }
-
     public static InternalProfileShardResults readProfileShardResults(StreamInput in) throws IOException {
         InternalProfileShardResults newShardResults = new InternalProfileShardResults();
         newShardResults.readFrom(in);
@@ -166,6 +172,7 @@ public class InternalProfileShardResults implements ProfileResults, Streamable, 
     public void readFrom(StreamInput in) throws IOException {
         int size = in.readVInt();
         results = new HashMap<>(size);
+        collectors = new HashMap<>(size);
         for (int i = 0; i < size; i++) {
             SearchShardTarget target = new SearchShardTarget(null, null, 0); // nocommit Urgh...
             target.readFrom(in);
@@ -179,8 +186,11 @@ public class InternalProfileShardResults implements ProfileResults, Streamable, 
             }
             results.put(target, profileResults);
 
-            InternalProfileCollector collector = InternalProfileCollector.readProfileCollectorFromStream(in);
-            collectors.put(target, collector);
+            boolean hasCollector = in.readBoolean();
+            if (hasCollector) {
+                InternalProfileCollector collector = InternalProfileCollector.readProfileCollectorFromStream(in);
+                collectors.put(target, collector);
+            }
         }
     }
 
@@ -196,7 +206,33 @@ public class InternalProfileShardResults implements ProfileResults, Streamable, 
             }
 
             InternalProfileCollector collector = collectors.get(entry.getKey());
-            collector.writeTo(out);
+            if (collector == null) {
+                out.writeBoolean(false);
+            } else {
+                out.writeBoolean(true);
+                collector.writeTo(out);
+            }
         }
     }
+
+    private static final Function<List<InternalProfileResult>, List<ProfileResult>> QUERY_SUPERTYPE_LIST_CAST = new Function<List<InternalProfileResult>, List<ProfileResult>>() {
+        @Override
+        public List<ProfileResult> apply(List<InternalProfileResult> input) {
+            return Lists.transform(input, QUERY_SUPERTYPE_CAST);
+        }
+    };
+
+    private static final Function<InternalProfileResult, ProfileResult> QUERY_SUPERTYPE_CAST = new Function<InternalProfileResult, ProfileResult>() {
+        @Override
+        public ProfileResult apply(InternalProfileResult input) {
+            return input;
+        }
+    };
+
+    private static final Function<InternalProfileCollector, CollectorResult> COLLECTOR_SUPERTYPE_CAST = new Function<InternalProfileCollector, CollectorResult>() {
+        @Override
+        public CollectorResult apply(InternalProfileCollector input) {
+            return input;
+        }
+    };
 }

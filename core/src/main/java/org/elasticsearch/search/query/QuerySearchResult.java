@@ -226,6 +226,9 @@ public class QuerySearchResult extends QuerySearchResultProvider {
                 profileResults.add(InternalProfileResult.readProfileResult(in));
             }
 
+            if (in.readBoolean()) {
+                profileCollector = InternalProfileCollector.readProfileCollectorFromStream(in);
+            }
         }
     }
 
@@ -274,6 +277,13 @@ public class QuerySearchResult extends QuerySearchResultProvider {
             out.writeVInt(profileResults.size());
             for (InternalProfileResult p : profileResults) {
                 p.writeTo(out);
+            }
+
+            if (profileCollector == null) {
+                out.writeBoolean(false);
+            } else {
+                out.writeBoolean(true);
+                profileCollector.writeTo(out);
             }
 
         }

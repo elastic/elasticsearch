@@ -48,9 +48,8 @@ version of Shield. We recommend copying the changes listed below to your `roles.
 .new features
 * <<setting-up-field-and-document-level-security, Document and Field Level Security>> support has been added and can be
 configured per role.
-* Support for custom authentication realms has been added, allowing Shield to integrate with more authentication sources
-and methods.
-* User impersonation support has also been added, which allows a user to send a request to elasticsearch that will be run
+* Support for <<custom-realms, custom authentication realms>> has been added, allowing Shield to integrate with more authentication sources and methods.
+* <<submitting-requests-for-other-users, User impersonation support>> has also been added, which allows a user to send a request to elasticsearch that will be run
 with the specified user's permissions.
 
 .bug fixes

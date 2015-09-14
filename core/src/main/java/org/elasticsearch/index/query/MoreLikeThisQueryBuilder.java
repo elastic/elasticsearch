@@ -204,11 +204,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
          * Sets to a given artificial document, that is a document that is not present in the index.
          */
         public Item doc(XContentBuilder doc) {
-            if (doc == null) {
-                this.doc = null;
-            } else {
-                this.doc(doc.bytes());
-            }
+            this.doc = doc != null ? doc.bytes() : null;
             return this;
         }
 

@@ -22,6 +22,7 @@ package org.elasticsearch.script;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
@@ -106,9 +107,9 @@ public class GroovySecurityIT extends ESIntegTestCase {
     private void assertSuccess(String script) {
         logger.info("--> script: " + script);
         SearchResponse resp = client().prepareSearch("test")
-                .setSource("{\"query\": {\"match_all\": {}}," +
-                        "\"sort\":{\"_script\": {\"script\": \""+ script +
-                        "; doc['foo'].value + 2\", \"type\": \"number\", \"lang\": \"groovy\"}}}").get();
+                .setSource(new BytesArray("{\"query\": {\"match_all\": {}}," +
+                        "\"sort\":{\"_script\": {\"script\": \"" + script +
+                        "; doc['foo'].value + 2\", \"type\": \"number\", \"lang\": \"groovy\"}}}")).get();
         assertNoFailures(resp);
         assertEquals(1, resp.getHits().getTotalHits());
         assertThat(resp.getHits().getAt(0).getSortValues(), equalTo(new Object[]{7.0}));
@@ -117,9 +118,9 @@ public class GroovySecurityIT extends ESIntegTestCase {
     private void assertFailure(String script) {
         logger.info("--> script: " + script);
         SearchResponse resp = client().prepareSearch("test")
-                 .setSource("{\"query\": {\"match_all\": {}}," +
-                            "\"sort\":{\"_script\": {\"script\": \""+ script +
-                            "; doc['foo'].value + 2\", \"type\": \"number\", \"lang\": \"groovy\"}}}").get();
+                 .setSource(new BytesArray("{\"query\": {\"match_all\": {}}," +
+                         "\"sort\":{\"_script\": {\"script\": \"" + script +
+                         "; doc['foo'].value + 2\", \"type\": \"number\", \"lang\": \"groovy\"}}}")).get();
         assertEquals(0, resp.getHits().getTotalHits());
         ShardSearchFailure fails[] = resp.getShardFailures();
         // TODO: GroovyScriptExecutionException needs work:

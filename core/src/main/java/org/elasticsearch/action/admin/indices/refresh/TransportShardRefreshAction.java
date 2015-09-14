@@ -53,7 +53,7 @@ public class TransportShardRefreshAction extends TransportReplicationAction<Repl
                                        MappingUpdatedAction mappingUpdatedAction, ActionFilters actionFilters,
                                        IndexNameExpressionResolver indexNameExpressionResolver) {
         super(settings, NAME, transportService, clusterService, indicesService, threadPool, shardStateAction, mappingUpdatedAction,
-                actionFilters, indexNameExpressionResolver, ReplicationRequest.class, ReplicationRequest.class, ThreadPool.Names.REFRESH);
+                actionFilters, indexNameExpressionResolver, ReplicationRequest::new, ReplicationRequest::new, ThreadPool.Names.REFRESH);
     }
 
     @Override

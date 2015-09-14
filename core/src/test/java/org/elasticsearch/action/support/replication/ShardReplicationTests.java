@@ -551,12 +551,12 @@ public class ShardReplicationTests extends ESTestCase {
         };
     }
 
-    static class Request extends ReplicationRequest<Request> {
+    public static class Request extends ReplicationRequest<Request> {
         int shardId;
         public AtomicBoolean processedOnPrimary = new AtomicBoolean();
         public AtomicInteger processedOnReplicas = new AtomicInteger();
 
-        Request() {
+        public Request() {
         }
 
         Request(ShardId shardId) {
@@ -589,7 +589,7 @@ public class ShardReplicationTests extends ESTestCase {
                ThreadPool threadPool) {
             super(settings, actionName, transportService, clusterService, null, threadPool,
                     new ShardStateAction(settings, clusterService, transportService, null, null), null,
-                    new ActionFilters(new HashSet<ActionFilter>()), new IndexNameExpressionResolver(Settings.EMPTY), Request.class, Request.class, ThreadPool.Names.SAME);
+                    new ActionFilters(new HashSet<ActionFilter>()), new IndexNameExpressionResolver(Settings.EMPTY), Request::new, Request::new, ThreadPool.Names.SAME);
         }
 
         @Override

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.suggest;
 
-import com.google.common.base.Charsets;
+import java.nio.charset.StandardCharsets;
 import com.google.common.io.Resources;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
@@ -506,7 +506,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
         assertAcked(builder.addMapping("type1", mapping));
         ensureGreen();
 
-        for (String line: Resources.readLines(SuggestSearchIT.class.getResource("/config/names.txt"), Charsets.UTF_8)) {
+        for (String line: Resources.readLines(SuggestSearchIT.class.getResource("/config/names.txt"), StandardCharsets.UTF_8)) {
             index("test", "type1", line, "body", line, "body_reverse", line, "bigram", line);
         }
         refresh();
@@ -698,7 +698,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
         assertAcked(builder.addMapping("type1", mapping));
         ensureGreen();
 
-        for (String line: Resources.readLines(SuggestSearchIT.class.getResource("/config/names.txt"), Charsets.UTF_8)) {
+        for (String line: Resources.readLines(SuggestSearchIT.class.getResource("/config/names.txt"), StandardCharsets.UTF_8)) {
             index("test", "type1", line, "body", line, "bigram", line, "ngram", line);
         }
         refresh();

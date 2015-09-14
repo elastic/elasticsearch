@@ -21,7 +21,6 @@ package org.elasticsearch.recovery;
 
 import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.hppc.procedures.IntProcedure;
-import com.google.common.util.concurrent.ListenableFuture;
 import org.apache.lucene.index.IndexFileNames;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
@@ -59,6 +58,7 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.BackgroundIndexer;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.Transport;
@@ -362,11 +362,12 @@ public class RelocationIT extends ESIntegTestCase {
     }
 
     @Test
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/13542")
     public void testMoveShardsWhileRelocation() throws Exception {
         final String indexName = "test";
 
-        ListenableFuture<String> blueFuture = internalCluster().startNodeAsync(Settings.builder().put("node.color", "blue").build());
-        ListenableFuture<String> redFuture = internalCluster().startNodeAsync(Settings.builder().put("node.color", "red").build());
+        InternalTestCluster.Async<String> blueFuture = internalCluster().startNodeAsync(Settings.builder().put("node.color", "blue").build());
+        InternalTestCluster.Async<String> redFuture = internalCluster().startNodeAsync(Settings.builder().put("node.color", "red").build());
         internalCluster().startNode(Settings.builder().put("node.color", "green").build());
         final String blueNodeName = blueFuture.get();
         final String redNodeName = redFuture.get();

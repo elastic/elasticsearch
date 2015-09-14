@@ -51,7 +51,7 @@ public class NodeMappingRefreshAction extends AbstractComponent {
         super(settings);
         this.transportService = transportService;
         this.metaDataMappingService = metaDataMappingService;
-        transportService.registerRequestHandler(ACTION_NAME, NodeMappingRefreshRequest.class, ThreadPool.Names.SAME, new NodeMappingRefreshTransportHandler());
+        transportService.registerRequestHandler(ACTION_NAME, NodeMappingRefreshRequest::new, ThreadPool.Names.SAME, new NodeMappingRefreshTransportHandler());
     }
 
     public void nodeMappingRefresh(final ClusterState state, final NodeMappingRefreshRequest request) {
@@ -79,7 +79,7 @@ public class NodeMappingRefreshAction extends AbstractComponent {
         private String[] types;
         private String nodeId;
 
-        NodeMappingRefreshRequest() {
+        public NodeMappingRefreshRequest() {
         }
 
         public NodeMappingRefreshRequest(String index, String indexUUID, String[] types, String nodeId) {

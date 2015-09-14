@@ -19,7 +19,7 @@
 
 package org.elasticsearch.transport;
 
-import com.google.common.base.Charsets;
+import java.nio.charset.StandardCharsets;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -88,10 +88,10 @@ public class NettySizeHeaderFrameDecoderTests extends ESTestCase {
         String data = randomMethod + " / HTTP/1.1";
 
         try (Socket socket = new Socket(host, port)) {
-            socket.getOutputStream().write(data.getBytes(Charsets.UTF_8));
+            socket.getOutputStream().write(data.getBytes(StandardCharsets.UTF_8));
             socket.getOutputStream().flush();
 
-            try (BufferedReader reader = new BufferedReader(new InputStreamReader(socket.getInputStream(), Charsets.UTF_8))) {
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8))) {
                 assertThat(reader.readLine(), is("This is not a HTTP port"));
             }
         }
@@ -100,7 +100,7 @@ public class NettySizeHeaderFrameDecoderTests extends ESTestCase {
     @Test
     public void testThatNothingIsReturnedForOtherInvalidPackets() throws Exception {
         try (Socket socket = new Socket(host, port)) {
-            socket.getOutputStream().write("FOOBAR".getBytes(Charsets.UTF_8));
+            socket.getOutputStream().write("FOOBAR".getBytes(StandardCharsets.UTF_8));
             socket.getOutputStream().flush();
 
             // end of stream

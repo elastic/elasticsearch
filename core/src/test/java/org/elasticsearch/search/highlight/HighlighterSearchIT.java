@@ -629,7 +629,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                         .field(new HighlightBuilder.Field("field1").numOfFragments(2))
                         .field(new HighlightBuilder.Field("field2").preTags("<field2>").postTags("</field2>").fragmentSize(50).requireFieldMatch(false)));
 
-        SearchResponse searchResponse = client().prepareSearch("test").setSource(source.buildAsBytes()).get();
+        SearchResponse searchResponse = client().prepareSearch("test").setSource(source).get();
 
         assertHighlight(searchResponse, 0, "field1", 0, 2, equalTo(" <global>test</global>"));
         assertHighlight(searchResponse, 0, "field1", 1, 2, equalTo(" <global>test</global>"));
@@ -708,13 +708,13 @@ public class HighlighterSearchIT extends ESIntegTestCase {
 
         SearchSourceBuilder searchSource = SearchSourceBuilder.searchSource().query(termQuery("field1", "quick"))
                 .highlight(highlight().forceSource(true).field("field1"));
-        assertFailures(client().prepareSearch("test").setSource(searchSource.buildAsBytes()),
+        assertFailures(client().prepareSearch("test").setSource(searchSource),
                 RestStatus.BAD_REQUEST,
                 containsString("source is forced for fields [field1] but type [type1] has disabled _source"));
 
         searchSource = SearchSourceBuilder.searchSource().query(termQuery("field1", "quick"))
                 .highlight(highlight().forceSource(true).field("field*"));
-        assertFailures(client().prepareSearch("test").setSource(searchSource.buildAsBytes()),
+        assertFailures(client().prepareSearch("test").setSource(searchSource),
                 RestStatus.BAD_REQUEST,
                 matches("source is forced for fields \\[field\\d, field\\d\\] but type \\[type1\\] has disabled _source"));
     }
@@ -733,7 +733,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                 .query(termQuery("field1", "test"))
                 .highlight(highlight().field("field1").order("score").preTags("<xxx>").postTags("</xxx>"));
 
-        SearchResponse searchResponse = client().prepareSearch("test").setSource(source.buildAsBytes()).get();
+        SearchResponse searchResponse = client().prepareSearch("test").setSource(source).get();
 
         assertHighlight(searchResponse, 0, "field1", 0, 1, equalTo("this is a <xxx>test</xxx>"));
 
@@ -742,7 +742,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                 .query(termQuery("_all", "test"))
                 .highlight(highlight().field("field1").order("score").preTags("<xxx>").postTags("</xxx>").requireFieldMatch(false));
 
-        searchResponse = client().prepareSearch("test").setSource(source.buildAsBytes()).get();
+        searchResponse = client().prepareSearch("test").setSource(source).get();
 
         assertHighlight(searchResponse, 0, "field1", 0, 1, equalTo("this is a <xxx>test</xxx>"));
 
@@ -751,7 +751,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                 .query(termQuery("_all", "quick"))
                 .highlight(highlight().field("field2").order("score").preTags("<xxx>").postTags("</xxx>").requireFieldMatch(false));
 
-        searchResponse = client().prepareSearch("test").setSource(source.buildAsBytes()).get();
+        searchResponse = client().prepareSearch("test").setSource(source).get();
 
         assertHighlight(searchResponse, 0, "field2", 0, 1, equalTo("The <xxx>quick</xxx> brown fox jumps over the lazy dog"));
 
@@ -760,7 +760,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                 .query(prefixQuery("_all", "qui"))
                 .highlight(highlight().field("field2").order("score").preTags("<xxx>").postTags("</xxx>").requireFieldMatch(false));
 
-        searchResponse = client().prepareSearch("test").setSource(source.buildAsBytes()).get();
+        searchResponse = client().prepareSearch("test").setSource(source).get();
 
         assertHighlight(searchResponse, 0, "field2", 0, 1, equalTo("The <xxx>quick</xxx> brown fox jumps over the lazy dog"));
 
@@ -769,7 +769,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                 .query(constantScoreQuery(prefixQuery("_all", "qui")))
                 .highlight(highlight().field("field2").order("score").preTags("<xxx>").postTags("</xxx>").requireFieldMatch(false));
 
-        searchResponse = client().prepareSearch("test").setSource(source.buildAsBytes()).get();
+        searchResponse = client().prepareSearch("test").setSource(source).get();
 
         assertHighlight(searchResponse, 0, "field2", 0, 1, equalTo("The <xxx>quick</xxx> brown fox jumps over the lazy dog"));
 
@@ -778,7 +778,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                 .query(boolQuery().should(constantScoreQuery(prefixQuery("_all", "qui"))))
                 .highlight(highlight().field("field2").order("score").preTags("<xxx>").postTags("</xxx>").requireFieldMatch(false));
 
-        searchResponse = client().prepareSearch("test").setSource(source.buildAsBytes()).get();
+        searchResponse = client().prepareSearch("test").setSource(source).get();
         assertHighlight(searchResponse, 0, "field2", 0, 1, equalTo("The <xxx>quick</xxx> brown fox jumps over the lazy dog"));
     }
 
@@ -796,7 +796,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                 .query(termQuery("field1", "test"))
                 .highlight(highlight().field("field1", 100, 0).order("score").preTags("<xxx>").postTags("</xxx>"));
 
-        SearchResponse searchResponse = client().prepareSearch("test").setSource(source.buildAsBytes()).get();
+        SearchResponse searchResponse = client().prepareSearch("test").setSource(source).get();
 
         assertHighlight(searchResponse, 0, "field1", 0, 1, equalTo("this is a <xxx>test</xxx>"));
 
@@ -805,7 +805,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                 .query(termQuery("_all", "test"))
                 .highlight(highlight().field("field1", 100, 0).order("score").preTags("<xxx>").postTags("</xxx>").requireFieldMatch(false));
 
-        searchResponse = client().prepareSearch("test").setSource(source.buildAsBytes()).get();
+        searchResponse = client().prepareSearch("test").setSource(source).get();
 
         // LUCENE 3.1 UPGRADE: Caused adding the space at the end...
         assertHighlight(searchResponse, 0, "field1", 0, 1, equalTo("this is a <xxx>test</xxx>"));
@@ -815,7 +815,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                 .query(termQuery("_all", "quick"))
                 .highlight(highlight().field("field2", 100, 0).order("score").preTags("<xxx>").postTags("</xxx>").requireFieldMatch(false));
 
-        searchResponse = client().prepareSearch("test").setSource(source.buildAsBytes()).get();
+        searchResponse = client().prepareSearch("test").setSource(source).get();
 
         // LUCENE 3.1 UPGRADE: Caused adding the space at the end...
         assertHighlight(searchResponse, 0, "field2", 0, 1, equalTo("The <xxx>quick</xxx> brown fox jumps over the lazy dog"));
@@ -825,7 +825,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                 .query(prefixQuery("_all", "qui"))
                 .highlight(highlight().field("field2", 100, 0).order("score").preTags("<xxx>").postTags("</xxx>").requireFieldMatch(false));
 
-        searchResponse = client().prepareSearch("test").setSource(source.buildAsBytes()).get();
+        searchResponse = client().prepareSearch("test").setSource(source).get();
 
         // LUCENE 3.1 UPGRADE: Caused adding the space at the end...
         assertHighlight(searchResponse, 0, "field2", 0, 1, equalTo("The <xxx>quick</xxx> brown fox jumps over the lazy dog"));
@@ -1394,7 +1394,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                 .query(boostingQuery(termQuery("field2", "brown"), termQuery("field2", "foobar")).negativeBoost(0.5f))
                 .highlight(highlight().field("field2").order("score").preTags("<x>").postTags("</x>"));
 
-        SearchResponse searchResponse = client().prepareSearch("test").setSource(source.buildAsBytes()).get();
+        SearchResponse searchResponse = client().prepareSearch("test").setSource(source).get();
 
         assertHighlight(searchResponse, 0, "field2", 0, 1, equalTo("The quick <x>brown</x> fox jumps over the lazy dog"));
     }
@@ -1413,7 +1413,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                 .query(boostingQuery(termQuery("field2", "brown"), termQuery("field2", "foobar")).negativeBoost(0.5f))
                 .highlight(highlight().field("field2").order("score").preTags("<x>").postTags("</x>"));
 
-        SearchResponse searchResponse = client().prepareSearch("test").setSource(source.buildAsBytes()).get();
+        SearchResponse searchResponse = client().prepareSearch("test").setSource(source).get();
 
         assertHighlight(searchResponse, 0, "field2", 0, 1, equalTo("The quick <x>brown</x> fox jumps over the lazy dog"));
     }
@@ -1433,7 +1433,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                 .query(commonTermsQuery("field2", "quick brown").cutoffFrequency(100))
                 .highlight(highlight().field("field2").order("score").preTags("<x>").postTags("</x>"));
 
-        SearchResponse searchResponse = client().prepareSearch("test").setSource(source.buildAsBytes()).get();
+        SearchResponse searchResponse = client().prepareSearch("test").setSource(source).get();
         assertHighlight(searchResponse, 0, "field2", 0, 1, equalTo("The <x>quick</x> <x>brown</x> fox jumps over the lazy dog"));
     }
 
@@ -1448,7 +1448,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         SearchSourceBuilder source = searchSource().query(commonTermsQuery("field2", "quick brown").cutoffFrequency(100))
                 .highlight(highlight().field("field2").order("score").preTags("<x>").postTags("</x>"));
 
-        SearchResponse searchResponse = client().prepareSearch("test").setSource(source.buildAsBytes()).get();
+        SearchResponse searchResponse = client().prepareSearch("test").setSource(source).get();
 
         assertHighlight(searchResponse, 0, "field2", 0, 1, equalTo("The <x>quick</x> <x>brown</x> fox jumps over the lazy dog"));
     }
@@ -2367,7 +2367,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
 
         SearchSourceBuilder source = searchSource().query(prefixQuery("field2", "qui"))
                 .highlight(highlight().field("field2"));
-        SearchResponse searchResponse = client().prepareSearch("test").setSource(source.buildAsBytes()).get();
+        SearchResponse searchResponse = client().prepareSearch("test").setSource(source).get();
         assertHighlight(searchResponse, 0, "field2", 0, 1, equalTo("The <em>quick</em> brown fox jumps over the lazy dog!"));
 
     }
@@ -2382,7 +2382,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         logger.info("--> highlighting and searching on field2");
         SearchSourceBuilder source = searchSource().query(fuzzyQuery("field2", "quck"))
                 .highlight(highlight().field("field2"));
-        SearchResponse searchResponse = client().prepareSearch("test").setSource(source.buildAsBytes()).get();
+        SearchResponse searchResponse = client().prepareSearch("test").setSource(source).get();
 
         assertHighlight(searchResponse, 0, "field2", 0, 1, equalTo("The <em>quick</em> brown fox jumps over the lazy dog!"));
     }
@@ -2397,7 +2397,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         logger.info("--> highlighting and searching on field2");
         SearchSourceBuilder source = searchSource().query(regexpQuery("field2", "qu[a-l]+k"))
                 .highlight(highlight().field("field2"));
-        SearchResponse searchResponse = client().prepareSearch("test").setSource(source.buildAsBytes()).get();
+        SearchResponse searchResponse = client().prepareSearch("test").setSource(source).get();
 
         assertHighlight(searchResponse, 0, "field2", 0, 1, equalTo("The <em>quick</em> brown fox jumps over the lazy dog!"));
     }
@@ -2412,13 +2412,13 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         logger.info("--> highlighting and searching on field2");
         SearchSourceBuilder source = searchSource().query(wildcardQuery("field2", "qui*"))
                 .highlight(highlight().field("field2"));
-        SearchResponse searchResponse = client().prepareSearch("test").setSource(source.buildAsBytes()).get();
+        SearchResponse searchResponse = client().prepareSearch("test").setSource(source).get();
 
         assertHighlight(searchResponse, 0, "field2", 0, 1, equalTo("The <em>quick</em> brown fox jumps over the lazy dog!"));
 
         source = searchSource().query(wildcardQuery("field2", "qu*k"))
                 .highlight(highlight().field("field2"));
-        searchResponse = client().prepareSearch("test").setSource(source.buildAsBytes()).get();
+        searchResponse = client().prepareSearch("test").setSource(source).get();
         assertHitCount(searchResponse, 1l);
 
         assertHighlight(searchResponse, 0, "field2", 0, 1, equalTo("The <em>quick</em> brown fox jumps over the lazy dog!"));
@@ -2434,7 +2434,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         logger.info("--> highlighting and searching on field2");
         SearchSourceBuilder source = searchSource().query(rangeQuery("field2").gte("aaaa").lt("zzzz"))
                 .highlight(highlight().field("field2"));
-        SearchResponse searchResponse = client().prepareSearch("test").setSource(source.buildAsBytes()).get();
+        SearchResponse searchResponse = client().prepareSearch("test").setSource(source).get();
 
         assertHighlight(searchResponse, 0, "field2", 0, 1, equalTo("<em>aaab</em>"));
     }
@@ -2449,7 +2449,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         logger.info("--> highlighting and searching on field2");
         SearchSourceBuilder source = searchSource().query(queryStringQuery("qui*").defaultField("field2"))
                 .highlight(highlight().field("field2"));
-        SearchResponse searchResponse = client().prepareSearch("test").setSource(source.buildAsBytes()).get();
+        SearchResponse searchResponse = client().prepareSearch("test").setSource(source).get();
         assertHighlight(searchResponse, 0, "field2", 0, 1, equalTo("The <em>quick</em> brown fox jumps over the lazy dog!"));
     }
 
@@ -2465,7 +2465,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         logger.info("--> highlighting and searching on field1");
         SearchSourceBuilder source = searchSource().query(constantScoreQuery(regexpQuery("field1", "pho[a-z]+")))
                 .highlight(highlight().field("field1"));
-        SearchResponse searchResponse = client().prepareSearch("test").setSource(source.buildAsBytes()).get();
+        SearchResponse searchResponse = client().prepareSearch("test").setSource(source).get();
         assertHighlight(searchResponse, 0, "field1", 0, 1, equalTo("The <em>photography</em> word will get highlighted"));
     }
 
@@ -2484,7 +2484,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                 .should(matchQuery("field1", "test"))
                 .should(constantScoreQuery(queryStringQuery("field1:photo*"))))
                 .highlight(highlight().field("field1"));
-        SearchResponse searchResponse = client().prepareSearch("test").setSource(source.buildAsBytes()).get();
+        SearchResponse searchResponse = client().prepareSearch("test").setSource(source).get();
         assertHighlight(searchResponse, 0, "field1", 0, 1, equalTo("The <em>photography</em> word will get highlighted"));
     }
 
@@ -2500,7 +2500,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         logger.info("--> highlighting and searching on field1");
         SearchSourceBuilder source = searchSource().query(boolQuery().must(prefixQuery("field1", "photo")).should(matchQuery("field1", "test").minimumShouldMatch("0")))
                 .highlight(highlight().field("field1"));
-        SearchResponse searchResponse = client().prepareSearch("test").setSource(source.buildAsBytes()).get();
+        SearchResponse searchResponse = client().prepareSearch("test").setSource(source).get();
         assertHighlight(searchResponse, 0, "field1", 0, 1, equalTo("The <em>photography</em> word will get highlighted"));
     }
 
@@ -2516,7 +2516,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         logger.info("--> highlighting and searching on field1");
         SearchSourceBuilder source = searchSource().query(boolQuery().must(queryStringQuery("field1:photo*")).filter(missingQuery("field_null")))
                 .highlight(highlight().field("field1"));
-        SearchResponse searchResponse = client().prepareSearch("test").setSource(source.buildAsBytes()).get();
+        SearchResponse searchResponse = client().prepareSearch("test").setSource(source).get();
         assertHighlight(searchResponse, 0, "field1", 0, 1, equalTo("The <em>photography</em> word will get highlighted"));
     }
 

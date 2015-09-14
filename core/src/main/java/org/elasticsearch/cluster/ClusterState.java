@@ -52,10 +52,7 @@ import org.elasticsearch.discovery.local.LocalDiscovery;
 import org.elasticsearch.discovery.zen.publish.PublishClusterStateAction;
 
 import java.io.IOException;
-import java.util.EnumSet;
-import java.util.HashMap;
-import java.util.Locale;
-import java.util.Map;
+import java.util.*;
 
 /**
  * Represents the current state of the cluster.
@@ -256,7 +253,7 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
     }
 
     // Used for testing and logging to determine how this cluster state was send over the wire
-    boolean wasReadFromDiff() {
+    public boolean wasReadFromDiff() {
         return wasReadFromDiff;
     }
 
@@ -294,6 +291,16 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
         } catch (IOException e) {
             return "{ \"error\" : \"" + e.getMessage() + "\"}";
         }
+    }
+
+    /**
+     * a cluster state supersedes another state iff they are from the same master and the version this state is higher thant the other state.
+     * <p/>
+     * In essence that means that all the changes from the other cluster state are also reflected by the current one
+     */
+    public boolean supersedes(ClusterState other) {
+        return this.nodes().masterNodeId() != null && this.nodes().masterNodeId().equals(other.nodes().masterNodeId()) && this.version() > other.version();
+
     }
 
     public enum Metric {
@@ -814,6 +821,7 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
             builder.fromDiff(true);
             return builder.build();
         }
+
     }
 
 }

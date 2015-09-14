@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.xcontent;
 
-import com.google.common.base.Charsets;
+import java.nio.charset.StandardCharsets;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -100,7 +100,7 @@ public class XContentHelper {
         XContentType xContentType = XContentFactory.xContentType(bytes);
         if (xContentType == XContentType.JSON && !reformatJson) {
             BytesArray bytesArray = bytes.toBytesArray();
-            return new String(bytesArray.array(), bytesArray.arrayOffset(), bytesArray.length(), Charsets.UTF_8);
+            return new String(bytesArray.array(), bytesArray.arrayOffset(), bytesArray.length(), StandardCharsets.UTF_8);
         }
         XContentParser parser = null;
         try {
@@ -126,7 +126,7 @@ public class XContentHelper {
     public static String convertToJson(byte[] data, int offset, int length, boolean reformatJson, boolean prettyPrint) throws IOException {
         XContentType xContentType = XContentFactory.xContentType(data, offset, length);
         if (xContentType == XContentType.JSON && !reformatJson) {
-            return new String(data, offset, length, Charsets.UTF_8);
+            return new String(data, offset, length, StandardCharsets.UTF_8);
         }
         XContentParser parser = null;
         try {

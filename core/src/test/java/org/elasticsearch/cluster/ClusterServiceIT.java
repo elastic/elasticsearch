@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.cluster;
 
-import com.google.common.util.concurrent.ListenableFuture;
 import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
@@ -37,6 +36,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -297,8 +297,8 @@ public class ClusterServiceIT extends ESIntegTestCase {
                 .put("discovery.type", "local")
                 .build();
 
-        ListenableFuture<String> master = internalCluster().startNodeAsync(settings);
-        ListenableFuture<String> nonMaster = internalCluster().startNodeAsync(settingsBuilder().put(settings).put("node.master", false).build());
+        InternalTestCluster.Async<String> master = internalCluster().startNodeAsync(settings);
+        InternalTestCluster.Async<String> nonMaster = internalCluster().startNodeAsync(settingsBuilder().put(settings).put("node.master", false).build());
         master.get();
         ensureGreen(); // make sure we have a cluster
 

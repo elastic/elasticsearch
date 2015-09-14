@@ -21,7 +21,6 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -82,7 +81,7 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
     }
 
     public GeoPolygonQueryBuilder addPoint(String geohash) {
-        return addPoint(GeoHashUtils.decode(geohash));
+        return addPoint(GeoPoint.fromGeohash(geohash));
     }
 
     public GeoPolygonQueryBuilder addPoint(GeoPoint point) {

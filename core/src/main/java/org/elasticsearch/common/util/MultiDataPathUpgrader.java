@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.common.util;
 
-import com.google.common.base.Charsets;
+import java.nio.charset.StandardCharsets;
 import com.google.common.primitives.Ints;
 import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.index.IndexWriter;
@@ -129,14 +129,14 @@ public class MultiDataPathUpgrader {
      */
     public void checkIndex(ShardPath targetPath) throws IOException {
         BytesStreamOutput os = new BytesStreamOutput();
-        PrintStream out = new PrintStream(os, false, Charsets.UTF_8.name());
+        PrintStream out = new PrintStream(os, false, StandardCharsets.UTF_8.name());
         try (Directory directory = new SimpleFSDirectory(targetPath.resolveIndex());
             final CheckIndex checkIndex = new CheckIndex(directory)) {
             checkIndex.setInfoStream(out);
             CheckIndex.Status status = checkIndex.checkIndex();
             out.flush();
             if (!status.clean) {
-                logger.warn("check index [failure]\n{}", new String(os.bytes().toBytes(), Charsets.UTF_8));
+                logger.warn("check index [failure]\n{}", new String(os.bytes().toBytes(), StandardCharsets.UTF_8));
                 throw new IllegalStateException("index check failure");
             }
         }

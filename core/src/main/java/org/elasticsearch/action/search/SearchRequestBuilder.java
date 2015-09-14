@@ -811,27 +811,19 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     /**
-     * Sets the source of the request as a json string. Note, settings anything other
+     * Sets the source of the request as a SearchSourceBuilder. Note, settings anything other
      * than the search type will cause this source to be overridden, consider using
-     * {@link #setExtraSource(String)}.
+     * {@link #setExtraSource(SearchSourceBuilder)} instead.
      */
-    public SearchRequestBuilder setSource(String source) {
+    public SearchRequestBuilder setSource(SearchSourceBuilder source) {
         request.source(source);
         return this;
     }
 
     /**
-     * Sets the source of the request as a json string. Allows to set other parameters.
-     */
-    public SearchRequestBuilder setExtraSource(String source) {
-        request.extraSource(source);
-        return this;
-    }
-
-    /**
      * Sets the source of the request as a json string. Note, settings anything other
      * than the search type will cause this source to be overridden, consider using
-     * {@link #setExtraSource(BytesReference)}.
+     * {@link #setExtraSource(SearchSourceBuilder)} instead.
      */
     public SearchRequestBuilder setSource(BytesReference source) {
         request.source(source);
@@ -839,78 +831,11 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     /**
-     * Sets the source of the request as a json string. Note, settings anything other
-     * than the search type will cause this source to be overridden, consider using
-     * {@link #setExtraSource(byte[])}.
+     * Sets the an addtional source of the request as a SearchSourceBuilder. All values and
+     * settings set on the extra source will override the corresponding settings on the specified
+     * source.
      */
-    public SearchRequestBuilder setSource(byte[] source) {
-        request.source(source);
-        return this;
-    }
-
-    /**
-     * Sets the source of the request as a json string. Allows to set other parameters.
-     */
-    public SearchRequestBuilder setExtraSource(BytesReference source) {
-        request.extraSource(source);
-        return this;
-    }
-
-    /**
-     * Sets the source of the request as a json string. Allows to set other parameters.
-     */
-    public SearchRequestBuilder setExtraSource(byte[] source) {
-        request.extraSource(source);
-        return this;
-    }
-
-    /**
-     * Sets the source of the request as a json string. Note, settings anything other
-     * than the search type will cause this source to be overridden, consider using
-     * {@link #setExtraSource(byte[])}.
-     */
-    public SearchRequestBuilder setSource(byte[] source, int offset, int length) {
-        request.source(source, offset, length);
-        return this;
-    }
-
-    /**
-     * Sets the source of the request as a json string. Allows to set other parameters.
-     */
-    public SearchRequestBuilder setExtraSource(byte[] source, int offset, int length) {
-        request.extraSource(source, offset, length);
-        return this;
-    }
-
-    /**
-     * Sets the source of the request as a json string. Note, settings anything other
-     * than the search type will cause this source to be overridden, consider using
-     * {@link #setExtraSource(byte[])}.
-     */
-    public SearchRequestBuilder setSource(XContentBuilder builder) {
-        request.source(builder);
-        return this;
-    }
-
-    /**
-     * Sets the source of the request as a json string. Allows to set other parameters.
-     */
-    public SearchRequestBuilder setExtraSource(XContentBuilder builder) {
-        request.extraSource(builder);
-        return this;
-    }
-
-    /**
-     * Sets the source of the request as a map. Note, setting anything other than the
-     * search type will cause this source to be overridden, consider using
-     * {@link #setExtraSource(java.util.Map)}.
-     */
-    public SearchRequestBuilder setSource(Map source) {
-        request.source(source);
-        return this;
-    }
-
-    public SearchRequestBuilder setExtraSource(Map source) {
+    public SearchRequestBuilder setExtraSource(SearchSourceBuilder source) {
         request.extraSource(source);
         return this;
     }
@@ -918,36 +843,8 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     /**
      * template stuff
      */
-
     public SearchRequestBuilder setTemplate(Template template) {
         request.template(template);
-        return this;
-    }
-
-    /**
-     * @deprecated Use {@link #setTemplate(Template)} instead.
-     */
-    @Deprecated
-    public SearchRequestBuilder setTemplateName(String templateName) {
-        request.templateName(templateName);
-        return this;
-    }
-
-    /**
-     * @deprecated Use {@link #setTemplate(Template)} instead.
-     */
-    @Deprecated
-    public SearchRequestBuilder setTemplateType(ScriptService.ScriptType templateType) {
-        request.templateType(templateType);
-        return this;
-    }
-
-    /**
-     * @deprecated Use {@link #setTemplate(Template)} instead.
-     */
-    @Deprecated
-    public SearchRequestBuilder setTemplateParams(Map<String, Object> templateParams) {
-        request.templateParams(templateParams);
         return this;
     }
 

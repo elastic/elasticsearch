@@ -22,6 +22,7 @@ package org.elasticsearch.script;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.script.groovy.GroovyScriptEngineService;
@@ -53,9 +54,9 @@ public class GroovyScriptIT extends ESIntegTestCase {
 
     public void assertScript(String script) {
         SearchResponse resp = client().prepareSearch("test")
-                .setSource("{\"query\": {\"match_all\": {}}," +
+                .setSource(new BytesArray("{\"query\": {\"match_all\": {}}," +
                         "\"sort\":{\"_script\": {\"script\": \""+ script +
-                        "; 1\", \"type\": \"number\", \"lang\": \"groovy\"}}}").get();
+                        "; 1\", \"type\": \"number\", \"lang\": \"groovy\"}}}")).get();
         assertNoFailures(resp);
     }
 

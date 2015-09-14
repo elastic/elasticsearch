@@ -55,7 +55,7 @@ public class ExistsRequest extends BroadcastRequest<ExistsRequest> {
 
     long nowInMillis;
 
-    ExistsRequest() {
+    public ExistsRequest() {
     }
 
     /**

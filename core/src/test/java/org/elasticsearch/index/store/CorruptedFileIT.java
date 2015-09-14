@@ -19,7 +19,7 @@
 package org.elasticsearch.index.store;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
-import com.google.common.base.Charsets;
+import java.nio.charset.StandardCharsets;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.index.IndexFileNames;
@@ -217,12 +217,12 @@ public class CorruptedFileIT extends ESIntegTestCase {
                         }
                         try (CheckIndex checkIndex = new CheckIndex(store.directory())) {
                             BytesStreamOutput os = new BytesStreamOutput();
-                            PrintStream out = new PrintStream(os, false, Charsets.UTF_8.name());
+                            PrintStream out = new PrintStream(os, false, StandardCharsets.UTF_8.name());
                             checkIndex.setInfoStream(out);
                             out.flush();
                             CheckIndex.Status status = checkIndex.checkIndex();
                             if (!status.clean) {
-                                logger.warn("check index [failure]\n{}", new String(os.bytes().toBytes(), Charsets.UTF_8));
+                                logger.warn("check index [failure]\n{}", new String(os.bytes().toBytes(), StandardCharsets.UTF_8));
                                 throw new IOException("index check failure");
                             }
                         }

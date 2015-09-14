@@ -91,6 +91,8 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.discovery.Discovery;
+import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexService;
@@ -128,33 +130,15 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.lang.annotation.Annotation;
-import java.lang.annotation.ElementType;
-import java.lang.annotation.Inherited;
-import java.lang.annotation.Retention;
-import java.lang.annotation.RetentionPolicy;
-import java.lang.annotation.Target;
+import java.lang.annotation.*;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.IdentityHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Random;
-import java.util.Set;
-import java.util.concurrent.Callable;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
+import java.util.*;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BooleanSupplier;
@@ -166,14 +150,8 @@ import static org.elasticsearch.common.util.CollectionUtils.eagerPartition;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.XContentTestUtils.convertToMap;
 import static org.elasticsearch.test.XContentTestUtils.differenceBetweenMapsIgnoringArrayOrder;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
-import static org.hamcrest.Matchers.emptyIterable;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.startsWith;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
+import static org.hamcrest.Matchers.*;
 
 /**
  * {@link ESIntegTestCase} is an abstract base class to run integration
@@ -604,6 +582,21 @@ public abstract class ESIntegTestCase extends ESTestCase {
                     }
                     ensureClusterSizeConsistency();
                     ensureClusterStateConsistency();
+                    if (isInternalCluster()) {
+                        // check no pending cluster states are leaked
+                        for (Discovery discovery : internalCluster().getInstances(Discovery.class)) {
+                            if (discovery instanceof ZenDiscovery) {
+                                final ZenDiscovery zenDiscovery = (ZenDiscovery) discovery;
+                                assertBusy(new Runnable() {
+                                    @Override
+                                    public void run() {
+                                        assertThat("still having pending states: " + Strings.arrayToDelimitedString(zenDiscovery.pendingClusterStates(), "\n"),
+                                                zenDiscovery.pendingClusterStates(), emptyArray());
+                                    }
+                                });
+                            }
+                        }
+                    }
                     beforeIndexDeletion();
                     cluster().wipe(); // wipe after to make sure we fail in the test that didn't ack the delete
                     if (afterClass || currentClusterScope == Scope.TEST) {
@@ -878,7 +871,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             String failMsg = sb.toString();
             for (SearchHit hit : searchResponse.getHits().getHits()) {
                 sb.append("\n-> _index: [").append(hit.getIndex()).append("] type [").append(hit.getType())
-                    .append("] id [").append(hit.id()).append("]");
+                        .append("] id [").append(hit.id()).append("]");
             }
             logger.warn(sb.toString());
             fail(failMsg);
@@ -1642,7 +1635,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
 
-
     private Scope getCurrentClusterScope() {
         return getCurrentClusterScope(this.getClass());
     }
@@ -1777,14 +1769,17 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 return Settings.builder().put(Node.HTTP_ENABLED, false).
                         put(ESIntegTestCase.this.nodeSettings(nodeOrdinal)).build();
             }
+
             @Override
             public Collection<Class<? extends Plugin>> nodePlugins() {
                 return ESIntegTestCase.this.nodePlugins();
             }
+
             @Override
             public Settings transportClientSettings() {
                 return ESIntegTestCase.this.transportClientSettings();
             }
+
             @Override
             public Collection<Class<? extends Plugin>> transportClientPlugins() {
                 return ESIntegTestCase.this.transportClientPlugins();
@@ -1805,7 +1800,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         String nodeMode = InternalTestCluster.configuredNodeMode();
         if (noLocal != null && noNetwork != null) {
             throw new IllegalStateException("Can't suppress both network and local mode");
-        } else if (noLocal != null){
+        } else if (noLocal != null) {
             nodeMode = "network";
         } else if (noNetwork != null) {
             nodeMode = "local";
@@ -2110,13 +2105,15 @@ public abstract class ESIntegTestCase extends ESTestCase {
      */
     @Retention(RetentionPolicy.RUNTIME)
     @Inherited
-    public @interface SuppressLocalMode {}
+    public @interface SuppressLocalMode {
+    }
 
     /**
      * If used the test will never run in network mode
      */
     @Retention(RetentionPolicy.RUNTIME)
     @Inherited
-    public @interface SuppressNetworkMode {}
+    public @interface SuppressNetworkMode {
+    }
 
 }

@@ -79,7 +79,7 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
 
     private boolean waitForCompletion;
 
-    CreateSnapshotRequest() {
+    public CreateSnapshotRequest() {
     }
 
     /**

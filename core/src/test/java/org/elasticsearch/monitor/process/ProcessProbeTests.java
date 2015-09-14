@@ -51,11 +51,8 @@ public class ProcessProbeTests extends ESTestCase {
             assertThat(stats.getOpenFileDescriptors(), equalTo(-1L));
             assertThat(stats.getMaxFileDescriptors(), equalTo(-1L));
         } else {
-            // TODO: once java 9 is sorted out make these hard checks (currently 9-ea and 9-ea-jigsaw will differ)
-            if (!Constants.JRE_IS_MINIMUM_JAVA9) {
-                assertThat(stats.getOpenFileDescriptors(), greaterThan(0L));
-                assertThat(stats.getMaxFileDescriptors(), greaterThan(0L));
-            }
+            assertThat(stats.getOpenFileDescriptors(), greaterThan(0L));
+            assertThat(stats.getMaxFileDescriptors(), greaterThan(0L));
         }
 
         ProcessStats.Cpu cpu = stats.getCpu();
@@ -65,14 +62,11 @@ public class ProcessProbeTests extends ESTestCase {
         assertThat(cpu.getPercent(), anyOf(lessThan((short) 0), allOf(greaterThanOrEqualTo((short) 0), lessThanOrEqualTo((short) 100))));
 
         // CPU time can return -1 if the the platform does not support this operation, let's see which platforms fail
-        if (!Constants.JRE_IS_MINIMUM_JAVA9) {
-            // TODO: once java 9 is sorted out make these hard checks (currently 9-ea and 9-ea-jigsaw will differ)
-            assertThat(cpu.total, greaterThan(0L));
+        assertThat(cpu.total, greaterThan(0L));
 
-            ProcessStats.Mem mem = stats.getMem();
-            assertNotNull(mem);
-            // Commited total virtual memory can return -1 if not supported, let's see which platforms fail
-            assertThat(mem.totalVirtual, greaterThan(0L));
-        }
+        ProcessStats.Mem mem = stats.getMem();
+        assertNotNull(mem);
+        // Commited total virtual memory can return -1 if not supported, let's see which platforms fail
+        assertThat(mem.totalVirtual, greaterThan(0L));
     }
 }

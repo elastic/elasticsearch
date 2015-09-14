@@ -61,7 +61,7 @@ public class VerifyNodeRepositoryAction  extends AbstractComponent {
         this.transportService = transportService;
         this.clusterService = clusterService;
         this.repositoriesService = repositoriesService;
-        transportService.registerRequestHandler(ACTION_NAME, VerifyNodeRepositoryRequest.class, ThreadPool.Names.SAME, new VerifyNodeRepositoryRequestHandler());
+        transportService.registerRequestHandler(ACTION_NAME, VerifyNodeRepositoryRequest::new, ThreadPool.Names.SAME, new VerifyNodeRepositoryRequestHandler());
     }
 
     public void close() {
@@ -121,12 +121,12 @@ public class VerifyNodeRepositoryAction  extends AbstractComponent {
         blobStoreIndexShardRepository.verify(verificationToken);
     }
 
-    static class VerifyNodeRepositoryRequest extends TransportRequest {
+    public static class VerifyNodeRepositoryRequest extends TransportRequest {
 
         private String repository;
         private String verificationToken;
 
-        VerifyNodeRepositoryRequest() {
+        public VerifyNodeRepositoryRequest() {
         }
 
         VerifyNodeRepositoryRequest(String repository, String verificationToken) {

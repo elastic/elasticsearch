@@ -42,7 +42,7 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
     private boolean breaker;
     private boolean script;
 
-    protected NodesStatsRequest() {
+    public NodesStatsRequest() {
     }
 
     /**

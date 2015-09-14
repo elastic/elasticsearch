@@ -29,9 +29,11 @@ import com.carrotsearch.randomizedtesting.generators.RandomInts;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import com.carrotsearch.randomizedtesting.rules.TestRuleAdapter;
+
 import org.apache.lucene.uninverting.UninvertingReader;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
+import org.apache.lucene.util.TestRuleMarkFailure;
 import org.apache.lucene.util.TestUtil;
 import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.Version;
@@ -41,6 +43,7 @@ import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.DjbHashFunction;
 import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.common.io.PathUtilsForTesting;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
@@ -62,9 +65,7 @@ import org.junit.Rule;
 import org.junit.rules.RuleChain;
 
 import java.io.IOException;
-import java.lang.reflect.Field;
 import java.nio.file.DirectoryStream;
-import java.nio.file.FileSystem;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
@@ -137,20 +138,12 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     @BeforeClass
     public static void setFileSystem() throws Exception {
-        Field field = PathUtils.class.getDeclaredField("DEFAULT");
-        field.setAccessible(true);
-        FileSystem mock = LuceneTestCase.getBaseTempDirForTestClass().getFileSystem();
-        field.set(null, mock);
-        assertEquals(mock, PathUtils.getDefaultFileSystem());
+        PathUtilsForTesting.setup();
     }
 
     @AfterClass
     public static void restoreFileSystem() throws Exception {
-        Field field1 = PathUtils.class.getDeclaredField("ACTUAL_DEFAULT");
-        field1.setAccessible(true);
-        Field field2 = PathUtils.class.getDeclaredField("DEFAULT");
-        field2.setAccessible(true);
-        field2.set(null, field1.get(null));
+        PathUtilsForTesting.teardown();
     }
 
     // setup a default exception handler which knows when and how to print a stacktrace
@@ -660,5 +653,10 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
         sb.append("]");
         assertThat(count + " files exist that should have been cleaned:\n" + sb.toString(), count, equalTo(0));
+    }
+    
+    /** Returns the suite failure marker: internal use only! */
+    public static TestRuleMarkFailure getSuiteFailureMarker() {
+        return suiteFailureMarker;
     }
 }

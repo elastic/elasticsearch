@@ -19,14 +19,12 @@
 
 package org.elasticsearch.search.aggregations.pipeline.bucketscript;
 
-import com.google.common.base.Function;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
@@ -43,37 +41,25 @@ import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
-import static org.elasticsearch.common.util.CollectionUtils.eagerTransform;
 import static org.elasticsearch.search.aggregations.pipeline.BucketHelpers.resolveBucketValue;
 
 public class BucketScriptPipelineAggregator extends PipelineAggregator {
 
     public final static Type TYPE = new Type("bucket_script");
 
-    public final static PipelineAggregatorStreams.Stream STREAM = new PipelineAggregatorStreams.Stream() {
-        @Override
-        public BucketScriptPipelineAggregator readResult(StreamInput in) throws IOException {
-            BucketScriptPipelineAggregator result = new BucketScriptPipelineAggregator();
-            result.readFrom(in);
-            return result;
-        }
+    public final static PipelineAggregatorStreams.Stream STREAM = in -> {
+        BucketScriptPipelineAggregator result = new BucketScriptPipelineAggregator();
+        result.readFrom(in);
+        return result;
     };
 
     public static void registerStreams() {
         PipelineAggregatorStreams.registerStream(STREAM, TYPE.stream());
     }
-
-    private static final Function<Aggregation, InternalAggregation> FUNCTION = new Function<Aggregation, InternalAggregation>() {
-        @Override
-        public InternalAggregation apply(Aggregation input) {
-            return (InternalAggregation) input;
-        }
-    };
 
     private ValueFormatter formatter;
     private GapPolicy gapPolicy;
@@ -134,9 +120,11 @@ public class BucketScriptPipelineAggregator extends PipelineAggregator {
                         throw new AggregationExecutionException("series_arithmetic script for reducer [" + name()
                                 + "] must return a Number");
                     }
-                    List<InternalAggregation> aggs = new ArrayList<>(eagerTransform(bucket.getAggregations().asList(), FUNCTION));
+                    final List<InternalAggregation> aggs = StreamSupport.stream(bucket.getAggregations().spliterator(), false).map((p) -> {
+                        return (InternalAggregation) p;
+                    }).collect(Collectors.toList());
                     aggs.add(new InternalSimpleValue(name(), ((Number) returned).doubleValue(), formatter,
-                            new ArrayList<PipelineAggregator>(), metaData()));
+                            new ArrayList<>(), metaData()));
                     InternalMultiBucketAggregation.InternalBucket newBucket = originalAgg.createBucket(new InternalAggregations(aggs),
                             (InternalMultiBucketAggregation.InternalBucket) bucket);
                     newBuckets.add(newBucket);

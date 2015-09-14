@@ -71,7 +71,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
     public TransportAnalyzeAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
                                   IndicesService indicesService, IndicesAnalysisService indicesAnalysisService, ActionFilters actionFilters,
                                   IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, AnalyzeAction.NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver, AnalyzeRequest.class, ThreadPool.Names.INDEX);
+        super(settings, AnalyzeAction.NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver, AnalyzeRequest::new, ThreadPool.Names.INDEX);
         this.indicesService = indicesService;
         this.indicesAnalysisService = indicesAnalysisService;
     }

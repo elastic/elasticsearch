@@ -20,6 +20,7 @@ package org.elasticsearch.script;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.mustache.MustacheScriptEngineService;
 import org.elasticsearch.search.SearchHit;
@@ -62,7 +63,7 @@ public class OnDiskScriptIT extends ESIntegTestCase {
         indexRandom(true, builders);
 
         String query = "{ \"query\" : { \"match_all\": {}} , \"script_fields\" : { \"test1\" : { \"script_file\" : \"script1\" }, \"test2\" : { \"script_file\" : \"script2\", \"params\":{\"factor\":3}  }}, size:1}";
-        SearchResponse searchResponse = client().prepareSearch().setSource(query).setIndices("test").setTypes("scriptTest").get();
+        SearchResponse searchResponse = client().prepareSearch().setSource(new BytesArray(query)).setIndices("test").setTypes("scriptTest").get();
         assertHitCount(searchResponse, 5);
         assertTrue(searchResponse.getHits().hits().length == 1);
         SearchHit sh = searchResponse.getHits().getAt(0);
@@ -81,7 +82,7 @@ public class OnDiskScriptIT extends ESIntegTestCase {
         indexRandom(true, builders);
 
         String query = "{ \"query\" : { \"match_all\": {}} , \"script_fields\" : { \"test1\" : { \"script_file\" : \"script1\" }, \"test2\" : { \"script_file\" : \"script1\", \"lang\":\"expression\"  }}, size:1}";
-        SearchResponse searchResponse = client().prepareSearch().setSource(query).setIndices("test").setTypes("scriptTest").get();
+        SearchResponse searchResponse = client().prepareSearch().setSource(new BytesArray(query)).setIndices("test").setTypes("scriptTest").get();
         assertHitCount(searchResponse, 5);
         assertTrue(searchResponse.getHits().hits().length == 1);
         SearchHit sh = searchResponse.getHits().getAt(0);
@@ -103,14 +104,14 @@ public class OnDiskScriptIT extends ESIntegTestCase {
 
         String source = "{\"aggs\": {\"test\": { \"terms\" : { \"script_file\":\"script1\", \"lang\": \"expression\" } } } }";
         try {
-            client().prepareSearch("test").setSource(source).get();
+            client().prepareSearch("test").setSource(new BytesArray(source)).get();
             fail("aggs script should have been rejected");
         } catch(Exception e) {
             assertThat(e.toString(), containsString("scripts of type [file], operation [aggs] and lang [expression] are disabled"));
         }
 
         String query = "{ \"query\" : { \"match_all\": {}} , \"script_fields\" : { \"test1\" : { \"script_file\" : \"script1\", \"lang\":\"expression\" }}, size:1}";
-        SearchResponse searchResponse = client().prepareSearch().setSource(query).setIndices("test").setTypes("scriptTest").get();
+        SearchResponse searchResponse = client().prepareSearch().setSource(new BytesArray(query)).setIndices("test").setTypes("scriptTest").get();
         assertHitCount(searchResponse, 5);
         assertTrue(searchResponse.getHits().hits().length == 1);
         SearchHit sh = searchResponse.getHits().getAt(0);
@@ -124,14 +125,14 @@ public class OnDiskScriptIT extends ESIntegTestCase {
         refresh();
         String source = "{\"aggs\": {\"test\": { \"terms\" : { \"script_file\":\"script1\", \"lang\": \"mustache\" } } } }";
         try {
-            client().prepareSearch("test").setSource(source).get();
+            client().prepareSearch("test").setSource(new BytesArray(source)).get();
             fail("aggs script should have been rejected");
         } catch(Exception e) {
             assertThat(e.toString(), containsString("scripts of type [file], operation [aggs] and lang [mustache] are disabled"));
         }
         String query = "{ \"query\" : { \"match_all\": {}} , \"script_fields\" : { \"test1\" : { \"script_file\" : \"script1\", \"lang\":\"mustache\" }}, size:1}";
         try {
-            client().prepareSearch().setSource(query).setIndices("test").setTypes("scriptTest").get();
+            client().prepareSearch().setSource(new BytesArray(query)).setIndices("test").setTypes("scriptTest").get();
             fail("search script should have been rejected");
         } catch(Exception e) {
             assertThat(e.toString(), containsString("scripts of type [file], operation [search] and lang [mustache] are disabled"));

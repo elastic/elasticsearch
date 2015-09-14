@@ -111,7 +111,7 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
 
         logger.debug("using group [{}], with port [{}], ttl [{}], and address [{}]", group, port, ttl, address);
 
-        this.transportService.registerRequestHandler(ACTION_NAME, MulticastPingResponse.class, ThreadPool.Names.SAME, new MulticastPingResponseRequestHandler());
+        this.transportService.registerRequestHandler(ACTION_NAME, MulticastPingResponse::new, ThreadPool.Names.SAME, new MulticastPingResponseRequestHandler());
     }
 
     @Override
@@ -352,13 +352,13 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
         }
     }
 
-    static class MulticastPingResponse extends TransportRequest {
+    public static class MulticastPingResponse extends TransportRequest {
 
         int id;
 
         PingResponse pingResponse;
 
-        MulticastPingResponse() {
+        public MulticastPingResponse() {
         }
 
         @Override

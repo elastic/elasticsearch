@@ -69,9 +69,9 @@ public class MembershipAction extends AbstractComponent {
         this.listener = listener;
         this.clusterService = clusterService;
 
-        transportService.registerRequestHandler(DISCOVERY_JOIN_ACTION_NAME, JoinRequest.class, ThreadPool.Names.GENERIC, new JoinRequestRequestHandler());
-        transportService.registerRequestHandler(DISCOVERY_JOIN_VALIDATE_ACTION_NAME, ValidateJoinRequest.class, ThreadPool.Names.GENERIC, new ValidateJoinRequestRequestHandler());
-        transportService.registerRequestHandler(DISCOVERY_LEAVE_ACTION_NAME, LeaveRequest.class, ThreadPool.Names.GENERIC, new LeaveRequestRequestHandler());
+        transportService.registerRequestHandler(DISCOVERY_JOIN_ACTION_NAME, JoinRequest::new, ThreadPool.Names.GENERIC, new JoinRequestRequestHandler());
+        transportService.registerRequestHandler(DISCOVERY_JOIN_VALIDATE_ACTION_NAME, ValidateJoinRequest::new, ThreadPool.Names.GENERIC, new ValidateJoinRequestRequestHandler());
+        transportService.registerRequestHandler(DISCOVERY_LEAVE_ACTION_NAME, LeaveRequest::new, ThreadPool.Names.GENERIC, new LeaveRequestRequestHandler());
     }
 
     public void close() {
@@ -105,11 +105,11 @@ public class MembershipAction extends AbstractComponent {
                 .txGet(timeout.millis(), TimeUnit.MILLISECONDS);
     }
 
-    static class JoinRequest extends TransportRequest {
+    public static class JoinRequest extends TransportRequest {
 
         DiscoveryNode node;
 
-        private JoinRequest() {
+        public JoinRequest() {
         }
 
         private JoinRequest(DiscoveryNode node) {
@@ -156,9 +156,9 @@ public class MembershipAction extends AbstractComponent {
         }
     }
 
-    static class ValidateJoinRequest extends TransportRequest {
+    public static class ValidateJoinRequest extends TransportRequest {
 
-        ValidateJoinRequest() {
+        public ValidateJoinRequest() {
         }
     }
 
@@ -171,11 +171,11 @@ public class MembershipAction extends AbstractComponent {
         }
     }
 
-    static class LeaveRequest extends TransportRequest {
+    public static class LeaveRequest extends TransportRequest {
 
         private DiscoveryNode node;
 
-        private LeaveRequest() {
+        public LeaveRequest() {
         }
 
         private LeaveRequest(DiscoveryNode node) {

@@ -21,8 +21,6 @@ package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import com.google.common.base.Function;
-import com.google.common.collect.Iterators;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
@@ -47,6 +45,7 @@ import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
+import java.util.stream.StreamSupport;
 
 public abstract class FieldMapper extends Mapper {
 
@@ -658,12 +657,7 @@ public abstract class FieldMapper extends Mapper {
         }
 
         public Iterator<Mapper> iterator() {
-            return Iterators.transform(mappers.values().iterator(), new Function<ObjectCursor<FieldMapper>, Mapper>() {
-                @Override
-                public Mapper apply(@Nullable ObjectCursor<FieldMapper> cursor) {
-                    return cursor.value;
-                }
-            });
+            return StreamSupport.stream(mappers.values().spliterator(), false).map((p) -> (Mapper)p.value).iterator();
         }
 
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {

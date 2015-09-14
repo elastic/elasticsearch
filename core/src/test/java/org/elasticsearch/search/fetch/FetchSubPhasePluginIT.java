@@ -27,6 +27,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.action.termvectors.TermVectorsResponse;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.plugins.Plugin;
@@ -90,7 +91,7 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
         String searchSource = jsonBuilder().startObject()
                 .field("term_vectors_fetch", "test")
                 .endObject().string();
-        SearchResponse response = client().prepareSearch().setSource(searchSource).get();
+        SearchResponse response = client().prepareSearch().setSource(new BytesArray(searchSource)).get();
         assertSearchResponse(response);
         assertThat(((Map<String, Integer>) response.getHits().getAt(0).field("term_vectors_fetch").getValues().get(0)).get("i"), equalTo(2));
         assertThat(((Map<String, Integer>) response.getHits().getAt(0).field("term_vectors_fetch").getValues().get(0)).get("am"), equalTo(2));

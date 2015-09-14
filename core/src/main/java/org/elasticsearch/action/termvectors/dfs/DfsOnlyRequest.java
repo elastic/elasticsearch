@@ -44,7 +44,7 @@ public class DfsOnlyRequest extends BroadcastRequest<DfsOnlyRequest> {
 
     long nowInMillis;
 
-    DfsOnlyRequest() {
+    public DfsOnlyRequest() {
 
     }
 

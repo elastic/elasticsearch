@@ -75,7 +75,7 @@ public class MasterFaultDetection extends FaultDetection {
 
         logger.debug("[master] uses ping_interval [{}], ping_timeout [{}], ping_retries [{}]", pingInterval, pingRetryTimeout, pingRetryCount);
 
-        transportService.registerRequestHandler(MASTER_PING_ACTION_NAME, MasterPingRequest.class, ThreadPool.Names.SAME, new MasterPingRequestHandler());
+        transportService.registerRequestHandler(MASTER_PING_ACTION_NAME, MasterPingRequest::new, ThreadPool.Names.SAME, new MasterPingRequestHandler());
     }
 
     public DiscoveryNode masterNode() {
@@ -386,14 +386,14 @@ public class MasterFaultDetection extends FaultDetection {
     }
 
 
-    private static class MasterPingRequest extends TransportRequest {
+    public static class MasterPingRequest extends TransportRequest {
 
         private String nodeId;
 
         private String masterNodeId;
         private ClusterName clusterName;
 
-        private MasterPingRequest() {
+        public MasterPingRequest() {
         }
 
         private MasterPingRequest(String nodeId, String masterNodeId, ClusterName clusterName) {

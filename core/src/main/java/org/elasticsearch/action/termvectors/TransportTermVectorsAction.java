@@ -54,7 +54,7 @@ public class TransportTermVectorsAction extends TransportSingleShardAction<TermV
                                       IndicesService indicesService, ThreadPool threadPool, ActionFilters actionFilters,
                                       IndexNameExpressionResolver indexNameExpressionResolver) {
         super(settings, TermVectorsAction.NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
-                TermVectorsRequest.class, ThreadPool.Names.GET);
+                TermVectorsRequest::new, ThreadPool.Names.GET);
         this.indicesService = indicesService;
     }
 

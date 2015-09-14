@@ -44,7 +44,6 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
@@ -60,7 +59,6 @@ import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -690,8 +688,8 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
         Settings fooSettings = Settings.builder().put(nodeSettings).put("node.affinity", "foo").build();
         Settings barSettings = Settings.builder().put(nodeSettings).put("node.affinity", "bar").build();
 
-        final Future<List<String>> fooNodes = internalCluster().startNodesAsync(2, fooSettings);
-        final Future<List<String>> barNodes = internalCluster().startNodesAsync(2, barSettings);
+        final InternalTestCluster.Async<List<String>> fooNodes = internalCluster().startNodesAsync(2, fooSettings);
+        final InternalTestCluster.Async<List<String>> barNodes = internalCluster().startNodesAsync(2, barSettings);
         fooNodes.get();
         barNodes.get();
         String IDX = "test";

@@ -75,8 +75,8 @@ public class ShardStateAction extends AbstractComponent {
         this.allocationService = allocationService;
         this.routingService = routingService;
 
-        transportService.registerRequestHandler(SHARD_STARTED_ACTION_NAME, ShardRoutingEntry.class, ThreadPool.Names.SAME, new ShardStartedTransportHandler());
-        transportService.registerRequestHandler(SHARD_FAILED_ACTION_NAME, ShardRoutingEntry.class, ThreadPool.Names.SAME, new ShardFailedTransportHandler());
+        transportService.registerRequestHandler(SHARD_STARTED_ACTION_NAME, ShardRoutingEntry::new, ThreadPool.Names.SAME, new ShardStartedTransportHandler());
+        transportService.registerRequestHandler(SHARD_FAILED_ACTION_NAME, ShardRoutingEntry::new, ThreadPool.Names.SAME, new ShardFailedTransportHandler());
     }
 
     public void shardFailed(final ShardRouting shardRouting, final String indexUUID, final String message, @Nullable final Throwable failure) {
@@ -244,7 +244,7 @@ public class ShardStateAction extends AbstractComponent {
         }
     }
 
-    static class ShardRoutingEntry extends TransportRequest {
+    public static class ShardRoutingEntry extends TransportRequest {
 
         ShardRouting shardRouting;
         String indexUUID = IndexMetaData.INDEX_UUID_NA_VALUE;
@@ -253,7 +253,7 @@ public class ShardStateAction extends AbstractComponent {
 
         volatile boolean processed; // state field, no need to serialize
 
-        ShardRoutingEntry() {
+        public ShardRoutingEntry() {
         }
 
         ShardRoutingEntry(ShardRouting shardRouting, String indexUUID, String message, @Nullable Throwable failure) {

@@ -36,11 +36,11 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.SnapshotId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -71,7 +71,6 @@ import org.elasticsearch.repositories.blobstore.LegacyBlobStoreFormat;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -230,8 +229,8 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
         BlobContainer testBlobContainer = blobStore.blobContainer(basePath.add(testBlobPrefix(seed)));
         DiscoveryNode localNode = clusterService.localNode();
         if (testBlobContainer.blobExists("master.dat")) {
-            try (OutputStream outputStream = testBlobContainer.createOutput("data-" + localNode.getId() + ".dat")) {
-                outputStream.write(Strings.toUTF8Bytes(seed));
+            try  {
+                testBlobContainer.writeBlob("data-" + localNode.getId() + ".dat", new BytesArray(seed));
             } catch (IOException exp) {
                 throw new RepositoryVerificationException(repositoryName, "store location [" + blobStore + "] is not accessible on the node [" + localNode + "]", exp);
             }
@@ -647,12 +646,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
                     final InputStreamIndexInput inputStreamIndexInput = new InputStreamIndexInput(indexInput, fileInfo.partBytes());
                     InputStream inputStream = snapshotRateLimiter == null ? inputStreamIndexInput : new RateLimitingInputStream(inputStreamIndexInput, snapshotRateLimiter, snapshotThrottleListener);
                     inputStream = new AbortableInputStream(inputStream, fileInfo.physicalName());
-                    try (OutputStream output = blobContainer.createOutput(fileInfo.partName(i))) {
-                        int len;
-                        while ((len = inputStream.read(buffer)) > 0) {
-                            output.write(buffer, 0, len);
-                        }
-                    }
+                    blobContainer.writeBlob(fileInfo.partName(i), inputStream, fileInfo.partBytes());
                 }
                 Store.verify(indexInput);
                 snapshotStatus.addProcessedFile(fileInfo.length());
@@ -768,8 +762,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
 
         @Override
         protected InputStream openSlice(long slice) throws IOException {
-            return container.openInput(info.partName(slice));
-
+            return container.readBlob(info.partName(slice));
         }
     }
 

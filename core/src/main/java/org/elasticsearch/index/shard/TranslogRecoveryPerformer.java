@@ -27,6 +27,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -34,12 +35,7 @@ import org.elasticsearch.index.aliases.IndexAliasesService;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.IgnoreOnRecoveryEngineException;
-import org.elasticsearch.index.mapper.DocumentMapperForType;
-import org.elasticsearch.index.mapper.MapperException;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.MapperUtils;
-import org.elasticsearch.index.mapper.Mapping;
-import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryParsingException;
@@ -60,15 +56,18 @@ public class TranslogRecoveryPerformer {
     private final IndexQueryParserService queryParserService;
     private final IndexAliasesService indexAliasesService;
     private final IndexCache indexCache;
+    private final ESLogger logger;
     private final Map<String, Mapping> recoveredTypes = new HashMap<>();
     private final ShardId shardId;
 
-    protected TranslogRecoveryPerformer(ShardId shardId, MapperService mapperService, IndexQueryParserService queryParserService, IndexAliasesService indexAliasesService, IndexCache indexCache) {
+    protected TranslogRecoveryPerformer(ShardId shardId, MapperService mapperService, IndexQueryParserService queryParserService,
+                                        IndexAliasesService indexAliasesService, IndexCache indexCache, ESLogger logger) {
         this.shardId = shardId;
         this.mapperService = mapperService;
         this.queryParserService = queryParserService;
         this.indexAliasesService = indexAliasesService;
         this.indexCache = indexCache;
+        this.logger = logger;
     }
 
     protected DocumentMapperForType docMapper(String type) {
@@ -153,6 +152,9 @@ public class TranslogRecoveryPerformer {
                                     .routing(create.routing()).parent(create.parent()).timestamp(create.timestamp()).ttl(create.ttl()),
                             create.version(), create.versionType().versionTypeForReplicationAndRecovery(), Engine.Operation.Origin.RECOVERY, true, false);
                     maybeAddMappingUpdate(engineCreate.type(), engineCreate.parsedDoc().dynamicMappingsUpdate(), engineCreate.id(), allowMappingUpdates);
+                    if (logger.isTraceEnabled()) {
+                        logger.trace("[translog] recover [create] op of [{}][{}]", create.type(), create.id());
+                    }
                     engine.create(engineCreate);
                     break;
                 case SAVE:
@@ -161,11 +163,17 @@ public class TranslogRecoveryPerformer {
                                     .routing(index.routing()).parent(index.parent()).timestamp(index.timestamp()).ttl(index.ttl()),
                             index.version(), index.versionType().versionTypeForReplicationAndRecovery(), Engine.Operation.Origin.RECOVERY, true);
                     maybeAddMappingUpdate(engineIndex.type(), engineIndex.parsedDoc().dynamicMappingsUpdate(), engineIndex.id(), allowMappingUpdates);
+                    if (logger.isTraceEnabled()) {
+                        logger.trace("[translog] recover [index] op of [{}][{}]", index.type(), index.id());
+                    }
                     engine.index(engineIndex);
                     break;
                 case DELETE:
                     Translog.Delete delete = (Translog.Delete) operation;
                     Uid uid = Uid.createUid(delete.uid().text());
+                    if (logger.isTraceEnabled()) {
+                        logger.trace("[translog] recover [delete] op of [{}][{}]", uid.type(), uid.id());
+                    }
                     engine.delete(new Engine.Delete(uid.type(), uid.id(), delete.uid(), delete.version(),
                             delete.versionType().versionTypeForReplicationAndRecovery(), Engine.Operation.Origin.RECOVERY, System.nanoTime(), false));
                     break;

@@ -43,7 +43,7 @@ public class TransportFlushAction extends TransportBroadcastReplicationAction<Fl
                                 TransportService transportService, ActionFilters actionFilters,
                                 IndexNameExpressionResolver indexNameExpressionResolver,
                                 TransportShardFlushAction replicatedFlushAction) {
-        super(FlushAction.NAME, FlushRequest.class, settings, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver, replicatedFlushAction);
+        super(FlushAction.NAME, FlushRequest::new, settings, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver, replicatedFlushAction);
     }
 
     @Override

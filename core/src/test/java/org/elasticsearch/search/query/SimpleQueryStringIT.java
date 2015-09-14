@@ -21,6 +21,7 @@ package org.elasticsearch.search.query;
 
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.Operator;
@@ -266,7 +267,7 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
                         .flags(SimpleQueryStringFlag.NONE)).get();
         assertHitCount(searchResponse, 0l);
 
-        searchResponse = client().prepareSearch().setSource("{\n" +
+        searchResponse = client().prepareSearch().setSource(new BytesArray("{\n" +
                 "  \"query\": {\n" +
                 "    \"simple_query_string\": {\n" +
                 "      \"query\": \"foo|bar\",\n" +
@@ -274,7 +275,7 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
                 "      \"flags\": \"NONE\"\n" +
                 "    }\n" +
                 "  }\n" +
-                "}").get();
+                "}")).get();
         assertHitCount(searchResponse, 1l);
 
         searchResponse = client().prepareSearch().setQuery(

@@ -631,8 +631,6 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
     }
 
     private MultiMatchQueryBuilder.Type getType(MultiMatchQueryBuilder builder) throws NoSuchFieldException, IllegalAccessException {
-        Field field = MultiMatchQueryBuilder.class.getDeclaredField("type");
-        field.setAccessible(true);
-        return (MultiMatchQueryBuilder.Type) field.get(builder);
+        return builder.getType();
     }
 }

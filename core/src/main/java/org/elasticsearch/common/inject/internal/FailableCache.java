@@ -19,6 +19,7 @@ package org.elasticsearch.common.inject.internal;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
+import org.elasticsearch.common.SuppressForbidden;
 
 import java.util.concurrent.ExecutionException;
 
@@ -28,6 +29,8 @@ import java.util.concurrent.ExecutionException;
  *
  * @author jessewilson@google.com (Jesse Wilson)
  */
+// TODO remove this suppression once we get rid of the CacheBuilder and friends
+@SuppressForbidden(reason = "this uses Function in it's method declaration somewhere")
 public abstract class FailableCache<K, V> {
 
     private final LoadingCache<K, Object> delegate = CacheBuilder.newBuilder().build(new CacheLoader<K, Object>() {

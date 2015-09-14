@@ -146,6 +146,13 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
             return type;
         }
     }
+    
+    /**
+     * Returns the type (for testing)
+     */
+    public MultiMatchQueryBuilder.Type getType() {
+        return type;
+    }
 
     /**
      * Constructs a new text query.

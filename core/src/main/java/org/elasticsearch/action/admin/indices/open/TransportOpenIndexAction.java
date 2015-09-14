@@ -51,7 +51,7 @@ public class TransportOpenIndexAction extends TransportMasterNodeAction<OpenInde
                                     ThreadPool threadPool, MetaDataIndexStateService indexStateService,
                                     NodeSettingsService nodeSettingsService, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                     DestructiveOperations destructiveOperations) {
-        super(settings, OpenIndexAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, OpenIndexRequest.class);
+        super(settings, OpenIndexAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, OpenIndexRequest::new);
         this.indexStateService = indexStateService;
         this.destructiveOperations = destructiveOperations;
     }

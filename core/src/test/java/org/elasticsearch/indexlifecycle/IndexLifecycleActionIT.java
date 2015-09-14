@@ -19,8 +19,6 @@
 
 package org.elasticsearch.indexlifecycle;
 
-import com.google.common.base.Function;
-import com.google.common.collect.Iterables;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
@@ -30,7 +28,6 @@ import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
@@ -38,6 +35,8 @@ import org.elasticsearch.test.InternalTestCluster;
 import org.junit.Test;
 
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.client.Requests.clusterHealthRequest;
 import static org.elasticsearch.client.Requests.createIndexRequest;
@@ -222,12 +221,7 @@ public class IndexLifecycleActionIT extends ESIntegTestCase {
     }
 
     private void assertNodesPresent(RoutingNodes routingNodes, String... nodes) {
-        final Set<String> keySet = Sets.newHashSet(Iterables.transform(routingNodes, new Function<RoutingNode, String>() {
-            @Override
-            public String apply(RoutingNode input) {
-                return input.nodeId();
-            }
-        }));
+        final Set<String> keySet = StreamSupport.stream(routingNodes.spliterator(), false).map((p) -> (p.nodeId())).collect(Collectors.toSet());
         assertThat(keySet, containsInAnyOrder(nodes));
     }
 }

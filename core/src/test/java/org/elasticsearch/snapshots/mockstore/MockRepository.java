@@ -27,6 +27,7 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Module;
@@ -43,7 +44,6 @@ import org.elasticsearch.repositories.fs.FsRepository;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
 import java.io.UnsupportedEncodingException;
 import java.nio.file.Path;
 import java.security.MessageDigest;
@@ -317,9 +317,9 @@ public class MockRepository extends FsRepository {
             }
 
             @Override
-            public InputStream openInput(String name) throws IOException {
+            public InputStream readBlob(String name) throws IOException {
                 maybeIOExceptionOrBlock(name);
-                return super.openInput(name);
+                return super.readBlob(name);
             }
 
             @Override
@@ -353,9 +353,15 @@ public class MockRepository extends FsRepository {
             }
 
             @Override
-            public OutputStream createOutput(String blobName) throws IOException {
+            public void writeBlob(String blobName, BytesReference bytes) throws IOException {
                 maybeIOExceptionOrBlock(blobName);
-                return super.createOutput(blobName);
+                super.writeBlob(blobName, bytes);
+            }
+
+            @Override
+            public void writeBlob(String blobName, InputStream inputStream, long blobSize) throws IOException {
+                maybeIOExceptionOrBlock(blobName);
+                super.writeBlob(blobName, inputStream, blobSize);
             }
         }
     }

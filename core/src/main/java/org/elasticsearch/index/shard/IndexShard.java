@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.shard;
 
-import com.google.common.base.Charsets;
+import java.nio.charset.StandardCharsets;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.search.QueryCachingPolicy;
@@ -1203,7 +1203,7 @@ public class IndexShard extends AbstractIndexShardComponent {
             return;
         }
         BytesStreamOutput os = new BytesStreamOutput();
-        PrintStream out = new PrintStream(os, false, Charsets.UTF_8.name());
+        PrintStream out = new PrintStream(os, false, StandardCharsets.UTF_8.name());
 
         if ("checksum".equalsIgnoreCase(checkIndexOnStartup)) {
             // physical verification only: verify all checksums for the latest commit
@@ -1221,7 +1221,7 @@ public class IndexShard extends AbstractIndexShardComponent {
             }
             out.flush();
             if (corrupt != null) {
-                logger.warn("check index [failure]\n{}", new String(os.bytes().toBytes(), Charsets.UTF_8));
+                logger.warn("check index [failure]\n{}", new String(os.bytes().toBytes(), StandardCharsets.UTF_8));
                 throw corrupt;
             }
         } else {
@@ -1236,7 +1236,7 @@ public class IndexShard extends AbstractIndexShardComponent {
                         // ignore if closed....
                         return;
                     }
-                    logger.warn("check index [failure]\n{}", new String(os.bytes().toBytes(), Charsets.UTF_8));
+                    logger.warn("check index [failure]\n{}", new String(os.bytes().toBytes(), StandardCharsets.UTF_8));
                     if ("fix".equalsIgnoreCase(checkIndexOnStartup)) {
                         if (logger.isDebugEnabled()) {
                             logger.debug("fixing index, writing new segments file ...");
@@ -1254,7 +1254,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         }
 
         if (logger.isDebugEnabled()) {
-            logger.debug("check index [success]\n{}", new String(os.bytes().toBytes(), Charsets.UTF_8));
+            logger.debug("check index [success]\n{}", new String(os.bytes().toBytes(), StandardCharsets.UTF_8));
         }
 
         recoveryState.getVerifyIndex().checkIndexTime(Math.max(0, TimeValue.nsecToMSec(System.nanoTime() - timeNS)));
@@ -1351,7 +1351,8 @@ public class IndexShard extends AbstractIndexShardComponent {
     }
 
     private final EngineConfig newEngineConfig(TranslogConfig translogConfig, QueryCachingPolicy cachingPolicy) {
-        final TranslogRecoveryPerformer translogRecoveryPerformer = new TranslogRecoveryPerformer(shardId, mapperService, queryParserService, indexAliasesService, indexCache) {
+        final TranslogRecoveryPerformer translogRecoveryPerformer = new TranslogRecoveryPerformer(shardId, mapperService, queryParserService,
+                indexAliasesService, indexCache, logger) {
             @Override
             protected void operationProcessed() {
                 assert recoveryState != null;

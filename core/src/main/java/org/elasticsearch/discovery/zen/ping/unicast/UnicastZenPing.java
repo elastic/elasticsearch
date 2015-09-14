@@ -167,7 +167,7 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
         }
         this.configuredTargetNodes = configuredTargetNodes.toArray(new DiscoveryNode[configuredTargetNodes.size()]);
 
-        transportService.registerRequestHandler(ACTION_NAME, UnicastPingRequest.class, ThreadPool.Names.SAME, new UnicastPingRequestHandler());
+        transportService.registerRequestHandler(ACTION_NAME, UnicastPingRequest::new, ThreadPool.Names.SAME, new UnicastPingRequestHandler());
 
         ThreadFactory threadFactory = EsExecutors.daemonThreadFactory(settings, "[unicast_connect]");
         unicastConnectExecutor = EsExecutors.newScaling("unicast_connect", 0, concurrentConnects, 60, TimeUnit.SECONDS, threadFactory);
@@ -523,13 +523,13 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
         }
     }
 
-    static class UnicastPingRequest extends TransportRequest {
+    public static class UnicastPingRequest extends TransportRequest {
 
         int id;
         TimeValue timeout;
         PingResponse pingResponse;
 
-        UnicastPingRequest() {
+        public UnicastPingRequest() {
         }
 
         @Override

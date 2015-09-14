@@ -113,7 +113,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent<SnapshotSh
 
         if (DiscoveryNode.masterNode(settings)) {
             // This needs to run only on nodes that can become masters
-            transportService.registerRequestHandler(UPDATE_SNAPSHOT_ACTION_NAME, UpdateIndexShardSnapshotStatusRequest.class, ThreadPool.Names.SAME, new UpdateSnapshotStateRequestHandler());
+            transportService.registerRequestHandler(UPDATE_SNAPSHOT_ACTION_NAME, UpdateIndexShardSnapshotStatusRequest::new, ThreadPool.Names.SAME, new UpdateSnapshotStateRequestHandler());
         }
 
     }
@@ -410,7 +410,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent<SnapshotSh
     /**
      * Internal request that is used to send changes in snapshot status to master
      */
-    private static class UpdateIndexShardSnapshotStatusRequest extends TransportRequest {
+    public static class UpdateIndexShardSnapshotStatusRequest extends TransportRequest {
         private SnapshotId snapshotId;
         private ShardId shardId;
         private SnapshotsInProgress.ShardSnapshotStatus status;

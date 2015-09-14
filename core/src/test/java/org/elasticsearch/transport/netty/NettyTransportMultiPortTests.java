@@ -19,7 +19,7 @@
 package org.elasticsearch.transport.netty;
 
 import com.carrotsearch.hppc.IntHashSet;
-import com.google.common.base.Charsets;
+import java.nio.charset.StandardCharsets;
 import org.elasticsearch.Version;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.common.component.Lifecycle;
@@ -238,7 +238,7 @@ public class NettyTransportMultiPortTests extends ESTestCase {
 
             assertThat(socket.isConnected(), is(true));
             try (OutputStream os = socket.getOutputStream()) {
-                os.write("foo".getBytes(Charsets.UTF_8));
+                os.write("foo".getBytes(StandardCharsets.UTF_8));
                 os.flush();
             }
         }

@@ -49,7 +49,7 @@ public class TransportNodesHotThreadsAction extends TransportNodesAction<NodesHo
                                           ClusterService clusterService, TransportService transportService,
                                           ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
         super(settings, NodesHotThreadsAction.NAME, clusterName, threadPool, clusterService, transportService, actionFilters,
-                indexNameExpressionResolver, NodesHotThreadsRequest.class, NodeRequest.class, ThreadPool.Names.GENERIC);
+                indexNameExpressionResolver, NodesHotThreadsRequest::new, NodeRequest::new, ThreadPool.Names.GENERIC);
     }
 
     @Override
@@ -94,11 +94,11 @@ public class TransportNodesHotThreadsAction extends TransportNodesAction<NodesHo
         return false;
     }
 
-    static class NodeRequest extends BaseNodeRequest {
+    public static class NodeRequest extends BaseNodeRequest {
 
         NodesHotThreadsRequest request;
 
-        NodeRequest() {
+        public NodeRequest() {
         }
 
         NodeRequest(String nodeId, NodesHotThreadsRequest request) {

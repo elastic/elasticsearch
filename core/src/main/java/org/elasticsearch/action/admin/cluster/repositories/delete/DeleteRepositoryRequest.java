@@ -37,7 +37,7 @@ public class DeleteRepositoryRequest extends AcknowledgedRequest<DeleteRepositor
 
     private String name;
 
-    DeleteRepositoryRequest() {
+    public DeleteRepositoryRequest() {
     }
 
     /**

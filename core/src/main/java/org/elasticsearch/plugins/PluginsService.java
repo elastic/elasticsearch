@@ -47,6 +47,7 @@ import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -331,12 +332,7 @@ public class PluginsService extends AbstractComponent {
             // pluginmanager does it, but we do it again, in case lusers mess with jar files manually
             try {
                 final List<URL> jars = new ArrayList<>();
-                ClassLoader parentLoader = getClass().getClassLoader();
-                if (parentLoader instanceof URLClassLoader) {
-                    for (URL url : ((URLClassLoader) parentLoader).getURLs()) {
-                        jars.add(url);
-                    }
-                }
+                jars.addAll(Arrays.asList(JarHell.parseClassPath()));
                 jars.addAll(bundle.urls);
                 JarHell.checkJarHell(jars.toArray(new URL[0]));
             } catch (Exception e) {

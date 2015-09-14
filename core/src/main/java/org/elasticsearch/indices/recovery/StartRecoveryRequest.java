@@ -47,7 +47,7 @@ public class StartRecoveryRequest extends TransportRequest {
 
     private RecoveryState.Type recoveryType;
 
-    StartRecoveryRequest() {
+    public StartRecoveryRequest() {
     }
 
     /**

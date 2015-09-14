@@ -81,12 +81,15 @@ public class RequestHandlerRegistry<Request extends TransportRequest> {
             } catch (NoSuchMethodException e) {
                 throw new IllegalStateException("failed to create constructor (does it have a default constructor?) for request " + request, e);
             }
-            this.requestConstructor.setAccessible(true);
         }
 
         @Override
         public Request call() throws Exception {
-            return requestConstructor.newInstance();
+            try {
+                return requestConstructor.newInstance();
+            } catch (IllegalAccessException e) {
+                throw new IllegalStateException("Could not access '" + requestConstructor + "'. Implementations must be a public class and have a public no-arg ctor.", e);
+            }
         }
     }
 }

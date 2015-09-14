@@ -219,6 +219,9 @@ public class DateFieldMapper extends NumberFieldMapper {
 
             @Override
             public Query rewrite(IndexReader reader) throws IOException {
+                if (getBoost() != 1.0F) {
+                    return super.rewrite(reader);
+                }
                 return innerRangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, timeZone, forcedDateParser);
             }
 

@@ -21,7 +21,6 @@ package org.elasticsearch.index.query.functionscore;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableMap.Builder;
-
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
@@ -31,20 +30,14 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.common.lucene.search.function.CombineFunction;
-import org.elasticsearch.common.lucene.search.function.FiltersFunctionScoreQuery;
-import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
-import org.elasticsearch.common.lucene.search.function.ScoreFunction;
-import org.elasticsearch.common.lucene.search.function.WeightFactorFunction;
+import org.elasticsearch.common.lucene.search.function.*;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryParser;
 import org.elasticsearch.index.query.QueryParsingException;
-import org.elasticsearch.index.query.functionscore.factor.FactorParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 
 /**
  *
@@ -55,7 +48,6 @@ public class FunctionScoreQueryParser implements QueryParser {
 
     // For better readability of error message
     static final String MISPLACED_FUNCTION_MESSAGE_PREFIX = "you can either define [functions] array or a single function, not both. ";
-    static final String MISPLACED_BOOST_FUNCTION_MESSAGE_SUFFIX = " did you mean [boost] instead?";
 
     public static final ParseField WEIGHT_FIELD = new ParseField("weight");
     private static final ParseField FILTER_FIELD = new ParseField("filter").withAllDeprecated("query");
@@ -124,7 +116,7 @@ public class FunctionScoreQueryParser implements QueryParser {
             } else if ("functions".equals(currentFieldName)) {
                 if (singleFunctionFound) {
                     String errorString = "already found [" + singleFunctionName + "], now encountering [functions].";
-                    handleMisplacedFunctionsDeclaration(errorString, singleFunctionName);
+                    handleMisplacedFunctionsDeclaration(errorString);
                 }
                 currentFieldName = parseFiltersAndFunctions(parseContext, parser, filterFunctions, currentFieldName);
                 functionArrayFound = true;
@@ -141,7 +133,7 @@ public class FunctionScoreQueryParser implements QueryParser {
                 }
                 if (functionArrayFound) {
                     String errorString = "already found [functions] array, now encountering [" + currentFieldName + "].";
-                    handleMisplacedFunctionsDeclaration(errorString, currentFieldName);
+                    handleMisplacedFunctionsDeclaration(errorString);
                 }
                 if (filterFunctions.size() > 0) {
                     throw new ElasticsearchParseException("failed to parse [{}] query. already found function [{}], now encountering [{}]. use [functions] array if you want to define several functions.", NAME, singleFunctionName, currentFieldName);
@@ -191,12 +183,8 @@ public class FunctionScoreQueryParser implements QueryParser {
         }
     }
 
-    private void handleMisplacedFunctionsDeclaration(String errorString, String functionName) {
-        errorString = MISPLACED_FUNCTION_MESSAGE_PREFIX + errorString;
-        if (Arrays.asList(FactorParser.NAMES).contains(functionName)) {
-            errorString = errorString + MISPLACED_BOOST_FUNCTION_MESSAGE_SUFFIX;
-        }
-        throw new ElasticsearchParseException("failed to parse [{}] query. [{}]", NAME, errorString);
+    private void handleMisplacedFunctionsDeclaration(String errorString) {
+        throw new ElasticsearchParseException("failed to parse [{}] query. [{}]", NAME, MISPLACED_FUNCTION_MESSAGE_PREFIX + errorString);
     }
 
     private String parseFiltersAndFunctions(QueryParseContext parseContext, XContentParser parser,

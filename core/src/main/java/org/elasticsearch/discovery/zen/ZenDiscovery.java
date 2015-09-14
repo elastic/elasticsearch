@@ -1059,7 +1059,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         return rejoinOnMasterGone;
     }
 
-    static class RejoinClusterRequest extends TransportRequest {
+    public static class RejoinClusterRequest extends TransportRequest {
 
         private String fromNodeId;
 
@@ -1067,7 +1067,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
             this.fromNodeId = fromNodeId;
         }
 
-        RejoinClusterRequest() {
+        public RejoinClusterRequest() {
         }
 
         @Override

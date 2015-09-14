@@ -28,6 +28,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
@@ -67,6 +68,6 @@ public class RestPutWarmerAction extends BaseRestHandler {
         putWarmerRequest.searchRequest(searchRequest);
         putWarmerRequest.timeout(request.paramAsTime("timeout", putWarmerRequest.timeout()));
         putWarmerRequest.masterNodeTimeout(request.paramAsTime("master_timeout", putWarmerRequest.masterNodeTimeout()));
-        client.admin().indices().putWarmer(putWarmerRequest, new AcknowledgedRestListener<PutWarmerResponse>(channel));
+        client.admin().indices().putWarmer(putWarmerRequest, new AcknowledgedRestListener<>(channel));
     }
 }

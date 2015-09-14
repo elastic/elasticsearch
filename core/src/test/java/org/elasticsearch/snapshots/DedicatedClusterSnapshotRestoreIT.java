@@ -21,7 +21,6 @@ package org.elasticsearch.snapshots;
 
 import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.hppc.IntSet;
-import com.google.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
@@ -723,7 +722,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
 
         int asyncNodes = between(0, 5);
         logger.info("--> start {} additional nodes asynchronously", asyncNodes);
-        ListenableFuture<List<String>> asyncNodesFuture = internalCluster().startNodesAsync(asyncNodes, settings);
+        InternalTestCluster.Async<List<String>> asyncNodesFuture = internalCluster().startNodesAsync(asyncNodes, settings);
 
         int asyncIndices = between(0, 10);
         logger.info("--> create {} additional indices asynchronously", asyncIndices);

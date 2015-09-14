@@ -49,7 +49,6 @@ import org.junit.Assert;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.PrintStream;
-import java.lang.reflect.Field;
 import java.nio.file.Path;
 import java.util.*;
 
@@ -217,52 +216,10 @@ public class MockFSDirectoryService extends FsDirectoryService {
     public static final class ElasticsearchMockDirectoryWrapper extends MockDirectoryWrapper {
 
         private final boolean crash;
-        private final Set<String> superUnSyncedFiles;
-        private final Random superRandomState;
 
         public ElasticsearchMockDirectoryWrapper(Random random, Directory delegate, boolean crash) {
             super(random, delegate);
             this.crash = crash;
-
-            // TODO: remove all this and cutover to MockFS (DisableFsyncFS) instead
-            try {
-                Field field = MockDirectoryWrapper.class.getDeclaredField("unSyncedFiles");
-                field.setAccessible(true);
-                superUnSyncedFiles = (Set<String>) field.get(this);
-
-                field = MockDirectoryWrapper.class.getDeclaredField("randomState");
-                field.setAccessible(true);
-                superRandomState = (Random) field.get(this);
-            } catch (ReflectiveOperationException roe) {
-                throw new RuntimeException(roe);
-            }
-        }
-
-        /**
-         * Returns true if {@link #in} must sync its files.
-         * Currently, only {@link org.apache.lucene.store.NRTCachingDirectory} requires sync'ing its files
-         * because otherwise they are cached in an internal {@link org.apache.lucene.store.RAMDirectory}. If
-         * other directories require that too, they should be added to this method.
-         */
-        private boolean mustSync() {
-            Directory delegate = in;
-            while (delegate instanceof FilterDirectory) {
-                if (delegate instanceof NRTCachingDirectory) {
-                    return true;
-                }
-                delegate = ((FilterDirectory) delegate).getDelegate();
-            }
-            return delegate instanceof NRTCachingDirectory;
-        }
-
-        @Override
-        public synchronized void sync(Collection<String> names) throws IOException {
-            // don't wear out our hardware so much in tests.
-            if (superRandomState.nextInt(100) == 0 || mustSync()) {
-                super.sync(names);
-            } else {
-                superUnSyncedFiles.removeAll(names);
-            }
         }
 
         @Override
@@ -279,13 +236,7 @@ public class MockFSDirectoryService extends FsDirectoryService {
 
         public CloseableDirectory(BaseDirectoryWrapper dir) {
             this.dir = dir;
-            try {
-                final Field suiteFailureMarker = LuceneTestCase.class.getDeclaredField("suiteFailureMarker");
-                suiteFailureMarker.setAccessible(true);
-                this.failureMarker = (TestRuleMarkFailure) suiteFailureMarker.get(LuceneTestCase.class);
-            } catch (Throwable e) {
-                throw new ElasticsearchException("foo", e);
-            }
+            this.failureMarker = ESTestCase.getSuiteFailureMarker();
         }
 
         @Override

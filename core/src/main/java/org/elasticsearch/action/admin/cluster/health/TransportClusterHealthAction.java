@@ -124,7 +124,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
         if (request.waitForNodes().isEmpty()) {
             waitFor--;
         }
-        if (request.indices().length == 0) { // check that they actually exists in the meta data
+        if (request.indices() == null || request.indices().length == 0) { // check that they actually exists in the meta data
             waitFor--;
         }
 
@@ -199,7 +199,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
         if (request.waitForActiveShards() != -1 && response.getActiveShards() >= request.waitForActiveShards()) {
             waitForCounter++;
         }
-        if (request.indices().length > 0) {
+        if (request.indices() != null && request.indices().length > 0) {
             try {
                 indexNameExpressionResolver.concreteIndices(clusterState, IndicesOptions.strictExpand(), request.indices());
                 waitForCounter++;

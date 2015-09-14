@@ -39,9 +39,6 @@ class SingleFieldInjector implements SingleMemberInjector {
         this.injectionPoint = injectionPoint;
         this.field = (Field) injectionPoint.getMember();
         this.dependency = injectionPoint.getDependencies().get(0);
-
-        // Ewwwww...
-        field.setAccessible(true);
         factory = injector.getInternalFactory(dependency.getKey(), errors);
     }
 

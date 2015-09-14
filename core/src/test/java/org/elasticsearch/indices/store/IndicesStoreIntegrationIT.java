@@ -235,9 +235,9 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
     @Test
     @TestLogging("cluster.service:TRACE")
     public void testShardActiveElsewhereDoesNotDeleteAnother() throws Exception {
-        Future<String> masterFuture = internalCluster().startNodeAsync(
+        InternalTestCluster.Async<String> masterFuture = internalCluster().startNodeAsync(
                 Settings.builder().put("node.master", true, "node.data", false).build());
-        Future<List<String>> nodesFutures = internalCluster().startNodesAsync(4,
+        InternalTestCluster.Async<List<String>> nodesFutures = internalCluster().startNodesAsync(4,
                 Settings.builder().put("node.master", false, "node.data", true).build());
 
         final String masterNode = masterFuture.get();

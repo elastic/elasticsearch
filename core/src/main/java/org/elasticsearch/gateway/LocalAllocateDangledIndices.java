@@ -188,12 +188,12 @@ public class LocalAllocateDangledIndices extends AbstractComponent {
         }
     }
 
-    static class AllocateDangledRequest extends TransportRequest {
+    public static class AllocateDangledRequest extends TransportRequest {
 
         DiscoveryNode fromNode;
         IndexMetaData[] indices;
 
-        AllocateDangledRequest() {
+        public AllocateDangledRequest() {
         }
 
         AllocateDangledRequest(DiscoveryNode fromNode, IndexMetaData[] indices) {

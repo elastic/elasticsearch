@@ -24,7 +24,6 @@ import org.elasticsearch.env.Environment;
 
 import java.io.*;
 import java.net.URL;
-import java.net.URLClassLoader;
 import java.nio.file.AccessMode;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
@@ -121,8 +120,8 @@ final class Security {
     private static final Map<Pattern,String> SPECIAL_JARS;
     static {
         Map<Pattern,String> m = new IdentityHashMap<>();
-        m.put(Pattern.compile(".*lucene-core-.*\\.jar$"),    "es.security.jar.lucene.core");
-        m.put(Pattern.compile(".*securemock-.*\\.jar$"),     "es.security.jar.elasticsearch.securemock");
+        m.put(Pattern.compile(".*lucene-core-.*\\.jar$"),              "es.security.jar.lucene.core");
+        m.put(Pattern.compile(".*securemock-.*\\.jar$"),               "es.security.jar.elasticsearch.securemock");
         SPECIAL_JARS = Collections.unmodifiableMap(m);
     }
 
@@ -133,27 +132,21 @@ final class Security {
      */
     @SuppressForbidden(reason = "proper use of URL")
     static void setCodebaseProperties() {
-        ClassLoader loader = Security.class.getClassLoader();
-        if (loader instanceof URLClassLoader) {
-            for (URL url : ((URLClassLoader)loader).getURLs()) {
-                for (Map.Entry<Pattern,String> e : SPECIAL_JARS.entrySet()) {
-                    if (e.getKey().matcher(url.getPath()).matches()) {
-                        String prop = e.getValue();
-                        if (System.getProperty(prop) != null) {
-                            throw new IllegalStateException("property: " + prop + " is unexpectedly set: " + System.getProperty(prop));
-                        }
-                        System.setProperty(prop, url.toString());
+        for (URL url : JarHell.parseClassPath()) {
+            for (Map.Entry<Pattern,String> e : SPECIAL_JARS.entrySet()) {
+                if (e.getKey().matcher(url.getPath()).matches()) {
+                    String prop = e.getValue();
+                    if (System.getProperty(prop) != null) {
+                        throw new IllegalStateException("property: " + prop + " is unexpectedly set: " + System.getProperty(prop));
                     }
+                    System.setProperty(prop, url.toString());
                 }
             }
-            for (String prop : SPECIAL_JARS.values()) {
-                if (System.getProperty(prop) == null) {
-                    System.setProperty(prop, "file:/dev/null"); // no chance to be interpreted as "all"
-                }
+        }
+        for (String prop : SPECIAL_JARS.values()) {
+            if (System.getProperty(prop) == null) {
+                System.setProperty(prop, "file:/dev/null"); // no chance to be interpreted as "all"
             }
-        } else {
-            // we could try to parse the classpath or something, but screw it for now.
-            throw new UnsupportedOperationException("Unsupported system classloader type: " + loader.getClass());
         }
     }
 

@@ -996,9 +996,9 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         try {
             configureUnicastCluster(5, null, 1);
             // we could probably write a test without a dedicated master node but it is easier if we use one
-            Future<String> masterNodeFuture = internalCluster().startMasterOnlyNodeAsync();
+            InternalTestCluster.Async<String> masterNodeFuture = internalCluster().startMasterOnlyNodeAsync();
             // node_1 will have the shard in the beginning
-            Future<String> node1Future = internalCluster().startDataOnlyNodeAsync();
+            InternalTestCluster.Async<String> node1Future = internalCluster().startDataOnlyNodeAsync();
             final String masterNode = masterNodeFuture.get();
             final String node_1 = node1Future.get();
             logger.info("--> creating index [test] with one shard and zero replica");
@@ -1178,8 +1178,8 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
     @Test
     public void searchWithRelocationAndSlowClusterStateProcessing() throws Exception {
         configureUnicastCluster(3, null, 1);
-        Future<String> masterNodeFuture = internalCluster().startMasterOnlyNodeAsync();
-        Future<String> node_1Future = internalCluster().startDataOnlyNodeAsync();
+        InternalTestCluster.Async<String> masterNodeFuture = internalCluster().startMasterOnlyNodeAsync();
+        InternalTestCluster.Async<String> node_1Future = internalCluster().startDataOnlyNodeAsync();
 
         final String node_1 = node_1Future.get();
         final String masterNode = masterNodeFuture.get();
@@ -1191,7 +1191,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         );
         ensureGreen("test");
 
-        Future<String> node_2Future = internalCluster().startDataOnlyNodeAsync();
+        InternalTestCluster.Async<String> node_2Future = internalCluster().startDataOnlyNodeAsync();
         final String node_2 = node_2Future.get();
         List<IndexRequestBuilder> indexRequestBuilderList = new ArrayList<>();
         for (int i = 0; i < 100; i++) {
@@ -1243,8 +1243,8 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
     @Test
     public void testIndicesDeleted() throws Exception {
         configureUnicastCluster(3, null, 2);
-        Future<List<String>> masterNodes = internalCluster().startMasterOnlyNodesAsync(2);
-        Future<String> dataNode = internalCluster().startDataOnlyNodeAsync();
+        InternalTestCluster.Async<List<String>> masterNodes= internalCluster().startMasterOnlyNodesAsync(2);
+        InternalTestCluster.Async<String> dataNode = internalCluster().startDataOnlyNodeAsync();
         dataNode.get();
         masterNodes.get();
         ensureStableCluster(3);

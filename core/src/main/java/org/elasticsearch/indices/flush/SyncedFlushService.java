@@ -435,10 +435,10 @@ public class SyncedFlushService extends AbstractComponent {
         return new InFlightOpsResponse(opCount);
     }
 
-    final static class PreSyncedFlushRequest extends TransportRequest {
+    public final static class PreSyncedFlushRequest extends TransportRequest {
         private ShardId shardId;
 
-        PreSyncedFlushRequest() {
+        public PreSyncedFlushRequest() {
         }
 
         public PreSyncedFlushRequest(ShardId shardId) {
@@ -500,7 +500,7 @@ public class SyncedFlushService extends AbstractComponent {
         }
     }
 
-    static final class SyncedFlushRequest extends TransportRequest {
+    public static final class SyncedFlushRequest extends TransportRequest {
 
         private String syncId;
         private Engine.CommitId expectedCommitId;
@@ -600,7 +600,7 @@ public class SyncedFlushService extends AbstractComponent {
     }
 
 
-    static final class InFlightOpsRequest extends TransportRequest {
+    public static final class InFlightOpsRequest extends TransportRequest {
 
         private ShardId shardId;
 

@@ -23,6 +23,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.lucene.search.function.FieldValueFactorFunction;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -178,7 +179,7 @@ public class FunctionScoreIT extends ESIntegTestCase {
 
         assertThat(
                 responseWithWeights.getHits().getAt(0).getExplanation().toString(),
-                equalTo("6.0 = function score, product of:\n  1.0 = ConstantScore(text_field:value), product of:\n    1.0 = boost\n    1.0 = queryNorm\n  6.0 = min of:\n    6.0 = function score, score mode [multiply]\n      1.0 = function score, product of:\n        1.0 = match filter: *:*\n        1.0 = Function for field geo_point_field:\n          1.0 = exp(-0.5*pow(MIN of: [Math.max(arcDistance([10.0, 20.0](=doc value),[10.0, 20.0](=origin)) - 0.0(=offset), 0)],2.0)/7.213475204444817E11)\n      2.0 = function score, product of:\n        1.0 = match filter: *:*\n        2.0 = product of:\n          1.0 = field value function: ln(doc['double_field'].value * factor=1.0)\n          2.0 = weight\n      3.0 = function score, product of:\n        1.0 = match filter: *:*\n        3.0 = product of:\n          1.0 = script score function, computed with script:\"[script: _index['text_field']['value'].tf(), type: inline, lang: null, params: null]\n            1.0 = _score: \n              1.0 = ConstantScore(text_field:value), product of:\n                1.0 = boost\n                1.0 = queryNorm\n          3.0 = weight\n    3.4028235E38 = maxBoost\n  1.0 = queryBoost\n"));
+                equalTo("6.0 = function score, product of:\n  1.0 = ConstantScore(text_field:value), product of:\n    1.0 = boost\n    1.0 = queryNorm\n  6.0 = min of:\n    6.0 = function score, score mode [multiply]\n      1.0 = function score, product of:\n        1.0 = match filter: *:*\n        1.0 = Function for field geo_point_field:\n          1.0 = exp(-0.5*pow(MIN of: [Math.max(arcDistance([10.0, 20.0](=doc value),[10.0, 20.0](=origin)) - 0.0(=offset), 0)],2.0)/7.213475204444817E11)\n      2.0 = function score, product of:\n        1.0 = match filter: *:*\n        2.0 = product of:\n          1.0 = field value function: ln(doc['double_field'].value * factor=1.0)\n          2.0 = weight\n      3.0 = function score, product of:\n        1.0 = match filter: *:*\n        3.0 = product of:\n          1.0 = script score function, computed with script:\"[script: _index['text_field']['value'].tf(), type: inline, lang: null, params: null]\n            1.0 = _score: \n              1.0 = ConstantScore(text_field:value), product of:\n                1.0 = boost\n                1.0 = queryNorm\n          3.0 = weight\n    3.4028235E38 = maxBoost\n"));
         responseWithWeights = client().search(
                 searchRequest().source(
                         searchSource().query(
@@ -186,7 +187,7 @@ public class FunctionScoreIT extends ESIntegTestCase {
                                 .explain(true))).actionGet();
         assertThat(
                 responseWithWeights.getHits().getAt(0).getExplanation().toString(),
-                equalTo("4.0 = function score, product of:\n  1.0 = ConstantScore(text_field:value), product of:\n    1.0 = boost\n    1.0 = queryNorm\n  4.0 = min of:\n    4.0 = product of:\n      1.0 = constant score 1.0 - no function provided\n      4.0 = weight\n    3.4028235E38 = maxBoost\n  1.0 = queryBoost\n"));
+                equalTo("4.0 = function score, product of:\n  1.0 = ConstantScore(text_field:value), product of:\n    1.0 = boost\n    1.0 = queryNorm\n  4.0 = min of:\n    4.0 = product of:\n      1.0 = constant score 1.0 - no function provided\n      4.0 = weight\n    3.4028235E38 = maxBoost\n"));
 
     }
 
@@ -378,8 +379,8 @@ public class FunctionScoreIT extends ESIntegTestCase {
                 .endObject()
                 .endObject().string();
         SearchResponse response = client().search(
-                searchRequest().source(query)
-        ).actionGet();
+                searchRequest().source(new BytesArray(query))
+                ).actionGet();
         assertSearchResponse(response);
         assertThat(response.getHits().getAt(0).score(), equalTo(2.0f));
 
@@ -391,7 +392,7 @@ public class FunctionScoreIT extends ESIntegTestCase {
                 .endObject()
                 .endObject().string();
         response = client().search(
-                searchRequest().source(query)
+                searchRequest().source(new BytesArray(query))
         ).actionGet();
         assertSearchResponse(response);
         assertThat(response.getHits().getAt(0).score(), equalTo(2.0f));

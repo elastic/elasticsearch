@@ -36,7 +36,7 @@ public abstract class TransportRequest extends TransportMessage<TransportRequest
         }
     }
 
-    protected TransportRequest() {
+    public TransportRequest() {
     }
 
     protected TransportRequest(TransportRequest request) {

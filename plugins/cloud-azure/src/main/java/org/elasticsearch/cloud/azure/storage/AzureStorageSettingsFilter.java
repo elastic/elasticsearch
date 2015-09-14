@@ -29,7 +29,7 @@ import static org.elasticsearch.cloud.azure.storage.AzureStorageService.Storage.
 public class AzureStorageSettingsFilter extends AbstractComponent {
 
     @Inject
-    protected AzureStorageSettingsFilter(Settings settings, SettingsFilter settingsFilter) {
+    public AzureStorageSettingsFilter(Settings settings, SettingsFilter settingsFilter) {
         super(settings);
         // Cloud storage API settings needed to be hidden
         settingsFilter.addFilter(ACCOUNT);

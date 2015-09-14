@@ -410,7 +410,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent<SnapshotSh
     /**
      * Internal request that is used to send changes in snapshot status to master
      */
-    private static class UpdateIndexShardSnapshotStatusRequest extends TransportRequest {
+    public static class UpdateIndexShardSnapshotStatusRequest extends TransportRequest {
         private SnapshotId snapshotId;
         private ShardId shardId;
         private SnapshotsInProgress.ShardSnapshotStatus status;

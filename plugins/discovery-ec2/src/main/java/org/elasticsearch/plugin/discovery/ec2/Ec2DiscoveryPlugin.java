@@ -24,6 +24,7 @@ import org.elasticsearch.cloud.aws.Ec2Module;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.discovery.DiscoveryModule;
+import org.elasticsearch.discovery.ec2.AwsEc2UnicastHostsProvider;
 import org.elasticsearch.discovery.ec2.Ec2Discovery;
 import org.elasticsearch.plugins.Plugin;
 
@@ -61,5 +62,6 @@ public class Ec2DiscoveryPlugin extends Plugin {
 
     public void onModule(DiscoveryModule discoveryModule) {
         discoveryModule.addDiscoveryType("ec2", Ec2Discovery.class);
+        discoveryModule.addUnicastHostProvider(AwsEc2UnicastHostsProvider.class);
     }
 }

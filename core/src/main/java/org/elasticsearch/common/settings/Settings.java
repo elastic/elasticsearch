@@ -21,7 +21,6 @@ package org.elasticsearch.common.settings;
 
 import com.google.common.base.Charsets;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSortedMap;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
@@ -31,12 +30,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.property.PropertyPlaceholder;
 import org.elasticsearch.common.settings.loader.SettingsLoader;
 import org.elasticsearch.common.settings.loader.SettingsLoaderFactory;
-import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.MemorySizeValue;
-import org.elasticsearch.common.unit.RatioValue;
-import org.elasticsearch.common.unit.SizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.unit.*;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
@@ -45,17 +39,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Properties;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -86,13 +70,12 @@ public final class Settings implements ToXContent {
         return settingsRequireUnits;
     }
 
-    private ImmutableMap<String, String> settings;
+    private SortedMap<String, String> settings;
     private final ImmutableMap<String, String> forcedUnderscoreSettings;
 
     Settings(Map<String, String> settings) {
         // we use a sorted map for consistent serialization when using getAsMap()
-        // TODO: use Collections.unmodifiableMap with a TreeMap
-        this.settings = ImmutableSortedMap.copyOf(settings);
+        this.settings = Collections.unmodifiableSortedMap(new TreeMap<>(settings));
         Map<String, String> forcedUnderscoreSettings = null;
         for (Map.Entry<String, String> entry : settings.entrySet()) {
             String toUnderscoreCase = Strings.toUnderscoreCase(entry.getKey());
@@ -108,9 +91,10 @@ public final class Settings implements ToXContent {
 
     /**
      * The settings as a flat {@link java.util.Map}.
+     * @return an unmodifiable map of settings
      */
-    public ImmutableMap<String, String> getAsMap() {
-        return this.settings;
+    public Map<String, String> getAsMap() {
+        return Collections.unmodifiableMap(this.settings);
     }
 
     /**

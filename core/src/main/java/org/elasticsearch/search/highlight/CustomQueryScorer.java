@@ -79,15 +79,15 @@ public final class CustomQueryScorer extends QueryScorer {
                                            Map<String, WeightedSpanTerm> terms) throws IOException {
             if (query instanceof FunctionScoreQuery) {
                 query = ((FunctionScoreQuery) query).getSubQuery();
-                extract(query, terms);
+                extract(query, query.getBoost(), terms);
             } else if (query instanceof FiltersFunctionScoreQuery) {
                 query = ((FiltersFunctionScoreQuery) query).getSubQuery();
-                extract(query, terms);
+                extract(query, query.getBoost(), terms);
             } else if (query instanceof FilteredQuery) {
                 query = ((FilteredQuery) query).getQuery();
-                extract(query, terms);
+                extract(query, 1F, terms);
             } else {
-                extractWeightedTerms(terms, query);
+                extractWeightedTerms(terms, query, query.getBoost());
             }
         }
 

@@ -184,7 +184,8 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
 
     protected final BigArrays bigArrays;
     protected final ThreadPool threadPool;
-    protected volatile OpenChannelsHandler serverOpenChannels;
+    // package private for testing
+    volatile OpenChannelsHandler serverOpenChannels;
     protected volatile ClientBootstrap clientBootstrap;
     // node id to actual channel
     protected final ConcurrentMap<DiscoveryNode, NodeChannels> connectedNodes = newConcurrentMap();

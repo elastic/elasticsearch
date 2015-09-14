@@ -37,7 +37,7 @@ public class MultiTermVectorsShardRequest extends SingleShardRequest<MultiTermVe
     IntArrayList locations;
     List<TermVectorsRequest> requests;
 
-    MultiTermVectorsShardRequest() {
+    public MultiTermVectorsShardRequest() {
 
     }
 

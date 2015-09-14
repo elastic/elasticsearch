@@ -52,6 +52,11 @@ public class InternalProfileBreakdown implements ProfileBreakdown, Streamable, T
      */
     private long[] scratch;
 
+    /**
+     * Does this breakdown need to be "reconciled" later?  A breakdown
+     * needs to be reconciled if it was generated during the rewrite phase,
+     * because it will not have any of other timing scores recorded.
+     */
     private boolean needsReconciling = false;
 
     public InternalProfileBreakdown(boolean needsReconciling) {
@@ -111,14 +116,25 @@ public class InternalProfileBreakdown implements ProfileBreakdown, Streamable, T
         return time;
     }
 
+    /**
+     * @return True if this Breakdown needs to have its timings reconciled
+     */
     public boolean needsReconciling() {
         return needsReconciling;
     }
 
+    /**
+     * Sets if this Breakdown needs to have its timing reconciled later
+     * @param needsReconciling True if the timing needs to be fixed later
+     */
     public void setNeedsReconciling(boolean needsReconciling) {
         this.needsReconciling = needsReconciling;
     }
 
+    /**
+     * Add <code>other</code>'s timings into this breakdown
+     * @param other Another Breakdown to merge with this one
+     */
     public void merge(InternalProfileBreakdown other) {
         for (TimingType type : TimingType.values()) {
             long newTime = getTime(type) + other.getTime(type);

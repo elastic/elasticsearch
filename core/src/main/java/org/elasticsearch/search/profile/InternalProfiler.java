@@ -46,39 +46,54 @@ public class InternalProfiler {
     public InternalProfiler() {
     }
 
-    /** Get the {@link ProfileBreakdown} for the given query, potentially creating it if it did not exist. */
+    /**
+     * Get the {@link ProfileBreakdown} for the given query, potentially creating it if it did not exist.
+     * This should only be used for queries that will be undergoing scoring. Do not use it to profile the
+     * rewriting phase
+     */
     public ProfileBreakdown getProfileBreakDown(Query query) {
         return queryTree.getBreakDown(query, false);
     }
 
+    /**
+     * Get the {@link ProfileBreakdown} for the given query, potentially creating it if it did not exist.
+     * This should only be used for queries that will be undergoing rewriting.  Do not use it to profile
+     * the scoring phase
+     */
     public ProfileBreakdown getRewriteProfileBreakDown(Query query) {
         return queryTree.getBreakDown(query, true);
     }
 
     /**
-     * Removes the last (e.g. most recent) value on the stack
+     * Removes the last (e.g. most recent) query on the stack.  This should only be called for scoring
+     * queries, not rewritten queries
      */
     public void pollLastQuery() {
         queryTree.pollLast();
     }
 
+    /**
+     * Informs the profiler of how a query in the dependency tree was rewritten.  This allows
+     * the profiler to track how queries are rewritten, and later stitch them back into the
+     * overall profiling tree
+     *
+     * @param original   The original query
+     * @param rewritten  The rewritten query
+     */
     public void setRewrittenQuery(Query original, Query rewritten) {
         queryTree.setRewrittenQuery(original, rewritten);
     }
 
     /**
-     * After the query has been run and profiled, we need to merge the flat timing map
-     * with the dependency graph to build a data structure that mirrors the original
-     * query tree
-     *
      * @return a hierarchical representation of the profiled query tree
      */
     public List<InternalProfileResult> finalizeProfileResults() {
-        ArrayList<InternalProfileResult> results = new ArrayList<>(5);
-        results.addAll(queryTree.finalizeProfileResults());
-        return results;
+        return queryTree.finalizeProfileResults();
     }
 
+    /**
+     * @return the profiled collector tree
+     */
     public InternalProfileCollector finalizeCollectors() {
         return collector;
     }

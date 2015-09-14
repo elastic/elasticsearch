@@ -118,6 +118,10 @@ public class InternalProfileResult implements ProfileResult, Streamable, ToXCont
         }
     }
 
+    /**
+     * Overwrite the current timings with a new set of timings
+     * @param timings The new set of timings to use
+     */
     public void setTimings(InternalProfileBreakdown timings) {
         this.timings = timings;
     }

@@ -9,6 +9,8 @@ import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.ShieldIntegTestCase;
 import org.elasticsearch.test.ShieldSettingsSource;
@@ -28,6 +30,7 @@ import static org.hamcrest.Matchers.is;
 /**
  * This test checks to ensure that the IndexAuditTrail starts properly when indexing to a remote cluster
  */
+@ClusterScope(scope = Scope.TEST)
 public class RemoteIndexAuditTrailStartingTests extends ShieldIntegTestCase {
 
     public static final String SECOND_CLUSTER_NODE_PREFIX = "remote_" + SUITE_CLUSTER_NODE_PREFIX;

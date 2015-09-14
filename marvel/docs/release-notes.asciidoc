@@ -73,6 +73,30 @@ curl -XPUT localhost:9200/_cluster/settings -d '{
 === Change List
 
 [float]
+==== 2.0.0-beta2
+
+Marvel versions are now aligned with Elasticsearch version.
+
+- Agent:
+  * Added: add license expiration support to stop collecting data 7 days
+  after license expiration
+  * Added: add integration tests
+  * Added: add support to index cluster license information
+  * Added: add support to collect node statistics
+  * Added: add support to collect index recoveries
+  * Added: add support to collect index level statistics
+  * Added: add support to collect cluster statistics
+  * Added: add support to collect cluster state
+  * Improved: update project to work with Elasticsearch 2.x
+
+- Monitoring UI:
+  * TODO
+
+- Sense:
+  * Sense has been removed from Marvel starting version 2.x and is now shipped as
+  a Kibana application
+
+[float]
 ==== 1.3.1
 
 - Agent:

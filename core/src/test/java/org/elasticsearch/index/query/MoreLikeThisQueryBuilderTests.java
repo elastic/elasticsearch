@@ -23,6 +23,7 @@ import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.MultiFields;
 import org.apache.lucene.index.memory.MemoryIndex;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.termvectors.*;
@@ -30,7 +31,9 @@ import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.lucene.search.MoreLikeThisQuery;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.VersionType;
@@ -44,7 +47,7 @@ import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.stream.Stream;
 
-import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.*;
 
 public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLikeThisQueryBuilder> {
 
@@ -183,7 +186,7 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
 
     @Override
     protected void doAssertLuceneQuery(MoreLikeThisQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
-
+        assertThat(query, anyOf(instanceOf(BooleanQuery.class), instanceOf(MoreLikeThisQuery.class)));
     }
 
     @Test
@@ -205,12 +208,32 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
     }
 
     @Test
-    public void testWithArtificialDocument() {
+    public void testValidateItems() {
+        MoreLikeThisQueryBuilder queryBuilder = new MoreLikeThisQueryBuilder("field").like("some text");
+        int totalExpectedErrors = 0;
+        if (randomBoolean()) {
+            queryBuilder.addLikeItem(generateRandomItem().id(null));
+            totalExpectedErrors++;
+        }
+        if (randomBoolean()) {
+            queryBuilder.addLikeItem(generateRandomItem().id(null).doc((XContentBuilder) null));
+            totalExpectedErrors++;
+        }
+        if (randomBoolean()) {
+            queryBuilder.addUnlikeItem(generateRandomItem().id(null));
+            totalExpectedErrors++;
+        }
+        assertValidate(queryBuilder, totalExpectedErrors);
+    }
+
+    @Test
+    public void testArtificialDocument() {
 
     }
 
     @Test
     public void testUnsupportedFields() throws IOException {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         String unsupportedField = randomFrom(INT_FIELD_NAME, DOUBLE_FIELD_NAME, DATE_FIELD_NAME);
         MoreLikeThisQueryBuilder queryBuilder = new MoreLikeThisQueryBuilder(unsupportedField)
                 .like("some text")
@@ -221,16 +244,6 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), Matchers.containsString("more_like_this doesn't support binary/numeric fields"));
         }
-    }
-
-    @Test
-    public void testWithItemNullId() {
-
-    }
-
-    @Test
-    public void testWithItemNullIdAndNullArtificialDocument() {
-
     }
 
     @Test

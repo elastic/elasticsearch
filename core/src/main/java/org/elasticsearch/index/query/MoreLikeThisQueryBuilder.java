@@ -204,7 +204,10 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
          * Sets to a given artificial document, that is a document that is not present in the index.
          */
         public Item doc(XContentBuilder doc) {
-            return this.doc(doc.bytes());
+            if (doc != null) {
+                this.doc(doc.bytes());
+            }
+            return this;
         }
 
         public String[] fields() {
@@ -381,6 +384,15 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
             } catch (Exception e) {
                 return "{ \"error\" : \"" + ExceptionsHelper.detailedMessage(e) + "\"}";
             }
+        }
+
+        public QueryValidationException validate() {
+            QueryValidationException validationException = null;
+            if (id == null && doc == null) {
+                validationException = new QueryValidationException();
+                validationException.addValidationError("item must either have an '_id' or be an artificial 'doc'");
+            }
+            return validationException;
         }
 
         @Override
@@ -701,11 +713,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         if (fields != null) {
             builder.field(MoreLikeThisQueryParser.Field.FIELDS.getPreferredName(), fields);
         }
-        if (this.likeTexts.isEmpty() && this.likeItems.isEmpty()) {
-            throw new IllegalArgumentException("more_like_this requires '" + MoreLikeThisQueryParser.Field.LIKE.getPreferredName() + "' to be provided");
-        } else {
-            buildLikeField(builder, MoreLikeThisQueryParser.Field.LIKE.getPreferredName(), likeTexts, likeItems);
-        }
+        buildLikeField(builder, MoreLikeThisQueryParser.Field.LIKE.getPreferredName(), likeTexts, likeItems);
         if (!unlikeTexts.isEmpty() || !unlikeItems.isEmpty()) {
             buildLikeField(builder, MoreLikeThisQueryParser.Field.UNLIKE.getPreferredName(), unlikeTexts, unlikeItems);
         }
@@ -945,10 +953,22 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
     public QueryValidationException validate() {
         QueryValidationException validationException = null;
         if (likeTexts.isEmpty() && likeItems.isEmpty()) {
-            validationException = addValidationError("more_like_this requires 'like' to be specified.", validationException);
+            validationException = addValidationError("requires 'like' to be specified.", validationException);
         }
         if (fields != null && fields.isEmpty()) {
-            validationException = addValidationError("more_like_this requires 'fields' to be specified", validationException);
+            validationException = addValidationError("requires 'fields' to be specified", validationException);
+        }
+        for (Item likeItem : likeItems) {
+            QueryValidationException validate = likeItem.validate();
+            if (validate != null) {
+                validationException = addValidationError(validate.getMessage(), validationException);
+            }
+        }
+        for (Item unlikeItem : unlikeItems) {
+            QueryValidationException validate = unlikeItem.validate();
+            if (validate != null) {
+                validationException = addValidationError(validate.getMessage(), validationException);
+            }
         }
         return validationException;
     }

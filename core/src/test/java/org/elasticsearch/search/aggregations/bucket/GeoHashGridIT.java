@@ -24,6 +24,7 @@ import com.carrotsearch.hppc.ObjectObjectHashMap;
 import com.carrotsearch.hppc.ObjectObjectMap;
 import com.carrotsearch.hppc.cursors.ObjectIntCursor;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.XGeoHashUtils;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -148,6 +149,7 @@ public class GeoHashGridIT extends ESIntegTestCase {
 
 
     @Test
+    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/13558")
     public void simple() throws Exception {
         for (int precision = 1; precision <= XGeoHashUtils.PRECISION; precision++) {
             SearchResponse response = client().prepareSearch("idx")

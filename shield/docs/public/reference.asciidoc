@@ -44,6 +44,16 @@ alias name
 `write`:: Privilege to index, update, delete, delete by query and bulk operations on documents, in addition to delete
 and put indexed scripts
 
+[float]
+==== Run As
+
+The `run_as` permission enables an authenticated user to submit requests on behalf of another 
+user. The value can be a user name or a comma-separated list of user names. (You can also specify 
+users as an array of strings or a YAML sequence.) For more information, 
+see <<submitting-requests-for-other-users, Submitting Requests on Behalf of Other Users>>.
+
+[horizontal]
+
 [[ref-actions-list]]
 
 [float]

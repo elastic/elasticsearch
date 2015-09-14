@@ -151,3 +151,5 @@ include::granting-alias-privileges.asciidoc[]
 include::mapping-roles.asciidoc[]
 
 include::setting-up-field-and-document-level-security.asciidoc[]
+
+include::submitting-requests-for-other-users.asciidoc[]

@@ -161,64 +161,6 @@ public class NewSearchSourceBuilder extends ToXContentToBytes implements Writeab
         return this;
     }
 
-    // NOCOMMIT Do we need these methods?
-    // /**
-    // * Constructs a new search source builder with a raw search query.
-    // */
-    // public NewSearchSourceBuilder query(byte[] queryBinary) {
-    // return query(queryBinary, 0, queryBinary.length);
-    // }
-    //
-    // /**
-    // * Constructs a new search source builder with a raw search query.
-    // */
-    // public NewSearchSourceBuilder query(byte[] queryBinary, int
-    // queryBinaryOffset, int queryBinaryLength) {
-    // return query(new BytesArray(queryBinary, queryBinaryOffset,
-    // queryBinaryLength));
-    // }
-
-    // /**
-    // * Constructs a new search source builder with a raw search query.
-    // */
-    // public NewSearchSourceBuilder query(BytesReference queryBinary) {
-    // if (this.queryBuilder == null) {
-    // this.queryBuilder = new QuerySourceBuilder();
-    // }
-    // this.queryBuilder.setQuery(queryBinary);
-    // return this;
-    // }
-    //
-    // /**
-    // * Constructs a new search source builder with a raw search query.
-    // */
-    // public NewSearchSourceBuilder query(String queryString) {
-    // return query(queryString.getBytes(Charsets.UTF_8));
-    // }
-    //
-    // /**
-    // * Constructs a new search source builder with a query from a builder.
-    // */
-    // public NewSearchSourceBuilder query(XContentBuilder query) {
-    // return query(query.bytes());
-    // }
-    //
-    // /**
-    // * Constructs a new search source builder with a query from a map.
-    // */
-    // @SuppressWarnings("unchecked")
-    // public NewSearchSourceBuilder query(Map query) {
-    // try {
-    // XContentBuilder builder =
-    // XContentFactory.contentBuilder(Requests.CONTENT_TYPE);
-    // builder.map(query);
-    // return query(builder);
-    // } catch (IOException e) {
-    // throw new ElasticsearchGenerationException("Failed to generate [" + query
-    // + "]", e);
-    // }
-    // }
-
     /**
      * Sets a filter that will be executed after the query has been executed and
      * only has affect on the search hits (not aggregations). This filter is
@@ -228,70 +170,6 @@ public class NewSearchSourceBuilder extends ToXContentToBytes implements Writeab
         this.postQueryBuilder = postFilter;
         return this;
     }
-
-    // NOCOMMIT do we need these methods?
-    // /**
-    // * Sets a filter on the query executed that only applies to the search
-    // query
-    // * (and not aggs for example).
-    // */
-    // public NewSearchSourceBuilder postFilter(String postFilterString) {
-    // return postFilter(postFilterString.getBytes(Charsets.UTF_8));
-    // }
-    //
-    // /**
-    // * Sets a filter on the query executed that only applies to the search
-    // query
-    // * (and not aggs for example).
-    // */
-    // public NewSearchSourceBuilder postFilter(byte[] postFilter) {
-    // return postFilter(postFilter, 0, postFilter.length);
-    // }
-    //
-    // /**
-    // * Sets a filter on the query executed that only applies to the search
-    // query
-    // * (and not aggs for example).
-    // */
-    // public NewSearchSourceBuilder postFilter(byte[] postFilterBinary, int
-    // postFilterBinaryOffset, int postFilterBinaryLength) {
-    // return postFilter(new BytesArray(postFilterBinary,
-    // postFilterBinaryOffset, postFilterBinaryLength));
-    // }
-    //
-    // /**
-    // * Sets a filter on the query executed that only applies to the search
-    // query
-    // * (and not aggs for example).
-    // */
-    // public NewSearchSourceBuilder postFilter(BytesReference postFilterBinary)
-    // {
-    // this.filterBinary = postFilterBinary;
-    // return this;
-    // }
-    //
-    // /**
-    // * Constructs a new search source builder with a query from a builder.
-    // */
-    // public NewSearchSourceBuilder postFilter(XContentBuilder postFilter) {
-    // return postFilter(postFilter.bytes());
-    // }
-    //
-    // /**
-    // * Constructs a new search source builder with a query from a map.
-    // */
-    // @SuppressWarnings("unchecked")
-    // public NewSearchSourceBuilder postFilter(Map postFilter) {
-    // try {
-    // XContentBuilder builder =
-    // XContentFactory.contentBuilder(Requests.CONTENT_TYPE);
-    // builder.map(postFilter);
-    // return postFilter(builder);
-    // } catch (IOException e) {
-    // throw new ElasticsearchGenerationException("Failed to generate [" +
-    // postFilter + "]", e);
-    // }
-    // }
 
     /**
      * From index to start the search from. Defaults to <tt>0</tt>.
@@ -422,55 +300,6 @@ public class NewSearchSourceBuilder extends ToXContentToBytes implements Writeab
         return this;
     }
 
-    // NOCOMMIT do we need these methods?
-    // /**
-    // * Sets a raw (xcontent / json) addAggregation.
-    // */
-    // public NewSearchSourceBuilder aggregations(byte[] aggregationsBinary) {
-    // return aggregations(aggregationsBinary, 0, aggregationsBinary.length);
-    // }
-    //
-    // /**
-    // * Sets a raw (xcontent / json) addAggregation.
-    // */
-    // public NewSearchSourceBuilder aggregations(byte[] aggregationsBinary, int
-    // aggregationsBinaryOffset, int aggregationsBinaryLength) {
-    // return aggregations(new BytesArray(aggregationsBinary,
-    // aggregationsBinaryOffset, aggregationsBinaryLength));
-    // }
-    //
-    // /**
-    // * Sets a raw (xcontent / json) addAggregation.
-    // */
-    // public NewSearchSourceBuilder aggregations(BytesReference
-    // aggregationsBinary) {
-    // this.aggregationsBinary = aggregationsBinary;
-    // return this;
-    // }
-    //
-    // /**
-    // * Sets a raw (xcontent / json) addAggregation.
-    // */
-    // public NewSearchSourceBuilder aggregations(XContentBuilder aggs) {
-    // return aggregations(aggs.bytes());
-    // }
-    //
-    // /**
-    // * Sets a raw (xcontent / json) addAggregation.
-    // */
-    // @SuppressWarnings("unchecked")
-    // public NewSearchSourceBuilder aggregations(Map aggregations) {
-    // try {
-    // XContentBuilder builder =
-    // XContentFactory.contentBuilder(Requests.CONTENT_TYPE);
-    // builder.map(aggregations);
-    // return aggregations(builder);
-    // } catch (IOException e) {
-    // throw new ElasticsearchGenerationException("Failed to generate [" +
-    // aggregations + "]", e);
-    // }
-    // }
-
     /**
      * Set the rescore window size for rescores that don't specify their window.
      */
@@ -478,14 +307,6 @@ public class NewSearchSourceBuilder extends ToXContentToBytes implements Writeab
         this.defaultRescoreWindowSize = defaultRescoreWindowSize;
         return this;
     }
-
-    // NOCOMMIT do we need this?
-    // public HighlightBuilder highlighter() {
-    // if (highlightBuilder == null) {
-    // highlightBuilder = new HighlightBuilder();
-    // }
-    // return highlightBuilder;
-    // }
 
     /**
      * Adds highlight to perform as part of the search.
@@ -497,28 +318,12 @@ public class NewSearchSourceBuilder extends ToXContentToBytes implements Writeab
         return this;
     }
 
-    // NOCOMMIT do we need this?
-    // public InnerHitsBuilder innerHitsBuilder() {
-    // if (innerHitsBuilder == null) {
-    // innerHitsBuilder = new InnerHitsBuilder();
-    // }
-    // return innerHitsBuilder;
-    // }
-
     public NewSearchSourceBuilder innerHits(InnerHitsBuilder innerHitsBuilder) throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder();
         innerHitsBuilder.toXContent(builder, EMPTY_PARAMS);
         this.innerHitsBuilder = builder.bytes();
         return this;
     }
-
-    // NOCOMMIT do we need this?
-    // public SuggestBuilder suggest() {
-    // if (suggestBuilder == null) {
-    // suggestBuilder = new SuggestBuilder("suggest");
-    // }
-    // return suggestBuilder;
-    // }
 
     public NewSearchSourceBuilder suggest(SuggestBuilder suggestBuilder) throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder();
@@ -880,16 +685,6 @@ public class NewSearchSourceBuilder extends ToXContentToBytes implements Writeab
             builder.field(POST_FILTER_FIELD.getPreferredName(), postQueryBuilder);
         }
 
-        // NOCOMMIT do we need this?
-        // if (filterBinary != null) {
-        // if (XContentFactory.xContentType(filterBinary) ==
-        // builder.contentType()) {
-        // builder.rawField("filter", filterBinary);
-        // } else {
-        // builder.field("filter_binary", filterBinary);
-        // }
-        // }
-
         if (minScore != null) {
             builder.field(MIN_SCORE_FIELD.getPreferredName(), minScore);
         }
@@ -965,16 +760,6 @@ public class NewSearchSourceBuilder extends ToXContentToBytes implements Writeab
             }
             builder.endObject();
         }
-
-        // NOCOMMIT do we need this?
-        // if (aggregationsBinary != null) {
-        // if (XContentFactory.xContentType(aggregationsBinary) ==
-        // builder.contentType()) {
-        // builder.rawField("aggregations", aggregationsBinary);
-        // } else {
-        // builder.field("aggregations_binary", aggregationsBinary);
-        // }
-        // }
 
         if (highlightBuilder != null) {
             builder.field(HIGHLIGHT_FIELD.getPreferredName());

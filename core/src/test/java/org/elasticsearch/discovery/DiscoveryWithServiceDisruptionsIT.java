@@ -1068,9 +1068,9 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
             disruptionNode1.startDisrupting();
 
             endRelocationLatchNode2.await();
-            final Client node3Client = internalCluster().client(node_3);
-            final Client node2Client = internalCluster().client(node_2);
             final Client node1Client = internalCluster().client(node_1);
+            final Client node2Client = internalCluster().client(node_2);
+            final Client node3Client = internalCluster().client(node_3);
             final Client node4Client = internalCluster().client(node_4);
             logger.info("--> index doc");
             logLocalClusterStates(node1Client, node2Client, node3Client, node4Client);

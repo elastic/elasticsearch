@@ -52,6 +52,13 @@ public class InternalProfileBreakdown implements ProfileBreakdown, Streamable, T
      */
     private long[] scratch;
 
+    private boolean needsReconciling = false;
+
+    public InternalProfileBreakdown(boolean needsReconciling) {
+        this();
+        this.needsReconciling = needsReconciling;
+    }
+
     public InternalProfileBreakdown() {
         timings = new long[TimingType.values().length];
         scratch = new long[TimingType.values().length];
@@ -102,6 +109,21 @@ public class InternalProfileBreakdown implements ProfileBreakdown, Streamable, T
             time += timings[type.ordinal()];
         }
         return time;
+    }
+
+    public boolean needsReconciling() {
+        return needsReconciling;
+    }
+
+    public void setNeedsReconciling(boolean needsReconciling) {
+        this.needsReconciling = needsReconciling;
+    }
+
+    public void merge(InternalProfileBreakdown other) {
+        for (TimingType type : TimingType.values()) {
+            long newTime = getTime(type) + other.getTime(type);
+            setTime(type, newTime);
+        }
     }
 
     @Override

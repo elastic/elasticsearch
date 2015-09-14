@@ -118,6 +118,10 @@ public class InternalProfileResult implements ProfileResult, Streamable, ToXCont
         }
     }
 
+    public void setTimings(InternalProfileBreakdown timings) {
+        this.timings = timings;
+    }
+
     /**
      * Returns the total time spent at this node inclusive of children times
      * @return Total node time

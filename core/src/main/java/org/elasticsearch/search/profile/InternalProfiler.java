@@ -35,39 +35,8 @@ import java.util.concurrent.LinkedBlockingDeque;
  */
 public class InternalProfiler {
 
-    /**
-     * Maps the Query to it's profiled timings
-     */
-    private ArrayList<InternalProfileBreakdown> timings;
+    private InternalProfileTree queryTree = new InternalProfileTree();
 
-    private ArrayList<InternalProfileBreakdown> rewriteTimings;
-
-    /**
-     * Maps the Query to it's list of children.  This is basically
-     * the dependency tree
-     */
-    private ArrayList<ArrayList<Integer>> tree;
-
-    private ArrayList<Query> queries;
-
-    private ArrayList<Query> rewriteQueries;
-
-    private ArrayList<Integer> roots;
-
-    /**
-     * A temporary stack used to record where we are in the dependency
-     * tree.
-     */
-    private Deque<Integer> stack;
-
-    /**
-     * The root Query at the top of the tree
-     */
-    //private int root;
-
-    private int currentToken = 0;
-
-    private int currentRewriteToken = 0;
 
     /**
      * The root Collector used in the search
@@ -75,75 +44,26 @@ public class InternalProfiler {
     private InternalProfileCollector collector;
 
     public InternalProfiler() {
-        timings = new ArrayList<>(10);
-        rewriteTimings = new ArrayList<>(10);
-        stack = new LinkedBlockingDeque<>(10);
-        tree = new ArrayList<>(10);
-        queries = new ArrayList<>(10);
-        rewriteQueries = new ArrayList<>(10);
-        roots = new ArrayList<>(5);
     }
 
     /** Get the {@link ProfileBreakdown} for the given query, potentially creating it if it did not exist. */
-    public ProfileBreakdown getProfileBreakDown(int token) {
-        InternalProfileBreakdown queryTimings = new InternalProfileBreakdown();
-        timings.add(token, queryTimings);
-        return queryTimings;
+    public ProfileBreakdown getProfileBreakDown(Query query) {
+        return queryTree.getBreakDown(query, false);
     }
 
-    public ProfileBreakdown getRewriteProfileBreakDown(int token) {
-        InternalProfileBreakdown queryTimings = new InternalProfileBreakdown();
-        rewriteTimings.add(token, queryTimings);
-        return queryTimings;
-    }
-
-    public void appendRewrittenQuery(int token, Query rewriten) {
-
-    }
-
-
-    /**
-     * Push the query onto the dependency stack so that we can record where
-     * we are in the query tree.  This should be called only once per node.
-     *
-     * @param query  The query that we are currently visiting
-     */
-    public int getToken(Query query) {
-        int token = currentToken;
-        currentToken += 1;
-
-        if (stack.size() != 0) {
-            updateParent(token);
-        } else {
-            roots.add(token);
-        }
-
-        // Add a new slot in the dependency tree
-        tree.add(new ArrayList<>(5));
-
-        // Save our query for lookup later
-        queries.add(query);
-
-        //addNode(token);
-        stack.add(token);
-
-        return token;
-    }
-
-    public int getRewriteToken(Query query) {
-        int token = currentRewriteToken;
-        currentRewriteToken += 1;
-
-        rewriteQueries.add(query);
-
-        return token;
+    public ProfileBreakdown getRewriteProfileBreakDown(Query query) {
+        return queryTree.getBreakDown(query, true);
     }
 
     /**
      * Removes the last (e.g. most recent) value on the stack
      */
-    public void pollLast() {
-        stack.pollLast();
+    public void pollLastQuery() {
+        queryTree.pollLast();
+    }
+
+    public void setRewrittenQuery(Query original, Query rewritten) {
+        queryTree.setRewrittenQuery(original, rewritten);
     }
 
     /**
@@ -155,16 +75,7 @@ public class InternalProfiler {
      */
     public List<InternalProfileResult> finalizeProfileResults() {
         ArrayList<InternalProfileResult> results = new ArrayList<>(5);
-        for (Integer root : roots) {
-            results.add(doFinalizeProfileResults(root));
-        }
-
-        for (int i = 0; i < rewriteTimings.size(); i++) {
-            Query query = rewriteQueries.get(i);
-            InternalProfileBreakdown timing = rewriteTimings.get(i);
-            InternalProfileResult rewriteNode =  new InternalProfileResult(query, timing);
-            results.add(rewriteNode);
-        }
+        results.addAll(queryTree.finalizeProfileResults());
         return results;
     }
 
@@ -312,47 +223,5 @@ public class InternalProfiler {
             profiler.setCollector((InternalProfileCollector) multi);
         }
         return multi;
-    }
-
-    /**
-     * Recursive helper to finalize a node in the dependency tree
-     * @param token  The node we are currently finalizing
-     * @return       A hierarchical representation of the tree inclusive of children at this level
-     */
-    private InternalProfileResult doFinalizeProfileResults(int token) {
-
-        Query query = queries.get(token);
-        InternalProfileResult rootNode =  new InternalProfileResult(query, timings.get(token));
-        ArrayList<Integer> children = tree.get(token);
-
-        for (Integer child : children) {
-            InternalProfileResult childNode = doFinalizeProfileResults(child);
-            rootNode.addChild(childNode);
-        }
-
-        return rootNode;
-    }
-
-    /**
-     * Internal helper to add initialize a new node in the dependency tree.
-     * Initialized with an empty list of children
-     *
-     * @param query  The query to add to the tree
-     */
-    private void addNode(int query) {
-        //tree.put(query, new ArrayList<Query>(5));
-        tree.add(new ArrayList<>(5));
-    }
-
-    /**
-     * Internal helper to add a child to the current parent node
-     *
-     * @param childToken The child to add to the current parent
-     */
-    private void updateParent(int childToken) {
-        int parent = stack.peekLast();
-        ArrayList<Integer> parentNode = tree.get(parent);
-        parentNode.add(childToken);
-        tree.set(parent, parentNode);
     }
 }

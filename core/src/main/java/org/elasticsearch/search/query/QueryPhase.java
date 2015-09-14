@@ -159,7 +159,7 @@ public class QueryPhase implements SearchPhase {
             Collector collector;
             Callable<TopDocs> topDocsCallable;
 
-            assert query == searcher.rewrite(query); // already rewritten
+            //assert query == searcher.rewrite(query); // already rewritten
             if (searchContext.size() == 0) { // no matter what the value of from is
                 final TotalHitCountCollector totalHitCountCollector = new TotalHitCountCollector();
                 collector = totalHitCountCollector;

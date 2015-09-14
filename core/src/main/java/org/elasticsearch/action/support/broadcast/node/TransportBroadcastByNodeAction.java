@@ -19,16 +19,8 @@
 
 package org.elasticsearch.action.support.broadcast.node;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.FailedNodeException;
-import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.NoShardAvailableActionException;
-import org.elasticsearch.action.ShardOperationFailedException;
-import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.DefaultShardOperationFailedException;
-import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.TransportActions;
+import org.elasticsearch.action.*;
+import org.elasticsearch.action.support.*;
 import org.elasticsearch.action.support.broadcast.BroadcastRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
@@ -45,21 +37,13 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.BaseTransportResponseHandler;
-import org.elasticsearch.transport.NodeShouldNotConnectException;
-import org.elasticsearch.transport.TransportChannel;
-import org.elasticsearch.transport.TransportException;
-import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.transport.TransportRequestHandler;
-import org.elasticsearch.transport.TransportResponse;
-import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.*;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
@@ -100,15 +84,10 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
 
         transportNodeBroadcastAction = actionName + "[n]";
 
-        transportService.registerRequestHandler(transportNodeBroadcastAction, new Callable<NodeRequest>() {
-            @Override
-            public NodeRequest call() throws Exception {
-                return new NodeRequest();
-            }
-        }, executor, new BroadcastByNodeTransportRequestHandler());
+        transportService.registerRequestHandler(transportNodeBroadcastAction, NodeRequest::new, executor, new BroadcastByNodeTransportRequestHandler());
     }
 
-    private final Response newResponse(
+    private Response newResponse(
             Request request,
             AtomicReferenceArray responses,
             List<NoShardAvailableActionException> unavailableShardExceptions,
@@ -253,7 +232,7 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
                 if (shard.assignedToNode()) {
                     String nodeId = shard.currentNodeId();
                     if (!nodeIds.containsKey(nodeId)) {
-                        nodeIds.put(nodeId, new ArrayList<ShardRouting>());
+                        nodeIds.put(nodeId, new ArrayList<>());
                     }
                     nodeIds.get(nodeId).add(shard);
                 } else {

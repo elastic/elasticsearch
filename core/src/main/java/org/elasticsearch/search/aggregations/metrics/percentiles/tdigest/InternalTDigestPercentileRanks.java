@@ -18,8 +18,6 @@
  */
 package org.elasticsearch.search.aggregations.metrics.percentiles.tdigest;
 
-import com.google.common.collect.UnmodifiableIterator;
-
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.metrics.percentiles.InternalPercentile;
@@ -102,7 +100,7 @@ public class InternalTDigestPercentileRanks extends AbstractInternalTDigestPerce
         return percentileRank * 100;
     }
 
-    public static class Iter extends UnmodifiableIterator<Percentile> {
+    public static class Iter implements Iterator<Percentile> {
 
         private final double[] values;
         private final TDigestState state;
@@ -124,6 +122,11 @@ public class InternalTDigestPercentileRanks extends AbstractInternalTDigestPerce
             final Percentile next = new InternalPercentile(percentileRank(state, values[i]), values[i]);
             ++i;
             return next;
+        }
+
+        @Override
+        public final void remove() {
+            throw new UnsupportedOperationException();
         }
     }
 }

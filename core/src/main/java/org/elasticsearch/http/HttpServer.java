@@ -20,16 +20,17 @@
 package org.elasticsearch.http;
 
 import com.google.common.collect.ImmutableMap;
-import com.google.common.io.ByteStreams;
 
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.FileSystemUtils;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.rest.*;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.*;
@@ -141,8 +142,9 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> {
         if (request.method() == RestRequest.Method.GET) {
             try {
                 try (InputStream stream = getClass().getResourceAsStream("/config/favicon.ico")) {
-                    byte[] content = ByteStreams.toByteArray(stream);
-                    BytesRestResponse restResponse = new BytesRestResponse(RestStatus.OK, "image/x-icon", content);
+                    ByteArrayOutputStream out = new ByteArrayOutputStream();
+                    Streams.copy(stream, out);
+                    BytesRestResponse restResponse = new BytesRestResponse(RestStatus.OK, "image/x-icon", out.toByteArray());
                     channel.sendResponse(restResponse);
                 }
             } catch (IOException e) {

@@ -19,9 +19,9 @@
 
 package org.elasticsearch.action.admin.indices.warmer.get;
 
-import com.google.common.collect.ObjectArrays;
 import org.elasticsearch.action.support.master.info.ClusterInfoRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.common.util.ArrayUtils;
 
 /**
  * Builder for {@link GetWarmersRequest}
@@ -40,7 +40,7 @@ public class GetWarmersRequestBuilder extends ClusterInfoRequestBuilder<GetWarme
     }
 
     public GetWarmersRequestBuilder addWarmers(String... warmers) {
-        request.warmers(ObjectArrays.concat(request.warmers(), warmers, String.class));
+        request.warmers(ArrayUtils.concat(request.warmers(), warmers));
         return this;
     }
 }

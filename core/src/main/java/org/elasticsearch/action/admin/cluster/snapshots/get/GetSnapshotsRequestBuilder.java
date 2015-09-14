@@ -19,9 +19,9 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.get;
 
-import com.google.common.collect.ObjectArrays;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.common.util.ArrayUtils;
 
 /**
  * Get snapshots request builder
@@ -81,7 +81,7 @@ public class GetSnapshotsRequestBuilder extends MasterNodeOperationRequestBuilde
      * @return this builder
      */
     public GetSnapshotsRequestBuilder addSnapshots(String... snapshots) {
-        request.snapshots(ObjectArrays.concat(request.snapshots(), snapshots, String.class));
+        request.snapshots(ArrayUtils.concat(request.snapshots(), snapshots));
         return this;
     }
 }

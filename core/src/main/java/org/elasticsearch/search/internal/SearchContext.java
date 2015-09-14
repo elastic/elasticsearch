@@ -18,8 +18,6 @@
  */
 package org.elasticsearch.search.internal;
 
-import com.google.common.collect.Multimap;
-import com.google.common.collect.MultimapBuilder;
 
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.Query;
@@ -62,10 +60,7 @@ import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rescore.RescoreSearchContext;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public abstract class SearchContext extends DelegatingHasContextAndHeaders implements Releasable {
@@ -87,7 +82,7 @@ public abstract class SearchContext extends DelegatingHasContextAndHeaders imple
         return current.get();
     }
 
-    private Multimap<Lifetime, Releasable> clearables = null;
+    private Map<Lifetime, List<Releasable>> clearables = null;
     private final AtomicBoolean closed = new AtomicBoolean(false);
 
     protected final ParseFieldMatcher parseFieldMatcher;
@@ -316,19 +311,27 @@ public abstract class SearchContext extends DelegatingHasContextAndHeaders imple
      */
     public void addReleasable(Releasable releasable, Lifetime lifetime) {
         if (clearables == null) {
-            clearables = MultimapBuilder.enumKeys(Lifetime.class).arrayListValues().build();
+            clearables = new HashMap<>();
         }
-        clearables.put(lifetime, releasable);
+        List<Releasable> releasables = clearables.get(lifetime);
+        if (releasables == null) {
+            releasables = new ArrayList<>();
+            clearables.put(lifetime, releasables);
+        }
+        releasables.add(releasable);
     }
 
     public void clearReleasables(Lifetime lifetime) {
         if (clearables != null) {
-            List<Collection<Releasable>> releasables = new ArrayList<>();
+            List<List<Releasable>>releasables = new ArrayList<>();
             for (Lifetime lc : Lifetime.values()) {
                 if (lc.compareTo(lifetime) > 0) {
                     break;
                 }
-                releasables.add(clearables.removeAll(lc));
+                List<Releasable> remove = clearables.remove(lc);
+                if (remove != null) {
+                    releasables.add(remove);
+                }
             }
             Releasables.close(Iterables.flatten(releasables));
         }

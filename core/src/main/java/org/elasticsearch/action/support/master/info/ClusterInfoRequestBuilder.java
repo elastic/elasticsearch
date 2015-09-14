@@ -18,14 +18,12 @@
  */
 package org.elasticsearch.action.support.master.info;
 
-import com.google.common.collect.ObjectArrays;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
-import org.elasticsearch.client.ClusterAdminClient;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.common.util.ArrayUtils;
 
 /**
  */
@@ -44,7 +42,7 @@ public abstract class ClusterInfoRequestBuilder<Request extends ClusterInfoReque
 
     @SuppressWarnings("unchecked")
     public Builder addIndices(String... indices) {
-        request.indices(ObjectArrays.concat(request.indices(), indices, String.class));
+        request.indices(ArrayUtils.concat(request.indices(), indices));
         return (Builder) this;
     }
 
@@ -56,7 +54,7 @@ public abstract class ClusterInfoRequestBuilder<Request extends ClusterInfoReque
 
     @SuppressWarnings("unchecked")
     public Builder addTypes(String... types) {
-        request.types(ObjectArrays.concat(request.types(), types, String.class));
+        request.types(ArrayUtils.concat(request.types(), types));
         return (Builder) this;
     }
 

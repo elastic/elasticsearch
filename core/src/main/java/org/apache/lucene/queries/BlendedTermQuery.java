@@ -18,8 +18,6 @@
  */
 package org.apache.lucene.queries;
 
-import com.google.common.primitives.Ints;
-
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexReaderContext;
 import org.apache.lucene.index.LeafReaderContext;
@@ -141,7 +139,7 @@ public abstract class BlendedTermQuery extends Query {
             }
             @Override
             protected int compare(int i, int j) {
-                return Ints.compare(contexts[tieBreak[j]].docFreq(), contexts[tieBreak[i]].docFreq());
+                return Integer.compare(contexts[tieBreak[j]].docFreq(), contexts[tieBreak[i]].docFreq());
             }
         }.sort(0, tieBreak.length);
         int prev = contexts[tieBreak[0]].docFreq();

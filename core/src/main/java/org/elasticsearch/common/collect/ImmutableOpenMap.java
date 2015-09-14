@@ -25,7 +25,6 @@ import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.carrotsearch.hppc.predicates.ObjectObjectPredicate;
 import com.carrotsearch.hppc.predicates.ObjectPredicate;
 import com.carrotsearch.hppc.procedures.ObjectObjectProcedure;
-import com.google.common.collect.UnmodifiableIterator;
 
 import java.util.Iterator;
 import java.util.Map;
@@ -120,17 +119,20 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
     /**
      * Returns a direct iterator over the keys.
      */
-    public UnmodifiableIterator<KType> keysIt() {
+    public Iterator<KType> keysIt() {
         final Iterator<ObjectCursor<KType>> iterator = map.keys().iterator();
-        return new UnmodifiableIterator<KType>() {
+        return new Iterator<KType>() {
             @Override
-            public boolean hasNext() {
-                return iterator.hasNext();
-            }
+            public boolean hasNext() { return iterator.hasNext(); }
 
             @Override
             public KType next() {
                 return iterator.next().value;
+            }
+
+            @Override
+            public final void remove() {
+                throw new UnsupportedOperationException();
             }
         };
     }
@@ -145,17 +147,20 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
     /**
      * Returns a direct iterator over the keys.
      */
-    public UnmodifiableIterator<VType> valuesIt() {
+    public Iterator<VType> valuesIt() {
         final Iterator<ObjectCursor<VType>> iterator = map.values().iterator();
-        return new UnmodifiableIterator<VType>() {
+        return new Iterator<VType>() {
             @Override
-            public boolean hasNext() {
-                return iterator.hasNext();
-            }
+            public boolean hasNext() { return iterator.hasNext(); }
 
             @Override
             public VType next() {
                 return iterator.next().value;
+            }
+
+            @Override
+            public final void remove() {
+                throw new UnsupportedOperationException();
             }
         };
     }

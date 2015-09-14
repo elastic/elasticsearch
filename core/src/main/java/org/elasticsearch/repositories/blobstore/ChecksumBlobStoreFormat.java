@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.repositories.blobstore;
 
-import com.google.common.io.ByteStreams;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
@@ -29,6 +28,7 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;
@@ -93,7 +93,9 @@ public class ChecksumBlobStoreFormat<T extends ToXContent> extends BlobStoreForm
      */
     public T readBlob(BlobContainer blobContainer, String blobName) throws IOException {
         try (InputStream inputStream = blobContainer.readBlob(blobName)) {
-            byte[] bytes = ByteStreams.toByteArray(inputStream);
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            Streams.copy(inputStream, out);
+            final byte[] bytes = out.toByteArray();
             final String resourceDesc = "ChecksumBlobStoreFormat.readBlob(blob=\"" + blobName + "\")";
             try (ByteArrayIndexInput indexInput = new ByteArrayIndexInput(resourceDesc, bytes)) {
                 CodecUtil.checksumEntireFile(indexInput);

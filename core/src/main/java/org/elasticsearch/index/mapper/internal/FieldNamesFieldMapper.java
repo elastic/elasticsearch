@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.mapper.internal;
 
-import com.google.common.collect.UnmodifiableIterator;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
@@ -240,7 +239,7 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
         return new Iterable<String>() {
             @Override
             public Iterator<String> iterator() {
-                return new UnmodifiableIterator<String>() {
+                return new Iterator<String>() {
 
                     int endIndex = nextEndIndex(0);
 
@@ -261,6 +260,11 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
                         final String result = fullPath.substring(0, endIndex);
                         endIndex = nextEndIndex(endIndex + 1);
                         return result;
+                    }
+
+                    @Override
+                    public final void remove() {
+                        throw new UnsupportedOperationException();
                     }
 
                 };

@@ -26,7 +26,6 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.predicates.IntObjectPredicate;
 import com.carrotsearch.hppc.predicates.IntPredicate;
 import com.carrotsearch.hppc.procedures.IntObjectProcedure;
-import com.google.common.collect.UnmodifiableIterator;
 
 import java.util.Iterator;
 import java.util.Map;
@@ -113,9 +112,9 @@ public final class ImmutableOpenIntMap<VType> implements Iterable<IntObjectCurso
     /**
      * Returns a direct iterator over the keys.
      */
-    public UnmodifiableIterator<Integer> keysIt() {
+    public Iterator<Integer> keysIt() {
         final Iterator<IntCursor> iterator = map.keys().iterator();
-        return new UnmodifiableIterator<Integer>() {
+        return new Iterator<Integer>() {
             @Override
             public boolean hasNext() {
                 return iterator.hasNext();
@@ -124,6 +123,11 @@ public final class ImmutableOpenIntMap<VType> implements Iterable<IntObjectCurso
             @Override
             public Integer next() {
                 return iterator.next().value;
+            }
+
+            @Override
+            public final void remove() {
+                throw new UnsupportedOperationException();
             }
         };
     }
@@ -138,9 +142,9 @@ public final class ImmutableOpenIntMap<VType> implements Iterable<IntObjectCurso
     /**
      * Returns a direct iterator over the keys.
      */
-    public UnmodifiableIterator<VType> valuesIt() {
+    public Iterator<VType> valuesIt() {
         final Iterator<ObjectCursor<VType>> iterator = map.values().iterator();
-        return new UnmodifiableIterator<VType>() {
+        return new Iterator<VType>() {
             @Override
             public boolean hasNext() {
                 return iterator.hasNext();
@@ -149,6 +153,11 @@ public final class ImmutableOpenIntMap<VType> implements Iterable<IntObjectCurso
             @Override
             public VType next() {
                 return iterator.next().value;
+            }
+
+            @Override
+            public final void remove() {
+                throw new UnsupportedOperationException();
             }
         };
     }

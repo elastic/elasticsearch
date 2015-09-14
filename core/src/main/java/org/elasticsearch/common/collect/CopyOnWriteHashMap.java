@@ -18,8 +18,6 @@
  */
 
 package org.elasticsearch.common.collect;
-
-import com.google.common.collect.UnmodifiableIterator;
 import org.apache.lucene.util.mutable.MutableValueInt;
 
 import java.lang.reflect.Array;
@@ -420,7 +418,7 @@ public final class CopyOnWriteHashMap<K, V> extends AbstractMap<K, V> {
 
     }
 
-    private static class EntryIterator<K, V> extends UnmodifiableIterator<Map.Entry<K, V>> {
+    private static class EntryIterator<K, V> implements Iterator<Map.Entry<K, V>> {
 
         private final Deque<Map.Entry<K, V>> entries;
         private final Deque<Node<K, V>> nodes;
@@ -446,6 +444,11 @@ public final class CopyOnWriteHashMap<K, V> extends AbstractMap<K, V> {
                 nextNode.visit(entries, nodes);
             }
             return entries.pop();
+        }
+
+        @Override
+        public final void remove() {
+            throw new UnsupportedOperationException();
         }
 
     }

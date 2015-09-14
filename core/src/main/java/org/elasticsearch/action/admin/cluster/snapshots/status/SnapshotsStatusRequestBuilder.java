@@ -19,10 +19,9 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.status;
 
-import com.google.common.collect.ObjectArrays;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.common.util.ArrayUtils;
 
 /**
  * Snapshots status request builder
@@ -72,7 +71,7 @@ public class SnapshotsStatusRequestBuilder extends MasterNodeOperationRequestBui
      * @return this builder
      */
     public SnapshotsStatusRequestBuilder addSnapshots(String... snapshots) {
-        request.snapshots(ObjectArrays.concat(request.snapshots(), snapshots, String.class));
+        request.snapshots(ArrayUtils.concat(request.snapshots(), snapshots));
         return this;
     }
 }

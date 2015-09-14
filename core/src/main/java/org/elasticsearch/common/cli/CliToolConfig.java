@@ -19,13 +19,14 @@
 
 package org.elasticsearch.common.cli;
 
-import com.google.common.collect.ImmutableMap;
-import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.Option;
 import org.apache.commons.cli.OptionGroup;
 import org.apache.commons.cli.Options;
 
 import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  *
@@ -38,18 +39,18 @@ public class CliToolConfig {
 
     private final Class<? extends CliTool> toolType;
     private final String name;
-    private final ImmutableMap<String, Cmd> cmds;
+    private final Map<String, Cmd> cmds;
 
     private static final HelpPrinter helpPrinter = new HelpPrinter();
 
     private CliToolConfig(String name, Class<? extends CliTool> toolType, Cmd[] cmds) {
         this.name = name;
         this.toolType = toolType;
-        ImmutableMap.Builder<String, Cmd> cmdsBuilder = ImmutableMap.builder();
+        final Map<String, Cmd> cmdsMapping = new HashMap<>();
         for (int i = 0; i < cmds.length; i++) {
-            cmdsBuilder.put(cmds[i].name, cmds[i]);
+            cmdsMapping.put(cmds[i].name, cmds[i]);
         }
-        this.cmds = cmdsBuilder.build();
+        this.cmds = Collections.unmodifiableMap(cmdsMapping);
     }
 
     public boolean isSingle() {

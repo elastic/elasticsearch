@@ -386,8 +386,8 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         @Override
         public Item readFrom(StreamInput in) throws IOException {
             Item item = new Item(in.readOptionalString(), in.readOptionalString(), in.readOptionalString());
-            item.doc = in.readBytesReference();
-            item.fields = (String[]) in.readGenericValue();
+            item.doc = (BytesReference) in.readGenericValue();
+            item.fields = in.readOptionalStringArray();
             item.perFieldAnalyzer = (Map<String, String>) in.readGenericValue();
             item.routing = in.readOptionalString();
             item.version = in.readLong();
@@ -404,8 +404,8 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
             out.writeOptionalString(index);
             out.writeOptionalString(type);
             out.writeOptionalString(id);
-            out.writeBytesReference(doc);
-            out.writeGenericValue(fields);
+            out.writeGenericValue(doc);
+            out.writeOptionalStringArray(fields);
             out.writeGenericValue(perFieldAnalyzer);
             out.writeOptionalString(routing);
             out.writeLong(version);
@@ -715,7 +715,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         builder.field(MoreLikeThisQueryParser.Field.MAX_DOC_FREQ.getPreferredName(), maxDocFreq);
         builder.field(MoreLikeThisQueryParser.Field.MIN_WORD_LENGTH.getPreferredName(), minWordLength);
         builder.field(MoreLikeThisQueryParser.Field.MAX_WORD_LENGTH.getPreferredName(), maxWordLength);
-        if (stopWords != null && stopWords.length > 0) {
+        if (stopWords != null) {
             builder.field(MoreLikeThisQueryParser.Field.STOP_WORDS.getPreferredName(), stopWords);
         }
         if (analyzer != null) {
@@ -966,7 +966,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         moreLikeThisQueryBuilder.maxDocFreq = in.readVInt();
         moreLikeThisQueryBuilder.minWordLength = in.readVInt();
         moreLikeThisQueryBuilder.maxWordLength = in.readVInt();
-        moreLikeThisQueryBuilder.stopWords = (String[]) in.readGenericValue();
+        moreLikeThisQueryBuilder.stopWords = in.readOptionalStringArray();
         moreLikeThisQueryBuilder.analyzer = in.readOptionalString();
         moreLikeThisQueryBuilder.minimumShouldMatch = in.readString();
         moreLikeThisQueryBuilder.boostTerms = (Float) in.readGenericValue();
@@ -997,7 +997,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         out.writeVInt(maxDocFreq);
         out.writeVInt(minWordLength);
         out.writeVInt(maxWordLength);
-        out.writeGenericValue(stopWords);
+        out.writeOptionalStringArray(stopWords);
         out.writeOptionalString(analyzer);
         out.writeString(minimumShouldMatch);
         out.writeGenericValue(boostTerms);
@@ -1015,7 +1015,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
     @Override
     protected int doHashCode() {
         return Objects.hash(fields, likeTexts, unlikeTexts, likeItems, unlikeItems, maxQueryTerms, minTermFreq,
-                minDocFreq, maxDocFreq, minWordLength, maxWordLength, stopWords, analyzer, minimumShouldMatch,
+                minDocFreq, maxDocFreq, minWordLength, maxWordLength, Arrays.hashCode(stopWords), analyzer, minimumShouldMatch,
                 boostTerms, include, failOnUnsupportedField);
     }
 
@@ -1032,7 +1032,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
                 Objects.equals(maxDocFreq, other.maxDocFreq) &&
                 Objects.equals(minWordLength, other.minWordLength) &&
                 Objects.equals(maxWordLength, other.maxWordLength) &&
-                Objects.equals(stopWords, other.stopWords) &&
+                Arrays.equals(stopWords, other.stopWords) &&  // otherwise we are comparing pointers
                 Objects.equals(analyzer, other.analyzer) &&
                 Objects.equals(minimumShouldMatch, other.minimumShouldMatch) &&
                 Objects.equals(boostTerms, other.boostTerms) &&

@@ -21,7 +21,6 @@ package org.elasticsearch.common.util;
 
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.common.Preconditions;
 
 import java.util.Arrays;
 
@@ -94,7 +93,9 @@ final class BigFloatArray extends AbstractBigArray implements FloatArray {
 
     @Override
     public void fill(long fromIndex, long toIndex, float value) {
-        Preconditions.checkArgument(fromIndex <= toIndex);
+        if (fromIndex > toIndex) {
+            throw new IllegalArgumentException();
+        }
         final int intBits = Float.floatToRawIntBits(value);
         final int fromPage = pageIndex(fromIndex);
         final int toPage = pageIndex(toIndex - 1);

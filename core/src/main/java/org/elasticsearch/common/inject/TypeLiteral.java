@@ -24,7 +24,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.common.Preconditions.checkArgument;
 import static org.elasticsearch.common.inject.internal.MoreTypes.canonicalize;
 
 /**
@@ -257,8 +256,9 @@ public class TypeLiteral<T> {
      * @since 2.0
      */
     public TypeLiteral<?> getSupertype(Class<?> supertype) {
-        checkArgument(supertype.isAssignableFrom(rawType),
-                "%s is not a supertype of %s", supertype, this.type);
+        if (!supertype.isAssignableFrom(rawType)) {
+            throw new IllegalArgumentException(supertype + " is not a supertype of " + type);
+        }
         return resolve(MoreTypes.getGenericSupertype(type, rawType, supertype));
     }
 
@@ -269,8 +269,9 @@ public class TypeLiteral<T> {
      * @since 2.0
      */
     public TypeLiteral<?> getFieldType(Field field) {
-        checkArgument(field.getDeclaringClass().isAssignableFrom(rawType),
-                "%s is not defined by a supertype of %s", field, type);
+        if (!field.getDeclaringClass().isAssignableFrom(rawType)) {
+            throw new IllegalArgumentException(field + " is not defined by a supertype of " + type);
+        }
         return resolve(field.getGenericType());
     }
 
@@ -285,14 +286,17 @@ public class TypeLiteral<T> {
 
         if (methodOrConstructor instanceof Method) {
             Method method = (Method) methodOrConstructor;
-            checkArgument(method.getDeclaringClass().isAssignableFrom(rawType),
-                    "%s is not defined by a supertype of %s", method, type);
+            if (!method.getDeclaringClass().isAssignableFrom(rawType)) {
+                throw new IllegalArgumentException(method + " is not defined by a supertype of " + type);
+            }
             genericParameterTypes = method.getGenericParameterTypes();
 
         } else if (methodOrConstructor instanceof Constructor) {
             Constructor constructor = (Constructor) methodOrConstructor;
-            checkArgument(constructor.getDeclaringClass().isAssignableFrom(rawType),
-                    "%s does not construct a supertype of %s", constructor, type);
+            if (!constructor.getDeclaringClass().isAssignableFrom(rawType)) {
+                throw new IllegalArgumentException(constructor + " does not construct a supertype of " + type);
+            }
+
             genericParameterTypes = constructor.getGenericParameterTypes();
 
         } else {
@@ -313,14 +317,17 @@ public class TypeLiteral<T> {
 
         if (methodOrConstructor instanceof Method) {
             Method method = (Method) methodOrConstructor;
-            checkArgument(method.getDeclaringClass().isAssignableFrom(rawType),
-                    "%s is not defined by a supertype of %s", method, type);
+            if (!method.getDeclaringClass().isAssignableFrom(rawType)) {
+                throw new IllegalArgumentException(method + " is not defined by a supertype of " + type);
+            }
+
             genericExceptionTypes = method.getGenericExceptionTypes();
 
         } else if (methodOrConstructor instanceof Constructor) {
             Constructor<?> constructor = (Constructor<?>) methodOrConstructor;
-            checkArgument(constructor.getDeclaringClass().isAssignableFrom(rawType),
-                    "%s does not construct a supertype of %s", constructor, type);
+            if (!constructor.getDeclaringClass().isAssignableFrom(rawType)) {
+                throw new IllegalArgumentException(constructor + " does not construct a supertype of " + type);
+            }
             genericExceptionTypes = constructor.getGenericExceptionTypes();
 
         } else {
@@ -337,8 +344,10 @@ public class TypeLiteral<T> {
      * @since 2.0
      */
     public TypeLiteral<?> getReturnType(Method method) {
-        checkArgument(method.getDeclaringClass().isAssignableFrom(rawType),
-                "%s is not defined by a supertype of %s", method, type);
+        if (!method.getDeclaringClass().isAssignableFrom(rawType)) {
+            throw new IllegalArgumentException(method + " is not defined by a supertype of " + type);
+        }
+
         return resolve(method.getGenericReturnType());
     }
 }

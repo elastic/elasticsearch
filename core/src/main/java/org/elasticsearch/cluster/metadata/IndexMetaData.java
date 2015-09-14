@@ -33,7 +33,6 @@ import org.elasticsearch.cluster.routing.HashFunction;
 import org.elasticsearch.cluster.routing.Murmur3HashFunction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.Preconditions;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -205,8 +204,12 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
     private final boolean useTypeForRouting;
 
     private IndexMetaData(String index, long version, State state, Settings settings, ImmutableOpenMap<String, MappingMetaData> mappings, ImmutableOpenMap<String, AliasMetaData> aliases, ImmutableOpenMap<String, Custom> customs) {
-        Preconditions.checkArgument(settings.getAsInt(SETTING_NUMBER_OF_SHARDS, null) != null, "must specify numberOfShards for index [" + index + "]");
-        Preconditions.checkArgument(settings.getAsInt(SETTING_NUMBER_OF_REPLICAS, null) != null, "must specify numberOfReplicas for index [" + index + "]");
+        if (settings.getAsInt(SETTING_NUMBER_OF_SHARDS, null) == null) {
+            throw new IllegalArgumentException("must specify numberOfShards for index [" + index + "]");
+        }
+        if (settings.getAsInt(SETTING_NUMBER_OF_REPLICAS, null) == null) {
+            throw new IllegalArgumentException("must specify numberOfReplicas for index [" + index + "]");
+        }
         this.index = index;
         this.version = version;
         this.state = state;

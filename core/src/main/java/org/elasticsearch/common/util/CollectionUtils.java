@@ -25,7 +25,6 @@ import com.carrotsearch.hppc.LongArrayList;
 import com.carrotsearch.hppc.ObjectArrayList;
 import com.google.common.collect.Iterators;
 import org.apache.lucene.util.*;
-import org.elasticsearch.common.Preconditions;
 
 import java.util.*;
 
@@ -284,8 +283,12 @@ public enum CollectionUtils {
         private final int distance;
 
         public RotatedList(List<T> list, int distance) {
-            Preconditions.checkArgument(distance >= 0 && distance < list.size());
-            Preconditions.checkArgument(list instanceof RandomAccess);
+            if (distance < 0 || distance >= list.size()) {
+                throw new IllegalArgumentException();
+            }
+            if (!(list instanceof RandomAccess)) {
+                throw new IllegalArgumentException();
+            }
             this.in = list;
             this.distance = distance;
         }

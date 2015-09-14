@@ -24,7 +24,6 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Preconditions;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.inject.Inject;
@@ -55,9 +54,15 @@ public class BigArrays {
     /** Return the next size to grow to that is &gt;= <code>minTargetSize</code>.
      *  Inspired from {@link ArrayUtil#oversize(int, int)} and adapted to play nicely with paging. */
     public static long overSize(long minTargetSize, int pageSize, int bytesPerElement) {
-        Preconditions.checkArgument(minTargetSize >= 0, "minTargetSize must be >= 0");
-        Preconditions.checkArgument(pageSize >= 0, "pageSize must be > 0");
-        Preconditions.checkArgument(bytesPerElement > 0, "bytesPerElement must be > 0");
+        if (minTargetSize < 0) {
+            throw new IllegalArgumentException("minTargetSize must be >= 0");
+        }
+        if (pageSize < 0) {
+            throw new IllegalArgumentException("pageSize must be > 0");
+        }
+        if (bytesPerElement <= 0) {
+            throw new IllegalArgumentException("bytesPerElement must be > 0");
+        }
 
         long newSize;
         if (minTargetSize < pageSize) {

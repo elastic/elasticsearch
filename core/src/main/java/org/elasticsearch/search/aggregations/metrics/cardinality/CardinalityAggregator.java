@@ -28,7 +28,6 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Preconditions;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
@@ -233,7 +232,9 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         private ObjectArray<FixedBitSet> visitedOrds;
 
         OrdinalsCollector(HyperLogLogPlusPlus counts, RandomAccessOrds values, BigArrays bigArrays) {
-            Preconditions.checkArgument(values.getValueCount() <= Integer.MAX_VALUE);
+            if (values.getValueCount() > Integer.MAX_VALUE) {
+                throw new IllegalArgumentException();
+            }
             maxOrd = (int) values.getValueCount();
             this.bigArrays = bigArrays;
             this.counts = counts;

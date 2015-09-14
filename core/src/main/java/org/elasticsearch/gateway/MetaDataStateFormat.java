@@ -25,7 +25,6 @@ import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.store.*;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.common.Preconditions;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.store.IndexOutputOutputStream;
@@ -90,8 +89,12 @@ public abstract class MetaDataStateFormat<T> {
      * @throws IOException if an IOException occurs
      */
     public final void write(final T state, final long version, final Path... locations) throws IOException {
-        Preconditions.checkArgument(locations != null, "Locations must not be null");
-        Preconditions.checkArgument(locations.length > 0, "One or more locations required");
+        if (locations == null) {
+            throw new IllegalArgumentException("Locations must not be null");
+        }
+        if (locations.length <= 0) {
+            throw new IllegalArgumentException("One or more locations required");
+        }
         final long maxStateId = findMaxStateId(prefix, locations)+1;
         assert maxStateId >= 0 : "maxStateId must be positive but was: [" + maxStateId + "]";
         final String fileName = prefix + maxStateId + STATE_FILE_EXTENSION;

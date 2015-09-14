@@ -27,8 +27,6 @@ import org.elasticsearch.common.inject.spi.PrivateElements;
 
 import java.util.*;
 
-import static org.elasticsearch.common.Preconditions.checkArgument;
-
 /**
  * @author jessewilson@google.com (Jesse Wilson)
  */
@@ -132,7 +130,9 @@ public final class PrivateElementsImpl implements PrivateElements {
     public Object getExposedSource(Key<?> key) {
         getExposedKeys(); // ensure exposedKeysToSources is populated
         Object source = exposedKeysToSources.get(key);
-        checkArgument(source != null, "%s not exposed by %s.", key, this);
+        if (source == null) {
+            throw new IllegalArgumentException(key + " not exposed by " + ".");
+        }
         return source;
     }
 

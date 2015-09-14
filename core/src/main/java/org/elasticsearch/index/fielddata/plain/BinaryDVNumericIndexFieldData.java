@@ -27,7 +27,6 @@ import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.Preconditions;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
@@ -51,7 +50,9 @@ public class BinaryDVNumericIndexFieldData extends DocValuesIndexFieldData imple
 
     public BinaryDVNumericIndexFieldData(Index index, Names fieldNames, NumericType numericType, FieldDataType fieldDataType) {
         super(index, fieldNames, fieldDataType);
-        Preconditions.checkArgument(numericType != null, "numericType must be non-null");
+        if (numericType == null) {
+            throw new IllegalArgumentException("numericType must be non-null");
+        }
         this.numericType = numericType;
     }
 

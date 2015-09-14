@@ -30,8 +30,6 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 
-import static org.elasticsearch.common.Preconditions.checkArgument;
-
 /**
  * Static methods for working with types that we aren't publishing in the
  * public {@code Types} API.
@@ -152,8 +150,11 @@ public class MoreTypes {
             // Neal isn't either but suspects some pathological case related
             // to nested classes exists.
             Type rawType = parameterizedType.getRawType();
-            checkArgument(rawType instanceof Class,
-                    "Expected a Class, but <%s> is of type %s", type, type.getClass().getName());
+            if (!(rawType instanceof Class)) {
+                throw new IllegalArgumentException(
+                        "Expected a Class, but <" + type +"> is of type " + type.getClass().getName()
+                );
+            }
             return (Class<?>) rawType;
 
         } else if (type instanceof GenericArrayType) {
@@ -445,10 +446,13 @@ public class MoreTypes {
             // require an owner type if the raw type needs it
             if (rawType instanceof Class<?>) {
                 Class rawTypeAsClass = (Class) rawType;
-                checkArgument(ownerType != null || rawTypeAsClass.getEnclosingClass() == null,
-                        "No owner type for enclosed %s", rawType);
-                checkArgument(ownerType == null || rawTypeAsClass.getEnclosingClass() != null,
-                        "Owner type for unenclosed %s", rawType);
+                if (ownerType == null && rawTypeAsClass.getEnclosingClass() != null) {
+                    throw new IllegalArgumentException("No owner type for enclosed " + rawType);
+                }
+                if (ownerType != null && rawTypeAsClass.getEnclosingClass() == null) {
+                    throw new IllegalArgumentException("Owner type for unenclosed " + rawType);
+                }
+
             }
 
             this.ownerType = ownerType == null ? null : canonicalize(ownerType);
@@ -561,13 +565,18 @@ public class MoreTypes {
         private final Type lowerBound;
 
         public WildcardTypeImpl(Type[] upperBounds, Type[] lowerBounds) {
-            checkArgument(lowerBounds.length <= 1, "Must have at most one lower bound.");
-            checkArgument(upperBounds.length == 1, "Must have exactly one upper bound.");
-
+            if (lowerBounds.length > 1) {
+                throw new IllegalArgumentException("Must have at most one lower bound.");
+            }
+            if (upperBounds.length != 1) {
+                throw new IllegalArgumentException("Must have exactly one upper bound.");
+            }
             if (lowerBounds.length == 1) {
                 Objects.requireNonNull(lowerBounds[0], "lowerBound");
                 checkNotPrimitive(lowerBounds[0], "wildcard bounds");
-                checkArgument(upperBounds[0] == Object.class, "bounded both ways");
+                if (upperBounds[0] != Object.class) {
+                    throw new IllegalArgumentException("bounded both ways");
+                }
                 this.lowerBound = canonicalize(lowerBounds[0]);
                 this.upperBound = Object.class;
 
@@ -615,8 +624,9 @@ public class MoreTypes {
     }
 
     private static void checkNotPrimitive(Type type, String use) {
-        checkArgument(!(type instanceof Class<?>) || !((Class) type).isPrimitive(),
-                "Primitive types are not allowed in %s: %s", use, type);
+        if (type instanceof Class<?> && ((Class) type).isPrimitive()) {
+            throw new IllegalArgumentException("Primitive types are not allowed in " + use + ": " + type);
+        }
     }
 
     /**

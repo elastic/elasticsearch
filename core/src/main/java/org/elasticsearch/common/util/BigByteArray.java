@@ -22,7 +22,6 @@ package org.elasticsearch.common.util;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.common.Preconditions;
 
 import java.util.Arrays;
 
@@ -110,7 +109,9 @@ final class BigByteArray extends AbstractBigArray implements ByteArray {
 
     @Override
     public void fill(long fromIndex, long toIndex, byte value) {
-        Preconditions.checkArgument(fromIndex <= toIndex);
+        if (fromIndex > toIndex) {
+            throw new IllegalArgumentException();
+        }
         final int fromPage = pageIndex(fromIndex);
         final int toPage = pageIndex(toIndex - 1);
         if (fromPage == toPage) {

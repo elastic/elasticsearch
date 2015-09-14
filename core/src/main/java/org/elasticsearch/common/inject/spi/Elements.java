@@ -28,8 +28,6 @@ import org.elasticsearch.common.logging.Loggers;
 import java.lang.annotation.Annotation;
 import java.util.*;
 
-import static org.elasticsearch.common.Preconditions.checkArgument;
-
 /**
  * Exposes elements of a module so they can be inspected, validated or {@link
  * Element#applyTo(Binder) rewritten}.
@@ -132,7 +130,9 @@ public final class Elements {
          */
         private RecordingBinder(
                 RecordingBinder prototype, Object source, SourceProvider sourceProvider) {
-            checkArgument(source == null ^ sourceProvider == null);
+            if (!(source == null ^ sourceProvider == null)) {
+                throw new IllegalArgumentException();
+            }
 
             this.stage = prototype.stage;
             this.modules = prototype.modules;

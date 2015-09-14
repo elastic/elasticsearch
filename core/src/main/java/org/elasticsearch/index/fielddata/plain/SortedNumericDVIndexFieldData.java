@@ -22,7 +22,6 @@ package org.elasticsearch.index.fielddata.plain;
 import org.apache.lucene.index.*;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.NumericUtils;
-import org.elasticsearch.common.Preconditions;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.*;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
@@ -45,7 +44,9 @@ public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData imple
     
     public SortedNumericDVIndexFieldData(Index index, Names fieldNames, NumericType numericType, FieldDataType fieldDataType) {
         super(index, fieldNames, fieldDataType);
-        Preconditions.checkArgument(numericType != null, "numericType must be non-null");
+        if (numericType == null) {
+            throw new IllegalArgumentException("numericType must be non-null");
+        }
         this.numericType = numericType;
     }
 

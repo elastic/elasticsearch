@@ -23,8 +23,6 @@ import org.elasticsearch.common.inject.spi.Message;
 import java.util.Collection;
 import java.util.Collections;
 
-import static org.elasticsearch.common.Preconditions.checkArgument;
-
 /**
  * Indicates that there was a runtime failure while providing an instance.
  *
@@ -41,7 +39,9 @@ public final class ProvisionException extends RuntimeException {
      */
     public ProvisionException(Iterable<Message> messages) {
         this.messages = ImmutableSet.copyOf(messages);
-        checkArgument(!this.messages.isEmpty());
+        if (this.messages.isEmpty()) {
+            throw new IllegalArgumentException();
+        }
         initCause(Errors.getOnlyCause(this.messages));
     }
 

@@ -21,7 +21,6 @@ package org.elasticsearch.common.collect;
 
 import com.google.common.collect.UnmodifiableIterator;
 import org.apache.lucene.util.mutable.MutableValueInt;
-import org.elasticsearch.common.Preconditions;
 
 import java.lang.reflect.Array;
 import java.util.*;
@@ -474,7 +473,9 @@ public final class CopyOnWriteHashMap<K, V> extends AbstractMap<K, V> {
 
     @Override
     public V get(Object key) {
-        Preconditions.checkArgument(key != null, "Null keys are not supported");
+        if (key == null) {
+            throw new IllegalArgumentException("null keys are not supported");
+        }
         final int hash = key.hashCode();
         return root.get(key, hash);
     }
@@ -490,8 +491,12 @@ public final class CopyOnWriteHashMap<K, V> extends AbstractMap<K, V> {
      * of the hash table. The current hash table is not modified.
      */
     public CopyOnWriteHashMap<K, V> copyAndPut(K key, V value) {
-        Preconditions.checkArgument(key != null, "null keys are not supported");
-        Preconditions.checkArgument(value != null, "null values are not supported");
+        if (key == null) {
+            throw new IllegalArgumentException("null keys are not supported");
+        }
+        if (value == null) {
+            throw new IllegalArgumentException("null values are not supported");
+        }
         final int hash = key.hashCode();
         final MutableValueInt newValue = new MutableValueInt();
         final InnerNode<K, V> newRoot = root.put(key, hash, TOTAL_HASH_BITS, value, newValue);
@@ -522,7 +527,9 @@ public final class CopyOnWriteHashMap<K, V> extends AbstractMap<K, V> {
      * Remove the given key from this map. The current hash table is not modified.
      */
     public CopyOnWriteHashMap<K, V> copyAndRemove(Object key) {
-        Preconditions.checkArgument(key != null, "Null keys are not supported");
+        if (key == null) {
+            throw new IllegalArgumentException("null keys are not supported");
+        }
         final int hash = key.hashCode();
         final InnerNode<K, V> newRoot = root.remove(key, hash);
         if (root == newRoot) {

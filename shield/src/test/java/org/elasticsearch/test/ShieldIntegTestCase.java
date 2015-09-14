@@ -5,22 +5,15 @@
  */
 package org.elasticsearch.test;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import com.google.common.base.Function;
-import com.google.common.collect.Collections2;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginInfo;
 import org.elasticsearch.shield.ShieldPlugin;
-import org.elasticsearch.shield.audit.index.IndexAuditTrail;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.test.ESIntegTestCase.SuppressLocalMode;
 import org.junit.AfterClass;
@@ -33,6 +26,7 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.file.Path;
 import java.util.*;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
 import static org.hamcrest.CoreMatchers.is;
@@ -135,12 +129,7 @@ public abstract class ShieldIntegTestCase extends ESIntegTestCase {
         for (NodeInfo nodeInfo : nodeInfos) {
             // TODO: disable this assertion for now, because the test framework randomly runs with mock plugins. Maybe we should run without mock plugins?
 //            assertThat(nodeInfo.getPlugins().getInfos(), hasSize(2));
-            Collection<String> pluginNames = Collections2.transform(nodeInfo.getPlugins().getInfos(), new Function<PluginInfo, String>() {
-                @Override
-                public String apply(PluginInfo pluginInfo) {
-                    return pluginInfo.getName();
-                }
-            });
+            Collection<String> pluginNames = nodeInfo.getPlugins().getInfos().stream().map(p -> p.getName()).collect(Collectors.toList());
             assertThat("plugin [" + ShieldPlugin.NAME + "] not found in [" + pluginNames + "]", pluginNames.contains(ShieldPlugin.NAME), is(true));
             assertThat("plugin [" + licensePluginName() + "] not found in [" + pluginNames + "]", pluginNames.contains(licensePluginName()), is(true));
         }

@@ -5,9 +5,6 @@
  */
 package org.elasticsearch.shield.authz;
 
-import com.google.common.cache.CacheBuilder;
-import com.google.common.cache.CacheLoader;
-import com.google.common.cache.LoadingCache;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterators;
@@ -31,6 +28,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.SortedMap;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Function;
 import java.util.function.Predicate;
 
 /**
@@ -303,24 +302,23 @@ public interface Permission {
                 }
             };
 
-            private final LoadingCache<String, Predicate<String>> allowedIndicesMatchersForAction = CacheBuilder.newBuilder()
-                    .build(new CacheLoader<String, Predicate<String>>() {
-                        @Override
-                        public Predicate<String> load(String action) throws Exception {
-                            List<String> indices = new ArrayList<>();
-                            for (Group group : groups) {
-                                if (group.actionMatcher.test(action)) {
-                                    indices.addAll(Arrays.asList(group.indices));
-                                }
-                            }
-                            return new AutomatonPredicate(Automatons.patterns(Collections.unmodifiableList(indices)));
-                        }
-                    });
+            private final Function<String, Predicate<String>> loadingFunction;
+
+            private final ConcurrentHashMap<String, Predicate<String>> allowedIndicesMatchersForAction = new ConcurrentHashMap<>();
 
             private final Group[] groups;
 
             public Core(Group... groups) {
                 this.groups = groups;
+                loadingFunction = (action) -> {
+                    List<String> indices = new ArrayList<>();
+                    for (Group group : groups) {
+                        if (group.actionMatcher.test(action)) {
+                            indices.addAll(Arrays.asList(group.indices));
+                        }
+                    }
+                    return new AutomatonPredicate(Automatons.patterns(Collections.unmodifiableList(indices)));
+                };
             }
 
             @Override
@@ -342,7 +340,7 @@ public interface Permission {
              * has the privilege for executing the given action on.
              */
             public Predicate<String> allowedIndicesMatcher(String action) {
-                return allowedIndicesMatchersForAction.getUnchecked(action);
+                return allowedIndicesMatchersForAction.computeIfAbsent(action, loadingFunction);
             }
 
             @Override

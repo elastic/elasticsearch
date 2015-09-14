@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.watcher.trigger.schedule;
 
-import com.google.common.collect.Collections2;
 import com.google.common.primitives.Ints;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -13,6 +12,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.junit.Test;
+
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.*;
@@ -164,7 +165,7 @@ public class HourlyScheduleTests extends ScheduleTestCase {
         int[] minutes = validMinutes();
         XContentBuilder builder = jsonBuilder()
                 .startObject()
-                .field("minute", Collections2.transform(Ints.asList(minutes), Ints.stringConverter().reverse()))
+                .field("minute", Ints.asList(minutes).stream().map(p -> p.toString()).collect(Collectors.toList()))
                 .endObject();
         BytesReference bytes = builder.bytes();
         XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
@@ -182,7 +183,7 @@ public class HourlyScheduleTests extends ScheduleTestCase {
         int[] minutes = invalidMinutes();
         XContentBuilder builder = jsonBuilder()
                 .startObject()
-                .field("minute", Collections2.transform(Ints.asList(minutes), Ints.stringConverter().reverse()))
+                .field("minute", Ints.asList(minutes).stream().map(p -> p.toString()).collect(Collectors.toList()))
                 .endObject();
         BytesReference bytes = builder.bytes();
         XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);

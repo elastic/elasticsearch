@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.shield.support;
 
-import com.google.common.base.Charsets;
 import com.google.common.jimfs.Configuration;
 import com.google.common.jimfs.Jimfs;
 import org.elasticsearch.common.util.set.Sets;
@@ -14,6 +13,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import java.io.PrintWriter;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.FileSystem;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -36,7 +36,7 @@ public class ShieldFilesTests extends ESTestCase {
         boolean supportsPosixPermissions = Environment.getFileStore(path).supportsFileAttributeView(PosixFileAttributeView.class);
         assumeTrue("Ignoring because posix file attributes are not supported", supportsPosixPermissions);
 
-        Files.write(path, "foo".getBytes(Charsets.UTF_8));
+        Files.write(path, "foo".getBytes(StandardCharsets.UTF_8));
 
         Set<PosixFilePermission> perms = Sets.newHashSet(OWNER_READ, OWNER_WRITE);
         if (randomBoolean()) perms.add(OWNER_EXECUTE);
@@ -59,8 +59,8 @@ public class ShieldFilesTests extends ESTestCase {
         try (FileSystem fs = Jimfs.newFileSystem(jimFsConfiguration)) {
             Path path = fs.getPath("foo");
             Path tempPath = fs.getPath("bar");
-            Files.write(path, "foo".getBytes(Charsets.UTF_8));
-            Files.write(tempPath, "bar".getBytes(Charsets.UTF_8));
+            Files.write(path, "foo".getBytes(StandardCharsets.UTF_8));
+            Files.write(tempPath, "bar".getBytes(StandardCharsets.UTF_8));
 
             PosixFileAttributeView view = Files.getFileAttributeView(path, PosixFileAttributeView.class);
             view.setGroup(fs.getUserPrincipalLookupService().lookupPrincipalByGroupName(randomAsciiOfLength(10)));

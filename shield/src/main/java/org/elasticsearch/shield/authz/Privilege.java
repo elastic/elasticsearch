@@ -5,9 +5,6 @@
  */
 package org.elasticsearch.shield.authz;
 
-import com.google.common.cache.CacheBuilder;
-import com.google.common.cache.CacheLoader;
-import com.google.common.cache.LoadingCache;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.util.concurrent.UncheckedExecutionException;
 import dk.brics.automaton.Automaton;
@@ -26,6 +23,7 @@ import org.elasticsearch.shield.support.Automatons;
 
 import java.util.Locale;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.function.Predicate;
 
@@ -180,17 +178,7 @@ public abstract class Privilege<P extends Privilege<P>> {
             return values;
         }
 
-        private static final LoadingCache<Name, Index> cache = CacheBuilder.newBuilder().build(
-                new CacheLoader<Name, Index>() {
-                    @Override
-                    public Index load(Name name) throws Exception {
-                        Index index = NONE;
-                        for (String part : name.parts) {
-                            index = index == NONE ? resolve(part) : index.plus(resolve(part));
-                        }
-                        return index;
-                    }
-                });
+        private static final ConcurrentHashMap<Name, Index> cache = new ConcurrentHashMap<>();
 
         private Index(String name, String... patterns) {
             super(name, patterns);
@@ -235,11 +223,13 @@ public abstract class Privilege<P extends Privilege<P>> {
         }
 
         public static Index get(Name name) {
-            try {
-                return cache.getUnchecked(name);
-            } catch (UncheckedExecutionException e) {
-                throw (RuntimeException) e.getCause();
-            }
+            return cache.computeIfAbsent(name, (theName) -> {
+                Index index = NONE;
+                for (String part : theName.parts) {
+                    index = index == NONE ? resolve(part) : index.plus(resolve(part));
+                }
+                return index;
+            });
         }
 
         public static Index union(Index... indices) {
@@ -288,17 +278,8 @@ public abstract class Privilege<P extends Privilege<P>> {
             return values;
         }
 
-        private static final LoadingCache<Name, Cluster> cache = CacheBuilder.newBuilder().build(
-                new CacheLoader<Name, Cluster>() {
-                    @Override
-                    public Cluster load(Name name) throws Exception {
-                        Cluster cluster = NONE;
-                        for (String part : name.parts) {
-                            cluster = cluster == NONE ? resolve(part) : cluster.plus(resolve(part));
-                        }
-                        return cluster;
-                    }
-                });
+        private static final ConcurrentHashMap<Name, Cluster> cache = new ConcurrentHashMap<>();
+
 
         private Cluster(String name, String... patterns) {
             super(name, patterns);
@@ -341,11 +322,13 @@ public abstract class Privilege<P extends Privilege<P>> {
         }
 
         public static Cluster get(Name name) {
-            try {
-                return cache.getUnchecked(name);
-            } catch (UncheckedExecutionException e) {
-                throw (RuntimeException) e.getCause();
-            }
+            return cache.computeIfAbsent(name, (theName) -> {
+                Cluster cluster = NONE;
+                for (String part : theName.parts) {
+                    cluster = cluster == NONE ? resolve(part) : cluster.plus(resolve(part));
+                }
+                return cluster;
+            });
         }
 
         private static Cluster resolve(String name) {

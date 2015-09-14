@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.integration;
 
-import com.google.common.base.Charsets;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 import org.elasticsearch.common.settings.Settings;
@@ -25,6 +24,7 @@ import org.junit.After;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -158,7 +158,7 @@ public class SettingsFilterTests extends ShieldIntegTestCase {
 
     static List<Settings> extractSettings(String data) throws Exception {
         List<Settings> settingsList = new ArrayList<>();
-        XContentParser parser = JsonXContent.jsonXContent.createParser(data.getBytes(Charsets.UTF_8));
+        XContentParser parser = JsonXContent.jsonXContent.createParser(data.getBytes(StandardCharsets.UTF_8));
         XContentParser.Token token = null;
         while ((token = parser.nextToken()) != null) {
             if (token == XContentParser.Token.FIELD_NAME && parser.currentName().equals("settings")) {

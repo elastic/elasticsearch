@@ -68,6 +68,12 @@ public class ShieldServerTransportService extends TransportService {
         super.registerRequestHandler(action, requestFactory, executor, wrappedHandler);
     }
 
+    @Override
+    public <Request extends TransportRequest> void registerRequestHandler(String action, Supplier<Request> request, String executor, boolean forceExecution, TransportRequestHandler<Request> handler) {
+        TransportRequestHandler<Request> wrappedHandler = new ProfileSecuredRequestHandler<>(action, handler, profileFilters);
+        super.registerRequestHandler(action, request, executor, forceExecution, wrappedHandler);
+    }
+
     protected Map<String, ServerTransportFilter> initializeProfileFilters() {
         if (!(transport instanceof ShieldNettyTransport)) {
             return Collections.<String, ServerTransportFilter>singletonMap(NettyTransport.DEFAULT_PROFILE, new ServerTransportFilter.NodeProfile(authcService, authzService, actionMapper, false));

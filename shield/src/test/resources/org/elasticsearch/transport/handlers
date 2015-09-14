@@ -67,7 +67,8 @@ internal:discovery/zen/fd/ping
 internal:discovery/zen/join
 internal:discovery/zen/join/validate
 internal:discovery/zen/leave
-internal:discovery/zen/publish
+internal:discovery/zen/publish/send
+internal:discovery/zen/publish/commit
 internal:discovery/zen/rejoin
 internal:discovery/zen/unicast
 internal:gateway/local/allocate_dangled

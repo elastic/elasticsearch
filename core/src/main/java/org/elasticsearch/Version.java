@@ -251,7 +251,9 @@ public class Version {
     public static final int V_1_7_1_ID = 1070199;
     public static final Version V_1_7_1 = new Version(V_1_7_1_ID, false, org.apache.lucene.util.Version.LUCENE_4_10_4);
     public static final int V_1_7_2_ID = 1070299;
-    public static final Version V_1_7_2 = new Version(V_1_7_2_ID, true, org.apache.lucene.util.Version.LUCENE_4_10_4);
+    public static final Version V_1_7_2 = new Version(V_1_7_2_ID, false, org.apache.lucene.util.Version.LUCENE_4_10_4);
+    public static final int V_1_7_3_ID = 1070399;
+    public static final Version V_1_7_3 = new Version(V_1_7_3_ID, true, org.apache.lucene.util.Version.LUCENE_4_10_4);
 
     public static final int V_2_0_0_beta1_ID = 2000001;
     public static final Version V_2_0_0_beta1 = new Version(V_2_0_0_beta1_ID, true, org.apache.lucene.util.Version.LUCENE_5_2_1);
@@ -281,6 +283,8 @@ public class Version {
                 return V_2_0_0;
             case V_2_0_0_beta1_ID:
                 return V_2_0_0_beta1;
+            case V_1_7_3_ID:
+                return V_1_7_3;
             case V_1_7_2_ID:
                 return V_1_7_2;
             case V_1_7_1_ID:

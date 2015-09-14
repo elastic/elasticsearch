@@ -154,7 +154,7 @@ def create_client(http_port=DEFAULT_HTTP_TCP_PORT, timeout=30):
   for _ in range(0, timeout):
     # TODO: ask Honza if there is a better way to do this?
     try:
-      client = Elasticsearch([{'host': '127.0.0.1', 'port': http_port}])
+      client = Elasticsearch([{'host': 'localhost', 'port': http_port}])
       client.cluster.health(wait_for_nodes=1)
       client.count() # can we actually search or do we get a 503? -- anyway retry
       return client

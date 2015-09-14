@@ -996,6 +996,9 @@ public class IndexShard extends AbstractIndexShardComponent {
 
         // update engine if it is already started.
         if (preValue.bytes() != shardIndexingBufferSize.bytes()) {
+            // so we push changes these changes down to IndexWriter:
+            engine.onSettingsChanged();
+
             if (shardIndexingBufferSize == EngineConfig.INACTIVE_SHARD_INDEXING_BUFFER) {
                 // it's inactive: make sure we do a refresh / full IW flush in this case, since the memory
                 // changes only after a "data" change has happened to the writer
@@ -1009,9 +1012,6 @@ public class IndexShard extends AbstractIndexShardComponent {
             } else {
                 logger.debug("updating index_buffer_size from [{}] to [{}]", preValue, shardIndexingBufferSize);
             }
-
-            // so we push changes these changes down to IndexWriter:
-            engine.onSettingsChanged();
         }
 
         engine.getTranslog().updateBuffer(shardTranslogBufferSize);

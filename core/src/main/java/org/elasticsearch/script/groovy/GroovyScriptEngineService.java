@@ -57,19 +57,52 @@ import java.util.Map;
  */
 public class GroovyScriptEngineService extends AbstractComponent implements ScriptEngineService {
 
+    /**
+     * The name of the scripting engine/language.
+     */
     public static final String NAME = "groovy";
+    /**
+     * The setting to enable or disable <code>invokedynamic</code> instruction support in Java 7+.
+     * <p>
+     * This should only be used with Java 7u60 or later because of issues related to the instruction.
+     * The <code>invokedynamic</code> instruction allows near-Java performance from many of Groovy's
+     * dynamic features, which is why it is enabled by default.
+     * <p>
+     * Note: If this is disabled because <code>invokedynamic</code> is causing issues, then the Groovy
+     * <code>indy</code> jar needs to be replaced by the non-<code>indy</code> variant of it on the classpath (e.g.,
+     * <code>groovy-all-2.4.4-indy.jar</code> should be replaced by <code>groovy-all-2.4.4.jar</code>).
+     * <p>
+     * Defaults to {@code true}.
+     */
+    public static final String GROOVY_INDY_ENABLED = "script.groovy.indy";
+    /**
+     * The name of the Groovy compiler setting to use associated with activating <code>invokedynamic</code> support.
+     */
+    public static final String GROOVY_INDY_SETTING_NAME = "indy";
+
     private final GroovyClassLoader loader;
 
     @Inject
     public GroovyScriptEngineService(Settings settings) {
         super(settings);
+
         ImportCustomizer imports = new ImportCustomizer();
         imports.addStarImports("org.joda.time");
         imports.addStaticStars("java.lang.Math");
+
         CompilerConfiguration config = new CompilerConfiguration();
+
         config.addCompilationCustomizers(imports);
         // Add BigDecimal -> Double transformer
         config.addCompilationCustomizers(new GroovyBigDecimalTransformer(CompilePhase.CONVERSION));
+
+        // Implicitly requires Java 7u60 or later to get valid support
+        if (settings.getAsBoolean(GROOVY_INDY_ENABLED, true)) {
+            // maintain any default optimizations
+            config.getOptimizationOptions().put(GROOVY_INDY_SETTING_NAME, true);
+        }
+
+        // Groovy class loader to isolate Groovy-land code
         this.loader = new GroovyClassLoader(getClass().getClassLoader(), config);
     }
 

@@ -10,7 +10,6 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.watcher.support.DynamicIndexName;
 import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
 import org.elasticsearch.watcher.transform.TransformFactory;
 
@@ -22,14 +21,12 @@ import java.io.IOException;
 public class SearchTransformFactory extends TransformFactory<SearchTransform, SearchTransform.Result, ExecutableSearchTransform> {
 
     protected final ClientProxy client;
-    protected final DynamicIndexName.Parser indexNameParser;
     private final TimeValue defaultTimeout;
 
     @Inject
     public SearchTransformFactory(Settings settings, ClientProxy client) {
         super(Loggers.getLogger(ExecutableSearchTransform.class, settings));
         this.client = client;
-        this.indexNameParser = new DynamicIndexName.Parser(settings, "watcher.transform.search");
         this.defaultTimeout = settings.getAsTime("watcher.transform.search.default_timeout", null);
     }
 
@@ -45,6 +42,6 @@ public class SearchTransformFactory extends TransformFactory<SearchTransform, Se
 
     @Override
     public ExecutableSearchTransform createExecutable(SearchTransform transform) {
-        return new ExecutableSearchTransform(transform, transformLogger, client, defaultTimeout, indexNameParser);
+        return new ExecutableSearchTransform(transform, transformLogger, client, defaultTimeout);
     }
 }

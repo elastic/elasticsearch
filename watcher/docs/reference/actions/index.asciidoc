@@ -33,7 +33,7 @@ The following snippet shows a simple `index` action definition:
 |Name                      |Required    | Default 		| Description
 
 | `index`                  | yes        | -  			    | The Elasticsearch index to 
-														                            index into. <<dynamic-index-names, Dynamic index names>>
+														                            index into.
                                                         are supported
 
 | `doc_type`               | yes        | -       		| The type of the document
@@ -51,10 +51,6 @@ The following snippet shows a simple `index` action definition:
                                                           the default internal index/bulk operations
                                                           <<default-internal-ops-timeouts, timeouts>>.
 
-| `dynamic_name_timezone`  | no         | -             | The time zone to use for resolving the index name based on
-                                                          <<dynamic-index-names, Dynamic Index Names>>.  The default
-                                                          time zone also can be <<dynamic-index-name-timezone, configured>>
-                                                          globally.
 |======
 
 

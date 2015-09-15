@@ -21,15 +21,12 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.watcher.actions.Action;
 import org.elasticsearch.watcher.actions.Action.Result.Status;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
-import org.elasticsearch.watcher.support.DynamicIndexName;
 import org.elasticsearch.watcher.support.WatcherDateTimeUtils;
 import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
 import org.elasticsearch.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.watcher.test.WatcherTestUtils;
 import org.elasticsearch.watcher.watch.Payload;
 import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
-import org.joda.time.format.DateTimeFormat;
 import org.junit.Test;
 
 import java.util.Arrays;
@@ -73,7 +70,7 @@ public class IndexActionTests extends ESIntegTestCase {
         }
 
         IndexAction action = new IndexAction("test-index", "test-type", timestampField, null, null);
-        ExecutableIndexAction executable = new ExecutableIndexAction(action, logger, ClientProxy.of(client()), null, new DynamicIndexName.Parser());
+        ExecutableIndexAction executable = new ExecutableIndexAction(action, logger, ClientProxy.of(client()), null);
         DateTime executionTime = DateTime.now(UTC);
         Payload payload = randomBoolean() ? new Payload.Simple("foo", "bar") : new Payload.Simple("_doc", ImmutableMap.of("foo", "bar"));
         WatchExecutionContext ctx = WatcherTestUtils.mockExecutionContext("_id", executionTime, payload);
@@ -136,7 +133,7 @@ public class IndexActionTests extends ESIntegTestCase {
         );
 
         IndexAction action = new IndexAction("test-index", "test-type", timestampField, null, null);
-        ExecutableIndexAction executable = new ExecutableIndexAction(action, logger, ClientProxy.of(client()), null, new DynamicIndexName.Parser());
+        ExecutableIndexAction executable = new ExecutableIndexAction(action, logger, ClientProxy.of(client()), null);
         DateTime executionTime = DateTime.now(UTC);
         WatchExecutionContext ctx = WatcherTestUtils.mockExecutionContext("_id", executionTime, new Payload.Simple("_doc", list));
 
@@ -215,47 +212,6 @@ public class IndexActionTests extends ESIntegTestCase {
             assertThat(executable.action().executionTimeField, equalTo(timestampField));
         }
         assertThat(executable.action().timeout, equalTo(writeTimeout));
-    }
-
-    @Test
-    public void testParser_DynamicIndex() throws Exception {
-
-        DateTime now = DateTime.now(UTC);
-        DateTimeZone timeZone = randomBoolean() ? DateTimeZone.forOffsetHours(-2) : null;
-        if (timeZone != null) {
-            now = now.withHourOfDay(0).withMinuteOfHour(0);
-        }
-
-        XContentBuilder builder = jsonBuilder();
-        builder.startObject()
-                .field(IndexAction.Field.INDEX.getPreferredName(), "<idx-{now/d}>")
-                .field(IndexAction.Field.DOC_TYPE.getPreferredName(), "test-type");
-
-        boolean timeZoneInWatch = randomBoolean();
-        if (timeZone != null && timeZoneInWatch) {
-            builder.field(IndexAction.Field.DYNAMIC_NAME_TIMEZONE.getPreferredName(), timeZone);
-        }
-
-        builder.endObject();
-
-        Settings.Builder settings = Settings.builder();
-        if (timeZone != null && !timeZoneInWatch) {
-            settings.put("watcher.actions.index.dynamic_indices.time_zone", timeZone);
-        }
-
-        IndexActionFactory actionParser = new IndexActionFactory(settings.build(), ClientProxy.of(client()));
-        XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
-        parser.nextToken();
-
-        ExecutableIndexAction executable = actionParser.parseExecutable(randomAsciiOfLength(5), randomAsciiOfLength(3), parser);
-
-        assertThat(executable, notNullValue());
-        assertThat(executable.action().index, is("<idx-{now/d}>"));
-        String indexName = executable.indexName().name(now);
-        if (timeZone != null) {
-            now = now.withZone(timeZone);
-        }
-        assertThat(indexName, is("idx-" + DateTimeFormat.forPattern("YYYY.MM.dd").print(now)));
     }
 
     @Test

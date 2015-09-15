@@ -53,16 +53,11 @@ public final class WatcherUtils {
         return XContentHelper.convertToMap(builder.bytes(), false).v2();
     }
 
-    public static SearchRequest createSearchRequestFromPrototype(SearchRequest requestPrototype, @Nullable DynamicIndexName[] dynamicIndexNames, WatchExecutionContext ctx, Payload payload) throws IOException {
-
-        String[] indices = dynamicIndexNames == null ?
-                requestPrototype.indices() :
-                DynamicIndexName.names(dynamicIndexNames, ctx.executionTime());
-
+    public static SearchRequest createSearchRequestFromPrototype(SearchRequest requestPrototype, WatchExecutionContext ctx, Payload payload) throws IOException {
         SearchRequest request = new SearchRequest(requestPrototype)
                 .indicesOptions(requestPrototype.indicesOptions())
                 .searchType(requestPrototype.searchType())
-                .indices(indices)
+                .indices(requestPrototype.indices())
                 .types(requestPrototype.types());
 
         // TODO: Revise this search template conversion code once search templates in core have been refactored once ES 2.0 is released.

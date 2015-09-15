@@ -41,7 +41,6 @@ import org.elasticsearch.watcher.input.search.ExecutableSearchInput;
 import org.elasticsearch.watcher.input.simple.ExecutableSimpleInput;
 import org.elasticsearch.watcher.input.simple.SimpleInput;
 import org.elasticsearch.watcher.license.LicenseService;
-import org.elasticsearch.watcher.support.DynamicIndexName;
 import org.elasticsearch.watcher.support.Script;
 import org.elasticsearch.watcher.support.WatcherUtils;
 import org.elasticsearch.watcher.support.http.HttpClient;
@@ -69,7 +68,6 @@ import org.joda.time.DateTime;
 
 import javax.mail.internet.AddressException;
 import java.io.IOException;
-import java.lang.reflect.Constructor;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 
@@ -222,7 +220,7 @@ public final class WatcherTestUtils {
                 new ScheduleTrigger(new CronSchedule("0/5 * * * * ? *")),
                 new ExecutableSimpleInput(new SimpleInput(new Payload.Simple(inputData)), logger),
                 new ExecutableScriptCondition(new ScriptCondition(Script.inline("return true").build()), logger, scriptService),
-                new ExecutableSearchTransform(new SearchTransform(transformRequest, null, null), logger, client, null, new DynamicIndexName.Parser()),
+                new ExecutableSearchTransform(new SearchTransform(transformRequest, null, null), logger, client, null),
                 new TimeValue(0),
                 new ExecutableActions(actions),
                 metadata,

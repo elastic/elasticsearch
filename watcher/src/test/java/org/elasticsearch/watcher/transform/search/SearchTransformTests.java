@@ -30,7 +30,6 @@ import org.elasticsearch.watcher.execution.TriggeredExecutionContext;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.input.simple.ExecutableSimpleInput;
 import org.elasticsearch.watcher.input.simple.SimpleInput;
-import org.elasticsearch.watcher.support.DynamicIndexName;
 import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
 import org.elasticsearch.watcher.support.text.TextTemplate;
 import org.elasticsearch.watcher.transform.Transform;
@@ -42,8 +41,6 @@ import org.elasticsearch.watcher.watch.Payload;
 import org.elasticsearch.watcher.watch.Watch;
 import org.elasticsearch.watcher.watch.WatchStatus;
 import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
-import org.joda.time.format.DateTimeFormat;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -128,7 +125,7 @@ public class SearchTransformTests extends ESIntegTestCase {
                 .endObject()
                 .endObject().bytes());
         SearchTransform searchTransform = TransformBuilders.searchTransform(request).build();
-        ExecutableSearchTransform transform = new ExecutableSearchTransform(searchTransform, logger, ClientProxy.of(client()), null, new DynamicIndexName.Parser());
+        ExecutableSearchTransform transform = new ExecutableSearchTransform(searchTransform, logger, ClientProxy.of(client()), null);
 
         WatchExecutionContext ctx = mockExecutionContext("_name", EMPTY_PAYLOAD);
 
@@ -165,7 +162,7 @@ public class SearchTransformTests extends ESIntegTestCase {
                 .endObject()
                 .endObject().bytes());
         SearchTransform searchTransform = TransformBuilders.searchTransform(request).build();
-        ExecutableSearchTransform transform = new ExecutableSearchTransform(searchTransform, logger, ClientProxy.of(client()), null, new DynamicIndexName.Parser());
+        ExecutableSearchTransform transform = new ExecutableSearchTransform(searchTransform, logger, ClientProxy.of(client()), null);
 
         WatchExecutionContext ctx = mockExecutionContext("_name", EMPTY_PAYLOAD);
 
@@ -211,7 +208,7 @@ public class SearchTransformTests extends ESIntegTestCase {
                 .must(termQuery("value", "{{ctx.payload.value}}"))));
 
         SearchTransform searchTransform = TransformBuilders.searchTransform(request).build();
-        ExecutableSearchTransform transform = new ExecutableSearchTransform(searchTransform, logger, ClientProxy.of(client()), null, new DynamicIndexName.Parser());
+        ExecutableSearchTransform transform = new ExecutableSearchTransform(searchTransform, logger, ClientProxy.of(client()), null);
 
         ScheduleTriggerEvent event = new ScheduleTriggerEvent("_name", parseDate("2015-01-04T00:00:00", UTC), parseDate("2015-01-01T00:00:00", UTC));
         WatchExecutionContext ctx = mockExecutionContext("_name", parseDate("2015-01-04T00:00:00", UTC), event, EMPTY_PAYLOAD);
@@ -301,68 +298,6 @@ public class SearchTransformTests extends ESIntegTestCase {
         }
         assertThat(executable.transform().getRequest().source().toBytes(), equalTo(source.toBytes()));
         assertThat(executable.transform().getTimeout(), equalTo(readTimeout));
-    }
-
-    @Test
-    public void testParser_WithIndexNames() throws Exception {
-        SearchType searchType = getRandomSupportedSearchType();
-        XContentBuilder builder = jsonBuilder().startObject();
-        builder.startObject("request");
-        builder.array("indices", "idx", "<idx-{now/d-3d}>");
-        if (searchType != null) {
-            builder.field("search_type", searchType.name());
-        }
-
-        DateTime now = DateTime.now(UTC);
-        DateTimeZone timeZone = randomBoolean() ? DateTimeZone.forOffsetHours(-2) : null;
-        if (timeZone != null) {
-            now = now.withHourOfDay(0).withMinuteOfHour(0);
-        }
-
-        builder.startObject("body")
-                .startObject("query")
-                .startObject("match_all")
-                .endObject()
-                .endObject()
-                .endObject();
-        builder.endObject();
-
-        boolean timeZoneInWatch = randomBoolean();
-        if (timeZone != null && timeZoneInWatch) {
-            builder.field(SearchTransform.Field.DYNAMIC_NAME_TIMEZONE.getPreferredName(), timeZone);
-        }
-
-        builder.endObject();
-
-        XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
-        parser.nextToken();
-
-        String dateFormat;
-        Settings.Builder settingsBuilder = Settings.builder();
-        if (randomBoolean()) {
-            dateFormat = DynamicIndexName.DEFAULT_DATE_FORMAT;
-        } else {
-            dateFormat = "YYYY-MM";
-            settingsBuilder.put("watcher.transform.search.dynamic_indices.default_date_format", dateFormat);
-        }
-        if (timeZone != null && !timeZoneInWatch) {
-            settingsBuilder.put("watcher.transform.search.dynamic_indices.time_zone", timeZone);
-        }
-        Settings settings = settingsBuilder.build();
-
-        SearchTransformFactory transformFactory = new SearchTransformFactory(settings, ClientProxy.of(client()));
-
-        ExecutableSearchTransform executable = transformFactory.parseExecutable("_id", parser);
-        DynamicIndexName[] indexNames = executable.indexNames();
-        assertThat(indexNames, notNullValue());
-
-        String[] names = DynamicIndexName.names(indexNames, now);
-        assertThat(names, notNullValue());
-        assertThat(names.length, is(2));
-        if (timeZone != null) {
-            now = now.withZone(timeZone);
-        }
-        assertThat(names, arrayContaining("idx", "idx-" + DateTimeFormat.forPattern(dateFormat).print(now.minusDays(3))));
     }
 
     @Test
@@ -501,7 +436,7 @@ public class SearchTransformTests extends ESIntegTestCase {
         ensureGreen("test-search-index");
 
         SearchTransform searchTransform = TransformBuilders.searchTransform(request).build();
-        ExecutableSearchTransform executableSearchTransform = new ExecutableSearchTransform(searchTransform, logger, ClientProxy.of(client()), null, new DynamicIndexName.Parser());
+        ExecutableSearchTransform executableSearchTransform = new ExecutableSearchTransform(searchTransform, logger, ClientProxy.of(client()), null);
 
         return executableSearchTransform.execute(ctx, Payload.Simple.EMPTY);
     }

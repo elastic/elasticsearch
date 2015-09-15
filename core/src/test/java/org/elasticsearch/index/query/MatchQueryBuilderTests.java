@@ -46,7 +46,11 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
 
     @Override
     protected MatchQueryBuilder doCreateTestQueryBuilder() {
-        String fieldName = randomFrom(new String[] { STRING_FIELD_NAME, BOOLEAN_FIELD_NAME, INT_FIELD_NAME, DOUBLE_FIELD_NAME });
+        String fieldName = randomFrom(STRING_FIELD_NAME, BOOLEAN_FIELD_NAME, INT_FIELD_NAME,
+                DOUBLE_FIELD_NAME, DATE_FIELD_NAME);
+        if (fieldName.equals(DATE_FIELD_NAME)) {
+            assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        }
         Object value = "";
         if (fieldName.equals(STRING_FIELD_NAME)) {
             int terms = randomIntBetween(0, 3);

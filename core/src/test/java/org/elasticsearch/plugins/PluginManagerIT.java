@@ -171,7 +171,7 @@ public class PluginManagerIT extends ESIntegTestCase {
         }
         return zip.toUri().toURL().toString();
     }
-    @Test
+
     public void testThatPluginNameMustBeSupplied() throws IOException {
         Path pluginDir = createTempDir().resolve("fake-plugin");
         String pluginUrl = createPlugin(pluginDir,
@@ -185,7 +185,6 @@ public class PluginManagerIT extends ESIntegTestCase {
         assertStatus("install", USAGE);
     }
 
-    @Test
     public void testLocalPluginInstallWithBinAndConfig() throws Exception {
         String pluginName = "fake-plugin";
         Path pluginDir = createTempDir().resolve(pluginName);
@@ -232,7 +231,6 @@ public class PluginManagerIT extends ESIntegTestCase {
     /**
      * Test for #7890
      */
-    @Test
     public void testLocalPluginInstallWithBinAndConfigInAlreadyExistingConfigDir_7890() throws Exception {
         String pluginName = "fake-plugin";
         Path pluginDir = createTempDir().resolve(pluginName);
@@ -335,7 +333,6 @@ public class PluginManagerIT extends ESIntegTestCase {
     }
 
     // For #7152
-    @Test
     public void testLocalPluginInstallWithBinOnly_7152() throws Exception {
         String pluginName = "fake-plugin";
         Path pluginDir = createTempDir().resolve(pluginName);
@@ -359,20 +356,39 @@ public class PluginManagerIT extends ESIntegTestCase {
         assertDirectoryExists(pluginBinDir);
     }
 
-    @Test
     public void testListInstalledEmpty() throws IOException {
         assertStatusOk("list");
         assertThat(terminal.getTerminalOutput(), hasItem(containsString("No plugin detected")));
     }
 
-    @Test
     public void testListInstalledEmptyWithExistingPluginDirectory() throws IOException {
         Files.createDirectory(environment.pluginsFile());
         assertStatusOk("list");
         assertThat(terminal.getTerminalOutput(), hasItem(containsString("No plugin detected")));
     }
 
-    @Test
+    public void testInstallPluginVerbose() throws IOException {
+        String pluginName = "fake-plugin";
+        Path pluginDir = createTempDir().resolve(pluginName);
+        String pluginUrl = createPlugin(pluginDir,
+            "description", "fake desc",
+            "name", pluginName,
+            "version", "1.0",
+            "elasticsearch.version", Version.CURRENT.toString(),
+            "java.version", System.getProperty("java.specification.version"),
+            "jvm", "true",
+            "classname", "FakePlugin");
+        System.err.println("install " + pluginUrl + " --verbose");
+        ExitStatus status = new PluginManagerCliParser(terminal).execute(args("install " + pluginUrl + " --verbose"));
+        assertThat("Terminal output was: " + terminal.getTerminalOutput(), status, is(ExitStatus.OK));
+        assertThat(terminal.getTerminalOutput(), hasItem(containsString("Name: fake-plugin")));
+        assertThat(terminal.getTerminalOutput(), hasItem(containsString("Description: fake desc")));
+        assertThat(terminal.getTerminalOutput(), hasItem(containsString("Site: false")));
+        assertThat(terminal.getTerminalOutput(), hasItem(containsString("Version: 1.0")));
+        assertThat(terminal.getTerminalOutput(), hasItem(containsString("JVM: true")));
+        assertThatPluginIsListed(pluginName);
+    }
+
     public void testInstallPlugin() throws IOException {
         String pluginName = "fake-plugin";
         Path pluginDir = createTempDir().resolve(pluginName);
@@ -384,11 +400,38 @@ public class PluginManagerIT extends ESIntegTestCase {
             "java.version", System.getProperty("java.specification.version"),
             "jvm", "true",
             "classname", "FakePlugin");
-        assertStatusOk(String.format(Locale.ROOT, "install %s --verbose", pluginUrl));
+        ExitStatus status = new PluginManagerCliParser(terminal).execute(args("install " + pluginUrl));
+        assertThat("Terminal output was: " + terminal.getTerminalOutput(), status, is(ExitStatus.OK));
+        assertThat(terminal.getTerminalOutput(), not(hasItem(containsString("Name: fake-plugin"))));
+        assertThat(terminal.getTerminalOutput(), not(hasItem(containsString("Description:"))));
+        assertThat(terminal.getTerminalOutput(), not(hasItem(containsString("Site:"))));
+        assertThat(terminal.getTerminalOutput(), not(hasItem(containsString("Version:"))));
+        assertThat(terminal.getTerminalOutput(), not(hasItem(containsString("JVM:"))));
         assertThatPluginIsListed(pluginName);
     }
 
-    @Test
+    public void testInstallSitePluginVerbose() throws IOException {
+        String pluginName = "fake-plugin";
+        Path pluginDir = createTempDir().resolve(pluginName);
+        Files.createDirectories(pluginDir.resolve("_site"));
+        Files.createFile(pluginDir.resolve("_site").resolve("somefile"));
+        String pluginUrl = createPlugin(pluginDir,
+                "description", "fake desc",
+                "name", pluginName,
+                "version", "1.0",
+                "site", "true");
+        ExitStatus status = new PluginManagerCliParser(terminal).execute(args("install " + pluginUrl + " --verbose"));
+        assertThat("Terminal output was: " + terminal.getTerminalOutput(), status, is(ExitStatus.OK));
+        assertThat(terminal.getTerminalOutput(), hasItem(containsString("Name: fake-plugin")));
+        assertThat(terminal.getTerminalOutput(), hasItem(containsString("Description: fake desc")));
+        assertThat(terminal.getTerminalOutput(), hasItem(containsString("Site: true")));
+        assertThat(terminal.getTerminalOutput(), hasItem(containsString("Version: 1.0")));
+        assertThat(terminal.getTerminalOutput(), hasItem(containsString("JVM: false")));
+        assertThatPluginIsListed(pluginName);
+        // We want to check that Plugin Manager moves content to _site
+        assertFileExists(environment.pluginsFile().resolve(pluginName).resolve("_site"));
+    }
+
     public void testInstallSitePlugin() throws IOException {
         String pluginName = "fake-plugin";
         Path pluginDir = createTempDir().resolve(pluginName);
@@ -399,13 +442,18 @@ public class PluginManagerIT extends ESIntegTestCase {
             "name", pluginName,
             "version", "1.0",
             "site", "true");
-        assertStatusOk(String.format(Locale.ROOT, "install %s --verbose", pluginUrl));
+        ExitStatus status = new PluginManagerCliParser(terminal).execute(args("install " + pluginUrl));
+        assertThat("Terminal output was: " + terminal.getTerminalOutput(), status, is(ExitStatus.OK));
+        assertThat(terminal.getTerminalOutput(), not(hasItem(containsString("Name: fake-plugin"))));
+        assertThat(terminal.getTerminalOutput(), not(hasItem(containsString("Description:"))));
+        assertThat(terminal.getTerminalOutput(), not(hasItem(containsString("Site:"))));
+        assertThat(terminal.getTerminalOutput(), not(hasItem(containsString("Version:"))));
+        assertThat(terminal.getTerminalOutput(), not(hasItem(containsString("JVM:"))));
         assertThatPluginIsListed(pluginName);
         // We want to check that Plugin Manager moves content to _site
         assertFileExists(environment.pluginsFile().resolve(pluginName).resolve("_site"));
     }
 
-    @Test
     public void testInstallPluginWithBadChecksum() throws IOException {
         String pluginName = "fake-plugin";
         Path pluginDir = createTempDir().resolve(pluginName);
@@ -446,7 +494,6 @@ public class PluginManagerIT extends ESIntegTestCase {
      * We test regular form: username/reponame/version
      * It should find it in download.elasticsearch.org service
      */
-    @Test
     @Network
     @AwaitsFix(bugUrl = "fails with jar hell failures - http://build-us-00.elastic.co/job/es_core_master_oracle_6/519/testReport/")
     public void testInstallPluginWithElasticsearchDownloadService() throws IOException {
@@ -460,7 +507,6 @@ public class PluginManagerIT extends ESIntegTestCase {
      * We test regular form: groupId/artifactId/version
      * It should find it in maven central service
      */
-    @Test
     @Network
     @AwaitsFix(bugUrl = "fails with jar hell failures - http://build-us-00.elastic.co/job/es_core_master_oracle_6/519/testReport/")
     public void testInstallPluginWithMavenCentral() throws IOException {
@@ -475,7 +521,6 @@ public class PluginManagerIT extends ESIntegTestCase {
      * We test site plugins from github: userName/repoName
      * It should find it on github
      */
-    @Test
     @Network @AwaitsFix(bugUrl = "needs to be adapted to 2.0")
     public void testInstallPluginWithGithub() throws IOException {
         assumeTrue("github.com is accessible", isDownloadServiceWorking("github.com", 443, "/"));
@@ -497,7 +542,6 @@ public class PluginManagerIT extends ESIntegTestCase {
         return false;
     }
 
-    @Test
     public void testRemovePlugin() throws Exception {
         String pluginName = "plugintest";
         Path pluginDir = createTempDir().resolve(pluginName);
@@ -520,18 +564,15 @@ public class PluginManagerIT extends ESIntegTestCase {
         singlePluginInstallAndRemove("groupid/plugintest", "plugintest", pluginUrl);
     }
 
-    @Test
     public void testRemovePlugin_NullName_ThrowsException() throws IOException {
         assertStatus("remove ", USAGE);
     }
 
-    @Test
     public void testRemovePluginWithURLForm() throws Exception {
         assertStatus("remove file://whatever", USAGE);
         assertThat(terminal.getTerminalOutput(), hasItem(containsString("Illegal plugin name")));
     }
 
-    @Test
     public void testForbiddenPluginNames() throws IOException {
         assertStatus("remove elasticsearch", USAGE);
         assertStatus("remove elasticsearch.bat", USAGE);
@@ -543,7 +584,6 @@ public class PluginManagerIT extends ESIntegTestCase {
         assertStatus("remove ELASTICSEARCH.IN.SH", USAGE);
     }
 
-    @Test
     public void testOfficialPluginName_ThrowsException() throws IOException {
         PluginManager.checkForOfficialPlugins("analysis-icu");
         PluginManager.checkForOfficialPlugins("analysis-kuromoji");
@@ -569,13 +609,11 @@ public class PluginManagerIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testThatBasicAuthIsRejectedOnHttp() throws Exception {
         assertStatus(String.format(Locale.ROOT, "install http://user:pass@localhost:12345/foo.zip --verbose"), CliTool.ExitStatus.IO_ERROR);
         assertThat(terminal.getTerminalOutput(), hasItem(containsString("Basic auth is only supported for HTTPS!")));
     }
 
-    @Test
     public void testThatBasicAuthIsSupportedWithHttps() throws Exception {
         assumeTrue("test requires security manager to be disabled", System.getSecurityManager() == null);
 

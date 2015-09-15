@@ -110,6 +110,8 @@ com.google.common.collect.ImmutableSortedMap
 com.google.common.base.Charsets
 com.google.common.base.Function
 com.google.common.collect.Collections2
+com.google.common.cache.LoadingCache
+com.google.common.cache.CacheLoader
 
 @defaultMessage Do not violate java's access system
 java.lang.reflect.AccessibleObject#setAccessible(boolean)

@@ -67,6 +67,7 @@ if [[ "$BATS_TEST_FILENAME" =~ 25_tar_plugins.bats$ ]]; then
     }
     export ESHOME=/tmp/elasticsearch
     export_elasticsearch_paths
+    export ESPLUGIN_COMMAND_USER=elasticsearch
 else
     load os_package
     if is_rpm; then
@@ -75,6 +76,7 @@ else
         GROUP='DEB PLUGINS'
     fi
     export_elasticsearch_paths
+    export ESPLUGIN_COMMAND_USER=root
     install() {
         install_package
         verify_package_installation

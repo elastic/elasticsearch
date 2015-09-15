@@ -318,12 +318,6 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
                     createServerBootstrap(name, mergedSettings);
                     bindServerBootstrap(name, mergedSettings);
                 }
-
-                InetSocketAddress boundAddress = (InetSocketAddress) serverChannels.get(DEFAULT_PROFILE).get(0).getLocalAddress();
-                int publishPort = settings.getAsInt("transport.netty.publish_port", settings.getAsInt("transport.publish_port", boundAddress.getPort()));
-                String publishHost = settings.get("transport.netty.publish_host", settings.get("transport.publish_host", settings.get("transport.host")));
-                InetSocketAddress publishAddress = createPublishAddress(publishHost, publishPort);
-                this.boundAddress = new BoundTransportAddress(new InetSocketTransportAddress(boundAddress), new InetSocketTransportAddress(publishAddress));
             }
             success = true;
         } finally {
@@ -449,9 +443,9 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         }
     }
         
-    private void bindServerBootstrap(final String name, final InetAddress hostAddress, Settings settings) {
+    private void bindServerBootstrap(final String name, final InetAddress hostAddress, Settings profileSettings) {
 
-        String port = settings.get("port");
+        String port = profileSettings.get("port");
         PortsRange portsRange = new PortsRange(port);
         final AtomicReference<Exception> lastException = new AtomicReference<>();
         final AtomicReference<InetSocketAddress> boundSocket = new AtomicReference<>();
@@ -467,7 +461,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
                             serverChannels.put(name, list);
                         }
                         list.add(channel);
-                        boundSocket.set((InetSocketAddress)channel.getLocalAddress());
+                        boundSocket.set((InetSocketAddress) channel.getLocalAddress());
                     }
                 } catch (Exception e) {
                     lastException.set(e);
@@ -480,16 +474,48 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
             throw new BindTransportException("Failed to bind to [" + port + "]", lastException.get());
         }
 
+        InetSocketAddress boundAddress = boundSocket.get();
+        // TODO: We can remove the special casing for the default profile and store it in the profile map to reduce the complexity here
         if (!DEFAULT_PROFILE.equals(name)) {
-            InetSocketAddress boundAddress = boundSocket.get();
-            int publishPort = settings.getAsInt("publish_port", boundAddress.getPort());
-            String publishHost = settings.get("publish_host", boundAddress.getHostString());
-            InetSocketAddress publishAddress = createPublishAddress(publishHost, publishPort);
-            // TODO: support real multihoming with publishing. Today we use putIfAbsent so only the prioritized address is published
-            profileBoundAddresses.putIfAbsent(name, new BoundTransportAddress(new InetSocketTransportAddress(boundAddress), new InetSocketTransportAddress(publishAddress)));
+            // check to see if an address is already bound for this profile
+            BoundTransportAddress boundTransportAddress = profileBoundAddresses().get(name);
+            if (boundTransportAddress == null) {
+                // no address is bound, so lets create one with the publish address information from the settings or the bound address as a fallback
+                int publishPort = profileSettings.getAsInt("publish_port", boundAddress.getPort());
+                String publishHost = profileSettings.get("publish_host", boundAddress.getHostString());
+                InetSocketAddress publishAddress = createPublishAddress(publishHost, publishPort);
+                profileBoundAddresses.put(name, new BoundTransportAddress(new TransportAddress[]{new InetSocketTransportAddress(boundAddress)}, new InetSocketTransportAddress(publishAddress)));
+            } else {
+                // TODO: support real multihoming with publishing. Today we update the bound addresses so only the prioritized address is published
+                // an address already exists. add the new bound address to the end of a new array and create a new BoundTransportAddress with the array and existing publish address
+                // the new bound address is appended in order to preserve the ordering/priority of bound addresses
+                TransportAddress[] existingBoundAddress = boundTransportAddress.boundAddresses();
+                TransportAddress[] updatedBoundAddresses = Arrays.copyOf(existingBoundAddress, existingBoundAddress.length + 1);
+                updatedBoundAddresses[updatedBoundAddresses.length - 1] = new InetSocketTransportAddress(boundAddress);
+                profileBoundAddresses.put(name, new BoundTransportAddress(updatedBoundAddresses, boundTransportAddress.publishAddress()));
+            }
+        } else {
+            if (this.boundAddress == null) {
+                // this is the first address that has been bound for the default profile so we get the publish address information and create a new BoundTransportAddress
+                // these calls are different from the profile ones due to the way the settings for a profile are created. If we want to merge the code for the default profile and
+                // other profiles together, we need to change how the profileSettings are built for the default profile...
+                int publishPort = settings.getAsInt("transport.netty.publish_port", settings.getAsInt("transport.publish_port", boundAddress.getPort()));
+                String publishHost = settings.get("transport.netty.publish_host", settings.get("transport.publish_host", settings.get("transport.host")));
+                InetSocketAddress publishAddress = createPublishAddress(publishHost, publishPort);
+                this.boundAddress = new BoundTransportAddress(new TransportAddress[]{new InetSocketTransportAddress(boundAddress)}, new InetSocketTransportAddress(publishAddress));
+            } else {
+                // the default profile is already bound to one address and has the publish address, copy the existing bound addresses as is and append the new address.
+                // the new bound address is appended in order to preserve the ordering/priority of bound addresses
+                TransportAddress[] existingBoundAddress = this.boundAddress.boundAddresses();
+                TransportAddress[] updatedBoundAddresses = Arrays.copyOf(existingBoundAddress, existingBoundAddress.length + 1);
+                updatedBoundAddresses[updatedBoundAddresses.length - 1] = new InetSocketTransportAddress(boundAddress);
+                this.boundAddress = new BoundTransportAddress(updatedBoundAddresses, this.boundAddress.publishAddress());
+            }
         }
 
-        logger.info("Bound profile [{}] to address {{}}", name, NetworkAddress.format(boundSocket.get()));
+        if (logger.isDebugEnabled()) {
+            logger.debug("Bound profile [{}] to address {{}}", name, NetworkAddress.format(boundSocket.get()));
+        }
     }
 
     private void createServerBootstrap(String name, Settings settings) {

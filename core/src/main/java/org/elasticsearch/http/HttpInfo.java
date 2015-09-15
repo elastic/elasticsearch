@@ -57,7 +57,7 @@ public class HttpInfo implements Streamable, ToXContent {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.HTTP);
-        builder.field(Fields.BOUND_ADDRESS, address.boundAddress().toString());
+        builder.array(Fields.BOUND_ADDRESS, (Object[]) address.boundAddresses());
         builder.field(Fields.PUBLISH_ADDRESS, address.publishAddress().toString());
         builder.byteSizeField(Fields.MAX_CONTENT_LENGTH_IN_BYTES, Fields.MAX_CONTENT_LENGTH, maxContentLength);
         builder.endObject();

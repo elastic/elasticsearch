@@ -28,10 +28,7 @@ import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.BoundTransportAddress;
-import org.elasticsearch.common.transport.InetSocketTransportAddress;
-import org.elasticsearch.common.transport.NetworkExceptionHelper;
-import org.elasticsearch.common.transport.PortsRange;
+import org.elasticsearch.common.transport.*;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -52,10 +49,8 @@ import org.jboss.netty.handler.timeout.ReadTimeoutException;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
-import java.net.SocketAddress;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -254,12 +249,13 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
         } catch (IOException e) {
             throw new BindHttpException("Failed to resolve host [" + bindHost + "]", e);
         }
-        
+
+        List<InetSocketTransportAddress> boundAddresses = new ArrayList<>(hostAddresses.length);
         for (InetAddress address : hostAddresses) {
-            bindAddress(address);
+            boundAddresses.add(bindAddress(address));
         }
 
-        InetSocketAddress boundAddress = (InetSocketAddress) serverChannels.get(0).getLocalAddress();
+        InetSocketTransportAddress boundAddress = boundAddresses.get(0);
         InetSocketAddress publishAddress;
         if (0 == publishPort) {
             publishPort = boundAddress.getPort();
@@ -269,10 +265,10 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
         } catch (Exception e) {
             throw new BindTransportException("Failed to resolve publish address", e);
         }
-        this.boundAddress = new BoundTransportAddress(new InetSocketTransportAddress(boundAddress), new InetSocketTransportAddress(publishAddress));
+        this.boundAddress = new BoundTransportAddress(boundAddresses.toArray(new TransportAddress[boundAddresses.size()]), new InetSocketTransportAddress(publishAddress));
     }
     
-    private void bindAddress(final InetAddress hostAddress) {
+    private InetSocketTransportAddress bindAddress(final InetAddress hostAddress) {
         PortsRange portsRange = new PortsRange(port);
         final AtomicReference<Exception> lastException = new AtomicReference<>();
         final AtomicReference<InetSocketAddress> boundSocket = new AtomicReference<>();
@@ -295,7 +291,11 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
         if (!success) {
             throw new BindHttpException("Failed to bind to [" + port + "]", lastException.get());
         }
-        logger.info("Bound http to address {{}}", NetworkAddress.format(boundSocket.get()));
+
+        if (logger.isDebugEnabled()) {
+            logger.debug("Bound http to address {{}}", NetworkAddress.format(boundSocket.get()));
+        }
+        return new InetSocketTransportAddress(boundSocket.get());
     }
 
     @Override

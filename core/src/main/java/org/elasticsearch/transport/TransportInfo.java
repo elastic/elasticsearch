@@ -58,13 +58,13 @@ public class TransportInfo implements Streamable, ToXContent {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.TRANSPORT);
-        builder.field(Fields.BOUND_ADDRESS, address.boundAddress().toString());
+        builder.array(Fields.BOUND_ADDRESS, (Object[]) address.boundAddresses());
         builder.field(Fields.PUBLISH_ADDRESS, address.publishAddress().toString());
         builder.startObject(Fields.PROFILES);
         if (profileAddresses != null && profileAddresses.size() > 0) {
             for (Map.Entry<String, BoundTransportAddress> entry : profileAddresses.entrySet()) {
                 builder.startObject(entry.getKey());
-                builder.field(Fields.BOUND_ADDRESS, entry.getValue().boundAddress().toString());
+                builder.array(Fields.BOUND_ADDRESS, (Object[]) entry.getValue().boundAddresses());
                 builder.field(Fields.PUBLISH_ADDRESS, entry.getValue().publishAddress().toString());
                 builder.endObject();
             }

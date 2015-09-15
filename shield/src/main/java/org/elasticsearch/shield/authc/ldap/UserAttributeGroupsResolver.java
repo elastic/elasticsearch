@@ -5,12 +5,12 @@
  */
 package org.elasticsearch.shield.authc.ldap;
 
-import com.google.common.primitives.Ints;
 import com.unboundid.ldap.sdk.*;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.primitives.Integers;
 import org.elasticsearch.shield.authc.ldap.support.LdapSession.GroupsResolver;
 
 import java.util.Arrays;
@@ -39,7 +39,7 @@ class UserAttributeGroupsResolver implements GroupsResolver {
     public List<String> resolve(LDAPInterface connection, String userDn, TimeValue timeout, ESLogger logger) {
         try {
             SearchRequest request = new SearchRequest(userDn, SearchScope.BASE, OBJECT_CLASS_PRESENCE_FILTER, attribute);
-            request.setTimeLimitSeconds(Ints.checkedCast(timeout.seconds()));
+            request.setTimeLimitSeconds(Integers.checkedCast(timeout.seconds()));
             SearchResultEntry result = searchForEntry(connection, request, logger);
             Attribute attributeReturned = result.getAttribute(attribute);
             if (attributeReturned == null) {

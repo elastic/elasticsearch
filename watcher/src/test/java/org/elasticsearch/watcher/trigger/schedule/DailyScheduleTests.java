@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.watcher.trigger.schedule;
 
-import com.google.common.primitives.Ints;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -15,6 +14,7 @@ import org.elasticsearch.watcher.trigger.schedule.support.DayTimes;
 import org.junit.Test;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.watcher.support.Strings.join;
 import static org.hamcrest.Matchers.*;
 
 /**
@@ -36,7 +36,7 @@ public class DailyScheduleTests extends ScheduleTestCase {
         DailySchedule schedule = new DailySchedule(time);
         String[] crons = expressions(schedule);
         assertThat(crons, arrayWithSize(1));
-        assertThat(crons, arrayContaining("0 " + Ints.join(",", time.minute()) + " " + Ints.join(",", time.hour()) + " * * ?"));
+        assertThat(crons, arrayContaining("0 " + join(",", time.minute()) + " " + join(",", time.hour()) + " * * ?"));
     }
 
     @Test(expected = IllegalArgumentException.class)
@@ -53,7 +53,7 @@ public class DailyScheduleTests extends ScheduleTestCase {
         String[] crons = expressions(schedule);
         assertThat(crons, arrayWithSize(times.length));
         for (DayTimes time : times) {
-            assertThat(crons, hasItemInArray("0 " + Ints.join(",", time.minute()) + " " + Ints.join(",", time.hour()) + " * * ?"));
+            assertThat(crons, hasItemInArray("0 " + join(",", time.minute()) + " " + join(",", time.hour()) + " * * ?"));
         }
     }
 

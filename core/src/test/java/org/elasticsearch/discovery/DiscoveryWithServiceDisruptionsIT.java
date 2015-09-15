@@ -58,6 +58,7 @@ import org.elasticsearch.discovery.zen.publish.PublishClusterStateAction;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.recovery.RecoverySource;
+import org.elasticsearch.indices.recovery.RecoveryTarget;
 import org.elasticsearch.indices.store.IndicesStoreIntegrationIT;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -1185,15 +1186,14 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
             this.beginRelocationLatch = beginRelocationLatch;
         }
 
-        @Override
-        public void responseSent(long requestId, String action) {
-            if (action.equals("internal:index/shard/recovery/start_recovery")) {
+        public void requestSent(DiscoveryNode node, long requestId, String action, TransportRequestOptions options) {
+            logger.info("sent response: {}", action);
+            if (action.equals(RecoveryTarget.Actions.FILES_INFO)) {
                 beginRelocationLatch.countDown();
-                logger.info("sent response: {}, relocation starts on source", action);
+                logger.info("request sent: {}, relocation starts on source", action);
             }
         }
     }
-
 
     private void logLocalClusterStates(Client... clients) {
         int counter = 1;

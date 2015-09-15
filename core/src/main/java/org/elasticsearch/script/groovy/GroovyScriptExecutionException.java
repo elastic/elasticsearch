@@ -30,8 +30,9 @@ import java.io.IOException;
  * correctly serialized between nodes.
  */
 public class GroovyScriptExecutionException extends ElasticsearchException {
-    public GroovyScriptExecutionException(String message) {
-        super(message);
+
+    public GroovyScriptExecutionException(String message, Throwable cause) {
+        super(message, cause);
     }
 
     @Override

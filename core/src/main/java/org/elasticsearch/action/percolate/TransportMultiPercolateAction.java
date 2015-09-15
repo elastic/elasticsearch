@@ -251,7 +251,7 @@ public class TransportMultiPercolateAction extends HandledTransportAction<MultiP
                     }
 
                     if (item.failed()) {
-                        shardResults.set(shardId.id(), new BroadcastShardOperationFailedException(shardId, item.error().string()));
+                        shardResults.set(shardId.id(), new BroadcastShardOperationFailedException(shardId, item.error()));
                     } else {
                         shardResults.set(shardId.id(), item.response());
                     }

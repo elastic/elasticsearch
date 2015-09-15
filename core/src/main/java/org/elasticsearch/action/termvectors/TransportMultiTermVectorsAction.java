@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -69,13 +70,13 @@ public class TransportMultiTermVectorsAction extends HandledTransportAction<Mult
             termVectorsRequest.routing(clusterState.metaData().resolveIndexRouting(termVectorsRequest.routing(), termVectorsRequest.index()));
             if (!clusterState.metaData().hasConcreteIndex(termVectorsRequest.index())) {
                 responses.set(i, new MultiTermVectorsItemResponse(null, new MultiTermVectorsResponse.Failure(termVectorsRequest.index(),
-                        termVectorsRequest.type(), termVectorsRequest.id(), "[" + termVectorsRequest.index() + "] missing")));
+                        termVectorsRequest.type(), termVectorsRequest.id(), new IndexNotFoundException(termVectorsRequest.index()))));
                 continue;
             }
             String concreteSingleIndex = indexNameExpressionResolver.concreteSingleIndex(clusterState, (DocumentRequest) termVectorsRequest);
             if (termVectorsRequest.routing() == null && clusterState.getMetaData().routingRequired(concreteSingleIndex, termVectorsRequest.type())) {
                 responses.set(i, new MultiTermVectorsItemResponse(null, new MultiTermVectorsResponse.Failure(concreteSingleIndex, termVectorsRequest.type(), termVectorsRequest.id(),
-                        "routing is required for [" + concreteSingleIndex + "]/[" + termVectorsRequest.type() + "]/[" + termVectorsRequest.id() + "]")));
+                        new IllegalArgumentException("routing is required for [" + concreteSingleIndex + "]/[" + termVectorsRequest.type() + "]/[" + termVectorsRequest.id() + "]"))));
                 continue;
             }
             ShardId shardId = clusterService.operationRouting().getShards(clusterState, concreteSingleIndex,
@@ -111,12 +112,11 @@ public class TransportMultiTermVectorsAction extends HandledTransportAction<Mult
                 @Override
                 public void onFailure(Throwable e) {
                     // create failures for all relevant requests
-                    String message = ExceptionsHelper.detailedMessage(e);
                     for (int i = 0; i < shardRequest.locations.size(); i++) {
                         TermVectorsRequest termVectorsRequest = shardRequest.requests.get(i);
                         responses.set(shardRequest.locations.get(i), new MultiTermVectorsItemResponse(null,
                                 new MultiTermVectorsResponse.Failure(shardRequest.index(), termVectorsRequest.type(),
-                                        termVectorsRequest.id(), message)));
+                                        termVectorsRequest.id(), e)));
                     }
                     if (counter.decrementAndGet() == 0) {
                         finishHim();

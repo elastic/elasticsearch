@@ -291,7 +291,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     /**
      * Renders a cause exception as xcontent
      */
-    protected final void causeToXContent(XContentBuilder builder, Params params) throws IOException {
+    protected void causeToXContent(XContentBuilder builder, Params params) throws IOException {
         final Throwable cause = getCause();
         if (cause != null && params.paramAsBoolean(REST_EXCEPTION_SKIP_CAUSE, REST_EXCEPTION_SKIP_CAUSE_DEFAULT) == false) {
             builder.field("caused_by");

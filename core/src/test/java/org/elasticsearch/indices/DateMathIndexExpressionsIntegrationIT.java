@@ -23,12 +23,15 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.DateTimeFormat;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -51,8 +54,8 @@ public class DateMathIndexExpressionsIntegrationIT extends ESIntegTestCase {
         refresh();
 
         SearchResponse searchResponse = client().prepareSearch(dateMathExp1, dateMathExp2, dateMathExp3).get();
-        ElasticsearchAssertions.assertHitCount(searchResponse, 3);
-        ElasticsearchAssertions.assertSearchHits(searchResponse, "1", "2", "3");
+        assertHitCount(searchResponse, 3);
+        assertSearchHits(searchResponse, "1", "2", "3");
 
         GetResponse getResponse = client().prepareGet(dateMathExp1, "type", "1").get();
         assertThat(getResponse.isExists(), is(true));
@@ -82,6 +85,47 @@ public class DateMathIndexExpressionsIntegrationIT extends ESIntegTestCase {
         deleteResponse = client().prepareDelete(dateMathExp3, "type", "3").get();
         assertThat(deleteResponse.isFound(), equalTo(true));
         assertThat(deleteResponse.getId(), equalTo("3"));
+    }
+
+    public void testAutoCreateIndexWithDateMathExpression() throws Exception {
+        DateTime now = new DateTime(DateTimeZone.UTC);
+        String index1 = ".marvel-" + DateTimeFormat.forPattern("YYYY.MM.dd").print(now);
+        String index2 = ".marvel-" + DateTimeFormat.forPattern("YYYY.MM.dd").print(now.minusDays(1));
+        String index3 = ".marvel-" + DateTimeFormat.forPattern("YYYY.MM.dd").print(now.minusDays(2));
+
+        String dateMathExp1 = "<.marvel-{now/d}>";
+        String dateMathExp2 = "<.marvel-{now/d-1d}>";
+        String dateMathExp3 = "<.marvel-{now/d-2d}>";
+        client().prepareIndex(dateMathExp1, "type", "1").setSource("{}").get();
+        client().prepareIndex(dateMathExp2, "type", "2").setSource("{}").get();
+        client().prepareIndex(dateMathExp3, "type", "3").setSource("{}").get();
+        refresh();
+
+        SearchResponse searchResponse = client().prepareSearch(dateMathExp1, dateMathExp2, dateMathExp3).get();
+        assertHitCount(searchResponse, 3);
+        assertSearchHits(searchResponse, "1", "2", "3");
+
+        IndicesStatsResponse indicesStatsResponse = client().admin().indices().prepareStats(dateMathExp1, dateMathExp2, dateMathExp3).get();
+        assertThat(indicesStatsResponse.getIndex(index1), notNullValue());
+        assertThat(indicesStatsResponse.getIndex(index2), notNullValue());
+        assertThat(indicesStatsResponse.getIndex(index3), notNullValue());
+    }
+
+    public void testCreateIndexWithDateMathExpression() throws Exception {
+        DateTime now = new DateTime(DateTimeZone.UTC);
+        String index1 = ".marvel-" + DateTimeFormat.forPattern("YYYY.MM.dd").print(now);
+        String index2 = ".marvel-" + DateTimeFormat.forPattern("YYYY.MM.dd").print(now.minusDays(1));
+        String index3 = ".marvel-" + DateTimeFormat.forPattern("YYYY.MM.dd").print(now.minusDays(2));
+
+        String dateMathExp1 = "<.marvel-{now/d}>";
+        String dateMathExp2 = "<.marvel-{now/d-1d}>";
+        String dateMathExp3 = "<.marvel-{now/d-2d}>";
+        createIndex(dateMathExp1, dateMathExp2, dateMathExp3);
+
+        ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
+        assertThat(clusterState.metaData().index(index1), notNullValue());
+        assertThat(clusterState.metaData().index(index2), notNullValue());
+        assertThat(clusterState.metaData().index(index3), notNullValue());
     }
 
 }

@@ -13,6 +13,15 @@ Run the following command to get usage instructions:
 sudo bin/plugin -h
 -----------------------------------
 
+[IMPORTANT]
+.Running as root
+=====================
+If Elasticsearch was installed using the deb or rpm package then run
+`bin/plugin` as `root` so it can write to the appropriate files on disk.
+Otherwise run `bin/plugin` as the user that owns all of the Elasticsearch
+files.
+=====================
+
 [[installation]]
 === Installing Plugins
 
@@ -222,4 +231,3 @@ plugin.mandatory: mapper-attachments,lang-groovy
 --------------------------------------------------
 
 For safety reasons, a node will not start if it is missing a mandatory plugin.
-

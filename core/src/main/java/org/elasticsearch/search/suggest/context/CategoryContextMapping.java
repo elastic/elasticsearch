@@ -20,7 +20,6 @@
 package org.elasticsearch.search.suggest.context;
 
 import com.google.common.base.Joiner;
-import com.google.common.collect.Iterables;
 import org.apache.lucene.analysis.PrefixAnalyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.index.IndexableField;
@@ -28,6 +27,7 @@ import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
@@ -35,11 +35,7 @@ import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
  * The {@link CategoryContextMapping} is used to define a {@link ContextMapping} that
@@ -213,7 +209,7 @@ public class CategoryContextMapping extends ContextMapping {
         if (obj instanceof CategoryContextMapping) {
             CategoryContextMapping other = (CategoryContextMapping) obj;
             if (this.fieldName.equals(other.fieldName)) {
-                return Iterables.elementsEqual(this.defaultValues, other.defaultValues);
+                return Iterables.allElementsAreEqual(this.defaultValues, other.defaultValues);
             }
         }
         return false;

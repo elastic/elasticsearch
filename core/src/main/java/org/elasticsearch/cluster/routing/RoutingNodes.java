@@ -21,7 +21,6 @@ package org.elasticsearch.cluster.routing;
 
 import com.carrotsearch.hppc.ObjectIntHashMap;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-import com.google.common.collect.Iterables;
 import com.google.common.collect.Iterators;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.cluster.ClusterState;
@@ -31,15 +30,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.index.shard.ShardId;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.function.Predicate;
 
 /**
@@ -308,7 +299,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         }
         for (ShardRoutingState s : state) {
             if (s == ShardRoutingState.UNASSIGNED) {
-                Iterables.addAll(shards, unassigned());
+                unassigned().forEach(shards::add);
                 break;
             }
         }

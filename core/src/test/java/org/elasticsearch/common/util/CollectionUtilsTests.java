@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.util;
 
-import com.google.common.collect.Iterables;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefArray;
 import org.apache.lucene.util.BytesRefBuilder;
@@ -27,14 +26,7 @@ import org.apache.lucene.util.Counter;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.SortedSet;
-import java.util.TreeSet;
+import java.util.*;
 
 import static org.elasticsearch.common.util.CollectionUtils.eagerPartition;
 import static org.hamcrest.Matchers.equalTo;
@@ -60,7 +52,7 @@ public class CollectionUtilsTests extends ESTestCase {
             final List<Object> rotated = CollectionUtils.rotate(list, distance);
             // check content is the same
             assertEquals(rotated.size(), list.size());
-            assertEquals(Iterables.size(rotated), list.size());
+            assertEquals(rotated.size(), list.size());
             assertEquals(new HashSet<>(rotated), new HashSet<>(list));
             // check stability
             for (int j = randomInt(4); j >= 0; --j) {

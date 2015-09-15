@@ -160,10 +160,20 @@ public class IndexingMemoryControllerIT extends ESIntegTestCase {
         index("test4", "type", "1", "f", 1);
 
         // .. then make sure we really pushed the update (16 MB for each) down to the IndexWriter, even if refresh nor flush occurs:
-        if (awaitBusy(() -> getIWBufferSize("test3") == 16*1024*1024) == false) {
+        if (awaitBusy(new Predicate<Object>() {
+                    @Override
+                    public boolean apply(Object input) {
+                        return getIWBufferSize("test3") == 16*1024*1024;
+                    }
+                }) == false) {
             fail("failed to update shard indexing buffer size for test3 index to 16 MB; got: " + getIWBufferSize("test3"));
         }
-        if (awaitBusy(() -> getIWBufferSize("test4") == 16*1024*1024) == false) {
+        if (awaitBusy(new Predicate<Object>() {
+                    @Override
+                    public boolean apply(Object input) {
+                        return getIWBufferSize("test4") == 16*1024*1024;
+                    }
+                }) == false) {
             fail("failed to update shard indexing buffer size for test4 index to 16 MB; got: " + getIWBufferSize("test4"));
         }
     }

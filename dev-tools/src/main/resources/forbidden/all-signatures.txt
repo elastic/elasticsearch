@@ -121,6 +121,10 @@ com.google.common.collect.Multimap
 com.google.common.collect.MultimapBuilder
 com.google.common.math.LongMath
 com.google.common.base.Joiner
+com.google.common.collect.ArrayListMultimap
+com.google.common.collect.HashMultimap
+com.google.common.collect.FluentIterable
+com.google.common.io.Files
 
 @defaultMessage Do not violate java's access system
 java.lang.reflect.AccessibleObject#setAccessible(boolean)

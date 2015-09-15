@@ -37,7 +37,6 @@
     <elasticsearch.integ.antfile>${project.basedir}/integration-tests.xml</elasticsearch.integ.antfile>
     <tests.rest.load_packaged>false</tests.rest.load_packaged>
     <xplugins.list>license,shield</xplugins.list>
-    <tests.rest.blacklist>tribe_node/10_basic/*</tests.rest.blacklist>
   </properties>
 
   <dependencies>

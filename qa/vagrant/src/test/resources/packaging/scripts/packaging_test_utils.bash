@@ -316,15 +316,11 @@ wait_for_elasticsearch_status() {
     echo "Making sure elasticsearch is up..."
     wget -O - --retry-connrefused --waitretry=1 --timeout=60 --tries 60 http://localhost:9200 || {
           echo "Looks like elasticsearch never started. Here is its log:"
-          if [ -r "/tmp/elasticsearch/elasticsearch.pid" ]; then
-              cat /tmp/elasticsearch/logs/elasticsearch.log
+          if [ -e "$ESLOG/elasticsearch.log" ]; then
+              cat "$ESLOG/elasticsearch.log"
           else
-              if [ -e '/var/log/elasticsearch/elasticsearch.log' ]; then
-                  cat /var/log/elasticsearch/elasticsearch.log
-              else
-                  echo "The elasticsearch log doesn't exist. Maybe /vag/log/messages has something:"
-                  tail -n20 /var/log/messages
-              fi
+              echo "The elasticsearch log doesn't exist. Maybe /vag/log/messages has something:"
+              tail -n20 /var/log/messages
           fi
           false
     }
@@ -398,6 +394,7 @@ move_config() {
     mv "$oldConfig"/* "$ESCONFIG"
     chown -R elasticsearch:elasticsearch "$ESCONFIG"
     assert_file_exist "$ESCONFIG/elasticsearch.yml"
+    assert_file_exist "$ESCONFIG/logging.yml"
 }
 
 # Copies a script into the Elasticsearch install.

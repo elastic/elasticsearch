@@ -74,7 +74,7 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
     private Float cutoffFrequency = null;
     private MatchQuery.ZeroTermsQuery zeroTermsQuery = DEFAULT_ZERO_TERMS_QUERY;
 
-    static final MultiMatchQueryBuilder PROTOTYPE = new MultiMatchQueryBuilder(null);
+    static final MultiMatchQueryBuilder PROTOTYPE = new MultiMatchQueryBuilder("");
 
     public enum Type implements Writeable<Type> {
 
@@ -167,6 +167,9 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
      * Constructs a new text query.
      */
     public MultiMatchQueryBuilder(Object value, String... fields) {
+        if (value == null) {
+            throw new IllegalArgumentException("[" + NAME + "] requires query value");
+        }
         this.value = value;
         for (String field : fields) {
             field(field);
@@ -311,6 +314,9 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
      * so its recommended to set it to a reasonable value for faster execution.
      */
     public MultiMatchQueryBuilder maxExpansions(int maxExpansions) {
+        if (maxExpansions <= 0) {
+            throw new IllegalArgumentException("Max expansions must be strictly great than zero.");
+        }
         this.maxExpansions = maxExpansions;
         return this;
     }
@@ -533,6 +539,7 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
 
     @Override
     protected void setFinalBoost(Query query) {
+        // we need to preserve the boost that came out of the parsing phase
         query.setBoost(boost * query.getBoost());
     }
 
@@ -555,9 +562,6 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
     @Override
     public QueryValidationException validate() {
         QueryValidationException validationException = null;
-        if (value == null) {
-            validationException = addValidationError("no text specified for multi_match query.", validationException);
-        }
         if (fieldsBoosts.isEmpty()) {
             validationException = addValidationError("no fields specified for multi_match query.", validationException);
         }

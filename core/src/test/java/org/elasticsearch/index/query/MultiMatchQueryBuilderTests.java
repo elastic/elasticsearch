@@ -20,10 +20,10 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.DisjunctionMaxQuery;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.queries.ExtendedCommonTermsQuery;
+import org.apache.lucene.search.*;
+import org.elasticsearch.common.lucene.all.AllTermQuery;
+import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.index.search.MatchQuery;
 import org.junit.Test;
 
@@ -32,8 +32,7 @@ import java.util.List;
 
 import static org.elasticsearch.index.query.QueryBuilders.multiMatchQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBooleanSubQuery;
-import static org.hamcrest.CoreMatchers.equalTo;
-import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.CoreMatchers.*;
 import static org.hamcrest.Matchers.is;
 
 public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatchQueryBuilder> {
@@ -41,14 +40,20 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
     @Override
     protected MultiMatchQueryBuilder doCreateTestQueryBuilder() {
         String fieldName = randomFrom(STRING_FIELD_NAME, INT_FIELD_NAME, DOUBLE_FIELD_NAME, BOOLEAN_FIELD_NAME, DATE_FIELD_NAME);
-        MultiMatchQueryBuilder query = new MultiMatchQueryBuilder(getRandomValueForFieldName(fieldName), fieldName);
+        if (fieldName.equals(DATE_FIELD_NAME)) {
+            assumeTrue("test with date fields runs only when at least a type is registered", getCurrentTypes().length > 0);
+        }
+        // creates the query with random value and field name
+        Object value;
+        if (fieldName.equals(STRING_FIELD_NAME)) {
+            value = getRandomQueryText();
+        } else {
+            value = getRandomValueForFieldName(fieldName);
+        }
+        MultiMatchQueryBuilder query = new MultiMatchQueryBuilder(value, fieldName);
         // field with random boost
         if (randomBoolean()) {
             query.field(fieldName, randomFloat() * 10);
-        }
-        // field with a pattern
-        if (randomBoolean()) {
-            query.field('*' + fieldName);
         }
         // sets other parameters of the multi match query
         if (randomBoolean()) {
@@ -58,7 +63,7 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
             query.operator(randomFrom(Operator.values()));
         }
         if (randomBoolean()) {
-            query.analyzer(randomFrom("simple", "keyword", "whitespace"));
+            query.analyzer(randomAnalyzer());
         }
         if (randomBoolean()) {
             query.slop(randomIntBetween(0, 5));
@@ -70,7 +75,7 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
             query.prefixLength(randomIntBetween(0, 5));
         }
         if (randomBoolean()) {
-            query.maxExpansions(randomIntBetween(0, 5));
+            query.maxExpansions(randomIntBetween(1, 5));
         }
         if (randomBoolean()) {
             query.minimumShouldMatch(randomMinimumShouldMatch());
@@ -82,7 +87,7 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
             query.useDisMax(randomBoolean());
         }
         if (randomBoolean()) {
-            query.tieBreaker(randomFloat() * 10);
+            query.tieBreaker(randomFloat());
         }
         if (randomBoolean()) {
             query.lenient(randomBoolean());
@@ -93,24 +98,24 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
         if (randomBoolean()) {
             query.zeroTermsQuery(randomFrom(MatchQuery.ZeroTermsQuery.values()));
         }
+        // test with fields with boost and patterns delegated to the tests further below
         return query;
     }
 
     @Override
     protected void doAssertLuceneQuery(MultiMatchQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
-
+        // we rely on integration tests for deeper checks here
+        assertThat(query, either(instanceOf(TermQuery.class)).or(instanceOf(AllTermQuery.class))
+                .or(instanceOf(BooleanQuery.class)).or(instanceOf(DisjunctionMaxQuery.class))
+                .or(instanceOf(FuzzyQuery.class)).or(instanceOf(MultiPhrasePrefixQuery.class))
+                .or(instanceOf(MatchAllDocsQuery.class)).or(instanceOf(ExtendedCommonTermsQuery.class))
+                .or(instanceOf(MatchNoDocsQuery.class)).or(instanceOf(PhraseQuery.class)));
     }
 
     @Test
     public void testValidate() {
-        MultiMatchQueryBuilder multiMatchQueryBuilder = new MultiMatchQueryBuilder(null, "field");
+        MultiMatchQueryBuilder multiMatchQueryBuilder = new MultiMatchQueryBuilder("text");
         assertThat(multiMatchQueryBuilder.validate().validationErrors().size(), is(1));
-
-        multiMatchQueryBuilder = new MultiMatchQueryBuilder("text");
-        assertThat(multiMatchQueryBuilder.validate().validationErrors().size(), is(1));
-
-        multiMatchQueryBuilder = new MultiMatchQueryBuilder(null);
-        assertThat(multiMatchQueryBuilder.validate().validationErrors().size(), is(2));
 
         multiMatchQueryBuilder = new MultiMatchQueryBuilder("text", "field");
         assertNull(multiMatchQueryBuilder.validate());

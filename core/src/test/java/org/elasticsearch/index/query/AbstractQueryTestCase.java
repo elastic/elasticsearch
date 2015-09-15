@@ -511,6 +511,15 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         return value;
     }
 
+    protected static String getRandomQueryText() {
+        int terms = randomIntBetween(0, 3);
+        StringBuilder builder = new StringBuilder();
+        for (int i = 0; i < terms; i++) {
+            builder.append(randomAsciiOfLengthBetween(1, 10) + " ");
+        }
+        return builder.toString().trim();
+    }
+
     /**
      * Helper method to return a mapped or a random field
      */

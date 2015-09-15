@@ -11,7 +11,7 @@ TITLE Elasticsearch Plugin Manager ${project.version}
 
 SET HOSTNAME=%COMPUTERNAME%
 
-"%JAVA_HOME%\bin\java" %JAVA_OPTS% %ES_JAVA_OPTS% -Xmx64m -Xms16m -Des.path.home="%ES_HOME%" -cp "%ES_HOME%/lib/*;" "org.elasticsearch.plugins.PluginManagerCliParser" %*
+"%JAVA_HOME%\bin\java" -client -Des.path.home="%ES_HOME%" -cp "%ES_HOME%/lib/*;" "org.elasticsearch.plugins.PluginManagerCliParser" %*
 goto finally
 
 

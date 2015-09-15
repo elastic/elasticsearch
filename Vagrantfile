@@ -68,11 +68,43 @@ Vagrant.configure(2) do |config|
     config.vm.box = "boxcutter/fedora22"
     dnf_common config
   end
+  config.vm.define "opensuse-13" do |config|
+    config.vm.box = "chef/opensuse-13"
+    config.vm.box_url = "http://opscode-vm-bento.s3.amazonaws.com/vagrant/virtualbox/opscode_opensuse-13.2-x86_64_chef-provisionerless.box"
+    suse_common config
+  end
   # Switch the default share for the project root from /vagrant to
   # /elasticsearch because /vagrant is confusing when there is a project inside
   # the elasticsearch project called vagrant....
   config.vm.synced_folder ".", "/vagrant", disabled: true
-  config.vm.synced_folder "", "/elasticsearch"
+  config.vm.synced_folder ".", "/elasticsearch"
+  if Vagrant.has_plugin?("vagrant-cachier")
+    config.cache.scope = :box
+  end
+  config.vm.defined_vms.each do |name, config|
+    config.options[:autostart] = false
+    set_prompt = lambda do |config|
+      # Sets up a consistent prompt for all users. Or tries to. The VM might
+      # contain overrides for root and vagrant but this attempts to work around
+      # them by re-source-ing the standard prompt file.
+      config.vm.provision "prompt", type: "shell", inline: <<-SHELL
+        cat \<\<PROMPT > /etc/profile.d/elasticsearch_prompt.sh
+export PS1='#{name}:\\w$ '
+PROMPT
+        grep 'source /etc/profile.d/elasticsearch_prompt.sh' ~/.bashrc |
+          cat \<\<SOURCE_PROMPT >> ~/.bashrc
+# Replace the standard prompt with a consistent one
+source /etc/profile.d/elasticsearch_prompt.sh
+SOURCE_PROMPT
+        grep 'source /etc/profile.d/elasticsearch_prompt.sh' ~vagrant/.bashrc |
+          cat \<\<SOURCE_PROMPT >> ~vagrant/.bashrc
+# Replace the standard prompt with a consistent one
+source /etc/profile.d/elasticsearch_prompt.sh
+SOURCE_PROMPT
+      SHELL
+    end
+    config.config_procs.push ['2', set_prompt]
+  end
 end
 
 def ubuntu_common(config)
@@ -124,6 +156,14 @@ def dnf_common(config)
   end
 end
 
+def suse_common(config)
+  provision(config,
+    update_command: "zypper --non-interactive list-updates",
+    update_tracking_file: "/var/cache/zypp/packages/last_update",
+    install_command: "zypper --non-interactive --quiet install --no-recommends",
+    java_package: "java-1_8_0-openjdk-devel")
+end
+
 # Register the main box provisioning script.
 # @param config Vagrant's config object. Required.
 # @param update_command [String] The command used to update the package
@@ -168,6 +208,7 @@ def provision(config,
     #{extra}
 
     installed java || install #{java_package}
+    ensure tar
     ensure curl
     ensure unzip
 

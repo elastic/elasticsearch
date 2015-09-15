@@ -70,7 +70,7 @@ public class NettySizeHeaderFrameDecoderTests extends ESTestCase {
         TransportService transportService = new TransportService(nettyTransport, threadPool);
         nettyTransport.transportServiceAdapter(transportService.createAdapter());
 
-        InetSocketTransportAddress transportAddress = (InetSocketTransportAddress) nettyTransport.boundAddress().boundAddress();
+        InetSocketTransportAddress transportAddress = (InetSocketTransportAddress) randomFrom(nettyTransport.boundAddress().boundAddresses());
         port = transportAddress.address().getPort();
         host = transportAddress.address().getAddress();
 

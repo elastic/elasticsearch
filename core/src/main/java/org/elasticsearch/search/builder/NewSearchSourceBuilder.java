@@ -64,7 +64,10 @@ import java.util.Objects;
  *
  * @see org.elasticsearch.action.search.SearchRequest#source(NewSearchSourceBuilder)
  */
-public class NewSearchSourceBuilder extends ToXContentToBytes implements Writeable<NewSearchSourceBuilder> {
+/**
+ *
+ */
+public final class NewSearchSourceBuilder extends ToXContentToBytes implements Writeable<NewSearchSourceBuilder> {
 
     public static final ParseField FROM_FIELD = new ParseField("from");
     public static final ParseField SIZE_FIELD = new ParseField("size");
@@ -95,13 +98,6 @@ public class NewSearchSourceBuilder extends ToXContentToBytes implements Writeab
      */
     public static NewSearchSourceBuilder searchSource() {
         return new NewSearchSourceBuilder();
-    }
-
-    /**
-     * A static factory method to construct new search highlights.
-     */
-    public static HighlightBuilder highlight() {
-        return new HighlightBuilder();
     }
 
     private QueryBuilder<?> queryBuilder;
@@ -152,13 +148,20 @@ public class NewSearchSourceBuilder extends ToXContentToBytes implements Writeab
     }
 
     /**
-     * Constructs a new search source builder with a search query.
+     * Sets the search query for this request.
      *
      * @see org.elasticsearch.index.query.QueryBuilders
      */
     public NewSearchSourceBuilder query(QueryBuilder<?> query) {
         this.queryBuilder = query;
         return this;
+    }
+
+    /**
+     * Gets the query for this request
+     */
+    public QueryBuilder<?> query() {
+        return queryBuilder;
     }
 
     /**
@@ -172,11 +175,25 @@ public class NewSearchSourceBuilder extends ToXContentToBytes implements Writeab
     }
 
     /**
+     * Gets the post filter for this request
+     */
+    public QueryBuilder<?> postFilter() {
+        return postQueryBuilder;
+    }
+
+    /**
      * From index to start the search from. Defaults to <tt>0</tt>.
      */
     public NewSearchSourceBuilder from(int from) {
         this.from = from;
         return this;
+    }
+
+    /**
+     * Gets the from index to start the search from.
+     **/
+    public int from() {
+        return from;
     }
 
     /**
@@ -188,11 +205,25 @@ public class NewSearchSourceBuilder extends ToXContentToBytes implements Writeab
     }
 
     /**
+     * Gets the number of search hits to return.
+     */
+    public int size() {
+        return size;
+    }
+
+    /**
      * Sets the minimum score below which docs will be filtered out.
      */
     public NewSearchSourceBuilder minScore(float minScore) {
         this.minScore = minScore;
         return this;
+    }
+
+    /**
+     * Gets the minimum score below which docs will be filtered out.
+     */
+    public float minScore() {
+        return minScore;
     }
 
     /**
@@ -205,12 +236,28 @@ public class NewSearchSourceBuilder extends ToXContentToBytes implements Writeab
     }
 
     /**
+     * Indicates whether each search hit will be returned with an explanation of
+     * the hit (ranking)
+     */
+    public Boolean explain() {
+        return explain;
+    }
+
+    /**
      * Should each {@link org.elasticsearch.search.SearchHit} be returned with a
      * version associated with it.
      */
     public NewSearchSourceBuilder version(Boolean version) {
         this.version = version;
         return this;
+    }
+
+    /**
+     * Indicates whether the document's version will be included in the search
+     * hits.
+     */
+    public Boolean version() {
+        return version;
     }
 
     /**
@@ -222,11 +269,10 @@ public class NewSearchSourceBuilder extends ToXContentToBytes implements Writeab
     }
 
     /**
-     * An optional timeout to control how long search is allowed to take.
+     * Gets the timeout to control how long search is allowed to take.
      */
-    public NewSearchSourceBuilder timeout(String timeout) {
-        this.timeoutInMillis = TimeValue.parseTimeValue(timeout, null, getClass().getSimpleName() + ".timeout").millis();
-        return this;
+    public long timeoutInMillis() {
+        return timeoutInMillis;
     }
 
     /**
@@ -239,6 +285,13 @@ public class NewSearchSourceBuilder extends ToXContentToBytes implements Writeab
         }
         this.terminateAfter = terminateAfter;
         return this;
+    }
+
+    /**
+     * Gets the number of documents to terminate after collecting.
+     */
+    public int terminateAfter() {
+        return terminateAfter;
     }
 
     /**
@@ -279,6 +332,13 @@ public class NewSearchSourceBuilder extends ToXContentToBytes implements Writeab
     }
 
     /**
+     * Gets the bytes representing the sort builders for this request.
+     */
+    public List<BytesReference> sorts() {
+        return sorts;
+    }
+
+    /**
      * Applies when sorting, and controls if scores will be tracked as well.
      * Defaults to <tt>false</tt>.
      */
@@ -288,7 +348,14 @@ public class NewSearchSourceBuilder extends ToXContentToBytes implements Writeab
     }
 
     /**
-     * Add an get to perform as part of the search.
+     * Indicates whether scores will be tracked for this request.
+     */
+    public boolean trackScores() {
+        return trackScores;
+    }
+
+    /**
+     * Add an aggregation to perform as part of the search.
      */
     public NewSearchSourceBuilder aggregation(AbstractAggregationBuilder aggregation) throws IOException {
         if (aggregations == null) {
@@ -301,11 +368,25 @@ public class NewSearchSourceBuilder extends ToXContentToBytes implements Writeab
     }
 
     /**
+     * Gets the bytes representing the aggregation builders for this request.
+     */
+    public List<BytesReference> aggregations() {
+        return aggregations;
+    }
+
+    /**
      * Set the rescore window size for rescores that don't specify their window.
      */
     public NewSearchSourceBuilder defaultRescoreWindowSize(int defaultRescoreWindowSize) {
         this.defaultRescoreWindowSize = defaultRescoreWindowSize;
         return this;
+    }
+
+    /**
+     * Get the rescore window size for rescores that don't specify their window.
+     */
+    public int defaultRescoreWindowSize() {
+        return defaultRescoreWindowSize;
     }
 
     /**
@@ -318,6 +399,13 @@ public class NewSearchSourceBuilder extends ToXContentToBytes implements Writeab
         return this;
     }
 
+    /**
+     * Gets the bytes representing the hightlighter builder for this request.
+     */
+    public BytesReference highlight() {
+        return highlightBuilder;
+    }
+
     public NewSearchSourceBuilder innerHits(InnerHitsBuilder innerHitsBuilder) throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder();
         innerHitsBuilder.toXContent(builder, EMPTY_PARAMS);
@@ -325,11 +413,25 @@ public class NewSearchSourceBuilder extends ToXContentToBytes implements Writeab
         return this;
     }
 
+    /**
+     * Gets the bytes representing the inner hits builder for this request.
+     */
+    public BytesReference innerHits() {
+        return innerHitsBuilder;
+    }
+
     public NewSearchSourceBuilder suggest(SuggestBuilder suggestBuilder) throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder();
         suggestBuilder.toXContent(builder, EMPTY_PARAMS);
         this.suggestBuilder = builder.bytes();
         return this;
+    }
+
+    /**
+     * Gets the bytes representing the suggester builder for this request.
+     */
+    public BytesReference suggest() {
+        return suggestBuilder;
     }
 
     public NewSearchSourceBuilder addRescorer(RescoreBuilder rescoreBuilder) throws IOException {
@@ -345,6 +447,13 @@ public class NewSearchSourceBuilder extends ToXContentToBytes implements Writeab
     public NewSearchSourceBuilder clearRescorers() {
         rescoreBuilders = null;
         return this;
+    }
+
+    /**
+     * Gets the bytes representing the rescore builders for this request.
+     */
+    public List<BytesReference> rescores() {
+        return rescoreBuilders;
     }
 
     /**
@@ -403,6 +512,14 @@ public class NewSearchSourceBuilder extends ToXContentToBytes implements Writeab
     }
 
     /**
+     * Gets the {@link FetchSourceContext} which defines how the _source should
+     * be fetched.
+     */
+    public FetchSourceContext fetchSource() {
+        return fetchSourceContext;
+    }
+
+    /**
      * Sets no fields to be loaded, resulting in only id and type to be returned
      * per field.
      */
@@ -433,16 +550,10 @@ public class NewSearchSourceBuilder extends ToXContentToBytes implements Writeab
     }
 
     /**
-     * Adds a field to load and return (note, it must be stored) as part of the
-     * search request. If none are specified, the source of the document will be
-     * return.
+     * Gets the fields to load and return as part of the search request.
      */
-    public NewSearchSourceBuilder field(String name) {
-        if (fieldNames == null) {
-            fieldNames = new ArrayList<>();
-        }
-        fieldNames.add(name);
-        return this;
+    public List<String> fieldNames() {
+        return fieldNames;
     }
 
     /**
@@ -455,6 +566,13 @@ public class NewSearchSourceBuilder extends ToXContentToBytes implements Writeab
         }
         fieldDataFields.add(name);
         return this;
+    }
+
+    /**
+     * Gets the field-data fields.
+     */
+    public List<String> fieldDataFields() {
+        return fieldDataFields;
     }
 
     /**
@@ -471,6 +589,13 @@ public class NewSearchSourceBuilder extends ToXContentToBytes implements Writeab
         }
         scriptFields.add(new ScriptField(name, script));
         return this;
+    }
+
+    /**
+     * Gets the script fields.
+     */
+    public List<ScriptField> scriptFields() {
+        return scriptFields;
     }
 
     /**
@@ -491,11 +616,26 @@ public class NewSearchSourceBuilder extends ToXContentToBytes implements Writeab
     }
 
     /**
+     * Gets the boost a specific indices will receive when the query is
+     * executeed against them.
+     */
+    public ObjectFloatHashMap<String> indexBoost() {
+        return indexBoost;
+    }
+
+    /**
      * The stats groups this request will be aggregated under.
      */
     public NewSearchSourceBuilder stats(String... statsGroups) {
         this.stats = statsGroups;
         return this;
+    }
+
+    /**
+     * The stats groups this request will be aggregated under.
+     */
+    public String[] stats() {
+        return stats;
     }
 
     public NewSearchSourceBuilder fromXContent(XContentParser parser, QueryParseContext context) throws IOException {
@@ -579,7 +719,21 @@ public class NewSearchSourceBuilder extends ToXContentToBytes implements Writeab
                     }
                     builder.indexBoost = indexBoost;
                 } else if (context.parseFieldMatcher().match(currentFieldName, AGGREGATIONS_FIELD)) {
-                    // NOCOMMIT implement aggregations parsing
+                    List<BytesReference> aggregations = new ArrayList<>();
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                        currentFieldName = parser.currentName();
+                        token = parser.nextToken();
+                        if (token == XContentParser.Token.START_OBJECT) {
+                            XContentBuilder xContentBuilder = XContentFactory.contentBuilder(parser.contentType());
+                            xContentBuilder.field(currentFieldName);
+                            xContentBuilder.copyCurrentStructure(parser);
+                            aggregations.add(xContentBuilder.bytes());
+                        } else {
+                            throw new QueryParsingException(context, "Unknown key for a " + token + " in [" + currentFieldName + "].",
+                                    parser.getTokenLocation());
+                        }
+                    }
+                    builder.indexBoost = indexBoost;
                 } else if (context.parseFieldMatcher().match(currentFieldName, HIGHLIGHT_FIELD)) {
                     XContentBuilder xContentBuilder = XContentFactory.contentBuilder(parser.contentType()).copyCurrentStructure(parser);
                     builder.highlightBuilder = xContentBuilder.bytes();
@@ -1032,7 +1186,7 @@ public class NewSearchSourceBuilder extends ToXContentToBytes implements Writeab
             out.writeBytesReference(suggestBuilder);
         }
         out.writeVInt(terminateAfter);
-        out.writeVLong(timeoutInMillis);
+        out.writeLong(timeoutInMillis);
         out.writeBoolean(trackScores);
         out.writeBoolean(version);
     }

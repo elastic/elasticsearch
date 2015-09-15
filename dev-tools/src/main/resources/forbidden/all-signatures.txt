@@ -119,6 +119,7 @@ com.google.common.collect.UnmodifiableIterator
 com.google.common.collect.ObjectArrays
 com.google.common.collect.Multimap
 com.google.common.collect.MultimapBuilder
+com.google.common.math.LongMath
 
 @defaultMessage Do not violate java's access system
 java.lang.reflect.AccessibleObject#setAccessible(boolean)

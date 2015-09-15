@@ -42,12 +42,16 @@ public class InnerHitsBuilder implements ToXContent {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("inner_hits");
+        innerXContent(builder, params);
+        return builder.endObject();
+    }
+
+    public void innerXContent(XContentBuilder builder, Params params) throws IOException {
         for (Map.Entry<String, InnerHitsHolder> entry : innerHits.entrySet()) {
             builder.startObject(entry.getKey());
             entry.getValue().toXContent(builder, params);
             builder.endObject();
         }
-        return builder.endObject();
     }
 
     /**

@@ -19,11 +19,12 @@
 
 package org.elasticsearch.common.util.concurrent;
 
-import com.google.common.base.Joiner;
 import org.elasticsearch.common.settings.Settings;
 
+import java.util.Arrays;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
 /**
  *
@@ -81,7 +82,12 @@ public class EsExecutors {
     }
 
     public static String threadName(Settings settings, String ... names) {
-        return threadName(settings, "[" +  Joiner.on(".").skipNulls().join(names) + "]");
+        String namePrefix =
+                Arrays
+                        .stream(names)
+                        .filter(name -> name != null)
+                        .collect(Collectors.joining(".", "[", "]"));
+        return threadName(settings, namePrefix);
     }
 
     public static String threadName(Settings settings, String namePrefix) {

@@ -449,12 +449,12 @@ public class SimpleRoutingIT extends ESIntegTestCase {
         assertThat(multiTermVectorsResponse.getResponses().length, equalTo(2));
         assertThat(multiTermVectorsResponse.getResponses()[0].getId(), equalTo("1"));
         assertThat(multiTermVectorsResponse.getResponses()[0].isFailed(), equalTo(true));
-        assertThat(multiTermVectorsResponse.getResponses()[0].getFailure().getMessage(), equalTo("routing is required for [test]/[type1]/[1]"));
+        assertThat(multiTermVectorsResponse.getResponses()[0].getFailure().getCause().getMessage(), equalTo("routing is required for [test]/[type1]/[1]"));
         assertThat(multiTermVectorsResponse.getResponses()[0].getResponse(), nullValue());
         assertThat(multiTermVectorsResponse.getResponses()[1].getId(), equalTo("2"));
         assertThat(multiTermVectorsResponse.getResponses()[1].isFailed(), equalTo(true));
         assertThat(multiTermVectorsResponse.getResponses()[1].getResponse(),nullValue());
-        assertThat(multiTermVectorsResponse.getResponses()[1].getFailure().getMessage(), equalTo("routing is required for [test]/[type1]/[2]"));
+        assertThat(multiTermVectorsResponse.getResponses()[1].getFailure().getCause().getMessage(), equalTo("routing is required for [test]/[type1]/[2]"));
     }
 
     private static String indexOrAlias() {

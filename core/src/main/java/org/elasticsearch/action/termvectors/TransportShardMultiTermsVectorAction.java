@@ -90,7 +90,7 @@ public class TransportShardMultiTermsVectorAction extends TransportSingleShardAc
                 } else {
                     logger.debug("{} failed to execute multi term vectors for [{}]/[{}]", t, shardId, termVectorsRequest.type(), termVectorsRequest.id());
                     response.add(request.locations.get(i),
-                            new MultiTermVectorsResponse.Failure(request.index(), termVectorsRequest.type(), termVectorsRequest.id(), ExceptionsHelper.detailedMessage(t)));
+                            new MultiTermVectorsResponse.Failure(request.index(), termVectorsRequest.type(), termVectorsRequest.id(), t));
                 }
             }
         }

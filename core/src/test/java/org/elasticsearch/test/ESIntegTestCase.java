@@ -793,7 +793,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     private Settings.Builder getExcludeSettings(String index, int num, Settings.Builder builder) {
-        String exclude = Joiner.on(',').join(internalCluster().allDataNodesButN(num));
+        String exclude = String.join(",", internalCluster().allDataNodesButN(num));
         builder.put("index.routing.allocation.exclude._name", exclude);
         return builder;
     }

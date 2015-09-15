@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.suggest.context;
 
-import com.google.common.base.Joiner;
 import org.apache.lucene.analysis.PrefixAnalyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.index.IndexableField;
@@ -36,6 +35,8 @@ import org.elasticsearch.index.mapper.ParseContext.Document;
 
 import java.io.IOException;
 import java.util.*;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 /**
  * The {@link CategoryContextMapping} is used to define a {@link ContextMapping} that
@@ -258,12 +259,16 @@ public class CategoryContextMapping extends ContextMapping {
         public String toString() {
             StringBuilder sb = new StringBuilder("FieldConfig(" + fieldname + " = [");
             if (this.values != null && this.values.iterator().hasNext()) {
-                sb.append("(").append(Joiner.on(", ").join(this.values.iterator())).append(")");
+                sb.append(delimitValues(this.values));
             }
             if (this.defaultValues != null && this.defaultValues.iterator().hasNext()) {
-                sb.append(" default(").append(Joiner.on(", ").join(this.defaultValues.iterator())).append(")");
+                sb.append(" default").append(delimitValues(this.defaultValues));
             }
             return sb.append("])").toString();
+        }
+
+        private String delimitValues(Iterable<? extends CharSequence> values) {
+            return StreamSupport.stream(values.spliterator(), false).collect(Collectors.joining(", ", "(", ")"));
         }
 
     }

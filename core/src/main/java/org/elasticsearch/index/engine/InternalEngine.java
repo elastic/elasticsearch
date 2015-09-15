@@ -644,7 +644,6 @@ public class InternalEngine extends Engine {
         // since it flushes the index as well (though, in terms of concurrency, we are allowed to do it)
         try (ReleasableLock lock = readLock.acquire()) {
             ensureOpen();
-            updateIndexWriterSettings();
             searcherManager.maybeRefreshBlocking();
         } catch (AlreadyClosedException e) {
             ensureOpen();
@@ -714,7 +713,6 @@ public class InternalEngine extends Engine {
          */
         try (ReleasableLock lock = readLock.acquire()) {
             ensureOpen();
-            updateIndexWriterSettings();
             if (flushLock.tryLock() == false) {
                 // if we can't get the lock right away we block if needed otherwise barf
                 if (waitIfOngoing) {
@@ -932,7 +930,6 @@ public class InternalEngine extends Engine {
         }
     }
 
-
     /**
      * Closes the engine without acquiring the write lock. This should only be
      * called while the write lock is hold or in a disaster condition ie. if the engine
@@ -1147,8 +1144,6 @@ public class InternalEngine extends Engine {
         return indexWriter.getConfig();
     }
 
-
-
     private final class EngineMergeScheduler extends ElasticsearchConcurrentMergeScheduler {
         private final AtomicInteger numMergesInFlight = new AtomicInteger(0);
         private final AtomicBoolean isThrottling = new AtomicBoolean();
@@ -1224,11 +1219,14 @@ public class InternalEngine extends Engine {
 
     public void onSettingsChanged() {
         mergeScheduler.refreshConfig();
+        updateIndexWriterSettings();
+        // config().getVersionMapSize() may have changed:
+        checkVersionMapRefresh();
+        // config().isEnableGcDeletes() or config.getGcDeletesInMillis() may have changed:
+        maybePruneDeletedTombstones();
     }
 
     public MergeStats getMergeStats() {
         return mergeScheduler.stats();
     }
-
-
 }

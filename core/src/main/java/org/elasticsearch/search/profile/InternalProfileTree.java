@@ -135,6 +135,13 @@ public class InternalProfileTree {
             // top-level root. This is just a precaution: it really shouldn't happen.
             // We would only get here if a top-level query that never rewrites for some reason.
             roots.add(token);
+
+            // Increment the token since we are adding a new node, but notably, do not
+            // updateParent() because this was added as a root
+            currentToken += 1;
+            stack.add(token);
+
+            return addDependencyNode(query, token, false);
         }
 
         updateParent(token);

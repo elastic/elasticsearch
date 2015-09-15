@@ -37,19 +37,19 @@ final class ESPolicy extends Policy {
     
     /** template policy file, the one used in tests */
     static final String POLICY_RESOURCE = "security.policy";
+    /** limited policy for groovy scripts */
+    static final String GROOVY_RESOURCE = "groovy.policy";
     
     final Policy template;
+    final Policy groovy;
     final PermissionCollection dynamic;
-    final PermissionCollection groovy;
 
     public ESPolicy(PermissionCollection dynamic) throws Exception {
-        URI uri = getClass().getResource(POLICY_RESOURCE).toURI();
-        this.template = Policy.getInstance("JavaPolicy", new URIParameter(uri));
+        URI policyUri = getClass().getResource(POLICY_RESOURCE).toURI();
+        URI groovyUri = getClass().getResource(GROOVY_RESOURCE).toURI();
+        this.template = Policy.getInstance("JavaPolicy", new URIParameter(policyUri));
+        this.groovy = Policy.getInstance("JavaPolicy", new URIParameter(groovyUri));
         this.dynamic = dynamic;
-        this.groovy = new Permissions();
-        // groovy IndyInterface bootstrap requires this property
-        groovy.add(new PropertyPermission("groovy.indy.logging", "read"));
-        groovy.setReadOnly();
     }
 
     @Override @SuppressForbidden(reason = "fast equals check is desired")
@@ -63,7 +63,7 @@ final class ESPolicy extends Policy {
             if (location != null) {
                 // run groovy scripts with no permissions (except logging property)
                 if ("/groovy/script".equals(location.getFile())) {
-                    return groovy.implies(permission);
+                    return groovy.implies(domain, permission);
                 }
             }
         }

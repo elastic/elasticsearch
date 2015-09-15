@@ -89,7 +89,7 @@ public class LocalTransportChannel implements TransportChannel {
     public void sendResponse(Throwable error) throws IOException {
         BytesStreamOutput stream = new BytesStreamOutput();
         writeResponseExceptionHeader(stream);
-        RemoteTransportException tx = new RemoteTransportException(targetTransport.nodeName(), targetTransport.boundAddress().boundAddress(), action, error);
+        RemoteTransportException tx = new RemoteTransportException(targetTransport.nodeName(), targetTransport.boundAddress().boundAddresses()[0], action, error);
         stream.writeThrowable(tx);
 
         final byte[] data = stream.bytes().toBytes();

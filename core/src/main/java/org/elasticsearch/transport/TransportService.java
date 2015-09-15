@@ -170,6 +170,9 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
         transport.start();
         if (transport.boundAddress() != null && logger.isInfoEnabled()) {
             logger.info("{}", transport.boundAddress());
+            for (Map.Entry<String, BoundTransportAddress> entry : transport.profileBoundAddresses().entrySet()) {
+                logger.info("profile [{}]: {}", entry.getKey(), entry.getValue());
+            }
         }
         boolean setStarted = started.compareAndSet(false, true);
         assert setStarted : "service was already started";

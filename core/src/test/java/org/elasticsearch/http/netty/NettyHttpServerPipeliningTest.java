@@ -88,7 +88,7 @@ public class NettyHttpServerPipeliningTest extends ESTestCase {
         Settings settings = settingsBuilder().put("http.pipelining", true).build();
         httpServerTransport = new CustomNettyHttpServerTransport(settings);
         httpServerTransport.start();
-        InetSocketTransportAddress transportAddress = (InetSocketTransportAddress) httpServerTransport.boundAddress().boundAddress();
+        InetSocketTransportAddress transportAddress = (InetSocketTransportAddress) randomFrom(httpServerTransport.boundAddress().boundAddresses());
 
         List<String> requests = Arrays.asList("/firstfast", "/slow?sleep=500", "/secondfast", "/slow?sleep=1000", "/thirdfast");
         try (NettyHttpClient nettyHttpClient = new NettyHttpClient()) {
@@ -103,7 +103,7 @@ public class NettyHttpServerPipeliningTest extends ESTestCase {
         Settings settings = settingsBuilder().put("http.pipelining", false).build();
         httpServerTransport = new CustomNettyHttpServerTransport(settings);
         httpServerTransport.start();
-        InetSocketTransportAddress transportAddress = (InetSocketTransportAddress) httpServerTransport.boundAddress().boundAddress();
+        InetSocketTransportAddress transportAddress = (InetSocketTransportAddress) randomFrom(httpServerTransport.boundAddress().boundAddresses());
 
         List<String> requests = Arrays.asList("/slow?sleep=1000", "/firstfast", "/secondfast", "/thirdfast", "/slow?sleep=500");
         try (NettyHttpClient nettyHttpClient = new NettyHttpClient()) {

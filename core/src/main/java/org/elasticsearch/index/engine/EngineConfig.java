@@ -94,8 +94,11 @@ public final class EngineConfig {
     public static final String INDEX_GC_DELETES_SETTING = "index.gc_deletes";
 
     /**
-     * Index setting to control the initial index buffer size.
-     * This setting is <b>not</b> realtime updateable.
+     * Index setting to control the initial index buffer size.  NOTE: this setting is somewhat
+     * useless, since IndexingMemoryController will take over quickly and partition the
+     * indices.memory.index_buffer_size for this node across all shards.
+     *
+     * <p>This setting is <b>not</b> realtime updateable.
      */
     public static final String INDEX_BUFFER_SIZE_SETTING = "index.buffer_size";
 

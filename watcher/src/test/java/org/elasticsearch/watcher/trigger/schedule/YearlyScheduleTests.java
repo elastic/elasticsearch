@@ -6,9 +6,9 @@
 package org.elasticsearch.watcher.trigger.schedule;
 
 
-import com.google.common.base.Joiner;
 import com.google.common.primitives.Ints;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -44,7 +44,7 @@ public class YearlyScheduleTests extends ScheduleTestCase {
             String hrStr = Ints.join(",", dayTimes.hour());
             String dayStr = Ints.join(",", time.days());
             dayStr = dayStr.replace("32", "L");
-            String monthStr = Joiner.on(",").join(time.months());
+            String monthStr = Strings.collectionToCommaDelimitedString(time.months());
             String expression = "0 " + minStr + " " + hrStr + " " + dayStr + " " + monthStr + " ?";
             logger.info("expression: " + expression);
             assertThat(crons, hasItemInArray(expression));
@@ -67,7 +67,7 @@ public class YearlyScheduleTests extends ScheduleTestCase {
                 String hrStr = Ints.join(",", dayTimes.hour());
                 String dayStr = Ints.join(",", yearTimes.days());
                 dayStr = dayStr.replace("32", "L");
-                String monthStr = Joiner.on(",").join(yearTimes.months());
+                String monthStr = Strings.collectionToCommaDelimitedString(yearTimes.months());
                 assertThat(crons, hasItemInArray("0 " + minStr + " " + hrStr + " " + dayStr + " " + monthStr + " ?"));
             }
         }

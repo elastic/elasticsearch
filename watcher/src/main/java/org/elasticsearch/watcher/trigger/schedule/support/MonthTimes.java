@@ -5,11 +5,11 @@
  */
 package org.elasticsearch.watcher.trigger.schedule.support;
 
-import com.google.common.base.Joiner;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.primitives.Ints;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -100,7 +100,12 @@ public class MonthTimes implements Times {
 
     @Override
     public String toString() {
-        return "days [" + Ints.join(",", days) + "], times [" + Joiner.on(",").join(times) + "]";
+        return String.format(
+                Locale.ROOT,
+                "days [%s], times [%s]",
+                Ints.join(",", days),
+                Strings.arrayToCommaDelimitedString(times)
+        );
     }
 
     public boolean contains(int day, DayTimes dayTimes) {

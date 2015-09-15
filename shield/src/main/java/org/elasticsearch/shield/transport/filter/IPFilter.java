@@ -7,7 +7,6 @@ package org.elasticsearch.shield.transport.filter;
 
 import com.carrotsearch.hppc.ObjectObjectHashMap;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ObjectArrays;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.collect.HppcMaps;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -17,6 +16,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
+import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.shield.audit.AuditTrail;
@@ -147,7 +147,7 @@ public class IPFilter extends AbstractLifecycleComponent<IPFilter> {
             InetAddress localAddress = ((InetSocketTransportAddress) this.httpServerTransport.boundAddress().boundAddress()).address().getAddress();
             String[] httpAllowed = settings.getAsArray("shield.http.filter.allow", settings.getAsArray("transport.profiles.default.shield.filter.allow", settings.getAsArray("shield.transport.filter.allow")));
             String[] httpDdenied = settings.getAsArray("shield.http.filter.deny", settings.getAsArray("transport.profiles.default.shield.filter.deny", settings.getAsArray("shield.transport.filter.deny")));
-            profileRules.put(HTTP_PROFILE_NAME, ObjectArrays.concat(parseValue(httpAllowed, true, localAddress), parseValue(httpDdenied, false, localAddress), ShieldIpFilterRule.class));
+            profileRules.put(HTTP_PROFILE_NAME, ArrayUtils.concat(parseValue(httpAllowed, true, localAddress), parseValue(httpDdenied, false, localAddress), ShieldIpFilterRule.class));
         }
 
         if (isIpFilterEnabled && this.transport.lifecycleState() == Lifecycle.State.STARTED) {
@@ -155,13 +155,13 @@ public class IPFilter extends AbstractLifecycleComponent<IPFilter> {
 
             String[] allowed = settings.getAsArray("shield.transport.filter.allow");
             String[] denied = settings.getAsArray("shield.transport.filter.deny");
-            profileRules.put("default", ObjectArrays.concat(parseValue(allowed, true, localAddress), parseValue(denied, false, localAddress), ShieldIpFilterRule.class));
+            profileRules.put("default", ArrayUtils.concat(parseValue(allowed, true, localAddress), parseValue(denied, false, localAddress), ShieldIpFilterRule.class));
 
             Map<String, Settings> groupedSettings = settings.getGroups("transport.profiles.");
             for (Map.Entry<String, Settings> entry : groupedSettings.entrySet()) {
                 String profile = entry.getKey();
                 Settings profileSettings = entry.getValue().getByPrefix("shield.filter.");
-                profileRules.put(profile, ObjectArrays.concat(
+                profileRules.put(profile, ArrayUtils.concat(
                         parseValue(profileSettings.getAsArray("allow"), true, localAddress),
                         parseValue(profileSettings.getAsArray("deny"), false, localAddress),
                         ShieldIpFilterRule.class));

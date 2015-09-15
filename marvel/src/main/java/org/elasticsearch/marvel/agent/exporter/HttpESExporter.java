@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.marvel.agent.exporter;
 
-import com.google.common.io.ByteStreams;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
@@ -36,10 +35,7 @@ import org.joda.time.format.DateTimeFormat;
 import org.joda.time.format.DateTimeFormatter;
 
 import javax.net.ssl.*;
-import java.io.FileNotFoundException;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
+import java.io.*;
 import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.URISyntaxException;
@@ -467,7 +463,9 @@ public class HttpESExporter extends AbstractExporter<HttpESExporter> implements 
     private boolean checkAndUploadIndexTemplate(final String host) {
         byte[] template;
         try (InputStream is = getClass().getResourceAsStream("/marvel_index_template.json")) {
-            template = ByteStreams.toByteArray(is);
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            Streams.copy(is, out);
+            template = out.toByteArray();
         } catch (IOException e) {
             // throwing an exception to stop exporting process - we don't want to send data unless
             // we put in the template for it.
@@ -493,7 +491,9 @@ public class HttpESExporter extends AbstractExporter<HttpESExporter> implements 
             if (conn.getResponseCode() == 200) {
                 // verify content.
                 InputStream is = conn.getInputStream();
-                byte[] existingTemplate = ByteStreams.toByteArray(is);
+                ByteArrayOutputStream out = new ByteArrayOutputStream();
+                Streams.copy(is, out);
+                byte[] existingTemplate = out.toByteArray();
                 is.close();
                 int foundVersion = AgentUtils.parseIndexVersionFromTemplate(existingTemplate);
                 if (foundVersion < 0) {

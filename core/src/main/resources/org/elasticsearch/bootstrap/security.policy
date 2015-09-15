@@ -34,6 +34,7 @@ grant codeBase "file:${{java.ext.dirs}}/*" {
 grant codeBase "${es.security.jar.lucene.core}" {
   // needed to allow MMapDirectory's "unmap hack"
   permission java.lang.RuntimePermission "accessClassInPackage.sun.misc";
+  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
 };
 
 //// test framework permissions.
@@ -43,6 +44,21 @@ grant codeBase "${es.security.jar.lucene.core}" {
 grant codeBase "${es.security.jar.elasticsearch.securemock}" {
   // needed to support creation of mocks
   permission java.lang.RuntimePermission "reflectionFactoryAccess";
+};
+
+grant codeBase "${es.security.jar.lucene.testframework}" {
+  // XXX
+  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
+};
+
+grant codeBase "${es.security.jar.randomizedtesting.runner}" {
+  // XXX
+  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
+};
+
+grant codeBase "${es.security.jar.randomizedtesting.junit4}" {
+  // XXX
+  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
 };
 
 //// Everything else:
@@ -59,7 +75,7 @@ grant {
   permission java.util.PropertyPermission "*", "read,write";
 
   // needed by junit4's gson usage 
-  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
+  //permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
 
   // needed by scripting engines, etc
   permission java.lang.RuntimePermission "createClassLoader";

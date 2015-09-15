@@ -24,8 +24,6 @@ import java.lang.annotation.Annotation;
 import java.lang.reflect.Type;
 import java.util.Objects;
 
-import static com.google.common.base.Preconditions.checkArgument;
-
 /**
  * Binding key consisting of an injection type and an optional annotation.
  * Matches the type and annotation at a point of injection.
@@ -367,16 +365,20 @@ public class Key<T> {
 
     private static void ensureRetainedAtRuntime(
             Class<? extends Annotation> annotationType) {
-        checkArgument(Annotations.isRetainedAtRuntime(annotationType),
-                "%s is not retained at runtime. Please annotate it with @Retention(RUNTIME).",
-                annotationType.getName());
+        if (!Annotations.isRetainedAtRuntime(annotationType)) {
+            throw new IllegalArgumentException(
+                    annotationType.getName() + " is not retained at runtime. Please annotate it with @Retention(RUNTIME)."
+            );
+        }
     }
 
     private static void ensureIsBindingAnnotation(
             Class<? extends Annotation> annotationType) {
-        checkArgument(isBindingAnnotation(annotationType),
-                "%s is not a binding annotation. Please annotate it with @BindingAnnotation.",
-                annotationType.getName());
+        if (!isBindingAnnotation(annotationType)) {
+            throw new IllegalArgumentException(
+                    annotationType.getName() + " is not a binding annotation. Please annotate it with @BindingAnnotation."
+            );
+        }
     }
 
     static enum NullAnnotationStrategy implements AnnotationStrategy {

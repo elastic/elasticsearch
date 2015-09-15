@@ -19,8 +19,6 @@
 
 package org.elasticsearch.index.fielddata.plain;
 
-import com.google.common.base.Preconditions;
-
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
@@ -52,7 +50,9 @@ public class BinaryDVNumericIndexFieldData extends DocValuesIndexFieldData imple
 
     public BinaryDVNumericIndexFieldData(Index index, Names fieldNames, NumericType numericType, FieldDataType fieldDataType) {
         super(index, fieldNames, fieldDataType);
-        Preconditions.checkArgument(numericType != null, "numericType must be non-null");
+        if (numericType == null) {
+            throw new IllegalArgumentException("numericType must be non-null");
+        }
         this.numericType = numericType;
     }
 

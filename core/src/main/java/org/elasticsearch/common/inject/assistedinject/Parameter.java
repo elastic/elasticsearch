@@ -22,8 +22,6 @@ import java.lang.annotation.Annotation;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 
-import static com.google.common.base.Preconditions.checkArgument;
-
 /**
  * Models a method or constructor parameter.
  *
@@ -144,8 +142,9 @@ class Parameter {
         Annotation bindingAnnotation = null;
         for (Annotation a : annotations) {
             if (a.annotationType().getAnnotation(BindingAnnotation.class) != null) {
-                checkArgument(bindingAnnotation == null,
-                        "Parameter has multiple binding annotations: %s and %s", bindingAnnotation, a);
+                if (bindingAnnotation != null) {
+                    throw new IllegalArgumentException("Parameter has multiple binding annotations: " + bindingAnnotation + " and " + a);
+                }
                 bindingAnnotation = a;
             }
         }

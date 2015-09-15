@@ -18,9 +18,6 @@
  */
 package org.elasticsearch.common.unit;
 
-import com.google.common.base.Preconditions;
-import org.apache.lucene.search.FuzzyQuery;
-import org.apache.lucene.util.automaton.LevenshteinAutomata;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -46,7 +43,9 @@ public final class Fuzziness implements ToXContent {
     private final String fuzziness;
 
     private Fuzziness(int fuzziness) {
-        Preconditions.checkArgument(fuzziness >= 0 && fuzziness <= 2, "Valid edit distances are [0, 1, 2] but was [" + fuzziness + "]");
+        if (fuzziness != 0 && fuzziness != 1 && fuzziness != 2) {
+            throw new IllegalArgumentException("Valid edit distances are [0, 1, 2] but was [" + fuzziness + "]");
+        }
         this.fuzziness = Integer.toString(fuzziness);
     }
 

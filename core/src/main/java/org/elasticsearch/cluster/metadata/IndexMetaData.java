@@ -21,7 +21,6 @@ package org.elasticsearch.cluster.metadata;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import com.google.common.base.Preconditions;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.Diff;
@@ -205,8 +204,12 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
     private final boolean useTypeForRouting;
 
     private IndexMetaData(String index, long version, State state, Settings settings, ImmutableOpenMap<String, MappingMetaData> mappings, ImmutableOpenMap<String, AliasMetaData> aliases, ImmutableOpenMap<String, Custom> customs) {
-        Preconditions.checkArgument(settings.getAsInt(SETTING_NUMBER_OF_SHARDS, null) != null, "must specify numberOfShards for index [" + index + "]");
-        Preconditions.checkArgument(settings.getAsInt(SETTING_NUMBER_OF_REPLICAS, null) != null, "must specify numberOfReplicas for index [" + index + "]");
+        if (settings.getAsInt(SETTING_NUMBER_OF_SHARDS, null) == null) {
+            throw new IllegalArgumentException("must specify numberOfShards for index [" + index + "]");
+        }
+        if (settings.getAsInt(SETTING_NUMBER_OF_REPLICAS, null) == null) {
+            throw new IllegalArgumentException("must specify numberOfReplicas for index [" + index + "]");
+        }
         this.index = index;
         this.version = version;
         this.state = state;

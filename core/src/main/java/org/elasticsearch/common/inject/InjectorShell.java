@@ -17,28 +17,14 @@
 package org.elasticsearch.common.inject;
 
 import com.google.common.collect.ImmutableSet;
-import org.elasticsearch.common.inject.internal.Errors;
-import org.elasticsearch.common.inject.internal.ErrorsException;
-import org.elasticsearch.common.inject.internal.InternalContext;
-import org.elasticsearch.common.inject.internal.InternalFactory;
-import org.elasticsearch.common.inject.internal.PrivateElementsImpl;
-import org.elasticsearch.common.inject.internal.ProviderInstanceBindingImpl;
-import org.elasticsearch.common.inject.internal.Scoping;
-import org.elasticsearch.common.inject.internal.SourceProvider;
-import org.elasticsearch.common.inject.internal.Stopwatch;
-import org.elasticsearch.common.inject.spi.Dependency;
-import org.elasticsearch.common.inject.spi.Element;
-import org.elasticsearch.common.inject.spi.Elements;
-import org.elasticsearch.common.inject.spi.InjectionPoint;
-import org.elasticsearch.common.inject.spi.PrivateElements;
-import org.elasticsearch.common.inject.spi.TypeListenerBinding;
+import org.elasticsearch.common.inject.internal.*;
+import org.elasticsearch.common.inject.spi.*;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.logging.Logger;
 
-import static com.google.common.base.Preconditions.checkState;
 import static org.elasticsearch.common.inject.Scopes.SINGLETON;
 
 /**
@@ -125,9 +111,15 @@ class InjectorShell {
          */
         List<InjectorShell> build(Initializer initializer, BindingProcessor bindingProcessor,
                                   Stopwatch stopwatch, Errors errors) {
-            checkState(stage != null, "Stage not initialized");
-            checkState(privateElements == null || parent != null, "PrivateElements with no parent");
-            checkState(state != null, "no state. Did you remember to lock() ?");
+            if (stage == null) {
+                throw new IllegalStateException("Stage not initialized");
+            }
+            if (privateElements != null && parent == null) {
+                throw new IllegalStateException("PrivateElements with no parent");
+            }
+            if (state == null) {
+                throw new IllegalStateException("no state. Did you remember to lock() ?");
+            }
 
             InjectorImpl injector = new InjectorImpl(parent, state, initializer);
             if (privateElements != null) {

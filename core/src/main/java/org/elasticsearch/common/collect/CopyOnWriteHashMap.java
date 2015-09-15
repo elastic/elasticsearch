@@ -19,25 +19,11 @@
 
 package org.elasticsearch.common.collect;
 
-import com.google.common.base.Preconditions;
-import com.google.common.base.Supplier;
-import com.google.common.base.Suppliers;
 import com.google.common.collect.UnmodifiableIterator;
 import org.apache.lucene.util.mutable.MutableValueInt;
 
 import java.lang.reflect.Array;
-import java.util.AbstractMap;
-import java.util.AbstractSet;
-import java.util.ArrayDeque;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Deque;
-import java.util.Iterator;
-import java.util.Map;
-import java.util.NoSuchElementException;
-import java.util.Set;
-import java.util.function.Consumer;
-import java.util.stream.Collectors;
+import java.util.*;
 import java.util.stream.Stream;
 
 /**
@@ -487,7 +473,9 @@ public final class CopyOnWriteHashMap<K, V> extends AbstractMap<K, V> {
 
     @Override
     public V get(Object key) {
-        Preconditions.checkArgument(key != null, "Null keys are not supported");
+        if (key == null) {
+            throw new IllegalArgumentException("null keys are not supported");
+        }
         final int hash = key.hashCode();
         return root.get(key, hash);
     }
@@ -503,8 +491,12 @@ public final class CopyOnWriteHashMap<K, V> extends AbstractMap<K, V> {
      * of the hash table. The current hash table is not modified.
      */
     public CopyOnWriteHashMap<K, V> copyAndPut(K key, V value) {
-        Preconditions.checkArgument(key != null, "null keys are not supported");
-        Preconditions.checkArgument(value != null, "null values are not supported");
+        if (key == null) {
+            throw new IllegalArgumentException("null keys are not supported");
+        }
+        if (value == null) {
+            throw new IllegalArgumentException("null values are not supported");
+        }
         final int hash = key.hashCode();
         final MutableValueInt newValue = new MutableValueInt();
         final InnerNode<K, V> newRoot = root.put(key, hash, TOTAL_HASH_BITS, value, newValue);
@@ -535,7 +527,9 @@ public final class CopyOnWriteHashMap<K, V> extends AbstractMap<K, V> {
      * Remove the given key from this map. The current hash table is not modified.
      */
     public CopyOnWriteHashMap<K, V> copyAndRemove(Object key) {
-        Preconditions.checkArgument(key != null, "Null keys are not supported");
+        if (key == null) {
+            throw new IllegalArgumentException("null keys are not supported");
+        }
         final int hash = key.hashCode();
         final InnerNode<K, V> newRoot = root.remove(key, hash);
         if (root == newRoot) {

@@ -63,7 +63,7 @@ public class FileInfoTests extends ESTestCase {
             assertThat(info.physicalName(), equalTo(parsedInfo.physicalName()));
             assertThat(info.length(), equalTo(parsedInfo.length()));
             assertThat(info.checksum(), equalTo(parsedInfo.checksum()));
-            assertThat(info.partBytes(), equalTo(parsedInfo.partBytes()));
+            assertThat(info.partSize(), equalTo(parsedInfo.partSize()));
             assertThat(parsedInfo.metadata().hash().length, equalTo(hash.length));
             assertThat(parsedInfo.metadata().hash(), equalTo(hash));
             assertThat(parsedInfo.metadata().writtenBy(), equalTo(Version.LATEST));

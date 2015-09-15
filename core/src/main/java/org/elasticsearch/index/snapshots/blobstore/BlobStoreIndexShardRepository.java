@@ -624,13 +624,14 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
          */
         private void snapshotFile(final BlobStoreIndexShardSnapshot.FileInfo fileInfo) throws IOException {
             final String file = fileInfo.physicalName();
-            final byte[] buffer = new byte[BUFFER_SIZE];
             try (IndexInput indexInput = store.openVerifyingInput(file, IOContext.READONCE, fileInfo.metadata())) {
                 for (int i = 0; i < fileInfo.numberOfParts(); i++) {
-                    final InputStreamIndexInput inputStreamIndexInput = new InputStreamIndexInput(indexInput, fileInfo.partBytes());
+                    final long partBytes = fileInfo.partBytes(i);
+
+                    final InputStreamIndexInput inputStreamIndexInput = new InputStreamIndexInput(indexInput, partBytes);
                     InputStream inputStream = snapshotRateLimiter == null ? inputStreamIndexInput : new RateLimitingInputStream(inputStreamIndexInput, snapshotRateLimiter, snapshotThrottleListener);
                     inputStream = new AbortableInputStream(inputStream, fileInfo.physicalName());
-                    blobContainer.writeBlob(fileInfo.partName(i), inputStream, fileInfo.partBytes());
+                    blobContainer.writeBlob(fileInfo.partName(i), inputStream, partBytes);
                 }
                 Store.verify(indexInput);
                 snapshotStatus.addProcessedFile(fileInfo.length());

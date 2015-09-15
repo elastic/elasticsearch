@@ -51,16 +51,18 @@ public class InternalProfiler {
      * This should only be used for queries that will be undergoing scoring. Do not use it to profile the
      * rewriting phase
      */
-    public ProfileBreakdown getProfileBreakDown(Query query) {
+    public ProfileBreakdown getQueryBreakdown(Query query) {
         return queryTree.getBreakDown(query, false);
     }
 
     /**
-     * Get the {@link ProfileBreakdown} for the given query, potentially creating it if it did not exist.
+     * Get the {@link ProfileBreakdown} for the given query.  This breakdown is "unattached" to the profiler
+     * and will not record it's timing without a subsequent call to {@link #addRewrittenQuery(Query, Query, InternalProfileBreakdown)}.
+     *
      * This should only be used for queries that will be undergoing rewriting.  Do not use it to profile
      * the scoring phase
      */
-    public ProfileBreakdown getRewriteProfileBreakDown(Query query) {
+    public InternalProfileBreakdown getUnattachedRewriteBreakdown(Query query) {
         return queryTree.getBreakDown(query, true);
     }
 
@@ -80,8 +82,8 @@ public class InternalProfiler {
      * @param original   The original query
      * @param rewritten  The rewritten query
      */
-    public void setRewrittenQuery(Query original, Query rewritten) {
-        queryTree.setRewrittenQuery(original, rewritten);
+    public void addRewrittenQuery(Query original, Query rewritten, InternalProfileBreakdown breakdown) {
+        queryTree.setRewrittenQuery(original, rewritten, breakdown);
     }
 
     /**

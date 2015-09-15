@@ -64,9 +64,12 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     @Override
     public Query rewrite(Query original) throws IOException {
-        ProfileBreakdown profile = null;
+        InternalProfileBreakdown profile = null;
         if (searchContext.profile()) {
-            profile = searchContext.queryProfiler().getRewriteProfileBreakDown(original);
+            // Rewrite Breakdowns are "unattached" to the profiler...we must
+            // call `addRewrittenQuery` after the rewrite or else this timing will be
+            // go to the great /dev/null in the sky
+            profile = searchContext.queryProfiler().getUnattachedRewriteBreakdown(original);
             profile.startTime(InternalProfileBreakdown.TimingType.REWRITE);
         }
 
@@ -77,10 +80,12 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             if (searchContext.profile()) {
                 profile.stopAndRecordTime(InternalProfileBreakdown.TimingType.REWRITE);
 
-                // If a new rewritten query was generated, we need to tell the profiler
-                // so that it can accurately track the rewritten tree
+                // Unlike "scoring" queries, the rewriting queries cannot use a stack model. So we
+                // have to retroactively provide the profiler with the finished timing, and it will
+                // decide how to merge the timing into the tree based on the (original, rewritten)
+                // tuple.
                 if (rewritten != null) {
-                    searchContext.queryProfiler().setRewrittenQuery(original, rewritten);
+                    searchContext.queryProfiler().addRewrittenQuery(original, rewritten, profile);
                 }
             }
         }
@@ -107,7 +112,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             // createWeight() is called for each query in the tree, so we tell the queryProfiler
             // each invocation so that it can build an internal representation of the query
             // tree
-            ProfileBreakdown profile = searchContext.queryProfiler().getProfileBreakDown(query);
+            ProfileBreakdown profile = searchContext.queryProfiler().getQueryBreakdown(query);
             profile.startTime(InternalProfileBreakdown.TimingType.WEIGHT);
             // nocommit: is it ok to not delegate to in?
             Weight weight = super.createWeight(query, needsScores);

@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.action.termvectors;
 
-import com.google.common.util.concurrent.AtomicLongMap;
 import org.apache.lucene.index.*;
 import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.search.similarities.DefaultSimilarity;

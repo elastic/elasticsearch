@@ -142,9 +142,12 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
          * @param type the type of the document
          * @param id and its id
          */
-        public Item(String index, @Nullable String type, String id) {
+        public Item(@Nullable String index, @Nullable String type, String id) {
             this.index = index;
             this.type = type;
+            if (id == null) {
+                throw new IllegalArgumentException("Item requires id to be non-null");
+            }
             this.id = id;
         }
 
@@ -155,10 +158,13 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
          * @param type the type to be used for parsing the doc
          * @param doc the document specification
          */
-        public Item(String index, String type, XContentBuilder doc) {
+        public Item(@Nullable String index, @Nullable String type, XContentBuilder doc) {
             this.index = index;
             this.type = type;
-            this.doc(doc);
+            if (doc == null) {
+                throw new IllegalArgumentException("Item requires doc to be non-null");
+            }
+            this.doc = doc.bytes();
         }
 
         public String index() {
@@ -183,29 +189,8 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
             return id;
         }
 
-        public Item id(String id) {
-            this.id = id;
-            return this;
-        }
-
         public BytesReference doc() {
             return doc;
-        }
-
-        /**
-         * Sets to a given artificial document, that is a document that is not present in the index.
-         */
-        public Item doc(BytesReference doc) {
-            this.doc = doc;
-            return this;
-        }
-
-        /**
-         * Sets to a given artificial document, that is a document that is not present in the index.
-         */
-        public Item doc(XContentBuilder doc) {
-            this.doc = doc != null ? doc.bytes() : null;
-            return this;
         }
 
         public String[] fields() {
@@ -275,7 +260,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
             // for artificial docs to make sure that the id has changed in the item too
             if (doc != null) {
                 termVectorsRequest.doc(doc, true);
-                this.id(termVectorsRequest.id());
+                this.id = termVectorsRequest.id();
             }
             return termVectorsRequest;
         }
@@ -297,7 +282,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
                     } else if (parseFieldMatcher.match(currentFieldName, Field.ID)) {
                         item.id = parser.text();
                     } else if (parseFieldMatcher.match(currentFieldName, Field.DOC)) {
-                        item.doc(jsonBuilder().copyCurrentStructure(parser));
+                        item.doc = jsonBuilder().copyCurrentStructure(parser).bytes();
                     } else if (parseFieldMatcher.match(currentFieldName, Field.FIELDS)) {
                         if (token == XContentParser.Token.START_ARRAY) {
                             List<String> fields = new ArrayList<>();
@@ -328,6 +313,10 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
                 throw new ElasticsearchParseException(
                         "failed to parse More Like This item. either [id] or [doc] can be specified, but not both!");
             }
+            if (item.id == null && item.doc == null) {
+                throw new ElasticsearchParseException(
+                        "failed to parse More Like This item. neither [id] nor [doc] is specified!");
+            }
             return item;
         }
 
@@ -340,7 +329,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
             if (this.type != null) {
                 builder.field(Field.TYPE.getPreferredName(), this.type);
             }
-            if (this.id != null && this.doc == null) {
+            if (this.id != null) {
                 builder.field(Field.ID.getPreferredName(), this.id);
             }
             if (this.doc != null) {
@@ -384,23 +373,16 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
             }
         }
 
-        public QueryValidationException validate() {
-            QueryValidationException validationException = null;
-            if (id == null && doc == null) {
-                validationException = new QueryValidationException();
-                validationException.addValidationError("item must either have an '_id' or be an artificial 'doc'");
-            }
-            if (id != null && doc != null) {
-                validationException = validationException == null ? new QueryValidationException() : validationException;
-                validationException.addValidationError("either 'id' or 'doc' can be specified, but not both!");
-            }
-            return validationException;
-        }
-
         @Override
         public Item readFrom(StreamInput in) throws IOException {
-            Item item = new Item(in.readOptionalString(), in.readOptionalString(), in.readOptionalString());
-            item.doc = (BytesReference) in.readGenericValue();
+            Item item = new Item();
+            item.index = in.readOptionalString();
+            item.type = in.readOptionalString();
+            if (in.readBoolean()) {
+                item.doc = (BytesReference) in.readGenericValue();
+            } else {
+                item.id = in.readString();
+            }
             item.fields = in.readOptionalStringArray();
             item.perFieldAnalyzer = (Map<String, String>) in.readGenericValue();
             item.routing = in.readOptionalString();
@@ -417,8 +399,12 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         public void writeTo(StreamOutput out) throws IOException {
             out.writeOptionalString(index);
             out.writeOptionalString(type);
-            out.writeOptionalString(id);
-            out.writeGenericValue(doc);
+            out.writeBoolean(doc != null);
+            if (doc != null) {
+                out.writeGenericValue(doc);
+            } else {
+                out.writeString(id);
+            }
             out.writeOptionalStringArray(fields);
             out.writeGenericValue(perFieldAnalyzer);
             out.writeOptionalString(routing);
@@ -1027,18 +1013,6 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         }
         if (fields != null && fields.isEmpty()) {
             validationException = addValidationError("requires 'fields' to be specified", validationException);
-        }
-        for (Item likeItem : likeItems) {
-            QueryValidationException validate = likeItem.validate();
-            if (validate != null) {
-                validationException = addValidationError(validate.getMessage(), validationException);
-            }
-        }
-        for (Item unlikeItem : unlikeItems) {
-            QueryValidationException validate = unlikeItem.validate();
-            if (validate != null) {
-                validationException = addValidationError(validate.getMessage(), validationException);
-            }
         }
         return validationException;
     }

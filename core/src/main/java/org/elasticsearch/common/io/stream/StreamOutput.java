@@ -317,7 +317,7 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     /**
-     * Writes a string array, for nullable string, writes it as 0 (empty string).
+     * Writes a string array, for nullable string, writes false.
      */
     public void writeOptionalStringArray(@Nullable String[] array) throws IOException {
         if (array == null) {

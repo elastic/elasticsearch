@@ -29,7 +29,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.termvectors.*;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lucene.search.MoreLikeThisQuery;
@@ -83,25 +82,31 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
     }
 
     private Item generateRandomItem() {
-        Item item = new Item()
-                .index(randomBoolean() ? getIndex().getName() : null)
-                .type(getRandomType())  // set to one type to avoid ambiguous types
-                .routing(randomAsciiOfLength(10))
-                .version(randomInt(5))
-                .versionType(randomFrom(VersionType.values()));
+        String index = randomBoolean() ? getIndex().getName() : null;
+        String type = getRandomType();  // set to one type to avoid ambiguous types
+        // indexed item or artificial document
+        Item item;
+        if (randomBoolean()) {
+            item = new Item(index, type, randomAsciiOfLength(10));
+        } else {
+            item = new Item(index, type, randomArtificialDoc());
+        }
         // if no field is specified MLT uses all mapped fields for this item
         if (randomBoolean()) {
             item.fields(randomFrom(randomFields));
         }
-        // id or artificial doc
-        if (randomBoolean()) {
-            item.id(randomAsciiOfLength(10));
-        } else {
-            item.doc(randomArtificialDoc());
-        }
         // per field analyzer
         if (randomBoolean()) {
             item.perFieldAnalyzer(randomPerFieldAnalyzer());
+        }
+        if (randomBoolean()) {
+            item.routing(randomAsciiOfLength(10));
+        }
+        if (randomBoolean()) {
+            item.version(randomInt(5));
+        }
+        if (randomBoolean()) {
+            item.versionType(randomFrom(VersionType.values()));
         }
         return item;
     }
@@ -178,10 +183,10 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
             queryBuilder.boostTerms(randomFloat() * 10);
         }
         if (randomBoolean()) {
-            queryBuilder.include(true);
+            queryBuilder.include(randomBoolean());
         }
         if (randomBoolean()) {
-            queryBuilder.failOnUnsupportedField(false);
+            queryBuilder.failOnUnsupportedField(randomBoolean());
         }
         return queryBuilder;
     }
@@ -249,29 +254,6 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
 
         queryBuilder = new MoreLikeThisQueryBuilder("field").like("some text");
         assertNull(queryBuilder.validate());
-    }
-
-    @Test
-    public void testValidateItems() {
-        MoreLikeThisQueryBuilder queryBuilder = new MoreLikeThisQueryBuilder("field").like("some text");
-        int totalExpectedErrors = 0;
-        if (randomBoolean()) {
-            queryBuilder.addLikeItem(generateRandomItem().id(null).doc((XContentBuilder) null));
-            totalExpectedErrors++;
-        }
-        if (randomBoolean()) {
-            queryBuilder.addUnlikeItem(generateRandomItem().id(null).doc((XContentBuilder) null));
-            totalExpectedErrors++;
-        }
-        if (randomBoolean()) {
-            queryBuilder.addLikeItem(generateRandomItem().id("id").doc(new BytesArray("")));
-            totalExpectedErrors++;
-        }
-        if (randomBoolean()) {
-            queryBuilder.addUnlikeItem(generateRandomItem().id("id").doc(new BytesArray("")));
-            totalExpectedErrors++;
-        }
-        assertValidate(queryBuilder, totalExpectedErrors);
     }
 
     @Test

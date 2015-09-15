@@ -55,10 +55,6 @@ public class MoreLikeThisQueryParser extends BaseQueryParser<MoreLikeThisQueryBu
         ParseField FAIL_ON_UNSUPPORTED_FIELD = new ParseField("fail_on_unsupported_field");
     }
 
-    public MoreLikeThisQueryParser() {
-
-    }
-
     @Override
     public String[] names() {
         return new String[]{MoreLikeThisQueryBuilder.NAME, "more_like_this", "moreLikeThis"};

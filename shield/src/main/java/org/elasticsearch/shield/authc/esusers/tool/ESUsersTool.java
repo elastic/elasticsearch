@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.shield.authc.esusers.tool;
 
-import com.google.common.base.Joiner;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.ObjectArrays;
 import org.apache.commons.cli.CommandLine;
@@ -30,6 +29,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.cli.CliToolConfig.Builder.cmd;
 import static org.elasticsearch.common.cli.CliToolConfig.Builder.option;
@@ -447,7 +447,7 @@ public class ESUsersTool extends CliTool {
                     String[] roles = userRoles.get(username);
                     Set<String> unknownRoles = Sets.difference(Sets.newHashSet(roles), knownRoles);
                     String[] markedRoles = markUnknownRoles(roles, unknownRoles);
-                    terminal.println("%-15s: %s", username, Joiner.on(",").useForNull("-").join(markedRoles));
+                    terminal.println("%-15s: %s", username, Arrays.stream(markedRoles).map(s -> s == null ? "-" : s).collect(Collectors.joining(",")));
                     if (!unknownRoles.isEmpty()) {
                         // at least one role is marked... so printing the legend
                         Path rolesFile = FileRolesStore.resolveFile(esusersSettings, env).toAbsolutePath();
@@ -464,7 +464,7 @@ public class ESUsersTool extends CliTool {
                     String[] roles = entry.getValue();
                     Set<String> unknownRoles = Sets.difference(Sets.newHashSet(roles), knownRoles);
                     String[] markedRoles = markUnknownRoles(roles, unknownRoles);
-                    terminal.println("%-15s: %s", entry.getKey(), Joiner.on(",").join(markedRoles));
+                    terminal.println("%-15s: %s", entry.getKey(), String.join(",", markedRoles));
                     unknownRolesFound = unknownRolesFound || !unknownRoles.isEmpty();
                     usersExist = true;
                 }

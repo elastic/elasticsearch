@@ -5,11 +5,11 @@
  */
 package org.elasticsearch.watcher.trigger.schedule.support;
 
-import com.google.common.base.Joiner;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.primitives.Ints;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -73,7 +73,7 @@ public class YearTimes implements Times {
             String minsStr = Ints.join(",", times.minute);
             String daysStr = Ints.join(",", this.days);
             daysStr = daysStr.replace("32", "L");
-            String monthsStr = Joiner.on(",").join(months);
+            String monthsStr = Strings.collectionToCommaDelimitedString(months);
             String expression = "0 " + minsStr + " " + hrsStr + " " + daysStr + " " + monthsStr + " ?";
             crons.add(expression);
         }
@@ -105,7 +105,13 @@ public class YearTimes implements Times {
 
     @Override
     public String toString() {
-        return "months [" + Joiner.on(",").join(months) + "], days [" + Ints.join(",", days) + "], times [" + Joiner.on(",").join(times) + "]";
+        return String.format(
+                Locale.ROOT,
+                "months [%s], days [%s], times [%s]",
+                Strings.collectionToCommaDelimitedString(months),
+                Ints.join(",", days),
+                Strings.arrayToCommaDelimitedString(times)
+        );
     }
 
     @Override

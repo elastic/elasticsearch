@@ -76,12 +76,12 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         } finally {
             if (searchContext.profile()) {
                 profile.stopAndRecordTime(InternalProfileBreakdown.TimingType.REWRITE);
-            }
 
-            // If a new rewritten query was generated, we need to tell the profiler
-            // so that it can accurately track the rewritten tree
-            if (rewritten != null) {
-                searchContext.queryProfiler().setRewrittenQuery(original, rewritten);
+                // If a new rewritten query was generated, we need to tell the profiler
+                // so that it can accurately track the rewritten tree
+                if (rewritten != null) {
+                    searchContext.queryProfiler().setRewrittenQuery(original, rewritten);
+                }
             }
         }
     }

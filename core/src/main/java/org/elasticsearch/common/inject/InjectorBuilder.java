@@ -17,9 +17,9 @@
 package org.elasticsearch.common.inject;
 
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Iterables;
 import org.elasticsearch.common.inject.internal.*;
 import org.elasticsearch.common.inject.spi.Dependency;
+import org.elasticsearch.common.util.iterable.Iterables;
 
 import java.util.Collection;
 import java.util.List;

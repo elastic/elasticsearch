@@ -20,8 +20,6 @@
 package org.elasticsearch.common;
 
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Iterables;
-
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.FastStringReader;
@@ -32,18 +30,7 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 
 import java.io.BufferedReader;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Properties;
-import java.util.Random;
-import java.util.Set;
-import java.util.StringTokenizer;
-import java.util.TreeSet;
+import java.util.*;
 
 /**
  *
@@ -840,9 +827,6 @@ public class Strings {
     }
 
     public static String collectionToDelimitedString(Iterable<?> coll, String delim, String prefix, String suffix, StringBuilder sb) {
-        if (Iterables.isEmpty(coll)) {
-            return "";
-        }
         Iterator<?> it = coll.iterator();
         while (it.hasNext()) {
             sb.append(prefix).append(it.next()).append(suffix);

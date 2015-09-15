@@ -161,7 +161,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
         }
         for (DiskUsage usage : mostUsages.values()) {
             logger.info("--> usage: {}", usage);
-            assertThat("usage has be retrieved", usage.getFreeBytes(), greaterThan(0L));
+            assertThat("usage has be retrieved", usage.getFreeBytes(), greaterThanOrEqualTo(0L));
         }
         for (Long size : shardSizes.values()) {
             logger.info("--> shard size: {}", size);

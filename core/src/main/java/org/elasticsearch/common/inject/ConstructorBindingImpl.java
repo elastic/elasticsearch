@@ -25,8 +25,6 @@ import org.elasticsearch.common.inject.spi.InjectionPoint;
 
 import java.util.Set;
 
-import static com.google.common.base.Preconditions.checkState;
-
 class ConstructorBindingImpl<T> extends BindingImpl<T> implements ConstructorBinding<T> {
 
     private final Factory<T> factory;
@@ -52,19 +50,25 @@ class ConstructorBindingImpl<T> extends BindingImpl<T> implements ConstructorBin
 
     @Override
     public <V> V acceptTargetVisitor(BindingTargetVisitor<? super T, V> visitor) {
-        checkState(factory.constructorInjector != null, "not initialized");
+        if (factory.constructorInjector == null) {
+            throw new IllegalStateException("not initialized");
+        }
         return visitor.visit(this);
     }
 
     @Override
     public InjectionPoint getConstructor() {
-        checkState(factory.constructorInjector != null, "Binding is not ready");
+        if (factory.constructorInjector == null) {
+            throw new IllegalStateException("Binding is not ready");
+        }
         return factory.constructorInjector.getConstructionProxy().getInjectionPoint();
     }
 
     @Override
     public Set<InjectionPoint> getInjectableMembers() {
-        checkState(factory.constructorInjector != null, "Binding is not ready");
+        if (factory.constructorInjector == null) {
+            throw new IllegalStateException("Binding is not ready");
+        }
         return factory.constructorInjector.getInjectableMembers();
     }
 
@@ -97,7 +101,9 @@ class ConstructorBindingImpl<T> extends BindingImpl<T> implements ConstructorBin
         @SuppressWarnings("unchecked")
         public T get(Errors errors, InternalContext context, Dependency<?> dependency)
                 throws ErrorsException {
-            checkState(constructorInjector != null, "Constructor not ready");
+            if (constructorInjector == null) {
+                throw new IllegalStateException("Constructor not ready");
+            }
 
             // This may not actually be safe because it could return a super type of T (if that's all the
             // client needs), but it should be OK in practice thanks to the wonders of erasure.

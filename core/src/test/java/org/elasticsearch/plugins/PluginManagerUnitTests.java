@@ -19,7 +19,6 @@
 
 package org.elasticsearch.plugins;
 
-import com.google.common.io.Files;
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.http.client.HttpDownloadHelper;
@@ -63,10 +62,9 @@ public class PluginManagerUnitTests extends ESTestCase {
         Environment environment = new Environment(settings);
 
         PluginManager.PluginHandle pluginHandle = new PluginManager.PluginHandle(pluginName, "version", "user");
-        String configDirPath = Files.simplifyPath(pluginHandle.configDir(environment).normalize().toString());
-        String expectedDirPath = Files.simplifyPath(genericConfigFolder.resolve(pluginName).normalize().toString());
-
-        assertThat(configDirPath, is(expectedDirPath));
+        Path configDirPath = pluginHandle.configDir(environment).normalize();
+        Path expectedDirPath = genericConfigFolder.resolve(pluginName).normalize();
+        assertEquals(configDirPath, expectedDirPath);
     }
 
     @Test

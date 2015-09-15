@@ -18,28 +18,18 @@
  */
 package org.elasticsearch.gateway;
 
-import com.google.common.base.Preconditions;
-
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
-import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.IOContext;
-import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.store.OutputStreamIndexOutput;
-import org.apache.lucene.store.SimpleFSDirectory;
+import org.apache.lucene.store.*;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.store.IndexOutputOutputStream;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.*;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -99,8 +89,12 @@ public abstract class MetaDataStateFormat<T> {
      * @throws IOException if an IOException occurs
      */
     public final void write(final T state, final long version, final Path... locations) throws IOException {
-        Preconditions.checkArgument(locations != null, "Locations must not be null");
-        Preconditions.checkArgument(locations.length > 0, "One or more locations required");
+        if (locations == null) {
+            throw new IllegalArgumentException("Locations must not be null");
+        }
+        if (locations.length <= 0) {
+            throw new IllegalArgumentException("One or more locations required");
+        }
         final long maxStateId = findMaxStateId(prefix, locations)+1;
         assert maxStateId >= 0 : "maxStateId must be positive but was: [" + maxStateId + "]";
         final String fileName = prefix + maxStateId + STATE_FILE_EXTENSION;

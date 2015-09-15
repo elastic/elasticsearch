@@ -19,9 +19,12 @@
 
 package org.elasticsearch.common.util;
 
+import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
+import java.lang.reflect.Array;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.BitSet;
 
@@ -88,6 +91,24 @@ public class ArrayUtilsTests extends ESTestCase {
     private int randomInt(int min, int max) {
         int delta = (int) (Math.random() * (max - min));
         return min + delta;
+    }
+
+    public void testConcat() {
+        assertArrayEquals(new String[]{"a", "b", "c", "d"}, ArrayUtils.concat(new String[]{"a", "b"}, new String[]{"c", "d"}));
+        int firstSize = randomIntBetween(0, 10);
+        String[] first = new String[firstSize];
+        ArrayList<String> sourceOfTruth = new ArrayList<>();
+        for (int i = 0; i < firstSize; i++) {
+            first[i] = randomRealisticUnicodeOfCodepointLengthBetween(0,10);
+            sourceOfTruth.add(first[i]);
+        }
+        int secondSize = randomIntBetween(0, 10);
+        String[] second = new String[secondSize];
+        for (int i = 0; i < secondSize; i++) {
+            second[i] = randomRealisticUnicodeOfCodepointLengthBetween(0, 10);
+            sourceOfTruth.add(second[i]);
+        }
+        assertArrayEquals(sourceOfTruth.toArray(new String[0]), ArrayUtils.concat(first, second));
     }
 
 }

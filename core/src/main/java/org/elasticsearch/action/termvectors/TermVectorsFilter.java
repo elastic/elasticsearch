@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.action.termvectors;
 
-import com.google.common.util.concurrent.AtomicLongMap;
 import org.apache.lucene.index.*;
 import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.search.similarities.DefaultSimilarity;
@@ -54,7 +53,7 @@ public class TermVectorsFilter {
     private final Set<String> selectedFields;
     private AggregatedDfs dfs;
     private Map<Term, ScoreTerm> scoreTerms;
-    private AtomicLongMap<String> sizes;
+    private Map<String, Integer> sizes = new HashMap<>();
     private TFIDFSimilarity similarity;
 
     public TermVectorsFilter(Fields termVectorsByField, Fields topLevelFields, Set<String> selectedFields, @Nullable AggregatedDfs dfs) {
@@ -64,7 +63,6 @@ public class TermVectorsFilter {
 
         this.dfs = dfs;
         this.scoreTerms = new HashMap<>();
-        this.sizes = AtomicLongMap.create();
         this.similarity = new DefaultSimilarity();
     }
 
@@ -228,10 +226,12 @@ public class TermVectorsFilter {
 
             // retain the best terms for quick lookups
             ScoreTerm scoreTerm;
+            int count = 0;
             while ((scoreTerm = queue.pop()) != null) {
                 scoreTerms.put(new Term(scoreTerm.field, scoreTerm.word), scoreTerm);
-                sizes.incrementAndGet(scoreTerm.field);
+                count++;
             }
+            sizes.put(fieldName, count);
         }
     }
 

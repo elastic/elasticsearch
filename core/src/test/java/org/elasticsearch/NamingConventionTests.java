@@ -19,9 +19,6 @@
 package org.elasticsearch;
 
 import junit.framework.TestCase;
-
-import com.google.common.base.Joiner;
-
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -40,6 +37,7 @@ import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Simple class that ensures that all subclasses concrete of ESTestCase end with either Test | Tests
@@ -149,24 +147,27 @@ public class NamingConventionTests extends ESTestCase {
         assertTrue(pureUnitTest.remove(PlainUnit.class));
         assertTrue(pureUnitTest.remove(PlainUnitTheSecond.class));
 
-        String classesToSubclass = Joiner.on(',').join(
-            ESTestCase.class.getSimpleName(),
-            ESTestCase.class.getSimpleName(),
-            ESTokenStreamTestCase.class.getSimpleName(),
-            LuceneTestCase.class.getSimpleName());
-        assertTrue("Not all subclasses of " + ESTestCase.class.getSimpleName() +
- " match the naming convention. Concrete classes must end with [Tests]:\n" + Joiner.on('\n').join(missingSuffix),
-            missingSuffix.isEmpty());
-        assertTrue("Classes ending with [Tests] are abstract or interfaces:\n" + Joiner.on('\n').join(notRunnable),
-            notRunnable.isEmpty());
-        assertTrue("Found inner classes that are tests, which are excluded from the test runner:\n" + Joiner.on('\n').join(innerClasses),
-            innerClasses.isEmpty());
-        assertTrue("Pure Unit-Test found must subclass one of [" + classesToSubclass +"]:\n" + Joiner.on('\n').join(pureUnitTest),
-            pureUnitTest.isEmpty());
-        assertTrue("Classes ending with [Tests] must subclass [" + classesToSubclass + "]:\n" + Joiner.on('\n').join(notImplementing),
-            notImplementing.isEmpty());
-        assertTrue("Subclasses of ESIntegTestCase should end with IT as they are integration tests:\n" + Joiner.on('\n').join(integTestsInDisguise),
-            integTestsInDisguise.isEmpty());
+        String classesToSubclass = String.join(
+                ",",
+                ESTestCase.class.getSimpleName(),
+                ESTestCase.class.getSimpleName(),
+                ESTokenStreamTestCase.class.getSimpleName(),
+                LuceneTestCase.class.getSimpleName()
+        );
+        assertNoViolations("Not all subclasses of " + ESTestCase.class.getSimpleName() + " match the naming convention. Concrete classes must end with [Tests]:\n", missingSuffix);
+        assertNoViolations("Classes ending with [Tests] are abstract or interfaces:\n", notRunnable);
+        assertNoViolations("Found inner classes that are tests, which are excluded from the test runner:\n", innerClasses);
+        assertNoViolations("Pure Unit-Test found must subclass one of [" + classesToSubclass + "]:\n", pureUnitTest);
+        assertNoViolations("Classes ending with [Tests] must subclass [" + classesToSubclass + "]:\n", notImplementing);
+        assertNoViolations("Subclasses of ESIntegTestCase should end with IT as they are integration tests:\n", integTestsInDisguise);
+    }
+
+    private String join(Set<Class> set) {
+        return set.stream().map(Object::toString).collect(Collectors.joining("\n"));
+    }
+
+    private void assertNoViolations(String message, Set<Class> set) {
+        assertTrue(message + join(set), set.isEmpty());
     }
 
     /*

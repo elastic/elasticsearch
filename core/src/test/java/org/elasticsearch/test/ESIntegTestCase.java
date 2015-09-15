@@ -24,7 +24,6 @@ import com.carrotsearch.randomizedtesting.Randomness;
 import com.carrotsearch.randomizedtesting.annotations.TestGroup;
 import com.carrotsearch.randomizedtesting.generators.RandomInts;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
-import com.google.common.base.Joiner;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.LuceneTestCase;
@@ -793,7 +792,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     private Settings.Builder getExcludeSettings(String index, int num, Settings.Builder builder) {
-        String exclude = Joiner.on(',').join(internalCluster().allDataNodesButN(num));
+        String exclude = String.join(",", internalCluster().allDataNodesButN(num));
         builder.put("index.routing.allocation.exclude._name", exclude);
         return builder;
     }

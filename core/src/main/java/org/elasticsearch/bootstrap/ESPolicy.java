@@ -26,9 +26,11 @@ import java.net.URL;
 import java.security.CodeSource;
 import java.security.Permission;
 import java.security.PermissionCollection;
+import java.security.Permissions;
 import java.security.Policy;
 import java.security.ProtectionDomain;
 import java.security.URIParameter;
+import java.util.PropertyPermission;
 
 /** custom policy for union of static and dynamic permissions */
 final class ESPolicy extends Policy {
@@ -38,11 +40,15 @@ final class ESPolicy extends Policy {
     
     final Policy template;
     final PermissionCollection dynamic;
+    final PermissionCollection groovy;
 
     public ESPolicy(PermissionCollection dynamic) throws Exception {
         URI uri = getClass().getResource(POLICY_RESOURCE).toURI();
         this.template = Policy.getInstance("JavaPolicy", new URIParameter(uri));
         this.dynamic = dynamic;
+        this.groovy = new Permissions();
+        // groovy IndyInterface bootstrap requires this property
+        groovy.add(new PropertyPermission("groovy.indy.logging", "read"));
     }
 
     @Override @SuppressForbidden(reason = "fast equals check is desired")
@@ -54,9 +60,9 @@ final class ESPolicy extends Policy {
             // location can be null... ??? nobody knows
             // https://bugs.openjdk.java.net/browse/JDK-8129972
             if (location != null) {
-                // run groovy scripts with no permissions
+                // run groovy scripts with no permissions (except logging property)
                 if ("/groovy/script".equals(location.getFile())) {
-                    return false;
+                    return groovy.implies(permission);
                 }
             }
         }

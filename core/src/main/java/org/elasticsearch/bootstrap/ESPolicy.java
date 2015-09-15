@@ -49,6 +49,7 @@ final class ESPolicy extends Policy {
         this.groovy = new Permissions();
         // groovy IndyInterface bootstrap requires this property
         groovy.add(new PropertyPermission("groovy.indy.logging", "read"));
+        groovy.setReadOnly();
     }
 
     @Override @SuppressForbidden(reason = "fast equals check is desired")

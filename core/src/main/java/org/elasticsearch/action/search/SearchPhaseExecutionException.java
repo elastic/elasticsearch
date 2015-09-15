@@ -92,6 +92,17 @@ public class SearchPhaseExecutionException extends ElasticsearchException {
         return shardFailures;
     }
 
+    public Throwable getCause() {
+        Throwable cause = super.getCause();
+        if (cause == null) {
+            // fall back to guessed root cause
+            for (ElasticsearchException rootCause : guessRootCauses()) {
+                return rootCause;
+            }
+        }
+        return cause;
+    }
+
     private static String buildMessage(String phaseName, String msg, ShardSearchFailure[] shardFailures) {
         StringBuilder sb = new StringBuilder();
         sb.append("Failed to execute phase [").append(phaseName).append("], ").append(msg);
@@ -123,7 +134,14 @@ public class SearchPhaseExecutionException extends ElasticsearchException {
         }
         builder.endArray();
         super.innerToXContent(builder, params);
+    }
 
+    @Override
+    protected void causeToXContent(XContentBuilder builder, Params params) throws IOException {
+        if (super.getCause() != null) {
+            // if the cause is null we inject a guessed root cause that will then be rendered twice so wi disable it manually
+            super.causeToXContent(builder, params);
+        }
     }
 
     @Override

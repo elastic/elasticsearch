@@ -29,9 +29,11 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -83,11 +85,12 @@ import java.util.zip.Checksum;
  */
 public class Store extends AbstractIndexShardComponent implements Closeable, RefCounted {
 
-    private static final String CODEC = "store";
-    private static final int VERSION_STACK_TRACE = 1; // we write the stack trace too since 1.4.0
-    private static final int VERSION_START = 0;
-    private static final int VERSION = VERSION_STACK_TRACE;
-    private static final String CORRUPTED = "corrupted_";
+    static final String CODEC = "store";
+    static final int VERSION_WRITE_THROWABLE= 2; // we write throwable since 2.0
+    static final int VERSION_STACK_TRACE = 1; // we write the stack trace too since 1.4.0
+    static final int VERSION_START = 0;
+    static final int VERSION = VERSION_WRITE_THROWABLE;
+    static final String CORRUPTED = "corrupted_";
     public static final String INDEX_STORE_STATS_REFRESH_INTERVAL = "index.store.stats_refresh_interval";
 
     private final AtomicBoolean isClosed = new AtomicBoolean(false);
@@ -562,16 +565,31 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             if (file.startsWith(CORRUPTED)) {
                 try (ChecksumIndexInput input = directory.openChecksumInput(file, IOContext.READONCE)) {
                     int version = CodecUtil.checkHeader(input, CODEC, VERSION_START, VERSION);
-                    String msg = input.readString();
-                    StringBuilder builder = new StringBuilder(shardId.toString());
-                    builder.append(" Preexisting corrupted index [");
-                    builder.append(file).append("] caused by: ");
-                    builder.append(msg);
-                    if (version == VERSION_STACK_TRACE) {
-                        builder.append(System.lineSeparator());
-                        builder.append(input.readString());
+
+                    if (version == VERSION_WRITE_THROWABLE) {
+                        final int size = input.readVInt();
+                        final byte[] buffer = new byte[size];
+                        input.readBytes(buffer, 0, buffer.length);
+                        StreamInput in = StreamInput.wrap(buffer);
+                        Throwable t = in.readThrowable();
+                        if (t instanceof CorruptIndexException) {
+                            ex.add((CorruptIndexException) t);
+                        } else {
+                            ex.add(new CorruptIndexException(t.getMessage(), "preexisting_corruption", t));
+                        }
+                    } else {
+                        assert version == VERSION_START || version == VERSION_STACK_TRACE;
+                        String msg = input.readString();
+                        StringBuilder builder = new StringBuilder(shardId.toString());
+                        builder.append(" Preexisting corrupted index [");
+                        builder.append(file).append("] caused by: ");
+                        builder.append(msg);
+                        if (version == VERSION_STACK_TRACE) {
+                            builder.append(System.lineSeparator());
+                            builder.append(input.readString());
+                        }
+                        ex.add(new CorruptIndexException(builder.toString(), "preexisting_corruption"));
                     }
-                    ex.add(new CorruptIndexException(builder.toString(), "preexisting_corruption"));
                     CodecUtil.checkFooter(input);
                 }
             }
@@ -1446,8 +1464,11 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             String uuid = CORRUPTED + Strings.randomBase64UUID();
             try (IndexOutput output = this.directory().createOutput(uuid, IOContext.DEFAULT)) {
                 CodecUtil.writeHeader(output, CODEC, VERSION);
-                output.writeString(ExceptionsHelper.detailedMessage(exception, true, 0)); // handles null exception
-                output.writeString(ExceptionsHelper.stackTrace(exception));
+                BytesStreamOutput out = new BytesStreamOutput();
+                out.writeThrowable(exception);
+                BytesReference bytes = out.bytes();
+                output.writeVInt(bytes.length());
+                output.writeBytes(bytes.array(), bytes.arrayOffset(), bytes.length());
                 CodecUtil.writeFooter(output);
             } catch (IOException ex) {
                 logger.warn("Can't mark store as corrupted", ex);

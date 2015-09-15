@@ -103,7 +103,7 @@ public class TransportShardMultiPercolateAction extends TransportSingleShardActi
                     throw (ElasticsearchException) t;
                 } else {
                     logger.debug("{} failed to multi percolate", t, request.shardId());
-                    responseItem = new Response.Item(slot, new StringText(ExceptionsHelper.detailedMessage(t)));
+                    responseItem = new Response.Item(slot, t);
                 }
             }
             response.items.add(responseItem);
@@ -231,7 +231,7 @@ public class TransportShardMultiPercolateAction extends TransportSingleShardActi
                     item.response.writeTo(out);
                 } else {
                     out.writeBoolean(false);
-                    out.writeText(item.error);
+                    out.writeThrowable(item.error);
                 }
             }
         }
@@ -248,7 +248,7 @@ public class TransportShardMultiPercolateAction extends TransportSingleShardActi
                     shardResponse.readFrom(in);
                     items.add(new Item(slot, shardResponse));
                 } else {
-                    items.add(new Item(slot, in.readText()));
+                    items.add(new Item(slot, (Throwable)in.readThrowable()));
                 }
             }
         }
@@ -257,7 +257,7 @@ public class TransportShardMultiPercolateAction extends TransportSingleShardActi
 
             private final int slot;
             private final PercolateShardResponse response;
-            private final Text error;
+            private final Throwable error;
 
             public Item(Integer slot, PercolateShardResponse response) {
                 this.slot = slot;
@@ -265,7 +265,7 @@ public class TransportShardMultiPercolateAction extends TransportSingleShardActi
                 this.error = null;
             }
 
-            public Item(Integer slot, Text error) {
+            public Item(Integer slot, Throwable error) {
                 this.slot = slot;
                 this.error = error;
                 this.response = null;
@@ -279,7 +279,7 @@ public class TransportShardMultiPercolateAction extends TransportSingleShardActi
                 return response;
             }
 
-            public Text error() {
+            public Throwable error() {
                 return error;
             }
 

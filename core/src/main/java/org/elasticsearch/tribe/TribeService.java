@@ -304,7 +304,7 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
                         }
                     }
 
-                    return ClusterState.builder(currentState).blocks(blocks).nodes(nodes).metaData(metaData).routingTable(routingTable).build();
+                    return ClusterState.builder(currentState).incrementVersion().blocks(blocks).nodes(nodes).metaData(metaData).routingTable(routingTable).build();
                 }
 
                 private void removeIndex(ClusterBlocks.Builder blocks, MetaData.Builder metaData, RoutingTable.Builder routingTable, IndexMetaData index) {

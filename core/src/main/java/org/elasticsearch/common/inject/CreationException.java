@@ -22,8 +22,6 @@ import org.elasticsearch.common.inject.spi.Message;
 
 import java.util.Collection;
 
-import static com.google.common.base.Preconditions.checkArgument;
-
 /**
  * Thrown when errors occur while creating a {@link Injector}. Includes a list of encountered
  * errors. Clients should catch this exception, log it, and stop execution.
@@ -39,7 +37,9 @@ public class CreationException extends RuntimeException {
      */
     public CreationException(Collection<Message> messages) {
         this.messages = ImmutableSet.copyOf(messages);
-        checkArgument(!this.messages.isEmpty());
+        if (this.messages.isEmpty()) {
+            throw new IllegalArgumentException();
+        }
         initCause(Errors.getOnlyCause(this.messages));
     }
 

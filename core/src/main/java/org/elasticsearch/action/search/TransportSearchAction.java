@@ -58,7 +58,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                                  TransportSearchDfsQueryAndFetchAction dfsQueryAndFetchAction,
                                  TransportSearchQueryAndFetchAction queryAndFetchAction,
                                  ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, SearchAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, SearchRequest.class);
+        super(settings, SearchAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, SearchRequest::new);
         this.clusterService = clusterService;
         this.dfsQueryThenFetchAction = dfsQueryThenFetchAction;
         this.queryThenFetchAction = queryThenFetchAction;

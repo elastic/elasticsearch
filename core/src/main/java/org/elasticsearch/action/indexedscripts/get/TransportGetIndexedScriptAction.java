@@ -40,7 +40,7 @@ public class TransportGetIndexedScriptAction extends HandledTransportAction<GetI
     @Inject
     public TransportGetIndexedScriptAction(Settings settings, ThreadPool threadPool, ScriptService scriptService,
                                            TransportService transportService, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, GetIndexedScriptAction.NAME, threadPool,transportService,  actionFilters, indexNameExpressionResolver, GetIndexedScriptRequest.class);
+        super(settings, GetIndexedScriptAction.NAME, threadPool,transportService,  actionFilters, indexNameExpressionResolver, GetIndexedScriptRequest::new);
         this.scriptService = scriptService;
     }
 

@@ -49,7 +49,7 @@ public class TransportMultiTermVectorsAction extends HandledTransportAction<Mult
     public TransportMultiTermVectorsAction(Settings settings, ThreadPool threadPool, TransportService transportService,
                                            ClusterService clusterService, TransportShardMultiTermsVectorAction shardAction,
                                            ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, MultiTermVectorsAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, MultiTermVectorsRequest.class);
+        super(settings, MultiTermVectorsAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, MultiTermVectorsRequest::new);
         this.clusterService = clusterService;
         this.shardAction = shardAction;
     }

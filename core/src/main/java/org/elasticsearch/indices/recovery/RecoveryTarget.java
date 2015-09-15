@@ -97,12 +97,12 @@ public class RecoveryTarget extends AbstractComponent {
         this.clusterService = clusterService;
         this.onGoingRecoveries = new RecoveriesCollection(logger, threadPool);
 
-        transportService.registerRequestHandler(Actions.FILES_INFO, RecoveryFilesInfoRequest.class, ThreadPool.Names.GENERIC, new FilesInfoRequestHandler());
-        transportService.registerRequestHandler(Actions.FILE_CHUNK, RecoveryFileChunkRequest.class, ThreadPool.Names.GENERIC, new FileChunkTransportRequestHandler());
-        transportService.registerRequestHandler(Actions.CLEAN_FILES, RecoveryCleanFilesRequest.class, ThreadPool.Names.GENERIC, new CleanFilesRequestHandler());
-        transportService.registerRequestHandler(Actions.PREPARE_TRANSLOG, RecoveryPrepareForTranslogOperationsRequest.class, ThreadPool.Names.GENERIC, new PrepareForTranslogOperationsRequestHandler());
-        transportService.registerRequestHandler(Actions.TRANSLOG_OPS, RecoveryTranslogOperationsRequest.class, ThreadPool.Names.GENERIC, new TranslogOperationsRequestHandler());
-        transportService.registerRequestHandler(Actions.FINALIZE, RecoveryFinalizeRecoveryRequest.class, ThreadPool.Names.GENERIC, new FinalizeRecoveryRequestHandler());
+        transportService.registerRequestHandler(Actions.FILES_INFO, RecoveryFilesInfoRequest::new, ThreadPool.Names.GENERIC, new FilesInfoRequestHandler());
+        transportService.registerRequestHandler(Actions.FILE_CHUNK, RecoveryFileChunkRequest::new, ThreadPool.Names.GENERIC, new FileChunkTransportRequestHandler());
+        transportService.registerRequestHandler(Actions.CLEAN_FILES, RecoveryCleanFilesRequest::new, ThreadPool.Names.GENERIC, new CleanFilesRequestHandler());
+        transportService.registerRequestHandler(Actions.PREPARE_TRANSLOG, RecoveryPrepareForTranslogOperationsRequest::new, ThreadPool.Names.GENERIC, new PrepareForTranslogOperationsRequestHandler());
+        transportService.registerRequestHandler(Actions.TRANSLOG_OPS, RecoveryTranslogOperationsRequest::new, ThreadPool.Names.GENERIC, new TranslogOperationsRequestHandler());
+        transportService.registerRequestHandler(Actions.FINALIZE, RecoveryFinalizeRecoveryRequest::new, ThreadPool.Names.GENERIC, new FinalizeRecoveryRequestHandler());
 
         indicesLifecycle.addListener(new IndicesLifecycle.Listener() {
             @Override

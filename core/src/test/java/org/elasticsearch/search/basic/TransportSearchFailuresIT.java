@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.basic;
 
-import com.google.common.base.Charsets;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
-import com.google.common.base.Charsets;
+import java.nio.charset.StandardCharsets;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -28,7 +28,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESAllocationTestCase;
-import org.junit.Ignore;
 import org.junit.Test;
 
 import java.io.BufferedReader;
@@ -58,7 +57,7 @@ public abstract class CatAllocationTestCase extends ESAllocationTestCase {
     public void run() throws IOException {
         Set<String> nodes = new HashSet<>();
         Map<String, Idx> indices = new HashMap<>();
-        try (BufferedReader reader = Files.newBufferedReader(getCatPath(), Charsets.UTF_8)) {
+        try (BufferedReader reader = Files.newBufferedReader(getCatPath(), StandardCharsets.UTF_8)) {
             String line = null;
             // regexp FTW
             Pattern pattern = Pattern.compile("^(.+)\\s+(\\d)\\s+([rp])\\s+(STARTED|RELOCATING|INITIALIZING|UNASSIGNED)\\s+\\d+\\s+[0-9.a-z]+\\s+(\\d+\\.\\d+\\.\\d+\\.\\d+).*$");

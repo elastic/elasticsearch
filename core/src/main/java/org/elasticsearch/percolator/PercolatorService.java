@@ -99,8 +99,9 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
-import static org.elasticsearch.common.util.CollectionUtils.eagerTransform;
 import static org.elasticsearch.index.mapper.SourceToParse.source;
 import static org.elasticsearch.percolator.QueryCollector.count;
 import static org.elasticsearch.percolator.QueryCollector.match;
@@ -866,7 +867,9 @@ public class PercolatorService extends AbstractComponent {
         if (aggregations != null) {
             List<SiblingPipelineAggregator> pipelineAggregators = shardResults.get(0).pipelineAggregators();
             if (pipelineAggregators != null) {
-                List<InternalAggregation> newAggs = new ArrayList<>(eagerTransform(aggregations.asList(), PipelineAggregator.AGGREGATION_TRANFORM_FUNCTION));
+                List<InternalAggregation> newAggs = StreamSupport.stream(aggregations.spliterator(), false).map((p) -> {
+                    return (InternalAggregation) p;
+                }).collect(Collectors.toList());
                 for (SiblingPipelineAggregator pipelineAggregator : pipelineAggregators) {
                     InternalAggregation newAgg = pipelineAggregator.doReduce(new InternalAggregations(newAggs), new ReduceContext(
                             bigArrays, scriptService, headersContext));

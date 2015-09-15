@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.mapper.simple;
 
-import com.google.common.base.Charsets;
+import java.nio.charset.StandardCharsets;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -128,7 +128,7 @@ public class SimpleMapperTests extends ESSingleNodeTestCase {
                         .add(object("name").add(stringField("first").store(true).index(false))),
             indexService.mapperService()).build(indexService.mapperService(), mapperParser);
 
-        BytesReference json = new BytesArray("".getBytes(Charsets.UTF_8));
+        BytesReference json = new BytesArray("".getBytes(StandardCharsets.UTF_8));
         try {
             docMapper.parse("test", "person", "1", json).rootDoc();
             fail("this point is never reached");

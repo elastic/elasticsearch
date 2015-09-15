@@ -80,7 +80,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                                TransportShardBulkAction shardBulkAction, TransportCreateIndexAction createIndexAction,
                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                AutoCreateIndex autoCreateIndex) {
-        super(settings, BulkAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, BulkRequest.class);
+        super(settings, BulkAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, BulkRequest::new);
         this.clusterService = clusterService;
         this.shardBulkAction = shardBulkAction;
         this.createIndexAction = createIndexAction;

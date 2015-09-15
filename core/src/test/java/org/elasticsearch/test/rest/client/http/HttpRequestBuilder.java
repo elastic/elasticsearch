@@ -18,14 +18,7 @@
  */
 package org.elasticsearch.test.rest.client.http;
 
-import com.google.common.base.Joiner;
-import org.apache.http.client.methods.CloseableHttpResponse;
-import org.apache.http.client.methods.HttpEntityEnclosingRequestBase;
-import org.apache.http.client.methods.HttpHead;
-import org.apache.http.client.methods.HttpOptions;
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.client.methods.HttpPut;
-import org.apache.http.client.methods.HttpUriRequest;
+import org.apache.http.client.methods.*;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.elasticsearch.client.support.Headers;
@@ -44,6 +37,7 @@ import java.net.URLEncoder;
 import java.nio.charset.Charset;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * Executable builder for an http request
@@ -194,7 +188,7 @@ public class HttpRequestBuilder {
             //(e.g. '+' will stay as is) hence when trying to properly encode params manually they will end up double encoded (+ becomes %252B instead of %2B).
             StringBuilder uriBuilder = new StringBuilder(protocol).append("://").append(host).append(":").append(port).append(uri.getRawPath());
             if (params.size() > 0) {
-                uriBuilder.append("?").append(Joiner.on('&').withKeyValueSeparator("=").join(params));
+                uriBuilder.append("?").append(params.entrySet().stream().map(e -> e.getKey() + "=" + e.getValue()).collect(Collectors.joining("&")));
             }
             return URI.create(uriBuilder.toString());
         } catch(URISyntaxException e) {

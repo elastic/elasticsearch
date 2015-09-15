@@ -490,8 +490,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         }
         ensureGreen("test");
         InternalClusterInfoService clusterInfoService = (InternalClusterInfoService) getInstanceFromNode(ClusterInfoService.class);
-        InternalClusterInfoService.ClusterInfoUpdateJob job = clusterInfoService.new ClusterInfoUpdateJob(false);
-        job.run();
+        clusterInfoService.refresh();
         ClusterState state = getInstanceFromNode(ClusterService.class).state();
         Long test = clusterInfoService.getClusterInfo().getShardSize(state.getRoutingTable().index("test").getShards().get(0).primaryShard());
         assertNotNull(test);

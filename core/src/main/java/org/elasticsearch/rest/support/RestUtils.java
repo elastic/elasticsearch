@@ -19,7 +19,7 @@
 
 package org.elasticsearch.rest.support;
 
-import com.google.common.base.Charsets;
+import java.nio.charset.StandardCharsets;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.path.PathTrie;
 import org.elasticsearch.common.settings.Settings;
@@ -113,7 +113,7 @@ public class RestUtils {
      *                                  escape sequence.
      */
     public static String decodeComponent(final String s) {
-        return decodeComponent(s, Charsets.UTF_8);
+        return decodeComponent(s, StandardCharsets.UTF_8);
     }
 
     /**
@@ -134,7 +134,7 @@ public class RestUtils {
      *
      * @param s       The string to decode (can be empty).
      * @param charset The charset to use to decode the string (should really
-     *                be {@link Charsets#UTF_8}.
+     *                be {@link StandardCharsets#UTF_8}.
      * @return The decoded string, or {@code s} if there's nothing to decode.
      *         If the string to decode is {@code null}, returns an empty string.
      * @throws IllegalArgumentException if the string contains a malformed

@@ -45,7 +45,7 @@ public class TransportDeleteRepositoryAction extends TransportMasterNodeAction<D
     public TransportDeleteRepositoryAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                            RepositoriesService repositoriesService, ThreadPool threadPool, ActionFilters actionFilters,
                                            IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, DeleteRepositoryAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, DeleteRepositoryRequest.class);
+        super(settings, DeleteRepositoryAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, DeleteRepositoryRequest::new);
         this.repositoriesService = repositoriesService;
     }
 

@@ -60,6 +60,10 @@ public class NetworkDelaysPartition extends NetworkPartition {
         this(nodesSideOne, nodesSideTwo, DEFAULT_DELAY_MIN, DEFAULT_DELAY_MAX, random);
     }
 
+    public NetworkDelaysPartition(Set<String> nodesSideOne, Set<String> nodesSideTwo, long delay, Random random) {
+        this(nodesSideOne, nodesSideTwo, delay, delay, random);
+    }
+
     public NetworkDelaysPartition(Set<String> nodesSideOne, Set<String> nodesSideTwo, long delayMin, long delayMax, Random random) {
         super(nodesSideOne, nodesSideTwo, random);
         this.delayMin = delayMin;
@@ -69,7 +73,7 @@ public class NetworkDelaysPartition extends NetworkPartition {
 
     @Override
     public synchronized void startDisrupting() {
-        duration = new TimeValue(delayMin + random.nextInt((int) (delayMax - delayMin)));
+        duration = new TimeValue(delayMin == delayMax ? delayMin : delayMin + random.nextInt((int) (delayMax - delayMin)));
         super.startDisrupting();
     }
 

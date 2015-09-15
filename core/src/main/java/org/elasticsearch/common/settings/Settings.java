@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.settings;
 
-import com.google.common.base.Charsets;
+import java.nio.charset.StandardCharsets;
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Booleans;
@@ -1066,7 +1066,7 @@ public final class Settings implements ToXContent {
         public Builder loadFromStream(String resourceName, InputStream is) throws SettingsException {
             SettingsLoader settingsLoader = SettingsLoaderFactory.loaderFromResource(resourceName);
             try {
-                Map<String, String> loadedSettings = settingsLoader.load(Streams.copyToString(new InputStreamReader(is, Charsets.UTF_8)));
+                Map<String, String> loadedSettings = settingsLoader.load(Streams.copyToString(new InputStreamReader(is, StandardCharsets.UTF_8)));
                 put(loadedSettings);
             } catch (Exception e) {
                 throw new SettingsException("Failed to load settings from [" + resourceName + "]", e);

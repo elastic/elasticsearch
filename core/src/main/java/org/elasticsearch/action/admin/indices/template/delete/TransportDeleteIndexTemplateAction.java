@@ -43,7 +43,7 @@ public class TransportDeleteIndexTemplateAction extends TransportMasterNodeActio
     public TransportDeleteIndexTemplateAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                               ThreadPool threadPool, MetaDataIndexTemplateService indexTemplateService,
                                               ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, DeleteIndexTemplateAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, DeleteIndexTemplateRequest.class);
+        super(settings, DeleteIndexTemplateAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, DeleteIndexTemplateRequest::new);
         this.indexTemplateService = indexTemplateService;
     }
 

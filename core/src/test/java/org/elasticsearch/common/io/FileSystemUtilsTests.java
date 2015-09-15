@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.io;
 
-import com.google.common.base.Charsets;
+import java.nio.charset.StandardCharsets;
 
 import org.elasticsearch.test.ESTestCase;
 import org.apache.lucene.util.LuceneTestCase.SuppressFileSystems;
@@ -29,7 +29,6 @@ import org.junit.Test;
 
 import java.io.IOException;
 import java.net.URISyntaxException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -120,9 +119,9 @@ public class FileSystemUtilsTests extends ESTestCase {
     public void testMoveFilesDoesNotCreateSameFileWithSuffix() throws Exception {
         Path[] dirs = new Path[] { createTempDir(), createTempDir(), createTempDir()};
         for (Path dir : dirs) {
-            Files.write(dir.resolve("file1.txt"), "file1".getBytes(Charsets.UTF_8));
+            Files.write(dir.resolve("file1.txt"), "file1".getBytes(StandardCharsets.UTF_8));
             Files.createDirectory(dir.resolve("dir"));
-            Files.write(dir.resolve("dir").resolve("file2.txt"), "file2".getBytes(Charsets.UTF_8));
+            Files.write(dir.resolve("dir").resolve("file2.txt"), "file2".getBytes(StandardCharsets.UTF_8));
         }
 
         FileSystemUtils.moveFilesWithoutOverwriting(dirs[0], dst, ".new");
@@ -137,7 +136,7 @@ public class FileSystemUtilsTests extends ESTestCase {
         assertFileNotExists(dst.resolve("dir").resolve("file2.txt.new"));
 
         // change file content, make sure it gets updated
-        Files.write(dirs[2].resolve("dir").resolve("file2.txt"), "UPDATED".getBytes(Charsets.UTF_8));
+        Files.write(dirs[2].resolve("dir").resolve("file2.txt"), "UPDATED".getBytes(StandardCharsets.UTF_8));
         FileSystemUtils.moveFilesWithoutOverwriting(dirs[2], dst, ".new");
         assertFileContent(dst, "file1.txt", "file1");
         assertFileContent(dst, "dir/file2.txt", "file2");
@@ -157,7 +156,7 @@ public class FileSystemUtilsTests extends ESTestCase {
             Assert.assertThat("file [" + file + "] should not exist.", Files.exists(file), is(false));
         } else {
             assertFileExists(file);
-            String fileContent = new String(Files.readAllBytes(file), StandardCharsets.UTF_8);
+            String fileContent = new String(Files.readAllBytes(file), java.nio.charset.StandardCharsets.UTF_8);
             // trim the string content to prevent different handling on windows vs. unix and CR chars...
             Assert.assertThat(fileContent.trim(), equalTo(expected.trim()));
         }

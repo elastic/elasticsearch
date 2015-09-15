@@ -19,8 +19,8 @@
 package org.elasticsearch.indices.flush;
 
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Iterables;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
@@ -41,7 +41,7 @@ public class IndicesSyncedFlushResult implements ToXContent {
 
     public IndicesSyncedFlushResult(Map<String, List<ShardsSyncedFlushResult>> shardsResultPerIndex) {
         this.shardsResultPerIndex = ImmutableMap.copyOf(shardsResultPerIndex);
-        this.shardCounts = calculateShardCounts(Iterables.concat(shardsResultPerIndex.values()));
+        this.shardCounts = calculateShardCounts(Iterables.flatten(shardsResultPerIndex.values()));
     }
 
     /** total number shards, including replicas, both assigned and unassigned */

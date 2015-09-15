@@ -19,7 +19,7 @@
 
 package org.elasticsearch.broadcast;
 
-import com.google.common.base.Charsets;
+import java.nio.charset.StandardCharsets;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -72,7 +72,7 @@ public class BroadcastActionsIT extends ESIntegTestCase {
         for (int i = 0; i < 5; i++) {
             // test failed (simply query that can't be parsed)
             try {
-                client().count(countRequest("test").source("{ term : { _type : \"type1 } }".getBytes(Charsets.UTF_8))).actionGet();
+                client().count(countRequest("test").source("{ term : { _type : \"type1 } }".getBytes(StandardCharsets.UTF_8))).actionGet();
             } catch(SearchPhaseExecutionException e) {
                 assertThat(e.shardFailures().length, equalTo(numShards.numPrimaries));
             }

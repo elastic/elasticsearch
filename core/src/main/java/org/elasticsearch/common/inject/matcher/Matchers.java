@@ -24,8 +24,6 @@ import java.lang.reflect.AnnotatedElement;
 import java.lang.reflect.Method;
 import java.util.Objects;
 
-import static com.google.common.base.Preconditions.checkArgument;
-
 /**
  * Matcher implementations. Supports matching classes and methods.
  *
@@ -103,8 +101,9 @@ public class Matchers {
     private static void checkForRuntimeRetention(
             Class<? extends Annotation> annotationType) {
         Retention retention = annotationType.getAnnotation(Retention.class);
-        checkArgument(retention != null && retention.value() == RetentionPolicy.RUNTIME,
-                "Annotation " + annotationType.getSimpleName() + " is missing RUNTIME retention");
+        if (retention == null || retention.value() != RetentionPolicy.RUNTIME) {
+            throw new IllegalArgumentException("Annotation " + annotationType.getSimpleName() + " is missing RUNTIME retention");
+        }
     }
 
     /**

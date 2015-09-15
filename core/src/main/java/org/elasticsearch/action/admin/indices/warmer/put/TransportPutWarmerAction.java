@@ -58,7 +58,7 @@ public class TransportPutWarmerAction extends TransportMasterNodeAction<PutWarme
     @Inject
     public TransportPutWarmerAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                     TransportSearchAction searchAction, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, PutWarmerAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, PutWarmerRequest.class);
+        super(settings, PutWarmerAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, PutWarmerRequest::new);
         this.searchAction = searchAction;
     }
 

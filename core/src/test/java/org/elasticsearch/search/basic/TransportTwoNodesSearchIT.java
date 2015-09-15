@@ -20,7 +20,6 @@
 package org.elasticsearch.search.basic;
 
 
-import com.google.common.base.Charsets;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;

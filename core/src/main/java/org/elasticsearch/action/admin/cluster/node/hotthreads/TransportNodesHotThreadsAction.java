@@ -49,7 +49,7 @@ public class TransportNodesHotThreadsAction extends TransportNodesAction<NodesHo
                                           ClusterService clusterService, TransportService transportService,
                                           ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
         super(settings, NodesHotThreadsAction.NAME, clusterName, threadPool, clusterService, transportService, actionFilters,
-                indexNameExpressionResolver, NodesHotThreadsRequest.class, NodeRequest.class, ThreadPool.Names.GENERIC);
+                indexNameExpressionResolver, NodesHotThreadsRequest::new, NodeRequest::new, ThreadPool.Names.GENERIC);
     }
 
     @Override

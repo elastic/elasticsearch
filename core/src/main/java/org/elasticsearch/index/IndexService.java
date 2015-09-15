@@ -19,9 +19,7 @@
 
 package org.elasticsearch.index;
 
-import com.google.common.base.Function;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Iterators;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
@@ -177,12 +175,7 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
 
     @Override
     public Iterator<IndexShard> iterator() {
-        return Iterators.transform(shards.values().iterator(), new Function<IndexShardInjectorPair, IndexShard>() {
-            @Override
-            public IndexShard apply(IndexShardInjectorPair input) {
-                return input.getIndexShard();
-            }
-        });
+        return shards.values().stream().map((p) -> p.getIndexShard()).iterator();
     }
 
     public boolean hasShard(int shardId) {

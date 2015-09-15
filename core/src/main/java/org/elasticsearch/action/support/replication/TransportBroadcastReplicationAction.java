@@ -47,6 +47,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.function.Supplier;
 
 /**
  * Base class for requests that should be executed on all shards of an index or several indices.
@@ -57,7 +58,7 @@ public abstract class TransportBroadcastReplicationAction<Request extends Broadc
     private final TransportReplicationAction replicatedBroadcastShardAction;
     private final ClusterService clusterService;
 
-    public TransportBroadcastReplicationAction(String name, Class<Request> request, Settings settings, ThreadPool threadPool, ClusterService clusterService,
+    public TransportBroadcastReplicationAction(String name, Supplier<Request> request, Settings settings, ThreadPool threadPool, ClusterService clusterService,
                                                TransportService transportService,
                                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, TransportReplicationAction replicatedBroadcastShardAction) {
         super(settings, name, threadPool, transportService, actionFilters, indexNameExpressionResolver, request);

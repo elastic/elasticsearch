@@ -20,7 +20,6 @@
 package org.elasticsearch.index.store;
 
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Iterables;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.*;
 import org.apache.lucene.store.*;
@@ -42,6 +41,7 @@ import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.Callback;
+import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.common.util.SingleObjectCache;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.RefCounted;

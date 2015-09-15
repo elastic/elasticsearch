@@ -108,4 +108,4 @@ fi
 HOSTNAME=`hostname | cut -d. -f1`
 export HOSTNAME
 
-eval "$JAVA" $JAVA_OPTS $ES_JAVA_OPTS -Xmx64m -Xms16m -Delasticsearch -Des.path.home="\"$ES_HOME\"" $properties -cp "\"$ES_HOME/lib/*\"" org.elasticsearch.plugins.PluginManagerCliParser $args
+eval "$JAVA" -client -Delasticsearch -Des.path.home="\"$ES_HOME\"" $properties -cp "\"$ES_HOME/lib/*\"" org.elasticsearch.plugins.PluginManagerCliParser $args

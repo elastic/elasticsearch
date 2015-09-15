@@ -52,7 +52,7 @@ public class TransportShardFlushAction extends TransportReplicationAction<ShardF
                                      MappingUpdatedAction mappingUpdatedAction, ActionFilters actionFilters,
                                      IndexNameExpressionResolver indexNameExpressionResolver) {
         super(settings, NAME, transportService, clusterService, indicesService, threadPool, shardStateAction, mappingUpdatedAction,
-                actionFilters, indexNameExpressionResolver, ShardFlushRequest.class, ShardFlushRequest.class, ThreadPool.Names.FLUSH);
+                actionFilters, indexNameExpressionResolver, ShardFlushRequest::new, ShardFlushRequest::new, ThreadPool.Names.FLUSH);
     }
 
     @Override

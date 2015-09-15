@@ -27,23 +27,15 @@ import com.google.api.client.json.jackson2.JacksonFactory;
 import com.google.api.services.compute.Compute;
 import com.google.api.services.compute.model.Instance;
 import com.google.api.services.compute.model.InstanceList;
-import com.google.common.base.Function;
-import com.google.common.collect.Iterables;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.CollectionUtils;
 
 import java.io.IOException;
 import java.security.GeneralSecurityException;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
-
-import static org.elasticsearch.common.util.CollectionUtils.eagerTransform;
+import java.util.*;
 
 /**
  *
@@ -61,37 +53,30 @@ public class GceComputeServiceImpl extends AbstractLifecycleComponent<GceCompute
 
     @Override
     public Collection<Instance> instances() {
-
-            logger.debug("get instances for project [{}], zones [{}]", project, zones);
-
-            List<List<Instance>> instanceListByZone = eagerTransform(zones, new Function<String, List<Instance>>() {
-                @Override
-                public List<Instance> apply(String zoneId) {
-                    try {
-                        Compute.Instances.List list = client().instances().list(project, zoneId);
-                        InstanceList instanceList = list.execute();
-                        if (instanceList.isEmpty()) {
-                            return Collections.EMPTY_LIST;
-                        }
-
-                        return instanceList.getItems();
-                    } catch (IOException e) {
-                        logger.warn("Problem fetching instance list for zone {}", zoneId);
-                        logger.debug("Full exception:", e);
-
-                        return Collections.EMPTY_LIST;
-                    }
+        logger.debug("get instances for project [{}], zones [{}]", project, zones);
+        final List<Instance> instances = zones.stream().map((zoneId) -> {
+            try {
+                Compute.Instances.List list = client().instances().list(project, zoneId);
+                InstanceList instanceList = list.execute();
+                if (instanceList.isEmpty()) {
+                    return Collections.EMPTY_LIST;
                 }
-            });
-
-            // Collapse instances from all zones into one neat list
-            List<Instance> instanceList = CollectionUtils.iterableAsArrayList(Iterables.concat(instanceListByZone));
-
-            if (instanceList.size() == 0) {
-                logger.warn("disabling GCE discovery. Can not get list of nodes");
+                return instanceList.getItems();
+            } catch (IOException e) {
+                logger.warn("Problem fetching instance list for zone {}", zoneId);
+                logger.debug("Full exception:", e);
+                return Collections.EMPTY_LIST;
             }
+        }).reduce(new ArrayList<>(), (a, b) -> {
+            a.addAll(b);
+            return a;
+        });
 
-            return instanceList;
+        if (instances.isEmpty()) {
+            logger.warn("disabling GCE discovery. Can not get list of nodes");
+        }
+
+        return instances;
     }
 
     private Compute client;

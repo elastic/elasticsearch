@@ -46,7 +46,7 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
     public TransportCreateIndexAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                       ThreadPool threadPool, MetaDataCreateIndexService createIndexService,
                                       ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, CreateIndexAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, CreateIndexRequest.class);
+        super(settings, CreateIndexAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, CreateIndexRequest::new);
         this.createIndexService = createIndexService;
     }
 

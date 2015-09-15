@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.io;
 
-import com.google.common.base.Charsets;
+import java.nio.charset.StandardCharsets;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -39,7 +39,7 @@ public class StreamsTests extends ESTestCase {
 
     @Test
     public void testCopyFromInputStream() throws IOException {
-        byte[] content = "content".getBytes(Charsets.UTF_8);
+        byte[] content = "content".getBytes(StandardCharsets.UTF_8);
         ByteArrayInputStream in = new ByteArrayInputStream(content);
         ByteArrayOutputStream out = new ByteArrayOutputStream(content.length);
         long count = copy(in, out);
@@ -50,7 +50,7 @@ public class StreamsTests extends ESTestCase {
 
     @Test
     public void testCopyFromByteArray() throws IOException {
-        byte[] content = "content".getBytes(Charsets.UTF_8);
+        byte[] content = "content".getBytes(StandardCharsets.UTF_8);
         ByteArrayOutputStream out = new ByteArrayOutputStream(content.length);
         copy(content, out);
         assertThat(Arrays.equals(content, out.toByteArray()), equalTo(true));

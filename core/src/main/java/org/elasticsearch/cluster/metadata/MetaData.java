@@ -23,7 +23,6 @@ import com.carrotsearch.hppc.ObjectHashSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.UnmodifiableIterator;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.Diffable;
@@ -60,18 +59,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.warmer.IndexWarmersMetaData;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.EnumSet;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.SortedMap;
-import java.util.TreeMap;
+import java.util.*;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
@@ -569,7 +557,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
     }
 
     @Override
-    public UnmodifiableIterator<IndexMetaData> iterator() {
+    public Iterator<IndexMetaData> iterator() {
         return indices.valuesIt();
     }
 

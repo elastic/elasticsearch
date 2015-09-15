@@ -65,7 +65,7 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<Transpor
                                          SnapshotShardsService snapshotShardsService, ActionFilters actionFilters,
                                          IndexNameExpressionResolver indexNameExpressionResolver) {
         super(settings, ACTION_NAME, clusterName, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
-                Request.class, NodeRequest.class, ThreadPool.Names.GENERIC);
+                Request::new, NodeRequest::new, ThreadPool.Names.GENERIC);
         this.snapshotShardsService = snapshotShardsService;
     }
 

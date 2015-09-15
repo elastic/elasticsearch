@@ -18,12 +18,8 @@
  */
 package org.elasticsearch.indices.analysis;
 
-import com.google.common.cache.CacheBuilder;
-import com.google.common.cache.CacheLoader;
-import com.google.common.cache.LoadingCache;
-import com.google.common.util.concurrent.UncheckedExecutionException;
-
 import org.apache.lucene.analysis.hunspell.Dictionary;
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -37,6 +33,8 @@ import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Function;
 
 /**
  * Serves as a node level registry for hunspell dictionaries. This services expects all dictionaries to be located under
@@ -72,35 +70,29 @@ public class HunspellService extends AbstractComponent {
     public final static String HUNSPELL_LAZY_LOAD = "indices.analysis.hunspell.dictionary.lazy";
     public final static String HUNSPELL_IGNORE_CASE = "indices.analysis.hunspell.dictionary.ignore_case";
     private final static String OLD_HUNSPELL_LOCATION = "indices.analysis.hunspell.dictionary.location";
-    private final LoadingCache<String, Dictionary> dictionaries;
+    private final ConcurrentHashMap<String, Dictionary> dictionaries = new ConcurrentHashMap<>();
     private final Map<String, Dictionary> knownDictionaries;
-
     private final boolean defaultIgnoreCase;
     private final Path hunspellDir;
-
-    public HunspellService(final Settings settings, final Environment env) throws IOException {
-        this(settings, env, Collections.<String, Dictionary>emptyMap());
-    }
+    private final Function<String, Dictionary> loadingFunction;
 
     @Inject
     public HunspellService(final Settings settings, final Environment env, final Map<String, Dictionary> knownDictionaries) throws IOException {
         super(settings);
-        this.knownDictionaries = knownDictionaries;
+        this.knownDictionaries = Collections.unmodifiableMap(knownDictionaries);
         this.hunspellDir = resolveHunspellDirectory(settings, env);
         this.defaultIgnoreCase = settings.getAsBoolean(HUNSPELL_IGNORE_CASE, false);
-        dictionaries = CacheBuilder.newBuilder().build(new CacheLoader<String, Dictionary>() {
-            @Override
-            public Dictionary load(String locale) throws Exception {
-                Dictionary dictionary = knownDictionaries.get(locale);
-                if (dictionary == null) {
-                    dictionary = loadDictionary(locale, settings, env);
-                }
-                return dictionary;
+        this.loadingFunction = (locale) -> {
+            try {
+                return loadDictionary(locale, settings, env);
+            } catch (Throwable e) {
+                throw new IllegalStateException("failed to load hunspell dictionary for locale: " + locale, e);
             }
-        });
+        };
         if (!settings.getAsBoolean(HUNSPELL_LAZY_LOAD, false)) {
             scanAndLoadDictionaries();
         }
+
     }
 
     /**
@@ -109,7 +101,11 @@ public class HunspellService extends AbstractComponent {
      * @param locale The name of the locale
      */
     public Dictionary getDictionary(String locale) {
-        return dictionaries.getUnchecked(locale);
+        Dictionary dictionary = knownDictionaries.get(locale);
+        if (dictionary == null) {
+            dictionary = dictionaries.computeIfAbsent(locale, loadingFunction);
+        }
+        return dictionary;
     }
 
     private Path resolveHunspellDirectory(Settings settings, Environment env) {
@@ -131,11 +127,11 @@ public class HunspellService extends AbstractComponent {
                         try (DirectoryStream<Path> inner = Files.newDirectoryStream(hunspellDir.resolve(file), "*.dic")) {
                             if (inner.iterator().hasNext()) { // just making sure it's indeed a dictionary dir
                                 try {
-                                    dictionaries.getUnchecked(file.getFileName().toString());
-                                } catch (UncheckedExecutionException e) {
+                                    getDictionary(file.getFileName().toString());
+                                } catch (Throwable e) {
                                     // The cache loader throws unchecked exception (see #loadDictionary()),
                                     // here we simply report the exception and continue loading the dictionaries
-                                    logger.error("exception while loading dictionary {}", file.getFileName(), e);
+                                    logger.error("exception while loading dictionary {}", e, file.getFileName());
                                 }
                             }
                         }
@@ -193,22 +189,8 @@ public class HunspellService extends AbstractComponent {
             logger.error("Could not load hunspell dictionary [{}]", e, locale);
             throw e;
         } finally {
-            if (affixStream != null) {
-                try {
-                    affixStream.close();
-                } catch (IOException e) {
-                    // nothing much we can do here
-                }
-            }
-            for (InputStream in : dicStreams) {
-                if (in != null) {
-                    try {
-                        in.close();
-                    } catch (IOException e) {
-                        // nothing much we can do here
-                    }
-                }
-            }
+            IOUtils.close(affixStream);
+            IOUtils.close(dicStreams);
         }
     }
 

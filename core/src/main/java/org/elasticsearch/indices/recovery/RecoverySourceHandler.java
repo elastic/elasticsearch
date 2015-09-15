@@ -19,7 +19,6 @@
 
 package org.elasticsearch.indices.recovery;
 
-import com.google.common.collect.Iterables;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
@@ -39,6 +38,7 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.CancellableThreads.Interruptable;
+import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.engine.Engine;
@@ -64,6 +64,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.StreamSupport;
 
 /**
  * RecoverySourceHandler handles the three phases of shard recovery, which is
@@ -411,7 +412,8 @@ public class RecoverySourceHandler {
                             if ((corruptIndexException = ExceptionsHelper.unwrapCorruption(remoteException)) != null) {
                                 try {
                                     final Store.MetadataSnapshot recoverySourceMetadata = store.getMetadata(snapshot);
-                                    StoreFileMetaData[] metadata = Iterables.toArray(recoverySourceMetadata, StoreFileMetaData.class);
+                                    StoreFileMetaData[] metadata =
+                                            StreamSupport.stream(recoverySourceMetadata.spliterator(), false).toArray(size -> new StoreFileMetaData[size]);
                                     ArrayUtil.timSort(metadata, new Comparator<StoreFileMetaData>() {
                                         @Override
                                         public int compare(StoreFileMetaData o1, StoreFileMetaData o2) {

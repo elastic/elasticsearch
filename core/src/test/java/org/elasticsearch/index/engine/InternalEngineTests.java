@@ -20,6 +20,7 @@
 package org.elasticsearch.index.engine;
 
 import com.google.common.collect.ImmutableMap;
+
 import org.apache.log4j.AppenderSkeleton;
 import org.apache.log4j.Level;
 import org.apache.log4j.LogManager;
@@ -52,6 +53,8 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.VersionType;
@@ -315,6 +318,7 @@ public class InternalEngineTests extends ESTestCase {
             assertThat(segments.get(0).isCompound(), equalTo(defaultCompound));
 
             engine.config().setCompoundOnFlush(false);
+            engine.onSettingsChanged();
 
             ParsedDocument doc3 = testParsedDocument("3", "3", "test", null, -1, -1, testDocumentWithTextField(), B_3, null);
             engine.create(new Engine.Create(newUid("3"), doc3));
@@ -363,6 +367,7 @@ public class InternalEngineTests extends ESTestCase {
             assertThat(segments.get(1).isCompound(), equalTo(false));
 
             engine.config().setCompoundOnFlush(true);
+            engine.onSettingsChanged();
             ParsedDocument doc4 = testParsedDocument("4", "4", "test", null, -1, -1, testDocumentWithTextField(), B_3, null);
             engine.create(new Engine.Create(newUid("4"), doc4));
             engine.refresh("test");
@@ -1635,12 +1640,10 @@ public class InternalEngineTests extends ESTestCase {
     // #10312
     @Test
     public void testDeletesAloneCanTriggerRefresh() throws Exception {
-        // Tiny indexing buffer:
-        Settings indexSettings = Settings.builder().put(defaultSettings)
-                .put(EngineConfig.INDEX_BUFFER_SIZE_SETTING, "1kb").build();
         try (Store store = createStore();
-             Engine engine = new InternalEngine(config(indexSettings, store, createTempDir(), new MergeSchedulerConfig(defaultSettings), newMergePolicy()),
+            Engine engine = new InternalEngine(config(defaultSettings, store, createTempDir(), new MergeSchedulerConfig(defaultSettings), newMergePolicy()),
                      false)) {
+            engine.config().setIndexingBufferSize(new ByteSizeValue(1, ByteSizeUnit.KB));
             for (int i = 0; i < 100; i++) {
                 String id = Integer.toString(i);
                 ParsedDocument doc = testParsedDocument(id, id, "test", null, -1, -1, testDocument(), B_1, null);

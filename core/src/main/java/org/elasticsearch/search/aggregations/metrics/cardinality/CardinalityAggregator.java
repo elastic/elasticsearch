@@ -20,8 +20,6 @@
 package org.elasticsearch.search.aggregations.metrics.cardinality;
 
 import com.carrotsearch.hppc.BitMixer;
-import com.google.common.base.Preconditions;
-
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.RandomAccessOrds;
 import org.apache.lucene.index.SortedNumericDocValues;
@@ -234,7 +232,9 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         private ObjectArray<FixedBitSet> visitedOrds;
 
         OrdinalsCollector(HyperLogLogPlusPlus counts, RandomAccessOrds values, BigArrays bigArrays) {
-            Preconditions.checkArgument(values.getValueCount() <= Integer.MAX_VALUE);
+            if (values.getValueCount() > Integer.MAX_VALUE) {
+                throw new IllegalArgumentException();
+            }
             maxOrd = (int) values.getValueCount();
             this.bigArrays = bigArrays;
             this.counts = counts;

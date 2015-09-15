@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.http.netty;
 
-import com.google.common.base.Charsets;
+import java.nio.charset.StandardCharsets;
 import org.elasticsearch.cache.recycler.MockPageCacheRecycler;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
@@ -202,7 +202,7 @@ public class NettyHttpServerPipeliningTests extends ESTestCase {
                 request = (HttpRequest) e.getMessage();
             }
 
-            ChannelBuffer buffer = ChannelBuffers.copiedBuffer(request.getUri(), Charsets.UTF_8);
+            ChannelBuffer buffer = ChannelBuffers.copiedBuffer(request.getUri(), StandardCharsets.UTF_8);
 
             DefaultHttpResponse httpResponse = new DefaultHttpResponse(HTTP_1_1, OK);
             httpResponse.headers().add(CONTENT_LENGTH, buffer.readableBytes());

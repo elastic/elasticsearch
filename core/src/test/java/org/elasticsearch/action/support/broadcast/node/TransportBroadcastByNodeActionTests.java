@@ -71,6 +71,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.is;
@@ -109,7 +110,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
     class TestTransportBroadcastByNodeAction extends TransportBroadcastByNodeAction<Request, Response, TransportBroadcastByNodeAction.EmptyResult> {
         private final Map<ShardRouting, Object> shards = new HashMap<>();
 
-        public TestTransportBroadcastByNodeAction(Settings settings, TransportService transportService, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, Class<Request> request, String executor) {
+        public TestTransportBroadcastByNodeAction(Settings settings, TransportService transportService, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, Supplier<Request> request, String executor) {
             super(settings, "indices:admin/test", THREAD_POOL, TransportBroadcastByNodeActionTests.this.clusterService, transportService, actionFilters, indexNameExpressionResolver, request, executor);
         }
 
@@ -191,7 +192,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
                 transportService,
                 new ActionFilters(new HashSet<ActionFilter>()),
                 new MyResolver(),
-                Request.class,
+                Request::new,
                 ThreadPool.Names.SAME
         );
     }
@@ -205,7 +206,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         for (int i = 0; i < numberOfNodes; i++) {
             final DiscoveryNode node = newNode(i);
             discoBuilder = discoBuilder.put(node);
-            int numberOfShards = randomIntBetween(0, 10);
+            int numberOfShards = randomIntBetween(1, 10);
             for (int j = 0; j < numberOfShards; j++) {
                 final ShardId shardId = new ShardId(index, ++shardIndex);
                 ShardRouting shard = TestShardRouting.newShardRouting(index, shardId.getId(), node.id(), true, ShardRoutingState.STARTED, 1);

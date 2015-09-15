@@ -21,7 +21,7 @@ package org.elasticsearch.test.store;
 
 import com.carrotsearch.randomizedtesting.SeedUtils;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
-import com.google.common.base.Charsets;
+import java.nio.charset.StandardCharsets;
 import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.store.*;
@@ -149,7 +149,7 @@ public class MockFSDirectoryService extends FsDirectoryService {
                 }
                 try (CheckIndex checkIndex = new CheckIndex(dir)) {
                     BytesStreamOutput os = new BytesStreamOutput();
-                    PrintStream out = new PrintStream(os, false, Charsets.UTF_8.name());
+                    PrintStream out = new PrintStream(os, false, StandardCharsets.UTF_8.name());
                     checkIndex.setInfoStream(out);
                     out.flush();
                     CheckIndex.Status status = checkIndex.checkIndex();
@@ -157,11 +157,11 @@ public class MockFSDirectoryService extends FsDirectoryService {
                         ESTestCase.checkIndexFailed = true;
                         logger.warn("check index [failure] index files={}\n{}",
                                 Arrays.toString(dir.listAll()),
-                                new String(os.bytes().toBytes(), Charsets.UTF_8));
+                                new String(os.bytes().toBytes(), StandardCharsets.UTF_8));
                         throw new IOException("index check failure");
                     } else {
                         if (logger.isDebugEnabled()) {
-                            logger.debug("check index [success]\n{}", new String(os.bytes().toBytes(), Charsets.UTF_8));
+                            logger.debug("check index [success]\n{}", new String(os.bytes().toBytes(), StandardCharsets.UTF_8));
                         }
                     }
                 }

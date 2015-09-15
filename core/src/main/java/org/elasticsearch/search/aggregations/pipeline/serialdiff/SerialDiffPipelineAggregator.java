@@ -39,8 +39,9 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
-import static org.elasticsearch.common.util.CollectionUtils.eagerTransform;
 import static org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import static org.elasticsearch.search.aggregations.pipeline.BucketHelpers.resolveBucketValue;
 
@@ -48,13 +49,10 @@ public class SerialDiffPipelineAggregator extends PipelineAggregator {
 
     public final static Type TYPE = new Type("serial_diff");
 
-    public final static PipelineAggregatorStreams.Stream STREAM = new PipelineAggregatorStreams.Stream() {
-        @Override
-        public SerialDiffPipelineAggregator readResult(StreamInput in) throws IOException {
-            SerialDiffPipelineAggregator result = new SerialDiffPipelineAggregator();
-            result.readFrom(in);
-            return result;
-        }
+    public final static PipelineAggregatorStreams.Stream STREAM = in -> {
+        SerialDiffPipelineAggregator result = new SerialDiffPipelineAggregator();
+        result.readFrom(in);
+        return result;
     };
 
     public static void registerStreams() {
@@ -114,7 +112,9 @@ public class SerialDiffPipelineAggregator extends PipelineAggregator {
             if (!Double.isNaN(thisBucketValue) && !Double.isNaN(lagValue)) {
                 double diff = thisBucketValue - lagValue;
 
-                List<InternalAggregation> aggs = new ArrayList<>(eagerTransform(bucket.getAggregations().asList(), AGGREGATION_TRANFORM_FUNCTION));
+                List<InternalAggregation> aggs = StreamSupport.stream(bucket.getAggregations().spliterator(), false).map((p) -> {
+                    return (InternalAggregation) p;
+                }).collect(Collectors.toList());
                 aggs.add(new InternalSimpleValue(name(), diff, formatter, new ArrayList<PipelineAggregator>(), metaData()));
                 newBucket = factory.createBucket(bucket.getKey(), bucket.getDocCount(), new InternalAggregations(
                         aggs), bucket.getKeyed(), bucket.getFormatter());

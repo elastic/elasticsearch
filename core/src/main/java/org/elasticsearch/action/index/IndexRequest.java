@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.index;
 
-import com.google.common.base.Charsets;
+import java.nio.charset.StandardCharsets;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
@@ -377,7 +377,7 @@ public class IndexRequest extends ReplicationRequest<IndexRequest> implements Do
      * or using the {@link #source(byte[])}.
      */
     public IndexRequest source(String source) {
-        this.source = new BytesArray(source.getBytes(Charsets.UTF_8));
+        this.source = new BytesArray(source.getBytes(StandardCharsets.UTF_8));
         return this;
     }
 

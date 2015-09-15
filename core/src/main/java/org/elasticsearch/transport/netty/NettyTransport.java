@@ -19,7 +19,7 @@
 
 package org.elasticsearch.transport.netty;
 
-import com.google.common.base.Charsets;
+import java.nio.charset.StandardCharsets;
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
@@ -724,7 +724,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         } else if (e.getCause() instanceof SizeHeaderFrameDecoder.HttpOnTransportException) {
             // in case we are able to return data, serialize the exception content and sent it back to the client
             if (ctx.getChannel().isOpen()) {
-                ChannelBuffer buffer = ChannelBuffers.wrappedBuffer(e.getCause().getMessage().getBytes(Charsets.UTF_8));
+                ChannelBuffer buffer = ChannelBuffers.wrappedBuffer(e.getCause().getMessage().getBytes(StandardCharsets.UTF_8));
                 ChannelFuture channelFuture = ctx.getChannel().write(buffer);
                 channelFuture.addListener(new ChannelFutureListener() {
                     @Override

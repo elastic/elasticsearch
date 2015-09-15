@@ -51,7 +51,7 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
                               IndicesService indicesService, ThreadPool threadPool, ActionFilters actionFilters,
                               IndexNameExpressionResolver indexNameExpressionResolver) {
         super(settings, GetAction.NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
-                GetRequest.class, ThreadPool.Names.GET);
+                GetRequest::new, ThreadPool.Names.GET);
         this.indicesService = indicesService;
 
         this.realtime = settings.getAsBoolean("action.get.realtime", true);

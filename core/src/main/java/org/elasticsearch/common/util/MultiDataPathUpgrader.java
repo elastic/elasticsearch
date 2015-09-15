@@ -18,8 +18,6 @@
  */
 package org.elasticsearch.common.util;
 
-import java.nio.charset.StandardCharsets;
-import com.google.common.primitives.Ints;
 import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.store.Directory;
@@ -33,6 +31,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.primitives.Integers;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.gateway.MetaDataStateFormat;
@@ -43,19 +42,10 @@ import org.elasticsearch.index.shard.ShardStateMetaData;
 
 import java.io.IOException;
 import java.io.PrintStream;
-import java.nio.file.DirectoryStream;
-import java.nio.file.FileStore;
-import java.nio.file.FileVisitResult;
-import java.nio.file.FileVisitor;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 /**
  */
@@ -370,7 +360,7 @@ public class MultiDataPathUpgrader {
                 String currentIndex = indexPath.getFileName().toString();
                 for (Path shardPath : stream) {
                     if (Files.isDirectory(shardPath)) {
-                        Integer shardId = Ints.tryParse(shardPath.getFileName().toString());
+                        Integer shardId = Integers.tryParse(shardPath.getFileName().toString());
                         if (shardId != null) {
                             ShardId id = new ShardId(currentIndex, shardId);
                             shardIds.add(id);

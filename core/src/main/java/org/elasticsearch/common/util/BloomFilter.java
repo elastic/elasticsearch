@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.common.util;
 
-import com.google.common.primitives.Ints;
 import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.store.IndexInput;
@@ -30,6 +29,7 @@ import org.elasticsearch.common.hash.MurmurHash3;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.SizeValue;
+import org.elasticsearch.common.util.primitives.Integers;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -325,7 +325,7 @@ public class BloomFilter {
         private static int size(long bits) {
             long quotient = bits / 64;
             long remainder = bits - quotient * 64;
-            return Ints.checkedCast(remainder == 0 ? quotient : 1 + quotient);
+            return Integers.checkedCast(remainder == 0 ? quotient : 1 + quotient);
         }
 
         // Used by serialization

@@ -20,15 +20,9 @@
 package org.elasticsearch.env;
 
 import com.google.common.collect.ImmutableSet;
-import com.google.common.primitives.Ints;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.SegmentInfos;
-import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.FSDirectory;
-import org.apache.lucene.store.Lock;
-import org.apache.lucene.store.LockObtainFailedException;
-import org.apache.lucene.store.NativeFSLockFactory;
-import org.apache.lucene.store.SimpleFSDirectory;
+import org.apache.lucene.store.*;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -39,6 +33,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.primitives.Integers;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
@@ -48,21 +43,8 @@ import org.elasticsearch.monitor.fs.FsProbe;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.nio.file.AtomicMoveNotSupportedException;
-import java.nio.file.DirectoryStream;
-import java.nio.file.FileStore;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Set;
+import java.nio.file.*;
+import java.util.*;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -712,7 +694,7 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
                 String currentIndex = indexPath.getFileName().toString();
                 for (Path shardPath : stream) {
                     if (Files.isDirectory(shardPath)) {
-                        Integer shardId = Ints.tryParse(shardPath.getFileName().toString());
+                        Integer shardId = Integers.tryParse(shardPath.getFileName().toString());
                         if (shardId != null) {
                             ShardId id = new ShardId(currentIndex, shardId);
                             shardIds.add(id);

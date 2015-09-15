@@ -19,11 +19,11 @@
 package org.elasticsearch.test.discovery;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
-import com.google.common.primitives.Ints;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.primitives.Integers;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.NodeConfigurationSource;
 
@@ -82,7 +82,7 @@ public class ClusterDiscoveryConfiguration extends NodeConfigurationSource {
                 while (ordinals.size() != numOfUnicastHosts) {
                     ordinals.add(RandomizedTest.randomInt(numOfNodes - 1));
                 }
-                unicastHostOrdinals = Ints.toArray(ordinals);
+                unicastHostOrdinals = Integers.toArray(ordinals);
             }
             this.unicastHostPorts = unicastHostPorts(numOfNodes);
             assert unicastHostOrdinals.length <= unicastHostPorts.length;

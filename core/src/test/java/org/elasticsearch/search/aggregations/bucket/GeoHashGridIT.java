@@ -149,7 +149,6 @@ public class GeoHashGridIT extends ESIntegTestCase {
 
 
     @Test
-    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/13558")
     public void simple() throws Exception {
         for (int precision = 1; precision <= XGeoHashUtils.PRECISION; precision++) {
             SearchResponse response = client().prepareSearch("idx")

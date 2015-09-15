@@ -88,3 +88,8 @@ makes the type / path parameter mandatory.
 
 Moving MatchQueryBuilder.Type and MatchQueryBuilder.ZeroTermsQuery enum to MatchQuery.Type.
 Also reusing new Operator enum.
+
+==== MoreLikeThisQueryBuilder
+
+Removed MoreLikeThisQueryBuilder.Item#id(String id), Item#doc(BytesReference doc),
+Item#doc(XContentBuilder doc). Use provided constructors instead.

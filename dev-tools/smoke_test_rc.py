@@ -75,6 +75,7 @@ DEFAULT_PLUGINS = ["analysis-icu",
                    "mapper-murmur3",
                    "mapper-size",
                    "repository-azure",
+                   "repository-gcs",
                    "repository-hdfs",
                    "repository-s3",
                    "store-smb"]

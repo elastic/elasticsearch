@@ -16,22 +16,16 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.snapshots;
 
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.repositories.ESBlobStoreRepositoryIntegTestCase;
+package org.elasticsearch.plugin.repository.gcs;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.repositories.gcs.GoogleCloudStorageService;
 
-public class FsBlobStoreRepositoryIT extends ESBlobStoreRepositoryIntegTestCase {
+public class GoogleCloudStorageModule extends AbstractModule {
+
     @Override
-    protected void createTestRepository(String name) {
-        assertAcked(client().admin().cluster().preparePutRepository(name)
-            .setType("fs").setSettings(Settings.builder()
-                .put("location", randomRepoPath())
-                .put("compress", randomBoolean())
-                .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
-
+    protected void configure() {
+        bind(GoogleCloudStorageService.class).to(GoogleCloudStorageService.InternalGoogleCloudStorageService.class).asEagerSingleton();
     }
 }

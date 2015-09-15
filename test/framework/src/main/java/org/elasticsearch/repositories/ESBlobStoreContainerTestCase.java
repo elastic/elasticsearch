@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.test;
+package org.elasticsearch.repositories;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
@@ -25,6 +25,7 @@ import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -32,9 +33,9 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.elasticsearch.test.ESBlobStoreTestCase.writeRandomBlob;
-import static org.elasticsearch.test.ESBlobStoreTestCase.randomBytes;
-import static org.elasticsearch.test.ESBlobStoreTestCase.readBlobFully;
+import static org.elasticsearch.repositories.ESBlobStoreTestCase.writeRandomBlob;
+import static org.elasticsearch.repositories.ESBlobStoreTestCase.randomBytes;
+import static org.elasticsearch.repositories.ESBlobStoreTestCase.readBlobFully;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.notNullValue;
 

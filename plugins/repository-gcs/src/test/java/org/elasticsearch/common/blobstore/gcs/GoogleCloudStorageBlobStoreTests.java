@@ -16,23 +16,21 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.common.blobstore;
 
-import org.apache.lucene.util.LuceneTestCase;
-import org.elasticsearch.common.blobstore.fs.FsBlobStore;
+package org.elasticsearch.common.blobstore.gcs;
+
+import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.repositories.ESBlobStoreTestCase;
 
 import java.io.IOException;
-import java.nio.file.Path;
+import java.util.Locale;
 
-@LuceneTestCase.SuppressFileSystems("ExtrasFS")
-public class FsBlobStoreTests extends ESBlobStoreTestCase {
+public class GoogleCloudStorageBlobStoreTests extends ESBlobStoreTestCase {
+
+    @Override
     protected BlobStore newBlobStore() throws IOException {
-        Path tempDir = createTempDir();
-        Settings settings = randomBoolean() ? Settings.EMPTY : Settings.builder().put("buffer_size", new ByteSizeValue(randomIntBetween(1, 100), ByteSizeUnit.KB)).build();
-        return new FsBlobStore(settings, tempDir);
+        String bucket = randomAsciiOfLength(randomIntBetween(1, 10)).toLowerCase(Locale.ROOT);
+        return new GoogleCloudStorageBlobStore(Settings.EMPTY, bucket, MockHttpTransport.newStorage(bucket, getTestName()));
     }
 }

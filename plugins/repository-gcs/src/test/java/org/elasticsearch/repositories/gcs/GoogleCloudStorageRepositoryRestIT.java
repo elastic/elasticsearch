@@ -16,23 +16,26 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.common.blobstore;
 
-import org.apache.lucene.util.LuceneTestCase;
-import org.elasticsearch.common.blobstore.fs.FsBlobStore;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.repositories.ESBlobStoreTestCase;
+package org.elasticsearch.repositories.gcs;
+
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.test.rest.RestTestCandidate;
+import org.elasticsearch.test.rest.parser.RestTestParseException;
 
 import java.io.IOException;
-import java.nio.file.Path;
 
-@LuceneTestCase.SuppressFileSystems("ExtrasFS")
-public class FsBlobStoreTests extends ESBlobStoreTestCase {
-    protected BlobStore newBlobStore() throws IOException {
-        Path tempDir = createTempDir();
-        Settings settings = randomBoolean() ? Settings.EMPTY : Settings.builder().put("buffer_size", new ByteSizeValue(randomIntBetween(1, 100), ByteSizeUnit.KB)).build();
-        return new FsBlobStore(settings, tempDir);
+public class GoogleCloudStorageRepositoryRestIT extends ESRestTestCase {
+
+    public GoogleCloudStorageRepositoryRestIT(@Name("yaml") RestTestCandidate testCandidate) {
+        super(testCandidate);
+    }
+
+    @ParametersFactory
+    public static Iterable<Object[]> parameters() throws IOException, RestTestParseException {
+        return createParameters(0, 1);
     }
 }
+

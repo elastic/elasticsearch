@@ -16,22 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.snapshots;
 
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.repositories.ESBlobStoreRepositoryIntegTestCase;
-
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-
-public class FsBlobStoreRepositoryIT extends ESBlobStoreRepositoryIntegTestCase {
-    @Override
-    protected void createTestRepository(String name) {
-        assertAcked(client().admin().cluster().preparePutRepository(name)
-            .setType("fs").setSettings(Settings.builder()
-                .put("location", randomRepoPath())
-                .put("compress", randomBoolean())
-                .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
-
-    }
-}
+grant {
+  permission java.lang.RuntimePermission "accessDeclaredMembers";
+  permission java.lang.RuntimePermission "setFactory";
+  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
+  permission java.net.URLPermission "http://www.googleapis.com/*", "*";
+  permission java.net.URLPermission "https://www.googleapis.com/*", "*";
+};

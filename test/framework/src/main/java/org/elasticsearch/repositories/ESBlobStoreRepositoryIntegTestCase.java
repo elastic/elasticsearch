@@ -16,13 +16,14 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.test;
+package org.elasticsearch.repositories;
 
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequestBuilder;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequestBuilder;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.Arrays;
 import java.util.HashSet;
@@ -59,7 +60,8 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
 
         String snapshotName = randomAsciiName();
         logger.info("-->  create snapshot {}:{}", repoName, snapshotName);
-        assertSuccessfulSnapshot(client().admin().cluster().prepareCreateSnapshot(repoName, snapshotName).setWaitForCompletion(true).setIndices(indexNames));
+        assertSuccessfulSnapshot(client().admin().cluster().prepareCreateSnapshot(repoName, snapshotName)
+                .setWaitForCompletion(true).setIndices(indexNames));
 
         List<String> deleteIndices = randomSubsetOf(randomIntBetween(0, indexCount), indexNames);
         if (deleteIndices.size() > 0) {
@@ -99,6 +101,9 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
         for (int i = 0; i < indexCount; i++) {
             assertHitCount(client().prepareSearch(indexNames[i]).setSize(0).get(), docCounts[i]);
         }
+
+        logger.info("-->  delete snapshot {}:{}", repoName, snapshotName);
+        assertAcked(client().admin().cluster().prepareDeleteSnapshot(repoName, snapshotName).get());
     }
 
     public void testMultipleSnapshotAndRollback() throws Exception {
@@ -130,7 +135,8 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
             // Check number of documents in this iteration
             docCounts[i] = (int) client().prepareSearch(indexName).setSize(0).get().getHits().totalHits();
             logger.info("-->  create snapshot {}:{} with {} documents", repoName, snapshotName + "-" + i, docCounts[i]);
-            assertSuccessfulSnapshot(client().admin().cluster().prepareCreateSnapshot(repoName, snapshotName + "-" + i).setWaitForCompletion(true).setIndices(indexName));
+            assertSuccessfulSnapshot(client().admin().cluster().prepareCreateSnapshot(repoName, snapshotName + "-" + i)
+                    .setWaitForCompletion(true).setIndices(indexName));
         }
 
         int restoreOperations = randomIntBetween(1, 3);
@@ -142,9 +148,16 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
             assertAcked(client().admin().indices().prepareClose(indexName));
 
             logger.info("--> restore index from the snapshot");
-            assertSuccessfulRestore(client().admin().cluster().prepareRestoreSnapshot(repoName, snapshotName + "-" + iterationToRestore).setWaitForCompletion(true));
+            assertSuccessfulRestore(client().admin().cluster().prepareRestoreSnapshot(repoName, snapshotName + "-" + iterationToRestore)
+                    .setWaitForCompletion(true));
+
             ensureGreen();
             assertHitCount(client().prepareSearch(indexName).setSize(0).get(), docCounts[iterationToRestore]);
+        }
+
+        for (int i = 0; i < iterationCount; i++) {
+            logger.info("-->  delete snapshot {}:{}", repoName, snapshotName + "-" + i);
+            assertAcked(client().admin().cluster().prepareDeleteSnapshot(repoName, snapshotName + "-" + i).get());
         }
     }
 

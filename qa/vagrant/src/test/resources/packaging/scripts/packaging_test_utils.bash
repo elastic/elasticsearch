@@ -414,7 +414,7 @@ wait_for_elasticsearch_status() {
     local desiredStatus=${1:-green}
 
     echo "Making sure elasticsearch is up..."
-    wget -O - --retry-connrefused --waitretry=1 --timeout=60 http://localhost:9200 || {
+    wget -O - --retry-connrefused --waitretry=1 --timeout=60 --tries 60 http://localhost:9200 || {
           echo "Looks like elasticsearch never started. Here is its log:"
           if [ -r "/tmp/elasticsearch/elasticsearch.pid" ]; then
               cat /tmp/elasticsearch/log/elasticsearch.log

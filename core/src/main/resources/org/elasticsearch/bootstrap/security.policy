@@ -74,9 +74,6 @@ grant {
   // Allow read/write to all system properties
   permission java.util.PropertyPermission "*", "read,write";
 
-  // needed by junit4's gson usage 
-  //permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
-
   // needed by scripting engines, etc
   permission java.lang.RuntimePermission "createClassLoader";
 

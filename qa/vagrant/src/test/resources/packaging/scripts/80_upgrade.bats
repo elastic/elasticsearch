@@ -32,6 +32,7 @@
 
 # Load test utilities
 load packaging_test_utils
+load os_package
 
 # Cleans everything for the 1st execution
 setup() {
@@ -50,7 +51,7 @@ setup() {
 @test "[UPGRADE] check elasticsearch version is old version" {
     curl -s localhost:9200 | grep \"number\"\ :\ \"$(cat upgrade_from_version)\" || {
         echo "Installed an unexpected version:"
-        curl localhost:9200
+        curl -s localhost:9200
         false
     }
 }

@@ -30,11 +30,13 @@
 
 # Load test utilities
 load packaging_test_utils
+load os_package
 
 # Cleans everything for the 1st execution
 setup() {
     skip_not_sysvinit
     skip_not_dpkg_or_rpm
+    export_elasticsearch_paths
 }
 
 @test "[INIT.D] remove any leftover configuration to start elasticsearch on restart" {
@@ -64,10 +66,12 @@ setup() {
 }
 
 @test "[INIT.D] start" {
+    # Install scripts used to test script filters and search templates before
+    # starting Elasticsearch so we don't have to wait for elasticsearch to scan for
+    # them.
+    install_elasticsearch_test_scripts
     service elasticsearch start
-
     wait_for_elasticsearch_status
-
     assert_file_exist "/var/run/elasticsearch/elasticsearch.pid"
 }
 

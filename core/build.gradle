@@ -86,9 +86,11 @@ dependencies {
   testCompile(group: 'junit', name: 'junit', version: '4.11') {
     transitive = false
   }
-  //testCompile group: 'com.carrotsearch.randomizedtesting', name: 'randomizedtesting-runner', version: '2.1.16'
+  compile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:2.2.0-snapshot-${randomizedRunnerSnapshotRevision}"
 
-  testCompile "org.apache.lucene:lucene-test-framework:${versions.lucene}"
+  testCompile("org.apache.lucene:lucene-test-framework:${versions.lucene}") {
+    exclude group: 'com.carrotsearch.randomizedtesting', module: 'junit4-ant'
+  }
   testCompile(group: 'org.hamcrest', name: 'hamcrest-all', version: '1.3') {
     exclude group: 'org.hamcrest', module: 'hamcrest-core'
   }

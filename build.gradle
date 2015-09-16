@@ -20,7 +20,6 @@ allprojects {
   }
 
   repositories {
-    mavenLocal()
     mavenCentral()
     // Sonatype Snapshots (Elasticsearch)
     maven {

@@ -86,14 +86,6 @@ class PluginBuildPlugin extends BuildPlugin {
         project.tasks.getByName('test').dependsOn copyRestSpec
         project.tasks.getByName('integTest').dependsOn copyRestSpec
 
-        // HACK: local plugin rest spec tests should be a regular resource dir, not in the root!
-        project.sourceSets.test {
-            resources {
-                srcDir '.'
-                include 'rest-api-spec/**'
-            }
-        }
-
         // HACK: rest test case should not try to load from the filesystem
         project.tasks.getByName('integTest').configure {
             sysProp 'tests.rest.load_packaged', 'false'

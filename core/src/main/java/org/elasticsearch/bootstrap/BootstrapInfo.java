@@ -19,6 +19,9 @@
 
 package org.elasticsearch.bootstrap;
 
+import java.util.Collections;
+import java.util.Set;
+
 /** 
  * Exposes system startup information 
  */
@@ -49,5 +52,15 @@ public final class BootstrapInfo {
      */
     public static boolean isSeccompInstalled() {
         return Natives.isSeccompInstalled();
+    }
+
+    /**
+     * Returns set of insecure plugins.
+     * <p>
+     * These are plugins with unresolved issues in third-party libraries,
+     * that require additional privileges as a workaround.
+     */
+    public static Set<String> getInsecurePluginList() {
+        return Collections.unmodifiableSet(Security.INSECURE_PLUGINS.keySet());
     }
 }

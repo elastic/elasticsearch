@@ -47,17 +47,17 @@ grant codeBase "${es.security.jar.elasticsearch.securemock}" {
 };
 
 grant codeBase "${es.security.jar.lucene.testframework}" {
-  // XXX
+  // needed by RamUsageTester
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
 };
 
 grant codeBase "${es.security.jar.randomizedtesting.runner}" {
-  // XXX
+  // optionally needed for access to private test methods (e.g. beforeClass)
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
 };
 
 grant codeBase "${es.security.jar.randomizedtesting.junit4}" {
-  // XXX
+  // needed for gson serialization
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
 };
 

@@ -17,6 +17,7 @@ include 'plugins:discovery-ec2'
 include 'plugins:discovery-multicast'
 include 'plugins:lang-javascript'
 include 'plugins:lang-python'
+include 'plugins:mapper-murmur3'
 include 'plugins:jvm-example'
 include 'plugins:site-example'
 

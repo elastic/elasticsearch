@@ -2119,7 +2119,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
             } else {
                 supportedQueryTypes = MultiMatchQueryBuilder.Type.values();
             }
-            MultiMatchQueryBuilder.Type matchQueryType = rarely() ? null : RandomPicks.randomFrom(getRandom(), supportedQueryTypes);
+            MultiMatchQueryBuilder.Type matchQueryType = RandomPicks.randomFrom(getRandom(), supportedQueryTypes);
             final MultiMatchQueryBuilder multiMatchQueryBuilder = multiMatchQuery("the quick brown fox", "field1", "field2").type(matchQueryType);
 
             SearchSourceBuilder source = searchSource()

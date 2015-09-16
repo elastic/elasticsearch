@@ -14,8 +14,6 @@
 
 package org.elasticsearch.examples.nativescript.script;
 
-import com.google.common.base.Charsets;
-import org.apache.lucene.search.Scorer;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
@@ -25,6 +23,7 @@ import org.elasticsearch.script.AbstractLongSearchScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.NativeScriptFactory;
 
+import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Map;
@@ -91,7 +90,7 @@ public class RandomSortScriptFactory implements NativeScriptFactory {
             try {
                 MessageDigest m = MessageDigest.getInstance("MD5");
                 m.reset();
-                m.update((fieldData.getValue() + salt).getBytes(Charsets.UTF_8));
+                m.update((fieldData.getValue() + salt).getBytes(StandardCharsets.UTF_8));
                 byte[] sort = m.digest();
                 return (sort[0] & 0xFFL) << 56
                         | (sort[1] & 0xFFL) << 48

@@ -27,6 +27,7 @@ import com.google.api.client.json.jackson2.JacksonFactory;
 import com.google.api.services.compute.Compute;
 import com.google.api.services.compute.model.Instance;
 import com.google.api.services.compute.model.InstanceList;
+
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -34,7 +35,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 
 import java.io.IOException;
+import java.security.AccessController;
 import java.security.GeneralSecurityException;
+import java.security.PrivilegedExceptionAction;
 import java.util.*;
 
 /**
@@ -122,7 +125,15 @@ public class GceComputeServiceImpl extends AbstractLifecycleComponent<GceCompute
                         .setTokenServerEncodedUrl(TOKEN_SERVER_ENCODED_URL)
                     .build();
 
-            credential.refreshToken();
+            // hack around code messiness in GCE code
+            // TODO: get this fixed
+            AccessController.doPrivileged(new PrivilegedExceptionAction<Void>() {
+                @Override
+                public Void run() throws IOException {
+                    credential.refreshToken();
+                    return null;
+                }
+            });
 
             logger.debug("token [{}] will expire in [{}] s", credential.getAccessToken(), credential.getExpiresInSeconds());
             if (credential.getExpiresInSeconds() != null) {

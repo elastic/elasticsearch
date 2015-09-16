@@ -45,9 +45,14 @@
 
         <!-- libraries -->
         <lucene.version>5.4.0</lucene.version>
-        <lucene.snapshot.revision>1702265</lucene.snapshot.revision>
+        <lucene.snapshot.revision>1702855</lucene.snapshot.revision>
         <lucene.maven.version>5.4.0-snapshot-${lucene.snapshot.revision}</lucene.maven.version>
-        <testframework.version>2.1.16</testframework.version>
+        <!-- we are using a snapshot of randomizedtesting with this PR:
+             https://github.com/randomizedtesting/randomizedtesting/pull/202
+             This allows us to only give the test-framework jars dangerous permissions and not
+             all of our code/test code. It is temporary while Dawid is on vacation. -->
+        <testframework.snapshot.revision>pr202</testframework.snapshot.revision>
+        <testframework.version>2.2.0-snapshot-${testframework.snapshot.revision}</testframework.version>
         <jackson.version>2.5.3</jackson.version>
         <slf4j.version>1.6.2</slf4j.version>
         <log4j.version>1.2.17</log4j.version>
@@ -145,7 +150,18 @@
             <id>Lucene snapshots</id>
             <url>https://download.elasticsearch.org/lucenesnapshots/${lucene.snapshot.revision}</url>
         </repository>
+        <repository>
+            <id>Randomized Runner snapshot</id>
+            <url>https://download.elasticsearch.org/lucenesnapshots/rr-${testframework.snapshot.revision}</url>
+        </repository>
     </repositories>
+
+    <pluginRepositories>
+        <pluginRepository>
+            <id>Randomized Runner snapshot</id>
+            <url>https://download.elasticsearch.org/lucenesnapshots/rr-${testframework.snapshot.revision}</url>
+        </pluginRepository>
+    </pluginRepositories>
 
     <dependencyManagement>
         <dependencies>
@@ -633,6 +649,9 @@
                             <tests.cluster>${tests.cluster}</tests.cluster>
                             <tests.iters>${tests.iters}</tests.iters>
                             <tests.project>${project.groupId}:${project.artifactId}</tests.project>
+                            <!-- these two are needed for insecure plugins, remove if possible! -->
+                            <tests.artifact>${project.artifactId}</tests.artifact>
+                            <tests.plugin.classname>${elasticsearch.plugin.classname}</tests.plugin.classname>
                             <tests.maxfailures>${tests.maxfailures}</tests.maxfailures>
                             <tests.failfast>${tests.failfast}</tests.failfast>
                             <tests.class>${tests.class}</tests.class>

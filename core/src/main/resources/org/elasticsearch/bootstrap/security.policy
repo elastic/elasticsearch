@@ -34,6 +34,27 @@ grant codeBase "file:${{java.ext.dirs}}/*" {
 grant codeBase "${es.security.jar.lucene.core}" {
   // needed to allow MMapDirectory's "unmap hack"
   permission java.lang.RuntimePermission "accessClassInPackage.sun.misc";
+  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
+};
+
+//// Insecure plugin permissions:
+//// These are dangerous permissions due to problems in third-party library code
+//// We try our best to contain and protect the issues, but ultimately warn the user
+//// when installing these plugins that it can introduce a security risk
+
+grant codeBase "${es.security.insecure.plugin.repository-s3}" {
+  // needed because of problems in aws-sdk
+  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
+};
+
+grant codeBase "${es.security.insecure.plugin.discovery-ec2}" {
+  // needed because of problems in aws-sdk
+  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
+};
+
+grant codeBase "${es.security.insecure.plugin.cloud-gce}" {
+  // needed because of problems in cloud-gce
+  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
 };
 
 //// test framework permissions.
@@ -43,6 +64,22 @@ grant codeBase "${es.security.jar.lucene.core}" {
 grant codeBase "${es.security.jar.elasticsearch.securemock}" {
   // needed to support creation of mocks
   permission java.lang.RuntimePermission "reflectionFactoryAccess";
+  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
+};
+
+grant codeBase "${es.security.jar.lucene.testframework}" {
+  // needed by RamUsageTester
+  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
+};
+
+grant codeBase "${es.security.jar.randomizedtesting.runner}" {
+  // optionally needed for access to private test methods (e.g. beforeClass)
+  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
+};
+
+grant codeBase "${es.security.jar.randomizedtesting.junit4}" {
+  // needed for gson serialization
+  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
 };
 
 //// Everything else:
@@ -57,9 +94,6 @@ grant {
 
   // Allow read/write to all system properties
   permission java.util.PropertyPermission "*", "read,write";
-
-  // needed by junit4's gson usage 
-  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
 
   // needed by scripting engines, etc
   permission java.lang.RuntimePermission "createClassLoader";

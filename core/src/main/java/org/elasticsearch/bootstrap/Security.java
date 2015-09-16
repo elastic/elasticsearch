@@ -20,11 +20,14 @@
 package org.elasticsearch.bootstrap;
 
 import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.env.Environment;
 
 import java.io.*;
 import java.net.URL;
 import java.nio.file.AccessMode;
+import java.nio.file.DirectoryStream;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.NotDirectoryException;
@@ -32,6 +35,7 @@ import java.nio.file.Path;
 import java.security.Permissions;
 import java.security.Policy;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.Map;
 import java.util.regex.Pattern;
@@ -95,6 +99,8 @@ final class Security {
     static void configure(Environment environment) throws Exception {
         // set properties for jar locations
         setCodebaseProperties();
+        // set properties for problematic plugins
+        setPluginCodebaseProperties(environment);
 
         // enable security policy: union of template and environment-based paths.
         Policy.setPolicy(new ESPolicy(createPermissions(environment)));
@@ -121,6 +127,9 @@ final class Security {
     static {
         Map<Pattern,String> m = new IdentityHashMap<>();
         m.put(Pattern.compile(".*lucene-core-.*\\.jar$"),              "es.security.jar.lucene.core");
+        m.put(Pattern.compile(".*lucene-test-framework-.*\\.jar$"),    "es.security.jar.lucene.testframework");
+        m.put(Pattern.compile(".*randomizedtesting-runner-.*\\.jar$"), "es.security.jar.randomizedtesting.runner");
+        m.put(Pattern.compile(".*junit4-ant-.*\\.jar$"),               "es.security.jar.randomizedtesting.junit4");
         m.put(Pattern.compile(".*securemock-.*\\.jar$"),               "es.security.jar.elasticsearch.securemock");
         SPECIAL_JARS = Collections.unmodifiableMap(m);
     }
@@ -144,6 +153,46 @@ final class Security {
             }
         }
         for (String prop : SPECIAL_JARS.values()) {
+            if (System.getProperty(prop) == null) {
+                System.setProperty(prop, "file:/dev/null"); // no chance to be interpreted as "all"
+            }
+        }
+    }
+
+    // mapping of insecure plugins to codebase properties
+    // note that this is only read once, when policy is parsed.
+    static final Map<String,String> INSECURE_PLUGINS;
+    static {
+        Map<String,String> m = new HashMap<>();
+        m.put("repository-s3", "es.security.insecure.plugin.repository-s3");
+        m.put("discovery-ec2", "es.security.insecure.plugin.discovery-ec2");
+        m.put("cloud-gce",     "es.security.insecure.plugin.cloud-gce" );
+        INSECURE_PLUGINS = Collections.unmodifiableMap(m);
+    }
+
+    /**
+     * Sets properties (codebase URLs) for policy files.
+     * we look for matching plugins and set URLs to fit
+     */
+    @SuppressForbidden(reason = "proper use of URL")
+    static void setPluginCodebaseProperties(Environment environment) throws IOException {
+        if (Files.exists(environment.pluginsFile())) {
+            try (DirectoryStream<Path> stream = Files.newDirectoryStream(environment.pluginsFile())) {
+                for (Path plugin : stream) {
+                    String prop = INSECURE_PLUGINS.get(plugin.getFileName().toString());
+                    if (prop != null) {
+                        if (System.getProperty(prop) != null) {
+                            throw new IllegalStateException("property: " + prop + " is unexpectedly set: " + System.getProperty(prop));
+                        }
+                        System.setProperty(prop, plugin.toUri().toURL().toString() + "*");
+                        ESLogger logger = Loggers.getLogger(Security.class);
+                        logger.warn("Adding permissions for insecure plugin [{}]", plugin.getFileName());
+                        logger.warn("There are unresolved issues with third-party code that may reduce the security of the system");
+                    }
+                }
+            }
+        }
+        for (String prop : INSECURE_PLUGINS.values()) {
             if (System.getProperty(prop) == null) {
                 System.setProperty(prop, "file:/dev/null"); // no chance to be interpreted as "all"
             }

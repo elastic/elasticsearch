@@ -22,7 +22,6 @@ package org.elasticsearch.index.query;
 import com.google.common.primitives.Doubles;
 import com.google.common.primitives.Floats;
 import com.google.common.primitives.Ints;
-import com.google.common.primitives.Longs;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.TermsQuery;
 import org.apache.lucene.search.BooleanClause;
@@ -85,7 +84,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
     public TermsQueryBuilder(String fieldName, String... values) {
         this(fieldName, values != null ? Arrays.asList(values) : (Iterable<?>) null);
     }
-    
+
     /**
      * A filter for a field based on several terms matching on any of them.
      *
@@ -103,7 +102,14 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
      * @param values The terms
      */
     public TermsQueryBuilder(String fieldName, long... values) {
-        this(fieldName, values != null ? Longs.asList(values) : (Iterable<?>) null);
+        if (values == null) {
+            throw new IllegalArgumentException("No value specified for terms query");
+        }
+        this.fieldName = fieldName;
+        this.values = new ArrayList<>(values.length);
+        for (long longValue : values) {
+            this.values.add(longValue);
+        }
     }
 
     /**

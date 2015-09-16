@@ -69,12 +69,16 @@ class ClusterFormationTasks {
         Task start = project.tasks.create(name: "${task.name}#start", type: Exec, dependsOn: setup) {
             workingDir home
             executable 'sh'
-            args 'bin/elasticsearch',
-                    '-d', // daemonize!
-                    "-Des.cluster.name=${clusterName}",
-                    "-Des.http.port=${config.httpPort}",
-                    "-Des.transport.tcp.port=${config.transportPort}",
-                    "-Des.pidfile=${pidFile}"
+            List esArgs = [
+                'bin/elasticsearch',
+                '-d', // daemonize!
+                "-Des.cluster.name=${clusterName}",
+                "-Des.http.port=${config.httpPort}",
+                "-Des.transport.tcp.port=${config.transportPort}",
+                "-Des.pidfile=${pidFile}"
+            ]
+            esArgs.addAll(config.sysProps.collect {key, value -> "-D${key}=${value}"})
+            args esArgs
             errorOutput = new ByteArrayOutputStream()
             doLast {
                 if (errorOutput.toString().isEmpty() == false) {

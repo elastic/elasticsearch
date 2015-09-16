@@ -22,5 +22,10 @@ class ClusterConfiguration {
         ConfigureUtil.configure(closure, setupConfig)
     }
 
-    // TODO: sys prop and/or command line args
+    Map<String, String> sysProps = new HashMap<>()
+
+    @Input
+    void sysProp(String property, String value) {
+        sysProps.put(property, value)
+    }
 }

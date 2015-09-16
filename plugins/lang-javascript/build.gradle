@@ -1,0 +1,20 @@
+
+esplugin {
+  description 'The JavaScript language plugin allows to have javascript as the language of scripts to execute.'
+  classname 'org.elasticsearch.plugin.javascript.JavaScriptPlugin'
+}
+
+dependencies {
+  compile 'org.mozilla:rhino:1.7R4'
+}
+
+compileJava.options.compilerArgs << "-Xlint:-rawtypes,-unchecked"
+compileTestJava.options.compilerArgs << "-Xlint:-rawtypes,-unchecked"
+
+integTest {
+  cluster {
+    sysProp 'es.script.inline', 'on'
+    sysProp 'es.script.indexed', 'on'
+  }
+}
+

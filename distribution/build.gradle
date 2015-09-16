@@ -1,9 +1,34 @@
 import org.apache.tools.ant.filters.ReplaceTokens
 import org.apache.tools.ant.filters.FixCrLfFilter
 
+plugins {
+  id "nebula.os-package" version "2.2.6"
+}
 apply plugin: 'distribution'
 
-def expansions = [
+assemble.dependsOn buildRpm
+assemble.dependsOn buildDeb
+// TODO: remove, once rpm and deb are depending ont he right stuff
+buildRpm.mustRunAfter distZip
+buildDeb.mustRunAfter distZip
+
+// this allows doing a project substitution on the zip module
+artifacts.add('default', distZip)
+
+artifacts {
+  archives buildDeb
+  archives buildRpm
+}
+
+// HACK: we can simply change the replace pattern to work with groovy or ant pattern
+// this allows doing replacement between '$' and '}' below, so ${foobar} is replaced
+Map hackMavenFiltering(Map expansions) {
+  return expansions.collectEntries() {
+    key, value -> ["{${key}".toString(), value.toString()]
+  }
+}
+
+Map expansions = [
   'project.version': version,
   'project.parent.artifactId': 'distributions',
   // Default values for min/max heap memory allocated to elasticsearch java process
@@ -14,31 +39,29 @@ def expansions = [
   'packaging.plugin.default.config.dir': '$ES_HOME/config',
   'packaging.plugin.default.config.file': '$ES_HOME/config/elasticsearch.yml',
   'packaging.env.file': '',
+  // TODO: do we really need this marker? the tgz and zip are exactly the same,
+  // we should not need to specify twice just to change this
   'packaging.type': 'tar.gz',
 ]
 
-// HACK: we can simply change the replace pattern to work with groovy or ant pattern
-def mavenExpansions = expansions.collectEntries() {
-  key, value -> ["{${key}".toString(), value.toString()]
+CopySpec libFiles = copySpec {
+  into 'lib'
+  from project(':core').jar
+  from project(':core').configurations.runtime
+  from project(':core').configurations.optional.copyRecursive().exclude(module: 'slf4j-api')
 }
 
-def commonFiles = copySpec {
-  into('lib') {
-    from project(':core').jar
-    from project(':core').configurations.runtime
-    from project(':core').configurations.optional.copyRecursive().exclude(module: 'slf4j-api')
-  }
-  from('src/main/resources') {
-    filesMatching('bin/*.bat') {
-      filter(FixCrLfFilter, eol: FixCrLfFilter.CrLf.newInstance('crlf'))
-    }
-    filesMatching('bin/elasticsearch')        { it.setMode(0755) }
-    filesMatching('bin/elasticsearch.in.sh')  { it.setMode(0755) }
-    filesMatching('bin/plugin')               { it.setMode(0755) }
-    filesNotMatching('bin/*.exe') {
-      filter(ReplaceTokens, tokens: mavenExpansions, beginToken : '$', endToken : '}')
-    }
-  }
+CopySpec configFiles = copySpec {
+  from 'src/main/resources/config'
+}
+
+CopySpec commonFiles = copySpec {
+  // everything except windows files, and config is separate
+  from 'src/main/resources'
+  exclude 'bin/*.bat'
+  exclude 'bin/*.exe'
+  exclude 'config/**'
+  filesMatching('bin/*') { it.setMode(0755) }
 }
 
 // this handles zip and tgz
@@ -46,13 +69,75 @@ distributions {
   main {
     contents {
       baseName 'elasticsearch'
-      with commonFiles
+      with libFiles
+      into('config') {
+        with configFiles
+      }
+      with copySpec {
+        with commonFiles
+        from('src/main/resources') {
+          include 'bin/*.bat' 
+          filter(FixCrLfFilter, eol: FixCrLfFilter.CrLf.newInstance('crlf'))
+        }
+        filter(ReplaceTokens, tokens: hackMavenFiltering(expansions), beginToken : '$', endToken : '}')
+      }
+      from('src/main/resources') {
+        include 'bin/*.exe' 
+      } 
     }
   }
 }
 
 // tell tar to use gzip
-distTar {
-  compression = Compression.GZIP
+distTar.compression = Compression.GZIP
+
+// ospackage supports adding empty dirs with directory() to rpm, but not deb...yet
+// https://github.com/nebula-plugins/gradle-ospackage-plugin/issues/115
+// however, even adding just for rpm doesn't seem to work...
+// gradle may also get native support https://issues.gradle.org/browse/GRADLE-1671
+// in the meantime, we hack this by copying an empty dir
+// TODO: HACK DOES NOT WORK
+ext.emptyDir = new File(project.buildDir, 'empty') 
+Closure emptyDirSpec() {
+  return {
+    from emptyDir
+    addParentDirs false
+    createDirectoryEntry true
+  }
 }
+task createEmptyDir << {
+  emptyDir.mkdirs()
+}
+buildRpm.dependsOn createEmptyDir
+buildDeb.dependsOn createEmptyDir
+
+// common setup for rpm and deb
+ospackage {
+  packageName = 'elasticsearch'
+  // TODO: '-' is an illegal character in rpm version...redline croaks
+  version = '3.0.0'
+  into '/usr/share/elasticsearch'
+  user 'root'
+  permissionGroup 'root'
+  with libFiles
+  with copySpec {
+    with commonFiles
+    // TODO: omit LICENSE.txt file on deb??
+  }
+  into('/etc/elasticsearch') {
+    with configFiles
+    into('scripts', emptyDirSpec())
+    createDirectoryEntry = true
+    includeEmptyDirs = true
+  }
+  directory('/etc/elasticsearch/scripts')
+}
+
+Map debExpansions = expansions + [
+
+]
+
+Map rpmExpansions = expansions + [
+
+]
 

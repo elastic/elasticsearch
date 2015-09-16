@@ -1,28 +1,28 @@
 package org.elasticsearch.gradle
 
-import org.elasticsearch.gradle.randomizedtesting.RandomizedTestingTask
+import com.carrotsearch.gradle.randomizedtesting.RandomizedTestingTask
 import org.gradle.api.JavaVersion
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.Task
 import org.gradle.api.plugins.JavaBasePlugin
-import org.gradle.api.tasks.Copy
 import org.gradle.api.tasks.TaskContainer
 
 /**
  * Encapsulates adding all build logic and configuration for elasticsearch projects.
  */
-class ESBuildPlugin implements Plugin<Project> {
+class BuildPlugin implements Plugin<Project> {
 
     @Override
     void apply(Project project) {
-        // Depends on Java to add
         project.pluginManager.apply('java')
-        project.pluginManager.apply('org.elasticsearch.randomizedtesting')
+        project.pluginManager.apply('carrotsearch.randomizedtesting')
+        // TODO: license checker
+        // TODO: apply forbidden apis
 
         Closure testConfig = createSharedTestConfig(project)
-        Task test = configureTest(project.tasks, testConfig)
-        Task integTest = configureIntegTest(project.tasks, test, testConfig)
+        RandomizedTestingTask test = configureTest(project.tasks, testConfig)
+        RandomizedTestingTask integTest = configureIntegTest(project.tasks, getIntegTestClass(), test, testConfig)
 
         List<Task> precommitTasks = new ArrayList<>()
         precommitTasks.add(configureForbiddenPatterns(project.tasks))
@@ -37,17 +37,11 @@ class ESBuildPlugin implements Plugin<Project> {
         test.mustRunAfter(precommit)
         integTest.mustRunAfter(precommit)
         project.tasks.getByName('check').dependsOn(precommit, integTest)
-        /*
-         ====== PLAN ======
-         - install tasks
-           [x] randomized testing (apply plugin)
-           [x] create testInteg task
-           [] create license checker task
-           [x] create forbiddenPatterns task
-         - configure tasks
-           [x] test and integ test common config
-           [x] integ test additional/override (eg include pattern)
-         */
+    }
+
+    // overridable by subclass plugins
+    Class<? extends RandomizedTestingTask> getIntegTestClass() {
+        return RandomizedTestingTask
     }
 
     static Closure createSharedTestConfig(Project project) {
@@ -121,20 +115,22 @@ class ESBuildPlugin implements Plugin<Project> {
         return test
     }
 
-    static Task configureIntegTest(TaskContainer tasks, Task test, Closure testConfig) {
+    static Task configureIntegTest(TaskContainer tasks, Class integTestClass, RandomizedTestingTask test, Closure testConfig) {
         Map integTestOptions = [
             'name': 'integTest',
-            'type': RandomizedTestingTask,
+            'type': integTestClass,
             'group': JavaBasePlugin.VERIFICATION_GROUP,
-            'description': 'Tests integration of elasticsearch components',
-            'dependsOn': test.dependsOn
+            'description': 'Tests integration of elasticsearch components'
         ]
-        Task integTest = tasks.create(integTestOptions)
-        integTest.mustRunAfter(test)
+        RandomizedTestingTask integTest = tasks.create(integTestOptions)
+        integTest.classpath = test.classpath
+        integTest.testClassesDir = test.testClassesDir
+        integTest.dependsOn = test.dependsOn
         integTest.configure(testConfig)
         integTest.configure {
             include '**/*IT.class'
         }
+        integTest.mustRunAfter(test)
         return integTest
     }
 

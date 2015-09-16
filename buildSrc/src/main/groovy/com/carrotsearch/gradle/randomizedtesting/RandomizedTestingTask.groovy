@@ -1,4 +1,4 @@
-package org.elasticsearch.gradle.randomizedtesting
+package com.carrotsearch.gradle.randomizedtesting
 
 import com.carrotsearch.ant.tasks.junit4.ListenersList
 import com.carrotsearch.ant.tasks.junit4.listeners.AggregatedEventListener
@@ -24,17 +24,14 @@ class RandomizedTestingTask extends DefaultTask {
 
     PatternFilterable patternSet = new PatternSet()
 
-    // TODO: change to sourceSet setter
-    @Input
-    String sourceSetName = 'test'
-
+    // TODO: change to "executable" to match gradle test params?
     @Optional
     @Input
     String jvm = 'java'
 
     @Optional
     @Input
-    File workingDir
+    File workingDir = new File(project.buildDir, 'testrun' + File.separator + name)
 
     @Optional
     @Input
@@ -43,7 +40,6 @@ class RandomizedTestingTask extends DefaultTask {
     @Input
     String parallelism = '1'
 
-    @Optional
     @InputDirectory
     File testClassesDir
 
@@ -197,9 +193,6 @@ class RandomizedTestingTask extends DefaultTask {
 
     @TaskAction
     void executeTests() {
-        SourceSet sourceSet = project.sourceSets.getByName(sourceSetName)
-        setDefaults(sourceSet)
-
         Map attributes = [
             jvm: jvm,
             parallelism: parallelism,
@@ -237,20 +230,6 @@ class RandomizedTestingTask extends DefaultTask {
             }
             makeListeners()
         }
-    }
-
-    /** Set defaults for settings that were not configured */
-    void setDefaults(SourceSet sourceSet) {
-        if (workingDir == null) {
-            workingDir = new File(project.buildDir, 'testrun' + File.separator + sourceSetName)
-        }
-        if (classpath == null) {
-            classpath = sourceSet.runtimeClasspath
-        }
-        if (testClassesDir == null) {
-            testClassesDir = sourceSet.output.classesDir
-        }
-
     }
 
     static class ListenersElement extends UnknownElement {

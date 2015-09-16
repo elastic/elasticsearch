@@ -1,5 +1,5 @@
 
-apply plugin: 'org.elasticsearch.build'
+apply plugin: 'elasticsearch.build'
 
 jar {
   baseName = 'elasticsearch'
@@ -30,14 +30,10 @@ dependencies {
   compile "org.apache.lucene:lucene-join:${versions.lucene}"
   compile "org.apache.lucene:lucene-spatial:${versions.lucene}"
 
-  // lucene spatial
-  optional 'com.spatial4j:spatial4j:0.4.1'
-  optional 'com.vividsolutions:jts:1.13'
-
+  // TODO: explain these
   compile 'com.google.guava:guava:18.0'
   compile 'commons-cli:commons-cli:1.3.1'
   compile 'com.carrotsearch:hppc:0.7.1'
-  optional 'net.java.dev.jna:jna:4.1.0'
 
   // time handling, remove with java 8 time
   compile 'joda-time:joda-time:2.8.2'
@@ -52,15 +48,27 @@ dependencies {
     exclude group: 'com.fasterxml.jackson.core', module: 'jackson-databind'
   }
   compile "com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:${versions.jackson}"
-
+  // network stack
   compile 'io.netty:netty:3.10.3.Final'
+  // compression of transport protocol
   compile 'com.ning:compress-lzf:1.0.2'
+  // percentiles aggregation
   compile 'com.tdunning:t-digest:3.0'
+  // precentil ranks aggregation
   compile 'org.hdrhistogram:HdrHistogram:2.1.6'
+
+  /* ===== OPTIONAL DEPS =====
+   * These are included in distributions, but not required for the jar to run as a "client".
+   */
+
+  // lucene spatial
+  optional 'com.spatial4j:spatial4j:0.4.1'
+  optional 'com.vividsolutions:jts:1.13'
 
   // scripting
   optional 'org.codehaus.groovy:groovy-all:2.4.4:indy'
   optional "org.apache.lucene:lucene-expressions:${versions.lucene}"
+
   // templating
   optional('com.github.spullara.mustache.java:compiler:0.8.13') {
     transitive = false
@@ -70,6 +78,9 @@ dependencies {
   optional "log4j:log4j:${versions.log4j}"
   optional "log4j:apache-log4j-extras:${versions.log4j}"
   optional "org.slf4j:slf4j-api:${versions.slf4j}"
+
+  // TODO: why are we using jna
+  optional 'net.java.dev.jna:jna:4.1.0'
 
   // TODO: remove these test deps and just dpeend on test-framework
   testCompile(group: 'junit', name: 'junit', version: '4.11') {

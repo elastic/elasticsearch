@@ -1,4 +1,11 @@
 
+esplugin {
+  description 'Demonstrates all the pluggable Java entry points in Elasticsearch'
+  classname 'org.elasticsearch.plugin.example.JvmExamplePlugin'
+}
+
+// no unit tests
+test.onlyIf { false }
 
 compileJava.options.compilerArgs << "-Xlint:-rawtypes"
 

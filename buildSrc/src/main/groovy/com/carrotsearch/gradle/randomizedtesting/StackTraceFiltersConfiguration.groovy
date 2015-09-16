@@ -1,4 +1,4 @@
-package org.elasticsearch.gradle.randomizedtesting
+package com.carrotsearch.gradle.randomizedtesting
 
 class StackTraceFiltersConfiguration {
     List<String> patterns = new ArrayList<>()

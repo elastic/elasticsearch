@@ -2,6 +2,11 @@ import org.apache.tools.ant.filters.ReplaceTokens
 
 apply plugin: 'groovy'
 
+if (System.getenv().get('JAVA_HOME') == null) {
+  throw new InvalidUserDataException('JAVA_HOME must be set')
+}
+
+
 repositories {
   mavenCentral()
 }

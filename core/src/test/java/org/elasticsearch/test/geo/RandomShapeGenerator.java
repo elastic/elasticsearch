@@ -46,9 +46,10 @@ import java.util.Random;
 import static com.spatial4j.core.shape.SpatialRelation.CONTAINS;
 
 /**
- * Random geoshape generation utilities for randomized Geospatial testing
+ * Random geoshape generation utilities for randomized {@code geo_shape} type testing
+ * depends on jts and spatial4j
  */
-public class RandomShapeGenerator {
+public class RandomShapeGenerator extends RandomGeoGenerator {
 
     protected static JtsSpatialContext ctx = ShapeBuilder.SPATIAL_CONTEXT;
     protected static final double xDIVISIBLE = 2;
@@ -247,11 +248,9 @@ public class RandomShapeGenerator {
     }
 
     protected static Point xRandomPointIn(Random rand, Rectangle r) {
-        double x = r.getMinX() + rand.nextDouble()*r.getWidth();
-        double y = r.getMinY() + rand.nextDouble()*r.getHeight();
-        x = xNormX(x);
-        y = xNormY(y);
-        Point p = ctx.makePoint(x,y);
+        double[] pt = new double[2];
+        randomPointIn(rand, r.getMinX(), r.getMinY(), r.getMaxX(), r.getMaxY(), pt);
+        Point p = ctx.makePoint(pt[0], pt[1]);
         RandomizedTest.assertEquals(CONTAINS, r.relate(p));
         return p;
     }
@@ -313,13 +312,5 @@ public class RandomShapeGenerator {
             maxY = t;
         }
         return ctx.makeRectangle(minX, maxX, minY, maxY);
-    }
-
-    protected static double xNormX(double x) {
-        return ctx.isGeo() ? DistanceUtils.normLonDEG(x) : x;
-    }
-
-    protected static double xNormY(double y) {
-        return ctx.isGeo() ? DistanceUtils.normLatDEG(y) : y;
     }
 }

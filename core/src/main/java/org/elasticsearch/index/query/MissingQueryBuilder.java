@@ -19,7 +19,11 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermRangeQuery;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -50,23 +54,35 @@ public class MissingQueryBuilder extends AbstractQueryBuilder<MissingQueryBuilde
 
     private boolean existence = DEFAULT_EXISTENCE_VALUE;
 
-    static final MissingQueryBuilder PROTOTYPE = new MissingQueryBuilder(null);
+    static final MissingQueryBuilder PROTOTYPE = new MissingQueryBuilder("field", DEFAULT_NULL_VALUE, DEFAULT_EXISTENCE_VALUE);
+
+    /**
+     * Constructs a filter that returns documents with only null values or no value in the original field.
+     * @param fieldPattern the field to query
+     * @param nullValue should the missing filter automatically include fields with null value configured in the
+     * mappings. Defaults to <tt>false</tt>.
+     * @param existance should the missing filter include documents where the field doesn't exist in the docs.
+     * Defaults to <tt>true</tt>.
+     * @throws IllegalArgumentException when both <tt>existence</tt> and <tt>nullValue</tt> are set to false
+     */
+    public MissingQueryBuilder(String fieldPattern, boolean nullValue, boolean existence) {
+        if (Strings.isEmpty(fieldPattern)) {
+            throw new IllegalArgumentException("missing query must be provided with a [field]");
+        }
+        if (nullValue == false && existence == false) {
+            throw new IllegalArgumentException("missing query must have either 'existence', or 'null_value', or both set to true");
+        }
+        this.fieldPattern = fieldPattern;
+        this.nullValue = nullValue;
+        this.existence = existence;
+    }
 
     public MissingQueryBuilder(String fieldPattern) {
-        this.fieldPattern = fieldPattern;
+        this(fieldPattern, DEFAULT_NULL_VALUE, DEFAULT_EXISTENCE_VALUE);
     }
 
     public String fieldPattern() {
         return this.fieldPattern;
-    }
-
-    /**
-     * Should the missing filter automatically include fields with null value configured in the
-     * mappings. Defaults to <tt>false</tt>.
-     */
-    public MissingQueryBuilder nullValue(boolean nullValue) {
-        this.nullValue = nullValue;
-        return this;
     }
 
     /**
@@ -75,15 +91,6 @@ public class MissingQueryBuilder extends AbstractQueryBuilder<MissingQueryBuilde
      */
     public boolean nullValue() {
         return this.nullValue;
-    }
-
-    /**
-     * Should the missing filter include documents where the field doesn't exist in the docs.
-     * Defaults to <tt>true</tt>.
-     */
-    public MissingQueryBuilder existence(boolean existence) {
-        this.existence = existence;
-        return this;
     }
 
     /**
@@ -202,23 +209,8 @@ public class MissingQueryBuilder extends AbstractQueryBuilder<MissingQueryBuilde
     }
 
     @Override
-    public QueryValidationException validate() {
-        QueryValidationException validationException = null;
-        if (Strings.isEmpty(this.fieldPattern)) {
-            validationException = addValidationError("missing must be provided with a [field]", validationException);
-        }
-        if (!existence && !nullValue) {
-            validationException = addValidationError("missing must have either existence, or null_value, or both set to true", validationException);
-        }
-        return validationException;
-    }
-
-    @Override
     protected MissingQueryBuilder doReadFrom(StreamInput in) throws IOException {
-        MissingQueryBuilder missingQueryBuilder = new MissingQueryBuilder(in.readString());
-        missingQueryBuilder.nullValue = in.readBoolean();
-        missingQueryBuilder.existence = in.readBoolean();
-        return missingQueryBuilder;
+        return new MissingQueryBuilder(in.readString(), in.readBoolean(), in.readBoolean());
     }
 
     @Override

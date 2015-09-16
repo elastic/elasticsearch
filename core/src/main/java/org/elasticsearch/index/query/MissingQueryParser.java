@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -69,9 +68,7 @@ public class MissingQueryParser extends BaseQueryParser<MissingQueryBuilder> {
         if (fieldPattern == null) {
             throw new QueryParsingException(parseContext, "missing must be provided with a [field]");
         }
-        return new MissingQueryBuilder(fieldPattern)
-                .nullValue(nullValue)
-                .existence(existence)
+        return new MissingQueryBuilder(fieldPattern, nullValue, existence)
                 .boost(boost)
                 .queryName(queryName);
     }

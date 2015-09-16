@@ -22,6 +22,7 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.spans.FieldMaskingSpanQuery;
 import org.apache.lucene.search.spans.SpanQuery;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -38,7 +39,7 @@ public class FieldMaskingSpanQueryBuilder extends AbstractQueryBuilder<FieldMask
 
     private final String fieldName;
 
-    static final FieldMaskingSpanQueryBuilder PROTOTYPE = new FieldMaskingSpanQueryBuilder(null, null);
+    static final FieldMaskingSpanQueryBuilder PROTOTYPE = new FieldMaskingSpanQueryBuilder(new SpanTermQueryBuilder("field", "text"), "field");
 
     /**
      * Constructs a new {@link FieldMaskingSpanQueryBuilder} given an inner {@link SpanQueryBuilder} for
@@ -47,6 +48,12 @@ public class FieldMaskingSpanQueryBuilder extends AbstractQueryBuilder<FieldMask
      * @param fieldName the field name
      */
     public FieldMaskingSpanQueryBuilder(SpanQueryBuilder queryBuilder, String fieldName) {
+        if (Strings.isEmpty(fieldName)) {
+            throw new IllegalArgumentException("field name is null or empty");
+        }
+        if (queryBuilder == null) {
+            throw new IllegalArgumentException("inner clause [query] cannot be null.");
+        }
         this.queryBuilder = queryBuilder;
         this.fieldName = fieldName;
     }
@@ -85,20 +92,6 @@ public class FieldMaskingSpanQueryBuilder extends AbstractQueryBuilder<FieldMask
         Query innerQuery = queryBuilder.toQuery(context);
         assert innerQuery instanceof SpanQuery;
         return new FieldMaskingSpanQuery((SpanQuery)innerQuery, fieldInQuery);
-    }
-
-    @Override
-    public QueryValidationException validate() {
-        QueryValidationException validationException = null;
-        if (queryBuilder == null) {
-            validationException = addValidationError("inner clause [query] cannot be null.", validationException);
-        } else {
-            validationException = validateInnerQuery(queryBuilder, validationException);
-        }
-        if (fieldName == null || fieldName.isEmpty()) {
-            validationException = addValidationError("field name is null or empty", validationException);
-        }
-        return validationException;
     }
 
     @Override

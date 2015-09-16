@@ -50,7 +50,7 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
 
     private float negativeBoost = -1;
 
-    static final BoostingQueryBuilder PROTOTYPE = new BoostingQueryBuilder(null, null);
+    static final BoostingQueryBuilder PROTOTYPE = new BoostingQueryBuilder(EmptyQueryBuilder.PROTOTYPE, EmptyQueryBuilder.PROTOTYPE);
 
     /**
      * Create a new {@link BoostingQueryBuilder}
@@ -59,6 +59,12 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
      * @param negativeQuery the negative query for this boosting query.
      */
     public BoostingQueryBuilder(QueryBuilder positiveQuery, QueryBuilder negativeQuery) {
+        if (positiveQuery == null) {
+            throw new IllegalArgumentException("inner clause [positive] cannot be null.");
+        }
+        if (negativeQuery == null) {
+            throw new IllegalArgumentException("inner clause [negative] cannot be null.");
+        }
         this.positiveQuery = positiveQuery;
         this.negativeQuery = negativeQuery;
     }
@@ -81,6 +87,9 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
      * Set the negative boost factor.
      */
     public BoostingQueryBuilder negativeBoost(float negativeBoost) {
+        if (negativeBoost < 0) {
+            throw new IllegalArgumentException("query requires negativeBoost to be set to positive value");
+        }
         this.negativeBoost = negativeBoost;
         return this;
     }
@@ -102,25 +111,6 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
         builder.field("negative_boost", negativeBoost);
         printBoostAndQueryName(builder);
         builder.endObject();
-    }
-
-    @Override
-    public QueryValidationException validate() {
-        QueryValidationException validationException = null;
-        if (negativeBoost < 0) {
-            validationException = addValidationError("query requires negativeBoost to be set to positive value", validationException);
-        }
-        if (negativeQuery == null) {
-            validationException = addValidationError("inner clause [negative] cannot be null.", validationException);
-        } else {
-            validationException = validateInnerQuery(negativeQuery, validationException);
-        }
-        if (positiveQuery == null) {
-            validationException = addValidationError("inner clause [positive] cannot be null.", validationException);
-        } else {
-            validationException = validateInnerQuery(positiveQuery, validationException);
-        }
-        return validationException;
     }
 
     @Override

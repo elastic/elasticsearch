@@ -30,7 +30,6 @@ import org.junit.Test;
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
 
 public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuilder> {
 
@@ -66,25 +65,34 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
     }
 
     @Test
-    public void testValidate() {
-        FuzzyQueryBuilder fuzzyQueryBuilder = new FuzzyQueryBuilder("", "text");
-        assertThat(fuzzyQueryBuilder.validate().validationErrors().size(), is(1));
+    public void testIllegalArguments() {
+        try {
+            new FuzzyQueryBuilder(null, "text");
+            fail("must not be null");
+        } catch (IllegalArgumentException e) {
+            // expected
+        }
 
-        fuzzyQueryBuilder = new FuzzyQueryBuilder("field", null);
-        assertThat(fuzzyQueryBuilder.validate().validationErrors().size(), is(1));
+        try {
+            new FuzzyQueryBuilder("", "text");
+            fail("must not be empty");
+        } catch (IllegalArgumentException e) {
+            // expected
+        }
 
-        fuzzyQueryBuilder = new FuzzyQueryBuilder("field", "text");
-        assertNull(fuzzyQueryBuilder.validate());
-
-        fuzzyQueryBuilder = new FuzzyQueryBuilder(null, null);
-        assertThat(fuzzyQueryBuilder.validate().validationErrors().size(), is(2));
+        try {
+            new FuzzyQueryBuilder("field", null);
+            fail("must not be null");
+        } catch (IllegalArgumentException e) {
+            // expected
+        }
     }
-    
+
     @Test
     public void testUnsupportedFuzzinessForStringType() throws IOException {
         QueryShardContext context = createShardContext();
         context.setAllowUnmappedFields(true);
-        
+
         FuzzyQueryBuilder fuzzyQueryBuilder = new FuzzyQueryBuilder(STRING_FIELD_NAME, "text");
         fuzzyQueryBuilder.fuzziness(Fuzziness.build(randomFrom("a string which is not auto", "3h", "200s")));
 

@@ -53,12 +53,6 @@ public class MatchNoneQueryBuilder extends AbstractQueryBuilder<MatchNoneQueryBu
     }
 
     @Override
-    public QueryValidationException validate() {
-        // nothing to validate
-        return null;
-    }
-
-    @Override
     protected boolean doEquals(MatchNoneQueryBuilder other) {
         return true;
     }

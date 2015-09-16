@@ -85,12 +85,18 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
 
     private float cutoffFrequency = DEFAULT_CUTOFF_FREQ;
 
-    static final CommonTermsQueryBuilder PROTOTYPE = new CommonTermsQueryBuilder(null, null);
+    static final CommonTermsQueryBuilder PROTOTYPE = new CommonTermsQueryBuilder("field", "text");
 
     /**
      * Constructs a new common terms query.
      */
     public CommonTermsQueryBuilder(String fieldName, Object text) {
+        if (Strings.isEmpty(fieldName)) {
+            throw new IllegalArgumentException("field name is null or empty");
+        }
+        if (text == null) {
+            throw new IllegalArgumentException("text cannot be null.");
+        }
         this.fieldName = fieldName;
         this.text = text;
     }
@@ -279,18 +285,6 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
         query.setLowFreqMinimumNumberShouldMatch(lowFreqMinimumShouldMatch);
         query.setHighFreqMinimumNumberShouldMatch(highFreqMinimumShouldMatch);
         return query;
-    }
-
-    @Override
-    public QueryValidationException validate() {
-        QueryValidationException validationException = null;
-        if (Strings.isEmpty(this.fieldName)) {
-            validationException = addValidationError("field name cannot be null or empty.", validationException);
-        }
-        if (this.text == null) {
-            validationException = addValidationError("query text cannot be null", validationException);
-        }
-        return validationException;
     }
 
     @Override

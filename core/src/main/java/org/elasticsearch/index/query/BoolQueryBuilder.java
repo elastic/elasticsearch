@@ -68,6 +68,9 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
      * contribute to scoring. No <tt>null</tt> value allowed.
      */
     public BoolQueryBuilder must(QueryBuilder queryBuilder) {
+        if (queryBuilder == null) {
+            throw new IllegalArgumentException("inner bool query clause cannot be null");
+        }
         mustClauses.add(queryBuilder);
         return this;
     }
@@ -84,6 +87,9 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
      * not contribute to scoring. No <tt>null</tt> value allowed.
      */
     public BoolQueryBuilder filter(QueryBuilder queryBuilder) {
+        if (queryBuilder == null) {
+            throw new IllegalArgumentException("inner bool query clause cannot be null");
+        }
         filterClauses.add(queryBuilder);
         return this;
     }
@@ -100,6 +106,9 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
      * No <tt>null</tt> value allowed.
      */
     public BoolQueryBuilder mustNot(QueryBuilder queryBuilder) {
+        if (queryBuilder == null) {
+            throw new IllegalArgumentException("inner bool query clause cannot be null");
+        }
         mustNotClauses.add(queryBuilder);
         return this;
     }
@@ -119,6 +128,9 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
      * @see #minimumNumberShouldMatch(int)
      */
     public BoolQueryBuilder should(QueryBuilder queryBuilder) {
+        if (queryBuilder == null) {
+            throw new IllegalArgumentException("inner bool query clause cannot be null");
+        }
         shouldClauses.add(queryBuilder);
         return this;
     }
@@ -262,16 +274,6 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
         }
         booleanQuery = Queries.applyMinimumShouldMatch(booleanQuery, minimumShouldMatch);
         return adjustPureNegative ? fixNegativeQueryIfNeeded(booleanQuery) : booleanQuery;
-    }
-
-    @Override
-    public QueryValidationException validate() {
-        QueryValidationException validationException = null;
-        validationException = validateInnerQueries(mustClauses, validationException);
-        validationException = validateInnerQueries(shouldClauses, validationException);
-        validationException = validateInnerQueries(mustNotClauses, validationException);
-        validationException = validateInnerQueries(filterClauses, validationException);
-        return validationException;
     }
 
     private void addBooleanClauses(QueryShardContext context, BooleanQuery.Builder booleanQueryBuilder, List<QueryBuilder> clauses, Occur occurs) throws IOException {

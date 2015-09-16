@@ -52,6 +52,9 @@ public class DisMaxQueryBuilder extends AbstractQueryBuilder<DisMaxQueryBuilder>
      * Add a sub-query to this disjunction.
      */
     public DisMaxQueryBuilder add(QueryBuilder queryBuilder) {
+        if (queryBuilder == null) {
+            throw new IllegalArgumentException("inner dismax query clause cannot be null");
+        }
         queries.add(queryBuilder);
         return this;
     }
@@ -104,11 +107,6 @@ public class DisMaxQueryBuilder extends AbstractQueryBuilder<DisMaxQueryBuilder>
         }
 
         return new DisjunctionMaxQuery(luceneQueries, tieBreaker);
-    }
-
-    @Override
-    public QueryValidationException validate() {
-        return validateInnerQueries(queries, null);
     }
 
     @Override

@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.*;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -41,9 +42,12 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
 
     private final String fieldName;
 
-    static final ExistsQueryBuilder PROTOTYPE = new ExistsQueryBuilder(null);
+    static final ExistsQueryBuilder PROTOTYPE = new ExistsQueryBuilder("field");
 
     public ExistsQueryBuilder(String fieldName) {
+        if (Strings.isEmpty(fieldName)) {
+            throw new IllegalArgumentException("field name is null or empty");
+        }
         this.fieldName = fieldName;
     }
 
@@ -65,12 +69,6 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
         return newFilter(context, fieldName);
-    }
-
-    @Override
-    public QueryValidationException validate() {
-        // nothing to validate
-        return null;
     }
 
     public static Query newFilter(QueryShardContext context, String fieldPattern) {

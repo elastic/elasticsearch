@@ -24,24 +24,21 @@ import org.junit.Test;
 
 import java.io.IOException;
 
-import static org.hamcrest.Matchers.is;
-
 public class MissingQueryBuilderTests extends AbstractQueryTestCase<MissingQueryBuilder> {
 
     @Override
     protected MissingQueryBuilder doCreateTestQueryBuilder() {
-        MissingQueryBuilder query  = new MissingQueryBuilder(randomBoolean() ? randomFrom(MAPPED_FIELD_NAMES) : randomAsciiOfLengthBetween(1, 10));
-        if (randomBoolean()) {
-            query.nullValue(randomBoolean());
+        String fieldName = randomBoolean() ? randomFrom(MAPPED_FIELD_NAMES) : randomAsciiOfLengthBetween(1, 10);
+        Boolean existence = randomBoolean();
+        Boolean nullValue = randomBoolean();
+        if (existence == false && nullValue == false) {
+            if (randomBoolean()) {
+                existence = true;
+            } else {
+                nullValue = true;
+            }
         }
-        if (randomBoolean()) {
-            query.existence(randomBoolean());
-        }
-        // cannot set both to false
-        if ((query.nullValue() == false) && (query.existence() == false)) {
-            query.existence(!query.existence());
-        }
-        return query;
+        return new MissingQueryBuilder(fieldName, nullValue, existence);
     }
 
     @Override
@@ -50,18 +47,31 @@ public class MissingQueryBuilderTests extends AbstractQueryTestCase<MissingQuery
     }
 
     @Test
-    public void testValidate() {
-        MissingQueryBuilder missingQueryBuilder = new MissingQueryBuilder("");
-        assertThat(missingQueryBuilder.validate().validationErrors().size(), is(1));
+    public void testIllegalArguments() {
+        try {
+            if (randomBoolean()) {
+                new MissingQueryBuilder("", true, true);
+            } else {
+                new MissingQueryBuilder(null, true, true);
+            }
+            fail("must not be null or empty");
+        } catch (IllegalArgumentException e) {
+            // expected
+        }
 
-        missingQueryBuilder = new MissingQueryBuilder(null);
-        assertThat(missingQueryBuilder.validate().validationErrors().size(), is(1));
+        try {
+            new MissingQueryBuilder("fieldname", false, false);
+            fail("existence and nullValue cannot both be false");
+        } catch (IllegalArgumentException e) {
+            // expected
+        }
 
-        missingQueryBuilder = new MissingQueryBuilder("field").existence(false).nullValue(false);
-        assertThat(missingQueryBuilder.validate().validationErrors().size(), is(1));
-
-        missingQueryBuilder = new MissingQueryBuilder("field");
-        assertNull(missingQueryBuilder.validate());
+        try {
+            new MissingQueryBuilder("fieldname", MissingQueryBuilder.DEFAULT_NULL_VALUE, false);
+            fail("existence and nullValue cannot both be false");
+        } catch (IllegalArgumentException e) {
+            // expected
+        }
     }
 
     @Test(expected = QueryShardException.class)

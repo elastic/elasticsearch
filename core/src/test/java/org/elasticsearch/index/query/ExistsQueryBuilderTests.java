@@ -25,6 +25,7 @@ import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
+import org.junit.Test;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -76,6 +77,20 @@ public class ExistsQueryBuilderTests extends AbstractQueryTestCase<ExistsQueryBu
                 BooleanClause booleanClause = booleanQuery.clauses().get(i);
                 assertThat(booleanClause.getOccur(), equalTo(BooleanClause.Occur.SHOULD));
             }
+        }
+    }
+
+    @Test
+    public void testIllegalArguments() {
+        try {
+            if (randomBoolean()) {
+                new ExistsQueryBuilder(null);
+            } else {
+                new ExistsQueryBuilder("");
+            }
+            fail("must not be null or empty");
+        } catch (IllegalArgumentException e) {
+            // expected
         }
     }
 }

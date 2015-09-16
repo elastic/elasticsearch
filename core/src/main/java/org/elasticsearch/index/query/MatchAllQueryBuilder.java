@@ -49,12 +49,6 @@ public class MatchAllQueryBuilder extends AbstractQueryBuilder<MatchAllQueryBuil
     }
 
     @Override
-    public QueryValidationException validate() {
-        // nothing to validate
-        return null;
-    }
-
-    @Override
     protected boolean doEquals(MatchAllQueryBuilder other) {
         return true;
     }

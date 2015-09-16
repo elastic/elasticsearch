@@ -42,12 +42,7 @@ public class IndicesQueryBuilder extends AbstractQueryBuilder<IndicesQueryBuilde
 
     private QueryBuilder noMatchQuery = defaultNoMatchQuery();
 
-    static final IndicesQueryBuilder PROTOTYPE = new IndicesQueryBuilder();
-
-    private IndicesQueryBuilder() {
-        this.innerQuery = null;
-        this.indices = null;
-    }
+    static final IndicesQueryBuilder PROTOTYPE = new IndicesQueryBuilder(EmptyQueryBuilder.PROTOTYPE, "index");
 
     public IndicesQueryBuilder(QueryBuilder innerQuery, String... indices) {
         this.innerQuery = Objects.requireNonNull(innerQuery);
@@ -118,7 +113,7 @@ public class IndicesQueryBuilder extends AbstractQueryBuilder<IndicesQueryBuilde
             query.setBoost(boost);
         }
     }
-    
+
     @Override
     public QueryValidationException validate() {
         QueryValidationException validationException = null;
@@ -146,12 +141,12 @@ public class IndicesQueryBuilder extends AbstractQueryBuilder<IndicesQueryBuilde
         out.writeStringArray(indices);
         out.writeQuery(noMatchQuery);
     }
-    
+
     @Override
     public int doHashCode() {
         return Objects.hash(innerQuery, noMatchQuery, Arrays.hashCode(indices));
     }
-    
+
     @Override
     protected boolean doEquals(IndicesQueryBuilder other) {
         return Objects.equals(innerQuery, other.innerQuery) &&

@@ -49,33 +49,26 @@ public class BoostingQueryBuilderTests extends AbstractQueryTestCase<BoostingQue
     }
 
     @Test
-    public void testValidate() {
-        int totalExpectedErrors = 0;
-        QueryBuilder positive = null;
-        QueryBuilder negative = null;
-        if (frequently()) {
-            if (randomBoolean()) {
-                negative = RandomQueryBuilder.createInvalidQuery(random());
-            }
-            totalExpectedErrors++;
-        } else {
-            negative = RandomQueryBuilder.createQuery(random());
+    public void testIllegalArguments() {
+        try {
+            new BoostingQueryBuilder(null, new MatchAllQueryBuilder());
+            fail("must not be null");
+        } catch (IllegalArgumentException e) {
+            //
         }
-        if (frequently()) {
-            if (randomBoolean()) {
-                positive = RandomQueryBuilder.createInvalidQuery(random());
-            }
-            totalExpectedErrors++;
-        } else {
-            positive = RandomQueryBuilder.createQuery(random());
+
+        try {
+            new BoostingQueryBuilder(new MatchAllQueryBuilder(), null);
+            fail("must not be null");
+        } catch (IllegalArgumentException e) {
+            //
         }
-        BoostingQueryBuilder boostingQuery = new BoostingQueryBuilder(positive, negative);
-        if (frequently()) {
-            boostingQuery.negativeBoost(0.5f);
-        } else {
-            boostingQuery.negativeBoost(-0.5f);
-            totalExpectedErrors++;
+
+        try {
+            new BoostingQueryBuilder(new MatchAllQueryBuilder(), new MatchAllQueryBuilder()).negativeBoost(-1.0f);
+            fail("must not be negative");
+        } catch (IllegalArgumentException e) {
+            //
         }
-        assertValidate(boostingQuery, totalExpectedErrors);
     }
 }

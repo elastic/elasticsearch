@@ -15,8 +15,8 @@ import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.InetSocketTransportAddress;
-import org.elasticsearch.common.util.ArrayUtils;
+import org.elasticsearch.common.transport.BoundTransportAddress;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.shield.audit.AuditTrail;
@@ -66,6 +66,7 @@ public class IPFilter extends AbstractLifecycleComponent<IPFilter> {
     private NodeSettingsService nodeSettingsService;
     private final AuditTrail auditTrail;
     private final Transport transport;
+    private final boolean alwaysAllowBoundAddresses;
     private Map<String, ShieldIpFilterRule[]> rules = Collections.EMPTY_MAP;
     private HttpServerTransport httpServerTransport = null;
 
@@ -75,6 +76,7 @@ public class IPFilter extends AbstractLifecycleComponent<IPFilter> {
         this.nodeSettingsService = nodeSettingsService;
         this.auditTrail = auditTrail;
         this.transport = transport;
+        this.alwaysAllowBoundAddresses = settings.getAsBoolean("shield.filter.always_allow_bound_address", true);
     }
 
     @Override
@@ -144,27 +146,30 @@ public class IPFilter extends AbstractLifecycleComponent<IPFilter> {
         Map<String, ShieldIpFilterRule[]> profileRules = new HashMap<>();
 
         if (isHttpFilterEnabled && httpServerTransport != null && httpServerTransport.lifecycleState() == Lifecycle.State.STARTED) {
-            InetAddress localAddress = ((InetSocketTransportAddress) this.httpServerTransport.boundAddress().boundAddress()).address().getAddress();
+            TransportAddress[] localAddresses = this.httpServerTransport.boundAddress().boundAddresses();
             String[] httpAllowed = settings.getAsArray("shield.http.filter.allow", settings.getAsArray("transport.profiles.default.shield.filter.allow", settings.getAsArray("shield.transport.filter.allow")));
-            String[] httpDdenied = settings.getAsArray("shield.http.filter.deny", settings.getAsArray("transport.profiles.default.shield.filter.deny", settings.getAsArray("shield.transport.filter.deny")));
-            profileRules.put(HTTP_PROFILE_NAME, ArrayUtils.concat(parseValue(httpAllowed, true, localAddress), parseValue(httpDdenied, false, localAddress), ShieldIpFilterRule.class));
+            String[] httpDenied = settings.getAsArray("shield.http.filter.deny", settings.getAsArray("transport.profiles.default.shield.filter.deny", settings.getAsArray("shield.transport.filter.deny")));
+            profileRules.put(HTTP_PROFILE_NAME, createRules(httpAllowed, httpDenied, localAddresses));
         }
 
         if (isIpFilterEnabled && this.transport.lifecycleState() == Lifecycle.State.STARTED) {
-            InetAddress localAddress = ((InetSocketTransportAddress) this.transport.boundAddress().boundAddress()).address().getAddress();
+            TransportAddress[] localAddresses = this.transport.boundAddress().boundAddresses();
 
             String[] allowed = settings.getAsArray("shield.transport.filter.allow");
             String[] denied = settings.getAsArray("shield.transport.filter.deny");
-            profileRules.put("default", ArrayUtils.concat(parseValue(allowed, true, localAddress), parseValue(denied, false, localAddress), ShieldIpFilterRule.class));
+            profileRules.put("default", createRules(allowed, denied, localAddresses));
 
             Map<String, Settings> groupedSettings = settings.getGroups("transport.profiles.");
             for (Map.Entry<String, Settings> entry : groupedSettings.entrySet()) {
                 String profile = entry.getKey();
+                BoundTransportAddress profileBoundTransportAddress = transport.profileBoundAddresses().get(profile);
+                if (profileBoundTransportAddress == null) {
+                    // this could happen if a user updates the settings dynamically with a new profile
+                    logger.warn("skipping ip filter rules for profile [{}] since the profile is not bound to any addresses", profile);
+                    continue;
+                }
                 Settings profileSettings = entry.getValue().getByPrefix("shield.filter.");
-                profileRules.put(profile, ArrayUtils.concat(
-                        parseValue(profileSettings.getAsArray("allow"), true, localAddress),
-                        parseValue(profileSettings.getAsArray("deny"), false, localAddress),
-                        ShieldIpFilterRule.class));
+                profileRules.put(profile, createRules(profileSettings.getAsArray("allow"), profileSettings.getAsArray("deny"), profileBoundTransportAddress.boundAddresses()));
             }
         }
 
@@ -172,32 +177,23 @@ public class IPFilter extends AbstractLifecycleComponent<IPFilter> {
         return ImmutableMap.copyOf(profileRules);
     }
 
-    private ShieldIpFilterRule[] parseValue(String[] values, boolean isAllowRule, InetAddress localAddress) {
+    private ShieldIpFilterRule[] createRules(String[] allow, String[] deny, TransportAddress[] boundAddresses) {
         List<ShieldIpFilterRule> rules = new ArrayList<>();
-        for (int i = 0; i < values.length; i++) {
-
-            // never ever deny on localhost, do not even add this rule
-            if (!isAllowRule && isLocalAddress(localAddress, values[i])) {
-                logger.warn("Configuration setting not applied to reject connections on [{}]. local connections are always allowed!", values[i]);
-                continue;
-            }
-
-            rules.add(new ShieldIpFilterRule(isAllowRule, values[i]));
+        // if we are always going to allow the bound addresses, then the rule for them should be the first rule in the list
+        if (alwaysAllowBoundAddresses) {
+            assert boundAddresses != null && boundAddresses.length > 0;
+            rules.add(new ShieldIpFilterRule(true, boundAddresses));
         }
-        return rules.toArray(new ShieldIpFilterRule[]{});
-    }
 
-    /**
-     * Checks if a user provided address is the same address that we are bound to. This is to prevent denying
-     * connections from the machine we are running on
-     *
-     * @param localAddress the InetAddress that this node is bound to. This should come from the transport
-     * @param address the address that is being evaluated to be blocked
-     * @return true if the address is not the same as the localAddress
-     */
-    private boolean isLocalAddress(InetAddress localAddress, String address) {
-        // FIXME add the correct behavior, see https://github.com/elastic/x-plugins/issues/487
-        return false;
+        // add all rules to the same list. Allow takes precedence so they must come first!
+        for (String value : allow) {
+            rules.add(new ShieldIpFilterRule(true, value));
+        }
+        for (String value : deny) {
+            rules.add(new ShieldIpFilterRule(false, value));
+        }
+
+        return rules.toArray(new ShieldIpFilterRule[rules.size()]);
     }
 
     private class ApplySettings implements NodeSettingsService.Listener {

@@ -52,7 +52,7 @@ public class IpFilteringIntegrationTests extends ShieldIntegTestCase {
 
     @Test
     public void testThatIpFilteringIsIntegratedIntoNettyPipelineViaHttp() throws Exception {
-        TransportAddress transportAddress = internalCluster().getDataNodeInstance(HttpServerTransport.class).boundAddress().boundAddress();
+        TransportAddress transportAddress = randomFrom(internalCluster().getDataNodeInstance(HttpServerTransport.class).boundAddress().boundAddresses());
         assertThat(transportAddress, is(instanceOf(InetSocketTransportAddress.class)));
         InetSocketTransportAddress inetSocketTransportAddress = (InetSocketTransportAddress) transportAddress;
 
@@ -88,7 +88,7 @@ public class IpFilteringIntegrationTests extends ShieldIntegTestCase {
     }
 
     private static int getProfilePort(String profile) {
-        TransportAddress transportAddress = internalCluster().getInstance(Transport.class).profileBoundAddresses().get(profile).boundAddress();
+        TransportAddress transportAddress = randomFrom(internalCluster().getInstance(Transport.class).profileBoundAddresses().get(profile).boundAddresses());
         assert transportAddress instanceof InetSocketTransportAddress;
         return ((InetSocketTransportAddress)transportAddress).address().getPort();
     }

@@ -109,7 +109,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
                 .put("shield.audit.logfile.prefix.emit_node_name", randomBoolean())
                 .build();
         transport = mock(Transport.class);
-        when(transport.boundAddress()).thenReturn(new BoundTransportAddress(DummyTransportAddress.INSTANCE, DummyTransportAddress.INSTANCE));
+        when(transport.boundAddress()).thenReturn(new BoundTransportAddress(new TransportAddress[] { DummyTransportAddress.INSTANCE }, DummyTransportAddress.INSTANCE));
         prefix = LoggingAuditTrail.resolvePrefix(settings, transport);
     }
 

@@ -186,7 +186,7 @@ public class SslMultiPortTests extends ShieldIntegTestCase {
     public void testThatProfileTransportClientCannotConnectToDefaultProfile() throws Exception {
         Settings settings = ShieldSettingsSource.getSSLSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testclient-client-profile.jks", "testclient-client-profile");
         try (TransportClient transportClient = createTransportClient(settings)) {
-            TransportAddress transportAddress = internalCluster().getInstance(Transport.class).boundAddress().boundAddress();
+            TransportAddress transportAddress = randomFrom(internalCluster().getInstance(Transport.class).boundAddress().boundAddresses());
             transportClient.addTransportAddress(transportAddress);
             transportClient.admin().cluster().prepareHealth().get();
         }
@@ -232,7 +232,7 @@ public class SslMultiPortTests extends ShieldIntegTestCase {
                 .put("cluster.name", internalCluster().getClusterName())
                 .build();
         try (TransportClient transportClient = TransportClient.builder().settings(settings).build()) {
-            transportClient.addTransportAddress(internalCluster().getInstance(Transport.class).boundAddress().boundAddress());
+            transportClient.addTransportAddress(randomFrom(internalCluster().getInstance(Transport.class).boundAddress().boundAddresses()));
             assertGreenClusterState(transportClient);
         }
     }
@@ -326,7 +326,7 @@ public class SslMultiPortTests extends ShieldIntegTestCase {
                 .put("shield.ssl.truststore.password", "truststore-testnode-only")
                 .build();
         try (TransportClient transportClient = TransportClient.builder().settings(settings).build()) {
-            transportClient.addTransportAddress(internalCluster().getInstance(Transport.class).boundAddress().boundAddress());
+            transportClient.addTransportAddress(randomFrom(internalCluster().getInstance(Transport.class).boundAddress().boundAddresses()));
                     assertGreenClusterState(transportClient);
         }
     }
@@ -364,7 +364,7 @@ public class SslMultiPortTests extends ShieldIntegTestCase {
                 .put("shield.transport.ssl", true)
                 .build();
         try (TransportClient transportClient = TransportClient.builder().settings(settings).build()) {
-            transportClient.addTransportAddress(internalCluster().getInstance(Transport.class).boundAddress().boundAddress());
+            transportClient.addTransportAddress(randomFrom(internalCluster().getInstance(Transport.class).boundAddress().boundAddresses()));
             assertGreenClusterState(transportClient);
         }
     }
@@ -424,7 +424,7 @@ public class SslMultiPortTests extends ShieldIntegTestCase {
     }
 
     private static int getProfilePort(String profile) {
-        TransportAddress transportAddress = internalCluster().getInstance(Transport.class).profileBoundAddresses().get(profile).boundAddress();
+        TransportAddress transportAddress = randomFrom(internalCluster().getInstance(Transport.class).profileBoundAddresses().get(profile).boundAddresses());
         assert transportAddress instanceof InetSocketTransportAddress;
         return ((InetSocketTransportAddress)transportAddress).address().getPort();
     }

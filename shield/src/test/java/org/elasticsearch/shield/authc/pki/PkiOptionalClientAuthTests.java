@@ -97,7 +97,7 @@ public class PkiOptionalClientAuthTests extends ShieldIntegTestCase {
     @Test
     public void testTransportClientWithoutClientCertificate() {
         Transport transport = internalCluster().getDataNodeInstance(Transport.class);
-        int port = ((InetSocketTransportAddress)transport.profileBoundAddresses().get("want_client_auth").boundAddress()).address().getPort();
+        int port = ((InetSocketTransportAddress) randomFrom(transport.profileBoundAddresses().get("want_client_auth").boundAddresses())).address().getPort();
 
         Settings settings = Settings.builder()
                 .put(ShieldSettingsSource.getSSLSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/truststore-testnode-only.jks", "truststore-testnode-only"))

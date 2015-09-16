@@ -12,12 +12,15 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
+import org.elasticsearch.common.transport.TransportAddress;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.*;
 import java.nio.charset.Charset;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -28,24 +31,34 @@ public class HttpESExporterUtils {
     static final String VERSION_FIELD = "number";
 
     public static String[] extractHostsFromAddress(BoundTransportAddress boundAddress, ESLogger logger) {
-        if (boundAddress == null || boundAddress.boundAddress() == null) {
+        if (boundAddress == null || boundAddress.boundAddresses() == null) {
             logger.debug("local http server is not yet started. can't connect");
             return null;
         }
 
-        if (boundAddress.boundAddress().uniqueAddressTypeId() != 1) {
-            logger.error("local node is not bound via the http transport. can't connect");
-            return null;
+        TransportAddress[] boundAddresses = boundAddress.boundAddresses();
+        List<String> hosts = new ArrayList<>(boundAddresses.length);
+        for (TransportAddress transportAddress : boundAddresses) {
+            if (transportAddress.uniqueAddressTypeId() == 1) {
+                InetSocketTransportAddress address = (InetSocketTransportAddress) transportAddress;
+                InetSocketAddress inetSocketAddress = address.address();
+                InetAddress inetAddress = inetSocketAddress.getAddress();
+                if (inetAddress == null) {
+                    logger.error("failed to extract the ip address of from transport address [{}]", transportAddress);
+                    continue;
+                }
+                hosts.add(NetworkAddress.formatAddress(inetSocketAddress));
+            } else {
+                logger.error("local node http transport is not bound via a InetSocketTransportAddress. address is [{}] with typeId [{}]", transportAddress, transportAddress.uniqueAddressTypeId());
+            }
         }
-        InetSocketTransportAddress address = (InetSocketTransportAddress) boundAddress.boundAddress();
-        InetSocketAddress inetSocketAddress = address.address();
-        InetAddress inetAddress = inetSocketAddress.getAddress();
-        if (inetAddress == null) {
-            logger.error("failed to extract the ip address of current node.");
+
+        if (hosts.isEmpty()) {
+            logger.error("could not extract any hosts from bound address. can't connect");
             return null;
         }
 
-        return new String[]{ NetworkAddress.formatAddress(inetSocketAddress) };
+        return hosts.toArray(new String[hosts.size()]);
     }
 
     public static URL parseHostWithPath(String host, String path) throws URISyntaxException, MalformedURLException {

@@ -7,9 +7,11 @@ package org.elasticsearch.shield.transport.filter;
 
 import com.google.common.net.InetAddresses;
 import org.elasticsearch.common.component.Lifecycle;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.shield.audit.AuditTrail;
@@ -21,7 +23,7 @@ import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 
 import java.net.InetAddress;
-import java.util.Locale;
+import java.util.*;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.is;
@@ -45,13 +47,17 @@ public class IPFilterTests extends ESTestCase {
 
         httpTransport = mock(HttpServerTransport.class);
         InetSocketTransportAddress httpAddress = new InetSocketTransportAddress(InetAddress.getLoopbackAddress(), 9200);
-        when(httpTransport.boundAddress()).thenReturn(new BoundTransportAddress(httpAddress, httpAddress));
+        when(httpTransport.boundAddress()).thenReturn(new BoundTransportAddress(new TransportAddress[] { httpAddress }, httpAddress));
         when(httpTransport.lifecycleState()).thenReturn(Lifecycle.State.STARTED);
 
         transport = mock(Transport.class);
         InetSocketTransportAddress address = new InetSocketTransportAddress(InetAddress.getLoopbackAddress(), 9300);
-        when(transport.boundAddress()).thenReturn(new BoundTransportAddress(address, address));
+        when(transport.boundAddress()).thenReturn(new BoundTransportAddress(new TransportAddress[]{ address }, address));
         when(transport.lifecycleState()).thenReturn(Lifecycle.State.STARTED);
+
+        Map<String, BoundTransportAddress> profileBoundAddresses = Collections.singletonMap("client",
+                new BoundTransportAddress(new TransportAddress[]{ new InetSocketTransportAddress(InetAddress.getLoopbackAddress(), 9500) }, address));
+        when(transport.profileBoundAddresses()).thenReturn(profileBoundAddresses);
     }
 
     @Test
@@ -171,15 +177,25 @@ public class IPFilterTests extends ESTestCase {
     }
 
     @Test
-    @AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/487")
-    public void testThatLocalhostIsNeverRejected() throws Exception {
-        Settings settings = settingsBuilder()
-                .put("shield.transport.filter.deny", "127.0.0.1")
-                .build();
+    public void testThatBoundAddressIsNeverRejected() throws Exception {
+        List<String> addressStrings = new ArrayList<>();
+        for (TransportAddress address : transport.boundAddress().boundAddresses()) {
+            addressStrings.add(NetworkAddress.formatAddress(((InetSocketTransportAddress) address).address().getAddress()));
+        }
+
+        Settings settings;
+        if (randomBoolean()) {
+            settings = settingsBuilder().putArray("shield.transport.filter.deny", addressStrings.toArray(new String[addressStrings.size()])).build();
+        } else {
+            settings = settingsBuilder().put("shield.transport.filter.deny", "_all").build();
+        }
         ipFilter = new IPFilter(settings, auditTrail, nodeSettingsService, transport).start();
         ipFilter.setHttpServerTransport(httpTransport);
 
-        assertAddressIsAllowedForProfile(IPFilter.HTTP_PROFILE_NAME, "127.0.0.1");
+        for (String addressString : addressStrings) {
+            assertAddressIsAllowedForProfile(IPFilter.HTTP_PROFILE_NAME, addressString);
+            assertAddressIsAllowedForProfile("default", addressString);
+        }
     }
 
     private void assertAddressIsAllowedForProfile(String profile, String ... inetAddresses) {

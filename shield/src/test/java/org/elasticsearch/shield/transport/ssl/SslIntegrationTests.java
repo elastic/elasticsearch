@@ -65,7 +65,7 @@ public class SslIntegrationTests extends ShieldIntegTestCase {
                 .putArray("shield.ssl.ciphers", new String[]{"TLS_ECDH_anon_WITH_RC4_128_SHA", "SSL_RSA_WITH_3DES_EDE_CBC_SHA"})
                 .build()).build()) {
 
-            TransportAddress transportAddress = internalCluster().getInstance(Transport.class).boundAddress().boundAddress();
+            TransportAddress transportAddress = randomFrom(internalCluster().getInstance(Transport.class).boundAddress().boundAddresses());
             transportClient.addTransportAddress(transportAddress);
 
             transportClient.admin().cluster().prepareHealth().get();
@@ -82,7 +82,7 @@ public class SslIntegrationTests extends ShieldIntegTestCase {
                 .putArray("shield.ssl.supported_protocols", new String[]{"SSLv3"})
                 .build()).build()) {
 
-            TransportAddress transportAddress = internalCluster().getInstance(Transport.class).boundAddress().boundAddress();
+            TransportAddress transportAddress = randomFrom(internalCluster().getInstance(Transport.class).boundAddress().boundAddresses());
             transportClient.addTransportAddress(transportAddress);
 
             transportClient.admin().cluster().prepareHealth().get();
@@ -121,7 +121,7 @@ public class SslIntegrationTests extends ShieldIntegTestCase {
     }
 
     private String getNodeUrl() {
-        TransportAddress transportAddress = internalCluster().getInstance(HttpServerTransport.class).boundAddress().boundAddress();
+        TransportAddress transportAddress = randomFrom(internalCluster().getInstance(HttpServerTransport.class).boundAddress().boundAddresses());
         assertThat(transportAddress, is(instanceOf(InetSocketTransportAddress.class)));
         InetSocketTransportAddress inetSocketTransportAddress = (InetSocketTransportAddress) transportAddress;
         return String.format(Locale.ROOT, "https://%s:%s/", "localhost", inetSocketTransportAddress.address().getPort());

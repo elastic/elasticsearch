@@ -16,10 +16,7 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.BoundTransportAddress;
-import org.elasticsearch.common.transport.DummyTransportAddress;
-import org.elasticsearch.common.transport.InetSocketTransportAddress;
-import org.elasticsearch.common.transport.LocalTransportAddress;
+import org.elasticsearch.common.transport.*;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.cache.IndexCacheModule;
@@ -197,7 +194,7 @@ public class IndexAuditTrailTests extends ShieldIntegTestCase {
         when(authService.authenticate(mock(RestRequest.class))).thenThrow(new UnsupportedOperationException(""));
         when(authService.authenticate("_action", new LocalHostMockMessage(), user.user())).thenThrow(new UnsupportedOperationException(""));
         Transport transport = mock(Transport.class);
-        when(transport.boundAddress()).thenReturn(new BoundTransportAddress(DummyTransportAddress.INSTANCE, DummyTransportAddress.INSTANCE));
+        when(transport.boundAddress()).thenReturn(new BoundTransportAddress(new TransportAddress[] { DummyTransportAddress.INSTANCE }, DummyTransportAddress.INSTANCE));
 
         Environment env = new Environment(settings);
         threadPool = new ThreadPool("index audit trail tests");

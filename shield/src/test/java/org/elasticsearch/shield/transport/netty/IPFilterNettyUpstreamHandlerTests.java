@@ -10,6 +10,7 @@ import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.shield.audit.AuditTrail;
@@ -47,7 +48,7 @@ public class IPFilterNettyUpstreamHandlerTests extends ESTestCase {
 
         Transport transport = mock(Transport.class);
         InetSocketTransportAddress address = new InetSocketTransportAddress(InetAddress.getLoopbackAddress(), 9300);
-        when(transport.boundAddress()).thenReturn(new BoundTransportAddress(address, address));
+        when(transport.boundAddress()).thenReturn(new BoundTransportAddress(new TransportAddress[] { address }, address));
         when(transport.lifecycleState()).thenReturn(Lifecycle.State.STARTED);
 
         NodeSettingsService nodeSettingsService = mock(NodeSettingsService.class);
@@ -56,7 +57,7 @@ public class IPFilterNettyUpstreamHandlerTests extends ESTestCase {
         if (isHttpEnabled) {
             HttpServerTransport httpTransport = mock(HttpServerTransport.class);
             InetSocketTransportAddress httpAddress = new InetSocketTransportAddress(InetAddress.getLoopbackAddress(), 9200);
-            when(httpTransport.boundAddress()).thenReturn(new BoundTransportAddress(httpAddress, httpAddress));
+            when(httpTransport.boundAddress()).thenReturn(new BoundTransportAddress(new TransportAddress[] { httpAddress }, httpAddress));
             when(httpTransport.lifecycleState()).thenReturn(Lifecycle.State.STARTED);
             ipFilter.setHttpServerTransport(httpTransport);
         }

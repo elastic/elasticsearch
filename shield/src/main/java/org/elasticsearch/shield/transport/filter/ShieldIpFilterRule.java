@@ -7,12 +7,16 @@ package org.elasticsearch.shield.transport.filter;
 
 import com.google.common.net.InetAddresses;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.network.NetworkAddress;
+import org.elasticsearch.common.transport.InetSocketTransportAddress;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.jboss.netty.handler.ipfilter.IpFilterRule;
 import org.jboss.netty.handler.ipfilter.IpSubnetFilterRule;
 import org.jboss.netty.handler.ipfilter.PatternRule;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.util.Arrays;
 
 /**
  * decorator class to have a useful toString() method for an IpFilterRule
@@ -38,6 +42,7 @@ public class ShieldIpFilterRule implements IpFilterRule {
     };
 
     public static final ShieldIpFilterRule DENY_ALL = new ShieldIpFilterRule(true, "deny_all") {
+
         @Override
         public boolean contains(InetAddress inetAddress) {
             return true;
@@ -60,6 +65,11 @@ public class ShieldIpFilterRule implements IpFilterRule {
     public ShieldIpFilterRule(boolean isAllowRule, String ruleSpec) {
         this.ipFilterRule = getRule(isAllowRule, ruleSpec);
         this.ruleSpec = ruleSpec;
+    }
+
+    ShieldIpFilterRule(boolean isAllowRule, TransportAddress... addresses) {
+        this.ruleSpec = getRuleSpec(addresses);
+        this.ipFilterRule = getRule(isAllowRule, ruleSpec);
     }
 
     @Override
@@ -90,12 +100,21 @@ public class ShieldIpFilterRule implements IpFilterRule {
         return builder.toString();
     }
 
-    private static IpFilterRule getRule(boolean isAllowRule, String value) {
-        if ("_all".equals(value)) {
+    static IpFilterRule getRule(boolean isAllowRule, String value) {
+        String[] values = value.split(",");
+        int allRuleIndex = Arrays.binarySearch(values, 0, values.length, "_all");
+        if (allRuleIndex >= 0) {
+            // all rule was found. It should be the only rule!
+            if (values.length != 1) {
+                throw new IllegalArgumentException("rules that specify _all may not have other values!");
+            }
             return isAllowRule ? ACCEPT_ALL : DENY_ALL;
         }
 
         if (value.contains("/")) {
+            if (values.length != 1) {
+                throw new IllegalArgumentException("multiple subnet filters cannot be specified in a single rule!");
+            }
             try {
                 return new IpSubnetFilterRule(isAllowRule, value);
             } catch (UnknownHostException e) {
@@ -103,9 +122,40 @@ public class ShieldIpFilterRule implements IpFilterRule {
             }
         }
 
-        boolean isInetAddress = InetAddresses.isInetAddress(value);
-        String prefix = isInetAddress ? "i:" : "n:";
-        return new PatternRule(isAllowRule, prefix + value);
+        boolean firstAdded = false;
+        StringBuilder ruleSpec = new StringBuilder();
+        for (String singleValue : values) {
+            if (firstAdded) {
+                ruleSpec.append(",");
+            } else {
+                firstAdded = true;
+            }
+
+            boolean isInetAddress = InetAddresses.isInetAddress(singleValue);
+            if (isInetAddress) {
+                ruleSpec.append("i:");
+            } else {
+                ruleSpec.append("n:");
+            }
+            ruleSpec.append(singleValue);
+        }
+
+        return new PatternRule(isAllowRule, ruleSpec.toString());
     }
 
+    static String getRuleSpec(TransportAddress... addresses) {
+        StringBuilder ruleSpec = new StringBuilder();
+        boolean firstAdded = false;
+        for (TransportAddress transportAddress : addresses) {
+            if (firstAdded) {
+                ruleSpec.append(",");
+            } else {
+                firstAdded = true;
+            }
+
+            assert transportAddress instanceof InetSocketTransportAddress;
+            ruleSpec.append(NetworkAddress.formatAddress(((InetSocketTransportAddress) transportAddress).address().getAddress()));
+        }
+        return ruleSpec.toString();
+    }
 }

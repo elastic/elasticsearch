@@ -71,7 +71,7 @@ public class PkiAuthenticationTests extends ShieldIntegTestCase {
     public void testTransportClientCanAuthenticateViaPki() {
         Settings settings = ShieldSettingsSource.getSSLSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testnode.jks", "testnode");
         try (TransportClient client = createTransportClient(settings)) {
-            client.addTransportAddress(internalCluster().getInstance(Transport.class).boundAddress().boundAddress());
+            client.addTransportAddress(randomFrom(internalCluster().getInstance(Transport.class).boundAddress().boundAddresses()));
             IndexResponse response = client.prepareIndex("foo", "bar").setSource("pki", "auth").get();
             assertThat(response.isCreated(), is(true));
         }
@@ -84,7 +84,7 @@ public class PkiAuthenticationTests extends ShieldIntegTestCase {
     @Test(expected = NoNodeAvailableException.class)
     public void testTransportClientAuthenticationFailure() {
         try (TransportClient client = createTransportClient(Settings.EMPTY)) {
-            client.addTransportAddress(internalCluster().getInstance(Transport.class).boundAddress().boundAddress());
+            client.addTransportAddress(randomFrom(internalCluster().getInstance(Transport.class).boundAddress().boundAddresses()));
             client.prepareIndex("foo", "bar").setSource("pki", "auth").get();
             fail("transport client should not have been able to authenticate");
         }
@@ -144,7 +144,7 @@ public class PkiAuthenticationTests extends ShieldIntegTestCase {
     }
 
     private String getNodeUrl() {
-        TransportAddress transportAddress = internalCluster().getInstance(HttpServerTransport.class).boundAddress().boundAddress();
+        TransportAddress transportAddress = randomFrom(internalCluster().getInstance(HttpServerTransport.class).boundAddress().boundAddresses());
         assertThat(transportAddress, is(instanceOf(InetSocketTransportAddress.class)));
         InetSocketTransportAddress inetSocketTransportAddress = (InetSocketTransportAddress) transportAddress;
         return String.format(Locale.ROOT, "https://localhost:%s/", inetSocketTransportAddress.address().getPort());

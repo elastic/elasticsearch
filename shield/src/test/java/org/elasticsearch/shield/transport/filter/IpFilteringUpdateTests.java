@@ -10,6 +10,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ShieldIntegTestCase;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import java.net.InetAddress;
@@ -24,14 +25,23 @@ import static org.hamcrest.Matchers.is;
 @ClusterScope(scope = TEST, numDataNodes = 1)
 public class IpFilteringUpdateTests extends ShieldIntegTestCase {
 
+    private static int randomClientPort;
+
     private final boolean httpEnabled = randomBoolean();
+
+    @BeforeClass
+    public static void getRandomPort() {
+        randomClientPort = randomIntBetween(49000, 65500);
+    }
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
+        String randomClientPortRange = randomClientPort + "-" + (randomClientPort+100);
         return settingsBuilder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put(Node.HTTP_ENABLED, httpEnabled)
                 .put("shield.transport.filter.deny", "127.0.0.200")
+                .put("transport.profiles.client.port", randomClientPortRange)
                 .build();
     }
 
@@ -127,16 +137,16 @@ public class IpFilteringUpdateTests extends ShieldIntegTestCase {
     @Test
     public void testThatDisablingIpFilterForProfilesWorksAsExpected() throws Exception {
         Settings settings = settingsBuilder()
-                .put("transport.profiles.myprofile.shield.filter.deny", "127.0.0.8")
+                .put("transport.profiles.client.shield.filter.deny", "127.0.0.8")
                 .build();
         updateSettings(settings);
-        assertConnectionRejected("myprofile", "127.0.0.8");
+        assertConnectionRejected("client", "127.0.0.8");
 
         settings = settingsBuilder()
                 .put("shield.transport.filter.enabled", false)
                 .build();
         updateSettings(settings);
-        assertConnectionAccepted("myprofile", "127.0.0.8");
+        assertConnectionAccepted("client", "127.0.0.8");
     }
 
 

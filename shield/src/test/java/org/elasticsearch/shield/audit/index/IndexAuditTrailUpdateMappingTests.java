@@ -11,6 +11,7 @@ import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.DummyTransportAddress;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.shield.authc.AuthenticationService;
 import org.elasticsearch.test.*;
@@ -48,7 +49,7 @@ public class IndexAuditTrailUpdateMappingTests extends ShieldIntegTestCase {
         AuthenticationService authService = mock(AuthenticationService.class);
         Settings settings = Settings.builder().put("shield.audit.index.rollover", rollover.name().toLowerCase(Locale.ENGLISH)).put("path.home", createTempDir()).build();
         Transport transport = mock(Transport.class);
-        when(transport.boundAddress()).thenReturn(new BoundTransportAddress(DummyTransportAddress.INSTANCE, DummyTransportAddress.INSTANCE));
+        when(transport.boundAddress()).thenReturn(new BoundTransportAddress(new TransportAddress[] { DummyTransportAddress.INSTANCE }, DummyTransportAddress.INSTANCE));
         Environment env = new Environment(settings);
         IndexAuditTrail auditor = new IndexAuditTrail(settings, new IndexAuditUserHolder(), env, authService, transport, Providers.of(client()), threadPool, mock(ClusterService.class));
 

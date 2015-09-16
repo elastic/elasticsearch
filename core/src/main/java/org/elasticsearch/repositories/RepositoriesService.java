@@ -19,14 +19,9 @@
 
 package org.elasticsearch.repositories;
 
-import com.google.common.base.Joiner;
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
-import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateRequest;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -45,10 +40,8 @@ import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 
@@ -571,9 +564,10 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
         }
 
         public String failureDescription() {
-            StringBuilder builder = new StringBuilder('[');
-            Joiner.on(", ").appendTo(builder, failures);
-            return builder.append(']').toString();
+            return Arrays
+                    .stream(failures)
+                    .map(failure -> failure.toString())
+                    .collect(Collectors.joining(", ", "[", "]"));
         }
 
     }

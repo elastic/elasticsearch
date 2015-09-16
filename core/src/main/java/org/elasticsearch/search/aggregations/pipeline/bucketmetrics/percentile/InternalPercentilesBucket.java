@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.pipeline.bucketmetrics.percentile;
 
-import com.google.common.collect.UnmodifiableIterator;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -136,7 +135,7 @@ public class InternalPercentilesBucket extends InternalNumericMetricsAggregation
         return builder;
     }
 
-    public static class Iter extends UnmodifiableIterator<Percentile> {
+    public static class Iter implements Iterator<Percentile> {
 
         private final double[] percents;
         private final double[] percentiles;
@@ -158,6 +157,11 @@ public class InternalPercentilesBucket extends InternalNumericMetricsAggregation
             final Percentile next = new InternalPercentile(percents[i], percentiles[i]);
             ++i;
             return next;
+        }
+
+        @Override
+        public final void remove() {
+            throw new UnsupportedOperationException();
         }
     }
 }

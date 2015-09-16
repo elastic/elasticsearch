@@ -19,8 +19,6 @@
 
 package org.elasticsearch.common.util;
 
-import com.google.common.base.Preconditions;
-
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.RamUsageEstimator;
 
@@ -95,7 +93,9 @@ final class BigDoubleArray extends AbstractBigArray implements DoubleArray {
 
     @Override
     public void fill(long fromIndex, long toIndex, double value) {
-        Preconditions.checkArgument(fromIndex <= toIndex);
+        if (fromIndex > toIndex) {
+            throw new IllegalArgumentException();
+        }
         final long longBits = Double.doubleToRawLongBits(value);
         final int fromPage = pageIndex(fromIndex);
         final int toPage = pageIndex(toIndex - 1);

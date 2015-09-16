@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.common.util;
 
-import com.google.common.math.LongMath;
 import com.google.common.primitives.Ints;
 import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.DataOutput;
@@ -33,7 +32,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.SizeValue;
 
 import java.io.IOException;
-import java.math.RoundingMode;
 import java.util.Arrays;
 import java.util.Comparator;
 
@@ -321,7 +319,13 @@ public class BloomFilter {
         long bitCount;
 
         BitArray(long bits) {
-            this(new long[Ints.checkedCast(LongMath.divide(bits, 64, RoundingMode.CEILING))]);
+            this(new long[size(bits)]);
+        }
+
+        private static int size(long bits) {
+            long quotient = bits / 64;
+            long remainder = bits - quotient * 64;
+            return Ints.checkedCast(remainder == 0 ? quotient : 1 + quotient);
         }
 
         // Used by serialization

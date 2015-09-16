@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.suggest.context;
 
-import com.google.common.collect.Iterables;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.search.suggest.analyzing.XAnalyzingSuggester;
 import org.apache.lucene.util.automaton.Automata;
@@ -36,13 +35,7 @@ import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.SortedMap;
-import java.util.TreeMap;
+import java.util.*;
 
 /**
  * A {@link ContextMapping} is used t define a context that may used
@@ -157,7 +150,7 @@ public abstract class ContextMapping implements ToXContent {
      * @return true if both arguments are equal
      */
     public static boolean mappingsAreEqual(SortedMap<String, ? extends ContextMapping> thisMappings, SortedMap<String, ? extends ContextMapping> otherMappings) {
-        return Iterables.elementsEqual(thisMappings.entrySet(), otherMappings.entrySet());
+        return thisMappings.entrySet().equals(otherMappings.entrySet());
     }
 
     @Override

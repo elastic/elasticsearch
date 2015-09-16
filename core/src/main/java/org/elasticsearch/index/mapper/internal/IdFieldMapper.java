@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.mapper.internal;
 
-import com.google.common.collect.Iterables;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
@@ -38,6 +37,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.FieldDataType;
@@ -60,7 +60,7 @@ import java.util.Map;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseField;
 
 /**
- * 
+ *
  */
 public class IdFieldMapper extends MetadataFieldMapper {
 
@@ -236,7 +236,7 @@ public class IdFieldMapper extends MetadataFieldMapper {
         super(NAME, fieldType, Defaults.FIELD_TYPE, indexSettings);
         this.path = path;
     }
-    
+
     private static MappedFieldType idFieldType(Settings indexSettings, MappedFieldType existing) {
         if (existing != null) {
             return existing.clone();

@@ -27,8 +27,6 @@ import org.elasticsearch.common.inject.spi.TypeListener;
 
 import java.lang.annotation.Annotation;
 
-import static com.google.common.base.Preconditions.checkState;
-
 /**
  * A module whose configuration information is hidden from its environment by default. Only bindings
  * that are explicitly exposed will be available to other modules and to the users of the injector.
@@ -93,7 +91,9 @@ public abstract class PrivateModule implements Module {
 
     @Override
     public final synchronized void configure(Binder binder) {
-        checkState(this.binder == null, "Re-entry is not allowed.");
+        if (this.binder != null) {
+            throw new IllegalStateException("Re-entry is not allowed.");
+        }
 
         // Guice treats PrivateModules specially and passes in a PrivateBinder automatically.
         this.binder = (PrivateBinder) binder.skipSources(PrivateModule.class);

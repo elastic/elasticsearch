@@ -19,7 +19,6 @@
 
 package org.elasticsearch.cluster.service;
 
-import com.google.common.collect.Iterables;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.ClusterState.Builder;
@@ -42,6 +41,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.common.util.concurrent.*;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoveryService;
@@ -89,10 +89,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
     private final Collection<ClusterStateListener> lastClusterStateListeners = new CopyOnWriteArrayList<>();
     // TODO this is rather frequently changing I guess a Synced Set would be better here and a dedicated remove API
     private final Collection<ClusterStateListener> postAppliedListeners = new CopyOnWriteArrayList<>();
-    private final Iterable<ClusterStateListener> preAppliedListeners = Iterables.concat(
-            priorityClusterStateListeners,
-            clusterStateListeners,
-            lastClusterStateListeners);
+    private final Iterable<ClusterStateListener> preAppliedListeners = Iterables.concat(priorityClusterStateListeners, clusterStateListeners, lastClusterStateListeners);
 
     private final LocalNodeMasterListeners localNodeMasterListeners;
 

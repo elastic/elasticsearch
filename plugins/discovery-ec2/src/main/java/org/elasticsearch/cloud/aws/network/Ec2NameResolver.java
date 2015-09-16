@@ -20,7 +20,6 @@
 package org.elasticsearch.cloud.aws.network;
 
 import org.apache.lucene.util.IOUtils;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cloud.aws.AwsEc2Service;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.network.NetworkService.CustomNameResolver;
@@ -113,9 +112,9 @@ public class Ec2NameResolver extends AbstractComponent implements CustomNameReso
             return new InetAddress[] { InetAddress.getByName(metadataResult) };
         } catch (IOException e) {
             if (warnOnFailure) {
-                logger.warn("failed to get metadata for [" + type.configName + "]: " + ExceptionsHelper.detailedMessage(e));
+                logger.warn("failed to get metadata for [" + type.configName + "]", e);
             } else {
-                logger.debug("failed to get metadata for [" + type.configName + "]: " + ExceptionsHelper.detailedMessage(e));
+                logger.debug("failed to get metadata for [" + type.configName + "]", e);
             }
             return null;
         } finally {

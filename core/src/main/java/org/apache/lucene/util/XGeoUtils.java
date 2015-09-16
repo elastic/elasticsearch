@@ -30,7 +30,7 @@ public final class XGeoUtils {
     public static final short BITS = 31;
     private static final double LON_SCALE = (0x1L<<BITS)/360.0D;
     private static final double LAT_SCALE = (0x1L<<BITS)/180.0D;
-    public static final double TOLERANCE = 1E-6;
+    public static final double TOLERANCE = 1E-5;
 
     /** Minimum longitude value. */
     public static final double MIN_LON_INCL = -180.0D;

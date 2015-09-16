@@ -587,7 +587,7 @@ public class IndexNameExpressionResolver extends AbstractComponent {
                 if (Regex.isMatchAllPattern(expression)) {
                     // Can only happen if the expressions was initially: '-*'
                     matches = metaData.getAliasAndIndexLookup();
-                } else if (expression.endsWith("*")) {
+                } else if (expression.indexOf("*") == expression.length() - 1) {
                     // Suffix wildcard:
                     assert expression.length() >= 2 : "expression [" + expression + "] should have at least a length of 2";
                     String fromPrefix = expression.substring(0, expression.length() - 1);

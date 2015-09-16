@@ -20,7 +20,6 @@
 package org.elasticsearch.common.util;
 
 import com.carrotsearch.hppc.BitMixer;
-import com.google.common.base.Preconditions;
 import org.elasticsearch.common.lease.Releasable;
 
 /**
@@ -48,8 +47,12 @@ abstract class AbstractPagedHashMap implements Releasable {
     long mask;
 
     AbstractPagedHashMap(long capacity, float maxLoadFactor, BigArrays bigArrays) {
-        Preconditions.checkArgument(capacity >= 0, "capacity must be >= 0");
-        Preconditions.checkArgument(maxLoadFactor > 0 && maxLoadFactor < 1, "maxLoadFactor must be > 0 and < 1");
+        if (capacity < 0) {
+            throw new IllegalArgumentException("capacity must be >= 0");
+        }
+        if (maxLoadFactor <= 0 || maxLoadFactor >= 1) {
+            throw new IllegalArgumentException("maxLoadFactor must be > 0 and < 1");
+        }
         this.bigArrays = bigArrays;
         this.maxLoadFactor = maxLoadFactor;
         long buckets = 1L + (long) (capacity / maxLoadFactor);

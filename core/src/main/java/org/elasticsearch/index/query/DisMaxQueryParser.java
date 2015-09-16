@@ -32,10 +32,6 @@ import java.util.List;
  */
 public class DisMaxQueryParser extends BaseQueryParser<DisMaxQueryBuilder> {
 
-    @Inject
-    public DisMaxQueryParser() {
-    }
-
     @Override
     public String[] names() {
         return new String[]{DisMaxQueryBuilder.NAME, Strings.toCamelCase(DisMaxQueryBuilder.NAME)};

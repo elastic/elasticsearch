@@ -27,10 +27,6 @@ import java.io.IOException;
 
 public class MatchNoneQueryParser extends BaseQueryParser {
 
-    @Inject
-    public MatchNoneQueryParser() {
-    }
-
     @Override
     public String[] names() {
         return new String[]{MatchNoneQueryBuilder.NAME, Strings.toCamelCase(MatchNoneQueryBuilder.NAME)};

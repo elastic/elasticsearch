@@ -29,10 +29,6 @@ import java.io.IOException;
  */
 public class WrapperQueryParser extends BaseQueryParser {
 
-    @Inject
-    public WrapperQueryParser() {
-    }
-
     @Override
     public String[] names() {
         return new String[]{WrapperQueryBuilder.NAME};

@@ -29,10 +29,6 @@ import java.io.IOException;
  */
 public class ExistsQueryParser extends BaseQueryParser<ExistsQueryBuilder> {
 
-    @Inject
-    public ExistsQueryParser() {
-    }
-
     @Override
     public String[] names() {
         return new String[]{ExistsQueryBuilder.NAME};

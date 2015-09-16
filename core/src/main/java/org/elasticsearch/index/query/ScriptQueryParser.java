@@ -35,10 +35,6 @@ import java.util.Map;
  */
 public class ScriptQueryParser extends BaseQueryParser<ScriptQueryBuilder> {
 
-    @Inject
-    public ScriptQueryParser() {
-    }
-
     @Override
     public String[] names() {
         return new String[]{ScriptQueryBuilder.NAME};

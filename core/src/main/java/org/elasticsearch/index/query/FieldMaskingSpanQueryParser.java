@@ -29,10 +29,6 @@ import java.io.IOException;
  */
 public class FieldMaskingSpanQueryParser extends BaseQueryParser<FieldMaskingSpanQueryBuilder> {
 
-    @Inject
-    public FieldMaskingSpanQueryParser() {
-    }
-
     @Override
     public String[] names() {
         return new String[]{FieldMaskingSpanQueryBuilder.NAME, Strings.toCamelCase(FieldMaskingSpanQueryBuilder.NAME)};

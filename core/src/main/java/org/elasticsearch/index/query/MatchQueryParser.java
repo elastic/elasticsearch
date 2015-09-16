@@ -33,10 +33,6 @@ import java.io.IOException;
  */
 public class MatchQueryParser extends BaseQueryParser {
 
-    @Inject
-    public MatchQueryParser() {
-    }
-
     @Override
     public String[] names() {
         return new String[]{

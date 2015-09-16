@@ -37,10 +37,6 @@ public class QueryStringQueryParser extends BaseQueryParser {
 
     private static final ParseField FUZZINESS = Fuzziness.FIELD.withDeprecation("fuzzy_min_sim");
 
-    @Inject
-    public QueryStringQueryParser() {
-    }
-
     @Override
     public String[] names() {
         return new String[]{QueryStringQueryBuilder.NAME, Strings.toCamelCase(QueryStringQueryBuilder.NAME)};

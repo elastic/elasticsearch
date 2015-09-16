@@ -58,10 +58,6 @@ public class GeoBoundingBoxQueryParser extends BaseQueryParserTemp {
 
     public static final String FIELD = "field";
 
-    @Inject
-    public GeoBoundingBoxQueryParser() {
-    }
-
     @Override
     public String[] names() {
         return new String[]{GeoBoundingBoxQueryBuilder.NAME, "geoBbox", "geo_bounding_box", "geoBoundingBox"};

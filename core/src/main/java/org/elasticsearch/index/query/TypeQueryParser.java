@@ -30,10 +30,6 @@ import java.io.IOException;
  */
 public class TypeQueryParser extends BaseQueryParser<TypeQueryBuilder> {
 
-    @Inject
-    public TypeQueryParser() {
-    }
-
     @Override
     public String[] names() {
         return new String[]{TypeQueryBuilder.NAME};

@@ -37,10 +37,6 @@ import java.util.Map;
  */
 public class MultiMatchQueryParser extends BaseQueryParserTemp {
 
-    @Inject
-    public MultiMatchQueryParser() {
-    }
-
     @Override
     public String[] names() {
         return new String[]{

@@ -29,10 +29,6 @@ import java.io.IOException;
  */
 public class MissingQueryParser extends BaseQueryParser<MissingQueryBuilder> {
 
-    @Inject
-    public MissingQueryParser() {
-    }
-
     @Override
     public String[] names() {
         return new String[]{MissingQueryBuilder.NAME};

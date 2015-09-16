@@ -29,10 +29,6 @@ import java.io.IOException;
  */
 public class CommonTermsQueryParser extends BaseQueryParser<CommonTermsQueryBuilder> {
 
-    @Inject
-    public CommonTermsQueryParser() {
-    }
-
     @Override
     public String[] names() {
         return new String[] { CommonTermsQueryBuilder.NAME };

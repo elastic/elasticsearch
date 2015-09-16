@@ -56,10 +56,6 @@ public class GeoDistanceRangeQueryParser extends BaseQueryParser<GeoDistanceRang
     public static final ParseField COERCE_FIELD = new ParseField("coerce", "normalize");
     public static final ParseField IGNORE_MALFORMED_FIELD = new ParseField("ignore_malformed");
 
-    @Inject
-    public GeoDistanceRangeQueryParser() {
-    }
-
     @Override
     public String[] names() {
         return new String[]{GeoDistanceRangeQueryBuilder.NAME, "geoDistanceRange"};

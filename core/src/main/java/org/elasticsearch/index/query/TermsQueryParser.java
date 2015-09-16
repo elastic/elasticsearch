@@ -43,10 +43,6 @@ public class TermsQueryParser extends BaseQueryParser {
     private static final ParseField DISABLE_COORD_FIELD = new ParseField("disable_coord").withAllDeprecated("Use [bool] query instead");
     private static final ParseField EXECUTION_FIELD = new ParseField("execution").withAllDeprecated("execution is deprecated and has no effect");
 
-    @Inject
-    public TermsQueryParser() {
-    }
-
     @Override
     public String[] names() {
         return new String[]{TermsQueryBuilder.NAME, "in"};

@@ -33,10 +33,6 @@ public class TermQueryParser extends BaseQueryParser<TermQueryBuilder> {
     private static final ParseField NAME_FIELD = new ParseField("_name").withAllDeprecated("query name is not supported in short version of term query");
     private static final ParseField BOOST_FIELD = new ParseField("boost").withAllDeprecated("boost is not supported in short version of term query");
 
-    @Inject
-    public TermQueryParser() {
-    }
-
     @Override
     public String[] names() {
         return new String[]{TermQueryBuilder.NAME};

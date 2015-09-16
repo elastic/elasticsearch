@@ -30,10 +30,6 @@ import java.io.IOException;
  */
 public class SpanTermQueryParser extends BaseQueryParser<SpanTermQueryBuilder> {
 
-    @Inject
-    public SpanTermQueryParser() {
-    }
-
     @Override
     public String[] names() {
         return new String[]{SpanTermQueryBuilder.NAME, Strings.toCamelCase(SpanTermQueryBuilder.NAME)};

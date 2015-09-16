@@ -32,10 +32,6 @@ import java.util.List;
  */
 public class SpanNearQueryParser extends BaseQueryParser<SpanNearQueryBuilder> {
 
-    @Inject
-    public SpanNearQueryParser() {
-    }
-
     @Override
     public String[] names() {
         return new String[]{SpanNearQueryBuilder.NAME, Strings.toCamelCase(SpanNearQueryBuilder.NAME)};

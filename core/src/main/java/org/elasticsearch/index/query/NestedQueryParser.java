@@ -42,7 +42,6 @@ public class NestedQueryParser extends BaseQueryParser<NestedQueryBuilder> {
     private static final ParseField FILTER_FIELD = new ParseField("filter").withAllDeprecated("query");
     private static final NestedQueryBuilder PROTOTYPE = new NestedQueryBuilder("", EmptyQueryBuilder.PROTOTYPE);
 
-
     @Override
     public String[] names() {
         return new String[]{NestedQueryBuilder.NAME, Strings.toCamelCase(NestedQueryBuilder.NAME)};

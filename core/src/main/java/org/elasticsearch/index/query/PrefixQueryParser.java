@@ -32,10 +32,6 @@ public class PrefixQueryParser extends BaseQueryParser<PrefixQueryBuilder> {
 
     private static final ParseField NAME_FIELD = new ParseField("_name").withAllDeprecated("query name is not supported in short version of prefix query");
 
-    @Inject
-    public PrefixQueryParser() {
-    }
-
     @Override
     public String[] names() {
         return new String[]{PrefixQueryBuilder.NAME};

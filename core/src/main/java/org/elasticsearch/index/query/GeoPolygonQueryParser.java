@@ -48,10 +48,6 @@ public class GeoPolygonQueryParser extends BaseQueryParser<GeoPolygonQueryBuilde
     public static final ParseField IGNORE_MALFORMED_FIELD = new ParseField("ignore_malformed");
     public static final ParseField POINTS_FIELD = new ParseField("points");
 
-    @Inject
-    public GeoPolygonQueryParser() {
-    }
-
     @Override
     public String[] names() {
         return new String[]{GeoPolygonQueryBuilder.NAME, "geoPolygon"};

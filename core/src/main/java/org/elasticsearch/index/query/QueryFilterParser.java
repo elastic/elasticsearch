@@ -31,10 +31,6 @@ import java.io.IOException;
 @Deprecated
 public class QueryFilterParser extends BaseQueryParser<QueryFilterBuilder> {
 
-    @Inject
-    public QueryFilterParser() {
-    }
-
     @Override
     public String[] names() {
         return new String[]{QueryFilterBuilder.NAME};

@@ -29,10 +29,6 @@ import java.io.IOException;
  */
 public class BoostingQueryParser extends BaseQueryParser<BoostingQueryBuilder> {
 
-    @Inject
-    public BoostingQueryParser() {
-    }
-
     @Override
     public String[] names() {
         return new String[]{BoostingQueryBuilder.NAME};

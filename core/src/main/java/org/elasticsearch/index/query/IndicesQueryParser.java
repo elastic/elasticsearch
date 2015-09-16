@@ -35,10 +35,6 @@ public class IndicesQueryParser extends BaseQueryParser {
     private static final ParseField QUERY_FIELD = new ParseField("query", "filter");
     private static final ParseField NO_MATCH_QUERY = new ParseField("no_match_query", "no_match_filter");
 
-    @Inject
-    public IndicesQueryParser() {
-    }
-
     @Override
     public String[] names() {
         return new String[]{IndicesQueryBuilder.NAME};

@@ -31,10 +31,6 @@ public class SpanMultiTermQueryParser extends BaseQueryParser<SpanMultiTermQuery
 
     public static final String MATCH_NAME = "match";
 
-    @Inject
-    public SpanMultiTermQueryParser() {
-    }
-
     @Override
     public String[] names() {
         return new String[]{SpanMultiTermQueryBuilder.NAME, Strings.toCamelCase(SpanMultiTermQueryBuilder.NAME)};

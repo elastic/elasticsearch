@@ -32,10 +32,6 @@ public class RegexpQueryParser extends BaseQueryParser<RegexpQueryBuilder> {
 
     private static final ParseField NAME_FIELD = new ParseField("_name").withAllDeprecated("query name is not supported in short version of regexp query");
 
-    @Inject
-    public RegexpQueryParser() {
-    }
-
     @Override
     public String[] names() {
         return new String[]{RegexpQueryBuilder.NAME};

@@ -29,10 +29,6 @@ import java.io.IOException;
  */
 public class WildcardQueryParser extends BaseQueryParser<WildcardQueryBuilder> {
 
-    @Inject
-    public WildcardQueryParser() {
-    }
-
     @Override
     public String[] names() {
         return new String[]{WildcardQueryBuilder.NAME};

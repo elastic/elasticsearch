@@ -62,11 +62,6 @@ import java.util.Map;
  */
 public class SimpleQueryStringParser extends BaseQueryParser<SimpleQueryStringBuilder> {
 
-    @Inject
-    public SimpleQueryStringParser() {
-
-    }
-
     @Override
     public String[] names() {
         return new String[]{SimpleQueryStringBuilder.NAME, Strings.toCamelCase(SimpleQueryStringBuilder.NAME)};

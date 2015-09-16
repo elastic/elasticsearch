@@ -33,10 +33,6 @@ public class ConstantScoreQueryParser extends BaseQueryParser<ConstantScoreQuery
 
     private static final ParseField INNER_QUERY_FIELD = new ParseField("filter", "query");
 
-    @Inject
-    public ConstantScoreQueryParser() {
-    }
-
     @Override
     public String[] names() {
         return new String[]{ConstantScoreQueryBuilder.NAME, Strings.toCamelCase(ConstantScoreQueryBuilder.NAME)};

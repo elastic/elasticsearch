@@ -31,10 +31,6 @@ public class FuzzyQueryParser extends BaseQueryParser {
 
     private static final ParseField FUZZINESS = Fuzziness.FIELD.withDeprecation("min_similarity");
 
-    @Inject
-    public FuzzyQueryParser() {
-    }
-
     @Override
     public String[] names() {
         return new String[]{ FuzzyQueryBuilder.NAME };

@@ -32,10 +32,6 @@ public class NotQueryParser extends BaseQueryParser<NotQueryBuilder> {
 
     private static final ParseField QUERY_FIELD = new ParseField("query", "filter");
 
-    @Inject
-    public NotQueryParser() {
-    }
-
     @Override
     public String[] names() {
         return new String[]{NotQueryBuilder.NAME};

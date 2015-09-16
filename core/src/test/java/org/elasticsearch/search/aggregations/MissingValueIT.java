@@ -26,6 +26,7 @@ import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.metrics.cardinality.Cardinality;
 import org.elasticsearch.search.aggregations.metrics.geobounds.GeoBounds;
+import org.elasticsearch.search.aggregations.metrics.geocentroid.GeoCentroid;
 import org.elasticsearch.search.aggregations.metrics.percentiles.Percentiles;
 import org.elasticsearch.search.aggregations.metrics.stats.Stats;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -33,6 +34,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.cardinality;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.dateHistogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.geoBounds;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.geoCentroid;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.percentiles;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.stats;
@@ -190,6 +192,13 @@ public class MissingValueIT extends ESIntegTestCase {
         GeoBounds bounds = response.getAggregations().get("bounds");
         assertEquals(new GeoPoint(1,2), bounds.bottomRight());
         assertEquals(new GeoPoint(2,1), bounds.topLeft());
+    }
+
+    public void testGeoCentroid() {
+        SearchResponse response = client().prepareSearch("idx").addAggregation(geoCentroid("centroid").field("location").missing("2,1")).get();
+        assertSearchResponse(response);
+        GeoCentroid centroid = response.getAggregations().get("centroid");
+        assertEquals(new GeoPoint(1.5, 1.5), centroid.centroid());
     }
 
 }

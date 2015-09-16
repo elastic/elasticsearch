@@ -18,6 +18,7 @@ include 'plugins:discovery-multicast'
 include 'plugins:lang-javascript'
 include 'plugins:lang-python'
 include 'plugins:mapper-murmur3'
+include 'plugins:mapper-size'
 include 'plugins:jvm-example'
 include 'plugins:site-example'
 

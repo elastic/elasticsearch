@@ -31,7 +31,7 @@ import org.elasticsearch.repositories.RepositoryName;
 public class URLIndexShardRepository extends BlobStoreIndexShardRepository {
 
     @Inject
-    URLIndexShardRepository(Settings settings, RepositoryName repositoryName, IndicesService indicesService, ClusterService clusterService) {
+    public URLIndexShardRepository(Settings settings, RepositoryName repositoryName, IndicesService indicesService, ClusterService clusterService) {
         super(settings, repositoryName, indicesService, clusterService);
     }
 

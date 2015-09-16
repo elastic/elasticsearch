@@ -23,6 +23,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.lucene.search.function.FieldValueFactorFunction;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -378,8 +379,8 @@ public class FunctionScoreIT extends ESIntegTestCase {
                 .endObject()
                 .endObject().string();
         SearchResponse response = client().search(
-                searchRequest().source(query)
-        ).actionGet();
+                searchRequest().source(new BytesArray(query))
+                ).actionGet();
         assertSearchResponse(response);
         assertThat(response.getHits().getAt(0).score(), equalTo(2.0f));
 
@@ -391,7 +392,7 @@ public class FunctionScoreIT extends ESIntegTestCase {
                 .endObject()
                 .endObject().string();
         response = client().search(
-                searchRequest().source(query)
+                searchRequest().source(new BytesArray(query))
         ).actionGet();
         assertSearchResponse(response);
         assertThat(response.getHits().getAt(0).score(), equalTo(2.0f));

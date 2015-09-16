@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.fielddata.plain;
 
-import com.google.common.base.Preconditions;
 import org.apache.lucene.index.*;
 import org.apache.lucene.util.*;
 import org.apache.lucene.util.BitSet;
@@ -73,7 +72,9 @@ public class PackedArrayIndexFieldData extends AbstractIndexFieldData<AtomicNume
                                      CircuitBreakerService breakerService) {
         super(index, indexSettings, fieldNames, fieldDataType, cache);
         Objects.requireNonNull(numericType);
-        Preconditions.checkArgument(EnumSet.of(NumericType.BOOLEAN, NumericType.BYTE, NumericType.SHORT, NumericType.INT, NumericType.LONG).contains(numericType), getClass().getSimpleName() + " only supports integer types, not " + numericType);
+        if (!EnumSet.of(NumericType.BOOLEAN, NumericType.BYTE, NumericType.SHORT, NumericType.INT, NumericType.LONG).contains(numericType)) {
+            throw new IllegalArgumentException(getClass().getSimpleName() + " only supports integer types, not " + numericType);
+        }
         this.numericType = numericType;
         this.breakerService = breakerService;
     }

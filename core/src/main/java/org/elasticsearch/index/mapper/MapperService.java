@@ -20,7 +20,6 @@
 package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.hppc.ObjectHashSet;
-import com.google.common.base.Function;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterators;
@@ -70,6 +69,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.function.Function;
 
 import static org.elasticsearch.common.collect.MapBuilder.newMapBuilder;
 
@@ -83,22 +83,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             "_uid", "_id", "_type", "_all", "_parent", "_routing", "_index",
             "_size", "_timestamp", "_ttl"
     );
-
-    private static final Function<MappedFieldType, Analyzer> INDEX_ANALYZER_EXTRACTOR = new Function<MappedFieldType, Analyzer>() {
-        public Analyzer apply(MappedFieldType fieldType) {
-            return fieldType.indexAnalyzer();
-        }
-    };
-    private static final Function<MappedFieldType, Analyzer> SEARCH_ANALYZER_EXTRACTOR = new Function<MappedFieldType, Analyzer>() {
-        public Analyzer apply(MappedFieldType fieldType) {
-            return fieldType.searchAnalyzer();
-        }
-    };
-    private static final Function<MappedFieldType, Analyzer> SEARCH_QUOTE_ANALYZER_EXTRACTOR = new Function<MappedFieldType, Analyzer>() {
-        public Analyzer apply(MappedFieldType fieldType) {
-            return fieldType.searchQuoteAnalyzer();
-        }
-    };
 
     private final AnalysisService analysisService;
 
@@ -142,9 +126,9 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         this.analysisService = analysisService;
         this.fieldTypes = new FieldTypeLookup();
         this.documentParser = new DocumentMapperParser(indexSettings, this, analysisService, similarityLookupService, scriptService);
-        this.indexAnalyzer = new MapperAnalyzerWrapper(analysisService.defaultIndexAnalyzer(), INDEX_ANALYZER_EXTRACTOR);
-        this.searchAnalyzer = new MapperAnalyzerWrapper(analysisService.defaultSearchAnalyzer(), SEARCH_ANALYZER_EXTRACTOR);
-        this.searchQuoteAnalyzer = new MapperAnalyzerWrapper(analysisService.defaultSearchQuoteAnalyzer(), SEARCH_QUOTE_ANALYZER_EXTRACTOR);
+        this.indexAnalyzer = new MapperAnalyzerWrapper(analysisService.defaultIndexAnalyzer(), p -> p.indexAnalyzer());
+        this.searchAnalyzer = new MapperAnalyzerWrapper(analysisService.defaultSearchAnalyzer(), p -> p.searchAnalyzer());
+        this.searchQuoteAnalyzer = new MapperAnalyzerWrapper(analysisService.defaultSearchQuoteAnalyzer(), p -> p.searchQuoteAnalyzer());
 
         this.dynamic = indexSettings.getAsBoolean("index.mapper.dynamic", true);
         defaultPercolatorMappingSource = "{\n" +
@@ -194,17 +178,14 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      *                                As is this not really an active type, you would typically set this to false
      */
     public Iterable<DocumentMapper> docMappers(final boolean includingDefaultMapping) {
-        return  new Iterable<DocumentMapper>() {
-            @Override
-            public Iterator<DocumentMapper> iterator() {
-                final Iterator<DocumentMapper> iterator;
-                if (includingDefaultMapping) {
-                    iterator = mappers.values().iterator();
-                } else {
-                    iterator = mappers.values().stream().filter(mapper -> !DEFAULT_MAPPING.equals(mapper.type())).iterator();
-                }
-                return Iterators.unmodifiableIterator(iterator);
+        return () -> {
+            final Iterator<DocumentMapper> iterator;
+            if (includingDefaultMapping) {
+                iterator = mappers.values().iterator();
+            } else {
+                iterator = mappers.values().stream().filter(mapper -> !DEFAULT_MAPPING.equals(mapper.type())).iterator();
             }
+            return Iterators.unmodifiableIterator(iterator);
         };
     }
 

@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.validate;
 
-import com.google.common.base.Charsets;
+import java.nio.charset.StandardCharsets;
 
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryResponse;
@@ -68,7 +68,7 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
 
         refresh();
 
-        assertThat(client().admin().indices().prepareValidateQuery("test").setSource("foo".getBytes(Charsets.UTF_8)).execute().actionGet().isValid(), equalTo(false));
+        assertThat(client().admin().indices().prepareValidateQuery("test").setSource("foo".getBytes(StandardCharsets.UTF_8)).execute().actionGet().isValid(), equalTo(false));
         assertThat(client().admin().indices().prepareValidateQuery("test").setQuery(QueryBuilders.queryStringQuery("_id:1")).execute().actionGet().isValid(), equalTo(true));
         assertThat(client().admin().indices().prepareValidateQuery("test").setQuery(QueryBuilders.queryStringQuery("_i:d:1")).execute().actionGet().isValid(), equalTo(false));
 
@@ -97,7 +97,7 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
 
         for (Client client : internalCluster()) {
             ValidateQueryResponse response = client.admin().indices().prepareValidateQuery("test")
-                    .setSource("foo".getBytes(Charsets.UTF_8))
+                    .setSource("foo".getBytes(StandardCharsets.UTF_8))
                     .setExplain(true)
                     .execute().actionGet();
             assertThat(response.isValid(), equalTo(false));

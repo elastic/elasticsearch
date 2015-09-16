@@ -19,7 +19,6 @@
 
 package org.elasticsearch.threadpool;
 
-import com.google.common.util.concurrent.MoreExecutors;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.test.ESTestCase;
@@ -62,7 +61,7 @@ public class UpdateThreadPoolSettingsTests extends ESTestCase {
         // Replace with different type
         threadPool.updateSettings(settingsBuilder().put("threadpool.search.type", "same").build());
         assertThat(info(threadPool, Names.SEARCH).getType(), equalTo("same"));
-        assertThat(threadPool.executor(Names.SEARCH), instanceOf(MoreExecutors.directExecutor().getClass()));
+        assertThat(threadPool.executor(Names.SEARCH), is(ThreadPool.DIRECT_EXECUTOR));
 
         // Replace with different type again
         threadPool.updateSettings(settingsBuilder()

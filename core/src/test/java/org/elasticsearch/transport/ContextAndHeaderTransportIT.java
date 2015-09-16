@@ -358,10 +358,7 @@ public class ContextAndHeaderTransportIT extends ESIntegTestCase {
         Map<String, Object> params = new HashMap<>();
         params.put("query_string", "star wars");
 
-        SearchResponse searchResponse = transportClient().prepareSearch(queryIndex)
-                .setTemplateName("the_template")
-                .setTemplateParams(params)
-                .setTemplateType(ScriptService.ScriptType.INDEXED)
+        SearchResponse searchResponse = transportClient().prepareSearch(queryIndex).setTemplate(new Template("the_template", ScriptType.INDEXED, MustacheScriptEngineService.NAME, null, params))
                 .get();
 
         assertNoFailures(searchResponse);

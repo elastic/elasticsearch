@@ -18,14 +18,9 @@
  */
 package org.elasticsearch.test.rest.section;
 
-import com.google.common.base.Joiner;
 import com.google.common.collect.ImmutableMap;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
  * Represents a test fragment that contains the information needed to call an api
@@ -52,7 +47,7 @@ public class ApiCallSection {
     public void addParam(String key, String value) {
         String existingValue = params.get(key);
         if (existingValue != null) {
-            value = Joiner.on(",").join(existingValue, value);
+            value = existingValue + "," + value;
         }
         this.params.put(key, value);
     }

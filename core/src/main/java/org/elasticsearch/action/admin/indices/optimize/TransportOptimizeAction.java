@@ -52,7 +52,7 @@ public class TransportOptimizeAction extends TransportBroadcastByNodeAction<Opti
                                    TransportService transportService, IndicesService indicesService,
                                    ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
         super(settings, OptimizeAction.NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
-                OptimizeRequest.class, ThreadPool.Names.OPTIMIZE);
+                OptimizeRequest::new, ThreadPool.Names.OPTIMIZE);
         this.indicesService = indicesService;
     }
 

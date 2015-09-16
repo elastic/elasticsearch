@@ -19,7 +19,7 @@
 
 package org.elasticsearch.node.internal;
 
-import com.google.common.base.Charsets;
+import java.nio.charset.StandardCharsets;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
@@ -221,7 +221,7 @@ public class InternalSettingsPreparer {
 
         try {
             List<String> names = new ArrayList<>();
-            try (BufferedReader reader = new BufferedReader(new InputStreamReader(input, Charsets.UTF_8))) {
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(input, StandardCharsets.UTF_8))) {
                 String name = reader.readLine();
                 while (name != null) {
                     names.add(name);

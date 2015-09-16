@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.analysis;
 
-import com.google.common.base.Charsets;
+import java.nio.charset.StandardCharsets;
 import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.NumericTokenStream;
@@ -235,7 +235,7 @@ public class Analysis {
 
         final Path wordListFile = env.configFile().resolve(wordListPath);
 
-        try (BufferedReader reader = FileSystemUtils.newBufferedReader(wordListFile.toUri().toURL(), Charsets.UTF_8)) {
+        try (BufferedReader reader = FileSystemUtils.newBufferedReader(wordListFile.toUri().toURL(), StandardCharsets.UTF_8)) {
             return loadWordList(reader, "#");
         } catch (IOException ioe) {
             String message = String.format(Locale.ROOT, "IOException while reading %s_path: %s", settingPrefix, ioe.getMessage());
@@ -283,7 +283,7 @@ public class Analysis {
         final Path path = env.configFile().resolve(filePath);
 
         try {
-            return FileSystemUtils.newBufferedReader(path.toUri().toURL(), Charsets.UTF_8);
+            return FileSystemUtils.newBufferedReader(path.toUri().toURL(), StandardCharsets.UTF_8);
         } catch (IOException ioe) {
             String message = String.format(Locale.ROOT, "IOException while reading %s_path: %s", settingPrefix, ioe.getMessage());
             throw new IllegalArgumentException(message);

@@ -40,7 +40,7 @@ public class MultiGetShardRequest extends SingleShardRequest<MultiGetShardReques
     IntArrayList locations;
     List<MultiGetRequest.Item> items;
 
-    MultiGetShardRequest() {
+    public MultiGetShardRequest() {
 
     }
 

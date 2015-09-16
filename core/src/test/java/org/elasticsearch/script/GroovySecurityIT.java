@@ -22,7 +22,9 @@ package org.elasticsearch.script;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.script.groovy.GroovyScriptExecutionException;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
@@ -31,6 +33,7 @@ import java.util.Locale;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.instanceOf;
 
 /**
  * Tests for the Groovy security permissions
@@ -106,9 +109,9 @@ public class GroovySecurityIT extends ESIntegTestCase {
     private void assertSuccess(String script) {
         logger.info("--> script: " + script);
         SearchResponse resp = client().prepareSearch("test")
-                .setSource("{\"query\": {\"match_all\": {}}," +
-                        "\"sort\":{\"_script\": {\"script\": \""+ script +
-                        "; doc['foo'].value + 2\", \"type\": \"number\", \"lang\": \"groovy\"}}}").get();
+                .setSource(new BytesArray("{\"query\": {\"match_all\": {}}," +
+                        "\"sort\":{\"_script\": {\"script\": \"" + script +
+                        "; doc['foo'].value + 2\", \"type\": \"number\", \"lang\": \"groovy\"}}}")).get();
         assertNoFailures(resp);
         assertEquals(1, resp.getHits().getTotalHits());
         assertThat(resp.getHits().getAt(0).getSortValues(), equalTo(new Object[]{7.0}));
@@ -117,17 +120,18 @@ public class GroovySecurityIT extends ESIntegTestCase {
     private void assertFailure(String script) {
         logger.info("--> script: " + script);
         SearchResponse resp = client().prepareSearch("test")
-                 .setSource("{\"query\": {\"match_all\": {}}," +
-                            "\"sort\":{\"_script\": {\"script\": \""+ script +
-                            "; doc['foo'].value + 2\", \"type\": \"number\", \"lang\": \"groovy\"}}}").get();
+                 .setSource(new BytesArray("{\"query\": {\"match_all\": {}}," +
+                         "\"sort\":{\"_script\": {\"script\": \"" + script +
+                         "; doc['foo'].value + 2\", \"type\": \"number\", \"lang\": \"groovy\"}}}")).get();
         assertEquals(0, resp.getHits().getTotalHits());
         ShardSearchFailure fails[] = resp.getShardFailures();
         // TODO: GroovyScriptExecutionException needs work:
         // fix it to preserve cause so we don't do this flaky string-check stuff
         for (ShardSearchFailure fail : fails) {
+            assertThat(fail.getCause(), instanceOf(GroovyScriptExecutionException.class));
             assertTrue("unexpected exception" + fail.getCause(),
                        // different casing, depending on jvm impl...
-                       fail.getCause().toString().toLowerCase(Locale.ROOT).contains("accesscontrolexception[access denied"));
+                       fail.getCause().toString().toLowerCase(Locale.ROOT).contains("[access denied"));
         }
     }
 }

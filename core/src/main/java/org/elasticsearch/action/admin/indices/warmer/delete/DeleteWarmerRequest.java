@@ -42,7 +42,7 @@ public class DeleteWarmerRequest extends AcknowledgedRequest<DeleteWarmerRequest
     private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, false, true, false);
     private String[] indices = Strings.EMPTY_ARRAY;
 
-    DeleteWarmerRequest() {
+    public DeleteWarmerRequest() {
     }
 
     /**

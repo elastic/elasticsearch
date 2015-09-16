@@ -27,6 +27,7 @@ import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.fs.FsBlobStore;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.Streams;
@@ -42,7 +43,6 @@ import org.junit.Test;
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
 import java.util.Map;
 import java.util.concurrent.*;
 
@@ -122,9 +122,7 @@ public class BlobStoreFormatIT extends AbstractSnapshotIntegTestCase {
 
         public void write(T obj, BlobContainer blobContainer, String blobName) throws IOException {
             BytesReference bytes = write(obj);
-            try (OutputStream outputStream = blobContainer.createOutput(blobName)) {
-                bytes.writeTo(outputStream);
-            }
+            blobContainer.writeBlob(blobName, bytes);
         }
 
         private BytesReference write(T obj) throws IOException {
@@ -272,16 +270,14 @@ public class BlobStoreFormatIT extends AbstractSnapshotIntegTestCase {
     protected void randomCorruption(BlobContainer blobContainer, String blobName) throws IOException {
         byte[] buffer = new byte[(int) blobContainer.listBlobsByPrefix(blobName).get(blobName).length()];
         long originalChecksum = checksum(buffer);
-        try (InputStream inputStream = blobContainer.openInput(blobName)) {
+        try (InputStream inputStream = blobContainer.readBlob(blobName)) {
             Streams.readFully(inputStream, buffer);
         }
         do {
             int location = randomIntBetween(0, buffer.length - 1);
             buffer[location] = (byte) (buffer[location] ^ 42);
         } while (originalChecksum == checksum(buffer));
-        try (OutputStream outputStream = blobContainer.createOutput(blobName)) {
-            Streams.copy(buffer, outputStream);
-        }
+        blobContainer.writeBlob(blobName, new BytesArray(buffer));
     }
 
     private long checksum(byte[] buffer) throws IOException {

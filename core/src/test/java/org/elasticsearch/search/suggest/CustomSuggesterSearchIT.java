@@ -22,12 +22,14 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.junit.Test;
 
+import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
@@ -61,19 +63,16 @@ public class CustomSuggesterSearchIT extends ESIntegTestCase {
         String randomText = randomAsciiOfLength(10);
         String randomField = randomAsciiOfLength(10);
         String randomSuffix = randomAsciiOfLength(10);
-        SearchRequestBuilder searchRequestBuilder = client().prepareSearch("test").setTypes("test").setFrom(0).setSize(1);
-        XContentBuilder query = jsonBuilder().startObject()
-                .startObject("suggest")
-                .startObject("someName")
-                .field("text", randomText)
-                .startObject("custom")
-                .field("field", randomField)
-                .field("suffix", randomSuffix)
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject();
-        searchRequestBuilder.setExtraSource(query.bytes());
+        SearchRequestBuilder searchRequestBuilder = client().prepareSearch("test").setTypes("test").setFrom(0).setSize(1).addSuggestion(
+                new SuggestBuilder.SuggestionBuilder<SuggestBuilder.SuggestionBuilder>("someName", "custom") {
+                    @Override
+                    protected XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
+                        builder.field("field", randomField);
+                        builder.field("suffix", randomSuffix);
+                        return builder;
+                    }
+                }.text(randomText)
+        );
 
         SearchResponse searchResponse = searchRequestBuilder.execute().actionGet();
 

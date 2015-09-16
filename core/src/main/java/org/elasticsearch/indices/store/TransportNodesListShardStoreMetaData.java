@@ -78,7 +78,7 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesAction<T
                                                 IndicesService indicesService, NodeEnvironment nodeEnv, ActionFilters actionFilters,
                                                 IndexNameExpressionResolver indexNameExpressionResolver) {
         super(settings, ACTION_NAME, clusterName, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
-                Request.class, NodeRequest.class, ThreadPool.Names.FETCH_SHARD_STORE);
+                Request::new, NodeRequest::new, ThreadPool.Names.FETCH_SHARD_STORE);
         this.indicesService = indicesService;
         this.nodeEnv = nodeEnv;
     }
@@ -258,7 +258,7 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesAction<T
     }
 
 
-    static class Request extends BaseNodesRequest<Request> {
+    public static class Request extends BaseNodesRequest<Request> {
 
         private ShardId shardId;
 
@@ -331,13 +331,13 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesAction<T
     }
 
 
-    static class NodeRequest extends BaseNodeRequest {
+    public static class NodeRequest extends BaseNodeRequest {
 
         private ShardId shardId;
 
         private boolean unallocated;
 
-        NodeRequest() {
+        public NodeRequest() {
         }
 
         NodeRequest(String nodeId, TransportNodesListShardStoreMetaData.Request request) {

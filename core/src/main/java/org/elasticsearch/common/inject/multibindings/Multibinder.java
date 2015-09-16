@@ -193,7 +193,7 @@ public abstract class Multibinder<T> {
      * <p>We use a subclass to hide 'implements Module, Provider' from the public
      * API.
      */
-    static final class RealMultibinder<T> extends Multibinder<T>
+    public static final class RealMultibinder<T> extends Multibinder<T>
             implements Module, Provider<Set<T>>, HasDependencies {
 
         private final TypeLiteral<T> elementType;
@@ -236,7 +236,7 @@ public abstract class Multibinder<T> {
          * contents are only evaluated when get() is invoked.
          */
         @Inject
-        void initialize(Injector injector) {
+        public void initialize(Injector injector) {
             providers = new ArrayList<>();
             List<Dependency<?>> dependencies = new ArrayList<>();
             for (Binding<?> entry : injector.findBindingsByType(elementType)) {

@@ -19,12 +19,11 @@
 
 package org.elasticsearch.action.admin.indices.get;
 
-import com.google.common.collect.ObjectArrays;
-
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.info.ClusterInfoRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.ArrayUtils;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -115,7 +114,7 @@ public class GetIndexRequest extends ClusterInfoRequest<GetIndexRequest> {
         if (this.features == DEFAULT_FEATURES) {
             return features(features);
         } else {
-            return features(ObjectArrays.concat(featuresAsEnums(), features, Feature.class));
+            return features(ArrayUtils.concat(features(), features, Feature.class));
         }
     }
 

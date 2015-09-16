@@ -74,7 +74,7 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
                                   ScriptService scriptService, PageCacheRecycler pageCacheRecycler,
                                   BigArrays bigArrays, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
         super(settings, ExplainAction.NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
-                ExplainRequest.class, ThreadPool.Names.GET);
+                ExplainRequest::new, ThreadPool.Names.GET);
         this.indicesService = indicesService;
         this.scriptService = scriptService;
         this.pageCacheRecycler = pageCacheRecycler;

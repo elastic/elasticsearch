@@ -25,16 +25,7 @@ import org.elasticsearch.common.inject.spi.Element;
 import org.elasticsearch.common.inject.spi.ElementVisitor;
 import org.elasticsearch.common.inject.spi.PrivateElements;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
-
-import static com.google.common.base.Preconditions.checkArgument;
-import static com.google.common.base.Preconditions.checkState;
+import java.util.*;
 
 /**
  * @author jessewilson@google.com (Jesse Wilson)
@@ -88,7 +79,9 @@ public final class PrivateElementsImpl implements PrivateElements {
     }
 
     public void initInjector(Injector injector) {
-        checkState(this.injector == null, "injector already initialized");
+        if (this.injector != null) {
+            throw new IllegalStateException("injector already initialized");
+        }
         this.injector = Objects.requireNonNull(injector, "injector");
     }
 
@@ -137,7 +130,9 @@ public final class PrivateElementsImpl implements PrivateElements {
     public Object getExposedSource(Key<?> key) {
         getExposedKeys(); // ensure exposedKeysToSources is populated
         Object source = exposedKeysToSources.get(key);
-        checkArgument(source != null, "%s not exposed by %s.", key, this);
+        if (source == null) {
+            throw new IllegalArgumentException(key + " not exposed by " + ".");
+        }
         return source;
     }
 

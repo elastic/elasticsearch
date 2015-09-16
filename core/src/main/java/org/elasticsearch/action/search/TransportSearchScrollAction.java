@@ -48,7 +48,7 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
                                        TransportSearchScrollQueryAndFetchAction queryAndFetchAction,
                                        ActionFilters actionFilters,
                                        IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, SearchScrollAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, SearchScrollRequest.class);
+        super(settings, SearchScrollAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, SearchScrollRequest::new);
         this.queryThenFetchAction = queryThenFetchAction;
         this.queryAndFetchAction = queryAndFetchAction;
     }

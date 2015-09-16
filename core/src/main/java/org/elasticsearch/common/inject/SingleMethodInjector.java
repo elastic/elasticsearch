@@ -49,10 +49,6 @@ class SingleMethodInjector implements SingleMemberInjector {
         if (!Modifier.isPrivate(modifiers) && !Modifier.isProtected(modifiers)) {
         }
 
-        if (!Modifier.isPublic(modifiers)) {
-            method.setAccessible(true);
-        }
-
         return new MethodInvoker() {
             @Override
             public Object invoke(Object target, Object... parameters)

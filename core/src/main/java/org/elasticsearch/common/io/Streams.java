@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.io;
 
-import com.google.common.base.Charsets;
+import java.nio.charset.StandardCharsets;
 import org.elasticsearch.common.util.Callback;
 
 import java.io.BufferedReader;
@@ -234,7 +234,7 @@ public abstract class Streams {
     }
 
     public static void readAllLines(InputStream input, Callback<String> callback) throws IOException {
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(input, Charsets.UTF_8))) {
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(input, StandardCharsets.UTF_8))) {
             String line;
             while ((line = reader.readLine()) != null) {
                 callback.handle(line);

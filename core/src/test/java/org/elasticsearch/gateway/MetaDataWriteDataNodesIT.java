@@ -60,8 +60,8 @@ public class MetaDataWriteDataNodesIT extends ESIntegTestCase {
     public void testMetaIsRemovedIfAllShardsFromIndexRemoved() throws Exception {
         // this test checks that the index state is removed from a data only node once all shards have been allocated away from it
         String masterNode = internalCluster().startMasterOnlyNode(Settings.EMPTY);
-        Future<String> nodeName1 = internalCluster().startDataOnlyNodeAsync();
-        Future<String> nodeName2 = internalCluster().startDataOnlyNodeAsync();
+        InternalTestCluster.Async<String> nodeName1 = internalCluster().startDataOnlyNodeAsync();
+        InternalTestCluster.Async<String> nodeName2 = internalCluster().startDataOnlyNodeAsync();
         String node1 = nodeName1.get();
         String node2 = nodeName2.get();
 

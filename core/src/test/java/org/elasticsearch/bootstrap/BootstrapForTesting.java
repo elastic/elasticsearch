@@ -83,6 +83,13 @@ public class BootstrapForTesting {
         if (systemPropertyAsBoolean("tests.security.manager", true)) {
             try {
                 Security.setCodebaseProperties();
+                // if its an insecure plugin, its not easy to simulate here, since we don't have a real plugin install.
+                // we just do our best so unit testing can work. integration tests for such plugins are essential.
+                String artifact = System.getProperty("tests.artifact");
+                String insecurePluginProp = Security.INSECURE_PLUGINS.get(artifact);
+                if (insecurePluginProp != null) {
+                    System.setProperty(insecurePluginProp, "file:/-");
+                }
                 // initialize paths the same exact way as bootstrap.
                 Permissions perms = new Permissions();
                 // add permissions to everything in classpath
@@ -117,6 +124,15 @@ public class BootstrapForTesting {
                 Policy.setPolicy(new ESPolicy(perms));
                 System.setSecurityManager(new TestSecurityManager());
                 Security.selfTest();
+
+                if (insecurePluginProp != null) {
+                    // initialize the plugin class, in case it has one-time hacks (unit tests often won't do this)
+                    String clazz = System.getProperty("tests.plugin.classname");
+                    if (clazz == null) {
+                        throw new IllegalStateException("plugin classname is needed for insecure plugin unit tests");
+                    }
+                    Class.forName(clazz);
+                }
             } catch (Exception e) {
                 throw new RuntimeException("unable to install test security manager", e);
             }

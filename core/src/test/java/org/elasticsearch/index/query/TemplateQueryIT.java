@@ -99,7 +99,7 @@ public class TemplateQueryIT extends ESIntegTestCase {
                 "        }\n" +
                 "    }\n" +
                 "}";
-        SearchResponse sr = client().prepareSearch().setSource(request)
+        SearchResponse sr = client().prepareSearch().setSource(new BytesArray(request))
                 .execute().actionGet();
         assertNoFailures(sr);
         assertThat(sr.getHits().hits().length, equalTo(0));
@@ -115,7 +115,7 @@ public class TemplateQueryIT extends ESIntegTestCase {
                 "    \"size\":0" +
                 "}";
 
-        sr = client().prepareSearch().setSource(request)
+        sr = client().prepareSearch().setSource(new BytesArray(request))
                 .execute().actionGet();
         assertNoFailures(sr);
         assertThat(sr.getHits().hits().length, equalTo(0));

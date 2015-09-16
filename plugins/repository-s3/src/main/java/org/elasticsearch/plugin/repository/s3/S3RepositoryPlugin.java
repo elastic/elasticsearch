@@ -27,6 +27,8 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesModule;
 import org.elasticsearch.repositories.s3.S3Repository;
 
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -35,6 +37,23 @@ import java.util.Collections;
  *
  */
 public class S3RepositoryPlugin extends Plugin {
+    
+    static {
+        // This internal config is deserialized but with wrong access modifiers,
+        // cannot work without suppressAccessChecks permission right now. We force
+        // a one time load with elevated privileges as a workaround.
+        AccessController.doPrivileged(new PrivilegedAction<Void>() {
+            @Override
+            public Void run() {
+                try {
+                    Class.forName("com.amazonaws.internal.config.InternalConfig$Factory");
+                } catch (ClassNotFoundException e) {
+                    throw new RuntimeException("Unable to initialize internal aws config", e);
+                }
+                return null;
+            }
+        });
+    }
 
     @Override
     public String name() {

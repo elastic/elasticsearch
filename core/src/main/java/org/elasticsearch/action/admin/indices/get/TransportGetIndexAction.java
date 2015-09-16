@@ -50,7 +50,7 @@ public class TransportGetIndexAction extends TransportClusterInfoAction<GetIndex
     @Inject
     public TransportGetIndexAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                    ThreadPool threadPool, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, GetIndexAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, GetIndexRequest.class);
+        super(settings, GetIndexAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, GetIndexRequest::new);
     }
 
     @Override

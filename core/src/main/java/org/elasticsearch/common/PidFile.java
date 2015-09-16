@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.common;
 
-import com.google.common.base.Charsets;
+import java.nio.charset.StandardCharsets;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 
@@ -74,7 +74,7 @@ public final class PidFile {
         }
 
         try(OutputStream stream = Files.newOutputStream(path, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING)) {
-            stream.write(Long.toString(pid).getBytes(Charsets.UTF_8));
+            stream.write(Long.toString(pid).getBytes(StandardCharsets.UTF_8));
         }
 
         if (deleteOnExit) {

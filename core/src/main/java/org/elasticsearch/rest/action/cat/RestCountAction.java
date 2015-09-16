@@ -41,7 +41,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 public class RestCountAction extends AbstractCatAction {
 
     @Inject
-    protected RestCountAction(Settings settings, RestController restController, RestController controller, Client client) {
+    public RestCountAction(Settings settings, RestController restController, RestController controller, Client client) {
         super(settings, controller, client);
         restController.registerHandler(GET, "/_cat/count", this);
         restController.registerHandler(GET, "/_cat/count/{index}", this);

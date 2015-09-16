@@ -60,7 +60,7 @@ public class TransportMultiPercolateAction extends HandledTransportAction<MultiP
     public TransportMultiPercolateAction(Settings settings, ThreadPool threadPool, TransportShardMultiPercolateAction shardMultiPercolateAction,
                                          ClusterService clusterService, TransportService transportService, PercolatorService percolatorService,
                                          TransportMultiGetAction multiGetAction, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, MultiPercolateAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, MultiPercolateRequest.class);
+        super(settings, MultiPercolateAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, MultiPercolateRequest::new);
         this.shardMultiPercolateAction = shardMultiPercolateAction;
         this.clusterService = clusterService;
         this.percolatorService = percolatorService;
@@ -251,7 +251,7 @@ public class TransportMultiPercolateAction extends HandledTransportAction<MultiP
                     }
 
                     if (item.failed()) {
-                        shardResults.set(shardId.id(), new BroadcastShardOperationFailedException(shardId, item.error().string()));
+                        shardResults.set(shardId.id(), new BroadcastShardOperationFailedException(shardId, item.error()));
                     } else {
                         shardResults.set(shardId.id(), item.response());
                     }

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.xcontent;
 
-import com.google.common.base.Charsets;
+import java.nio.charset.StandardCharsets;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
@@ -1226,7 +1226,7 @@ public final class XContentBuilder implements BytesStream, Releasable {
     public String string() throws IOException {
         close();
         BytesArray bytesArray = bytes().toBytesArray();
-        return new String(bytesArray.array(), bytesArray.arrayOffset(), bytesArray.length(), Charsets.UTF_8);
+        return new String(bytesArray.array(), bytesArray.arrayOffset(), bytesArray.length(), StandardCharsets.UTF_8);
     }
 
 

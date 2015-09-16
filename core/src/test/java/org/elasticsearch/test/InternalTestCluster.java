@@ -24,10 +24,6 @@ import com.carrotsearch.randomizedtesting.SysGlobals;
 import com.carrotsearch.randomizedtesting.generators.RandomInts;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
-import com.google.common.collect.Iterators;
-import com.google.common.util.concurrent.Futures;
-import com.google.common.util.concurrent.ListenableFuture;
-import com.google.common.util.concurrent.SettableFuture;
 import org.apache.lucene.store.StoreRateLimiting;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
@@ -64,7 +60,6 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.IndexService;
@@ -118,8 +113,7 @@ import java.util.NavigableMap;
 import java.util.Random;
 import java.util.Set;
 import java.util.TreeMap;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
@@ -558,20 +552,22 @@ public final class InternalTestCluster extends TestCluster {
      * stop any of the running nodes.
      */
     public void ensureAtLeastNumDataNodes(int n) {
-        List<ListenableFuture<String>> futures = new ArrayList<>();
+        final List<Async<String>> asyncs = new ArrayList<>();
         synchronized (this) {
             int size = numDataNodes();
             for (int i = size; i < n; i++) {
                 logger.info("increasing cluster size from {} to {}", size, n);
-                futures.add(startNodeAsync());
+                asyncs.add(startNodeAsync());
             }
         }
         try {
-            Futures.allAsList(futures).get();
+            for (Async<String> async : asyncs) {
+                async.get();
+            }
         } catch (Exception e) {
             throw new ElasticsearchException("failed to start nodes", e);
         }
-        if (!futures.isEmpty()) {
+        if (!asyncs.isEmpty()) {
             synchronized (this) {
                 assertNoTimeout(client().admin().cluster().prepareHealth().setWaitForNodes(Integer.toString(nodes.size())).get());
             }
@@ -593,11 +589,11 @@ public final class InternalTestCluster extends TestCluster {
                 n == 0 ? nodes.values().stream() : nodes.values().stream().filter(new DataNodePredicate().and(new MasterNodePredicate(getMasterName()).negate()));
         final Iterator<NodeAndClient> values = collection.iterator();
 
-        final Iterator<NodeAndClient> limit = Iterators.limit(values, size - n);
         logger.info("changing cluster size from {} to {}, {} data nodes", size(), n + numSharedClientNodes, n);
         Set<NodeAndClient> nodesToRemove = new HashSet<>();
-        while (limit.hasNext()) {
-            NodeAndClient next = limit.next();
+        int numNodesAndClients = 0;
+        while (values.hasNext() && numNodesAndClients++ < size-n) {
+            NodeAndClient next = values.next();
             nodesToRemove.add(next);
             removeDisruptionSchemeFromNode(next);
             next.close();
@@ -1429,7 +1425,13 @@ public final class InternalTestCluster extends TestCluster {
                         .stream()
                         .filter(new EntryNodePredicate(new DataNodePredicate()))
                         .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-        return Sets.newHashSet(Iterators.limit(dataNodes.keySet().iterator(), numNodes));
+        final HashSet<String> set = new HashSet<>();
+        final Iterator<String> iterator = dataNodes.keySet().iterator();
+        for (int i = 0; i < numNodes; i++) {
+            assert iterator.hasNext();
+            set.add(iterator.next());
+        }
+        return set;
     }
 
     /**
@@ -1489,29 +1491,29 @@ public final class InternalTestCluster extends TestCluster {
         return buildNode.name;
     }
 
-    public synchronized ListenableFuture<List<String>> startMasterOnlyNodesAsync(int numNodes) {
+    public synchronized Async<List<String>> startMasterOnlyNodesAsync(int numNodes) {
         return startMasterOnlyNodesAsync(numNodes, Settings.EMPTY);
     }
 
-    public synchronized ListenableFuture<List<String>> startMasterOnlyNodesAsync(int numNodes, Settings settings) {
+    public synchronized Async<List<String>> startMasterOnlyNodesAsync(int numNodes, Settings settings) {
         Settings settings1 = Settings.builder().put(settings).put("node.master", true).put("node.data", false).build();
         return startNodesAsync(numNodes, settings1, Version.CURRENT);
     }
 
-    public synchronized ListenableFuture<List<String>> startDataOnlyNodesAsync(int numNodes) {
+    public synchronized Async<List<String>> startDataOnlyNodesAsync(int numNodes) {
         return startDataOnlyNodesAsync(numNodes, Settings.EMPTY);
     }
 
-    public synchronized ListenableFuture<List<String>> startDataOnlyNodesAsync(int numNodes, Settings settings) {
+    public synchronized Async<List<String>> startDataOnlyNodesAsync(int numNodes, Settings settings) {
         Settings settings1 = Settings.builder().put(settings).put("node.master", false).put("node.data", true).build();
         return startNodesAsync(numNodes, settings1, Version.CURRENT);
     }
 
-    public synchronized ListenableFuture<String> startMasterOnlyNodeAsync() {
+    public synchronized Async<String> startMasterOnlyNodeAsync() {
         return startMasterOnlyNodeAsync(Settings.EMPTY);
     }
 
-    public synchronized ListenableFuture<String> startMasterOnlyNodeAsync(Settings settings) {
+    public synchronized Async<String> startMasterOnlyNodeAsync(Settings settings) {
         Settings settings1 = Settings.builder().put(settings).put("node.master", true).put("node.data", false).build();
         return startNodeAsync(settings1, Version.CURRENT);
     }
@@ -1521,11 +1523,11 @@ public final class InternalTestCluster extends TestCluster {
         return startNode(settings1, Version.CURRENT);
     }
 
-    public synchronized ListenableFuture<String> startDataOnlyNodeAsync() {
+    public synchronized Async<String> startDataOnlyNodeAsync() {
         return startDataOnlyNodeAsync(Settings.EMPTY);
     }
 
-    public synchronized ListenableFuture<String> startDataOnlyNodeAsync(Settings settings) {
+    public synchronized Async<String> startDataOnlyNodeAsync(Settings settings) {
         Settings settings1 = Settings.builder().put(settings).put("node.master", false).put("node.data", true).build();
         return startNodeAsync(settings1, Version.CURRENT);
     }
@@ -1538,74 +1540,78 @@ public final class InternalTestCluster extends TestCluster {
     /**
      * Starts a node in an async manner with the given settings and returns future with its name.
      */
-    public synchronized ListenableFuture<String> startNodeAsync() {
+    public synchronized Async<String> startNodeAsync() {
         return startNodeAsync(Settings.EMPTY, Version.CURRENT);
     }
 
     /**
      * Starts a node in an async manner with the given settings and returns future with its name.
      */
-    public synchronized ListenableFuture<String> startNodeAsync(final Settings settings) {
+    public synchronized Async<String> startNodeAsync(final Settings settings) {
         return startNodeAsync(settings, Version.CURRENT);
     }
 
     /**
      * Starts a node in an async manner with the given settings and version and returns future with its name.
      */
-    public synchronized ListenableFuture<String> startNodeAsync(final Settings settings, final Version version) {
-        final SettableFuture<String> future = SettableFuture.create();
+    public synchronized Async<String> startNodeAsync(final Settings settings, final Version version) {
         final NodeAndClient buildNode = buildNode(settings, version);
-        Runnable startNode = new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    buildNode.node().start();
-                    publishNode(buildNode);
-                    future.set(buildNode.name);
-                } catch (Throwable t) {
-                    future.setException(t);
-                }
-            }
-        };
-        executor.execute(startNode);
-        return future;
+        final Future<String> submit = executor.submit(() -> {
+            buildNode.node().start();
+            publishNode(buildNode);
+            return buildNode.name;
+        });
+        return () -> submit.get();
     }
 
     /**
      * Starts multiple nodes in an async manner and returns future with its name.
      */
-    public synchronized ListenableFuture<List<String>> startNodesAsync(final int numNodes) {
+    public synchronized Async<List<String>> startNodesAsync(final int numNodes) {
         return startNodesAsync(numNodes, Settings.EMPTY, Version.CURRENT);
     }
 
     /**
      * Starts multiple nodes in an async manner with the given settings and returns future with its name.
      */
-    public synchronized ListenableFuture<List<String>> startNodesAsync(final int numNodes, final Settings settings) {
+    public synchronized Async<List<String>> startNodesAsync(final int numNodes, final Settings settings) {
         return startNodesAsync(numNodes, settings, Version.CURRENT);
     }
 
     /**
      * Starts multiple nodes in an async manner with the given settings and version and returns future with its name.
      */
-    public synchronized ListenableFuture<List<String>> startNodesAsync(final int numNodes, final Settings settings, final Version version) {
-        List<ListenableFuture<String>> futures = new ArrayList<>();
+    public synchronized Async<List<String>> startNodesAsync(final int numNodes, final Settings settings, final Version version) {
+        final List<Async<String>> asyncs = new ArrayList<>();
         for (int i = 0; i < numNodes; i++) {
-            futures.add(startNodeAsync(settings, version));
+            asyncs.add(startNodeAsync(settings, version));
         }
-        return Futures.allAsList(futures);
+        
+        return () -> {
+            List<String> ids = new ArrayList<>();
+            for (Async<String> async : asyncs) {
+                ids.add(async.get());
+            }
+            return ids;
+        };
     }
 
     /**
      * Starts multiple nodes (based on the number of settings provided) in an async manner, with explicit settings for each node.
      * The order of the node names returned matches the order of the settings provided.
      */
-    public synchronized ListenableFuture<List<String>> startNodesAsync(final Settings... settings) {
-        List<ListenableFuture<String>> futures = new ArrayList<>();
+    public synchronized Async<List<String>> startNodesAsync(final Settings... settings) {
+        List<Async<String>> asyncs = new ArrayList<>();
         for (Settings setting : settings) {
-            futures.add(startNodeAsync(setting, Version.CURRENT));
+            asyncs.add(startNodeAsync(setting, Version.CURRENT));
         }
-        return Futures.allAsList(futures);
+        return () -> {
+            List<String> ids = new ArrayList<>();
+            for (Async<String> async : asyncs) {
+                ids.add(async.get());
+            }
+            return ids;
+        };
     }
 
     private synchronized void publishNode(NodeAndClient nodeAndClient) {
@@ -1896,6 +1902,14 @@ public final class InternalTestCluster extends TestCluster {
                 }
             }
         }
+    }
+
+    /**
+     * Simple interface that allows to wait for an async operation to finish
+     * @param <T> the result of the async execution
+     */
+    public interface Async<T> {
+        T get() throws ExecutionException, InterruptedException;
     }
 
 }

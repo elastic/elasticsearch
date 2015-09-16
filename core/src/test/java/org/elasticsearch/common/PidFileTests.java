@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common;
 
-import com.google.common.base.Charsets;
+import java.nio.charset.StandardCharsets;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
@@ -38,7 +38,7 @@ public class PidFileTests extends ESTestCase {
     public void testParentIsFile() throws IOException {
         Path dir = createTempDir();
         Path parent = dir.resolve("foo");
-        try(BufferedWriter stream = Files.newBufferedWriter(parent, Charsets.UTF_8, StandardOpenOption.CREATE_NEW)) {
+        try(BufferedWriter stream = Files.newBufferedWriter(parent, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW)) {
             stream.write("foo");
         }
 
@@ -65,7 +65,7 @@ public class PidFileTests extends ESTestCase {
         Path pidFile = parent.resolve("foo.pid");
         long pid = randomLong();
         if (randomBoolean() && Files.exists(parent)) {
-            try (BufferedWriter stream = Files.newBufferedWriter(pidFile, Charsets.UTF_8, StandardOpenOption.CREATE_NEW)) {
+            try (BufferedWriter stream = Files.newBufferedWriter(pidFile, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW)) {
                 stream.write("foo");
             }
         }
@@ -75,6 +75,6 @@ public class PidFileTests extends ESTestCase {
         assertEquals(pid, inst.getPid());
         assertFalse(inst.isDeleteOnExit());
         assertTrue(Files.exists(pidFile));
-        assertEquals(pid, Long.parseLong(new String(Files.readAllBytes(pidFile), Charsets.UTF_8)));
+        assertEquals(pid, Long.parseLong(new String(Files.readAllBytes(pidFile), StandardCharsets.UTF_8)));
     }
 }

@@ -157,12 +157,10 @@ public class OsProbe {
      */
     private static Method getMethod(String methodName) {
         try {
-            Method method = osMxBean.getClass().getMethod(methodName);
-            method.setAccessible(true);
-            return method;
+            return Class.forName("com.sun.management.OperatingSystemMXBean").getMethod(methodName);
         } catch (Throwable t) {
             // not available
+            return null;
         }
-        return null;
     }
 }

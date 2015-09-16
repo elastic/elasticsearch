@@ -64,7 +64,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
     private Settings indexSettings = EMPTY_SETTINGS;
     private String[] ignoreIndexSettings = Strings.EMPTY_ARRAY;
 
-    RestoreSnapshotRequest() {
+    public RestoreSnapshotRequest() {
     }
 
     /**
@@ -537,7 +537,9 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
                         throw new IllegalArgumentException("malformed ignore_index_settings section, should be an array of strings");
                     }
             } else {
-                throw new IllegalArgumentException("Unknown parameter " + name);
+                if (IndicesOptions.isIndicesOptions(name) == false) {
+                    throw new IllegalArgumentException("Unknown parameter " + name);
+                }
             }
         }
         indicesOptions(IndicesOptions.fromMap((Map<String, Object>) source, IndicesOptions.lenientExpandOpen()));

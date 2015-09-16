@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.repositories.blobstore;
 
-import com.google.common.io.ByteStreams;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
@@ -29,6 +28,7 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;
@@ -36,9 +36,7 @@ import org.elasticsearch.common.lucene.store.IndexOutputOutputStream;
 import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.gateway.CorruptStateException;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
+import java.io.*;
 import java.util.Locale;
 
 /**
@@ -94,8 +92,10 @@ public class ChecksumBlobStoreFormat<T extends ToXContent> extends BlobStoreForm
      * @throws IOException
      */
     public T readBlob(BlobContainer blobContainer, String blobName) throws IOException {
-        try (InputStream inputStream = blobContainer.openInput(blobName)) {
-            byte[] bytes = ByteStreams.toByteArray(inputStream);
+        try (InputStream inputStream = blobContainer.readBlob(blobName)) {
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            Streams.copy(inputStream, out);
+            final byte[] bytes = out.toByteArray();
             final String resourceDesc = "ChecksumBlobStoreFormat.readBlob(blob=\"" + blobName + "\")";
             try (ByteArrayIndexInput indexInput = new ByteArrayIndexInput(resourceDesc, bytes)) {
                 CodecUtil.checksumEntireFile(indexInput);
@@ -163,9 +163,9 @@ public class ChecksumBlobStoreFormat<T extends ToXContent> extends BlobStoreForm
      */
     protected void writeBlob(T obj, BlobContainer blobContainer, String blobName) throws IOException {
         BytesReference bytes = write(obj);
-        try (OutputStream outputStream = blobContainer.createOutput(blobName)) {
+        try (ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream()) {
             final String resourceDesc = "ChecksumBlobStoreFormat.writeBlob(blob=\"" + blobName + "\")";
-            try (OutputStreamIndexOutput indexOutput = new OutputStreamIndexOutput(resourceDesc, outputStream, BUFFER_SIZE)) {
+            try (OutputStreamIndexOutput indexOutput = new OutputStreamIndexOutput(resourceDesc, byteArrayOutputStream, BUFFER_SIZE)) {
                 CodecUtil.writeHeader(indexOutput, codec, VERSION);
                 try (OutputStream indexOutputOutputStream = new IndexOutputOutputStream(indexOutput) {
                     @Override
@@ -177,6 +177,7 @@ public class ChecksumBlobStoreFormat<T extends ToXContent> extends BlobStoreForm
                 }
                 CodecUtil.writeFooter(indexOutput);
             }
+            blobContainer.writeBlob(blobName, new BytesArray(byteArrayOutputStream.toByteArray()));
         }
     }
 

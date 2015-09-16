@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.util;
 
-import com.google.common.base.Preconditions;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
@@ -42,8 +41,12 @@ abstract class AbstractBigArray extends AbstractArray {
     protected AbstractBigArray(int pageSize, BigArrays bigArrays, boolean clearOnResize) {
         super(bigArrays, clearOnResize);
         this.recycler = bigArrays.recycler;
-        Preconditions.checkArgument(pageSize >= 128, "pageSize must be >= 128");
-        Preconditions.checkArgument((pageSize & (pageSize - 1)) == 0, "pageSize must be a power of two");
+        if (pageSize < 128) {
+            throw new IllegalArgumentException("pageSize must be >= 128");
+        }
+        if ((pageSize & (pageSize - 1)) != 0) {
+            throw new IllegalArgumentException("pageSize must be a power of two");
+        }
         this.pageShift = Integer.numberOfTrailingZeros(pageSize);
         this.pageMask = pageSize - 1;
         size = 0;
@@ -56,7 +59,9 @@ abstract class AbstractBigArray extends AbstractArray {
 
     final int numPages(long capacity) {
         final long numPages = (capacity + pageMask) >>> pageShift;
-        Preconditions.checkArgument(numPages <= Integer.MAX_VALUE, "pageSize=" + (pageMask + 1) + " is too small for such as capacity: " + capacity);
+        if (numPages > Integer.MAX_VALUE) {
+            throw new IllegalArgumentException("pageSize=" + (pageMask + 1) + " is too small for such as capacity: " + capacity);
+        }
         return (int) numPages;
     }
 

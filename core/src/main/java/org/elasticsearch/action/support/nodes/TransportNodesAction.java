@@ -36,6 +36,7 @@ import org.elasticsearch.transport.*;
 
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
+import java.util.function.Supplier;
 
 /**
  *
@@ -50,7 +51,7 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
 
     protected TransportNodesAction(Settings settings, String actionName, ClusterName clusterName, ThreadPool threadPool,
                                    ClusterService clusterService, TransportService transportService, ActionFilters actionFilters,
-                                   IndexNameExpressionResolver indexNameExpressionResolver, Class<NodesRequest> request, Class<NodeRequest> nodeRequest,
+                                   IndexNameExpressionResolver indexNameExpressionResolver, Supplier<NodesRequest> request, Supplier<NodeRequest> nodeRequest,
                                    String nodeExecutor) {
         super(settings, actionName, threadPool, transportService, actionFilters, indexNameExpressionResolver, request);
         this.clusterName = clusterName;

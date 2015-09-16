@@ -65,7 +65,7 @@ public class LocalAllocateDangledIndices extends AbstractComponent {
         this.clusterService = clusterService;
         this.allocationService = allocationService;
         this.metaDataIndexUpgradeService = metaDataIndexUpgradeService;
-        transportService.registerRequestHandler(ACTION_NAME, AllocateDangledRequest.class, ThreadPool.Names.SAME, new AllocateDangledRequestHandler());
+        transportService.registerRequestHandler(ACTION_NAME, AllocateDangledRequest::new, ThreadPool.Names.SAME, new AllocateDangledRequestHandler());
     }
 
     public void allocateDangled(Collection<IndexMetaData> indices, final Listener listener) {
@@ -188,12 +188,12 @@ public class LocalAllocateDangledIndices extends AbstractComponent {
         }
     }
 
-    static class AllocateDangledRequest extends TransportRequest {
+    public static class AllocateDangledRequest extends TransportRequest {
 
         DiscoveryNode fromNode;
         IndexMetaData[] indices;
 
-        AllocateDangledRequest() {
+        public AllocateDangledRequest() {
         }
 
         AllocateDangledRequest(DiscoveryNode fromNode, IndexMetaData[] indices) {

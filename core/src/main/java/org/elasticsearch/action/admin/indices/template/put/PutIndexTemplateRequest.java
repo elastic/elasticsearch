@@ -74,7 +74,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
     
     private Map<String, IndexMetaData.Custom> customs = new HashMap<>();
 
-    PutIndexTemplateRequest() {
+    public PutIndexTemplateRequest() {
     }
 
     /**

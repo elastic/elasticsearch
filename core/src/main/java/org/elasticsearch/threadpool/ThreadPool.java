@@ -20,7 +20,6 @@
 package org.elasticsearch.threadpool;
 
 import com.google.common.collect.ImmutableMap;
-import com.google.common.util.concurrent.MoreExecutors;
 import org.apache.lucene.util.Counter;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -102,6 +101,8 @@ public class ThreadPool extends AbstractComponent {
 
     private boolean settingsListenerIsSet = false;
 
+    static final Executor DIRECT_EXECUTOR = command -> command.run();
+
 
     public ThreadPool(String name) {
         this(Settings.builder().put("name", name).build());
@@ -151,7 +152,7 @@ public class ThreadPool extends AbstractComponent {
             executors.put(entry.getKey(), build(entry.getKey(), entry.getValue(), Settings.EMPTY));
         }
 
-        executors.put(Names.SAME, new ExecutorHolder(MoreExecutors.directExecutor(), new Info(Names.SAME, "same")));
+        executors.put(Names.SAME, new ExecutorHolder(DIRECT_EXECUTOR, new Info(Names.SAME, "same")));
         if (!executors.get(Names.GENERIC).info.getType().equals("cached")) {
             throw new IllegalArgumentException("generic thread pool must be of type cached");
         }
@@ -322,7 +323,7 @@ public class ThreadPool extends AbstractComponent {
             } else {
                 logger.debug("creating thread_pool [{}], type [{}]", name, type);
             }
-            return new ExecutorHolder(MoreExecutors.directExecutor(), new Info(name, type));
+            return new ExecutorHolder(DIRECT_EXECUTOR, new Info(name, type));
         } else if ("cached".equals(type)) {
             TimeValue defaultKeepAlive = defaultSettings.getAsTime("keep_alive", timeValueMinutes(5));
             if (previousExecutorHolder != null) {
@@ -614,7 +615,7 @@ public class ThreadPool extends AbstractComponent {
         public final Info info;
 
         ExecutorHolder(Executor executor, Info info) {
-            assert executor instanceof EsThreadPoolExecutor || executor == MoreExecutors.directExecutor();
+            assert executor instanceof EsThreadPoolExecutor || executor == DIRECT_EXECUTOR;
             this.executor = executor;
             this.info = info;
         }

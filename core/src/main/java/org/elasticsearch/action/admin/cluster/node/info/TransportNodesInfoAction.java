@@ -50,7 +50,7 @@ public class TransportNodesInfoAction extends TransportNodesAction<NodesInfoRequ
                                     ClusterService clusterService, TransportService transportService,
                                     NodeService nodeService, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
         super(settings, NodesInfoAction.NAME, clusterName, threadPool, clusterService, transportService, actionFilters,
-                indexNameExpressionResolver, NodesInfoRequest.class, NodeInfoRequest.class, ThreadPool.Names.MANAGEMENT);
+                indexNameExpressionResolver, NodesInfoRequest::new, NodeInfoRequest::new, ThreadPool.Names.MANAGEMENT);
         this.nodeService = nodeService;
     }
 
@@ -88,11 +88,11 @@ public class TransportNodesInfoAction extends TransportNodesAction<NodesInfoRequ
         return false;
     }
 
-    static class NodeInfoRequest extends BaseNodeRequest {
+    public static class NodeInfoRequest extends BaseNodeRequest {
 
         NodesInfoRequest request;
 
-        NodeInfoRequest() {
+        public NodeInfoRequest() {
         }
 
         NodeInfoRequest(String nodeId, NodesInfoRequest request) {

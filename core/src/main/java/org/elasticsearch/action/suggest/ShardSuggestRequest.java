@@ -30,11 +30,11 @@ import java.io.IOException;
 /**
  * Internal suggest request executed directly against a specific index shard.
  */
-final class ShardSuggestRequest extends BroadcastShardRequest {
+public final class ShardSuggestRequest extends BroadcastShardRequest {
 
     private BytesReference suggestSource;
 
-    ShardSuggestRequest() {
+    public ShardSuggestRequest() {
     }
 
     ShardSuggestRequest(ShardId shardId, SuggestRequest request) {

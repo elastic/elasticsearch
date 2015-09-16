@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.common.bytes;
 
-import com.google.common.base.Charsets;
+import java.nio.charset.StandardCharsets;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -111,7 +111,7 @@ public class ChannelBufferBytesReference implements BytesReference {
 
     @Override
     public String toUtf8() {
-        return buffer.toString(Charsets.UTF_8);
+        return buffer.toString(StandardCharsets.UTF_8);
     }
 
     @Override

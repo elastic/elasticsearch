@@ -63,7 +63,7 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
     private long version = Versions.MATCH_ANY;
     private boolean ignoreErrorsOnGeneratedFields;
 
-    GetRequest() {
+    public GetRequest() {
         type = "_all";
     }
 

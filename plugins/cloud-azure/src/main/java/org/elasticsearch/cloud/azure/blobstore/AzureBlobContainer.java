@@ -23,7 +23,7 @@ import com.microsoft.azure.storage.StorageException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
-import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
+import org.elasticsearch.common.blobstore.support.AbstractLegacyBlobContainer;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.repositories.RepositoryException;
@@ -39,7 +39,7 @@ import java.util.Map;
 /**
  *
  */
-public class AzureBlobContainer extends AbstractBlobContainer {
+public class AzureBlobContainer extends AbstractLegacyBlobContainer {
 
     protected final ESLogger logger = Loggers.getLogger(AzureBlobContainer.class);
     protected final AzureBlobStore blobStore;

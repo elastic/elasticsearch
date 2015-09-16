@@ -48,7 +48,7 @@ public class TransportShardMultiTermsVectorAction extends TransportSingleShardAc
                                                 IndicesService indicesService, ThreadPool threadPool, ActionFilters actionFilters,
                                                 IndexNameExpressionResolver indexNameExpressionResolver) {
         super(settings, ACTION_NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
-                MultiTermVectorsShardRequest.class, ThreadPool.Names.GET);
+                MultiTermVectorsShardRequest::new, ThreadPool.Names.GET);
         this.indicesService = indicesService;
     }
 
@@ -90,7 +90,7 @@ public class TransportShardMultiTermsVectorAction extends TransportSingleShardAc
                 } else {
                     logger.debug("{} failed to execute multi term vectors for [{}]/[{}]", t, shardId, termVectorsRequest.type(), termVectorsRequest.id());
                     response.add(request.locations.get(i),
-                            new MultiTermVectorsResponse.Failure(request.index(), termVectorsRequest.type(), termVectorsRequest.id(), ExceptionsHelper.detailedMessage(t)));
+                            new MultiTermVectorsResponse.Failure(request.index(), termVectorsRequest.type(), termVectorsRequest.id(), t));
                 }
             }
         }

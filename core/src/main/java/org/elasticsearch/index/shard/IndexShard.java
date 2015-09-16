@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.shard;
 
-import com.google.common.base.Charsets;
+import java.nio.charset.StandardCharsets;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.search.QueryCachingPolicy;
@@ -115,9 +115,6 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
-/**
- *
- */
 public class IndexShard extends AbstractIndexShardComponent {
 
     private final ThreadPool threadPool;
@@ -985,15 +982,27 @@ public class IndexShard extends AbstractIndexShardComponent {
     }
 
     public void updateBufferSize(ByteSizeValue shardIndexingBufferSize, ByteSizeValue shardTranslogBufferSize) {
+
         final EngineConfig config = engineConfig;
         final ByteSizeValue preValue = config.getIndexingBufferSize();
+
         config.setIndexingBufferSize(shardIndexingBufferSize);
+
+        Engine engine = engineUnsafe();
+        if (engine == null) {
+            logger.debug("updateBufferSize: engine is closed; skipping");
+            return;
+        }
+
         // update engine if it is already started.
-        if (preValue.bytes() != shardIndexingBufferSize.bytes() && engineUnsafe() != null) {
-            // its inactive, make sure we do a refresh / full IW flush in this case, since the memory
-            // changes only after a "data" change has happened to the writer
-            // the index writer lazily allocates memory and a refresh will clean it all up.
-            if (shardIndexingBufferSize == EngineConfig.INACTIVE_SHARD_INDEXING_BUFFER && preValue != EngineConfig.INACTIVE_SHARD_INDEXING_BUFFER) {
+        if (preValue.bytes() != shardIndexingBufferSize.bytes()) {
+            // so we push changes these changes down to IndexWriter:
+            engine.onSettingsChanged();
+
+            if (shardIndexingBufferSize == EngineConfig.INACTIVE_SHARD_INDEXING_BUFFER) {
+                // it's inactive: make sure we do a refresh / full IW flush in this case, since the memory
+                // changes only after a "data" change has happened to the writer
+                // the index writer lazily allocates memory and a refresh will clean it all up.
                 logger.debug("updating index_buffer_size from [{}] to (inactive) [{}]", preValue, shardIndexingBufferSize);
                 try {
                     refresh("update index buffer");
@@ -1004,10 +1013,8 @@ public class IndexShard extends AbstractIndexShardComponent {
                 logger.debug("updating index_buffer_size from [{}] to [{}]", preValue, shardIndexingBufferSize);
             }
         }
-        Engine engine = engineUnsafe();
-        if (engine != null) {
-            engine.getTranslog().updateBuffer(shardTranslogBufferSize);
-        }
+
+        engine.getTranslog().updateBuffer(shardTranslogBufferSize);
     }
 
     public void markAsInactive() {
@@ -1129,7 +1136,7 @@ public class IndexShard extends AbstractIndexShardComponent {
             searchService.onRefreshSettings(settings);
             indexingService.onRefreshSettings(settings);
             if (change) {
-                refresh("apply settings");
+                engine().onSettingsChanged();
             }
         }
     }
@@ -1202,7 +1209,7 @@ public class IndexShard extends AbstractIndexShardComponent {
             return;
         }
         BytesStreamOutput os = new BytesStreamOutput();
-        PrintStream out = new PrintStream(os, false, Charsets.UTF_8.name());
+        PrintStream out = new PrintStream(os, false, StandardCharsets.UTF_8.name());
 
         if ("checksum".equalsIgnoreCase(checkIndexOnStartup)) {
             // physical verification only: verify all checksums for the latest commit
@@ -1220,7 +1227,7 @@ public class IndexShard extends AbstractIndexShardComponent {
             }
             out.flush();
             if (corrupt != null) {
-                logger.warn("check index [failure]\n{}", new String(os.bytes().toBytes(), Charsets.UTF_8));
+                logger.warn("check index [failure]\n{}", new String(os.bytes().toBytes(), StandardCharsets.UTF_8));
                 throw corrupt;
             }
         } else {
@@ -1235,7 +1242,7 @@ public class IndexShard extends AbstractIndexShardComponent {
                         // ignore if closed....
                         return;
                     }
-                    logger.warn("check index [failure]\n{}", new String(os.bytes().toBytes(), Charsets.UTF_8));
+                    logger.warn("check index [failure]\n{}", new String(os.bytes().toBytes(), StandardCharsets.UTF_8));
                     if ("fix".equalsIgnoreCase(checkIndexOnStartup)) {
                         if (logger.isDebugEnabled()) {
                             logger.debug("fixing index, writing new segments file ...");
@@ -1253,7 +1260,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         }
 
         if (logger.isDebugEnabled()) {
-            logger.debug("check index [success]\n{}", new String(os.bytes().toBytes(), Charsets.UTF_8));
+            logger.debug("check index [success]\n{}", new String(os.bytes().toBytes(), StandardCharsets.UTF_8));
         }
 
         recoveryState.getVerifyIndex().checkIndexTime(Math.max(0, TimeValue.nsecToMSec(System.nanoTime() - timeNS)));
@@ -1267,6 +1274,8 @@ public class IndexShard extends AbstractIndexShardComponent {
         return engine;
     }
 
+    /** NOTE: returns null if engine is not yet started (e.g. recovery phase 1, copying over index files, is still running), or if engine is
+     *  closed. */
     protected Engine engineUnsafe() {
         return this.currentEngineReference.get();
     }
@@ -1350,7 +1359,8 @@ public class IndexShard extends AbstractIndexShardComponent {
     }
 
     private final EngineConfig newEngineConfig(TranslogConfig translogConfig, QueryCachingPolicy cachingPolicy) {
-        final TranslogRecoveryPerformer translogRecoveryPerformer = new TranslogRecoveryPerformer(shardId, mapperService, queryParserService, indexAliasesService, indexCache) {
+        final TranslogRecoveryPerformer translogRecoveryPerformer = new TranslogRecoveryPerformer(shardId, mapperService, queryParserService,
+                indexAliasesService, indexCache, logger) {
             @Override
             protected void operationProcessed() {
                 assert recoveryState != null;

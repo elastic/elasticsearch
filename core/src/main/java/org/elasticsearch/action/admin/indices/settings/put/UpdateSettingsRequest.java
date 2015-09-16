@@ -48,7 +48,7 @@ public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsReq
     private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, false, true, true);
     private Settings settings = EMPTY_SETTINGS;
 
-    UpdateSettingsRequest() {
+    public UpdateSettingsRequest() {
     }
 
     /**

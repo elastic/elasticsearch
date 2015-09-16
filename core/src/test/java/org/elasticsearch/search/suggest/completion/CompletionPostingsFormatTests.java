@@ -244,11 +244,9 @@ public class CompletionPostingsFormatTests extends ESTestCase {
         fieldType.setProvider(currentProvider);
         final CompletionFieldMapper mapper = new CompletionFieldMapper("foo", fieldType, Integer.MAX_VALUE, indexSettings, FieldMapper.MultiFields.empty(), null);
         Lookup buildAnalyzingLookup = buildAnalyzingLookup(mapper, titles, titles, weights);
-        Field field = buildAnalyzingLookup.getClass().getDeclaredField("maxAnalyzedPathsForOneInput");
-        field.setAccessible(true);
-        Field refField = reference.getClass().getDeclaredField("maxAnalyzedPathsForOneInput");
-        refField.setAccessible(true);
-        assertThat(refField.get(reference), equalTo(field.get(buildAnalyzingLookup)));
+        if (buildAnalyzingLookup instanceof XAnalyzingSuggester) {
+            assertEquals(reference.getMaxAnalyzedPathsForOneInput(), ((XAnalyzingSuggester) buildAnalyzingLookup).getMaxAnalyzedPathsForOneInput());
+        }
 
         for (int i = 0; i < titles.length; i++) {
             int res = between(1, 10);

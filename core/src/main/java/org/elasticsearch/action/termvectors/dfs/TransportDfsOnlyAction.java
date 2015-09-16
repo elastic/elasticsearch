@@ -63,7 +63,7 @@ public class TransportDfsOnlyAction extends TransportBroadcastAction<DfsOnlyRequ
     public TransportDfsOnlyAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
                                   ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, SearchService searchService, SearchPhaseController searchPhaseController) {
         super(settings, NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
-                DfsOnlyRequest.class, ShardDfsOnlyRequest.class, ThreadPool.Names.SEARCH);
+                DfsOnlyRequest::new, ShardDfsOnlyRequest::new, ThreadPool.Names.SEARCH);
         this.searchService = searchService;
         this.searchPhaseController = searchPhaseController;
     }

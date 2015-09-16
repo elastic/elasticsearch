@@ -20,7 +20,6 @@
 package org.elasticsearch.cloud.aws.node;
 
 import org.apache.lucene.util.IOUtils;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cloud.aws.AwsEc2Service;
 import org.elasticsearch.cluster.node.DiscoveryNodeService;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -68,7 +67,7 @@ public class Ec2CustomNodeAttributes extends AbstractComponent implements Discov
             }
             ec2Attributes.put("aws_availability_zone", metadataResult);
         } catch (IOException e) {
-            logger.debug("failed to get metadata for [placement/availability-zone]: " + ExceptionsHelper.detailedMessage(e));
+            logger.debug("failed to get metadata for [placement/availability-zone]", e);
         } finally {
             IOUtils.closeWhileHandlingException(in);
         }

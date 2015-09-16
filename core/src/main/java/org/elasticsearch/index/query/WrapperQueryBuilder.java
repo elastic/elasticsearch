@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.query;
 
-import com.google.common.base.Charsets;
+import java.nio.charset.StandardCharsets;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
@@ -49,7 +49,7 @@ public class WrapperQueryBuilder extends QueryBuilder {
      * Creates a query builder given a query provided as a string
      */
     public WrapperQueryBuilder(String source) {
-        this.source = source.getBytes(Charsets.UTF_8);
+        this.source = source.getBytes(StandardCharsets.UTF_8);
         this.offset = 0;
         this.length = this.source.length;
     }

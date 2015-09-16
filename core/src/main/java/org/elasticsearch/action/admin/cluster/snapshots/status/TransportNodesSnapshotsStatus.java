@@ -65,7 +65,7 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<Transpor
                                          SnapshotShardsService snapshotShardsService, ActionFilters actionFilters,
                                          IndexNameExpressionResolver indexNameExpressionResolver) {
         super(settings, ACTION_NAME, clusterName, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
-                Request.class, NodeRequest.class, ThreadPool.Names.GENERIC);
+                Request::new, NodeRequest::new, ThreadPool.Names.GENERIC);
         this.snapshotShardsService = snapshotShardsService;
     }
 
@@ -137,7 +137,7 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<Transpor
         return true;
     }
 
-    static class Request extends BaseNodesRequest<Request> {
+    public static class Request extends BaseNodesRequest<Request> {
 
         private SnapshotId[] snapshotIds;
 
@@ -203,11 +203,11 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<Transpor
     }
 
 
-    static class NodeRequest extends BaseNodeRequest {
+    public static class NodeRequest extends BaseNodeRequest {
 
         private SnapshotId[] snapshotIds;
 
-        NodeRequest() {
+        public NodeRequest() {
         }
 
         NodeRequest(String nodeId, TransportNodesSnapshotsStatus.Request request) {

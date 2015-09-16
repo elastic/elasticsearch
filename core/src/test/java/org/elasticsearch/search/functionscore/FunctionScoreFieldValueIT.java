@@ -21,6 +21,7 @@ package org.elasticsearch.search.functionscore;
 
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.lucene.search.function.FieldValueFactorFunction;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
@@ -146,8 +147,8 @@ public class FunctionScoreFieldValueIT extends ESIntegTestCase {
             "  }" +
             "}";
           response = client().prepareSearch("test")
-          .setSource(querySource)
-          .get();
+          .setSource(new BytesArray(querySource))
+                  .get();
           assertFailures(response);
         } catch (SearchPhaseExecutionException e) {
           // This is fine, the query will throw an exception if executed

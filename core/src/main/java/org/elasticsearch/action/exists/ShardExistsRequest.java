@@ -29,7 +29,7 @@ import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 
-class ShardExistsRequest extends BroadcastShardRequest {
+public class ShardExistsRequest extends BroadcastShardRequest {
 
     private float minScore;
 
@@ -42,7 +42,7 @@ class ShardExistsRequest extends BroadcastShardRequest {
     @Nullable
     private String[] filteringAliases;
 
-    ShardExistsRequest() {
+    public ShardExistsRequest() {
     }
 
     ShardExistsRequest(ShardId shardId, @Nullable String[] filteringAliases, ExistsRequest request) {

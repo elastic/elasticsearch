@@ -50,7 +50,7 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
                                         IndicesService indicesService, ThreadPool threadPool, ActionFilters actionFilters,
                                         IndexNameExpressionResolver indexNameExpressionResolver) {
         super(settings, ACTION_NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
-                MultiGetShardRequest.class, ThreadPool.Names.GET);
+                MultiGetShardRequest::new, ThreadPool.Names.GET);
         this.indicesService = indicesService;
 
         this.realtime = settings.getAsBoolean("action.get.realtime", true);

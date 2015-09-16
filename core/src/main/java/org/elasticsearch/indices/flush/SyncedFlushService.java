@@ -76,9 +76,9 @@ public class SyncedFlushService extends AbstractComponent {
         this.transportService = transportService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
 
-        transportService.registerRequestHandler(PRE_SYNCED_FLUSH_ACTION_NAME, PreSyncedFlushRequest.class, ThreadPool.Names.FLUSH, new PreSyncedFlushTransportHandler());
-        transportService.registerRequestHandler(SYNCED_FLUSH_ACTION_NAME, SyncedFlushRequest.class, ThreadPool.Names.FLUSH, new SyncedFlushTransportHandler());
-        transportService.registerRequestHandler(IN_FLIGHT_OPS_ACTION_NAME, InFlightOpsRequest.class, ThreadPool.Names.SAME, new InFlightOpCountTransportHandler());
+        transportService.registerRequestHandler(PRE_SYNCED_FLUSH_ACTION_NAME, PreSyncedFlushRequest::new, ThreadPool.Names.FLUSH, new PreSyncedFlushTransportHandler());
+        transportService.registerRequestHandler(SYNCED_FLUSH_ACTION_NAME, SyncedFlushRequest::new, ThreadPool.Names.FLUSH, new SyncedFlushTransportHandler());
+        transportService.registerRequestHandler(IN_FLIGHT_OPS_ACTION_NAME, InFlightOpsRequest::new, ThreadPool.Names.SAME, new InFlightOpCountTransportHandler());
         indicesService.indicesLifecycle().addListener(new IndicesLifecycle.Listener() {
             @Override
             public void onShardInactive(final IndexShard indexShard) {
@@ -435,10 +435,10 @@ public class SyncedFlushService extends AbstractComponent {
         return new InFlightOpsResponse(opCount);
     }
 
-    final static class PreSyncedFlushRequest extends TransportRequest {
+    public final static class PreSyncedFlushRequest extends TransportRequest {
         private ShardId shardId;
 
-        PreSyncedFlushRequest() {
+        public PreSyncedFlushRequest() {
         }
 
         public PreSyncedFlushRequest(ShardId shardId) {
@@ -500,7 +500,7 @@ public class SyncedFlushService extends AbstractComponent {
         }
     }
 
-    static final class SyncedFlushRequest extends TransportRequest {
+    public static final class SyncedFlushRequest extends TransportRequest {
 
         private String syncId;
         private Engine.CommitId expectedCommitId;
@@ -600,7 +600,7 @@ public class SyncedFlushService extends AbstractComponent {
     }
 
 
-    static final class InFlightOpsRequest extends TransportRequest {
+    public static final class InFlightOpsRequest extends TransportRequest {
 
         private ShardId shardId;
 

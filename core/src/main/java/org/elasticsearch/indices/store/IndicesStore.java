@@ -109,7 +109,7 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
         this.indicesService = indicesService;
         this.clusterService = clusterService;
         this.transportService = transportService;
-        transportService.registerRequestHandler(ACTION_SHARD_EXISTS, ShardActiveRequest.class, ThreadPool.Names.SAME, new ShardActiveRequestHandler());
+        transportService.registerRequestHandler(ACTION_SHARD_EXISTS, ShardActiveRequest::new, ThreadPool.Names.SAME, new ShardActiveRequestHandler());
 
         // we don't limit by default (we default to CMS's auto throttle instead):
         this.rateLimitingType = settings.get("indices.store.throttle.type", StoreRateLimiting.Type.NONE.name());
@@ -396,13 +396,13 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
         }
     }
 
-    private static class ShardActiveRequest extends TransportRequest {
+    public static class ShardActiveRequest extends TransportRequest {
         protected TimeValue timeout = null;
         private ClusterName clusterName;
         private String indexUUID;
         private ShardId shardId;
 
-        ShardActiveRequest() {
+        public ShardActiveRequest() {
         }
 
         ShardActiveRequest(ClusterName clusterName, String indexUUID, ShardId shardId, TimeValue timeout) {

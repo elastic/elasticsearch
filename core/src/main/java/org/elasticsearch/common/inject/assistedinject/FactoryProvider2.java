@@ -17,18 +17,7 @@
 package org.elasticsearch.common.inject.assistedinject;
 
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Iterables;
-import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.inject.Binder;
-import org.elasticsearch.common.inject.Binding;
-import org.elasticsearch.common.inject.ConfigurationException;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.inject.Injector;
-import org.elasticsearch.common.inject.Key;
-import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.inject.Provider;
-import org.elasticsearch.common.inject.ProvisionException;
-import org.elasticsearch.common.inject.TypeLiteral;
+import org.elasticsearch.common.inject.*;
 import org.elasticsearch.common.inject.internal.Errors;
 import org.elasticsearch.common.inject.internal.ErrorsException;
 import org.elasticsearch.common.inject.spi.Message;
@@ -43,7 +32,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
-import static com.google.common.base.Preconditions.checkState;
 import static org.elasticsearch.common.inject.internal.Annotations.getKey;
 
 /**
@@ -53,7 +41,7 @@ import static org.elasticsearch.common.inject.internal.Annotations.getKey;
  * @author jessewilson@google.com (Jesse Wilson)
  * @author dtm@google.com (Daniel Martin)
  */
-final class FactoryProvider2<F> implements InvocationHandler, Provider<F> {
+public final class FactoryProvider2<F> implements InvocationHandler, Provider<F> {
 
     /**
      * if a factory method parameter isn't annotated, it gets this annotation.
@@ -173,7 +161,7 @@ final class FactoryProvider2<F> implements InvocationHandler, Provider<F> {
      * all factory methods will be able to build the target types.
      */
     @Inject
-    void initialize(Injector injector) {
+    public void initialize(Injector injector) {
         if (this.injector != null) {
             throw new ConfigurationException(Collections.singletonList(new Message(FactoryProvider2.class,
                 "Factories.create() factories may only be used in one Injector!")));
@@ -192,8 +180,9 @@ final class FactoryProvider2<F> implements InvocationHandler, Provider<F> {
      * Creates a child injector that binds the args, and returns the binding for the method's result.
      */
     public Binding<?> getBindingFromNewInjector(final Method method, final Object[] args) {
-        checkState(injector != null,
-                "Factories.create() factories cannot be used until they're initialized by Guice.");
+        if (injector == null) {
+            throw new IllegalStateException("Factories.create() factories cannot be used until they're initialized by Guice.");
+        }
 
         final Key<?> returnType = returnTypesByMethod.get(method);
 
@@ -237,7 +226,7 @@ final class FactoryProvider2<F> implements InvocationHandler, Provider<F> {
         } catch (ProvisionException e) {
             // if this is an exception declared by the factory method, throw it as-is
             if (e.getErrorMessages().size() == 1) {
-                Message onlyError = Iterables.getOnlyElement(e.getErrorMessages());
+                Message onlyError = e.getErrorMessages().iterator().next();
                 Throwable cause = onlyError.getCause();
                 if (cause != null && canRethrow(method, cause)) {
                     throw cause;

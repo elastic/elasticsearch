@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.shard;
 
-import com.google.common.base.Charsets;
+import java.nio.charset.StandardCharsets;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.test.ESTestCase;
@@ -50,7 +50,7 @@ public class CommitPointsTests extends ESTestCase {
         CommitPoint commitPoint = new CommitPoint(1, "test", CommitPoint.Type.GENERATED, indexFiles, translogFiles);
 
         byte[] serialized = CommitPoints.toXContent(commitPoint);
-        logger.info("serialized commit_point {}", new String(serialized, Charsets.UTF_8));
+        logger.info("serialized commit_point {}", new String(serialized, StandardCharsets.UTF_8));
 
         CommitPoint desCp = CommitPoints.fromXContent(serialized);
         assertThat(desCp.version(), equalTo(commitPoint.version()));

@@ -57,8 +57,8 @@ public class NodeIndexDeletedAction extends AbstractComponent {
         super(settings);
         this.threadPool = threadPool;
         this.transportService = transportService;
-        transportService.registerRequestHandler(INDEX_DELETED_ACTION_NAME, NodeIndexDeletedMessage.class, ThreadPool.Names.SAME, new NodeIndexDeletedTransportHandler());
-        transportService.registerRequestHandler(INDEX_STORE_DELETED_ACTION_NAME, NodeIndexStoreDeletedMessage.class, ThreadPool.Names.SAME, new NodeIndexStoreDeletedTransportHandler());
+        transportService.registerRequestHandler(INDEX_DELETED_ACTION_NAME, NodeIndexDeletedMessage::new, ThreadPool.Names.SAME, new NodeIndexDeletedTransportHandler());
+        transportService.registerRequestHandler(INDEX_STORE_DELETED_ACTION_NAME, NodeIndexStoreDeletedMessage::new, ThreadPool.Names.SAME, new NodeIndexStoreDeletedTransportHandler());
         this.indicesService = indicesService;
     }
 
@@ -133,12 +133,12 @@ public class NodeIndexDeletedAction extends AbstractComponent {
         }
     }
 
-    static class NodeIndexDeletedMessage extends TransportRequest {
+    public static class NodeIndexDeletedMessage extends TransportRequest {
 
         String index;
         String nodeId;
 
-        NodeIndexDeletedMessage() {
+        public NodeIndexDeletedMessage() {
         }
 
         NodeIndexDeletedMessage(String index, String nodeId) {
@@ -161,12 +161,12 @@ public class NodeIndexDeletedAction extends AbstractComponent {
         }
     }
 
-    static class NodeIndexStoreDeletedMessage extends TransportRequest {
+    public static class NodeIndexStoreDeletedMessage extends TransportRequest {
 
         String index;
         String nodeId;
 
-        NodeIndexStoreDeletedMessage() {
+        public NodeIndexStoreDeletedMessage() {
         }
 
         NodeIndexStoreDeletedMessage(String index, String nodeId) {

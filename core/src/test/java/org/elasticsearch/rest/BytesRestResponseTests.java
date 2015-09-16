@@ -20,6 +20,7 @@
 package org.elasticsearch.rest;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.index.Index;
@@ -150,6 +151,8 @@ public class BytesRestResponseTests extends ESTestCase {
         String text = response.content().toUtf8();
         String expected = "{\"error\":{\"root_cause\":[{\"type\":\"test_query_parsing_exception\",\"reason\":\"foobar\",\"index\":\"foo\"}],\"type\":\"search_phase_execution_exception\",\"reason\":\"all shards failed\",\"phase\":\"search\",\"grouped\":true,\"failed_shards\":[{\"shard\":1,\"index\":\"foo\",\"node\":\"node_1\",\"reason\":{\"type\":\"test_query_parsing_exception\",\"reason\":\"foobar\",\"index\":\"foo\"}}]},\"status\":400}";
         assertEquals(expected.trim(), text.trim());
+        String stackTrace = ExceptionsHelper.stackTrace(ex);
+        assertTrue(stackTrace.contains("Caused by: [foo] TestQueryParsingException[foobar]"));
     }
 
     public static class WithHeadersException extends ElasticsearchException {

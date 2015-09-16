@@ -77,7 +77,7 @@ public class ScriptFieldIT extends ESIntegTestCase {
         }
     }
 
-    static class IntArrayScriptFactory implements NativeScriptFactory {
+    public static class IntArrayScriptFactory implements NativeScriptFactory {
         @Override
         public ExecutableScript newScript(@Nullable Map<String, Object> params) {
             return new IntScript();
@@ -96,7 +96,7 @@ public class ScriptFieldIT extends ESIntegTestCase {
         }
     }
 
-    static class LongArrayScriptFactory implements NativeScriptFactory {
+    public static class LongArrayScriptFactory implements NativeScriptFactory {
         @Override
         public ExecutableScript newScript(@Nullable Map<String, Object> params) {
             return new LongScript();
@@ -115,7 +115,7 @@ public class ScriptFieldIT extends ESIntegTestCase {
         }
     }
 
-    static class FloatArrayScriptFactory implements NativeScriptFactory {
+    public static class FloatArrayScriptFactory implements NativeScriptFactory {
         @Override
         public ExecutableScript newScript(@Nullable Map<String, Object> params) {
             return new FloatScript();
@@ -134,7 +134,7 @@ public class ScriptFieldIT extends ESIntegTestCase {
         }
     }
 
-    static class DoubleArrayScriptFactory implements NativeScriptFactory {
+    public static class DoubleArrayScriptFactory implements NativeScriptFactory {
         @Override
         public ExecutableScript newScript(@Nullable Map<String, Object> params) {
             return new DoubleScript();

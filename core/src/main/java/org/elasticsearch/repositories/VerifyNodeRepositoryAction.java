@@ -61,7 +61,7 @@ public class VerifyNodeRepositoryAction  extends AbstractComponent {
         this.transportService = transportService;
         this.clusterService = clusterService;
         this.repositoriesService = repositoriesService;
-        transportService.registerRequestHandler(ACTION_NAME, VerifyNodeRepositoryRequest.class, ThreadPool.Names.SAME, new VerifyNodeRepositoryRequestHandler());
+        transportService.registerRequestHandler(ACTION_NAME, VerifyNodeRepositoryRequest::new, ThreadPool.Names.SAME, new VerifyNodeRepositoryRequestHandler());
     }
 
     public void close() {
@@ -86,7 +86,7 @@ public class VerifyNodeRepositoryAction  extends AbstractComponent {
                     doVerify(repository, verificationToken);
                 } catch (Throwable t) {
                     logger.warn("[{}] failed to verify repository", t, repository);
-                    errors.add(new VerificationFailure(node.id(), ExceptionsHelper.detailedMessage(t)));
+                    errors.add(new VerificationFailure(node.id(), t));
                 }
                 if (counter.decrementAndGet() == 0) {
                     finishVerification(listener, nodes, errors);
@@ -102,7 +102,7 @@ public class VerifyNodeRepositoryAction  extends AbstractComponent {
 
                     @Override
                     public void handleException(TransportException exp) {
-                        errors.add(new VerificationFailure(node.id(), ExceptionsHelper.detailedMessage(exp)));
+                        errors.add(new VerificationFailure(node.id(), exp));
                         if (counter.decrementAndGet() == 0) {
                             finishVerification(listener, nodes, errors);
                         }
@@ -121,12 +121,12 @@ public class VerifyNodeRepositoryAction  extends AbstractComponent {
         blobStoreIndexShardRepository.verify(verificationToken);
     }
 
-    static class VerifyNodeRepositoryRequest extends TransportRequest {
+    public static class VerifyNodeRepositoryRequest extends TransportRequest {
 
         private String repository;
         private String verificationToken;
 
-        VerifyNodeRepositoryRequest() {
+        public VerifyNodeRepositoryRequest() {
         }
 
         VerifyNodeRepositoryRequest(String repository, String verificationToken) {

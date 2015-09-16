@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.indexedscripts.put;
 
-import com.google.common.base.Charsets;
+import java.nio.charset.StandardCharsets;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -205,7 +205,7 @@ public class PutIndexedScriptRequest extends ActionRequest<PutIndexedScriptReque
      * or using the {@link #source(byte[])}.
      */
     public PutIndexedScriptRequest source(String source) {
-        this.source = new BytesArray(source.getBytes(Charsets.UTF_8));
+        this.source = new BytesArray(source.getBytes(StandardCharsets.UTF_8));
         return this;
     }
 

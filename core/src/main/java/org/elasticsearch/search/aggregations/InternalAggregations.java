@@ -18,9 +18,7 @@
  */
 package org.elasticsearch.search.aggregations;
 
-import com.google.common.base.Function;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Iterators;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -38,21 +36,13 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-
-import static org.elasticsearch.common.util.CollectionUtils.eagerTransform;
-
+import java.util.stream.Collectors;
 /**
  * An internal implementation of {@link Aggregations}.
  */
 public class InternalAggregations implements Aggregations, ToXContent, Streamable {
 
     public final static InternalAggregations EMPTY = new InternalAggregations();
-    private static final Function<InternalAggregation, Aggregation> SUPERTYPE_CAST = new Function<InternalAggregation, Aggregation>() {
-        @Override
-        public Aggregation apply(InternalAggregation input) {
-            return input;
-        }
-    };
 
     private List<InternalAggregation> aggregations = Collections.emptyList();
 
@@ -73,7 +63,7 @@ public class InternalAggregations implements Aggregations, ToXContent, Streamabl
      */
     @Override
     public Iterator<Aggregation> iterator() {
-        return Iterators.transform(aggregations.iterator(), SUPERTYPE_CAST);
+        return aggregations.stream().map((p) -> (Aggregation) p).iterator();
     }
 
     /**
@@ -81,7 +71,7 @@ public class InternalAggregations implements Aggregations, ToXContent, Streamabl
      */
     @Override
     public List<Aggregation> asList() {
-        return eagerTransform(aggregations, SUPERTYPE_CAST);
+        return aggregations.stream().map((p) -> (Aggregation) p).collect(Collectors.toList());
     }
 
     /**

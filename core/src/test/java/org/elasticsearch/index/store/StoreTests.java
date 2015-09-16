@@ -32,6 +32,7 @@ import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.TestUtil;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
@@ -1265,6 +1266,118 @@ public class StoreTests extends ESTestCase {
         Store store = new Store(shardId, Settings.EMPTY, directoryService, new DummyShardLock(shardId));
         store.markStoreCorrupted(new CorruptIndexException("foo", "bar"));
         assertFalse(Store.canOpenIndex(logger, tempDir));
+        store.close();
+    }
+
+    public void testDeserializeCorruptionException() throws IOException {
+        final ShardId shardId = new ShardId(new Index("index"), 1);
+        final Directory dir = new RAMDirectory(); // I use ram dir to prevent that virusscanner being a PITA
+        DirectoryService directoryService = new DirectoryService(shardId, Settings.EMPTY) {
+            @Override
+            public long throttleTimeInNanos() {
+                return 0;
+            }
+
+            @Override
+            public Directory newDirectory() throws IOException {
+                return dir;
+            }
+        };
+        Store store = new Store(shardId, Settings.EMPTY, directoryService, new DummyShardLock(shardId));
+        CorruptIndexException ex = new CorruptIndexException("foo", "bar");
+        store.markStoreCorrupted(ex);
+        try {
+            store.failIfCorrupted();
+            fail("should be corrupted");
+        } catch (CorruptIndexException e) {
+            assertEquals(ex.getMessage(), e.getMessage());
+            assertEquals(ex.toString(), e.toString());
+            assertEquals(ExceptionsHelper.stackTrace(ex), ExceptionsHelper.stackTrace(e));
+        }
+
+        store.removeCorruptionMarker();
+        assertFalse(store.isMarkedCorrupted());
+        FileNotFoundException ioe = new FileNotFoundException("foobar");
+        store.markStoreCorrupted(ioe);
+        try {
+            store.failIfCorrupted();
+            fail("should be corrupted");
+        } catch (CorruptIndexException e) {
+            assertEquals("foobar (resource=preexisting_corruption)", e.getMessage());
+            assertEquals(ExceptionsHelper.stackTrace(ioe), ExceptionsHelper.stackTrace(e.getCause()));
+        }
+        store.close();
+    }
+
+    public void testCanReadOldCorruptionMarker() throws IOException {
+        final ShardId shardId = new ShardId(new Index("index"), 1);
+        final Directory dir = new RAMDirectory(); // I use ram dir to prevent that virusscanner being a PITA
+        DirectoryService directoryService = new DirectoryService(shardId, Settings.EMPTY) {
+            @Override
+            public long throttleTimeInNanos() {
+                return 0;
+            }
+
+            @Override
+            public Directory newDirectory() throws IOException {
+                return dir;
+            }
+        };
+        Store store = new Store(shardId, Settings.EMPTY, directoryService, new DummyShardLock(shardId));
+
+        CorruptIndexException exception = new CorruptIndexException("foo", "bar");
+        String uuid = Store.CORRUPTED + Strings.randomBase64UUID();
+        try (IndexOutput output = dir.createOutput(uuid, IOContext.DEFAULT)) {
+            CodecUtil.writeHeader(output, Store.CODEC, Store.VERSION_STACK_TRACE);
+            output.writeString(ExceptionsHelper.detailedMessage(exception, true, 0));
+            output.writeString(ExceptionsHelper.stackTrace(exception));
+            CodecUtil.writeFooter(output);
+        }
+        try {
+            store.failIfCorrupted();
+            fail("should be corrupted");
+        } catch (CorruptIndexException e) {
+            assertTrue(e.getMessage().startsWith("[index][1] Preexisting corrupted index [" + uuid +"] caused by: CorruptIndexException[foo (resource=bar)]"));
+            assertTrue(e.getMessage().contains(ExceptionsHelper.stackTrace(exception)));
+        }
+
+        store.removeCorruptionMarker();
+
+        try (IndexOutput output = dir.createOutput(uuid, IOContext.DEFAULT)) {
+            CodecUtil.writeHeader(output, Store.CODEC, Store.VERSION_START);
+            output.writeString(ExceptionsHelper.detailedMessage(exception, true, 0));
+            CodecUtil.writeFooter(output);
+        }
+        try {
+            store.failIfCorrupted();
+            fail("should be corrupted");
+        } catch (CorruptIndexException e) {
+            assertTrue(e.getMessage().startsWith("[index][1] Preexisting corrupted index [" + uuid + "] caused by: CorruptIndexException[foo (resource=bar)]"));
+            assertFalse(e.getMessage().contains(ExceptionsHelper.stackTrace(exception)));
+        }
+
+        store.removeCorruptionMarker();
+
+        try (IndexOutput output = dir.createOutput(uuid, IOContext.DEFAULT)) {
+            CodecUtil.writeHeader(output, Store.CODEC, Store.VERSION_START - 1); // corrupted header
+            CodecUtil.writeFooter(output);
+        }
+        try {
+            store.failIfCorrupted();
+            fail("should be too old");
+        } catch (IndexFormatTooOldException e) {
+        }
+
+        store.removeCorruptionMarker();
+        try (IndexOutput output = dir.createOutput(uuid, IOContext.DEFAULT)) {
+            CodecUtil.writeHeader(output, Store.CODEC, Store.VERSION+1); // corrupted header
+            CodecUtil.writeFooter(output);
+        }
+        try {
+            store.failIfCorrupted();
+            fail("should be too new");
+        } catch (IndexFormatTooNewException e) {
+        }
         store.close();
     }
 }

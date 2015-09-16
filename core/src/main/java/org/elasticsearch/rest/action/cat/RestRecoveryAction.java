@@ -50,7 +50,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 public class RestRecoveryAction extends AbstractCatAction {
 
     @Inject
-    protected RestRecoveryAction(Settings settings, RestController restController, RestController controller, Client client) {
+    public RestRecoveryAction(Settings settings, RestController restController, RestController controller, Client client) {
         super(settings, controller, client);
         restController.registerHandler(GET, "/_cat/recovery", this);
         restController.registerHandler(GET, "/_cat/recovery/{index}", this);

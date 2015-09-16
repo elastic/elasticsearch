@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.search.suggest.phrase;
 
-import com.google.common.base.Charsets;
+import java.nio.charset.StandardCharsets;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.Tokenizer;
@@ -86,7 +86,7 @@ public class NoisyChannelSpellCheckerTests extends ESTestCase {
 
         IndexWriterConfig conf = new IndexWriterConfig(wrapper);
         IndexWriter writer = new IndexWriter(dir, conf);
-        BufferedReader reader = new BufferedReader(new InputStreamReader(NoisyChannelSpellCheckerTests.class.getResourceAsStream("/config/names.txt"), Charsets.UTF_8));
+        BufferedReader reader = new BufferedReader(new InputStreamReader(NoisyChannelSpellCheckerTests.class.getResourceAsStream("/config/names.txt"), StandardCharsets.UTF_8));
         String line = null;
         while ((line = reader.readLine()) != null) {
             Document doc = new Document();
@@ -228,7 +228,7 @@ public class NoisyChannelSpellCheckerTests extends ESTestCase {
 
         IndexWriterConfig conf = new IndexWriterConfig(wrapper);
         IndexWriter writer = new IndexWriter(dir, conf);
-        BufferedReader reader = new BufferedReader(new InputStreamReader(NoisyChannelSpellCheckerTests.class.getResourceAsStream("/config/names.txt"), Charsets.UTF_8));
+        BufferedReader reader = new BufferedReader(new InputStreamReader(NoisyChannelSpellCheckerTests.class.getResourceAsStream("/config/names.txt"), StandardCharsets.UTF_8));
         String line = null;
         while ((line = reader.readLine()) != null) {
             Document doc = new Document();
@@ -315,7 +315,7 @@ public class NoisyChannelSpellCheckerTests extends ESTestCase {
 
         IndexWriterConfig conf = new IndexWriterConfig(wrapper);
         IndexWriter writer = new IndexWriter(dir, conf);
-        BufferedReader reader = new BufferedReader(new InputStreamReader(NoisyChannelSpellCheckerTests.class.getResourceAsStream("/config/names.txt"), Charsets.UTF_8));
+        BufferedReader reader = new BufferedReader(new InputStreamReader(NoisyChannelSpellCheckerTests.class.getResourceAsStream("/config/names.txt"), StandardCharsets.UTF_8));
         String line = null;
         while ((line = reader.readLine()) != null) {
             Document doc = new Document();

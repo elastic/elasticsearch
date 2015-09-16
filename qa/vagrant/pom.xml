@@ -20,8 +20,8 @@
       <testScripts>*.bats</testScripts>
       <testCommand>sudo bats $BATS/${testScripts}</testCommand>
 
-      <allDebBoxes>precise, trusty, vivid, wheezy, jessie</allDebBoxes>
-      <allRpmBoxes>centos-6, centos-7, fedora-22, oel-7</allRpmBoxes>
+      <allDebBoxes>precise, trusty, vivid, jessie</allDebBoxes>
+      <allRpmBoxes>centos-6, centos-7, oel-7, fedora-22, opensuse-13</allRpmBoxes>
 
       <defaultDebBoxes>trusty</defaultDebBoxes>
       <defaultRpmBoxes>centos-7</defaultRpmBoxes>

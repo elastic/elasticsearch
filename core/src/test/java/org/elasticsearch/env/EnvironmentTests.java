@@ -18,14 +18,10 @@
  */
 package org.elasticsearch.env;
 
-import com.google.common.base.Charsets;
-import org.elasticsearch.common.io.FileSystemUtils;
-import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
-import java.io.BufferedReader;
 import java.io.IOException;
 import java.net.URL;
 

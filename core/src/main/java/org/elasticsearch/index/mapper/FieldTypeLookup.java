@@ -19,8 +19,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import com.google.common.base.Function;
-import com.google.common.collect.Iterators;
 import org.elasticsearch.common.collect.CopyOnWriteHashMap;
 import org.elasticsearch.common.regex.Regex;
 
@@ -35,12 +33,6 @@ import java.util.Set;
  * An immutable container for looking up {@link MappedFieldType}s by their name.
  */
 class FieldTypeLookup implements Iterable<MappedFieldType> {
-    private static final Function<MappedFieldTypeReference, MappedFieldType> UNWRAPPER = new Function<MappedFieldTypeReference, MappedFieldType>() {
-        @Override
-        public MappedFieldType apply(MappedFieldTypeReference ref) {
-            return ref.get();
-        }
-    };
 
     /** Full field name to field type */
     private final CopyOnWriteHashMap<String, MappedFieldTypeReference> fullNameToFieldType;
@@ -179,6 +171,6 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
     }
 
     public Iterator<MappedFieldType> iterator() {
-        return Iterators.transform(fullNameToFieldType.values().iterator(), UNWRAPPER);
+        return fullNameToFieldType.values().stream().map((p) -> p.get()).iterator();
     }
 }

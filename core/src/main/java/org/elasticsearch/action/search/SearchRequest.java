@@ -252,54 +252,13 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
     }
 
     /**
-     * The source of the search request. Consider using either {@link #source(byte[])} or
-     * {@link #source(org.elasticsearch.search.builder.SearchSourceBuilder)}.
-     */
-    public SearchRequest source(String source) {
-        this.source = new BytesArray(source);
-        return this;
-    }
-
-    /**
-     * The source of the search request in the form of a map.
-     */
-    public SearchRequest source(Map source) {
-        try {
-            XContentBuilder builder = XContentFactory.contentBuilder(Requests.CONTENT_TYPE);
-            builder.map(source);
-            return source(builder);
-        } catch (IOException e) {
-            throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
-        }
-    }
-
-    public SearchRequest source(XContentBuilder builder) {
-        this.source = builder.bytes();
-        return this;
-    }
-
-    /**
-     * The search source to execute.
-     */
-    public SearchRequest source(byte[] source) {
-        return source(source, 0, source.length);
-    }
-
-
-    /**
-     * The search source to execute.
-     */
-    public SearchRequest source(byte[] source, int offset, int length) {
-        return source(new BytesArray(source, offset, length));
-    }
-
-    /**
      * The search source to execute.
      */
     public SearchRequest source(BytesReference source) {
         this.source = source;
         return this;
     }
+
 
     /**
      * The search source to execute.
@@ -324,51 +283,6 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
             return this;
         }
         this.extraSource = sourceBuilder.buildAsBytes(Requests.CONTENT_TYPE);
-        return this;
-    }
-
-    public SearchRequest extraSource(Map extraSource) {
-        try {
-            XContentBuilder builder = XContentFactory.contentBuilder(Requests.CONTENT_TYPE);
-            builder.map(extraSource);
-            return extraSource(builder);
-        } catch (IOException e) {
-            throw new ElasticsearchGenerationException("Failed to generate [" + extraSource + "]", e);
-        }
-    }
-
-    public SearchRequest extraSource(XContentBuilder builder) {
-        this.extraSource = builder.bytes();
-        return this;
-    }
-
-    /**
-     * Allows to provide additional source that will use used as well.
-     */
-    public SearchRequest extraSource(String source) {
-        this.extraSource = new BytesArray(source);
-        return this;
-    }
-
-    /**
-     * Allows to provide additional source that will be used as well.
-     */
-    public SearchRequest extraSource(byte[] source) {
-        return extraSource(source, 0, source.length);
-    }
-
-    /**
-     * Allows to provide additional source that will be used as well.
-     */
-    public SearchRequest extraSource(byte[] source, int offset, int length) {
-        return extraSource(new BytesArray(source, offset, length));
-    }
-
-    /**
-     * Allows to provide additional source that will be used as well.
-     */
-    public SearchRequest extraSource(BytesReference source) {
-        this.extraSource = source;
         return this;
     }
 

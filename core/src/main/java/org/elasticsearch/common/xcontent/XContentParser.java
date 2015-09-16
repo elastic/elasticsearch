@@ -20,6 +20,7 @@
 package org.elasticsearch.common.xcontent;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.lease.Releasable;
 
 import java.io.IOException;
@@ -252,4 +253,15 @@ public interface XContentParser extends Releasable {
     XContentLocation getTokenLocation();
 
     boolean isClosed();
+
+    /**
+     * Returns this parsers {@link ParseFieldMatcher}
+     */
+    ParseFieldMatcher getParseFieldMatcher();
+
+
+    /**
+     * Sets this parsers {@link ParseFieldMatcher}
+     */
+    void setParseFieldMatcher(ParseFieldMatcher matcher) ;
 }

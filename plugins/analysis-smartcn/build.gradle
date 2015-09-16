@@ -1,0 +1,10 @@
+
+esplugin {
+  description 'Smart Chinese Analysis plugin integrates Lucene Smart Chinese analysis module into elasticsearch.'
+  classname 'org.elasticsearch.plugin.analysis.smartcn.AnalysisSmartChinesePlugin'
+}
+
+dependencies {
+  compile "org.apache.lucene:lucene-analyzers-smartcn:${versions.lucene}"
+}
+

@@ -260,10 +260,24 @@ public class InternalProfileTree {
         tree.set(parent, parentNode);
     }
 
+    /**
+     * Convenience overload for {@link #addRewriteToTree(RewrittenQuery, Integer, InternalProfileBreakdown)}
+     * when there is no parent to the query
+     *
+     * @see #addRewriteToTree(RewrittenQuery, Integer, InternalProfileBreakdown) for more details
+     */
     private void addRewriteToTree(RewrittenQuery r, InternalProfileBreakdown breakdown) {
         addRewriteToTree(r, null, breakdown);
     }
 
+    /**
+     * Adds the rewritten query to the dependency tree as a child to `parentToken`, or as a root if
+     * `parentToken` is null.
+     *
+     * @param r            The (original, rewritten) tuple to add
+     * @param parentToken  The parent to this rewritten query, or null if there are no parents
+     * @param breakdown    The profiled timings for this query
+     */
     private void addRewriteToTree(RewrittenQuery r, Integer parentToken, InternalProfileBreakdown breakdown) {
 
         int token = currentToken;
@@ -286,6 +300,17 @@ public class InternalProfileTree {
         rewriteMap.put(r, token);
     }
 
+    /**
+     * Searches through the rewrite map to see if the query exists as a
+     * rewritten version of a different query (which means the current query
+     * is a child of a previous one).
+     *
+     * It does this by linearly iterating over the entrySet and evaluating
+     * each key.  There is probably a more clever way to do this
+     *
+     * @param query The query we wish to check for rewritten parents
+     * @return      The integer token of our parent, or null if there is no parent
+     */
     private @Nullable Integer getRewrittenParentToken(Query query) {
 
         // TODO better way to do this?
@@ -298,6 +323,11 @@ public class InternalProfileTree {
         return null;
     }
 
+    /**
+     * A utility tuple class which allows us to store (original, rewritten)
+     * tuples in the map.  Equality and hashcode are based on the underlying
+     * queries.
+     */
     public class RewrittenQuery {
         public Query original;
         public Query rewritten;

@@ -1,0 +1,20 @@
+
+esplugin {
+  description 'The Python language plugin allows to have python as the language of scripts to execute.'
+  classname 'org.elasticsearch.plugin.python.PythonPlugin'
+}
+
+dependencies {
+  compile 'org.python:jython-standalone:2.7.0'
+}
+
+compileJava.options.compilerArgs << "-Xlint:-unchecked"
+compileTestJava.options.compilerArgs << "-Xlint:-unchecked"
+
+integTest {
+  cluster {
+    sysProp 'es.script.inline', 'on'
+    sysProp 'es.script.indexed', 'on'
+  }
+}
+

@@ -16,6 +16,7 @@ include 'plugins:delete-by-query'
 include 'plugins:discovery-ec2'
 include 'plugins:discovery-multicast'
 include 'plugins:lang-javascript'
+include 'plugins:lang-python'
 include 'plugins:jvm-example'
 include 'plugins:site-example'
 

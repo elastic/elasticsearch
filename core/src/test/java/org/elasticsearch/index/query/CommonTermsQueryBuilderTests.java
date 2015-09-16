@@ -27,7 +27,6 @@ import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
 
 public class CommonTermsQueryBuilderTests extends AbstractQueryTestCase<CommonTermsQueryBuilder> {
 
@@ -84,15 +83,24 @@ public class CommonTermsQueryBuilderTests extends AbstractQueryTestCase<CommonTe
     }
 
     @Test
-    public void testValidate() {
-        CommonTermsQueryBuilder commonTermsQueryBuilder = new CommonTermsQueryBuilder("", "text");
-        assertThat(commonTermsQueryBuilder.validate().validationErrors().size(), is(1));
+    public void testIllegalArguments() {
+        try {
+            if (randomBoolean()) {
+                new CommonTermsQueryBuilder(null, "text");
+            } else {
+                new CommonTermsQueryBuilder("", "text");
+            }
+            fail("must be non null");
+        } catch (IllegalArgumentException e) {
+            // okay
+        }
 
-        commonTermsQueryBuilder = new CommonTermsQueryBuilder("field", null);
-        assertThat(commonTermsQueryBuilder.validate().validationErrors().size(), is(1));
-
-        commonTermsQueryBuilder = new CommonTermsQueryBuilder("field", "text");
-        assertNull(commonTermsQueryBuilder.validate());
+        try {
+            new CommonTermsQueryBuilder("fieldName", null);
+            fail("must be non null");
+        } catch (IllegalArgumentException e) {
+            // okay
+        }
     }
 
     @Test

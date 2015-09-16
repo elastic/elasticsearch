@@ -59,18 +59,12 @@ public class ConstantScoreQueryBuilderTests extends AbstractQueryTestCase<Consta
     }
 
     @Test
-    public void testValidate() {
-        QueryBuilder innerQuery = null;
-        int totalExpectedErrors = 0;
-        if (randomBoolean()) {
-            if (randomBoolean()) {
-                innerQuery = RandomQueryBuilder.createInvalidQuery(random());
-            }
-            totalExpectedErrors++;
-        } else {
-            innerQuery = RandomQueryBuilder.createQuery(random());
+    public void testIllegalArguments() {
+        try {
+            new ConstantScoreQueryBuilder(null);
+            fail("must not be null");
+        } catch (IllegalArgumentException e) {
+            // expected
         }
-        ConstantScoreQueryBuilder constantScoreQuery = new ConstantScoreQueryBuilder(innerQuery);
-        assertValidate(constantScoreQuery, totalExpectedErrors);
     }
 }

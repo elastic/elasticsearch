@@ -105,24 +105,4 @@ public class DisMaxQueryBuilderTests extends AbstractQueryTestCase<DisMaxQueryBu
         DisMaxQueryBuilder disMaxBuilder = new DisMaxQueryBuilder().add(innerQueryBuilder);
         assertNull(disMaxBuilder.toQuery(createShardContext()));
     }
-
-    @Test
-    public void testValidate() {
-        DisMaxQueryBuilder disMaxQuery = new DisMaxQueryBuilder();
-        int iters = randomIntBetween(0, 5);
-        int totalExpectedErrors = 0;
-        for (int i = 0; i < iters; i++) {
-            if (randomBoolean()) {
-                if (randomBoolean()) {
-                    disMaxQuery.add(RandomQueryBuilder.createInvalidQuery(random()));
-                } else {
-                    disMaxQuery.add(null);
-                }
-                totalExpectedErrors++;
-            } else {
-                disMaxQuery.add(RandomQueryBuilder.createQuery(random()));
-            }
-        }
-        assertValidate(disMaxQuery, totalExpectedErrors);
-    }
 }

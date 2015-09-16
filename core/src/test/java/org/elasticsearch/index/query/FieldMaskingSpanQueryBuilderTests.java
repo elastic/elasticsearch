@@ -57,27 +57,24 @@ public class FieldMaskingSpanQueryBuilderTests extends AbstractQueryTestCase<Fie
     }
 
     @Test
-    public void testValidate() {
-        String fieldName = null;
-        SpanQueryBuilder spanQueryBuilder = null;
-        int totalExpectedErrors = 0;
-        if (randomBoolean()) {
-            fieldName = "fieldName";
-        } else {
-            if (randomBoolean()) {
-                fieldName = "";
-            }
-            totalExpectedErrors++;
+    public void testIllegalArguments() {
+        try {
+            new FieldMaskingSpanQueryBuilder(null, "maskedField");
+            fail("must be non null");
+        } catch (IllegalArgumentException e) {
+            // okay
         }
-        if (randomBoolean()) {
+
+        try {
+            SpanQueryBuilder span = new SpanTermQueryBuilder("name", "value");
             if (randomBoolean()) {
-                spanQueryBuilder = new SpanTermQueryBuilder("", "test");
+                new FieldMaskingSpanQueryBuilder(span, null);
+            } else {
+                new FieldMaskingSpanQueryBuilder(span, "");
             }
-            totalExpectedErrors++;
-        } else {
-            spanQueryBuilder = new SpanTermQueryBuilder("name", "value");
+            fail("must be non null");
+        } catch (IllegalArgumentException e) {
+            // okay
         }
-        FieldMaskingSpanQueryBuilder queryBuilder = new FieldMaskingSpanQueryBuilder(spanQueryBuilder, fieldName);
-        assertValidate(queryBuilder, totalExpectedErrors);
     }
 }

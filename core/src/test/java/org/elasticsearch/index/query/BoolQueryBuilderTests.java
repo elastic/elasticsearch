@@ -23,8 +23,6 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
-import org.junit.Test;
-
 import java.io.IOException;
 import java.util.*;
 
@@ -143,64 +141,5 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
         contentString += "    }    \n" + "}";
         alternateVersions.put(contentString, expectedQuery);
         return alternateVersions;
-    }
-
-    @Test
-    public void testValidate() {
-        BoolQueryBuilder booleanQuery = new BoolQueryBuilder();
-        int iters = randomIntBetween(0, 3);
-        int totalExpectedErrors = 0;
-        for (int i = 0; i < iters; i++) {
-            if (randomBoolean()) {
-                if (randomBoolean()) {
-                    booleanQuery.must(RandomQueryBuilder.createInvalidQuery(random()));
-                } else {
-                    booleanQuery.must(null);
-                }
-                totalExpectedErrors++;
-            } else {
-                booleanQuery.must(RandomQueryBuilder.createQuery(random()));
-            }
-        }
-        iters = randomIntBetween(0, 3);
-        for (int i = 0; i < iters; i++) {
-            if (randomBoolean()) {
-                if (randomBoolean()) {
-                    booleanQuery.should(RandomQueryBuilder.createInvalidQuery(random()));
-                } else {
-                    booleanQuery.should(null);
-                }
-                totalExpectedErrors++;
-            } else {
-                booleanQuery.should(RandomQueryBuilder.createQuery(random()));
-            }
-        }
-        iters = randomIntBetween(0, 3);
-        for (int i = 0; i < iters; i++) {
-            if (randomBoolean()) {
-                if (randomBoolean()) {
-                    booleanQuery.mustNot(RandomQueryBuilder.createInvalidQuery(random()));
-                } else {
-                    booleanQuery.mustNot(null);
-                }
-                totalExpectedErrors++;
-            } else {
-                booleanQuery.mustNot(RandomQueryBuilder.createQuery(random()));
-            }
-        }
-        iters = randomIntBetween(0, 3);
-        for (int i = 0; i < iters; i++) {
-            if (randomBoolean()) {
-                if (randomBoolean()) {
-                    booleanQuery.filter(RandomQueryBuilder.createInvalidQuery(random()));
-                } else {
-                    booleanQuery.filter(null);
-                }
-                totalExpectedErrors++;
-            } else {
-                booleanQuery.filter(RandomQueryBuilder.createQuery(random()));
-            }
-        }
-        assertValidate(booleanQuery, totalExpectedErrors);
     }
 }

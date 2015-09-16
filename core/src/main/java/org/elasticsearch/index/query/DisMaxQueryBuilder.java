@@ -107,11 +107,6 @@ public class DisMaxQueryBuilder extends AbstractQueryBuilder<DisMaxQueryBuilder>
     }
 
     @Override
-    public QueryValidationException validate() {
-        return validateInnerQueries(queries, null);
-    }
-
-    @Override
     protected DisMaxQueryBuilder doReadFrom(StreamInput in) throws IOException {
         DisMaxQueryBuilder disMax = new DisMaxQueryBuilder();
         List<QueryBuilder> queryBuilders = readQueries(in);

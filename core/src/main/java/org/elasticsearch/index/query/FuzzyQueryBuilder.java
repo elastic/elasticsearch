@@ -51,7 +51,7 @@ public class FuzzyQueryBuilder extends AbstractQueryBuilder<FuzzyQueryBuilder> i
     /** Default maximum number of terms that the fuzzy query will expand to. Defaults to 50. */
     public static final int DEFAULT_MAX_EXPANSIONS = FuzzyQuery.defaultMaxExpansions;
 
-    /** Default as to whether transpositions should be treated as a primitive edit operation, 
+    /** Default as to whether transpositions should be treated as a primitive edit operation,
      * instead of classic Levenshtein algorithm. Defaults to false. */
     public static final boolean DEFAULT_TRANSPOSITIONS = false;
 
@@ -70,7 +70,7 @@ public class FuzzyQueryBuilder extends AbstractQueryBuilder<FuzzyQueryBuilder> i
 
     private String rewrite;
 
-    static final FuzzyQueryBuilder PROTOTYPE = new FuzzyQueryBuilder(null, null);
+    static final FuzzyQueryBuilder PROTOTYPE = new FuzzyQueryBuilder();
 
     /**
      * Constructs a new fuzzy query.
@@ -139,8 +139,20 @@ public class FuzzyQueryBuilder extends AbstractQueryBuilder<FuzzyQueryBuilder> i
      * @param value The value of the term
      */
     public FuzzyQueryBuilder(String fieldName, Object value) {
+        if (Strings.isEmpty(fieldName)) {
+            throw new IllegalArgumentException("field name cannot be null or empty.");
+        }
+        if (value == null) {
+            throw new IllegalArgumentException("query value cannot be null");
+        }
         this.fieldName = fieldName;
         this.value = convertToBytesRefIfString(value);
+    }
+
+    private FuzzyQueryBuilder() {
+        // for protoype
+        this.fieldName = null;
+        this.value = null;
     }
 
     public String fieldName() {
@@ -155,7 +167,7 @@ public class FuzzyQueryBuilder extends AbstractQueryBuilder<FuzzyQueryBuilder> i
         this.fuzziness = (fuzziness == null) ? DEFAULT_FUZZINESS : fuzziness;
         return this;
     }
-    
+
     public Fuzziness fuzziness() {
         return this.fuzziness;
     }
@@ -164,7 +176,7 @@ public class FuzzyQueryBuilder extends AbstractQueryBuilder<FuzzyQueryBuilder> i
         this.prefixLength = prefixLength;
         return this;
     }
-    
+
     public int prefixLength() {
         return this.prefixLength;
     }
@@ -237,18 +249,6 @@ public class FuzzyQueryBuilder extends AbstractQueryBuilder<FuzzyQueryBuilder> i
             QueryParsers.setRewriteMethod((MultiTermQuery) query, rewriteMethod);
         }
         return query;
-    }
-
-    @Override
-    public QueryValidationException validate() {
-        QueryValidationException validationException = null;
-        if (Strings.isEmpty(this.fieldName)) {
-            validationException = addValidationError("field name cannot be null or empty.", validationException);
-        }
-        if (this.value == null) {
-            validationException = addValidationError("query text cannot be null", validationException);
-        }
-        return validationException;
     }
 
     @Override

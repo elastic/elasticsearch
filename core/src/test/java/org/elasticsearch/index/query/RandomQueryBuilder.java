@@ -75,14 +75,10 @@ public class RandomQueryBuilder {
      * will return an error. We can rely on the fact that a single error will be returned per query.
      */
     public static QueryBuilder createInvalidQuery(Random r) {
-        switch (RandomInts.randomIntBetween(r, 0, 3)) {
+        switch (RandomInts.randomIntBetween(r, 0, 1)) {
             case 0:
                 return new TermQueryBuilder("", "test");
             case 1:
-                return new BoostingQueryBuilder(new MatchAllQueryBuilder(), new MatchAllQueryBuilder()).negativeBoost(-1f);
-            case 2:
-                return new CommonTermsQueryBuilder("", "text");
-            case 3:
                 return new SimpleQueryStringBuilder(null);
             default:
                 throw new UnsupportedOperationException();

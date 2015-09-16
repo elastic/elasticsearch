@@ -61,7 +61,6 @@ public class GroovyScriptIT extends ESIntegTestCase {
     }
 
     @Test
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/13599")
     public void testGroovyExceptionSerialization() throws Exception {
         List<IndexRequestBuilder> reqs = new ArrayList<>();
         for (int i = 0; i < randomIntBetween(50, 500); i++) {
@@ -93,7 +92,7 @@ public class GroovyScriptIT extends ESIntegTestCase {
             assertThat(e.toString() + "should have contained GroovyScriptExecutionException",
                     e.toString().contains("GroovyScriptExecutionException"), equalTo(true));
             assertThat(e.toString()+ "should have contained an assert error",
-                    e.toString().contains("PowerAssertionError[assert false"), equalTo(true));
+                    e.toString().contains("AssertionError[assert false"), equalTo(true));
         }
     }
 

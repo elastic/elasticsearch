@@ -145,15 +145,15 @@ public class SearchQueryIT extends ESIntegTestCase {
                 client().prepareSearch().setQuery(matchAllQuery()).setPostFilter(notQuery(termQuery("field1", "value3"))).get(),
                 2l);
     }
-
-    @Test
-    public void passQueryAsStringTest() throws Exception {
-        createIndex("test");
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1_1", "field2", "value2_1").setRefresh(true).get();
-
-        SearchResponse searchResponse = client().prepareSearch().setQuery("{ \"term\" : { \"field1\" : \"value1_1\" }}").get();
-        assertHitCount(searchResponse, 1l);
-    }
+// NORELEASE  This should be tested in SearchSourceBuilderTests
+//    @Test
+//    public void passQueryAsStringTest() throws Exception {
+//        createIndex("test");
+//        client().prepareIndex("test", "type1", "1").setSource("field1", "value1_1", "field2", "value2_1").setRefresh(true).get();
+//
+//        SearchResponse searchResponse = client().prepareSearch().setQuery("{ \"term\" : { \"field1\" : \"value1_1\" }}").get();
+//        assertHitCount(searchResponse, 1l);
+//    }
 
     @Test
     public void testIndexOptions() throws Exception {
@@ -310,9 +310,10 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertHitCount(searchResponse, 1l);
         assertFirstHit(searchResponse, hasId("2"));
 
-        searchResponse = client().prepareSearch().setQuery("{ \"common\" : { \"field1\" : { \"query\" : \"the lazy fox brown\", \"cutoff_frequency\" : 1, \"minimum_should_match\" : { \"high_freq\" : 4 } } } }").get();
-        assertHitCount(searchResponse, 1l);
-        assertFirstHit(searchResponse, hasId("2"));
+     // NORELEASE  This should be tested in SearchSourceBuilderTests
+//        searchResponse = client().prepareSearch().setQuery("{ \"common\" : { \"field1\" : { \"query\" : \"the lazy fox brown\", \"cutoff_frequency\" : 1, \"minimum_should_match\" : { \"high_freq\" : 4 } } } }").get();
+//        assertHitCount(searchResponse, 1l);
+//        assertFirstHit(searchResponse, hasId("2"));
 
         // Default
         searchResponse = client().prepareSearch().setQuery(commonTermsQuery("field1", "the lazy fox brown").cutoffFrequency(1)).get();
@@ -402,9 +403,10 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertHitCount(searchResponse, 1l);
         assertFirstHit(searchResponse, hasId("2"));
 
-        searchResponse = client().prepareSearch().setQuery("{ \"common\" : { \"field1\" : { \"query\" : \"the fast lazy fox brown\", \"cutoff_frequency\" : 1, \"minimum_should_match\" : { \"high_freq\" : 6 } } } }").get();
-        assertHitCount(searchResponse, 1l);
-        assertFirstHit(searchResponse, hasId("2"));
+     // NORELEASE  This should be tested in SearchSourceBuilderTests
+//        searchResponse = client().prepareSearch().setQuery("{ \"common\" : { \"field1\" : { \"query\" : \"the fast lazy fox brown\", \"cutoff_frequency\" : 1, \"minimum_should_match\" : { \"high_freq\" : 6 } } } }").get();
+//        assertHitCount(searchResponse, 1l);
+//        assertFirstHit(searchResponse, hasId("2"));
 
         // Default
         searchResponse = client().prepareSearch().setQuery(commonTermsQuery("field1", "the fast lazy fox brown").cutoffFrequency(1)).get();
@@ -1506,13 +1508,14 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertHitCount(searchResponse, 2l);
     }
 
-    @Test
-    public void testEmptyTopLevelFilter() {
-        client().prepareIndex("test", "type", "1").setSource("field", "value").setRefresh(true).get();
-
-        SearchResponse searchResponse = client().prepareSearch().setPostFilter("{}").get();
-        assertHitCount(searchResponse, 1l);
-    }
+ // NORELEASE  This should be tested in SearchSourceBuilderTests
+//    @Test
+//    public void testEmptyTopLevelFilter() {
+//        client().prepareIndex("test", "type", "1").setSource("field", "value").setRefresh(true).get();
+//
+//        SearchResponse searchResponse = client().prepareSearch().setPostFilter("{}").get();
+//        assertHitCount(searchResponse, 1l);
+//    }
 
     @Test // see #2926
     public void testMustNot() throws IOException, ExecutionException, InterruptedException {
@@ -2235,25 +2238,26 @@ functionScoreQuery(scriptFunction(new Script("_doc['score'].value")))).setMinSco
         }
     }
 
-    @Test // see #7686.
-    public void testIdsQueryWithInvalidValues() throws Exception {
-        createIndex("test");
-        indexRandom(true, false, client().prepareIndex("test", "type", "1").setSource("body", "foo"));
-
-        try {
-            client().prepareSearch("test")
-                    .setTypes("type")
-                    .setQuery("{\n" +
-                            "  \"ids\": {\n" +
-                            "    \"values\": [[\"1\"]]\n" +
-                            "  }\n" +
-                            "}")
-                    .get();
-            fail("query is invalid and should have produced a parse exception");
-        } catch (Exception e) {
-            assertThat("query could not be parsed due to bad format: " + e.toString(),
-                    e.toString().contains("Illegal value for id, expecting a string or number, got: START_ARRAY"),
-                    equalTo(true));
-        }
-    }
+ // NORELEASE  This should be tested in SearchSourceBuilderTests
+//    @Test // see #7686.
+//    public void testIdsQueryWithInvalidValues() throws Exception {
+//        createIndex("test");
+//        indexRandom(true, false, client().prepareIndex("test", "type", "1").setSource("body", "foo"));
+//
+//        try {
+//            client().prepareSearch("test")
+//                    .setTypes("type")
+//                    .setQuery("{\n" +
+//                            "  \"ids\": {\n" +
+//                            "    \"values\": [[\"1\"]]\n" +
+//                            "  }\n" +
+//                            "}")
+//                    .get();
+//            fail("query is invalid and should have produced a parse exception");
+//        } catch (Exception e) {
+//            assertThat("query could not be parsed due to bad format: " + e.toString(),
+//                    e.toString().contains("Illegal value for id, expecting a string or number, got: START_ARRAY"),
+//                    equalTo(true));
+//        }
+//    }
 }

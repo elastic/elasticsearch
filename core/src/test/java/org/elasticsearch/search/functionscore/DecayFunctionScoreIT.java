@@ -24,6 +24,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -41,17 +42,30 @@ import org.junit.Test;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.ExecutionException;
 import java.util.Locale;
+import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.client.Requests.indexRequest;
 import static org.elasticsearch.client.Requests.searchRequest;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.QueryBuilders.*;
-import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.*;
+import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
+import static org.elasticsearch.index.query.QueryBuilders.functionScoreQuery;
+import static org.elasticsearch.index.query.QueryBuilders.termQuery;
+import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.exponentialDecayFunction;
+import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.gaussDecayFunction;
+import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.linearDecayFunction;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
-import static org.hamcrest.Matchers.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertOrderedSearchHits;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.isOneOf;
+import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.not;
 
 
 public class DecayFunctionScoreIT extends ESIntegTestCase {
@@ -432,10 +446,10 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
         SearchResponse sr = response.actionGet();
         assertOrderedSearchHits(sr, "2", "1");
     }
-    
+
     @Test
     public void testParseDateMath() throws Exception {
-        
+
         assertAcked(prepareCreate("test").addMapping(
                 "type1",
                 jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("test").field("type", "string")
@@ -456,7 +470,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
 
         assertNoFailures(sr);
         assertOrderedSearchHits(sr, "1", "2");
-        
+
         sr = client().search(
                 searchRequest().source(
                         searchSource().query(
@@ -582,9 +596,9 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
         List<IndexRequestBuilder> indexBuilders = new ArrayList<>();
 
         for (int i = 0; i < numDocs; i++) {
-            double lat = 100 + (int) (10.0 * (float) (i) / (float) (numDocs));
+            double lat = 100 + (int) (10.0 * (i) / (numDocs));
             double lon = 100;
-            int day = (int) (29.0 * (float) (i) / (float) (numDocs)) + 1;
+            int day = (int) (29.0 * (i) / (numDocs)) + 1;
             String dayString = day < 10 ? "0" + Integer.toString(day) : Integer.toString(day);
             String date = "2013-05-" + dayString;
 
@@ -774,7 +788,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
 
         assertThat(sh.getAt(0).getId(), equalTo("2"));
         assertThat(sh.getAt(1).getId(), equalTo("1"));
-        assertThat((double)(1.0 - sh.getAt(0).getScore()), closeTo((double)((1.0 - sh.getAt(1).getScore())/3.0), 1.e-6d));
+        assertThat(1.0 - sh.getAt(0).getScore(), closeTo((1.0 - sh.getAt(1).getScore())/3.0, 1.e-6d));
         response = client().search(
                 searchRequest().source(
                         searchSource().query(
@@ -782,7 +796,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
         sr = response.actionGet();
         assertSearchHits(sr, "1", "2");
         sh = sr.getHits();
-        assertThat((double) (sh.getAt(0).getScore()), closeTo((double) (sh.getAt(1).getScore()), 1.e-6d));
+        assertThat((double) (sh.getAt(0).getScore()), closeTo((sh.getAt(1).getScore()), 1.e-6d));
     }
 
     @Test
@@ -799,11 +813,9 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
 
         XContentBuilder query = XContentFactory.jsonBuilder();
         // query that contains a single function and a functions[] array
-        query.startObject().startObject("function_score").field("weight", "1").startArray("functions").startObject().startObject("script_score").field("script", "3").endObject().endObject().endArray().endObject().endObject();
+        query.startObject().startObject("query").startObject("function_score").field("weight", "1").startArray("functions").startObject().startObject("script_score").field("script", "3").endObject().endObject().endArray().endObject().endObject().endObject();
         try {
-            client().search(
-                    searchRequest().source(
-                            searchSource().query(query))).actionGet();
+            client().search(searchRequest().source(query.bytes())).actionGet();
             fail("Search should result in SearchPhaseExecutionException");
         } catch (SearchPhaseExecutionException e) {
             logger.info(e.shardFailures()[0].reason());
@@ -812,11 +824,9 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
 
         query = XContentFactory.jsonBuilder();
         // query that contains a single function (but not boost factor) and a functions[] array
-        query.startObject().startObject("function_score").startObject("random_score").field("seed", 3).endObject().startArray("functions").startObject().startObject("random_score").field("seed", 3).endObject().endObject().endArray().endObject().endObject();
+        query.startObject().startObject("query").startObject("function_score").startObject("random_score").field("seed", 3).endObject().startArray("functions").startObject().startObject("random_score").field("seed", 3).endObject().endObject().endArray().endObject().endObject().endObject();
         try {
-            client().search(
-                    searchRequest().source(
-                            searchSource().query(query))).actionGet();
+            client().search(searchRequest().source(query.bytes())).actionGet();
             fail("Search should result in SearchPhaseExecutionException");
         } catch (SearchPhaseExecutionException e) {
             logger.info(e.shardFailures()[0].reason());
@@ -836,18 +846,20 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
                 "}\n";
 
         String query = "{\n" +
-                "    \"function_score\": {\n" +
-                "      \"score_mode\": \"sum\",\n" +
-                "      \"boost_mode\": \"replace\",\n" +
-                "      \"functions\": [\n" +
-                "        {\n" +
-                "          \"filter\": {\n" +
-                "            \"term\": {\n" +
-                "              \"text\": \"baseball\"\n" +
+                "    \"query\": {\n" +
+                "      \"function_score\": {\n" +
+                "        \"score_mode\": \"sum\",\n" +
+                "        \"boost_mode\": \"replace\",\n" +
+                "        \"functions\": [\n" +
+                "          {\n" +
+                "            \"filter\": {\n" +
+                "              \"term\": {\n" +
+                "                \"text\": \"baseball\"\n" +
+                "              }\n" +
                 "            }\n" +
                 "          }\n" +
-                "        }\n" +
-                "      ]\n" +
+                "        ]\n" +
+                "      }\n" +
                 "    }\n" +
                 "}\n";
 
@@ -855,9 +867,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
         refresh();
         ensureYellow("t");
         try {
-            client().search(
-                    searchRequest().source(
-                            searchSource().query(query))).actionGet();
+            client().search(searchRequest().source(new BytesArray(query))).actionGet();
             fail("Should fail with SearchPhaseExecutionException");
         } catch (SearchPhaseExecutionException failure) {
             assertThat(failure.toString(), containsString("SearchParseException"));
@@ -865,33 +875,34 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
         }
 
         query = "{\n" +
-                "    \"function_score\": {\n" +
-                "      \"score_mode\": \"sum\",\n" +
-                "      \"boost_mode\": \"replace\",\n" +
-                "      \"functions\": [\n" +
-                "        {\n" +
-                "          \"filter\": {\n" +
-                "            \"term\": {\n" +
-                "              \"text\": \"baseball\"\n" +
-                "            }\n" +
+                "    \"query\": {\n" +
+                "      \"function_score\": {\n" +
+                "        \"score_mode\": \"sum\",\n" +
+                "        \"boost_mode\": \"replace\",\n" +
+                "        \"functions\": [\n" +
+                "          {\n" +
+                "            \"filter\": {\n" +
+                "              \"term\": {\n" +
+                "                \"text\": \"baseball\"\n" +
+                "              }\n" +
+                "            },\n" +
+                "            \"weight\": 2\n" +
                 "          },\n" +
-                "          \"weight\": 2\n" +
-                "        },\n" +
-                "        {\n" +
-                "          \"filter\": {\n" +
-                "            \"term\": {\n" +
-                "              \"text\": \"baseball\"\n" +
+                "          {\n" +
+                "            \"filter\": {\n" +
+                "              \"term\": {\n" +
+                "                \"text\": \"baseball\"\n" +
+                "              }\n" +
                 "            }\n" +
                 "          }\n" +
-                "        }\n" +
-                "      ]\n" +
+                "        ]\n" +
+                "      }\n" +
                 "    }\n" +
                 "}";
 
         try {
             client().search(
-                    searchRequest().source(
-                            searchSource().query(query))).actionGet();
+                    searchRequest().source(new BytesArray(query))).actionGet();
             fail("Should fail with SearchPhaseExecutionException");
         } catch (SearchPhaseExecutionException failure) {
             assertThat(failure.toString(), containsString("SearchParseException"));

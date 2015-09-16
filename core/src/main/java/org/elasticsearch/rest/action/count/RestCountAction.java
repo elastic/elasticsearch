@@ -28,15 +28,21 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BytesRestResponse;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
 
 import static org.elasticsearch.action.count.CountRequest.DEFAULT_MIN_SCORE;
-import static org.elasticsearch.search.internal.SearchContext.DEFAULT_TERMINATE_AFTER;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.action.support.RestActions.buildBroadcastShardsHeader;
+import static org.elasticsearch.search.internal.SearchContext.DEFAULT_TERMINATE_AFTER;
 
 /**
  *
@@ -61,9 +67,11 @@ public class RestCountAction extends BaseRestHandler {
         if (RestActions.hasBodyContent(request)) {
             countRequest.source(RestActions.getRestContent(request));
         } else {
-            QuerySourceBuilder querySourceBuilder = RestActions.parseQuerySource(request);
-            if (querySourceBuilder != null) {
-                countRequest.source(querySourceBuilder);
+            QueryBuilder<?> queryBuilder = RestActions.parseQuerySource(request);
+            if (queryBuilder != null) {
+                QuerySourceBuilder querySourceBuilder = new QuerySourceBuilder();
+                querySourceBuilder.setQuery(queryBuilder);
+                countRequest.source(querySourceBuilder.buildAsBytes());
             }
         }
         countRequest.routing(request.param("routing"));

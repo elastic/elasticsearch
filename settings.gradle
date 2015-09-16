@@ -6,4 +6,5 @@ include 'core'
 include 'distribution'
 include 'test-framework'
 include 'plugins:jvm-example'
+include 'plugins:site-example'
 

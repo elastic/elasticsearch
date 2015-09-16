@@ -1,0 +1,9 @@
+
+esplugin {
+  description 'Demonstrates how to serve resources via elasticsearch.'
+  jvm false
+  site true
+}
+
+// no unit tests
+test.onlyIf { false }

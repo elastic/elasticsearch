@@ -1,9 +1,11 @@
 package org.elasticsearch.gradle
 
 import org.apache.maven.BuildFailureException
+import org.gradle.api.GradleException
 import org.gradle.api.Project
 import org.gradle.api.Task
 import org.gradle.api.tasks.Copy
+import org.gradle.api.tasks.Delete
 import org.gradle.api.tasks.Exec
 
 /**
@@ -32,31 +34,41 @@ class ClusterFormationTasks {
 
     static void addNodeStartupTasks(Task task, ClusterConfiguration config, File baseDir) {
         Project project = task.project
-        Task unzip = project.tasks.create(name: task.name + '#unzip', type: Copy, dependsOn: project.configurations.elasticsearchZip.buildDependencies) {
+        Task install = project.tasks.create(name: task.name + '#install', type: Copy, dependsOn: project.configurations.elasticsearchZip.buildDependencies) {
             from project.zipTree(project.configurations.elasticsearchZip.asPath)
             into baseDir
         }
         File home = new File(baseDir, "elasticsearch-${ElasticsearchProperties.version}")
-        String clusterName = "test${task.path.replace(':', '_')}"
+        Task clean = project.tasks.create(name: "${task.name}#clean", type: Delete, dependsOn: install) {
+            delete new File(home, 'plugins'), new File(home, 'data'), new File(home, 'logs')
+        }
 
-        OutputStream startupOutput = new ByteArrayOutputStream()
-        Task setup = unzip // chain setup tasks to maintain their order
+        Task setup = clean // chain setup tasks to maintain their order
         for (Map.Entry<String, String> command : config.setupConfig.commands.entrySet()) {
             Task nextSetup = project.tasks.create(name: "${task.name}#${command.getKey()}", type: Exec, dependsOn: setup) {
                 workingDir home
-                environment 'JAVA_HOME', System.getProperty('JAVA_HOME')
                 executable 'sh'
                 args command.getValue()
-                standardOutput = startupOutput
-                errorOutput = startupOutput
+                // only show output on failure, when not in info or debug mode
+                if (logger.isInfoEnabled() == false) {
+                    standardOutput = new ByteArrayOutputStream()
+                    errorOutput = standardOutput
+                    ignoreExitValue = true
+                    doLast {
+                        if (execResult.exitValue != 0) {
+                            logger.error(standardOutput.toString())
+                            throw new GradleException("Process '${command.getValue().join(' ')}' finished with non-zero exit value ${execResult.exitValue}")
+                        }
+                    }
+                }
             }
             setup = nextSetup
         }
 
+        String clusterName = "test${task.path.replace(':', '_')}"
         Task start = project.tasks.create(name: "${task.name}#start", type: Exec, dependsOn: setup) {
             workingDir home
             executable 'sh'
-            environment 'JAVA_HOME', System.getProperty('JAVA_HOME')
             args 'bin/elasticsearch',
                     '-d', // daemonize!
                     "-Des.cluster.name=${clusterName}",

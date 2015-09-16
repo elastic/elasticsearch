@@ -108,6 +108,9 @@ class PluginBuildPlugin extends BuildPlugin {
                 include 'config/**'
                 include 'bin/**'
             }
+            from('src/site') {
+                include '_site/**'
+            }
         }
         tasks.getByName('assemble').dependsOn(bundle)
         return bundle

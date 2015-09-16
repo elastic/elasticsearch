@@ -144,10 +144,7 @@
               "index": "not_analyzed"
             },
             "nodes": {
-              "type": "object"
-            },
-            "shards": {
-              "type": "object"
+              "enabled": false
             }
           }
         }

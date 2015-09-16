@@ -16,8 +16,9 @@ dependencies {
 }
 
 // need -path because there is no resources dir...
-compileJava.options.compilerArgs << '-Xlint:-path,-serial,-static,-unchecked'
+compileJava.options.compilerArgs << '-Xlint:-serial,-static,-unchecked'
 // TODO: why is deprecation needed here but not in maven....?
 compileJava.options.compilerArgs << '-Xlint:-deprecation'
+// TODO: and why does this static not show up in maven...
 compileTestJava.options.compilerArgs << '-Xlint:-static'
 

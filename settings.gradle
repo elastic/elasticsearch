@@ -6,6 +6,7 @@ include 'core'
 include 'distribution'
 include 'test-framework'
 include 'plugins:analysis-icu'
+include 'plugins:analysis-kuromoji'
 include 'plugins:jvm-example'
 include 'plugins:site-example'
 

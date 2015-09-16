@@ -1,0 +1,10 @@
+
+esplugin {
+  description 'The Japanese (kuromoji) Analysis plugin integrates Lucene kuromoji analysis module into elasticsearch.'
+  classname 'org.elasticsearch.plugin.analysis.kuromoji.AnalysisKuromojiPlugin'
+}
+
+dependencies {
+  compile "org.apache.lucene:lucene-analyzers-kuromoji:${versions.lucene}"
+}
+

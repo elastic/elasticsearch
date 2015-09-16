@@ -19,8 +19,6 @@
 
 package org.elasticsearch.common.util.iterable;
 
-import org.elasticsearch.common.lucene.store.IndexOutputOutputStream;
-
 import java.util.*;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;

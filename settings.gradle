@@ -9,6 +9,7 @@ include 'plugins:analysis-icu'
 include 'plugins:analysis-kuromoji'
 include 'plugins:analysis-phonetic'
 include 'plugins:analysis-smartcn'
+include 'plugins:analysis-stempel'
 include 'plugins:jvm-example'
 include 'plugins:site-example'
 

@@ -1,0 +1,10 @@
+
+esplugin {
+  description 'The Stempel (Polish) Analysis plugin integrates Lucene stempel (polish) analysis module into elasticsearch.'
+  classname 'org.elasticsearch.plugin.analysis.stempel.AnalysisStempelPlugin'
+}
+
+dependencies {
+  compile "org.apache.lucene:lucene-analyzers-stempel:${versions.lucene}"
+}
+

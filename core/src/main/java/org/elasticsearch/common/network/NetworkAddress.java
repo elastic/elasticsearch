@@ -19,8 +19,6 @@
 
 package org.elasticsearch.common.network;
 
-import com.google.common.net.InetAddresses;
-
 import org.elasticsearch.common.SuppressForbidden;
 
 import java.net.Inet6Address;
@@ -168,9 +166,11 @@ public final class NetworkAddress {
         }
                 
         if (port != -1 && address instanceof Inet6Address) {
-            builder.append(InetAddresses.toUriString(address));
+            builder.append("["+address.getHostAddress().replaceAll(":0+([0-9])",":$1").
+                    replaceAll("((?::0\\b){2,}):?(?!\\S*\\b\\1:0\\b)(\\S*)", "::$2")+"]");
+            // see http://stackoverflow.com/a/7044170/4746692
         } else {
-            builder.append(InetAddresses.toAddrString(address));
+            builder.append(address.getHostAddress());
         }
         
         if (port != -1) {

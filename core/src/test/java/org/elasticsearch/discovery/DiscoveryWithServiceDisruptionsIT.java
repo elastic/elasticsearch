@@ -71,6 +71,7 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -98,6 +99,11 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return discoveryConfig.nodeSettings(nodeOrdinal);
+    }
+
+    @BeforeClass
+    public static void beforeClassDisruption() {
+        assumeTrue("test cannot run with security manager: does evil stuff with threads", System.getSecurityManager() == null);
     }
 
     @Before

@@ -61,6 +61,7 @@ public class GroovyScriptIT extends ESIntegTestCase {
     }
 
     @Test
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/13599")
     public void testGroovyExceptionSerialization() throws Exception {
         List<IndexRequestBuilder> reqs = new ArrayList<>();
         for (int i = 0; i < randomIntBetween(50, 500); i++) {

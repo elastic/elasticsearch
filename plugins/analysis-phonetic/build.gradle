@@ -1,0 +1,12 @@
+
+esplugin {
+  description 'The Phonetic Analysis plugin integrates phonetic token filter analysis with elasticsearch.'
+  classname 'org.elasticsearch.plugin.analysis.AnalysisPhoneticPlugin'
+}
+
+dependencies {
+  compile "org.apache.lucene:lucene-analyzers-phonetic:${versions.lucene}"
+}
+
+compileJava.options.compilerArgs << "-Xlint:-rawtypes,-unchecked"
+

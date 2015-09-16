@@ -27,7 +27,6 @@ import org.elasticsearch.common.unit.TimeValue;
 
 import java.io.IOException;
 import java.net.InetAddress;
-import java.net.UnknownHostException;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
@@ -73,7 +72,7 @@ public class NetworkService extends AbstractComponent {
         /**
          * Resolves a custom value handling, return <tt>null</tt> if can't handle it.
          */
-        InetAddress[] resolveIfPossible(String value);
+        InetAddress[] resolveIfPossible(String value) throws IOException;
     }
 
     private final List<CustomNameResolver> customNameResolvers = new CopyOnWriteArrayList<>();
@@ -162,7 +161,7 @@ public class NetworkService extends AbstractComponent {
         return address;
     }
 
-    private InetAddress[] resolveInetAddress(String host) throws UnknownHostException, IOException {
+    private InetAddress[] resolveInetAddress(String host) throws IOException {
         if ((host.startsWith("#") && host.endsWith("#")) || (host.startsWith("_") && host.endsWith("_"))) {
             host = host.substring(1, host.length() - 1);
             // allow custom resolvers to have special names

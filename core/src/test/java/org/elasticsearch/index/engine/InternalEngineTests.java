@@ -1728,7 +1728,9 @@ public class InternalEngineTests extends ESTestCase {
                     engine = createEngine(store, primaryTranslogDir);
                     started = true;
                     break;
-                } catch (EngineCreationFailureException ex) {
+                } catch (EngineCreationFailureException | AssertionError ex) {
+                    // IndexWriter can throw AssertionError on init (if asserts are enabled) if we throw FNFE/NSFE when it asserts that all
+                    // referenced files in the current commit point do exist
                 }
             }
 

@@ -69,7 +69,12 @@ public class QueryProfilerIT extends ESIntegTestCase {
             QueryBuilder q = randomQueryBuilder(stringFields, numericFields, numDocs, 3);
             logger.info(q.toString());
 
-            SearchResponse resp = client().prepareSearch().setQuery(q).setProfile(true).setSearchType(SearchType.QUERY_THEN_FETCH).execute().actionGet();
+            SearchResponse resp = client().prepareSearch()
+                    .setQuery(q)
+                    .setProfile(true)
+                    .setSearchType(SearchType.QUERY_THEN_FETCH)
+                    .execute().actionGet();
+
             assertNotNull("Profile response element should not be null", resp.getProfileResults());
             for (List<ProfileResult> shardResult : resp.getProfileResults().queryProfilesAsCollection()) {
                 for (ProfileResult result : shardResult) {
@@ -188,7 +193,12 @@ public class QueryProfilerIT extends ESIntegTestCase {
 
         QueryBuilder q = QueryBuilders.matchQuery("field1", "one");
 
-        SearchResponse resp = client().prepareSearch().setQuery(q).setProfile(true).setSearchType(SearchType.QUERY_THEN_FETCH).execute().actionGet();
+        SearchResponse resp = client().prepareSearch()
+                .setQuery(q)
+                .setProfile(true)
+                .setSearchType(SearchType.QUERY_THEN_FETCH)
+                .execute().actionGet();
+
         ProfileResults p = resp.getProfileResults();
         assertNotNull(p);
 
@@ -230,7 +240,11 @@ public class QueryProfilerIT extends ESIntegTestCase {
 
         QueryBuilder q = QueryBuilders.boolQuery().must(QueryBuilders.matchQuery("field1", "one")).must(QueryBuilders.matchQuery("field1", "two"));
 
-        SearchResponse resp = client().prepareSearch().setQuery(q).setProfile(true).execute().actionGet();
+        SearchResponse resp = client().prepareSearch()
+                .setQuery(q)
+                .setProfile(true)
+                .setSearchType(SearchType.QUERY_THEN_FETCH)
+                .execute().actionGet();
 
         ProfileResults p = resp.getProfileResults();
         assertNotNull(p);
@@ -298,7 +312,12 @@ public class QueryProfilerIT extends ESIntegTestCase {
         QueryBuilder q = QueryBuilders.boolQuery();
         logger.info(q.toString());
 
-        SearchResponse resp = client().prepareSearch().setQuery(q).setProfile(true).setSearchType(SearchType.QUERY_THEN_FETCH).execute().actionGet();
+        SearchResponse resp = client().prepareSearch()
+                .setQuery(q)
+                .setProfile(true)
+                .setSearchType(SearchType.QUERY_THEN_FETCH)
+                .execute().actionGet();
+
         assertNotNull("Profile response element should not be null", resp.getProfileResults());
 
         for (List<ProfileResult> shardResult : resp.getProfileResults().queryProfilesAsCollection()) {
@@ -348,7 +367,12 @@ public class QueryProfilerIT extends ESIntegTestCase {
 
         logger.info(q.toString());
 
-        SearchResponse resp = client().prepareSearch().setQuery(q).setProfile(true).setSearchType(SearchType.QUERY_THEN_FETCH).execute().actionGet();
+        SearchResponse resp = client().prepareSearch()
+                .setQuery(q)
+                .setProfile(true)
+                .setSearchType(SearchType.QUERY_THEN_FETCH)
+                .execute().actionGet();
+
         assertNotNull("Profile response element should not be null", resp.getProfileResults());
 
         for (List<ProfileResult> shardResult : resp.getProfileResults().queryProfilesAsCollection()) {
@@ -392,7 +416,12 @@ public class QueryProfilerIT extends ESIntegTestCase {
                 .negative(QueryBuilders.matchQuery("field1", "two"));
         logger.info(q.toString());
 
-        SearchResponse resp = client().prepareSearch().setQuery(q).setProfile(true).setSearchType(SearchType.QUERY_THEN_FETCH).execute().actionGet();
+        SearchResponse resp = client().prepareSearch()
+                .setQuery(q)
+                .setProfile(true)
+                .setSearchType(SearchType.QUERY_THEN_FETCH)
+                .execute().actionGet();
+
         assertNotNull("Profile response element should not be null", resp.getProfileResults());
 
         for (List<ProfileResult> shardResult : resp.getProfileResults().queryProfilesAsCollection()) {
@@ -435,7 +464,12 @@ public class QueryProfilerIT extends ESIntegTestCase {
                 .add(QueryBuilders.rangeQuery("field2").from(null).to(73).includeLower(true).includeUpper(true));
         logger.info(q.toString());
 
-        SearchResponse resp = client().prepareSearch().setQuery(q).setProfile(true).setSearchType(SearchType.QUERY_THEN_FETCH).execute().actionGet();
+        SearchResponse resp = client().prepareSearch()
+                .setQuery(q)
+                .setProfile(true)
+                .setSearchType(SearchType.QUERY_THEN_FETCH)
+                .execute().actionGet();
+
         assertNotNull("Profile response element should not be null", resp.getProfileResults());
 
         for (List<ProfileResult> shardResult : resp.getProfileResults().queryProfilesAsCollection()) {
@@ -477,7 +511,12 @@ public class QueryProfilerIT extends ESIntegTestCase {
 
         logger.info(q.toString());
 
-        SearchResponse resp = client().prepareSearch().setQuery(q).setProfile(true).setSearchType(SearchType.QUERY_THEN_FETCH).execute().actionGet();
+        SearchResponse resp = client().prepareSearch()
+                .setQuery(q)
+                .setProfile(true)
+                .setSearchType(SearchType.QUERY_THEN_FETCH)
+                .execute().actionGet();
+
         assertNotNull("Profile response element should not be null", resp.getProfileResults());
 
         for (List<ProfileResult> shardResult : resp.getProfileResults().queryProfilesAsCollection()) {

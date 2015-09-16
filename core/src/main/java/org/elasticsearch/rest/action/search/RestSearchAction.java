@@ -23,12 +23,12 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.QuerySourceBuilder;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
@@ -41,6 +41,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.search.suggest.SuggestBuilder;
 
 import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -128,10 +129,10 @@ public class RestSearchAction extends BaseRestHandler {
     public static SearchSourceBuilder parseSearchSource(RestRequest request) {
         SearchSourceBuilder searchSourceBuilder = null;
 
-        QuerySourceBuilder querySourceBuilder = RestActions.parseQuerySource(request);
-        if (querySourceBuilder != null) {
+        QueryBuilder<?> queryBuilder = RestActions.parseQuerySource(request);
+        if (queryBuilder != null) {
             searchSourceBuilder = new SearchSourceBuilder();
-            searchSourceBuilder.query(querySourceBuilder);
+            searchSourceBuilder.query(queryBuilder);
         }
 
         int from = request.paramAsInt("from", -1);
@@ -263,9 +264,9 @@ public class RestSearchAction extends BaseRestHandler {
                 searchSourceBuilder = new SearchSourceBuilder();
             }
             String suggestMode = request.param("suggest_mode");
-            searchSourceBuilder.suggest().addSuggestion(
+            searchSourceBuilder.suggest(new SuggestBuilder().addSuggestion(
                     termSuggestion(suggestField).field(suggestField).text(suggestText).size(suggestSize)
-                            .suggestMode(suggestMode)
+.suggestMode(suggestMode))
             );
         }
 

@@ -45,6 +45,7 @@ import org.elasticsearch.client.FilterClient;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -55,6 +56,7 @@ import org.elasticsearch.index.query.MoreLikeThisQueryBuilder;
 import org.elasticsearch.index.query.MoreLikeThisQueryBuilder.Item;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermsQueryBuilder;
+import org.elasticsearch.index.query.functionscore.script.ScriptScoreFunctionBuilder;
 import org.elasticsearch.indices.cache.query.terms.TermsLookup;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestController;
@@ -273,14 +275,11 @@ public class ContextAndHeaderTransportIT extends ESIntegTestCase {
                 .get();
         transportClient().admin().indices().prepareRefresh(queryIndex).get();
 
-        // custom content, not sure how to specify "script_id" otherwise in the API
-        XContentBuilder builder = jsonBuilder().startObject().startObject("function_score").field("boost_mode", "replace").startArray("functions")
-                .startObject().startObject("script_score").field("script_id", "my_script").field("lang", "groovy").endObject().endObject().endArray().endObject().endObject();
-
         SearchResponse searchResponse = transportClient()
                 .prepareSearch(queryIndex)
-                .setQuery(builder)
-                .get();
+                .setQuery(
+                        QueryBuilders.functionScoreQuery().boostMode(CombineFunction.REPLACE)
+                                .add(new ScriptScoreFunctionBuilder(new Script("my_script", ScriptType.INDEXED, "groovy", null)))).get();
         assertNoFailures(searchResponse);
         assertHitCount(searchResponse, 1);
         assertThat(searchResponse.getHits().getMaxScore(), is(10.0f));

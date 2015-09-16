@@ -36,7 +36,6 @@ import org.junit.Test;
 
 import java.io.IOException;
 
-import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 
 public class SearchRequestBuilderTests extends ESTestCase {
@@ -70,26 +69,6 @@ public class SearchRequestBuilderTests extends ESTestCase {
         SearchRequestBuilder searchRequestBuilder = client.prepareSearch();
         searchRequestBuilder.setQuery(QueryBuilders.matchAllQuery());
         assertThat(searchRequestBuilder.toString(), equalTo(new SearchSourceBuilder().query(QueryBuilders.matchAllQuery()).toString()));
-    }
-
-    @Test
-    public void testXContentBuilderQueryToString() throws IOException {
-        SearchRequestBuilder searchRequestBuilder = client.prepareSearch();
-        XContentBuilder xContentBuilder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
-        xContentBuilder.startObject();
-        xContentBuilder.startObject("match_all");
-        xContentBuilder.endObject();
-        xContentBuilder.endObject();
-        searchRequestBuilder.setQuery(xContentBuilder);
-        assertThat(searchRequestBuilder.toString(), equalTo(new SearchSourceBuilder().query(xContentBuilder).toString()));
-    }
-
-    @Test
-    public void testStringQueryToString() {
-        SearchRequestBuilder searchRequestBuilder = client.prepareSearch();
-        String query = "{ \"match_all\" : {} }";
-        searchRequestBuilder.setQuery(query);
-        assertThat(searchRequestBuilder.toString(), containsString("\"query\":{ \"match_all\" : {} }"));
     }
 
     @Test

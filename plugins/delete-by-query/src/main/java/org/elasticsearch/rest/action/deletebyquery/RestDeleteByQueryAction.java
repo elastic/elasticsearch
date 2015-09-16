@@ -27,6 +27,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
@@ -64,9 +65,11 @@ public class RestDeleteByQueryAction extends BaseRestHandler {
             if (source != null) {
                 delete.source(source);
             } else {
-                QuerySourceBuilder querySourceBuilder = RestActions.parseQuerySource(request);
-                if (querySourceBuilder != null) {
-                    delete.source(querySourceBuilder);
+                QueryBuilder<?> queryBuilder = RestActions.parseQuerySource(request);
+                if (queryBuilder != null) {
+                    QuerySourceBuilder querySourceBuilder = new QuerySourceBuilder();
+                    querySourceBuilder.setQuery(queryBuilder);
+                    delete.source(querySourceBuilder.buildAsBytes());
                 }
             }
         }

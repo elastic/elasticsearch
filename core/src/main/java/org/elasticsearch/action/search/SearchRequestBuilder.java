@@ -30,7 +30,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.Template;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
@@ -42,6 +41,7 @@ import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.suggest.SuggestBuilder;
 
+import java.util.Arrays;
 import java.util.Map;
 
 /**
@@ -123,14 +123,6 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     /**
-     * An optional timeout to control how long search is allowed to take.
-     */
-    public SearchRequestBuilder setTimeout(String timeout) {
-        sourceBuilder().timeout(timeout);
-        return this;
-    }
-
-    /**
      * An optional document count, upon collecting which the search
      * query will early terminate
      */
@@ -180,56 +172,8 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      *
      * @see org.elasticsearch.index.query.QueryBuilders
      */
-    public SearchRequestBuilder setQuery(QueryBuilder queryBuilder) {
+    public SearchRequestBuilder setQuery(QueryBuilder<?> queryBuilder) {
         sourceBuilder().query(queryBuilder);
-        return this;
-    }
-
-    /**
-     * Constructs a new search source builder with a raw search query.
-     */
-    public SearchRequestBuilder setQuery(String query) {
-        sourceBuilder().query(query);
-        return this;
-    }
-
-    /**
-     * Constructs a new search source builder with a raw search query.
-     */
-    public SearchRequestBuilder setQuery(BytesReference queryBinary) {
-        sourceBuilder().query(queryBinary);
-        return this;
-    }
-
-    /**
-     * Constructs a new search source builder with a raw search query.
-     */
-    public SearchRequestBuilder setQuery(byte[] queryBinary) {
-        sourceBuilder().query(queryBinary);
-        return this;
-    }
-
-    /**
-     * Constructs a new search source builder with a raw search query.
-     */
-    public SearchRequestBuilder setQuery(byte[] queryBinary, int queryBinaryOffset, int queryBinaryLength) {
-        sourceBuilder().query(queryBinary, queryBinaryOffset, queryBinaryLength);
-        return this;
-    }
-
-    /**
-     * Constructs a new search source builder with a raw search query.
-     */
-    public SearchRequestBuilder setQuery(XContentBuilder query) {
-        sourceBuilder().query(query);
-        return this;
-    }
-
-    /**
-     * Constructs a new search source builder with a raw search query.
-     */
-    public SearchRequestBuilder setQuery(Map query) {
-        sourceBuilder().query(query);
         return this;
     }
 
@@ -237,61 +181,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      * Sets a filter that will be executed after the query has been executed and only has affect on the search hits
      * (not aggregations). This filter is always executed as last filtering mechanism.
      */
-    public SearchRequestBuilder setPostFilter(QueryBuilder postFilter) {
-        sourceBuilder().postFilter(postFilter);
-        return this;
-    }
-
-    /**
-     * Sets a filter on the query executed that only applies to the search query
-     * (and not aggs for example).
-     */
-    public SearchRequestBuilder setPostFilter(String postFilter) {
-        sourceBuilder().postFilter(postFilter);
-        return this;
-    }
-
-    /**
-     * Sets a filter on the query executed that only applies to the search query
-     * (and not aggs for example).
-     */
-    public SearchRequestBuilder setPostFilter(BytesReference postFilter) {
-        sourceBuilder().postFilter(postFilter);
-        return this;
-    }
-
-    /**
-     * Sets a filter on the query executed that only applies to the search query
-     * (and not aggs for example).
-     */
-    public SearchRequestBuilder setPostFilter(byte[] postFilter) {
-        sourceBuilder().postFilter(postFilter);
-        return this;
-    }
-
-    /**
-     * Sets a filter on the query executed that only applies to the search query
-     * (and not aggs for example).
-     */
-    public SearchRequestBuilder setPostFilter(byte[] postFilter, int postFilterOffset, int postFilterLength) {
-        sourceBuilder().postFilter(postFilter, postFilterOffset, postFilterLength);
-        return this;
-    }
-
-    /**
-     * Sets a filter on the query executed that only applies to the search query
-     * (and not aggs for example).
-     */
-    public SearchRequestBuilder setPostFilter(XContentBuilder postFilter) {
-        sourceBuilder().postFilter(postFilter);
-        return this;
-    }
-
-    /**
-     * Sets a filter on the query executed that only applies to the search query
-     * (and not aggs for example).
-     */
-    public SearchRequestBuilder setPostFilter(Map postFilter) {
+    public SearchRequestBuilder setPostFilter(QueryBuilder<?> postFilter) {
         sourceBuilder().postFilter(postFilter);
         return this;
     }
@@ -465,7 +355,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      * the source of the document will be returned.
      */
     public SearchRequestBuilder addFields(String... fields) {
-        sourceBuilder().fields(fields);
+        sourceBuilder().fields(Arrays.asList(fields));
         return this;
     }
 
@@ -480,39 +370,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     /**
      * Sets a raw (xcontent) binary representation of addAggregation to use.
      */
-    public SearchRequestBuilder setAggregations(BytesReference aggregations) {
-        sourceBuilder().aggregations(aggregations);
-        return this;
-    }
-
-    /**
-     * Sets a raw (xcontent) binary representation of addAggregation to use.
-     */
-    public SearchRequestBuilder setAggregations(byte[] aggregations) {
-        sourceBuilder().aggregations(aggregations);
-        return this;
-    }
-
-    /**
-     * Sets a raw (xcontent) binary representation of addAggregation to use.
-     */
-    public SearchRequestBuilder setAggregations(byte[] aggregations, int aggregationsOffset, int aggregationsLength) {
-        sourceBuilder().aggregations(aggregations, aggregationsOffset, aggregationsLength);
-        return this;
-    }
-
-    /**
-     * Sets a raw (xcontent) binary representation of addAggregation to use.
-     */
     public SearchRequestBuilder setAggregations(XContentBuilder aggregations) {
-        sourceBuilder().aggregations(aggregations);
-        return this;
-    }
-
-    /**
-     * Sets a raw (xcontent) binary representation of addAggregation to use.
-     */
-    public SearchRequestBuilder setAggregations(Map aggregations) {
         sourceBuilder().aggregations(aggregations);
         return this;
     }

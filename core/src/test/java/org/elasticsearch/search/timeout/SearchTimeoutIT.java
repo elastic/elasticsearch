@@ -21,11 +21,13 @@ package org.elasticsearch.search.timeout;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
-import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import java.util.concurrent.TimeUnit;
+
 import static org.elasticsearch.index.query.QueryBuilders.scriptQuery;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -44,7 +46,7 @@ public class SearchTimeoutIT extends ESIntegTestCase {
         client().prepareIndex("test", "type", "1").setSource("field", "value").setRefresh(true).execute().actionGet();
 
         SearchResponse searchResponse = client().prepareSearch("test")
-                .setTimeout("10ms")
+                .setTimeout(new TimeValue(10, TimeUnit.MILLISECONDS))
                 .setQuery(scriptQuery(new Script("Thread.sleep(500); return true;")))
                 .execute().actionGet();
         assertThat(searchResponse.isTimedOut(), equalTo(true));

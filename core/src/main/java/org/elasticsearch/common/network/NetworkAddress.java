@@ -166,11 +166,13 @@ public final class NetworkAddress {
         }
                 
         if (port != -1 && address instanceof Inet6Address) {
-            builder.append("["+address.getHostAddress().replaceAll(":0+([0-9])",":$1").
-                    replaceAll("((?::0\\b){2,}):?(?!\\S*\\b\\1:0\\b)(\\S*)", "::$2")+"]");
-            // see http://stackoverflow.com/a/7044170/4746692
+            builder.append("["+ getInet6HostAddress(address)+"]");          
         } else {
-            builder.append(address.getHostAddress());
+            if (address instanceof Inet6Address) {
+                builder.append(getInet6HostAddress(address));  
+            } else {
+                builder.append(address.getHostAddress());
+            }
         }
         
         if (port != -1) {
@@ -179,5 +181,14 @@ public final class NetworkAddress {
         }
         
         return builder.toString();
+    }
+    
+    @SuppressForbidden(reason = "we call toString to avoid a DNS lookup")
+    private static String getInet6HostAddress(InetAddress address) {
+        return address.getHostAddress().replaceAll(":0+([0-9])",":$1")
+                .replaceAll("((?::0\\b){2,}):?(?!\\S*\\b\\1:0\\b)(\\S*)", "::$2")
+                .replaceFirst("^0::", "::")
+                .replaceFirst("%\\d+", "");
+        // see http://stackoverflow.com/a/7044170/4746692
     }
 }

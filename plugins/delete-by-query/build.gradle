@@ -1,0 +1,6 @@
+
+esplugin {
+  description 'The Delete By Query plugin allows to delete documents in Elasticsearch with a single query.'
+  classname 'org.elasticsearch.plugin.deletebyquery.DeleteByQueryPlugin'
+}
+

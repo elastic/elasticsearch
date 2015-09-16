@@ -12,6 +12,7 @@ include 'plugins:analysis-smartcn'
 include 'plugins:analysis-stempel'
 include 'plugins:cloud-azure'
 include 'plugins:cloud-gce'
+include 'plugins:delete-by-query'
 include 'plugins:jvm-example'
 include 'plugins:site-example'
 
